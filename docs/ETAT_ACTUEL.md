@@ -1,4 +1,6 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
+> **Réconciliation TypeScript ciblée — 27 août 2026** : les contrats de données des constantes, du Radar/continuum Carrière, de la frise d'évolution et des résultats d'administration ont été réalignés sur leurs consommateurs réels. La compilation isolée `types.ts + services/*.ts`, les sous-ensembles Dossier/Carrière, le build Vite et les 55 tests locaux sont verts. Cette preuve ne constitue ni un typecheck exhaustif de tous les composants, ni une validation E2E cloud.
+
 > **Mise à jour modules Vie — 27 août 2026** : Santé, Habitat, Droit/Démarches et Mobilité disposent d'une persistance `module_records`, d'états de synchronisation explicites, de sources officielles configurables et d'avertissements médicaux/juridiques/consulaires. Les jeux de données de démonstration qui se présentaient comme réels ont été retirés des écrans concernés.
 
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  

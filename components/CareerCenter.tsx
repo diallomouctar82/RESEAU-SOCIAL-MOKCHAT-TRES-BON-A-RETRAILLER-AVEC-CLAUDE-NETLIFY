@@ -922,7 +922,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
                 council={strategicCouncil}
                 decisionMatrix={decisionMatrix as any}
                 bilan={aiBilan}
-                timelineSteps={timelineSteps as any}
+                timelineSteps={timelineSteps}
                 userName={userProfile.name}
                 userRole={userProfile.title || 'Professionnel Élite'}
                 onOpenCampus={(subjectTitle) => {

@@ -245,7 +245,7 @@ export const INITIAL_LIVE_DOSSIERS: CareerLiveDossier[] = [
       headline: 'Envoyer la relance polie avec l\'argument de continuité hors-ligne',
       detailedReason: 'Cela fait 8 jours que le devis a été envoyé sans retour. M. Bano avait mentionné que la décision devait être prise avant la fin du mois.',
       recommendedDeadline: 'Aujourd\'hui avant 16h00',
-      urgencyLevel: 'haute',
+      urgencyLevel: 'prioritaire',
       suggestedDraftContent: 'Brouillon prêt : "Bonjour M. Diallo, je me permets de revenir vers vous avec une précision importante sur la continuité de service lors des coupures d\'énergie..."'
     },
     followUpStrategy: {

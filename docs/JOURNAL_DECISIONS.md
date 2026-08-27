@@ -4,6 +4,17 @@
 
 ---
 
+### [DEC-2026-023] — 27 Août 2026
+* **Module(s)** : Types transversaux, Carrière, Administration.
+* **Problème / Besoin initial** : 22 diagnostics TypeScript empêchaient la compilation isolée de la couche services : types existants non importés dans les constantes, contrats Admin obsolètes, niveaux de priorité divergents et modèles Radar/frise absents ou incompatibles avec l'interface.
+* **Décision retenue** : importer explicitement les types de constantes, conserver les valeurs métier canoniques (`client_supplier`, `prioritaire`), aligner les résultats Admin sur les objets réellement produits et consommés, et utiliser une seule structure `CareerEvolutionTimelineStep` entre moteur et interface.
+* **Conséquences** : la frise Carrière reçoit désormais toujours `status`, `timeframe`, `keyMilestones` et `achievementBadge`; le Radar persiste un feedback typé; les opérations Admin ne changent pas de comportement. Aucun chantier de sauvegarde réelle, WebRTC, Live ou PWA n'est ouvert par ce correctif.
+* **Éléments techniques** : `constants.ts`, `types.ts`, `services/adminConfigService.ts`, `services/careerContinuityEngine.ts`, `services/careerRadarEngine.ts`, `services/careerStrategicEngine.ts`, `components/CareerCenter.tsx`, `components/career/continuity/CareerContinuityControlHub.tsx`.
+* **Preuves** : compilation `types.ts + services/*.ts` et sous-ensembles Dossier/Carrière réussie; build Vite réussi; tests Node 46/46 et Vitest 9/9.
+* **Statut** : `Développé` et `Testé localement`.
+
+---
+
 ### [DEC-2026-021] — 28 Août 2026
 * **Module(s)** : Auth, profils, Supabase, MokChat/Réseau.
 * **Constat** : le dépôt ne reproduisait pas les 58 tables actives, le client lançait deux synchronisations de profil et des policies corrélaient des alias avec eux-mêmes. Une policy exposait aussi les lignes complètes de `profiles` à tout compte authentifié.

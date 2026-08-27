@@ -3039,6 +3039,7 @@ export interface StockItem {
   category: string;
   imageUrl: string;
   variant?: {
+    model?: string;
     size?: string;
     color?: string;
     packaging?: string;
@@ -3670,6 +3671,23 @@ export interface ContinuousSearchMission {
     inApp: boolean;
     priorityDigest: boolean;
   };
+}
+
+export interface OpportunityFeedbackRecord {
+  id: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  action: 'declined';
+  declineReason:
+    | 'salary_too_low'
+    | 'location_unsuitable'
+    | 'domain_mismatch'
+    | 'level_mismatch'
+    | 'bad_timing'
+    | 'company_reputation'
+    | 'other';
+  feedbackNotes?: string;
+  timestamp: string;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4517,6 +4535,17 @@ export interface CareerAIBilan {
   factsVsRecommendationsDisclaimers: string;
 }
 
+export interface CareerEvolutionTimelineStep {
+  id: string;
+  status: 'completed' | 'current' | 'upcoming';
+  timeframe: string;
+  category: string;
+  title: string;
+  description: string;
+  keyMilestones: string[];
+  achievementBadge?: string;
+}
+
 // ==========================================
 // 🌟 CARRIÈRE 7/7 — CONSOLIDATION & CYCLE D'ACCOMPLISSEMENT VIVANT
 // ==========================================
@@ -5113,54 +5142,34 @@ export interface BackupScheduleConfig {
 
 export interface RestoreOperationResult {
   success: boolean;
-  preRestoreSnapshotId: string;
   restoredVersion: string;
+  snapshotId: string;
   timestamp: string;
-  preservedUserDataCount: {
+  preRestoreSnapshotId: string;
+  summary: string;
+  preservedItems: {
     usersCount: number;
-    rolesPreservedCount: number;
-    creditsPreservedTotal: number;
-    profilesPreservedCount: number;
-    logsPreservedCount: number;
+    logsCount: number;
+    totalCreditsPreserved: number;
+    profilesPreserved: boolean;
   };
-  restoredConfigCount: {
-    modulesUpdated: number;
-    aiProvidersUpdated: number;
-    templatesUpdated: number;
-    workflowsUpdated: number;
-    settingsUpdated: boolean;
-  };
-  migrationChecksPassed: boolean;
-  compatibilityWarnings: string[];
-  restoredSnapshotName: string;
+  warnings: string[];
 }
 
 export interface VersionComparisonResult {
-  sourceVersion: string;
-  targetVersion: string;
-  featuresDiff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
-  modulesDiff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
-  aiProvidersDiff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
-  databaseSchemaDiff: {
-    isCompatible: boolean;
-    details: string[];
-  };
-  breakingChanges: string[];
+  versionA: string;
+  versionB: string;
+  diffSummary: string;
+  addedFeatures: string[];
+  removedFeatures: string[];
+  changedConfigs: Array<{
+    key: string;
+    oldValue: string;
+    newValue: string;
+    impact: string;
+  }>;
+  schemaChanges: string[];
 }
-
-
 
 
 

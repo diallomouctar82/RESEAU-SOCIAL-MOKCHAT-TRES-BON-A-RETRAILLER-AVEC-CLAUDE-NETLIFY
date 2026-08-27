@@ -44,6 +44,8 @@
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 > **Rectificatif d'implémentation (27 août 2026)** : le CV Maître et l'état du Radar sont désormais chargés depuis Supabase `module_records`, avec file IndexedDB hors ligne et état de synchronisation visible. Les opportunités de démonstration ne sont plus chargées automatiquement et aucun fallback fictif n'est produit en cas d'échec IA. Une source d'opportunités vérifiée reste à configurer avant de déclarer le Radar E2E fonctionnel.
 
+> **Correctif de cohérence typée (27 août 2026)** : le feedback Radar possède un contrat explicite et la frise d'évolution partage désormais le même modèle entre moteur et interface (`status`, `timeframe`, `keyMilestones`, `achievementBadge`). Le niveau de relance urgent utilise la valeur canonique `prioritaire`. Compilation ciblée Carrière réussie; aucune source externe d'opportunités n'est ajoutée par ce correctif.
+
 - **Carrière 1/7 (Terminé)** : Architecture modulaire complète, Diagnostic 17 critères, Coach 3D avec feedback vocal, Pipeline Kanban opérationnel, Jumeau Numérique certifié.
 - **Carrière 2/7 (Terminé - Radar Intelligent & Agent de Conquête)** :
   - **Recherche par Intention Naturelle** : Décodage sémantique des intentions utilisateurs (emploi, clients B2B, fonds, sourcing achats) sans mots-clés rigides.

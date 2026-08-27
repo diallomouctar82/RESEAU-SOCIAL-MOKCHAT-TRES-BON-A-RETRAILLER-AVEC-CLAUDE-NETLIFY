@@ -47,6 +47,7 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Terminé dans le code** : source unique session/profil sans upsert client, callback OAuth robuste, console riche atteignable, annuaire Auth réel, formulaires RBAC accessibles et API Netlify privilégiée. Le socle responsive/accessibilité est couvert par tests clavier, ARIA et axe.
+- **Contrats TypeScript réconciliés** : les résultats de comparaison et de restauration décrivent désormais exactement les objets produits par `adminConfigService` et rendus par la console. Il s'agit d'une correction de cohérence locale, pas d'une preuve de sauvegarde/restauration Supabase réelle.
 - **Validé sur branche isolée** : migrations cœur appliquées, refus RLS couverts par pgTAP et types Supabase régénérés. La migration Admin complémentaire et les scénarios d'administration sont validés avant livraison.
 - **Hors périmètre** : WebAuthn/Passkeys et email/mot de passe.
 - **Évolutions Prévues** : Détection proactive des anomalies de connexion et alertes par notification push chiffrée ; activation de la protection "mots de passe compromis" de Supabase Auth une fois l'email/mot de passe implémenté.
