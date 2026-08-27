@@ -1,11 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Globe, Loader2, AlertCircle } from 'lucide-react';
-import { signInWithGoogle } from '../services/auth';
+import { consumeOAuthCallbackError, signInWithGoogle } from '../services/auth';
 
 export const Auth: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const callbackError = consumeOAuthCallbackError();
+        if (callbackError) setError(callbackError.message);
+    }, []);
 
     // Connexion Supabase Auth (identité minimale — email/profil uniquement).
     // signInWithGoogle() redirige le navigateur vers Google puis revient
@@ -19,9 +24,9 @@ export const Auth: React.FC = () => {
         setError(null);
         try {
             await signInWithGoogle();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Erreur connexion Google:', err);
-            setError(err?.message || 'Échec de la connexion avec Google. Réessayez.');
+            setError(err instanceof Error ? err.message : 'Échec de la connexion avec Google. Réessayez.');
             setIsLoading(false);
         }
     };

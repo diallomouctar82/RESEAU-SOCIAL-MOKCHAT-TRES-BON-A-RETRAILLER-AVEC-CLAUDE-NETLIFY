@@ -30,12 +30,12 @@ import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AGENTS } from './constants';
 import { Agent, LiveStream } from './types';
-import { getSession, onAuthStateChange, signOut } from './services/auth';
+import { onAuthStateChange, signOut } from './services/auth';
 import { fetchUserProfile } from './services/profile';
 
 // Composant interne qui consomme le contexte
 const AppContent = () => {
-  const { userProfile, notifications, updateUserProfile, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
+  const { userProfile, notifications, hydrateUserProfile, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true); 
@@ -55,35 +55,45 @@ const AppContent = () => {
   // de la base, fixé serveur par le trigger handle_new_user.
   useEffect(() => {
       let isMounted = true;
+      let requestVersion = 0;
+      let hydratedUserId: string | null = null;
 
-      const applySession = async (userId: string | undefined, isInitial: boolean) => {
+      const applySession = async (userId: string | undefined, event: string, version: number) => {
           if (!userId) {
               if (isMounted) {
+                  hydratedUserId = null;
+                  hydrateUserProfile(null);
                   setIsAuthenticated(false);
-                  if (isInitial) setIsAuthChecking(false);
+                  setIsAuthChecking(false);
               }
               return;
           }
           const profile = await fetchUserProfile(userId);
-          if (!isMounted) return;
+          if (!isMounted || version !== requestVersion) return;
           if (profile) {
-              updateUserProfile(profile);
+              const isNewSignIn = event === 'SIGNED_IN' && hydratedUserId !== userId;
+              hydratedUserId = userId;
+              hydrateUserProfile(profile);
               setIsAuthenticated(true);
-              if (!isInitial) {
+              if (isNewSignIn) {
                   addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${profile.name.split(' ')[0]}.`, "success");
-              } else {
+              } else if (event === 'INITIAL_SESSION') {
                   addNotification("Retour", `Bon retour parmi nous, ${profile.name.split(' ')[0]}.`, "info");
               }
           } else {
               console.error('Session Supabase active mais profil applicatif introuvable.');
+              setIsAuthenticated(false);
           }
-          if (isInitial) setIsAuthChecking(false);
+          setIsAuthChecking(false);
       };
 
-      getSession().then((session) => applySession(session?.user.id, true));
-
-      const unsubscribe = onAuthStateChange((session) => {
-          applySession(session?.user.id, false);
+      // Supabase emits INITIAL_SESSION, so a second getSession()/profile sync
+      // is unnecessary. Defer async work outside the auth callback lock.
+      const unsubscribe = onAuthStateChange((event, session) => {
+          const version = ++requestVersion;
+          queueMicrotask(() => {
+              void applySession(session?.user.id, event, version);
+          });
       });
 
       return () => {

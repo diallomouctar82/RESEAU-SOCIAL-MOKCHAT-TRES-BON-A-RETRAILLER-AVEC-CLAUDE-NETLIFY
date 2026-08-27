@@ -1,3 +1,5 @@
+// Generated from the isolated Supabase validation branch on 2026-08-28.
+// Entries intentionally excluded: non-started call/backup and chat-media additions.
 export type Json =
   | string
   | number
@@ -3491,4 +3493,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
