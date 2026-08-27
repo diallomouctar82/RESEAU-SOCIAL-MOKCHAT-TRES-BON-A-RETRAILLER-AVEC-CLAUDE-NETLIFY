@@ -9,7 +9,6 @@ import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSe
 import { USER_PROFILE } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
 import { isUuid, mokChatService, newClientMessageId, type SendMessageInput } from '../services/mokChat';
-import { createMediaPreview, revokeMediaPreview } from '../services/mediaStorage';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { ChatReportModal } from './chat/ChatReportModal';
@@ -23,6 +22,10 @@ interface MoocChatFloatingProps {
 }
 
 const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache_v3';
+const createMediaPreview = (file: Blob): string => URL.createObjectURL(file);
+const revokeMediaPreview = (url?: string | null): void => {
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+};
 
 interface PendingAttachment {
   file: File;
