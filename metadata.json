@@ -1,0 +1,10 @@
+{
+  "name": "Copy of Copy of Copy of  Le Monde à Vous lives bien dev V5.4 def",
+  "description": "Plateforme universelle d'assistants experts. Une interface unifiée pour l'emploi, la santé, le droit et l'éducation, propulsée par l'intelligence numérique de pointe.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
