@@ -4,16 +4,16 @@ import {
     AlertCircle, CheckCircle, Lock, User as UserIcon, Shield, MessageCircle, 
     Smile, Paperclip
 } from 'lucide-react';
-import { 
-    listChatSpaces, 
-    createChatSpace, 
-    listChatMessages, 
-    sendChatMessage, 
-    GoogleChatSpace, 
-    GoogleChatMessage, 
-    subscribeToGoogleAuth,
+import {
+    listChatSpaces,
+    createChatSpace,
+    listChatMessages,
+    sendChatMessage,
+    GoogleChatSpace,
+    GoogleChatMessage,
     getAccessToken
 } from '../services/googleWorkspace';
+import { subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 
 export const GoogleChatCenter: React.FC = () => {
@@ -38,7 +38,7 @@ export const GoogleChatCenter: React.FC = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const unsubscribe = subscribeToGoogleAuth((t) => {
+        const unsubscribe = subscribeToWorkspaceToken((t) => {
             setToken(t);
         });
         return () => unsubscribe();

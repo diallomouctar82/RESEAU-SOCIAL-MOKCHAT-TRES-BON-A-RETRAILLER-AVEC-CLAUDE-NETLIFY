@@ -12,7 +12,6 @@ import {
     GraduationCap, HeartPulse, Briefcase, Home, Phone, Globe2, 
     ExternalLink, Sparkles, Layers, ZoomIn, ZoomOut, Check, ArrowRight
 } from 'lucide-react';
-import firebaseConfig from '../firebase-applet-config.json';
 
 // Global Places of Interest for Mobility, Employment, Healthcare, and Education
 export interface PlaceOfInterest {
@@ -217,7 +216,7 @@ export const GoogleMapsExplorer: React.FC = () => {
     const [mapCenter, setMapCenter] = useState({ lat: 48.8566, lng: 2.3522 });
     const [mapZoom, setMapZoom] = useState(12);
 
-    const apiKey = firebaseConfig.apiKey || '';
+    const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || '';
 
     const handleCityChange = (city: typeof CITIES[0]) => {
         setSelectedCity(city.name);

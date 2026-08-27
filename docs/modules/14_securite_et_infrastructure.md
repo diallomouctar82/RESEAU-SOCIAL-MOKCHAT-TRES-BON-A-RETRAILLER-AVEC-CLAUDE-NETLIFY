@@ -20,24 +20,24 @@
 
 ## ⚙️ 3. COMPOSANTS & ARCHITECTURE TECHNIQUE
 - **Fichiers Clés** :
-  - `components/Auth.tsx` : Écran d'authentification et d'inscription.
+  - `components/Auth.tsx` : Écran de connexion (Google OAuth via Supabase Auth, permissions minimales).
   - `components/AdminDashboard.tsx` : Console d'administration et de supervision.
   - `components/Settings.tsx` : Paramètres de sécurité, profil, 2FA et préférences.
   - `metadata.json` : Déclaration des permissions iframe et capacités serveur.
-  - `firebase-applet-config.json` : Configuration du socle Cloud Firebase Firestore.
-- **Modèles de Données (`types.ts`)** :
-  - `UserRole ('user' | 'admin')`, `UserProfile`, `SecurityLog`, `DeviceSession`.
+  - `services/supabaseClient.ts`, `services/auth.ts` : Client et flux d'authentification Supabase.
+- **Modèles de Données (`types.ts` + Supabase `public.profiles`)** :
+  - `UserRole` (`user | admin | expert | mentor | moderator | organization | super_admin`), `UserProfile`, `SecurityLog`, `DeviceSession`.
 
 ---
 
 ## 🛡️ 4. RÈGLES MÉTIER & SÉCURITÉ
-- **Protection des Secrets Serveur** : Clés Gemini et API tierces isolées côté serveur, jamais transmises au navigateur.
-- **Principe du Moindre Privilège** : Les fonctions d'administration et de modération globale sont réservées au rôle `admin`.
+- **Protection des Secrets Serveur** : Clés Gemini et API tierces isolées côté serveur, jamais transmises au navigateur. `service_role` Supabase jamais exposée au frontend (uniquement la clé `publishable`).
+- **Principe du Moindre Privilège** : Les fonctions d'administration et de modération globale sont réservées au rôle `admin`, fixé **côté base** (trigger serveur), plus jamais calculé côté client. Row Level Security activé sur toutes les tables (voir `docs/SUPABASE_ARCHITECTURE.md`).
 - **Conformité RGPD** : Droit à l'oubli, exportation complète des données (`cloud.ts`) et chiffrement local.
 
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : Gestion des rôles, session persistante `lmav_session_v2`, tableau de bord admin, journal d'audit.
-- **Partiel / En cours** : Authentification biométrique WebAuthn / Passkeys.
-- **Évolutions Prévues** : Détection proactive des anomalies de connexion et alertes par notification push chiffrée.
+- **Terminé** : Authentification Supabase (Google OAuth), gestion des rôles server-side avec RLS, tableau de bord admin. *(27 août 2026 : migration complète depuis l'ancienne session `localStorage` falsifiable — voir `docs/AUTHENTICATION.md`.)*
+- **Partiel / En cours** : Authentification biométrique WebAuthn / Passkeys ; email/mot de passe réel (reporté, Google restait prioritaire).
+- **Évolutions Prévues** : Détection proactive des anomalies de connexion et alertes par notification push chiffrée ; activation de la protection "mots de passe compromis" de Supabase Auth une fois l'email/mot de passe implémenté.

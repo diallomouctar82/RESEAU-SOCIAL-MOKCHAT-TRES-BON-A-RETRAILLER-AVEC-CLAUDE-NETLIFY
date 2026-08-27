@@ -28,7 +28,9 @@ import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AGENTS } from './constants';
-import { Agent, LiveStream, UserRole } from './types';
+import { Agent, LiveStream } from './types';
+import { getSession, onAuthStateChange, signOut } from './services/auth';
+import { fetchUserProfile } from './services/profile';
 
 // Composant interne qui consomme le contexte
 const AppContent = () => {
@@ -45,69 +47,57 @@ const AppContent = () => {
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
 
-  // VÉRIFICATION DE SESSION
+  // SESSION SUPABASE : au montage, puis à chaque changement (connexion,
+  // déconnexion, retour de redirection OAuth Google), charge le profil
+  // applicatif correspondant depuis la table `profiles`. Le rôle
+  // (admin/user) n'est plus jamais déterminé côté client : il vient
+  // de la base, fixé serveur par le trigger handle_new_user.
   useEffect(() => {
-      const storedUser = localStorage.getItem('lmav_session_v2');
-      if (storedUser) {
-          try {
-              const parsedUser = JSON.parse(storedUser);
-              // Vérifie si le token (simulé) est toujours valide
-              if (parsedUser && parsedUser.email) {
-                  updateUserProfile(parsedUser);
-                  setIsAuthenticated(true);
-                  addNotification("Retour", `Bon retour parmi nous, ${parsedUser.name.split(' ')[0]}.`, "info");
+      let isMounted = true;
+
+      const applySession = async (userId: string | undefined, isInitial: boolean) => {
+          if (!userId) {
+              if (isMounted) {
+                  setIsAuthenticated(false);
+                  if (isInitial) setIsAuthChecking(false);
               }
-          } catch (e) {
-              console.error("Session corrompue", e);
-              localStorage.removeItem('lmav_session_v2');
+              return;
           }
-      }
-      setIsAuthChecking(false);
+          const profile = await fetchUserProfile(userId);
+          if (!isMounted) return;
+          if (profile) {
+              updateUserProfile(profile);
+              setIsAuthenticated(true);
+              if (!isInitial) {
+                  addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${profile.name.split(' ')[0]}.`, "success");
+              } else {
+                  addNotification("Retour", `Bon retour parmi nous, ${profile.name.split(' ')[0]}.`, "info");
+              }
+          } else {
+              console.error('Session Supabase active mais profil applicatif introuvable.');
+          }
+          if (isInitial) setIsAuthChecking(false);
+      };
+
+      getSession().then((session) => applySession(session?.user.id, true));
+
+      const unsubscribe = onAuthStateChange((session) => {
+          applySession(session?.user.id, false);
+      });
+
+      return () => {
+          isMounted = false;
+          unsubscribe();
+      };
   }, []);
 
   // ACTIONS
-  const handleLogin = (email: string, userDetails?: { name?: string; avatarUrl?: string }) => {
-      // DÉTERMINATION DU RÔLE
-      // Admin Principal : visionsmart224@gmail.com
-      const isAdmin = email.trim().toLowerCase() === 'visionsmart224@gmail.com';
-      const role: UserRole = isAdmin ? 'admin' : 'user';
-      
-      const userName = userDetails?.name || (isAdmin ? 'Administrateur Principal' : email.split('@')[0]);
-      const countryCode = 'FR';
-
-      const newProfileData = {
-          id: `usr-${Date.now()}`,
-          email: email,
-          role: role,
-          name: userName,
-          avatarUrl: userDetails?.avatarUrl || userProfile.avatarUrl,
-          citizenshipId: `LMAV-2025-${Math.floor(Math.random()*9000)+1000}-${countryCode}`,
-          level: isAdmin ? 99 : 1,
-          xp: isAdmin ? 999999 : 0,
-          credits: isAdmin ? 1000000 : 150
-      };
-      
-      // Mise à jour du state global
-      updateUserProfile(newProfileData);
-      
-      // Persistance locale
-      localStorage.setItem('lmav_session_v2', JSON.stringify({
-          ...userProfile, 
-          ...newProfileData
-      }));
-
-      setIsAuthenticated(true);
-      
-      if (isAdmin) {
-          addNotification("Mode Administrateur", "Bienvenue, Superviseur. Console système et Google Workspace actifs.", "warning");
-          setActiveTab('home');
-      } else {
-          addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${userName}.`, "success");
+  const handleLogout = async () => {
+      try {
+          await signOut();
+      } catch (e) {
+          console.error('Erreur déconnexion Supabase:', e);
       }
-  };
-
-  const handleLogout = () => {
-      localStorage.removeItem('lmav_session_v2');
       logout();
       setIsAuthenticated(false);
       setActiveTab('home');
@@ -137,7 +127,7 @@ const AppContent = () => {
   }
 
   if (!isAuthenticated) {
-      return <Auth onLogin={handleLogin} />;
+      return <Auth />;
   }
 
   return (

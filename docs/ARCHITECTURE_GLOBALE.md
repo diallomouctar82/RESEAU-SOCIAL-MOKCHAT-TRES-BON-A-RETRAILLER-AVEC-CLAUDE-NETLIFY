@@ -37,10 +37,15 @@
                                          ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                     4. COUCHE PERSISTANCE & IDENTITÉ DISTRIBUÉE                  │
-│  ├─ LocalStorage Engine (lmav_session_v2, lmav_dossiers_v1, lmav_trade_deals)   │
-│  ├─ Firebase Firestore & Auth Ready (firebase-applet-config.json)                │
-│  └─ Digital Safe Vault (Documents cryptés, Journaux d'audit de sécurité)         │
+│  ├─ Supabase Auth (identité unique, Google OAuth prioritaire, RLS partout)      │
+│  ├─ Supabase Postgres (profiles, social, dossiers, carrière, éducation, live…) │
+│  ├─ Supabase Storage (buckets public/private, signed URLs pour le privé)        │
+│  └─ LocalStorage résiduel (préférences UI uniquement : favoris, récents)         │
 └──────────────────────────────────────────────────────────────────────────────────┘
+
+*(Migration Firebase → Supabase effectuée le 27 août 2026 — voir docs/SUPABASE_ARCHITECTURE.md
+et docs/AUTHENTICATION.md pour le détail. Firebase Auth ne servait que de courtier OAuth Google ;
+Firestore n'a jamais été réellement câblé malgré ce que suggérait ce diagramme.)*
 ```
 
 ---
@@ -144,5 +149,9 @@ La navigation ne reflète plus l'ordre technique ou historique d'ajout des modul
 - **`memory.ts`** : Gestionnaire de la mémoire contextuelle (faits appris, préférences retenues, historique des conversations).
 - **`voiceEngine.ts`** : Moteur de synthèse vocale et d'écoute micro pour les interactions vivantes avec les avatars 3D et le Coach Carrière.
 - **`multimodalVision.ts`** : Service d'analyse visuelle et de reconnaissance d'images (webcam, HUD, documents d'identité).
-- **`googleWorkspace.ts`** : Couche d'interaction avec les APIs Google (Drive, Meet, Chat, Maps).
-- **`cloud.ts`** : Interface d'export et de sauvegarde décentralisée.
+- **`googleWorkspace.ts`** : Couche REST pure d'interaction avec les APIs Google (Drive, Chat, Meet) — ne dépend plus de Firebase, le token d'accès vient de `googleWorkspaceLink.ts`.
+- **`googleWorkspaceLink.ts`** : Lien Workspace optionnel (scopes larges Drive/Chat/Meet), volontairement découplé de l'authentification (`auth.ts`) qui reste minimale.
+- **`auth.ts`** : Connexion Supabase Auth (Google OAuth, identité minimale), session, déconnexion.
+- **`profile.ts`** : Chargement du profil applicatif (`profiles` + compétences + badges) depuis Supabase.
+- **`supabaseClient.ts`** : Client Supabase singleton (initialisation résiliente — jamais de crash si mal configuré).
+- **`cloud.ts`** : Interface d'export et de sauvegarde décentralisée (IndexedDB, indépendant de Supabase).

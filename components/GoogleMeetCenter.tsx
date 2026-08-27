@@ -4,13 +4,13 @@ import {
     Sparkles, Shield, Clock, PhoneCall, Mic, MicOff, Camera, 
     CameraOff, RefreshCw, AlertCircle, Play, UserCheck
 } from 'lucide-react';
-import { 
-    createMeetSpace, 
-    getMeetSpace, 
-    GoogleMeetSpace, 
-    subscribeToGoogleAuth,
+import {
+    createMeetSpace,
+    getMeetSpace,
+    GoogleMeetSpace,
     getAccessToken
 } from '../services/googleWorkspace';
+import { subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { AGENTS } from '../constants';
 
@@ -90,7 +90,7 @@ export const GoogleMeetCenter: React.FC = () => {
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
-        const unsubscribe = subscribeToGoogleAuth((t) => {
+        const unsubscribe = subscribeToWorkspaceToken((t) => {
             setToken(t);
         });
         return () => unsubscribe();

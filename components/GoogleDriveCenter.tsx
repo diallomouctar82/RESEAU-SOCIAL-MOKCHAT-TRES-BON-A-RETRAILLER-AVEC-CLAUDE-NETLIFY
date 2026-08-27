@@ -4,15 +4,15 @@ import {
     Upload, Plus, Search, Trash2, ExternalLink, RefreshCw, AlertCircle, 
     CheckCircle, Shield, ArrowLeft, Download, Eye, Sparkles, FolderPlus 
 } from 'lucide-react';
-import { 
-    listDriveFiles, 
-    uploadDriveFile, 
-    createDriveFolder, 
-    deleteDriveFile, 
-    GoogleDriveFile, 
-    getAccessToken,
-    subscribeToGoogleAuth
+import {
+    listDriveFiles,
+    uploadDriveFile,
+    createDriveFolder,
+    deleteDriveFile,
+    GoogleDriveFile,
+    getAccessToken
 } from '../services/googleWorkspace';
+import { subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 
 export const GoogleDriveCenter: React.FC = () => {
@@ -40,7 +40,7 @@ export const GoogleDriveCenter: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
-        const unsubscribe = subscribeToGoogleAuth((t) => {
+        const unsubscribe = subscribeToWorkspaceToken((t) => {
             setToken(t);
         });
         return () => unsubscribe();

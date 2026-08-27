@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { LogIn, LogOut, CheckCircle, AlertCircle, ShieldCheck, HardDrive, MessageSquare, Video, RefreshCw, Key } from 'lucide-react';
-import { googleSignIn, googleSignOut, subscribeToGoogleAuth } from '../services/googleWorkspace';
-import { User } from 'firebase/auth';
+import { LogIn, LogOut, CheckCircle, AlertCircle, Key, RefreshCw } from 'lucide-react';
+import { linkGoogleWorkspace, unlinkGoogleWorkspace, subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
+import { useGlobal } from '../contexts/GlobalContext';
 
 interface GoogleWorkspaceBannerProps {
     compact?: boolean;
@@ -9,15 +10,14 @@ interface GoogleWorkspaceBannerProps {
 }
 
 export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ compact = false, onAuthenticated }) => {
+    const { userProfile } = useGlobal();
     const [token, setToken] = useState<string | null>(null);
-    const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const unsubscribe = subscribeToGoogleAuth((t, u) => {
+        const unsubscribe = subscribeToWorkspaceToken((t) => {
             setToken(t);
-            setUser(u);
             if (t && onAuthenticated) {
                 onAuthenticated();
             }
@@ -29,11 +29,7 @@ export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ co
         setIsLoading(true);
         setError(null);
         try {
-            const res = await googleSignIn();
-            if (res?.accessToken) {
-                setToken(res.accessToken);
-                setUser(res.user);
-            }
+            await linkGoogleWorkspace();
         } catch (err: any) {
             console.error(err);
             setError(err.message || 'Échec de la connexion à Google Workspace.');
@@ -42,20 +38,11 @@ export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ co
         }
     };
 
-    const handleLogout = async () => {
-        setIsLoading(true);
-        try {
-            await googleSignOut();
-            setToken(null);
-            setUser(null);
-        } catch (err: any) {
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
+    const handleLogout = () => {
+        unlinkGoogleWorkspace();
     };
 
-    const isConnected = Boolean(token && user);
+    const isConnected = Boolean(token);
 
     if (compact) {
         return (
@@ -63,8 +50,8 @@ export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ co
                 {isConnected ? (
                     <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold border border-emerald-200">
                         <CheckCircle size={14} className="text-emerald-600" />
-                        <span className="truncate max-w-[120px]">{user?.displayName || user?.email}</span>
-                        <button 
+                        <span className="truncate max-w-[120px]">{userProfile.name || userProfile.email}</span>
+                        <button
                             onClick={handleLogout}
                             title="Se déconnecter de Google Workspace"
                             className="hover:text-red-600 ml-1 p-0.5 rounded transition-colors"
@@ -117,8 +104,8 @@ export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ co
                             )}
                         </div>
                         <p className="text-xs text-slate-600 mt-1">
-                            {isConnected 
-                                ? `Synchronisé avec ${user?.email}. Drive, Chat et Meet sont opérationnels.` 
+                            {isConnected
+                                ? `Synchronisé avec ${userProfile.email}. Drive, Chat et Meet sont opérationnels.`
                                 : "Autorisez l'accès à vos services Google Drive, Google Chat et Google Meet avec votre accord préalable."}
                         </p>
                     </div>

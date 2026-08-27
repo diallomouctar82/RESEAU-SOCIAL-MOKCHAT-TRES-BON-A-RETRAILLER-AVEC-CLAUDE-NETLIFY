@@ -138,7 +138,16 @@ La version **v6.0 (Premium Experience V1)** consacre :
 
 ---
 
-## 🔴 3. PROCHAINES PRIORITÉS IMMÉDIATES (ROADMAP)
-1. **Système Global de Motivation & Engagement** (Prompt dédié à venir).
-2. **Campus 3.0 : Cours Collectifs en Direct & Co-apprentissage** (Prompt dédié à venir).
-3. **Optimisation des flux de données et persistance Cloud Firestore**.
+## 🟢 1.7. Backend Supabase (27 août 2026)
+
+**Migration complète Firebase → Supabase effectuée.** Authentification Google OAuth unifiée (Supabase Auth, permissions minimales), profil applicatif séparé (`profiles`) avec RLS, et persistance réelle pour : Identity, Social (posts/commentaires/réactions/stories), Messagerie (dont chat Expert IA), Dossiers de vie, Carrière (Radar + CV Maître), Éducation/Campus (cours/inscriptions/certificats), Commerce minimal (boutique/commandes), Finance (solde dérivé), Notifications, Fichiers (Storage), Live (intégral), catalogue Agents. Détail complet : `docs/SUPABASE_ARCHITECTURE.md` et `docs/AUTHENTICATION.md`.
+
+Volontairement laissés hors périmètre (0% de persistance prouvée dans le code, écrans de démo uniquement) : Trade/Commerce Mondial (RFQ, CommercialDossier, salons, MokTrust), Tribus/Cercles riches.
+
+**Prérequis restant côté utilisateur** : configurer le Client ID/Secret Google OAuth dans Supabase Dashboard (voir `docs/AUTHENTICATION.md §4`) pour que la connexion Google soit pleinement fonctionnelle en production.
+
+## 🔴 2. PROCHAINES PRIORITÉS IMMÉDIATES (ROADMAP)
+1. Compléter la configuration OAuth Google côté Supabase Dashboard (prérequis externe).
+2. **Système Global de Motivation & Engagement** (Prompt dédié à venir).
+3. **Campus 3.0 : Cours Collectifs en Direct & Co-apprentissage** (Prompt dédié à venir).
+4. Normaliser Trade/Commerce Mondial et Tribus dans Supabase si/quand ces modules deviennent prioritaires (actuellement hors périmètre, voir §1.7).
