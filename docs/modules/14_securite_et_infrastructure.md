@@ -25,6 +25,8 @@
   - `components/Settings.tsx` : Paramètres de sécurité, profil, 2FA et préférences.
   - `metadata.json` : Déclaration des permissions iframe et capacités serveur.
   - `services/supabaseClient.ts`, `services/auth.ts` : Client et flux d'authentification Supabase.
+  - `styles/accessibility.css` : focus visible, zones tactiles et réduction des mouvements.
+  - `components/accessibility/useDialogAccessibility.ts` : confinement/restauration du focus et fermeture clavier des dialogues.
 - **Modèles de Données (`types.ts` + Supabase `public.profiles`)** :
   - `UserRole` (`user | admin | expert | mentor | moderator | organization | super_admin`), `UserProfile`, `SecurityLog`, `DeviceSession`.
 
@@ -38,7 +40,7 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé dans le code** : session Auth unique, profil hydraté sans double upsert, callback OAuth expiré traité, migrations RLS versionnées.
+- **Terminé dans le code** : session Auth unique, profil hydraté sans double upsert, callback OAuth expiré traité, migrations RLS versionnées et gestion des rôles côté serveur. Le socle transverse responsive/accessibilité du shell, de la recherche et du mode guidé est validé par tests clavier, ARIA et axe.
 - **Prouvé en exploitation** : le flux Google principal sur `moknet.net` (journaux Auth agrégés du 27 août 2026).
-- **À valider avant clôture** : application des migrations sur branche isolée, tests pgTAP de refus, puis régénération des types. WebAuthn/Passkeys et email/mot de passe restent hors périmètre.
+- **Validé sur branche isolée** : migrations appliquées, refus RLS couverts par pgTAP et types Supabase régénérés. WebAuthn/Passkeys et email/mot de passe restent hors périmètre.
 - **Évolutions Prévues** : Détection proactive des anomalies de connexion et alertes par notification push chiffrée ; activation de la protection "mots de passe compromis" de Supabase Auth une fois l'email/mot de passe implémenté.

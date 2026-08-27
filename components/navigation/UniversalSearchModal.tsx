@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { MAIN_NAV_ITEMS, TRANSVERSAL_SERVICES, NavItemDef } from './NavigationItems';
 import { AGENTS, COURSES, JOBS, LEGAL_PROCEDURES } from '../../constants';
+import { useDialogAccessibility } from '../accessibility/useDialogAccessibility';
 
 interface UniversalSearchModalProps {
   isOpen: boolean;
@@ -48,6 +49,8 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogAccessibility(isOpen, dialogRef, onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -215,7 +218,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     : [];
 
   const filteredCourses = query.trim().length > 1
-    ? COURSES.filter(c => c.title.toLowerCase().includes(query.toLowerCase()) || c.category.toLowerCase().includes(query.toLowerCase()))
+    ? COURSES.filter(c => c.title.toLowerCase().includes(query.toLowerCase()) || c.tags?.some((tag) => tag.toLowerCase().includes(query.toLowerCase())))
     : [];
 
   const handleSelectTab = (tabId: string) => {
@@ -244,21 +247,33 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-start justify-center pt-16 md:pt-24 p-4 animate-fade-in">
-      <div 
-        className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-scale-up"
-        onKeyDown={handleKeyDown}
-      >
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="universal-search-title"
+      aria-describedby="universal-search-help"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-start justify-center pt-3 sm:pt-16 md:pt-24 p-2 sm:p-4 animate-fade-in"
+    >
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[80vh] animate-scale-up">
+        <h2 id="universal-search-title" className="sr-only">Recherche universelle</h2>
+        <p id="universal-search-help" className="sr-only">Recherchez un espace ou un service, puis choisissez un résultat.</p>
         {/* Search Bar Input */}
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
           <Search size={22} className="text-slate-400 shrink-0" />
+          <label htmlFor="universal-search-input" className="sr-only">Votre recherche</label>
           <input
+            id="universal-search-input"
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher un espace, un besoin, un cours, un visa, un mot-clé..."
             className="flex-1 bg-transparent border-none outline-none text-slate-900 placeholder:text-slate-400 font-medium text-base md:text-lg"
+            role="searchbox"
+            aria-controls="universal-search-results"
           />
 
           {/* Voice Command Button */}
@@ -270,6 +285,8 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                 ? 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-500/30'
                 : 'bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200'
             }`}
+            aria-label={isListening ? "Arrêter la commande vocale" : "Démarrer la commande vocale"}
+            aria-pressed={isListening}
           >
             {isListening ? <MicOff size={18} /> : <Mic size={18} />}
             <span className="text-xs font-bold hidden sm:inline">{isListening ? 'Écoute...' : 'Vocal'}</span>
@@ -277,7 +294,8 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+            className="a11y-touch-target rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition flex items-center justify-center"
+            aria-label="Fermer la recherche"
           >
             <X size={20} />
           </button>
@@ -285,7 +303,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
 
         {/* Voice Feedback Banner */}
         {voiceFeedback && (
-          <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between text-xs text-indigo-800">
+          <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between text-xs text-indigo-800" role="status" aria-live="polite">
             <div className="flex items-center gap-2">
               <Volume2 size={14} className="text-indigo-600 animate-pulse" />
               <span>{voiceFeedback}</span>
@@ -300,7 +318,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
         )}
 
         {/* Results Body */}
-        <div className="p-4 overflow-y-auto space-y-4 flex-1">
+        <div id="universal-search-results" className="p-3 sm:p-4 overflow-y-auto space-y-4 flex-1" role="region" aria-label="Résultats de recherche" aria-live="polite">
           {/* Diallo OS Action Card if query exists */}
           {query.trim() && (
             <button
@@ -459,7 +477,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                       <GraduationCap size={16} className="text-emerald-600 shrink-0" />
                       <div>
                         <span className="text-xs font-bold text-slate-800">{crs.title}</span>
-                        <span className="text-[10px] text-slate-500 ml-2">• {crs.duration} • {crs.xp} XP</span>
+                        <span className="text-[10px] text-slate-500 ml-2">• {crs.duration}{crs.credits ? ` • ${crs.credits} crédits` : ''}</span>
                       </div>
                     </div>
                     <ChevronRight size={14} className="text-slate-400" />

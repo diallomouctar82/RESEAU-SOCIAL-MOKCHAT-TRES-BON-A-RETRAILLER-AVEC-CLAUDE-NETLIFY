@@ -32,6 +32,7 @@ import { AGENTS } from './constants';
 import { Agent, LiveStream } from './types';
 import { onAuthStateChange, signOut } from './services/auth';
 import { fetchUserProfile } from './services/profile';
+import './styles/accessibility.css';
 
 // Composant interne qui consomme le contexte
 const AppContent = () => {
@@ -134,7 +135,7 @@ const AppContent = () => {
 
   // Écran de chargement discret pendant la vérification de session
   if (isAuthChecking) {
-      return <div className="h-screen bg-slate-50 flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>;
+      return <div className="h-screen bg-slate-50 flex items-center justify-center" role="status" aria-live="polite"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true"></div><span className="sr-only">Vérification de votre session…</span></div>;
   }
 
   if (!isAuthenticated) {

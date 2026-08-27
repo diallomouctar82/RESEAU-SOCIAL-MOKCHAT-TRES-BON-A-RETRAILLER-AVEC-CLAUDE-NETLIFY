@@ -18,10 +18,16 @@
 | **v6.1** | 27 Août 2026 | **Socle Cloud Supabase Lazy-Init & Persistance Résiliente** | Auth, Supabase Client, Local-First, Zero White Screen | AI Coding Agent | Stable |
 | **v6.2** | 27 Août 2026 | **Architecture IA Auto-Résiliente (12 Fournisseurs) & Color Lab** | Super-Admin AI Hub, Failover, Auto-Quarantine, Color Lab | AI Coding Agent | Stable |
 | **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | **Courante (Active)** |
+| **v6.3.1** | 27 Août 2026 | **Socle Responsive & Accessibilité vérifiable** | Layout, Recherche, Mode guidé | Équipe Accessibilité | Validé, non déployé |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
+
+### [Version 6.3.1] — 27 Août 2026 (Responsive & accessibilité transverse)
+- **Objectif** : rendre le shell central, la recherche universelle et le mode guidé utilisables au clavier, aux lecteurs d’écran et sur écrans mobiles étroits, avec preuves reproductibles.
+- **Réalisations** : lien d’évitement, focus de route, noms/états ARIA, dialogues avec focus confiné et restauré, commande Échap, tiroir mobile hors tabulation lorsqu’il est fermé, grille 3/4 colonnes, cibles tactiles 44 px, pause du ticker et prise en compte de `prefers-reduced-motion`.
+- **Preuves** : build Vite vert ; 6 tests Vitest/Testing Library verts ; audits axe sans violation sur `GuidedModeModal` et `UniversalSearchModal` (contraste jsdom exclu et maintenu comme contrôle navigateur).
 
 ### [Version 6.3] — 27 Août 2026 (Sauvegarde, Versioning, Restauration Intelligente & Realtime RBAC)
 - **Objectif** : Mettre en place un système complet de sauvegarde, gestion des versions, comparaison et restauration intelligente sans perte de données dans l'espace Super Admin, avec synchronisation Realtime bidirectionnelle et diagnostic automatique des comptes.

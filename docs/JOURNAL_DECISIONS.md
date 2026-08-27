@@ -451,7 +451,7 @@ Chaque décision respecte le formalisme strict suivant :
      - **Galerie & Vitrine du Design System** (`ComponentShowcaseModal.tsx`) : Documentation interactive de l'ensemble des composants et tokens.
 * **Décision retenue** : Option 2 développée et intégrée dans la navigation principale et le `Layout`.
 * **Justification** : « Le Monde à Vous doit réduire la fracture numérique, pas l'augmenter. Une décision importante à la fois. »
-* **Conséquences** : Accessibilité totale WCAG AA, réduction radicale de la charge cognitive et amélioration substantielle de la vitesse d'action de l'utilisateur.
+* **Conséquences** : Socle d’accessibilité cognitive, réduction de la charge et amélioration substantielle de la vitesse d'action. Cette décision produit ne constitue pas, à elle seule, une certification WCAG exhaustive.
 * **Éléments techniques** : `components/accessibility/GuidedModeModal.tsx`, `components/scanner/UniversalScannerModal.tsx`, `components/translation/BilingualConversationModal.tsx`, `components/ui/ActionableAISuggestion.tsx`, `components/ui/KnowledgeCard.tsx`, `components/ui/AISynthesisCard.tsx`, `components/ui/SmartConfirmModal.tsx`, `components/ui/FocusAndPresentationControls.tsx`, `components/settings/UnifiedSettingsModal.tsx`, `components/ui/ComponentShowcaseModal.tsx`, `components/Layout.tsx`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
@@ -481,4 +481,13 @@ Chaque décision respecte le formalisme strict suivant :
 
 
 
+### [DEC-2026-021-A11Y] — 27 Août 2026
+* **Module(s)** : `Layout`, `Navigation`, `Accessibilité`, `Responsive`
+* **Problème / Besoin initial** : Le shell comportait des commandes visuelles sans nom accessible, des zones cliquables non clavier, un tiroir mobile fermé dont les contrôles restaient focusables, des animations non interrompables et des dialogues sans confinement/restauration du focus.
+* **Décision retenue** : Consolider le socle transverse avant d’étendre l’audit aux écrans métier : primitives de focus globales, lien d’évitement, navigation annoncée, ARIA explicite, cibles tactiles de 44 px, grille étroite adaptative, hook commun de dialogue et tests automatisés axe/clavier.
+* **Justification** : Ces primitives couvrent les parcours d’entrée communs à tous les modules et empêchent la réapparition des défauts les plus bloquants.
+* **Conséquences** : Navigation clavier cohérente, modales centrales utilisables sans souris, tiroir mobile correctement retiré de l’ordre de tabulation et mouvements réduits selon la préférence système. Le contraste dynamique doit rester contrôlé dans un vrai navigateur ; la documentation ne revendique plus une conformité WCAG totale sans preuve exhaustive.
+* **Éléments techniques** : `App.tsx`, `components/Layout.tsx`, `components/accessibility/GuidedModeModal.tsx`, `components/accessibility/useDialogAccessibility.ts`, `components/navigation/UniversalSearchModal.tsx`, `styles/accessibility.css`, `tests/accessibility/*`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
 
+---

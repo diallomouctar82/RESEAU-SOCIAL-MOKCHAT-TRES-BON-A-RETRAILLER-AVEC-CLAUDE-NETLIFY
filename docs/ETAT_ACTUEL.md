@@ -16,7 +16,7 @@ La version **v6.3.0** consacre :
 - **Point de Récupération Automatique & Rollback** : Création automatique d'un instantané de sécurité avant toute opération (`auto_pre_restore`) avec possibilité d'annuler et revenir en arrière en 1 clic.
 - **Planificateur de Sauvegardes Automatisé** : Cycles programmés (horaires, quotidiens, hebdomadaires), quotas de rétention configurables et synchronisation avec Supabase Cloud.
 - **Unification & Résilience Supabase / Netlify / GitHub** : Export unifié du client Supabase et du service singleton tolérant aux pannes, éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
-- **Direction Chromatique & Design System Figé** : Palette institutionnelle *Bleu Profond + Or Institutionnel* conforme WCAG AA et zéro AI-Slop.
+- **Direction Chromatique & Design System Figé** : Palette institutionnelle *Bleu Profond + Or Institutionnel* visant WCAG AA et zéro AI-Slop ; contraste à revalider pour chaque palette dynamique.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -24,7 +24,7 @@ La version **v6.3.0** consacre :
 │ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Épuré + Color Lab Réactif   │
 │ DESIGN SYSTEM : V1.0.0 Figé, Documenté (26 chapitres), Zéro AI-Slop             │
 │ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + Transversal Workspace │
-│ ACCESSIBILITÉ : 100% WCAG AA, Clarté Cognitive, Restitution Vocale & Scanner   │
+│ ACCESSIBILITÉ : Socle clavier/ARIA/responsive audité ; contrôle continu requis │
 │ COHÉRENCE ARCHITECTURALE : 100% (Builds verts, Types stricts)                  │
 │ MÉMOIRE VIVANTE & HANDOFF : Suite documentaire complète et interconnectée      │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -33,6 +33,13 @@ La version **v6.3.0** consacre :
 ---
 
 ## 🟢 1. CE QUI FONCTIONNE PLEINEMENT (MODULES OPÉRATIONNELS)
+
+### 1.0. Socle responsive et accessibilité transverse (27 août 2026)
+- Navigation principale utilisable au clavier avec lien d’évitement, focus visible global, annonce des changements d’espace et `aria-current`.
+- Dock et tiroir mobiles adaptés aux écrans étroits (3 colonnes sous 420 px, zones tactiles de 44 px, contrôles absents de la tabulation quand le tiroir est fermé).
+- Recherche universelle et mode guidé exposés comme dialogues nommés, avec confinement/restauration du focus, fermeture par Échap, libellés de champs et états vocaux annoncés.
+- Animations neutralisées lorsque `prefers-reduced-motion: reduce` est actif ; bandeau d’actualités doté d’une commande Pause/Reprendre.
+- Preuves automatisées : 6 tests de sémantique/clavier responsive, dont audits axe sans violation sur les deux dialogues centraux. Le contraste visuel dynamique reste à surveiller à chaque nouvelle palette ou écran ; aucune affirmation « 100 % WCAG » n’est faite sans audit navigateur exhaustif.
 
 ### 1.1. Diallo OS, Experts & Conseil Collégial
 - Dialogue interactif avec chaque expert Diallo (Directeur, Maître, Conseiller, Professeur, Dr, Monsieur, Guide, Analyste).
