@@ -2,13 +2,13 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 class AIService {
-    private client: GoogleGenAI;
+    private client: GoogleGenAI | null = null;
     private static instance: AIService;
 
-    private constructor() {
-        // Initialisation unique du client
-        this.client = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    }
+    // Constructeur volontairement vide : le client Gemini ne doit jamais être
+    // instancié pendant le chargement du module (voir getClient), sous peine
+    // de faire planter tout le bundle si la clé API n'est pas configurée.
+    private constructor() {}
 
     public static getInstance(): AIService {
         if (!AIService.instance) {
@@ -18,12 +18,29 @@ class AIService {
     }
 
     /**
+     * Crée le client Gemini à la demande, au premier appel réel d'une
+     * fonctionnalité IA. GoogleGenAI lève une exception synchrone si la clé
+     * API est absente ; construire le client ici garde cette erreur locale
+     * aux méthodes ci-dessous (déjà couvertes par un try/catch) au lieu de
+     * remonter jusqu'à l'évaluation du module et de bloquer tout React.
+     */
+    private getClient(): GoogleGenAI {
+        if (!this.client) {
+            if (!process.env.API_KEY) {
+                throw new Error("Clé API Gemini manquante (GEMINI_API_KEY non configurée).");
+            }
+            this.client = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        }
+        return this.client;
+    }
+
+    /**
      * Génère une réponse textuelle simple.
      * Gère les erreurs réseaux et log les problèmes.
      */
     async generateText(model: string, prompt: string, systemInstruction?: string): Promise<string> {
         try {
-            const response = await this.client.models.generateContent({
+            const response = await this.getClient().models.generateContent({
                 model: model,
                 contents: prompt,
                 config: {
@@ -43,7 +60,7 @@ class AIService {
      */
     async generateJson<T>(model: string, prompt: string, schemaDescription?: string): Promise<T> {
         try {
-            const response = await this.client.models.generateContent({
+            const response = await this.getClient().models.generateContent({
                 model: model,
                 contents: prompt + (schemaDescription ? `\n\nRespond strictly in JSON following this schema: ${schemaDescription}` : ""),
                 config: {
@@ -69,7 +86,7 @@ class AIService {
      */
     async analyzeMedia(model: string, prompt: string, mimeType: string, base64Data: string): Promise<string> {
         try {
-            const response = await this.client.models.generateContent({
+            const response = await this.getClient().models.generateContent({
                 model: model,
                 contents: {
                     parts: [
