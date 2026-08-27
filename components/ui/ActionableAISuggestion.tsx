@@ -45,17 +45,17 @@ export const ActionableAISuggestion: React.FC<ActionableAISuggestionProps> = ({
   return (
     <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-2xl p-5 sm:p-6 shadow-md border border-slate-700/80 relative overflow-hidden group">
       {/* Background glow subtle effect */}
-      <div className="absolute top-0 right-0 w-48 h-48 bg-orange-600/10 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-48 h-48 bg-blue-600/10 rounded-full blur-2xl pointer-events-none" />
 
       <div className="relative z-10 space-y-3">
         
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-orange-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+            <span className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
               <Sparkles size={14} />
             </span>
-            <span className="text-[11px] font-black uppercase text-orange-400 tracking-wider">
+            <span className="text-[11px] font-black uppercase text-blue-300 tracking-wider">
               {badgeLabel}
             </span>
             {confidenceScore && (
@@ -92,7 +92,7 @@ export const ActionableAISuggestion: React.FC<ActionableAISuggestionProps> = ({
         {/* Why Explanation (Expandable) */}
         {isWhyOpen && (
           <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 space-y-1.5 animate-fade-in">
-            <div className="flex items-center gap-1.5 text-orange-300 font-bold">
+            <div className="flex items-center gap-1.5 text-blue-300 font-bold">
               <HelpCircle size={14} />
               <span>Pourquoi cette recommandation ?</span>
             </div>
@@ -129,7 +129,7 @@ export const ActionableAISuggestion: React.FC<ActionableAISuggestionProps> = ({
 
             <button
               onClick={onPrimaryAction}
-              className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md hover:scale-[1.02] transition-all"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md hover:scale-[1.02] transition-all"
             >
               <span>{primaryActionLabel}</span>
               <ArrowRight size={14} />

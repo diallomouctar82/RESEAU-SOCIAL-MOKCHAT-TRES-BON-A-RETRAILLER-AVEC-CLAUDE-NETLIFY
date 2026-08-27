@@ -66,7 +66,7 @@ export const SmartConfirmModal: React.FC<SmartConfirmModalProps> = ({
         return {
           icon: FileCheck,
           iconBg: 'bg-blue-100 text-blue-700',
-          confirmBtn: 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/20',
+          confirmBtn: 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20',
           badgeText: 'Action Engageante',
           badgeBg: 'bg-blue-50 text-blue-700 border-blue-200'
         };

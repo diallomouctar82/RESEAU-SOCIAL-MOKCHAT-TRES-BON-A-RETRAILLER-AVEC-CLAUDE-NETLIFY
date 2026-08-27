@@ -47,12 +47,12 @@ export const ComponentShowcaseModal: React.FC<ComponentShowcaseModalProps> = ({
         {/* Header */}
         <div className="bg-slate-900 text-white p-6 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
               <Layers size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-orange-400">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-300">
                   LMAV Design System 1.0
                 </span>
                 <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full">

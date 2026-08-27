@@ -33,7 +33,7 @@ export const FocusAndPresentationControls: React.FC<FocusAndPresentationControls
         onClick={onToggleFocusMode}
         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
           isFocusMode 
-            ? 'bg-orange-600 text-white shadow-xs' 
+            ? 'bg-blue-600 text-white shadow-xs' 
             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
         }`}
         title="Mode Concentration : masque les distractions, barres latérales et notifications"

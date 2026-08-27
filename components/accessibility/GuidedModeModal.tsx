@@ -211,12 +211,12 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
         {/* Top Guided Bar */}
         <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
               <Compass size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-widest font-black text-orange-400">Mode Guidé • Clarté Absolue</span>
+                <span className="text-[11px] uppercase tracking-widest font-black text-blue-300">Mode Guidé • Clarté Absolue</span>
                 <span className="bg-white/10 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Étape {currentStep} sur 4</span>
               </div>
               <h2 id="guided-mode-title" className="text-xl font-bold text-white tracking-tight">
@@ -248,7 +248,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
               aria-label={voiceAssistance ? "Désactiver l'assistance vocale" : "Activer l'assistance vocale"}
               className={`p-2.5 rounded-xl border transition-all ${
                 voiceAssistance 
-                  ? 'bg-orange-600/20 text-orange-400 border-orange-500/30 hover:bg-orange-600/30' 
+                  ? 'bg-blue-600/20 text-blue-300 border-blue-500/30 hover:bg-blue-600/30' 
                   : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
               }`}
             >
@@ -271,7 +271,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
             <div 
               key={s} 
               className={`flex-1 h-full transition-all duration-300 ${
-                s <= currentStep ? 'bg-orange-600' : 'bg-slate-200'
+                s <= currentStep ? 'bg-blue-600' : 'bg-slate-200'
               }`} 
             />
           ))}
@@ -283,8 +283,8 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
           {/* STEP 1: SELECT GOAL */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <div className="bg-orange-50 border border-orange-200/80 rounded-2xl p-4 flex items-center justify-between gap-4">
-                <p className="text-sm font-medium text-orange-950">
+              <div className="bg-blue-50 border border-blue-200/80 rounded-2xl p-4 flex items-center justify-between gap-4">
+                <p className="text-sm font-medium text-blue-950">
                   <span className="font-bold">Astuce :</span> Vous pouvez cliquer sur une option ou simplement parler avec le micro.
                 </p>
                 <button
@@ -295,7 +295,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                       : 'bg-white text-slate-800 border border-slate-200 shadow-xs hover:bg-slate-50'
                   }`}
                 >
-                  {isListening ? <MicOff size={16} /> : <Mic size={16} className="text-orange-600" />}
+                  {isListening ? <MicOff size={16} /> : <Mic size={16} className="text-blue-600" />}
                   <span>{isListening ? "Écoute en cours..." : "Parler"}</span>
                 </button>
               </div>
@@ -313,12 +313,12 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                       }}
                       className={`p-5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:scale-[1.01] ${
                         isSelected 
-                          ? 'border-orange-600 bg-orange-50/40 ring-2 ring-orange-500/20' 
+                          ? 'border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/20' 
                           : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
                       }`}
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-orange-100 flex items-center justify-center text-slate-800 group-hover:text-orange-600 transition-colors shrink-0">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-slate-800 group-hover:text-blue-600 transition-colors shrink-0">
                           <Icon size={24} />
                         </div>
                         <div>
@@ -330,7 +330,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-end text-xs font-bold text-orange-600 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-end text-xs font-bold text-blue-600 pt-2 border-t border-slate-100">
                         <span>Choisir</span>
                         <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
                       </div>
@@ -346,11 +346,11 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
             <div className="space-y-6 animate-fade-in">
               <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center font-black">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black">
                     <CheckCircle2 size={20} />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-orange-600 uppercase">Objectif Sélectionné</span>
+                    <span className="text-xs font-bold text-blue-600 uppercase">Objectif Sélectionné</span>
                     <h3 className="text-lg font-black text-slate-900">{selectedGoal.title}</h3>
                   </div>
                 </div>
@@ -389,7 +389,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                       placeholder={`Exemple pour ${req.toLowerCase()}...`}
                       value={answers[`req_${i}`] || ''}
                       onChange={(e) => setAnswers({ ...answers, [`req_${i}`]: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 ))}
@@ -457,7 +457,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
             {currentStep === 3 && (
               <button
                 onClick={() => goToStep(4)}
-                className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all"
               >
                 <span>Valider mes informations</span>
                 <ArrowRight size={16} />

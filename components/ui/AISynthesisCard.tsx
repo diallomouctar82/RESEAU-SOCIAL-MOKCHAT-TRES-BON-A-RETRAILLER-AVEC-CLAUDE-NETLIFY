@@ -48,11 +48,11 @@ export const AISynthesisCard: React.FC<AISynthesisCardProps> = ({
       {/* Header */}
       <div className="bg-slate-900 text-white p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
             <Sparkles size={20} />
           </div>
           <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-orange-400">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-300">
               Synthèse & Clarté Décisionnelle • Diallo OS
             </span>
             <h3 className="text-lg font-black text-white leading-tight">
@@ -119,19 +119,19 @@ export const AISynthesisCard: React.FC<AISynthesisCardProps> = ({
           </div>
 
           {/* Actions & Prochaines Étapes */}
-          <div className="space-y-3 p-4 rounded-2xl bg-orange-50/50 border border-orange-100">
-            <h4 className="text-xs font-black uppercase tracking-wider text-orange-900 flex items-center gap-1.5">
-              <ListTodo size={15} className="text-orange-600" /> Plan d'Action Recommandé
+          <div className="space-y-3 p-4 rounded-2xl bg-blue-50/60 border border-blue-100">
+            <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+              <ListTodo size={15} className="text-blue-600" /> Plan d'Action Recommandé
             </h4>
             <ul className="space-y-2">
               {actionItems.map((act, i) => (
-                <li key={i} className="text-xs text-slate-800 flex items-start justify-between gap-2 border-b border-orange-200/30 pb-1.5 last:border-0 last:pb-0">
+                <li key={i} className="text-xs text-slate-800 flex items-start justify-between gap-2 border-b border-blue-200/30 pb-1.5 last:border-0 last:pb-0">
                   <div className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 mt-1.5 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
                     <span className="font-semibold">{act.task}</span>
                   </div>
                   {act.due && (
-                    <span className="text-[10px] bg-white px-2 py-0.5 rounded-full text-slate-500 font-bold border border-orange-100 shrink-0">
+                    <span className="text-[10px] bg-white px-2 py-0.5 rounded-full text-slate-500 font-bold border border-blue-100 shrink-0">
                       {act.due}
                     </span>
                   )}

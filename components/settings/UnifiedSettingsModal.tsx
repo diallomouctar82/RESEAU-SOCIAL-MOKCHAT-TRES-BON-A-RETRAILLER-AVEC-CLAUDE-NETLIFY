@@ -72,7 +72,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
         <div className="w-full md:w-64 bg-slate-900 text-white p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-800 shrink-0">
           <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black shadow-md">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
                 <Settings size={20} />
               </div>
               <div>
@@ -86,7 +86,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 onClick={() => setActiveSection('accessibility')}
                 className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
                   activeSection === 'accessibility' 
-                    ? 'bg-orange-600 text-white shadow-xs' 
+                    ? 'bg-blue-600 text-white shadow-xs' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -97,7 +97,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 onClick={() => setActiveSection('connectors')}
                 className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
                   activeSection === 'connectors' 
-                    ? 'bg-orange-600 text-white shadow-xs' 
+                    ? 'bg-blue-600 text-white shadow-xs' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -108,7 +108,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 onClick={() => setActiveSection('account')}
                 className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
                   activeSection === 'account' 
-                    ? 'bg-orange-600 text-white shadow-xs' 
+                    ? 'bg-blue-600 text-white shadow-xs' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -119,7 +119,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 onClick={() => setActiveSection('privacy')}
                 className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
                   activeSection === 'privacy' 
-                    ? 'bg-orange-600 text-white shadow-xs' 
+                    ? 'bg-blue-600 text-white shadow-xs' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -130,7 +130,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 onClick={() => setActiveSection('notifications')}
                 className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
                   activeSection === 'notifications' 
-                    ? 'bg-orange-600 text-white shadow-xs' 
+                    ? 'bg-blue-600 text-white shadow-xs' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -144,7 +144,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
           </div>
         </div>
 
-        {/* Main Content Area */}
+        {/* Content Area */}
         <div className="flex-1 flex flex-col justify-between overflow-hidden bg-slate-50">
           
           {/* Header Bar */}
@@ -176,7 +176,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 {/* Taille du Texte */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-center gap-2">
-                    <Type size={18} className="text-orange-600" />
+                    <Type size={18} className="text-blue-600" />
                     <span className="text-sm font-bold text-slate-900">Taille du Texte & Lisibilité</span>
                   </div>
                   <p className="text-xs text-slate-500">
@@ -189,7 +189,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                         onClick={() => setTextSize(size)}
                         className={`p-3 rounded-xl border text-xs font-bold transition-all ${
                           textSize === size 
-                            ? 'border-orange-600 bg-orange-50 text-orange-950 ring-2 ring-orange-500/20' 
+                            ? 'border-blue-600 bg-blue-50 text-blue-950 ring-2 ring-blue-500/20' 
                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                         }`}
                       >
@@ -205,7 +205,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <Volume2 size={18} className="text-orange-600" />
+                      <Volume2 size={18} className="text-blue-600" />
                       <span className="text-sm font-bold text-slate-900">Lecture Audio Automatique (Diallo Voice)</span>
                     </div>
                     <p className="text-xs text-slate-500">
@@ -215,7 +215,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                   <button
                     onClick={() => setAutoVoiceTTS(!autoVoiceTTS)}
                     className={`w-12 h-6 rounded-full transition-colors relative ${
-                      autoVoiceTTS ? 'bg-orange-600' : 'bg-slate-300'
+                      autoVoiceTTS ? 'bg-blue-600' : 'bg-slate-300'
                     }`}
                   >
                     <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
@@ -228,7 +228,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <Eye size={18} className="text-orange-600" />
+                      <Eye size={18} className="text-blue-600" />
                       <span className="text-sm font-bold text-slate-900">Contraste Élevé & Bordures Renforcées</span>
                     </div>
                     <p className="text-xs text-slate-500">
@@ -238,7 +238,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                   <button
                     onClick={() => setHighContrast(!highContrast)}
                     className={`w-12 h-6 rounded-full transition-colors relative ${
-                      highContrast ? 'bg-orange-600' : 'bg-slate-300'
+                      highContrast ? 'bg-blue-600' : 'bg-slate-300'
                     }`}
                   >
                     <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
@@ -253,7 +253,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
             {/* CONNECTORS PANEL */}
             {activeSection === 'connectors' && (
               <div className="space-y-4">
-                <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-200/80 text-xs text-orange-950 font-medium">
+                <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200/80 text-xs text-blue-950 font-medium">
                   Les services Google Workspace sont intégrés au cœur des démarches et des échanges avec les experts Diallo.
                 </div>
 
@@ -290,7 +290,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                         className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                           isConnected 
                             ? 'border border-slate-200 text-slate-600 hover:bg-slate-50' 
-                            : 'bg-orange-600 text-white hover:bg-orange-700'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
                       >
                         {isConnected ? 'Gérer' : 'Connecter'}
@@ -314,7 +314,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                     <div>
                       <h4 className="text-base font-black text-slate-900">{userProfile.name}</h4>
                       <p className="text-xs text-slate-500">{userProfile.email}</p>
-                      <span className="inline-block mt-1 text-[10px] font-bold uppercase bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">
+                      <span className="inline-block mt-1 text-[10px] font-bold uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
                         {userProfile.role || 'Membre Titulaire'}
                       </span>
                     </div>
@@ -349,7 +349,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
           <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
             <button
               onClick={onClose}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-xs"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-xs"
             >
               Enregistrer & Fermer
             </button>

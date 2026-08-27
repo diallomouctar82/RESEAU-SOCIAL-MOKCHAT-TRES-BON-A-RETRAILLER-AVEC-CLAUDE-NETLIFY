@@ -81,35 +81,35 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
 
     return (
         <div className="flex flex-col h-full bg-slate-50 animate-fade-up">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-8 shadow-lg">
-                <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            {/* Header Unified Institutional */}
+            <div className="bg-white border-b border-slate-200 text-slate-900 px-6 py-6 shadow-xs">
+                <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <div className="flex items-center gap-2 text-orange-200 font-bold uppercase text-xs tracking-wider mb-2">
-                            <Home size={14} /> Espace Logement
+                        <div className="flex items-center gap-2 text-blue-900 font-bold uppercase text-[11px] tracking-wider mb-1">
+                            <Home size={14} className="text-blue-700" /> Logement & Installation
                         </div>
-                        <h1 className="text-3xl font-bold">Trouvez votre Chez-Vous</h1>
-                        <p className="text-orange-100 max-w-xl mt-2">
-                            Recherche intelligente, dossiers solides et protection anti-arnaques.
+                        <h1 className="text-2xl font-black text-slate-900">Trouvez votre Chez-Vous</h1>
+                        <p className="text-xs text-slate-600 max-w-xl mt-1">
+                            Recherche intelligente, constitution de dossiers solides et protection anti-arnaques certifiée.
                         </p>
                     </div>
                     
-                    <div className="flex gap-2 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
+                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
                         <button 
                           onClick={() => setActiveTab('search')}
-                          className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'search' ? 'bg-white text-orange-800 shadow-md' : 'text-white hover:bg-white/10'}`}
+                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'search' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
                         >
                             Recherche
                         </button>
                         <button 
                           onClick={() => setActiveTab('scam-check')}
-                          className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'scam-check' ? 'bg-white text-orange-800 shadow-md' : 'text-white hover:bg-white/10'}`}
+                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'scam-check' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
                         >
                             Anti-Arnaque
                         </button>
                         <button 
                           onClick={() => setActiveTab('dossier')}
-                          className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'dossier' ? 'bg-white text-orange-800 shadow-md' : 'text-white hover:bg-white/10'}`}
+                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'dossier' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
                         >
                             Mon Dossier
                         </button>

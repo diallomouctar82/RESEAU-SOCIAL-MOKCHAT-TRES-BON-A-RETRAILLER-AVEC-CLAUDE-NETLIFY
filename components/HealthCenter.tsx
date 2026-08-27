@@ -69,36 +69,36 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-teal-50 animate-fade-up">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-teal-800 to-teal-900 text-white p-8 shadow-lg">
-                <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex flex-col h-full bg-slate-50 animate-fade-up">
+            {/* Header Unified Institutional */}
+            <div className="bg-white border-b border-slate-200 text-slate-900 px-6 py-6 shadow-xs">
+                <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <div className="flex items-center gap-2 text-teal-300 font-bold uppercase text-xs tracking-wider mb-2">
-                            <Activity size={14} className="animate-pulse" /> Espace Santé & Urgences
+                        <div className="flex items-center gap-2 text-blue-900 font-bold uppercase text-[11px] tracking-wider mb-1">
+                            <Activity size={14} className="text-blue-700 animate-pulse" /> Santé & Urgences Mondiales
                         </div>
-                        <h1 className="text-3xl font-bold">Health Guardian</h1>
-                        <p className="text-teal-100 max-w-xl mt-2">
-                            Votre assistant médical personnel. Triage intelligent et accès rapide aux secours mondiaux.
+                        <h1 className="text-2xl font-black text-slate-900">Santé & Accompagnement Médical</h1>
+                        <p className="text-xs text-slate-600 max-w-xl mt-1">
+                            Orientation santé, triage intelligent et accès immédiat aux numéros d'urgence internationaux.
                         </p>
                     </div>
                     
-                    <div className="flex gap-2 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
+                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
                         <button 
                           onClick={() => setActiveTab('check')}
-                          className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'check' ? 'bg-white text-teal-900 shadow-md' : 'text-white hover:bg-white/10'}`}
+                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'check' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
                         >
-                            Triage IA
+                            Triage & Conseils
                         </button>
                         <button 
                           onClick={() => setActiveTab('sos')}
-                          className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'sos' ? 'bg-red-600 text-white shadow-md animate-pulse' : 'text-white hover:bg-white/10'}`}
+                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'sos' ? 'bg-red-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
                         >
                             SOS Monde
                         </button>
                         <button 
                           onClick={() => setActiveTab('profile')}
-                          className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'profile' ? 'bg-white text-teal-900 shadow-md' : 'text-white hover:bg-white/10'}`}
+                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'profile' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
                         >
                             Mon Carnet
                         </button>

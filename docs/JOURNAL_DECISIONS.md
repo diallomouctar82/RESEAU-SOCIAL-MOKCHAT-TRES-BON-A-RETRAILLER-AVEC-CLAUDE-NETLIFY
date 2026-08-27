@@ -298,26 +298,20 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-016] — 27 Août 2026
-* **Module(s)** : `DesignSystem`, `UIConstitution`, `MasterDocumentation`, `Handoff`, `GoldenScreens`, `ProductGlossary`
-* **Problème / Besoin initial** : Franchir le jalon officiel **PREMIUM EXPERIENCE V1**, figer les fondations ergonomiques et graphiques sans brider l'innovation future, formaliser la constitution UI en 26 sections, établir le glossaire sémantique unifié, cartographier l'ensemble des écrans et Golden Screens et préparer le dossier de passation et de consolidation pour Claude Code.
+### [DEC-2026-018] — 27 Août 2026
+* **Module(s)** : `Global UI`, `Buttons & Controls`, `Accessibility`, `DesignTokens`
+* **Problème / Besoin initial** : Uniformiser l'ensemble des boutons et contrôles d'action de l'application selon la règle de cohérence absolue : **fond bleu institutionnel et écriture blanche** (aligné sur le bouton Accueil), éliminant la dispersion des couleurs secondaires orange/rouge.
 * **Idées envisagées** :
-  1. Continuer sans documenter ni figer les règles, au risque de voir de futurs intervenants réintroduire d'anciennes palettes, du jargon robotique ou 18 boutons plats dans la barre de navigation.
-  2. Créer une suite documentaire maîtresse normée et opposable :
-     - **Manifeste de l'Expérience Premium** (`docs/PREMIUM_EXPERIENCE_MANIFEST.md`) répondant aux 5 questions fondatrices.
-     - **Design System V1 & UI Constitution** (`docs/DESIGN_SYSTEM_V1.md`) structuré en 26 sections exhaustives.
-     - **Glossaire Produit Officiel** (`docs/GLOSSAIRE_PRODUIT.md`) instaurant la règle « Une fonction = Un nom unique » et interdisant les termes bots/IA.
-     - **Inventaire des Écrans & Matrice de Cohérence** (`docs/INVENTAIRE_ECRANS_ET_MATRICE.md`).
-     - **Golden Screens & Rapport Avant/Après** (`docs/GOLDEN_SCREENS_ET_AVANT_APRES.md`).
-     - **Registre des Composants & Changelog UX** (`docs/UX_CHANGELOG.md`).
-     - **Registre de la Dette de Design** (`docs/DESIGN_DEBT_REGISTER.md`).
-     - **Dossier de Passation Claude Code** (`docs/HANDOFF_CLAUDE_CODE.md`).
-     - **Mise à jour du Livre de Vision** (`docs/LIVRE_DE_VISION.md`) avec la philosophie UX (*« Cacher la complexité technique et révéler progressivement ce qui aide l’utilisateur à atteindre son objectif »*).
-* **Décision retenue** : Option 2 intégralement exécutée et connectée au système central de mémoire.
-* **Justification** : « La qualité de la plateforme est celle de son maillon visuel le plus faible. Figer les fondations permet d'accélérer l'innovation sans jamais régresser. »
-* **Conséquences** : Référentiel opposable pour tous les futurs développements, cohérence absolue entre les 14 modules et passation transparente vers Claude Code.
-* **Éléments techniques** : `/docs/PREMIUM_EXPERIENCE_MANIFEST.md`, `/docs/DESIGN_SYSTEM_V1.md`, `/docs/GLOSSAIRE_PRODUIT.md`, `/docs/INVENTAIRE_ECRANS_ET_MATRICE.md`, `/docs/GOLDEN_SCREENS_ET_AVANT_APRES.md`, `/docs/UX_CHANGELOG.md`, `/docs/DESIGN_DEBT_REGISTER.md`, `/docs/HANDOFF_CLAUDE_CODE.md`, `/docs/LIVRE_DE_VISION.md`.
+  1. Laisser des couleurs variées selon les sous-composants.
+  2. Procéder à une harmonisation systématique de tous les boutons primaires d'action, en-têtes d'outils, badges d'état et zones d'interaction vers la palette bleue souveraine avec texte blanc haute lisibilité (`bg-blue-600 hover:bg-blue-700 text-white`).
+* **Décision retenue** : Option 2 appliquée sur l'ensemble des composants transversaux (`ActionableAISuggestion`, `PointAToBPathway`, `EmptyStateGuide`, `KnowledgeCard`, `AISynthesisCard`, `SmartConfirmModal`, `FocusAndPresentationControls`, `GuidedModeModal`, `UniversalScannerModal`, `BilingualConversationModal`, `UnifiedSettingsModal`, `QuickActionZone`, `StatusBadge`).
+* **Justification** : « Garantit une identité visuelle unifiée, sobre, technologique et épurée, sans dispersion visuelle, offrant une clarté immédiate à l'utilisateur. »
+* **Conséquences** : Cohérence parfaite entre la barre de navigation, les cartes décisionnelles, les modales interactives et les boutons d'action.
+* **Éléments techniques** : `/components/ui/ActionableAISuggestion.tsx`, `/components/ui/PointAToBPathway.tsx`, `/components/ui/EmptyStateGuide.tsx`, `/components/ui/KnowledgeCard.tsx`, `/components/ui/AISynthesisCard.tsx`, `/components/ui/SmartConfirmModal.tsx`, `/components/ui/FocusAndPresentationControls.tsx`, `/components/accessibility/GuidedModeModal.tsx`, `/components/scanner/UniversalScannerModal.tsx`, `/components/translation/BilingualConversationModal.tsx`, `/components/settings/UnifiedSettingsModal.tsx`, `/components/ui/QuickActionZone.tsx`, `/components/ui/StatusBadge.tsx`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
 
 
 
