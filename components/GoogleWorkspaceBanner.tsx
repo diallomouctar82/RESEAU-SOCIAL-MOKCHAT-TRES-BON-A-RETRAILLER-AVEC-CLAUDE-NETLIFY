@@ -1,35 +1,35 @@
 
 import React, { useState, useEffect } from 'react';
 import { LogIn, LogOut, CheckCircle, AlertCircle, Key, RefreshCw } from 'lucide-react';
-import { linkGoogleWorkspace, unlinkGoogleWorkspace, subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
+import { hasWorkspaceCapabilities, linkGoogleWorkspace, unlinkGoogleWorkspace, subscribeToWorkspaceToken, type WorkspaceCapability } from '../services/googleWorkspaceLink';
 import { useGlobal } from '../contexts/GlobalContext';
 
 interface GoogleWorkspaceBannerProps {
     compact?: boolean;
     onAuthenticated?: () => void;
+    capabilities?: WorkspaceCapability[];
 }
 
-export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ compact = false, onAuthenticated }) => {
+export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ compact = false, onAuthenticated, capabilities }) => {
     const { userProfile } = useGlobal();
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const requestedCapabilities = capabilities ?? ['drive'];
 
     useEffect(() => {
         const unsubscribe = subscribeToWorkspaceToken((t) => {
             setToken(t);
-            if (t && onAuthenticated) {
-                onAuthenticated();
-            }
         });
         return () => unsubscribe();
-    }, [onAuthenticated]);
+    }, []);
 
     const handleLogin = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            await linkGoogleWorkspace();
+            await linkGoogleWorkspace(requestedCapabilities);
+            onAuthenticated?.();
         } catch (err: any) {
             console.error(err);
             setError(err.message || 'Échec de la connexion à Google Workspace.');
@@ -42,7 +42,8 @@ export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ co
         unlinkGoogleWorkspace();
     };
 
-    const isConnected = Boolean(token);
+    const isConnected = Boolean(token) && hasWorkspaceCapabilities(requestedCapabilities);
+    const capabilityLabel = requestedCapabilities.map((capability) => ({ drive: 'Drive', chat: 'Chat', meet: 'Meet' })[capability]).join(', ');
 
     if (compact) {
         return (
@@ -105,8 +106,8 @@ export const GoogleWorkspaceBanner: React.FC<GoogleWorkspaceBannerProps> = ({ co
                         </div>
                         <p className="text-xs text-slate-600 mt-1">
                             {isConnected
-                                ? `Synchronisé avec ${userProfile.email}. Drive, Chat et Meet sont opérationnels.`
-                                : "Autorisez l'accès à vos services Google Drive, Google Chat et Google Meet avec votre accord préalable."}
+                                ? `${capabilityLabel} autorisé pour ${userProfile.email} pendant la durée du jeton en mémoire.`
+                                : `Autorisez explicitement ${capabilityLabel}. Le fonctionnement dépend aussi des APIs et de l’écran de consentement configurés dans Google Cloud.`}
                         </p>
                     </div>
                 </div>

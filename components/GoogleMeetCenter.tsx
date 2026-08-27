@@ -10,7 +10,7 @@ import {
     GoogleMeetSpace,
     getAccessToken
 } from '../services/googleWorkspace';
-import { subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
+import { hasWorkspaceCapabilities, subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { AGENTS } from '../constants';
 
@@ -68,20 +68,7 @@ export const GoogleMeetCenter: React.FC = () => {
     const [copied, setCopied] = useState(false);
 
     // List of scheduled expert sessions
-    const [scheduledMeets, setScheduledMeets] = useState<ScheduledMeet[]>([
-        {
-            id: 'meet-demo-1',
-            topic: 'Consultation Orientation Master & Bourse d\'Excellence',
-            agentName: 'Professeur Diallo',
-            agentRole: 'Éducation & Campus',
-            agentAvatar: EXPERT_TEMPLATES[3].avatar,
-            meetingUri: 'https://meet.google.com/abc-defg-hij',
-            meetingCode: 'abc-defg-hij',
-            date: 'Aujourd\'hui',
-            time: '15:30',
-            status: 'ready'
-        }
-    ]);
+    const [scheduledMeets, setScheduledMeets] = useState<ScheduledMeet[]>([]);
 
     // Local device preview state
     const [isCameraOn, setIsCameraOn] = useState(true);
@@ -91,7 +78,7 @@ export const GoogleMeetCenter: React.FC = () => {
 
     useEffect(() => {
         const unsubscribe = subscribeToWorkspaceToken((t) => {
-            setToken(t);
+            setToken(t && hasWorkspaceCapabilities(['meet']) ? t : null);
         });
         return () => unsubscribe();
     }, []);
@@ -142,8 +129,11 @@ export const GoogleMeetCenter: React.FC = () => {
             const space = await createMeetSpace();
             setActiveMeet(space);
 
-            const uri = space.meetingUri || `https://meet.google.com/${space.meetingCode || 'new-meeting'}`;
-            const code = space.meetingCode || uri.split('/').pop() || 'live-meet';
+            if (!space.meetingUri || !space.meetingCode) {
+                throw new Error('Google Meet n’a retourné aucun lien de réunion valide.');
+            }
+            const uri = space.meetingUri;
+            const code = space.meetingCode;
 
             const newMeet: ScheduledMeet = {
                 id: `meet-${Date.now()}`,
@@ -161,27 +151,8 @@ export const GoogleMeetCenter: React.FC = () => {
             setScheduledMeets(prev => [newMeet, ...prev]);
         } catch (err: any) {
             console.error('Erreur création Meet:', err);
-            // Fallback gracefully to standard link if domain config requires fallback
-            const fallbackCode = `lmv-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 6)}`;
-            const fallbackUri = `https://meet.google.com/${fallbackCode}`;
-            const fallbackSpace: GoogleMeetSpace = {
-                name: `spaces/${fallbackCode}`,
-                meetingUri: fallbackUri,
-                meetingCode: fallbackCode
-            };
-            setActiveMeet(fallbackSpace);
-            setScheduledMeets(prev => [{
-                id: `meet-${Date.now()}`,
-                topic: customTopic || 'Session Directe Google Meet',
-                agentName: expert ? expert.name : 'Expert Le Monde à Vous',
-                agentRole: expert ? expert.role : 'Consultation Vidéo',
-                agentAvatar: expert ? expert.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-                meetingUri: fallbackUri,
-                meetingCode: fallbackCode,
-                date: 'Maintenant',
-                time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-                status: 'ready'
-            }, ...prev]);
+            setActiveMeet(null);
+            setError(err?.message || 'Google Meet n’est pas configuré. Vérifiez le consentement et les APIs activées.');
         } finally {
             setIsCreating(false);
         }
@@ -224,7 +195,7 @@ export const GoogleMeetCenter: React.FC = () => {
             </div>
 
             {/* Google Workspace Banner */}
-            <GoogleWorkspaceBanner />
+            <GoogleWorkspaceBanner capabilities={['meet']} />
 
             {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
@@ -259,10 +230,10 @@ export const GoogleMeetCenter: React.FC = () => {
                             {/* Meeting Link Box */}
                             <div className="bg-black/40 border border-white/10 rounded-2xl p-3 flex items-center justify-between gap-3 mb-6">
                                 <div className="text-xs font-mono text-rose-300 truncate">
-                                    {activeMeet.meetingUri || `https://meet.google.com/${activeMeet.meetingCode}`}
+                                    {activeMeet.meetingUri}
                                 </div>
                                 <button
-                                    onClick={() => handleCopyLink(activeMeet.meetingUri || `https://meet.google.com/${activeMeet.meetingCode}`)}
+                                    onClick={() => handleCopyLink(activeMeet.meetingUri!)}
                                     className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
                                 >
                                     {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
@@ -273,7 +244,7 @@ export const GoogleMeetCenter: React.FC = () => {
                             {/* Action Buttons */}
                             <div className="flex items-center gap-3">
                                 <a
-                                    href={activeMeet.meetingUri || `https://meet.google.com/${activeMeet.meetingCode}`}
+                                    href={activeMeet.meetingUri}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs font-bold text-center transition-all shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 hover:scale-[1.02]"

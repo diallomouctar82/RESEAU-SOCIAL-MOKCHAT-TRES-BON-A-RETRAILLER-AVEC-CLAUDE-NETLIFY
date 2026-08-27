@@ -31,6 +31,15 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : Google Drive, Chat, Meet.
+* **Problème / Besoin initial** : les appels REST et jetons fournisseur étaient manipulés directement par les centres frontend, les scopes étaient trop larges et Meet fabriquait un faux lien après erreur.
+* **Décision retenue** : consentement GIS incrémental par capacité, jeton éphémère en mémoire avec expiration, REST via une fonction Netlify authentifiée/quotée/allowlistée, et échec explicite sans résultat fictif.
+* **Conséquences** : un consentement Drive ne débloque pas Chat/Meet. Le code est prêt mais l'E2E reste bloqué par les variables Netlify et la configuration Google Cloud.
+* **Éléments techniques** : `services/googleWorkspaceLink.ts`, `services/googleWorkspace.ts`, `netlify/functions/google-workspace-proxy.ts`, centres Google et `tests/google-workspace.test.mjs`.
+* **Preuves** : tests ciblés 3/3; build Vite réussi.
+* **Statut** : `Développé`, `Testé localement`, `Configuration Google/Netlify requise`.
+
 ### [DEC-2026-021] — 27 Août 2026
 * **Module(s)** : Wallet, Commerce, Trade/RFQ.
 * **Problème / Besoin initial** : le Wallet gonflait le solde en état React et la création de commande faisait confiance aux prix du navigateur; RFQ et cotations affichaient des succès locaux.
@@ -495,7 +504,6 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
-
 
 
 ### [DEC-2026-021-A11Y] — 27 Août 2026
