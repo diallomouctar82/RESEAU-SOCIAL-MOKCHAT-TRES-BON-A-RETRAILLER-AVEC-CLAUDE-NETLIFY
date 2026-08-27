@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Heart, MessageCircle, Share2, MoreHorizontal, Plus, Sparkles, TrendingUp, 
   Radio, PlayCircle, Video, Play, Users, Trophy, UserPlus, Calendar, Languages, 
@@ -6,13 +6,13 @@ import {
   Clock, Lock, Volume2, VolumeX, Music, Wand2, Zap, Globe, MessageSquare, Check, 
   Smile, Send, ChevronDown, ChevronUp, ArrowRight, Mic, Phone, PhoneCall, Paperclip, 
   MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp, 
-  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle
+  Repeat, Bookmark, Shield, ShieldAlert, Award, Eye, Download, UploadCloud, AlertCircle
 } from 'lucide-react';
 import { 
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
   ChatConversation, ChatMessage, MemberProfile, Story, UserProfile, PostDocument, PostVisibility, PostReactionType 
 } from '../types';
-import { AGENTS, REELS, STORIES, ACTIVE_LIVES, TRIBES, LEADERBOARD, MOCK_CHATS, MOCK_MEMBERS, POSTS as INITIAL_POSTS } from '../constants';
+import { AGENTS, ACTIVE_LIVES, TRIBES, LEADERBOARD } from '../constants';
 import { ReelsCreator } from './ReelsCreator';
 import { SmartReelViewer } from './SmartReelViewer';
 import { UniversalCreator } from './UniversalCreator';
@@ -21,8 +21,11 @@ import { MemberProfileModal } from './MemberProfileModal';
 import { StoryViewerModal } from './StoryViewerModal';
 import { LiveCreationModal } from './LiveCreationModal';
 import { LiveReplayModal } from './LiveReplayModal';
-import { cloudService } from '../services/cloud';
-import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient';
+import { supabaseService } from '../services/supabaseClient';
+import { socialNetworkService } from '../services/socialNetwork';
+import { mokChatService } from '../services/mokChat';
+import { createMediaPreview, mediaStorage, revokeMediaPreview, validateMediaFile } from '../services/mediaStorage';
+import { isUuid, newUuid } from '../services/identifiers';
 import { useGlobal } from '../contexts/GlobalContext';
 
 interface SocialFeedProps {
@@ -31,21 +34,23 @@ interface SocialFeedProps {
 }
 
 export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat }) => {
-  const { userProfile: currentUser, isSupabaseConnected } = useGlobal();
+  const { userProfile: currentUser, isSupabaseConnected, addNotification } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
-  const [feedFilter, setFeedFilter] = useState<'for_you' | 'following' | 'community' | 'tech' | 'legal' | 'business'>('for_you');
+  const [feedFilter, setFeedFilter] = useState<'for_you' | 'community' | 'tech' | 'legal' | 'business'>('for_you');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Data States
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [stories, setStories] = useState<Story[]>(STORIES);
-  const [reels, setReels] = useState<Reel[]>(REELS);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [reels, setReels] = useState<Reel[]>([]);
   const [lives, setLives] = useState<LiveStream[]>(ACTIVE_LIVES);
-  const [members, setMembers] = useState<MemberProfile[]>(MOCK_MEMBERS);
+  const [members, setMembers] = useState<MemberProfile[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [nextFeedCursor, setNextFeedCursor] = useState<string | null>(null);
 
   // User Reactions & Bookmarks state
-  const [userReactions, setUserReactions] = useState<{ [postId: string]: PostReactionType }>({ 'post-1': 'like', 'post-3': 'insightful' });
+  const [userReactions, setUserReactions] = useState<{ [postId: string]: PostReactionType }>({});
   const [bookmarkedPosts, setBookmarkedPosts] = useState<string[]>([]);
   const [showReactionPickerForPost, setShowReactionPickerForPost] = useState<string | null>(null);
 
@@ -61,6 +66,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [newPostVideo, setNewPostVideo] = useState<string | null>(null);
   const [newPostDocument, setNewPostDocument] = useState<PostDocument | null>(null);
+  const [newPostMediaFile, setNewPostMediaFile] = useState<File | null>(null);
   const [newPostTags, setNewPostTags] = useState<string[]>([]);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -76,127 +82,156 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [selectedReelForViewer, setSelectedReelForViewer] = useState<string | null>(null);
   const [reelsViewMode, setReelsViewMode] = useState<'grid' | 'immersive'>('grid');
   const [isCreateStoryOpen, setIsCreateStoryOpen] = useState(false);
+  const [reportingPost, setReportingPost] = useState<Post | null>(null);
+  const [reportCategory, setReportCategory] = useState<'spam' | 'harassment' | 'hate' | 'fraud' | 'nudity' | 'violence' | 'impersonation' | 'other'>('spam');
+  const [reportDescription, setReportDescription] = useState('');
+  const [alsoBlockReportedAuthor, setAlsoBlockReportedAuthor] = useState(false);
+  const [isReportingPost, setIsReportingPost] = useState(false);
   const [newStoryCaption, setNewStoryCaption] = useState('');
   const [newStoryImage, setNewStoryImage] = useState<string | null>(null);
+  const [newStoryFile, setNewStoryFile] = useState<File | null>(null);
+  const [isPublishingStory, setIsPublishingStory] = useState(false);
 
   // File Input References
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlsRef = useRef<Set<string>>(new Set());
 
-  // Load Cloud Data on mount
-  useEffect(() => {
-    const fetchPostsAndMembers = async () => {
-      setIsLoadingPosts(true);
-      try {
-        // 1. Fetch Posts from Supabase if connected, else IndexedDB
-        let fetched: Post[] = [];
-        if (supabaseService.isConfigured()) {
-          const remotePosts = await supabaseService.getPosts();
-          if (remotePosts && remotePosts.length > 0) {
-            fetched = remotePosts.map(rp => ({
-              id: rp.id,
-              authorId: rp.author_id,
-              authorName: rp.author_name,
-              authorAvatar: rp.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-              authorTitle: rp.author_role || 'Membre Communauté',
-              content: rp.content,
-              imageUrl: rp.image_url,
-              videoUrl: rp.video_url,
-              document: rp.document,
-              category: rp.category || 'Général',
-              tags: rp.tags || [],
-              visibility: rp.visibility || 'public',
-              timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              likes: rp.likes_count || 0,
-              comments: rp.comments_count || 0,
-              reactions: rp.reactions || { like: rp.likes_count || 0 },
-              commentsList: []
-            }));
-          }
-        }
-
-        if (fetched.length === 0) {
-          fetched = await cloudService.getAllPosts();
-        }
-
-        if (fetched && fetched.length > 0) {
-          const merged = [...fetched];
-          INITIAL_POSTS.forEach(initP => {
-            if (!merged.some(p => p.id === initP.id)) {
-              merged.push(initP);
-            }
-          });
-          setPosts(merged);
-        } else {
-          setPosts(INITIAL_POSTS);
-        }
-
-        // 2. Fetch Members from Supabase if connected
-        if (supabaseService.isConfigured()) {
-          const profiles = await supabaseService.searchProfiles();
-          if (profiles && profiles.length > 0) {
-            const mappedMembers: MemberProfile[] = profiles.map(p => ({
-              id: p.id,
-              name: p.name,
-              avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-              title: p.title || 'Citoyen du Monde',
-              bio: 'Membre de la communauté Le Monde à Vous.',
-              location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
-              joinedDate: '2025',
-              isVerified: p.is_verified ?? true,
-              isFollowing: false,
-              followersCount: p.followers_count ?? 12,
-              followingCount: p.following_count ?? 8,
-              postsCount: 5,
-              storiesCount: 2,
-              reelsCount: 1,
-              livesCount: 0,
-              skills: ['Coopération', 'Tech'],
-              privacySettings: {
-                profileVisibility: 'public',
-                allowMessagesFrom: 'all',
-                showOnlineStatus: true,
-                allowTagging: true,
-                showActivityFeed: true
-              }
-            }));
-            // Merge with MOCK_MEMBERS
-            const mergedMembers = [...mappedMembers];
-            MOCK_MEMBERS.forEach(mockM => {
-              if (!mergedMembers.some(m => m.name.toLowerCase() === mockM.name.toLowerCase())) {
-                mergedMembers.push(mockM);
-              }
-            });
-            setMembers(mergedMembers);
-          }
-        }
-      } catch (e) {
-        console.warn("Using default initial posts", e);
-        setPosts(INITIAL_POSTS);
-      } finally {
-        setIsLoadingPosts(false);
-      }
-    };
-    fetchPostsAndMembers();
+  const applyFeed = useCallback((fetchedPosts: Post[], reactions: Record<string, PostReactionType>) => {
+    setPosts(fetchedPosts);
+    setUserReactions(reactions);
+    setReels(fetchedPosts.filter(post => Boolean(post.videoUrl)).map(post => ({
+      id: post.id,
+      videoUrl: post.videoUrl!,
+      likes: post.likes,
+      comments: post.comments,
+      shares: post.shares || 0,
+      author: post.authorName || 'Membre Mok',
+      authorAvatar: post.authorAvatar,
+      authorId: post.authorId,
+      authorRole: post.authorTitle,
+      description: post.content,
+      musicTrack: 'Audio original',
+      tags: post.tags,
+      category: 'all',
+    })));
   }, []);
+
+  const loadNetworkData = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setNetworkError('Vous êtes hors ligne. Le fil cloud ne peut pas être actualisé.');
+      return;
+    }
+    if (!supabaseService.isConfigured() || !isSupabaseConnected) {
+      setNetworkError('Connexion réseau requise pour synchroniser le Réseau Mok.');
+      return;
+    }
+    if (!isUuid(currentUser.id)) {
+      setPosts([]);
+      setStories([]);
+      setReels([]);
+      setMembers([]);
+      setNetworkError('Une session Supabase authentifiée est requise pour afficher le Réseau Mok.');
+      return;
+    }
+    setIsLoadingPosts(true);
+    try {
+      const [feed, remoteStories, remoteMembers] = await Promise.all([
+        socialNetworkService.listFeed(currentUser.id),
+        socialNetworkService.listStories(),
+        mokChatService.searchMembers('', currentUser.id),
+      ]);
+      applyFeed(feed.posts, feed.userReactions);
+      setNextFeedCursor(feed.nextCursor);
+      setStories(remoteStories);
+      setMembers(remoteMembers);
+      setNetworkError(null);
+    } catch (error) {
+      setNetworkError(error instanceof Error ? error.message : 'Le Réseau Mok est temporairement indisponible.');
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, [applyFeed, currentUser.id, isSupabaseConnected]);
+
+  useEffect(() => {
+    void loadNetworkData();
+    let refreshTimer: number | undefined;
+    const scheduleRefresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void loadNetworkData(), 200);
+    };
+    if (!isUuid(currentUser.id) || !supabaseService.isConfigured()) return;
+    const unsubscribe = socialNetworkService.subscribe({
+      onPost: scheduleRefresh,
+      onComment: scheduleRefresh,
+      onReaction: scheduleRefresh,
+      onStory: scheduleRefresh,
+    });
+    return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      unsubscribe();
+    };
+  }, [loadNetworkData]);
+
+  useEffect(() => {
+    const handleOnline = () => void loadNetworkData();
+    const handleOffline = () => setNetworkError('Vous êtes hors ligne. Les nouvelles actions ne seront pas envoyées.');
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [loadNetworkData]);
+
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach(revokeMediaPreview);
+    previewUrlsRef.current.clear();
+  }, []);
+
+  const handleLoadMorePosts = async () => {
+    if (!nextFeedCursor || isLoadingPosts) return;
+    setIsLoadingPosts(true);
+    try {
+      const page = await socialNetworkService.listFeed(currentUser.id, nextFeedCursor);
+      setNextFeedCursor(page.nextCursor);
+      setUserReactions(prev => ({ ...prev, ...page.userReactions }));
+      setPosts(prev => [...prev, ...page.posts.filter(post => !prev.some(existing => existing.id === post.id))]);
+      setReels(prev => [...prev, ...page.posts.filter(post => Boolean(post.videoUrl) && !prev.some(existing => existing.id === post.id)).map(post => ({
+        id: post.id,
+        videoUrl: post.videoUrl!,
+        likes: post.likes,
+        comments: post.comments,
+        shares: post.shares || 0,
+        author: post.authorName || 'Membre Mok',
+        authorAvatar: post.authorAvatar,
+        authorId: post.authorId,
+        authorRole: post.authorTitle,
+        description: post.content,
+        musicTrack: 'Audio original',
+        tags: post.tags,
+        category: 'all',
+      }))]);
+    } catch (error) {
+      setNetworkError(error instanceof Error ? error.message : 'La suite du fil n’a pas pu être chargée.');
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  };
 
   // Filter posts dynamically based on selected feed filter & search
   const filteredPosts = posts.filter(post => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchText = post.content.toLowerCase().includes(q) || 
-                        post.authorName.toLowerCase().includes(q) ||
+                        post.authorName?.toLowerCase().includes(q) ||
                         post.tags?.some(t => t.toLowerCase().includes(q)) ||
                         post.category?.toLowerCase().includes(q);
       if (!matchText) return false;
     }
 
-    if (feedFilter === 'following') {
-      const followedMemberIds = members.filter(m => m.isFollowing).map(m => m.id);
-      return (post.authorId && followedMemberIds.includes(post.authorId)) || post.authorId === 'u1';
-    }
     if (feedFilter === 'tech') return post.category?.toLowerCase().includes('tech') || post.tags?.some(t => t.toLowerCase().includes('tech'));
     if (feedFilter === 'legal') return post.category?.toLowerCase().includes('juridique') || post.tags?.some(t => t.toLowerCase().includes('visa') || t.toLowerCase().includes('droit'));
     if (feedFilter === 'business') return post.category?.toLowerCase().includes('entrepreneuriat') || post.tags?.some(t => t.toLowerCase().includes('startup') || t.toLowerCase().includes('agritech'));
@@ -204,31 +239,18 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     return true; // 'for_you' & 'community' show all with high relevance
   });
 
-  // Toggle Follow on Member
-  const handleToggleFollow = (memberId: string) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id === memberId) {
-        const nextState = !m.isFollowing;
-        return {
-          ...m,
-          isFollowing: nextState,
-          followersCount: m.followersCount + (nextState ? 1 : -1)
-        };
-      }
-      return m;
-    }));
-  };
-
   // Reactions Handler
-  const handleReaction = (postId: string, reactionType: PostReactionType) => {
+  const handleReaction = async (postId: string, reactionType: PostReactionType) => {
     const currentReaction = userReactions[postId];
+    const previousReactionMap = userReactions;
+    const previousPosts = posts;
     const newReactionsMap = { ...userReactions };
 
     const postIndex = posts.findIndex(p => p.id === postId);
     if (postIndex === -1) return;
 
     const post = posts[postIndex];
-    const reactions = { ...(post.reactions || { like: post.likes || 0 }) };
+    const reactions: Partial<Record<PostReactionType, number>> = { ...(post.reactions || { like: post.likes || 0 }) };
 
     if (currentReaction === reactionType) {
       // Remove reaction
@@ -246,7 +268,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setUserReactions(newReactionsMap);
     setShowReactionPickerForPost(null);
 
-    const totalLikes = Object.values(reactions).reduce((a, b) => (a || 0) + (b || 0), 0);
+    const totalLikes = Object.values(reactions).reduce<number>((total, count) => total + (count || 0), 0);
     const updatedPost: Post = {
       ...post,
       likes: totalLikes,
@@ -256,7 +278,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     const newPosts = [...posts];
     newPosts[postIndex] = updatedPost;
     setPosts(newPosts);
-    cloudService.savePost(updatedPost);
+    try {
+      await socialNetworkService.setReaction(postId, currentUser.id, currentReaction === reactionType ? null : reactionType);
+      setNetworkError(null);
+    } catch (error) {
+      setUserReactions(previousReactionMap);
+      setPosts(previousPosts);
+      setNetworkError(error instanceof Error ? error.message : 'Réaction non synchronisée.');
+    }
   };
 
   // Toggle Bookmark
@@ -268,107 +297,136 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     }
   };
 
-  // Comments & Replies
-  const handleAddComment = (postId: string) => {
-    if (!commentInput.trim()) return;
+  const handleReportPost = (post: Post) => {
+    if (!post.authorId || post.authorId === currentUser.id) return;
+    setReportingPost(post);
+    setReportCategory('spam');
+    setReportDescription('');
+    setAlsoBlockReportedAuthor(false);
+  };
 
-    const postIndex = posts.findIndex(p => p.id === postId);
-    if (postIndex === -1) return;
-
-    const post = posts[postIndex];
-    const currentComments = post.commentsList || [];
-
-    if (replyingToCommentId) {
-      // Add nested reply
-      const updatedList = currentComments.map(c => {
-        if (c.id === replyingToCommentId) {
-          return {
-            ...c,
-            replies: [
-              ...(c.replies || []),
-              {
-                id: `reply-${Date.now()}`,
-                authorName: currentUser.name,
-                authorAvatar: currentUser.avatarUrl,
-                content: commentInput.trim(),
-                timestamp: 'À l\'instant',
-                likes: 0
-              }
-            ]
-          };
-        }
-        return c;
+  const handleSubmitPostReport = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!reportingPost?.authorId) return;
+    setIsReportingPost(true);
+    try {
+      await mokChatService.reportAbuse({
+        reporterId: currentUser.id,
+        reportedUserId: reportingPost.authorId,
+        postId: reportingPost.id,
+        reason: reportCategory,
+        details: reportDescription.trim() || 'Publication signalée depuis le fil Réseau Mok.',
       });
+      if (alsoBlockReportedAuthor) {
+        await mokChatService.setBlocked(currentUser.id, reportingPost.authorId, true);
+        setPosts(prev => prev.filter(post => post.authorId !== reportingPost.authorId));
+        setReels(prev => prev.filter(reel => reel.authorId !== reportingPost.authorId));
+        setStories(prev => prev.filter(story => story.authorId !== reportingPost.authorId));
+        setMembers(prev => prev.filter(member => member.id !== reportingPost.authorId));
+      }
+      addNotification('Signalement transmis', 'La modération examinera cette publication.', 'success');
+      setReportingPost(null);
+      setReportDescription('');
+    } catch (error) {
+      setNetworkError(error instanceof Error ? error.message : 'Le signalement n’a pas pu être transmis.');
+    } finally {
+      setIsReportingPost(false);
+    }
+  };
 
-      const updatedPost: Post = {
-        ...post,
-        comments: post.comments + 1,
-        commentsList: updatedList
-      };
-
-      const newPosts = [...posts];
-      newPosts[postIndex] = updatedPost;
-      setPosts(newPosts);
-      cloudService.savePost(updatedPost);
-      setReplyingToCommentId(null);
-    } else {
-      // Add top-level comment
-      const newCmt: Comment = {
-        id: `cmt-${Date.now()}`,
+  // Comments & Replies
+  const handleAddComment = async (postId: string) => {
+    if (!commentInput.trim()) return;
+    const content = commentInput.trim();
+    const parentId = replyingToCommentId || undefined;
+    setCommentInput('');
+    setReplyingToCommentId(null);
+    try {
+      const id = await socialNetworkService.addComment({
+        postId,
+        authorId: currentUser.id,
+        content,
+        parentCommentId: parentId,
+      });
+      const comment: Comment = {
+        id,
+        authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatarUrl,
-        content: commentInput.trim(),
-        timestamp: 'À l\'instant',
+        content,
+        timestamp: 'À l’instant',
         likes: 0,
-        replies: []
+        replies: [],
       };
-
-      const updatedPost: Post = {
-        ...post,
-        comments: post.comments + 1,
-        commentsList: [newCmt, ...currentComments]
-      };
-
-      const newPosts = [...posts];
-      newPosts[postIndex] = updatedPost;
-      setPosts(newPosts);
-      cloudService.savePost(updatedPost);
+      setPosts(prev => prev.map(post => {
+        if (post.id !== postId) return post;
+        if (!parentId) return { ...post, comments: post.comments + 1, commentsList: [comment, ...(post.commentsList || [])] };
+        return {
+          ...post,
+          comments: post.comments + 1,
+          commentsList: (post.commentsList || []).map(parent => parent.id === parentId ? { ...parent, replies: [...(parent.replies || []), comment] } : parent),
+        };
+      }));
+      setNetworkError(null);
+    } catch (error) {
+      setCommentInput(content);
+      setReplyingToCommentId(parentId || null);
+      setNetworkError(error instanceof Error ? error.message : 'Commentaire non envoyé.');
     }
-
-    setCommentInput('');
   };
 
   // Upload Handlers
+  const clearPostMediaPreview = () => {
+    [newPostImage, newPostVideo, newPostDocument?.url].forEach(url => {
+      if (url?.startsWith('blob:')) {
+        revokeMediaPreview(url);
+        previewUrlsRef.current.delete(url);
+      }
+    });
+    setNewPostImage(null);
+    setNewPostVideo(null);
+    setNewPostDocument(null);
+    setNewPostMediaFile(null);
+  };
+
+  const registerPostMedia = (file: File) => {
+    try {
+      validateMediaFile('social-media', file);
+      clearPostMediaPreview();
+      const preview = createMediaPreview(file);
+      previewUrlsRef.current.add(preview);
+      setNewPostMediaFile(file);
+      if (file.type.startsWith('image/')) setNewPostImage(preview);
+      else if (file.type.startsWith('video/')) setNewPostVideo(preview);
+      else setNewPostDocument({
+        name: file.name,
+        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        url: preview,
+        type: file.type === 'application/pdf' ? 'pdf' : 'doc',
+        pageCount: undefined,
+      });
+      setNetworkError(null);
+    } catch (error) {
+      setNetworkError(error instanceof Error ? error.message : 'Fichier non autorisé.');
+    }
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setNewPostImage(reader.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (file) registerPostMedia(file);
+    e.target.value = '';
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setNewPostVideo(url);
-    }
+    if (file) registerPostMedia(file);
+    e.target.value = '';
   };
 
   const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
-      const url = URL.createObjectURL(file);
-      setNewPostDocument({
-        name: file.name,
-        size: sizeStr,
-        url: url,
-        type: file.name.endsWith('.pdf') ? 'pdf' : 'doc',
-        pageCount: 1
-      });
-    }
+    if (file) registerPostMedia(file);
+    e.target.value = '';
   };
 
   // Apply AI Enhanced Post
@@ -383,85 +441,145 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return;
 
     setIsPublishing(true);
-    const newPost: Post = {
-      id: `post-${Date.now()}`,
-      authorId: currentUser.id || 'u1',
-      authorName: currentUser.name,
-      authorAvatar: currentUser.avatarUrl,
-      authorTitle: currentUser.title || 'Membre Communauté',
-      content: newPostContent,
-      imageUrl: newPostImage || undefined,
-      videoUrl: newPostVideo || undefined,
-      document: newPostDocument || undefined,
-      category: newPostCategory,
-      tags: newPostTags.length > 0 ? newPostTags : undefined,
-      visibility: newPostVisibility,
-      timestamp: 'À l\'instant',
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      reactions: { like: 0 },
-      commentsList: []
-    };
-
-    const updatedPosts = [newPost, ...posts];
-    setPosts(updatedPosts);
-
-    // Save to Supabase if connected
-    if (supabaseService.isConfigured()) {
-      try {
-        await supabaseService.createPost({
-          id: newPost.id,
-          author_id: currentUser.id || 'u1',
-          author_name: currentUser.name,
-          author_role: currentUser.title || 'Citoyen',
-          author_avatar: currentUser.avatarUrl,
-          content: newPost.content,
-          image_url: newPost.imageUrl,
-          video_url: newPost.videoUrl,
-          document: newPost.document,
-          category: newPost.category,
-          tags: newPost.tags || [],
-          visibility: newPost.visibility,
-          likes_count: 0,
-          comments_count: 0,
-          reactions: { like: 0 }
-        });
-      } catch (err) {
-        console.warn('Could not save post to Supabase', err);
+    let uploaded: Awaited<ReturnType<typeof mediaStorage.upload>> | undefined;
+    try {
+      let fileToUpload = newPostMediaFile;
+      if (!fileToUpload && newPostImage) {
+        const response = await fetch(newPostImage);
+        const blob = await response.blob();
+        fileToUpload = new File([blob], `image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`, { type: blob.type || 'image/png' });
       }
+      if (fileToUpload) {
+        uploaded = await mediaStorage.upload({
+          bucket: 'social-media',
+          ownerId: currentUser.id,
+          scopeId: newUuid(),
+          file: fileToUpload,
+        });
+      }
+      await socialNetworkService.createPost({
+        authorId: currentUser.id,
+        content: newPostContent,
+        visibility: newPostVisibility,
+        category: newPostCategory,
+        tags: newPostTags,
+        media: uploaded ? {
+          bucket: uploaded.bucket,
+          path: uploaded.path,
+          name: uploaded.originalName,
+          size: uploaded.size,
+          mimeType: uploaded.mimeType,
+        } : undefined,
+      });
+      clearPostMediaPreview();
+      setNewPostContent('');
+      setNewPostTags([]);
+      setIsComposerFocused(false);
+      setNetworkError(null);
+      await loadNetworkData();
+    } catch (error) {
+      if (uploaded) await mediaStorage.remove(uploaded.bucket, uploaded.path).catch(() => undefined);
+      setNetworkError(error instanceof Error ? error.message : 'La publication n’a pas pu être envoyée.');
+    } finally {
+      setIsPublishing(false);
     }
-    await cloudService.savePost(newPost);
-
-    // Reset Composer
-    setNewPostContent('');
-    setNewPostImage(null);
-    setNewPostVideo(null);
-    setNewPostDocument(null);
-    setNewPostTags([]);
-    setIsComposerFocused(false);
-    setIsPublishing(false);
   };
 
   // Create Story Submit
-  const handleCreateStory = () => {
-    if (!newStoryImage && !newStoryCaption) return;
-    const newStory: Story = {
-      id: `story-${Date.now()}`,
-      author: currentUser.name,
-      authorId: 'u1',
-      avatar: currentUser.avatarUrl,
-      mediaUrl: newStoryImage || 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&fit=crop',
-      caption: newStoryCaption || 'Nouvelle Story Mooc',
-      timestamp: 'À l\'instant',
-      isLive: false,
-      viewersCount: 1
-    };
+  const handleCreateStory = async () => {
+    if (!newStoryFile || isPublishingStory) {
+      setNetworkError('Ajoutez une photo ou une vidéo à la story.');
+      return;
+    }
+    setIsPublishingStory(true);
+    let uploaded: Awaited<ReturnType<typeof mediaStorage.upload>> | undefined;
+    try {
+      uploaded = await mediaStorage.upload({
+        bucket: 'social-media',
+        ownerId: currentUser.id,
+        scopeId: newUuid(),
+        file: newStoryFile,
+      });
+      const id = await socialNetworkService.createStory({
+        authorId: currentUser.id,
+        caption: newStoryCaption,
+        media: {
+          bucket: uploaded.bucket,
+          path: uploaded.path,
+          name: uploaded.originalName,
+          size: uploaded.size,
+          mimeType: uploaded.mimeType,
+        },
+      });
+      setStories(prev => [{
+        id,
+        author: currentUser.name,
+        authorId: currentUser.id,
+        avatar: currentUser.avatarUrl,
+        mediaUrl: uploaded!.signedUrl,
+        mediaType: uploaded!.mimeType.startsWith('video/') ? 'video' : 'image',
+        caption: newStoryCaption || undefined,
+        timestamp: 'À l’instant',
+        isLive: false,
+        viewersCount: 0,
+      }, ...prev]);
+      if (newStoryImage?.startsWith('blob:')) {
+        revokeMediaPreview(newStoryImage);
+        previewUrlsRef.current.delete(newStoryImage);
+      }
+      setIsCreateStoryOpen(false);
+      setNewStoryCaption('');
+      setNewStoryImage(null);
+      setNewStoryFile(null);
+      setNetworkError(null);
+    } catch (error) {
+      if (uploaded) await mediaStorage.remove(uploaded.bucket, uploaded.path).catch(() => undefined);
+      setNetworkError(error instanceof Error ? error.message : 'La story n’a pas pu être publiée.');
+    } finally {
+      setIsPublishingStory(false);
+    }
+  };
 
-    setStories([newStory, ...stories]);
-    setIsCreateStoryOpen(false);
-    setNewStoryCaption('');
-    setNewStoryImage(null);
+  const handlePublishReel = async (draft: ReelDraft) => {
+    let uploaded: Awaited<ReturnType<typeof mediaStorage.upload>> | undefined;
+    try {
+      const response = await fetch(draft.videoUrl);
+      if (!response.ok && !draft.videoUrl.startsWith('blob:') && !draft.videoUrl.startsWith('data:')) {
+        throw new Error('La vidéo du Reel n’est pas accessible.');
+      }
+      const blob = await response.blob();
+      const file = new File([blob], `reel-${Date.now()}.${blob.type.split('/')[1] || 'mp4'}`, { type: blob.type || 'video/mp4' });
+      validateMediaFile('social-media', file);
+      uploaded = await mediaStorage.upload({
+        bucket: 'social-media',
+        ownerId: currentUser.id,
+        scopeId: newUuid(),
+        file,
+      });
+      const postId = await socialNetworkService.createPost({
+        authorId: currentUser.id,
+        content: draft.caption,
+        visibility: 'public',
+        category: `Reel:${draft.category || 'all'}`,
+        tags: draft.hashtags,
+        media: {
+          bucket: uploaded.bucket,
+          path: uploaded.path,
+          name: uploaded.originalName,
+          size: uploaded.size,
+          mimeType: uploaded.mimeType,
+        },
+      });
+      if (draft.videoUrl.startsWith('blob:')) revokeMediaPreview(draft.videoUrl);
+      await loadNetworkData();
+      setIsReelCreatorOpen(false);
+      setSelectedReelForViewer(postId);
+      setReelsViewMode('immersive');
+      setNetworkError(null);
+    } catch (error) {
+      if (uploaded) await mediaStorage.remove(uploaded.bucket, uploaded.path).catch(() => undefined);
+      setNetworkError(error instanceof Error ? error.message : 'Le Reel n’a pas pu être publié.');
+    }
   };
 
   // Open Author Profile Modal
@@ -470,31 +588,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     if (foundMember) {
       setSelectedMemberForProfile(foundMember);
     } else {
-      // Fallback synthetic profile
-      setSelectedMemberForProfile({
-        id: post.authorId || `u-synth-${Date.now()}`,
-        name: post.authorName,
-        avatarUrl: post.authorAvatar,
-        title: post.authorTitle || 'Membre de la Communauté Mooc',
-        bio: 'Membre actif du réseau collaboratif et intelligent Le Monde à Vous.',
-        location: 'International',
-        joinedDate: '2025',
-        isVerified: true,
-        isFollowing: false,
-        followersCount: 320,
-        followingCount: 140,
-        postsCount: 1,
-        storiesCount: 0,
-        reelsCount: 0,
-        livesCount: 0,
-        privacySettings: {
-          profileVisibility: 'public',
-          allowMessagesFrom: 'all',
-          showOnlineStatus: true,
-          allowTagging: true,
-          showActivityFeed: true
-        }
-      });
+      setNetworkError('Ce profil n’est pas visible ou n’est plus disponible.');
     }
   };
 
@@ -574,22 +668,22 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           <button
             onClick={() => {
               const myProfile: MemberProfile = {
-                id: currentUser.id || 'u1',
+                id: currentUser.id,
                 name: currentUser.name,
                 avatarUrl: currentUser.avatarUrl,
                 title: currentUser.title || (currentUser.role === 'admin' ? 'Superviseur Système' : 'Citoyen du Monde'),
-                bio: currentUser.bio || 'Citoyen engagé de la communauté Le Monde à Vous.',
-                location: `${currentUser.city || 'Paris'}, ${currentUser.country || 'France'}`,
-                joinedDate: '2025',
-                isVerified: true,
+                bio: currentUser.bio || '',
+                location: [currentUser.city, currentUser.country].filter(Boolean).join(', '),
+                joinedDate: '',
+                isVerified: Boolean(currentUser.isVerified),
                 isFollowing: false,
-                followersCount: 142,
-                followingCount: 38,
-                postsCount: posts.filter(p => p.authorId === (currentUser.id || 'u1') || p.authorName === currentUser.name).length,
+                followersCount: Number(currentUser.followersCount || 0),
+                followingCount: Number(currentUser.followingCount || 0),
+                postsCount: posts.filter(p => p.authorId === currentUser.id).length,
                 storiesCount: stories.filter(s => s.author === currentUser.name).length,
                 reelsCount: reels.filter(r => r.author === currentUser.name).length,
                 livesCount: 0,
-                skills: ['Coopération', 'Tech', 'Innovation'],
+                skills: currentUser.skills || [],
                 privacySettings: {
                   profileVisibility: 'public',
                   allowMessagesFrom: 'all',
@@ -602,7 +696,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             }}
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2"
           >
-            <img src={currentUser.avatarUrl} className="w-5 h-5 rounded-full object-cover border border-white/60" />
+            <img src={currentUser.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover border border-white/60" />
             <span>Mon Espace Personnel</span>
           </button>
 
@@ -610,17 +704,25 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
       </div>
 
+      {networkError && (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          <span>{networkError}</span>
+          <button type="button" aria-label="Fermer l’alerte" onClick={() => setNetworkError(null)} className="text-amber-700 hover:text-amber-900"><X size={15} /></button>
+        </div>
+      )}
+
       {/* 2. STORIES RAIL (Instagram / WhatsApp style) */}
       <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
           
           {/* Add My Story Button */}
-          <div 
+          <button
+            type="button"
             onClick={() => setIsCreateStoryOpen(true)}
             className="flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer group"
           >
             <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-dashed border-indigo-400 group-hover:border-indigo-600 bg-indigo-50/50 flex items-center justify-center transition-all">
-              <img src={currentUser.avatarUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
+              <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-7 h-7 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-md">
                   <Plus size={18} strokeWidth={3} />
@@ -628,11 +730,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               </div>
             </div>
             <span className="text-[11px] font-bold text-slate-700 truncate max-w-[70px]">Ma Story</span>
-          </div>
+          </button>
 
           {/* Active Stories */}
           {stories.map((story, index) => (
-            <div
+            <button
+              type="button"
               key={story.id}
               onClick={() => setSelectedStoryIndex(index)}
               className="flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer group"
@@ -645,8 +748,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               <span className="text-[11px] font-semibold text-slate-800 truncate max-w-[72px] text-center">
                 {story.author.split(' ')[0]}
               </span>
-            </div>
+            </button>
           ))}
+
+          {!isLoadingPosts && stories.length === 0 && (
+            <p className="px-3 text-xs text-slate-400">Aucune story active.</p>
+          )}
 
         </div>
       </div>
@@ -670,7 +777,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                     value={newPostContent}
                     onChange={(e) => setNewPostContent(e.target.value)}
                     onFocus={() => setIsComposerFocused(true)}
-                    placeholder="Quoi de neuf, Amadou ? Partagez une réflexion, opportunité, tutoriel ou document..."
+                    placeholder={`Quoi de neuf, ${currentUser.name.split(' ')[0] || 'membre'} ? Partagez une réflexion, opportunité, tutoriel ou document...`}
                     rows={isComposerFocused || newPostContent ? 3 : 2}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none leading-relaxed"
                   />
@@ -724,9 +831,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                   {/* Image Preview */}
                   {newPostImage && (
                     <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
-                      <img src={newPostImage} className="w-full h-full object-cover" />
+                      <img src={newPostImage} alt="Aperçu de la publication" className="w-full h-full object-cover" />
                       <button 
-                        onClick={() => setNewPostImage(null)}
+                        type="button"
+                        aria-label="Retirer l’image"
+                        onClick={clearPostMediaPreview}
                         className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
                       >
                         <X size={14} />
@@ -739,7 +848,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                     <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
                       <video src={newPostVideo} controls className="w-full h-full" />
                       <button 
-                        onClick={() => setNewPostVideo(null)}
+                        type="button"
+                        aria-label="Retirer la vidéo"
+                        onClick={clearPostMediaPreview}
                         className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
                       >
                         <X size={14} />
@@ -759,7 +870,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           <div className="text-[10px] text-slate-500">{newPostDocument.size}</div>
                         </div>
                       </div>
-                      <button onClick={() => setNewPostDocument(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                      <button type="button" aria-label="Retirer le document" onClick={clearPostMediaPreview} className="p-1 text-slate-400 hover:text-slate-600">
                         <X size={14} />
                       </button>
                     </div>
@@ -836,7 +947,6 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               <div className="flex items-center gap-1.5">
                 {[
                   { id: 'for_you', label: '✨ Pour vous (IA)' },
-                  { id: 'following', label: '👥 Abonnements' },
                   { id: 'community', label: '🌐 Communauté' },
                   { id: 'tech', label: '💻 Tech & IA' },
                   { id: 'legal', label: '⚖️ Visas & Droit' },
@@ -855,7 +965,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
             {/* C. POSTS STREAM */}
             <div className="space-y-5">
-              {filteredPosts.length === 0 ? (
+              {isLoadingPosts && posts.length === 0 ? (
+                <div role="status" className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm text-xs text-slate-500">
+                  Chargement du fil synchronisé…
+                </div>
+              ) : filteredPosts.length === 0 ? (
                 <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm space-y-3">
                   <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
                     <Sparkles size={28} />
@@ -881,15 +995,22 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                       <div className="flex items-center justify-between">
                         
                         {/* Author Info */}
-                        <div 
-                          className="flex items-center gap-3 cursor-pointer group"
+                        <button
+                          type="button"
+                          className="flex items-center gap-3 cursor-pointer group text-left"
                           onClick={() => handleOpenAuthorProfile(post)}
                         >
-                          <img 
-                            src={post.authorAvatar} 
-                            alt={post.authorName} 
-                            className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20 group-hover:scale-105 transition-transform" 
-                          />
+                          {post.authorAvatar ? (
+                            <img
+                              src={post.authorAvatar}
+                              alt=""
+                              className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20 group-hover:scale-105 transition-transform"
+                            />
+                          ) : (
+                            <span aria-hidden="true" className="w-11 h-11 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black">
+                              {(post.authorName || 'M').slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
                           <div>
                             <div className="flex items-center gap-1.5">
                               <h4 className="font-extrabold text-xs text-slate-900 group-hover:text-indigo-600 transition-colors">
@@ -910,7 +1031,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                               </span>
                             </div>
                           </div>
-                        </div>
+                        </button>
 
                         {/* Category & Badge */}
                         <div className="flex items-center gap-2">
@@ -926,6 +1047,17 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           >
                             <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
                           </button>
+                          {post.authorId && post.authorId !== currentUser.id && (
+                            <button
+                              type="button"
+                              onClick={() => void handleReportPost(post)}
+                              className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors"
+                              title="Signaler cette publication"
+                              aria-label="Signaler cette publication"
+                            >
+                              <ShieldAlert size={16} />
+                            </button>
+                          )}
                         </div>
 
                       </div>
@@ -1065,7 +1197,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           
                           {/* Add Comment Input */}
                           <div className="flex items-center gap-2">
-                            <img src={currentUser.avatarUrl} className="w-8 h-8 rounded-full object-cover" />
+                            <img src={currentUser.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
                             <div className="flex-1 flex items-center bg-slate-100 rounded-2xl px-3 py-1.5">
                               <input
                                 type="text"
@@ -1095,7 +1227,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                             {(post.commentsList || []).map(cmt => (
                               <div key={cmt.id} className="space-y-2">
                                 <div className="flex items-start gap-2.5">
-                                  <img src={cmt.authorAvatar} className="w-7 h-7 rounded-full object-cover mt-0.5" />
+                                  <img src={cmt.authorAvatar} alt="" className="w-7 h-7 rounded-full object-cover mt-0.5" />
                                   <div className="flex-1 bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1">
                                     <div className="flex items-center justify-between">
                                       <span className="font-bold text-xs text-slate-900">{cmt.authorName}</span>
@@ -1118,7 +1250,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                                 {/* Nested Replies */}
                                 {cmt.replies && cmt.replies.map(rep => (
                                   <div key={rep.id} className="flex items-start gap-2.5 pl-8">
-                                    <img src={rep.authorAvatar} className="w-6 h-6 rounded-full object-cover mt-0.5" />
+                                    <img src={rep.authorAvatar} alt="" className="w-6 h-6 rounded-full object-cover mt-0.5" />
                                     <div className="flex-1 bg-indigo-50/50 p-2.5 rounded-2xl border border-indigo-100/50 space-y-1">
                                       <div className="flex items-center justify-between">
                                         <span className="font-bold text-xs text-slate-900">{rep.authorName}</span>
@@ -1141,26 +1273,38 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               )}
             </div>
 
+            {nextFeedCursor && (
+              <button
+                type="button"
+                onClick={() => void handleLoadMorePosts()}
+                disabled={isLoadingPosts}
+                className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-indigo-700 shadow-sm hover:bg-indigo-50 disabled:opacity-50"
+              >
+                {isLoadingPosts ? 'Chargement…' : 'Afficher les publications précédentes'}
+              </button>
+            )}
+
           </div>
 
           {/* RIGHT COLUMN: DISCOVER MEMBERS, ACTIVE TRIBES & LIVES (Col span 1) */}
           <div className="space-y-6">
             
-            {/* 1. Discover Community Members to Follow */}
+            {/* 1. Annuaire communautaire */}
             <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <Users size={18} className="text-indigo-600" />
-                  Membres à Suivre
+                  Annuaire des membres
                 </h3>
                 <span className="text-[10px] font-bold text-indigo-600 uppercase">Communauté Mooc</span>
               </div>
 
               <div className="space-y-3">
-                {members.filter(m => m.id !== 'u1').slice(0, 4).map(member => (
+                {members.filter(m => m.id !== currentUser.id).slice(0, 4).map(member => (
                   <div key={member.id} className="flex items-center justify-between gap-3 p-2 hover:bg-slate-50 rounded-2xl transition-all">
-                    <div 
-                      className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+                    <button
+                      type="button"
+                      className="flex items-center gap-2.5 min-w-0 cursor-pointer text-left"
                       onClick={() => setSelectedMemberForProfile(member)}
                     >
                       <img src={member.avatarUrl} alt={member.name} className="w-10 h-10 rounded-xl object-cover" />
@@ -1171,16 +1315,20 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                         </div>
                         <p className="text-[11px] text-slate-500 truncate">{member.title}</p>
                       </div>
-                    </div>
+                    </button>
 
                     <button
-                      onClick={() => handleToggleFollow(member.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${member.isFollowing ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                      type="button"
+                      onClick={() => setSelectedMemberForProfile(member)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
                     >
-                      {member.isFollowing ? 'Abonné' : '+ Suivre'}
+                      Voir
                     </button>
                   </div>
                 ))}
+                {!isLoadingPosts && members.length === 0 && (
+                  <p className="py-4 text-center text-xs text-slate-400">Aucun membre visible.</p>
+                )}
               </div>
             </div>
 
@@ -1369,10 +1517,17 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                     
                     {/* Author Badge */}
                     <div className="flex items-center gap-2">
-                      <img 
-                        src={reel.authorAvatar || USER_PROFILE.avatarUrl} 
-                        className="w-7 h-7 rounded-full object-cover border border-white/80 shadow" 
-                      />
+                      {reel.authorAvatar ? (
+                        <img
+                          src={reel.authorAvatar}
+                          alt=""
+                          className="w-7 h-7 rounded-full object-cover border border-white/80 shadow"
+                        />
+                      ) : (
+                        <span aria-hidden="true" className="w-7 h-7 rounded-full border border-white/80 bg-indigo-600 text-white shadow flex items-center justify-center text-[10px] font-black">
+                          {(reel.author || 'M').slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-1 text-xs font-black text-white truncate">
                           <span>{reel.author}</span>
@@ -1693,6 +1848,70 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       )}
 
       {/* 7. ALL MODALS INTEGRATION */}
+
+      {reportingPost && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="post-report-title"
+            onSubmit={handleSubmitPostReport}
+            className="w-full max-w-md space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="post-report-title" className="text-sm font-extrabold text-slate-900">Signaler cette publication</h3>
+                <p className="mt-1 text-xs text-slate-500">Le signalement sera enregistré dans la file de modération.</p>
+              </div>
+              <button type="button" aria-label="Fermer le signalement" onClick={() => setReportingPost(null)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={17} />
+              </button>
+            </div>
+
+            <label className="block text-xs font-bold text-slate-700">
+              Motif
+              <select
+                value={reportCategory}
+                onChange={(event) => setReportCategory(event.target.value as typeof reportCategory)}
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-rose-500/20"
+              >
+                <option value="spam">Spam</option>
+                <option value="harassment">Harcèlement</option>
+                <option value="hate">Discours haineux</option>
+                <option value="fraud">Fraude</option>
+                <option value="nudity">Nudité</option>
+                <option value="violence">Violence</option>
+                <option value="impersonation">Usurpation d’identité</option>
+                <option value="other">Autre</option>
+              </select>
+            </label>
+
+            <label className="block text-xs font-bold text-slate-700">
+              Précisions
+              <textarea
+                value={reportDescription}
+                onChange={(event) => setReportDescription(event.target.value)}
+                maxLength={2000}
+                rows={4}
+                placeholder="Décrivez le problème sans inclure de donnée sensible."
+                className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+            </label>
+
+            <label className="flex items-start gap-2 rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs font-semibold text-rose-900">
+              <input type="checkbox" checked={alsoBlockReportedAuthor} onChange={(event) => setAlsoBlockReportedAuthor(event.target.checked)} className="mt-0.5" />
+              <span>Bloquer aussi cet auteur pour mon compte</span>
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setReportingPost(null)} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">Annuler</button>
+              <button type="submit" disabled={isReportingPost} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+                {isReportingPost ? 'Transmission…' : 'Transmettre'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       
       {/* Pre-publication AI Assistant Modal */}
       <AIPostAssistantModal
@@ -1713,7 +1932,6 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           stories={stories}
           reels={reels}
           lives={lives}
-          onToggleFollow={handleToggleFollow}
           onStartChatWithMember={(m) => {
             if (onOpenDirectChat) onOpenDirectChat(undefined, m);
           }}
@@ -1740,7 +1958,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           <div className="bg-white rounded-3xl p-6 border border-slate-100 w-full max-w-md space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="font-extrabold text-sm text-slate-900">Créer une Story Mooc</h3>
-              <button onClick={() => setIsCreateStoryOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => {
+                if (newStoryImage?.startsWith('blob:')) {
+                  revokeMediaPreview(newStoryImage);
+                  previewUrlsRef.current.delete(newStoryImage);
+                }
+                setNewStoryImage(null);
+                setNewStoryFile(null);
+                setIsCreateStoryOpen(false);
+              }} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Fermer">
                 <X size={18} />
               </button>
             </div>
@@ -1748,23 +1974,45 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             <input
               ref={storyImageInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => setNewStoryImage(reader.result as string);
-                  reader.readAsDataURL(file);
+                  try {
+                    validateMediaFile('social-media', file);
+                    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) throw new Error('Une story doit contenir une image ou une vidéo.');
+                    if (newStoryImage?.startsWith('blob:')) {
+                      revokeMediaPreview(newStoryImage);
+                      previewUrlsRef.current.delete(newStoryImage);
+                    }
+                    const preview = createMediaPreview(file);
+                    previewUrlsRef.current.add(preview);
+                    setNewStoryFile(file);
+                    setNewStoryImage(preview);
+                    setNetworkError(null);
+                  } catch (error) {
+                    setNetworkError(error instanceof Error ? error.message : 'Fichier non autorisé.');
+                  }
                 }
+                e.target.value = '';
               }}
             />
 
             {newStoryImage ? (
               <div className="relative aspect-[9/16] max-h-72 rounded-2xl overflow-hidden bg-slate-900 mx-auto">
-                <img src={newStoryImage} className="w-full h-full object-cover" />
+                {newStoryFile?.type.startsWith('video/') ? (
+                  <video src={newStoryImage} className="w-full h-full object-cover" controls playsInline />
+                ) : (
+                  <img src={newStoryImage} alt="Aperçu de la story" className="w-full h-full object-cover" />
+                )}
                 <button 
-                  onClick={() => setNewStoryImage(null)}
+                  onClick={() => {
+                    revokeMediaPreview(newStoryImage);
+                    previewUrlsRef.current.delete(newStoryImage);
+                    setNewStoryImage(null);
+                    setNewStoryFile(null);
+                  }}
                   className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full"
                 >
                   <X size={14} />
@@ -1776,8 +2024,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-8 text-center cursor-pointer space-y-2 bg-slate-50"
               >
                 <Camera size={32} className="mx-auto text-indigo-600" />
-                <p className="text-xs font-bold text-slate-700">Choisir une image pour la Story</p>
-                <span className="text-[10px] text-slate-400">JPEG, PNG ou photo prise en direct</span>
+                <p className="text-xs font-bold text-slate-700">Choisir une image ou vidéo</p>
+                <span className="text-[10px] text-slate-400">JPEG, PNG, WebP, MP4 ou WebM</span>
               </div>
             )}
 
@@ -1790,11 +2038,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             />
 
             <button
-              onClick={handleCreateStory}
-              disabled={!newStoryImage && !newStoryCaption}
+              onClick={() => void handleCreateStory()}
+              disabled={!newStoryFile || isPublishingStory}
               className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md disabled:opacity-40"
             >
-              Publier ma Story
+              {isPublishingStory ? 'Publication…' : 'Publier ma Story'}
             </button>
           </div>
         </div>
@@ -1804,37 +2052,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       {isReelCreatorOpen && (
         <ReelsCreator
           onClose={() => setIsReelCreatorOpen(false)}
-          onPublish={(draft) => {
-            const newReel: Reel = {
-              id: `reel-${Date.now()}`,
-              videoUrl: draft.videoUrl,
-              likes: 1,
-              comments: 0,
-              shares: 0,
-              saves: 0,
-              viewsCount: 1,
-              author: currentUser.name,
-              authorAvatar: currentUser.avatarUrl,
-              description: draft.caption,
-              musicTrack: 'Piste Diallo OS 2026',
-              tags: draft.hashtags,
-              category: draft.category || 'learning',
-              actionGateway: draft.actionGateway,
-              quiz: draft.quiz,
-              impactMetrics: {
-                learnersStarted: 1,
-                parcoursTriggered: 0,
-                collaborationsCreated: 0,
-                opportunitiesViewed: 0,
-                campusEnrollments: 0,
-                utilityScore: 90
-              }
-            };
-            setReels([newReel, ...reels]);
-            setIsReelCreatorOpen(false);
-            setSelectedReelForViewer(newReel.id);
-            setReelsViewMode('immersive');
-          }}
+          onPublish={(draft) => void handlePublishReel(draft)}
         />
       )}
 

@@ -11,7 +11,7 @@ interface MemberProfileModalProps {
   stories: Story[];
   reels: Reel[];
   lives: LiveStream[];
-  onToggleFollow: (memberId: string) => void;
+  onToggleFollow?: (memberId: string) => void;
   onStartChatWithMember: (member: MemberProfile) => void;
   onUpdatePrivacySettings?: (newSettings: MemberProfile['privacySettings']) => void;
 }
@@ -29,7 +29,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   onStartChatWithMember,
   onUpdatePrivacySettings
 }) => {
-  const isMe = member.id === 'u1' || member.name === currentUser.name || member.id === currentUser.id;
+  const isMe = member.id === currentUser.id;
   const [activeTab, setActiveTab] = useState<'posts' | 'stories' | 'reels' | 'lives' | 'privacy'>('posts');
   const [privacySettings, setPrivacySettings] = useState(member.privacySettings);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -58,13 +58,15 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
+      <div role="dialog" aria-modal="true" aria-label={`Profil de ${member.name}`} className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
         {/* Banner Cover & Close */}
         <div className="relative h-44 bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 flex-shrink-0">
           <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
           
           <button 
+            type="button"
+            aria-label="Fermer le profil"
             onClick={onClose}
             className="absolute top-4 right-4 p-2 bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-md transition-all shadow-md z-10"
           >
@@ -111,9 +113,9 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                 </div>
                 <p className="text-xs font-semibold text-indigo-600">{member.title}</p>
                 <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                  <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-400" /> {member.location}</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1"><Calendar size={12} className="text-slate-400" /> Membre depuis {member.joinedDate}</span>
+                  {member.location && <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-400" /> {member.location}</span>}
+                  {member.location && member.joinedDate && <span>•</span>}
+                  {member.joinedDate && <span className="flex items-center gap-1"><Calendar size={12} className="text-slate-400" /> Membre depuis {member.joinedDate}</span>}
                 </div>
               </div>
             </div>
@@ -122,7 +124,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             <div className="flex items-center gap-2 pt-2 sm:pt-0">
               {!isMe ? (
                 <>
-                  <button
+                  {onToggleFollow && <button
                     onClick={() => onToggleFollow(member.id)}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${member.isFollowing ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white'}`}
                   >
@@ -135,7 +137,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                         <UserPlus size={16} /> S'abonner
                       </>
                     )}
-                  </button>
+                  </button>}
                   
                   <button
                     onClick={() => { onClose(); onStartChatWithMember(member); }}

@@ -793,7 +793,7 @@ export interface Post {
     visibility?: PostVisibility;
     shares?: number;
     saved?: boolean;
-    reactions?: Record<PostReactionType, number>;
+    reactions?: Partial<Record<PostReactionType, number>>;
     userReaction?: PostReactionType;
     aiEnhanced?: boolean;
     originalLanguage?: string;
@@ -5152,7 +5152,6 @@ export interface VersionComparisonResult {
   };
   breakingChanges: string[];
 }
-
 
 
 
