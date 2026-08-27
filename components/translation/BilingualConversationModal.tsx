@@ -144,11 +144,11 @@ export const BilingualConversationModal: React.FC<BilingualConversationModalProp
         {/* Top Header */}
         <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
               <Languages size={22} />
             </div>
             <div>
-              <span className="text-[10px] font-black uppercase text-orange-400 tracking-wider">
+              <span className="text-[10px] font-black uppercase text-blue-300 tracking-wider">
                 Traduction Universelle & Directe
               </span>
               <h2 id="bilingual-title" className="text-lg font-bold text-white tracking-tight">
@@ -231,7 +231,7 @@ export const BilingualConversationModal: React.FC<BilingualConversationModalProp
                   </p>
 
                   <div className={`pt-2 border-t flex items-center justify-between gap-2 ${
-                    isA ? 'border-slate-100 text-orange-900 bg-orange-50/50 p-2.5 rounded-xl' : 'border-slate-800 text-orange-200 bg-slate-800/80 p-2.5 rounded-xl'
+                    isA ? 'border-slate-100 text-blue-950 bg-blue-50/50 p-2.5 rounded-xl' : 'border-slate-800 text-blue-200 bg-slate-800/80 p-2.5 rounded-xl'
                   }`}>
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider block opacity-70">
@@ -273,11 +273,11 @@ export const BilingualConversationModal: React.FC<BilingualConversationModalProp
                 value={inputTextA}
                 onChange={(e) => setInputTextA(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage('person_a', inputTextA)}
-                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 onClick={() => handleSendMessage('person_a', inputTextA)}
-                className="bg-slate-900 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-slate-800 shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors"
               >
                 Traduire
               </button>
@@ -299,11 +299,11 @@ export const BilingualConversationModal: React.FC<BilingualConversationModalProp
                 value={inputTextB}
                 onChange={(e) => setInputTextB(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage('person_b', inputTextB)}
-                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 onClick={() => handleSendMessage('person_b', inputTextB)}
-                className="bg-orange-600 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-orange-700 shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors"
               >
                 Traduire
               </button>

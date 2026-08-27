@@ -45,15 +45,15 @@ export const KnowledgeCard: React.FC<KnowledgeCardProps> = ({
       <div className="space-y-3">
         {/* Category & Save Action */}
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200/50">
+          <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200/50">
             {category}
           </span>
           
           <div className="flex items-center gap-1">
             <button
               onClick={() => setIsSaved(!isSaved)}
-              className={`p-1.5 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-slate-50 transition-colors ${
-                isSaved ? 'text-orange-600' : ''
+              className={`p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-50 transition-colors ${
+                isSaved ? 'text-blue-600' : ''
               }`}
               title={isSaved ? "Enregistré dans ma mémoire" : "Enregistrer cette fiche"}
               aria-label="Enregistrer la fiche de connaissance"
@@ -74,7 +74,7 @@ export const KnowledgeCard: React.FC<KnowledgeCardProps> = ({
         </div>
 
         {/* Title */}
-        <h4 className="text-base font-black text-slate-900 leading-snug group-hover:text-orange-600 transition-colors">
+        <h4 className="text-base font-black text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
           {title}
         </h4>
 
@@ -107,7 +107,7 @@ export const KnowledgeCard: React.FC<KnowledgeCardProps> = ({
 
         <button
           onClick={onUseInProject}
-          className="bg-slate-900 hover:bg-orange-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all shadow-xs"
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1 transition-all shadow-xs"
         >
           <span>Utiliser</span>
           <ArrowRight size={13} />

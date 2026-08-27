@@ -26,8 +26,8 @@ export const EmptyStateGuide: React.FC<EmptyStateGuideProps> = ({
 }) => {
   return (
     <div className={`bg-white border border-dashed border-slate-300/80 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto my-6 ${className}`}>
-      <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-700 mx-auto flex items-center justify-center mb-4 shadow-xs">
-        {icon || <Compass size={28} className="text-orange-600" />}
+      <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-700 mx-auto flex items-center justify-center mb-4 shadow-xs">
+        {icon || <Compass size={28} className="text-blue-600" />}
       </div>
 
       <h4 className="text-lg font-bold text-slate-900 mb-2">
@@ -39,8 +39,8 @@ export const EmptyStateGuide: React.FC<EmptyStateGuideProps> = ({
       </p>
 
       {advisorNote && (
-        <div className="bg-orange-50 border border-orange-200/70 rounded-xl p-3 text-xs text-orange-950 mb-6 text-left flex items-start gap-2.5">
-          <Sparkles size={16} className="text-orange-600 shrink-0 mt-0.5" />
+        <div className="bg-blue-50 border border-blue-200/70 rounded-xl p-3 text-xs text-blue-950 mb-6 text-left flex items-start gap-2.5">
+          <Sparkles size={16} className="text-blue-600 shrink-0 mt-0.5" />
           <span>{advisorNote}</span>
         </div>
       )}
@@ -49,7 +49,7 @@ export const EmptyStateGuide: React.FC<EmptyStateGuideProps> = ({
         {actionLabel && onAction && (
           <button
             onClick={onAction}
-            className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-sm flex items-center gap-2"
           >
             <span>{actionLabel}</span>
             <ArrowRight size={14} />

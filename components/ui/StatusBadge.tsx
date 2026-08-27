@@ -29,10 +29,10 @@ const STATUS_CONFIG: Record<StatusVariant, { label: string; bg: string; text: st
   },
   in_progress: {
     label: 'En cours',
-    bg: 'bg-orange-50',
-    text: 'text-orange-700',
-    border: 'border-orange-200',
-    icon: <Clock size={12} className="text-orange-600" />
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
+    icon: <Clock size={12} className="text-blue-600" />
   },
   pending: {
     label: 'En attente',
@@ -67,7 +67,7 @@ const STATUS_CONFIG: Record<StatusVariant, { label: string; bg: string; text: st
     bg: 'bg-slate-900',
     text: 'text-slate-100',
     border: 'border-slate-800',
-    icon: <Sparkles size={12} className="text-orange-400" />
+    icon: <Sparkles size={12} className="text-blue-400" />
   },
   neutral: {
     label: 'Standard',

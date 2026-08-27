@@ -32,6 +32,7 @@ import {
   Clock,
   Layers,
   Compass,
+  Palette,
   Lock,
   User,
   Shield,
@@ -51,8 +52,10 @@ import { GuidedModeModal } from './accessibility/GuidedModeModal';
 import { UniversalScannerModal, ScannerContext } from './scanner/UniversalScannerModal';
 import { BilingualConversationModal } from './translation/BilingualConversationModal';
 import { UnifiedSettingsModal } from './settings/UnifiedSettingsModal';
+import { BrandColorLabModal } from './settings/BrandColorLabModal';
 import { ComponentShowcaseModal } from './ui/ComponentShowcaseModal';
 import { FocusAndPresentationControls } from './ui/FocusAndPresentationControls';
+import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
 
 interface LayoutProps {
@@ -84,6 +87,7 @@ export const Layout: React.FC<LayoutProps> = ({
   userProfile, 
   onLogout 
 }) => {
+  const { currentPalette, paletteId } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isDialloOSOpen, setIsDialloOSOpen] = useState(false);
@@ -100,6 +104,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const [scannerContext, setScannerContext] = useState<ScannerContext>('general');
   const [isBilingualModalOpen, setIsBilingualModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isColorLabOpen, setIsColorLabOpen] = useState(false);
   const [isShowcaseModalOpen, setIsShowcaseModalOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
@@ -226,21 +231,21 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* Guide-Moi Trigger */}
             <button
               onClick={() => setIsGuidedModeOpen(true)}
-              className="px-3.5 py-2 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-black flex items-center gap-1.5 transition shrink-0 shadow-md hover:scale-105"
+              className="px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Activer le mode guidé pas à pas"
               aria-label="Mode guidé"
             >
-              <Compass size={15} />
+              <Compass size={15} className="text-white" />
               <span>Guide-moi</span>
             </button>
 
             {/* Quick Goal Compass Trigger */}
             <button
               onClick={() => setIsGoalModalOpen(true)}
-              className="hidden lg:flex px-3 py-2 rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 text-indigo-700 border border-indigo-200/60 text-xs font-bold items-center gap-1.5 transition shrink-0 shadow-xs"
+              className="hidden lg:flex px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold items-center gap-1.5 transition shrink-0 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Définir ou changer mon cap"
             >
-              <Compass size={15} className="text-indigo-600" />
+              <Compass size={15} className="text-white" />
               <span>Mon Cap</span>
             </button>
 
@@ -257,7 +262,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 setScannerContext(ctxMap[activeTab] || 'general');
                 setIsScannerOpen(true);
               }}
-              className="p-2 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-orange-600 transition shrink-0 shadow-xs"
+              className="p-2 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-600 transition shrink-0 shadow-xs"
               title="Scanner un document, texte ou QR Code"
               aria-label="Scanner avec Le Monde à Vous"
             >
@@ -267,7 +272,7 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* Diallo OS Micro Trigger */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
-              className="p-2 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-indigo-600 transition shrink-0 shadow-xs"
+              className="p-2 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-600 transition shrink-0 shadow-xs"
               title="Commande vocale de navigation"
               aria-label="Commande vocale"
             >
@@ -288,25 +293,36 @@ export const Layout: React.FC<LayoutProps> = ({
               />
             </div>
 
+            {/* Brand Color Lab (10 Palettes) Trigger */}
+            <button
+              onClick={() => setIsColorLabOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+              title="Ouvrir le Laboratoire des 10 Palettes Chromatiques"
+            >
+              <Palette size={14} className="text-white" />
+              <span className="hidden md:inline">Nuancier</span>
+              <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.2 rounded font-extrabold">10</span>
+            </button>
+
             {/* Bilingual Mode Trigger */}
             <button
               onClick={() => setIsBilingualModalOpen(true)}
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-white text-slate-700 hover:text-orange-600 border border-slate-200 hover:border-orange-300 transition text-xs font-bold shadow-xs"
+              className="hidden lg:flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Ouvrir le Mode Conversation Bilingue Direct"
             >
-              <Languages size={14} className="text-orange-600" />
+              <Languages size={14} className="text-white" />
               <span>Bilingue</span>
             </button>
 
             {/* Transversal Google Services Hub Button */}
             <button
               onClick={() => setIsTransversalModalOpen(true)}
-              className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-white text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 transition text-xs font-bold shadow-xs"
+              className="hidden 2xl:flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Ouvrir le Hub des Capacités Transversales (Maps, Drive, Meet, Chat)"
             >
-              <Layers size={14} className="text-indigo-600" />
+              <Layers size={14} className="text-white" />
               <span>Services</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
             </button>
 
             {/* Google Workspace Connection Banner (compact) */}
@@ -413,6 +429,9 @@ export const Layout: React.FC<LayoutProps> = ({
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>
+                    <button onClick={() => {setIsColorLabOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-900 rounded-xl text-xs flex items-center gap-2 font-bold">
+                      <Palette size={14} className="text-blue-600" /> Nuancier 10 Palettes
+                    </button>
                     <button onClick={() => {setIsShowcaseModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Layers size={14} /> Galerie Design System
                     </button>
@@ -472,25 +491,42 @@ export const Layout: React.FC<LayoutProps> = ({
       <div className="flex flex-1 overflow-hidden relative">
         
         {/* ─── DESKTOP SIDEBAR (Categorized by Human Goals) ─── */}
-        <aside className={`hidden md:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-gray-200 h-full overflow-hidden flex-shrink-0 z-10 transition-all duration-300 ease-in-out`}>
+        <aside 
+          className={`hidden md:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} h-full overflow-hidden flex-shrink-0 z-10 transition-all duration-300 ease-in-out border-r`}
+          style={{ 
+            backgroundColor: currentPalette.colors.sidebarBg,
+            borderColor: currentPalette.colors.sidebarBorder,
+            color: currentPalette.colors.sidebarText
+          }}
+        >
           
           {/* Collapse Toggle & Quick Goal Button */}
-          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} p-3 border-b border-gray-100 bg-slate-50/50`}>
+          <div 
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} p-3 border-b`}
+            style={{ 
+              backgroundColor: currentPalette.colors.sidebarSurface,
+              borderColor: currentPalette.colors.sidebarBorder 
+            }}
+          >
             {!isSidebarCollapsed && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsGoalModalOpen(true)}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 text-[11px] font-bold flex items-center gap-1.5 transition"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition shadow-2xs text-white"
+                  style={{ backgroundColor: currentPalette.colors.sidebarActiveBg }}
                 >
-                  <Compass size={13} className="text-indigo-600" />
+                  <Compass size={13} />
                   <span>Mon Cap</span>
                 </button>
-                <span className="text-[10px] text-slate-400 font-medium">Besoins de Vie</span>
+                <span className="text-[10px] opacity-70 font-medium" style={{ color: currentPalette.colors.sidebarTextMuted }}>
+                  Besoins de Vie
+                </span>
               </div>
             )}
             <button 
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-white/10 opacity-70 hover:opacity-100 transition-colors"
+              style={{ color: currentPalette.colors.sidebarText }}
               title={isSidebarCollapsed ? "Déployer le menu" : "Réduire le menu"}
             >
               {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -505,14 +541,19 @@ export const Layout: React.FC<LayoutProps> = ({
               <div>
                 {!isSidebarCollapsed ? (
                   <div className="flex items-center justify-between px-2 mb-1">
-                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider flex items-center gap-1">
-                      <Star size={11} className="fill-amber-500 text-amber-500" />
+                    <span 
+                      className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                      style={{ color: currentPalette.colors.sidebarHighlight }}
+                    >
+                      <Star size={11} className="fill-current" />
                       Mes Favoris
                     </span>
-                    <span className="text-[9px] text-slate-400">{favorites.length}</span>
+                    <span className="text-[9px] opacity-60" style={{ color: currentPalette.colors.sidebarTextMuted }}>
+                      {favorites.length}
+                    </span>
                   </div>
                 ) : (
-                  <div className="h-px bg-amber-100 my-2 mx-2"></div>
+                  <div className="h-px my-2 mx-2 opacity-20 bg-white"></div>
                 )}
 
                 <div className="space-y-0.5">
@@ -527,12 +568,20 @@ export const Layout: React.FC<LayoutProps> = ({
                           className={`
                             w-full flex items-center gap-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150
                             ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}
-                            ${isActive 
-                              ? 'bg-amber-500 text-white shadow-xs font-bold' 
-                              : 'text-slate-700 hover:bg-amber-50/70 hover:text-amber-900'}
                           `}
+                          style={isActive ? {
+                            backgroundColor: currentPalette.colors.sidebarActiveBg,
+                            color: currentPalette.colors.sidebarActiveText,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                          } : {
+                            color: currentPalette.colors.sidebarText,
+                          }}
                         >
-                          <Icon size={16} className={`shrink-0 ${isActive ? 'text-white' : 'text-amber-600'}`} />
+                          <Icon 
+                            size={16} 
+                            className="shrink-0" 
+                            style={{ color: isActive ? currentPalette.colors.sidebarActiveText : currentPalette.colors.sidebarHighlight }} 
+                          />
                           {!isSidebarCollapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
                         </button>
                       </div>
@@ -545,7 +594,7 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* 🕒 2. ACCÈS RÉCENTS */}
             {!isSidebarCollapsed && recentTabs.length > 0 && (
               <div>
-                <div className="flex items-center gap-1 px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="flex items-center gap-1 px-2 mb-1 text-[10px] font-bold uppercase tracking-wider opacity-60" style={{ color: currentPalette.colors.sidebarTextMuted }}>
                   <Clock size={10} />
                   <span>Récents</span>
                 </div>
@@ -557,11 +606,16 @@ export const Layout: React.FC<LayoutProps> = ({
                       <button
                         key={`rec-${tabId}`}
                         onClick={() => onTabChange(tabId)}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border transition truncate max-w-[120px] ${
-                          activeTab === tabId
-                            ? 'bg-slate-900 text-white border-slate-900'
-                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
+                        className="px-2 py-0.5 rounded-lg text-[10px] font-medium border transition truncate max-w-[120px]"
+                        style={activeTab === tabId ? {
+                          backgroundColor: currentPalette.colors.sidebarActiveBg,
+                          color: '#ffffff',
+                          borderColor: currentPalette.colors.sidebarActiveBg
+                        } : {
+                          backgroundColor: currentPalette.colors.sidebarSurface,
+                          color: currentPalette.colors.sidebarText,
+                          borderColor: currentPalette.colors.sidebarBorder
+                        }}
                       >
                         {found.shortLabel || found.label}
                       </button>
@@ -578,11 +632,14 @@ export const Layout: React.FC<LayoutProps> = ({
                 return (
                   <div key={category}>
                     {!isSidebarCollapsed ? (
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2.5 mb-1.5">
+                      <h3 
+                        className="text-[10px] font-black uppercase tracking-widest px-2.5 mb-1.5 opacity-60"
+                        style={{ color: currentPalette.colors.sidebarTextMuted }}
+                      >
                         {category}
                       </h3>
                     ) : (
-                      <div className="h-px bg-slate-200 my-2.5 mx-2"></div>
+                      <div className="h-px my-2.5 mx-2 opacity-20 bg-white"></div>
                     )}
                     
                     <div className="space-y-0.5">
@@ -597,23 +654,40 @@ export const Layout: React.FC<LayoutProps> = ({
                               onClick={() => onTabChange(item.id)}
                               title={isSidebarCollapsed ? `${item.label} — ${item.description}` : ''}
                               className={`
-                                flex-1 flex items-center gap-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 relative overflow-hidden
+                                flex-1 flex items-center gap-2.5 py-1.5 rounded-xl text-xs transition-all duration-150 relative overflow-hidden
                                 ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}
-                                ${isActive 
-                                  ? 'bg-brand-600 text-white shadow-xs font-bold' 
-                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'}
                               `}
+                              style={isActive ? {
+                                backgroundColor: currentPalette.colors.sidebarActiveBg,
+                                color: currentPalette.colors.sidebarActiveText,
+                                fontWeight: 700,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                              } : {
+                                color: currentPalette.colors.sidebarText,
+                                fontWeight: 500,
+                              }}
                             >
-                              <Icon size={16} className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-brand-600'}`} />
+                              <Icon 
+                                size={16} 
+                                className="shrink-0"
+                                style={{ color: isActive ? currentPalette.colors.sidebarActiveText : currentPalette.colors.sidebarTextMuted }} 
+                              />
                               
                               {!isSidebarCollapsed && (
                                 <span className="truncate flex-1 text-left">{item.label}</span>
                               )}
                               
                               {!isSidebarCollapsed && item.badge && (
-                                <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-extrabold uppercase shrink-0 ${
-                                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-                                }`}>
+                                <span 
+                                  className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold uppercase shrink-0"
+                                  style={isActive ? {
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    color: '#ffffff'
+                                  } : {
+                                    backgroundColor: currentPalette.colors.sidebarSurface,
+                                    color: currentPalette.colors.sidebarTextMuted
+                                  }}
+                                >
                                   {item.badge}
                                 </span>
                               )}
@@ -626,11 +700,12 @@ export const Layout: React.FC<LayoutProps> = ({
                                 title={isFav ? "Retirer des favoris" : "Épingler dans mes favoris"}
                                 className={`p-1 rounded-md transition ${
                                   isFav 
-                                    ? 'text-amber-500 opacity-100' 
-                                    : 'text-slate-300 opacity-0 group-hover:opacity-100 hover:text-amber-500'
+                                    ? 'opacity-100' 
+                                    : 'opacity-0 group-hover:opacity-100'
                                 }`}
+                                style={{ color: currentPalette.colors.sidebarHighlight }}
                               >
-                                <Star size={13} className={isFav ? "fill-amber-500" : ""} />
+                                <Star size={13} className={isFav ? "fill-current" : ""} />
                               </button>
                             )}
                           </div>
@@ -644,36 +719,61 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
           
           {/* Sidebar Footer — Transversal Hub & User Profile */}
-          <div className="p-3 border-t border-gray-200 bg-slate-50/70 space-y-2">
+          <div 
+            className="p-3 border-t space-y-2"
+            style={{ 
+              backgroundColor: currentPalette.colors.sidebarSurface,
+              borderColor: currentPalette.colors.sidebarBorder 
+            }}
+          >
             
             {/* Transversal Services Quick Access */}
             <button
               onClick={() => setIsTransversalModalOpen(true)}
-              className={`w-full py-2 px-2.5 rounded-xl border border-indigo-200/80 bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-900 flex items-center justify-between text-xs font-bold transition shadow-2xs ${
+              className={`w-full py-2 px-2.5 rounded-xl border flex items-center justify-between text-xs font-bold transition shadow-2xs ${
                 isSidebarCollapsed ? 'justify-center' : ''
               }`}
+              style={{
+                backgroundColor: currentPalette.colors.sidebarBg,
+                borderColor: currentPalette.colors.sidebarBorder,
+                color: currentPalette.colors.sidebarText
+              }}
               title="Outils & Services Google Workspace"
             >
               <div className="flex items-center gap-2">
-                <Layers size={15} className="text-indigo-600 shrink-0" />
+                <Layers size={15} style={{ color: currentPalette.colors.sidebarHighlight }} className="shrink-0" />
                 {!isSidebarCollapsed && <span>Services Transversaux</span>}
               </div>
               {!isSidebarCollapsed && (
-                <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.2 rounded-md font-extrabold">
+                <span 
+                  className="text-[9px] px-1.5 py-0.2 rounded-md font-extrabold text-white"
+                  style={{ backgroundColor: currentPalette.colors.sidebarActiveBg }}
+                >
                   Google
                 </span>
               )}
             </button>
 
             {/* User Compact Card */}
-            <div className={`bg-white rounded-xl border border-gray-200 shadow-2xs flex items-center ${isSidebarCollapsed ? 'justify-center p-1.5' : 'p-2 gap-2.5'}`}>
+            <div 
+              className={`rounded-xl border shadow-2xs flex items-center ${isSidebarCollapsed ? 'justify-center p-1.5' : 'p-2 gap-2.5'}`}
+              style={{
+                backgroundColor: currentPalette.colors.sidebarBg,
+                borderColor: currentPalette.colors.sidebarBorder,
+                color: currentPalette.colors.sidebarText
+              }}
+            >
               <div className="relative shrink-0">
-                <img src={userProfile.avatarUrl} className="w-7 h-7 rounded-full border border-gray-200 object-cover" />
+                <img src={userProfile.avatarUrl} className="w-7 h-7 rounded-full border border-white/20 object-cover" />
               </div>
               {!isSidebarCollapsed && (
                 <div className="overflow-hidden flex-1">
-                  <div className="text-[11px] font-bold text-slate-900 truncate">{userProfile.name}</div>
-                  <div className="text-[9px] text-slate-500 truncate">{userProfile.title || 'Citoyen du Monde'}</div>
+                  <div className="text-[11px] font-bold truncate" style={{ color: currentPalette.colors.sidebarText }}>
+                    {userProfile.name}
+                  </div>
+                  <div className="text-[9px] truncate opacity-70" style={{ color: currentPalette.colors.sidebarTextMuted }}>
+                    {userProfile.title || 'Citoyen du Monde'}
+                  </div>
                 </div>
               )}
             </div>
@@ -891,6 +991,12 @@ export const Layout: React.FC<LayoutProps> = ({
           isOpen={isSettingsModalOpen}
           onClose={() => setIsSettingsModalOpen(false)}
           userProfile={userProfile}
+        />
+
+        {/* Brand Color Lab — 10 Palettes Chromatiques */}
+        <BrandColorLabModal
+          isOpen={isColorLabOpen}
+          onClose={() => setIsColorLabOpen(false)}
         />
 
         {/* Design System Component Showcase (Req 138, 140) */}

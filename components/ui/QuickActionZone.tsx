@@ -20,7 +20,7 @@ export interface QuickActionZoneProps {
 
 const DEFAULT_ACTIONS: QuickAction[] = [
   { id: 'resume', label: 'Reprendre', icon: PlayCircle, tabTarget: 'career' },
-  { id: 'ask-diallo', label: 'Demander à Diallo', icon: Sparkles, tabTarget: 'chat', color: 'text-orange-600' },
+  { id: 'ask-diallo', label: 'Demander à Diallo', icon: Sparkles, tabTarget: 'chat', color: 'text-blue-600' },
   { id: 'new-doc', label: 'Nouvelle démarche', icon: Plus, tabTarget: 'admin-procedures' },
   { id: 'search-all', label: 'Recherche universelle', icon: Search, tabTarget: 'search' },
 ];
@@ -53,7 +53,7 @@ export const QuickActionZone: React.FC<QuickActionZoneProps> = ({
             <Icon size={14} className={act.color || 'text-slate-600'} />
             <span>{act.label}</span>
             {act.badge && (
-              <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.2 rounded font-bold">
+              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-bold">
                 {act.badge}
               </span>
             )}

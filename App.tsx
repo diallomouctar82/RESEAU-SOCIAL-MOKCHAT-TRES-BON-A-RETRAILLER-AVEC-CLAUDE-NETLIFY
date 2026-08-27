@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard'; 
 import { ChatInterface } from './components/ChatInterface';
@@ -280,7 +281,9 @@ const AppContent = () => {
 export default function App() {
     return (
         <GlobalProvider>
-            <AppContent />
+            <ThemeProvider>
+                <AppContent />
+            </ThemeProvider>
         </GlobalProvider>
     );
 }

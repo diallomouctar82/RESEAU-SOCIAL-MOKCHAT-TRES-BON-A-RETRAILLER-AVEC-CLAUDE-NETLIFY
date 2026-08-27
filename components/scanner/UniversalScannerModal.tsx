@@ -95,7 +95,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
         return {
           title: 'Scanner Universel avec Le Monde à Vous',
           desc: 'Reconnaissance intelligente de documents, textes, formulaires et QR codes.',
-          badgeColor: 'bg-orange-100 text-orange-800',
+          badgeColor: 'bg-blue-100 text-blue-800',
           icon: Scan
         };
     }
@@ -198,7 +198,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
         {/* Top Header */}
         <div className="bg-slate-900 text-white p-6 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
               <Icon size={22} />
             </div>
             <div>
@@ -271,7 +271,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
           {!capturedImage && (
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 hover:border-orange-400 bg-slate-50 hover:bg-orange-50/20 rounded-3xl p-10 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
+              className="border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50 hover:bg-blue-50/20 rounded-3xl p-10 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
             >
               <input 
                 type="file" 
@@ -280,7 +280,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
                 accept="image/*,.pdf" 
                 className="hidden" 
               />
-              <div className="w-16 h-16 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
                 <Scan size={32} />
               </div>
               <div>
@@ -291,7 +291,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
                   Supporte passeports, diplômes, factures, contrats, textes ou photos en haute définition.
                 </p>
               </div>
-              <span className="text-[11px] font-bold text-orange-600 bg-orange-100/80 px-3 py-1 rounded-full">
+              <span className="text-[11px] font-bold text-blue-600 bg-blue-100/80 px-3 py-1 rounded-full">
                 Traitement sécurisé et confidentiel
               </span>
             </div>
@@ -321,7 +321,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
 
               {isAnalyzing && (
                 <div className="p-8 text-center bg-slate-50 rounded-3xl border border-slate-200 space-y-3">
-                  <div className="w-10 h-10 border-3 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
                   <h4 className="font-bold text-slate-900 text-sm">Vision IA en cours d'analyse...</h4>
                   <p className="text-xs text-slate-500">Détection des caractères, structure légale et vérification de conformité.</p>
                 </div>
@@ -335,7 +335,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
                   <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black uppercase text-slate-400 flex items-center gap-1.5">
-                        <Eye size={14} className="text-orange-600" /> 1. Ce que j'ai détecté
+                        <Eye size={14} className="text-blue-600" /> 1. Ce que j'ai détecté
                       </span>
                       <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
                         Confiance : {analysisResult.confidence}%
@@ -382,7 +382,7 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
 
                   {/* 4. QUE VEUX-TU FAIRE MAINTENANT ? */}
                   <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-3">
-                    <span className="text-xs font-black uppercase tracking-wider text-orange-400 flex items-center gap-1.5">
+                    <span className="text-xs font-black uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
                       <Sparkles size={14} /> 4. Que veux-tu faire maintenant ?
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -393,10 +393,10 @@ export const UniversalScannerModal: React.FC<UniversalScannerModalProps> = ({
                             if (onApplyResult) onApplyResult(analysisResult);
                             onClose();
                           }}
-                          className="bg-white/10 hover:bg-white/20 border border-white/10 hover:border-orange-500/50 p-3 rounded-xl text-left text-xs font-bold text-white flex items-center justify-between group transition-all"
+                          className="bg-white/10 hover:bg-white/20 border border-white/10 hover:border-blue-500/50 p-3 rounded-xl text-left text-xs font-bold text-white flex items-center justify-between group transition-all"
                         >
                           <span>{act.label}</span>
-                          <ArrowRight size={14} className="text-orange-400 group-hover:translate-x-1 transition-transform" />
+                          <ArrowRight size={14} className="text-blue-300 group-hover:translate-x-1 transition-transform" />
                         </button>
                       ))}
                     </div>
