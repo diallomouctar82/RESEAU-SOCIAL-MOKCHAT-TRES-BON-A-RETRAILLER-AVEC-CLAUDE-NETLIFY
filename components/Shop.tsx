@@ -64,7 +64,6 @@ import { TradeTendersHub } from './TradeTendersHub';
 import { TradePartnershipsHub } from './TradePartnershipsHub';
 import { TradeCommercialMissionHub } from './TradeCommercialMissionHub';
 import { TradeWatchdogHub } from './TradeWatchdogHub';
-import { MokTrustCenter } from './MokTrustCenter';
 import { TradeDisputeResolutionCenter } from './TradeDisputeResolutionCenter';
 import { MokTrustReputationHub } from './MokTrustReputationHub';
 import { MokTrustReportModal } from './MokTrustReportModal';
@@ -339,9 +338,9 @@ export const Shop: React.FC<ShopProps> = ({
             { id: 'partnerships', label: 'Partenariats & Investisseurs', icon: Handshake },
             { id: 'missions', label: 'Missions Commerciales', icon: Plane },
             { id: 'watchdog', label: 'Veille & Alertes', icon: Bell, badge: 'Auto' },
-            { id: 'trust', label: 'Mok Trust & Vérifications', icon: ShieldCheck, badge: 'Sécurité' },
+            { id: 'trust', label: 'MokTrust communautaire', icon: ShieldCheck, badge: 'Serveur' },
             { id: 'disputes', label: 'Litiges & Médiation', icon: Scale, badge: 'Escrow' },
-            { id: 'reputation', label: 'Avis Vérifiés & Score', icon: Star, badge: '98.6%' },
+            { id: 'reputation', label: 'Méthode & indice', icon: Star },
             { id: 'catalog', label: 'Catalogue & Produits', icon: ShoppingBag, count: allProducts.length },
             { id: 'rfq', label: 'RFQ Fournisseurs', icon: Building2, count: rfqList.length },
             { id: 'import_export', label: 'Parcours Import/Export', icon: Truck, badge: 'Roadmap' },
@@ -901,17 +900,10 @@ export const Shop: React.FC<ShopProps> = ({
           </div>
         )}
 
-        {/* VIEW 13: MOK TRUST & VÉRIFICATION IDENTITY */}
+        {/* VIEW 13: MOKTRUST COMMUNAUTAIRE CALCULÉ CÔTÉ SERVEUR */}
         {activeSection === 'trust' && (
           <div className="animate-fade-in">
-            <MokTrustCenter
-              onOpenExpertChat={onOpenExpertChat}
-              onOpenDisputeCenter={() => setActiveSection('disputes')}
-              onOpenReportModal={(listingId, productTitle) => {
-                setReportProductContext({ id: listingId, title: productTitle });
-                setIsReportModalOpen(true);
-              }}
-            />
+            <MokTrustReputationHub onOpenExpertChat={onOpenExpertChat} />
           </div>
         )}
 
@@ -925,7 +917,7 @@ export const Shop: React.FC<ShopProps> = ({
           </div>
         )}
 
-        {/* VIEW 15: RÉPUTATION MULTIDIMENSIONNELLE & AVIS D'ACHAT */}
+        {/* VIEW 15: MÊME INDICE, ACCÈS DEPUIS L'ANCIEN ONGLET RÉPUTATION */}
         {activeSection === 'reputation' && (
           <div className="animate-fade-in">
             <MokTrustReputationHub

@@ -531,3 +531,29 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Implémenté localement — déploiement/migrations/E2E requis`.
 
 ---
+
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : `MokTrust`, `Réseau MOK`, `Modération`, `Supabase`
+* **Problème / Besoin initial** : Les onglets MokTrust affichaient un score fixe
+  de 98,6 %, des avis d'achat et des vérifications KYC/KYB simulés, sans calcul ni
+  preuve serveur.
+* **Décision retenue** : Limiter MokTrust à un indice communautaire démontrable.
+  PostgreSQL calcule et persiste un score borné à partir de l'ancienneté, des
+  contributions et des réactions reçues, avec un niveau de confiance séparé et
+  une version d'algorithme. Un signalement n'est jamais une preuve : seule une
+  décision modérateur documentée « fondée » peut ajuster le score.
+* **Conséquences** : Les faux avis/transactions/verdicts sont retirés du parcours
+  actif. La console expose la décomposition, l'horodatage, les états hors ligne et
+  la limite explicite : aucune certification d'identité, d'entreprise, de paiement
+  ou de livraison. Les tables sont sous RLS et ne sont pas modifiables directement
+  par le client.
+* **Éléments techniques** : `services/mokTrust.ts`,
+  `components/MokTrustReputationHub.tsx`, `components/Shop.tsx`,
+  `supabase/migrations/20260827217000_mok_trust_server_score.sql`,
+  `tests/partial/moktrust-contract.test.mjs`, `tests/unit/mokTrust.test.ts`.
+* **Statut** : `Développé et testé localement`; migration non appliquée et recette
+  multi-comptes/modération encore requise sur l'environnement Supabase cible.
+
+---
+
+---

@@ -139,7 +139,11 @@ La version **v6.3.0** consacre :
 - **Centre des Langues** : 40+ langues avec répétition espacée et prononciation audio.
 
 ### 1.5. Réseau MOK, Confiance & Social Live
-- Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.
+- MokTrust : indice communautaire calculé et persisté côté PostgreSQL, avec
+  confiance statistique, formule versionnée et RLS. Les simples signalements ou
+  blocages ne pénalisent pas ; seules les décisions modérateur explicitement
+  fondées sont prises en compte. Ce n'est pas une certification KYC/KYB ou
+  transactionnelle. Migration versionnée, recette Supabase cible encore requise.
 - Fil d'actualité social, publication de Stories et visionneuse de Smart Reels.
 - Live Streaming interactif avec chat en direct, dons/cadeaux et achats intégrés pendant la diffusion.
 
@@ -163,7 +167,7 @@ La version **v6.3.0** consacre :
 
 **Migration complète Firebase → Supabase effectuée.** Authentification Google OAuth unifiée (Supabase Auth, permissions minimales), profil applicatif séparé (`profiles`) avec RLS, et persistance réelle pour : Identity, Social (posts/commentaires/réactions/stories), Messagerie (dont chat Expert IA), Dossiers de vie, Carrière (Radar + CV Maître), Éducation/Campus (cours/inscriptions/certificats), Commerce minimal (boutique/commandes), Finance (solde dérivé), Notifications, Fichiers (Storage), Live (intégral), catalogue Agents. Détail complet : `docs/SUPABASE_ARCHITECTURE.md` et `docs/AUTHENTICATION.md`.
 
-Volontairement laissés hors périmètre (0% de persistance prouvée dans le code, écrans de démo uniquement) : Trade/Commerce Mondial (RFQ, CommercialDossier, salons, MokTrust), Tribus/Cercles riches.
+Volontairement laissés hors périmètre (0% de persistance prouvée dans le code, écrans de démo uniquement) : Trade/Commerce Mondial (RFQ, CommercialDossier, salons hors indice communautaire MokTrust), Tribus/Cercles riches.
 
 **Correctif d'audit du 28 août 2026** : les journaux Auth prouvent que Google OAuth fonctionne déjà sur `moknet.net`; il ne faut plus le présenter comme non configuré. Le client a été réconcilié autour d'un seul listener de session et d'un profil créé uniquement par trigger. La chaîne de migrations complète et les tests RLS sont versionnés, mais leur application sur branche isolée et l'exécution pgTAP restent les preuves nécessaires avant de déclarer la réconciliation base terminée. Les affirmations historiques « 100 % » de ce document décrivent l'ambition produit et ne remplacent pas ces preuves techniques.
 
