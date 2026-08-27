@@ -36,7 +36,7 @@ Chaque décision respecte le formalisme strict suivant :
 * **Problème / Besoin initial** : les états métier structurants reposaient sur `localStorage` ou IndexedDB sans autorité cloud commune.
 * **Décision retenue** : un dépôt typé Supabase-first (`moduleRepository`) persiste des `module_records` protégés par RLS et versionnés. IndexedDB ne contient que les mutations en attente et se vide après synchronisation.
 * **Conséquences** : états `idle/syncing/offline/error` explicites, idempotence, reprise réseau et suppression des jeux de données fictifs chargés comme s'ils étaient réels. Les attestations Campus restent explicitement non vérifiées faute d'autorité éducative.
-* **Éléments techniques** : `services/moduleRepository.ts`, `services/dossierService.ts`, `services/campusRepository.ts`, `services/careerRadarEngine.ts`, `components/CareerCenter.tsx`, `components/LanguageCenter.tsx`, `components/StudioCollaboration.tsx`, migration `20260827213000_module_records.sql`.
+* **Éléments techniques** : `services/moduleRepository.ts`, `services/dossierService.ts`, `services/campusRepository.ts`, `services/careerRadarEngine.ts`, `components/CareerCenter.tsx`, `components/LanguageCenter.tsx`, `components/StudioCollaboration.tsx`, migration `20260827216000_module_records.sql`.
 * **Preuves** : tests ciblés 3/3; build Vite réussi.
 * **Statut** : `Développé`, `Testé localement`, `Migration Supabase requise`.
 

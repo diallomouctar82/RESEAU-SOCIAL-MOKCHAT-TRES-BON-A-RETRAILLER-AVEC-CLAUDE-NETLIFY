@@ -30,7 +30,7 @@
   - `components/accessibility/useDialogAccessibility.ts` : confinement/restauration du focus et fermeture clavier des dialogues.
   - `contexts/GlobalContext.tsx`, `services/profile.ts` : source unique de session et mise à jour du profil propre par RPC allowlistée.
   - `services/adminApi.ts`, `netlify/functions/admin-users.ts` : contrat client et API privilégiée serveur.
-  - `supabase/migrations/20260827213000_admin_directory_extension.sql` : statut, permissions, notes admin, garde de colonnes et quota partagé.
+  - `supabase/migrations/20260827215000_admin_directory_extension.sql` : statut, permissions, notes admin, garde de colonnes et quota partagé.
 - **Modèles de Données (`types.ts` + Supabase `public.profiles`)** :
   - `UserRole` (`user | admin | expert | mentor | moderator | organization | super_admin`), `UserProfile`, `SecurityLog`, `DeviceSession`.
 

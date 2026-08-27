@@ -28,7 +28,7 @@ test('dossiers, carrière, campus, langues et studio utilisent le dépôt partag
 });
 
 test('la migration impose RLS, versionnement et ownership', async () => {
-  const migration = await read('supabase/migrations/20260827213000_module_records.sql');
+  const migration = await read('supabase/migrations/20260827216000_module_records.sql');
   assert.match(migration, /enable row level security/);
   assert.match(migration, /owner_id = auth\.uid\(\)/);
   assert.match(migration, /new\.version = old\.version \+ 1/);

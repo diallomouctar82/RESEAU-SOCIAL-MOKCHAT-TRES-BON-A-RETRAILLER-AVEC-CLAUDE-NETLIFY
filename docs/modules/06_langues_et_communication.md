@@ -35,6 +35,6 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Code prêt** : dialogues, scénario actif et progression sont synchronisés dans Supabase `module_records`; les modifications hors ligne sont placées dans une file IndexedDB et l'état est visible dans l'interface.
-- **Configuration requise** : migration `20260827213000_module_records.sql` et session Supabase valides.
+- **Configuration requise** : migration `20260827216000_module_records.sql` et session Supabase valides.
 - **Partiel / en cours** : l'évaluation autoritative de la prononciation n'est pas implémentée; aucune note de prononciation fictive n'est affichée.
 - **Évolutions Prévues** : Tandems linguistiques en direct avec d'autres apprenants du Réseau MOK.
