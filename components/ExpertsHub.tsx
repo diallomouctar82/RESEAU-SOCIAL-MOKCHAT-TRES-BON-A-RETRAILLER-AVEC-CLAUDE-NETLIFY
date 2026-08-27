@@ -56,6 +56,10 @@ import { ChefDeProjetSuite } from './ChefDeProjetSuite';
 import { UnifiedCouncilRoom } from './UnifiedCouncilRoom';
 import { AIProxyClient } from '../services/aiProxy';
 import { useGlobal } from '../contexts/GlobalContext';
+import {
+    parseAssessmentResult,
+    saveExpertResult,
+} from '../services/expertPersistence';
 
 interface ExpertsHubProps {
     userProfile: UserProfile;
@@ -211,7 +215,8 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
             value: newMemValue,
             agentId: selectedAgent.id,
             dossierId: selectedDossier?.id,
-            confidence: 0.98
+            confidence: 0.98,
+            verified: false,
         });
 
         setMemories(prev => [created, ...prev]);
@@ -244,23 +249,53 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                 contents: prompt
             });
 
-            const content = res.text || 'Document généré avec succès.';
-            setGeneratedDocContent(content);
+            const content = res.text.trim();
+            if (!content) throw new Error('Le service IA a renvoyé un document vide.');
+            const saved = await saveExpertResult({
+                schemaVersion: 1,
+                kind: 'official_document',
+                agentId: selectedAgent.id,
+                title: docTitle.trim(),
+                content,
+                dossierId: selectedDossier?.id,
+                metadata: { documentType: docType },
+                generatedAt: new Date().toISOString(),
+            });
 
             // Enregistrer comme livrable si un dossier est actif
             if (selectedDossier) {
-                await dossierService.addDeliverable(selectedDossier.id, {
+                const updatedDossier = await dossierService.addDeliverable(selectedDossier.id, {
                     title: docTitle,
                     category: docType === 'contract' ? 'legal' : docType === 'budget' ? 'financial' : 'official',
-                    content: content
+                    description: content,
+                    status: 'draft',
+                    authorAgentName: selectedAgent.name,
                 });
-                addNotification("Livrable Archivé", `Le document "${docTitle}" a été rédigé et rattaché au dossier "${selectedDossier.title}".`, "success");
+                if (!updatedDossier) throw new Error('Le dossier actif est introuvable.');
             }
-        } catch (e: any) {
-            addNotification("Erreur", "Impossible de rédiger le document.", "warning");
+            setGeneratedDocContent(content);
+            addNotification(
+                saved.syncStatus === 'synced' ? "Brouillon enregistré" : "Brouillon en attente de synchronisation",
+                selectedDossier
+                    ? `Le brouillon « ${docTitle} » est rattaché au dossier « ${selectedDossier.title} » et doit être validé.`
+                    : `Le brouillon « ${docTitle} » est conservé dans votre espace Expert.`,
+                saved.syncStatus === 'synced' ? "success" : "info",
+            );
+        } catch (e) {
+            addNotification("Rédaction impossible", e instanceof Error ? e.message : "Le document n’a pas pu être généré ou enregistré.", "warning");
         } finally {
             setIsGeneratingDoc(false);
         }
+    };
+
+    const downloadGeneratedDocument = () => {
+        if (!generatedDocContent) return;
+        const url = URL.createObjectURL(new Blob([generatedDocContent], { type: 'text/plain;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${docTitle.trim().replace(/[^a-z0-9_-]+/gi, '-') || 'document-expert'}.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
     // --- ÉCOLE NUMÉRIQUE EXAM GENERATION & EVALUATION ---
@@ -279,9 +314,26 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                 contents: prompt
             });
 
-            setExamQuestion(res.text || 'Question prête.');
-        } catch (e: any) {
-            addNotification("Erreur", "Impossible de générer la question.", "warning");
+            const question = res.text.trim();
+            if (!question) throw new Error('Le service IA a renvoyé une question vide.');
+            const saved = await saveExpertResult({
+                schemaVersion: 1,
+                kind: 'assessment',
+                agentId: '4',
+                title: `Question diagnostique — ${examSubject}`,
+                content: question,
+                dossierId: selectedDossier?.id,
+                metadata: { stage: 'question', academicLevel, subject: examSubject },
+                generatedAt: new Date().toISOString(),
+            });
+            setExamQuestion(question);
+            addNotification(
+                saved.syncStatus === 'synced' ? 'Question enregistrée' : 'Question en attente de synchronisation',
+                saved.syncStatus === 'synced' ? 'Cette évaluation diagnostique est conservée dans votre historique.' : 'Elle sera synchronisée au retour du réseau.',
+                saved.syncStatus === 'synced' ? 'success' : 'info',
+            );
+        } catch (e) {
+            addNotification("Évaluation indisponible", e instanceof Error ? e.message : "La question n’a pas pu être générée ou enregistrée.", "warning");
         } finally {
             setIsEvaluatingExam(false);
         }
@@ -310,7 +362,17 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                 config: { responseMimeType: 'application/json' }
             });
 
-            const parsed = JSON.parse(res.text || '{}');
+            const parsed = parseAssessmentResult(res.text);
+            const saved = await saveExpertResult({
+                schemaVersion: 1,
+                kind: 'assessment',
+                agentId: '4',
+                title: `Bilan diagnostique — ${examSubject}`,
+                content: JSON.stringify({ question: examQuestion, answer: examUserAnswer, evaluation: parsed }),
+                dossierId: selectedDossier?.id,
+                metadata: { stage: 'evaluation', academicLevel, subject: examSubject, score: parsed.score, status: parsed.status },
+                generatedAt: new Date().toISOString(),
+            });
             setExamEvaluation(parsed);
 
             // Mémoriser le résultat dans la mémoire active
@@ -318,12 +380,18 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                 category: 'skill',
                 key: `Évaluation: ${examSubject}`,
                 value: `Score: ${parsed.score}/100 - Statut: ${parsed.status}. ${parsed.feedback}`,
-                agentId: '4'
+                agentId: '4',
+                confidence: 0.8,
+                verified: false,
             });
 
-            addNotification("Évaluation Clôturée", `Score obtenu : ${parsed.score}/100. Résultat mémorisé.`, "success");
-        } catch (e: any) {
-            addNotification("Erreur", "Impossible d'évaluer la réponse.", "warning");
+            addNotification(
+                saved.syncStatus === 'synced' ? "Bilan diagnostique enregistré" : "Bilan en attente de synchronisation",
+                `Score indicatif : ${parsed.score}/100. Ce résultat ne constitue pas une certification officielle.`,
+                saved.syncStatus === 'synced' ? "success" : "info",
+            );
+        } catch (e) {
+            addNotification("Correction indisponible", e instanceof Error ? e.message : "La réponse n’a pas pu être évaluée ou enregistrée.", "warning");
         } finally {
             setIsEvaluatingExam(false);
         }
@@ -727,7 +795,9 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                                 await dossierService.addDeliverable(selectedDossier.id, {
                                     title: deliv.title,
                                     category: 'projet',
-                                    content: deliv.content
+                                    description: deliv.content,
+                                    status: 'draft',
+                                    authorAgentName: 'Directeur Diallo',
                                 });
                                 addNotification("Livrable Archivé", `Document rattaché au dossier "${selectedDossier.title}".`, "success");
                             }
@@ -747,7 +817,9 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                                 await dossierService.addDeliverable(selectedDossier.id, {
                                     title: strat.title,
                                     category: 'strategy',
-                                    content: strat.content
+                                    description: strat.content,
+                                    status: 'draft',
+                                    authorAgentName: 'Conseil des Experts',
                                 });
                             }
                         }}
@@ -767,7 +839,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-black text-slate-900">Bureau Numérique & Rédacteur d'Actes</h2>
-                                    <p className="text-xs text-slate-500">Contrats certifiés, statuts SAS/SARL, rapports techniques, budgets et courriers</p>
+                                    <p className="text-xs text-slate-500">Brouillons de contrats, rapports, budgets et courriers à faire valider</p>
                                 </div>
                             </div>
 
@@ -824,10 +896,10 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                                 <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                                     <h3 className="font-bold text-sm text-slate-900">{docTitle}</h3>
                                     <button 
-                                        onClick={() => addNotification("Export PDF", "Document téléchargé au format officiel.", "info")}
+                                        onClick={downloadGeneratedDocument}
                                         className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
                                     >
-                                        <Download size={14} /> Exporter PDF
+                                        <Download size={14} /> Télécharger TXT
                                     </button>
                                 </div>
                                 <div className="prose prose-sm max-w-none text-xs text-slate-700 whitespace-pre-wrap font-mono bg-slate-50 p-6 rounded-2xl border border-slate-200 leading-relaxed">
@@ -849,7 +921,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                                     <GraduationCap size={24} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900">École Numérique & Certification Pédagogique</h2>
+                                    <h2 className="text-xl font-black text-slate-900">École Numérique & Évaluation Pédagogique</h2>
                                     <p className="text-xs text-slate-500">Professeur Diallo • Évaluation continue basée sur la maîtrise réelle</p>
                                 </div>
                             </div>
@@ -925,7 +997,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 animate-fade-up">
                                 <div className="flex justify-between items-center">
                                     <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                                        <Award size={20} className="text-amber-500" /> Bilan & Certification de Maîtrise
+                                        <Award size={20} className="text-amber-500" /> Bilan diagnostique indicatif
                                     </h3>
                                     <span className="text-sm font-black px-3.5 py-1 bg-emerald-100 text-emerald-900 rounded-full">
                                         Score : {examEvaluation.score} / 100

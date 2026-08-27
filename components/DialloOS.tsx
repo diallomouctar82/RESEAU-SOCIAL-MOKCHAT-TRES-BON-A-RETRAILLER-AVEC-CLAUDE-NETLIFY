@@ -1,37 +1,41 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2 } from 'lucide-react';
+import { Command, Mic, Sparkles, ArrowRight, X, Globe, Briefcase, Home, Activity, Loader2, AlertTriangle } from 'lucide-react';
 import { AIProxyClient } from '../services/aiProxy';
-import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
+import {
+    newExpertRecordId,
+    parseOrchestrationAction,
+    saveOrchestrationResult,
+    type OrchestrationAction,
+} from '../services/expertPersistence';
 
 interface DialloOSProps {
     isOpen: boolean;
     onClose: () => void;
     onNavigate: (tab: string, context?: any) => void;
     userProfile: UserProfile;
+    initialPrompt?: string;
 }
 
-type AIAction = {
-    type: 'NAVIGATE' | 'NOTIFICATION' | 'EXECUTE';
-    target?: string;
-    payload?: any;
-    explanation: string;
-};
+const ALLOWED_TARGETS = new Set(['home', 'social', 'world', 'career', 'campus', 'wallet', 'legal', 'health', 'housing', 'chat', 'live', 'studio']);
 
-export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate, userProfile }) => {
+export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate, userProfile, initialPrompt }) => {
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [aiResponse, setAiResponse] = useState<string | null>(null);
-    const [activeAction, setActiveAction] = useState<AIAction | null>(null);
+    const [activeAction, setActiveAction] = useState<OrchestrationAction | null>(null);
+    const [executionError, setExecutionError] = useState<string | null>(null);
+    const [persistenceLabel, setPersistenceLabel] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
+            if (initialPrompt?.trim()) setInput(initialPrompt.trim());
         }
-    }, [isOpen]);
+    }, [initialPrompt, isOpen]);
 
     const handleVoiceInput = () => {
         if (isListening) return;
@@ -60,6 +64,8 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         setIsThinking(true);
         setAiResponse(null);
         setActiveAction(null);
+        setExecutionError(null);
+        setPersistenceLabel(null);
 
         try {
             const ai = new AIProxyClient();
@@ -107,10 +113,17 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                 config: { responseMimeType: 'application/json' }
             });
 
-            const result = JSON.parse(response.text || '{}') as AIAction;
+            const result = parseOrchestrationAction(response.text, ALLOWED_TARGETS);
+            const saved = await saveOrchestrationResult({
+                schemaVersion: 1,
+                command: command.trim(),
+                action: result,
+                generatedAt: new Date().toISOString(),
+            }, newExpertRecordId());
             
             setAiResponse(result.explanation);
             setActiveAction(result);
+            setPersistenceLabel(saved.syncStatus === 'synced' ? 'Commande synchronisée avec votre compte.' : 'Commande placée dans la file de synchronisation.');
 
             // Execute Navigation with delay for effect
             if (result.type === 'NAVIGATE' && result.target) {
@@ -122,7 +135,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
 
         } catch (e) {
             console.error(e);
-            setAiResponse("Commande non reconnue. Veuillez reformuler.");
+            setExecutionError(e instanceof Error ? e.message : 'La commande n’a pas pu être interprétée ou enregistrée.');
         } finally {
             setIsThinking(false);
         }
@@ -175,6 +188,10 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                 </div>
                                 <p className="text-brand-300 font-mono text-sm uppercase tracking-widest">Coordination Famille Diallo en cours...</p>
                             </div>
+                        ) : executionError ? (
+                            <div role="alert" className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-left text-sm text-red-200">
+                                <div className="flex items-start gap-2"><AlertTriangle size={18} className="mt-0.5 shrink-0" /><span>{executionError}</span></div>
+                            </div>
                         ) : aiResponse ? (
                             <div className="animate-fade-up space-y-4">
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold uppercase tracking-wider">
@@ -192,6 +209,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                         </div>
                                     </div>
                                 )}
+                                {persistenceLabel && <p role="status" className="text-xs font-semibold text-emerald-300">{persistenceLabel}</p>}
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full opacity-50">

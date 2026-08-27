@@ -1,10 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AGENTS, USER_PROFILE } from '../constants';
+import { AGENTS } from '../constants';
 import { Agent, CouncilStep } from '../types';
 import { AIProxyClient } from '../services/aiProxy';
 import { Users, Sparkles, Send, CheckCircle, FileText, Play, RotateCcw, BrainCircuit, MessageSquare, Briefcase, Globe, Scale, HeartPulse, Home } from 'lucide-react';
 import { Avatar3D } from './Avatar3D';
+import {
+    newExpertRecordId,
+    parseCouncilSetup,
+    saveCouncilResult,
+} from '../services/expertPersistence';
 
 interface CouncilRoomProps {
     onClose: () => void;
@@ -18,6 +23,8 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
     const [masterPlan, setMasterPlan] = useState<CouncilStep[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null);
+    const [sessionError, setSessionError] = useState<string | null>(null);
+    const [persistenceLabel, setPersistenceLabel] = useState<string | null>(null);
     
     // Auto-scroll for chat
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -27,6 +34,8 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
         if (!topic.trim()) return;
         setIsSessionStarted(true);
         setIsProcessing(true);
+        setSessionError(null);
+        setPersistenceLabel(null);
 
         try {
             const ai = new AIProxyClient();
@@ -59,28 +68,30 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                 config: { responseMimeType: 'application/json' }
             });
 
-            const setupData = JSON.parse(setupResponse.text || '{}');
+            const setupData = parseCouncilSetup(setupResponse.text, new Set(AGENTS.map((agent) => agent.id)));
             
             const selected = AGENTS.filter(a => setupData.selectedAgentIds.includes(a.id));
+            if (selected.length < 2) throw new Error('Le Conseil ne contient pas assez d’experts disponibles.');
             setActiveAgents(selected);
-            setMasterPlan(setupData.initialSteps.map((s: any, i: number) => ({ ...s, id: `step-${i}`, status: 'pending' })));
+            const initialSteps: CouncilStep[] = setupData.initialSteps.map((step, index) => ({ ...step, id: `step-${index}`, status: 'pending' }));
+            setMasterPlan(initialSteps);
             setChatHistory([{ agentId: 'system', text: setupData.introMessage }]);
 
             setIsProcessing(false);
-            
-            // Trigger the first round of discussion automatically
-            setTimeout(() => runCouncilRound(selected, setupData.initialSteps), 1000);
+            await runCouncilRound(selected, initialSteps, setupData.introMessage, newExpertRecordId());
 
         } catch (e) {
             console.error("Council Error", e);
+            setSessionError(e instanceof Error ? e.message : 'Le Conseil n’a pas pu être lancé.');
             setIsProcessing(false);
         }
     };
 
-    const runCouncilRound = async (agents: Agent[], currentSteps: CouncilStep[]) => {
+    const runCouncilRound = async (agents: Agent[], currentSteps: CouncilStep[], introMessage: string, resultId: string) => {
         setIsProcessing(true);
-        
-        // Simulate a round where each agent contributes
+        const roundDialogue: { agentId: string; text: string }[] = [];
+        const completedAgentIds = new Set<string>();
+
         for (const agent of agents) {
             setCurrentSpeakerId(agent.id);
             
@@ -106,24 +117,71 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                     contents: context
                 });
 
-                const text = response.text || "J'analyse la situation.";
+                const text = response.text.trim();
+                if (!text) throw new Error(`${agent.name} a renvoyé une contribution vide.`);
+                roundDialogue.push({ agentId: agent.id, text });
                 setChatHistory(prev => [...prev, { agentId: agent.id, text }]);
                 
                 // Parse for documents or updates (Simplified logic)
                 if (text.includes('[[FILE:')) {
-                    // Update steps to show completion if action taken
-                    setMasterPlan(prev => prev.map(s => s.assignedAgentId === agent.id ? { ...s, status: 'completed' } : s));
+                    completedAgentIds.add(agent.id);
                 }
-
-                await new Promise(resolve => setTimeout(resolve, 3000)); // Delay for readability
 
             } catch (e) {
                 console.error(e);
+                setSessionError(e instanceof Error ? e.message : `La contribution de ${agent.name} est indisponible.`);
             }
         }
-        
-        setCurrentSpeakerId(null);
-        setIsProcessing(false);
+
+        try {
+            if (roundDialogue.length === 0) throw new Error('Aucune contribution exploitable n’a été produite.');
+            const updatedSteps = currentSteps.map((step) => completedAgentIds.has(step.assignedAgentId)
+                ? { ...step, status: 'completed' as const }
+                : step);
+            setMasterPlan(updatedSteps);
+            const saved = await saveCouncilResult({
+                schemaVersion: 1,
+                topic: topic.trim(),
+                agentIds: agents.map((agent) => agent.id),
+                dialogue: roundDialogue.map((entry) => ({
+                    ...entry,
+                    agentName: agents.find((agent) => agent.id === entry.agentId)?.name ?? 'Expert',
+                })),
+                synthesis: {
+                    consensus: introMessage,
+                    actionPlan: updatedSteps.map((step, index) => ({
+                        priority: `P${index + 1}`,
+                        action: `${step.title} — ${step.description}`,
+                        owner: agents.find((agent) => agent.id === step.assignedAgentId)?.name ?? 'À attribuer',
+                    })),
+                    risksAndSafeguards: [],
+                    requiredDocuments: [],
+                    nextImmediateStep: updatedSteps[0]?.description ?? 'Valider le plan avec un professionnel qualifié.',
+                },
+                generatedAt: new Date().toISOString(),
+            }, resultId);
+            setPersistenceLabel(saved.syncStatus === 'synced' ? 'Session du Conseil synchronisée.' : 'Session conservée dans la file de synchronisation.');
+        } catch (error) {
+            setSessionError(error instanceof Error ? error.message : 'Le résultat du Conseil n’a pas pu être enregistré.');
+        } finally {
+            setCurrentSpeakerId(null);
+            setIsProcessing(false);
+        }
+    };
+
+    const downloadMasterPlan = () => {
+        if (masterPlan.length === 0) return;
+        const content = [
+            `Conseil stratégique — ${topic}`,
+            '',
+            ...masterPlan.map((step, index) => `${index + 1}. ${step.title}\n${step.description}\nResponsable: ${AGENTS.find((agent) => agent.id === step.assignedAgentId)?.name ?? 'À attribuer'}`),
+        ].join('\n\n');
+        const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `conseil-${new Date().toISOString().slice(0, 10)}.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
     return (
@@ -188,7 +246,7 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                 </div>
             ) : (
                 // ACTIVE SESSION
-                <div className="flex-1 flex overflow-hidden relative z-10">
+                <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative z-10">
                     
                     {/* LEFT: THE BOARD (Visual Agents) */}
                     <div className="flex-1 p-8 flex flex-col items-center justify-center relative">
@@ -244,7 +302,7 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                     </div>
 
                     {/* RIGHT: THE MASTER PLAN (Output) */}
-                    <div className="w-96 bg-slate-900 border-l border-white/10 flex flex-col shadow-2xl z-20">
+                    <div className="w-full lg:w-96 bg-slate-900 border-t lg:border-t-0 lg:border-l border-white/10 flex flex-col shadow-2xl z-20">
                         <div className="p-6 border-b border-white/10 bg-slate-800/50">
                             <h2 className="font-bold text-lg flex items-center gap-2 text-white">
                                 <FileText className="text-indigo-500" /> Plan Stratégique
@@ -266,15 +324,19 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                                         
                                         {agent && (
                                             <div className="flex items-center gap-2 bg-white/5 p-2 rounded-lg border border-white/5">
-                                                <img src={agent.avatarUrl} className="w-6 h-6 rounded-full" />
+                                                <img src={agent.avatarUrl} alt="" className="w-6 h-6 rounded-full" />
                                                 <span className="text-xs text-slate-300">Assigné à <b>{agent.name}</b></span>
                                             </div>
                                         )}
 
                                         {step.status === 'completed' && (
                                             <div className="mt-3">
-                                                <button className="w-full py-2 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded text-xs font-bold hover:bg-indigo-600 hover:text-white transition-colors flex items-center justify-center gap-2">
-                                                    <FileText size={12} /> Voir le Document
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void navigator.clipboard.writeText(`${step.title}\n${step.description}`)}
+                                                    className="w-full py-2 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded text-xs font-bold hover:bg-indigo-600 hover:text-white transition-colors flex items-center justify-center gap-2"
+                                                >
+                                                    <FileText size={12} /> Copier l’étape
                                                 </button>
                                             </div>
                                         )}
@@ -284,12 +346,17 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                         </div>
 
                         <div className="p-4 border-t border-white/10 bg-slate-800/50">
-                            <button className="w-full py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-lg flex items-center justify-center gap-2">
+                            <button onClick={downloadMasterPlan} className="w-full py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-lg flex items-center justify-center gap-2">
                                 <Sparkles size={16} /> Télécharger le Master Plan
                             </button>
                         </div>
                     </div>
 
+                </div>
+            )}
+            {(sessionError || persistenceLabel) && (
+                <div role={sessionError ? 'alert' : 'status'} className={`absolute bottom-4 left-4 right-4 z-30 rounded-xl border px-4 py-3 text-sm ${sessionError ? 'border-red-400/40 bg-red-950/90 text-red-100' : 'border-emerald-400/40 bg-emerald-950/90 text-emerald-100'}`}>
+                    {sessionError ?? persistenceLabel}
                 </div>
             )}
         </div>

@@ -57,8 +57,9 @@ La version **v6.3.0** consacre :
 ### 1.1. Diallo OS, Experts & Conseil Collégial
 - Dialogue interactif avec chaque expert Diallo (Directeur, Maître, Conseiller, Professeur, Dr, Monsieur, Guide, Analyste).
 - Salle de Conseil Réuni (`CouncilRoom.tsx` / `UnifiedCouncilRoom.tsx`) réunissant les spécialistes pour résoudre un cas transversal.
-- Orchestrateur central (`services/orchestratorService.ts`) avec extraction d'intentions et ventilation automatique vers les modules idoines.
+- Orchestrateur central (`components/DialloOS.tsx` + `services/expertPersistence.ts`) avec validation des destinations autorisées et ventilation vers les modules idoines.
 - HUD Multimodal & Support vocal temps réel (`voiceEngine.ts`).
+- Persistance source-only ajoutée le 27 août 2026 : historique Expert dans `agent_chat_sessions/messages`, résultats Conseil/Diallo OS/brouillons/évaluations dans `module_records(module='experts')`, RLS propriétaire et idempotence UUID. Migration non appliquée en production; 12 tests de contrat et build local réussis.
 
 ### 1.2. Marché Mondial & Business Operating System
 - Catalogue universel tridimensionnel (B2B, B2C, C2C) avec filtrage par pays d'origine, devises et certifications.

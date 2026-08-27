@@ -224,14 +224,17 @@ class DossierService {
             ...deliverable
         });
 
-        dossier.documents.push({
-            id: `doc-${Date.now()}`,
-            title: `${deliverable.title}.pdf`,
-            type: 'report',
-            version: 1,
-            updatedAt: 'À l’instant',
-            isSigned: true
-        });
+        if (deliverable.documentUrl) {
+            dossier.documents.push({
+                id: `doc-${Date.now()}`,
+                title: deliverable.title,
+                type: 'report',
+                version: 1,
+                url: deliverable.documentUrl,
+                updatedAt: 'À l’instant',
+                isSigned: false,
+            });
+        }
 
         dossier.lastActiveDate = 'À l’instant';
         await this.persist();

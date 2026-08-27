@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from './supabaseClient';
-import type { Json } from './database.types';
+import type { Json, TablesInsert } from './database.types';
 
 export type ModuleNamespace =
   | 'dossiers'
@@ -11,6 +11,7 @@ export type ModuleNamespace =
   | 'legal'
   | 'mobility'
   | 'studio'
+  | 'experts'
   | 'google_workspace';
 
 export type ModuleRecordStatus = 'draft' | 'active' | 'completed' | 'archived' | 'deleted';
@@ -79,7 +80,7 @@ const mapRow = <T extends object>(row: Record<string, unknown>, syncStatus: 'syn
   syncStatus,
 });
 
-const toRow = (record: ModuleRecord<object>) => ({
+const toRow = (record: ModuleRecord<object>): TablesInsert<'module_records'> => ({
   id: record.id,
   owner_id: record.ownerId,
   module: record.module,

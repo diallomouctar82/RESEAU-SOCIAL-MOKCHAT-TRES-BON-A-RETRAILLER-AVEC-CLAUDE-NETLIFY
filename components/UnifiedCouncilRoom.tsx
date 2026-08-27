@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
     Users, 
     Sparkles, 
@@ -18,9 +18,16 @@ import {
 import { Agent, DossierParcours } from '../types';
 import { AGENTS } from '../constants';
 import { AIProxyClient } from '../services/aiProxy';
+import {
+    listCouncilResults,
+    newExpertRecordId,
+    parseCouncilResponse,
+    saveCouncilResult,
+    type CouncilSynthesis,
+} from '../services/expertPersistence';
 
 interface UnifiedCouncilRoomProps {
-    onAttachStrategyToDossier?: (strategy: { title: string; content: string }) => void;
+    onAttachStrategyToDossier?: (strategy: { title: string; content: string }) => void | Promise<void>;
     onNotification: (title: string, message: string, type: 'success' | 'info' | 'warning') => void;
     activeDossier?: DossierParcours | null;
 }
@@ -39,13 +46,35 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
     );
     const [isDeliberating, setIsDeliberating] = useState(false);
     const [dialogue, setDialogue] = useState<{ agentName: string; avatar: string; role: string; title: string; text: string }[]>([]);
-    const [unifiedSynthesis, setUnifiedSynthesis] = useState<{
-        consensus: string;
-        actionPlan: { priority: string; action: string; owner: string }[];
-        risksAndSafeguards: { risk: string; safeguard: string }[];
-        requiredDocuments: string[];
-        nextImmediateStep: string;
-    } | null>(null);
+    const [unifiedSynthesis, setUnifiedSynthesis] = useState<CouncilSynthesis | null>(null);
+    const [persistenceLabel, setPersistenceLabel] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (activeDossier) return;
+        let cancelled = false;
+        void listCouncilResults().then((records) => {
+            const latest = records[0];
+            if (!latest || cancelled) return;
+            const activeAgents = AGENTS.filter((agent) => latest.payload.agentIds.includes(agent.id));
+            setTopic(latest.payload.topic);
+            setSelectedAgentIds(latest.payload.agentIds);
+            setDialogue(latest.payload.dialogue.map((entry) => {
+                const matched = activeAgents.find((agent) => agent.id === entry.agentId) ?? activeAgents[0];
+                return {
+                    agentName: entry.agentName,
+                    avatar: matched?.avatarUrl ?? '',
+                    role: matched?.role ?? 'expert',
+                    title: matched?.title ?? 'Expert',
+                    text: entry.text,
+                };
+            }));
+            setUnifiedSynthesis(latest.payload.synthesis);
+            setPersistenceLabel(latest.syncStatus === 'synced' ? 'Dernier Conseil restauré depuis Supabase.' : 'Dernier Conseil restauré depuis la file de synchronisation.');
+        }).catch((error) => {
+            if (!cancelled) setPersistenceLabel(error instanceof Error ? error.message : 'Historique du Conseil indisponible.');
+        });
+        return () => { cancelled = true; };
+    }, [activeDossier]);
 
     const toggleAgentSelection = (id: string) => {
         if (selectedAgentIds.includes(id)) {
@@ -68,6 +97,7 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
         setIsDeliberating(true);
         setDialogue([]);
         setUnifiedSynthesis(null);
+        setPersistenceLabel(null);
 
         try {
             const activeAgents = AGENTS.filter(a => selectedAgentIds.includes(a.id));
@@ -113,32 +143,64 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
                 config: { responseMimeType: 'application/json' }
             });
 
-            const parsed = JSON.parse(res.text || '{}');
-            
-            // Format dialogue with agent profiles
-            if (parsed.dialogue && Array.isArray(parsed.dialogue)) {
-                const formattedDialogue = parsed.dialogue.map((d: any) => {
-                    const matchedAgent = activeAgents.find(a => a.id === d.agentId || a.name.includes(d.agentName)) || activeAgents[0];
-                    return {
-                        agentName: matchedAgent.name,
-                        avatar: matchedAgent.avatarUrl,
-                        role: matchedAgent.role,
-                        title: matchedAgent.title,
-                        text: d.text
-                    };
-                });
-                setDialogue(formattedDialogue);
-            }
-
-            if (parsed.unifiedSynthesis) {
-                setUnifiedSynthesis(parsed.unifiedSynthesis);
-            }
-
-            onNotification("Conseil Conclu", "Le Conseil des Experts a formulé une stratégie unifiée.", "success");
+            const parsed = parseCouncilResponse(res.text);
+            const saved = await saveCouncilResult({
+                schemaVersion: 1,
+                topic: topic.trim(),
+                agentIds: activeAgents.map((agent) => agent.id),
+                dialogue: parsed.dialogue,
+                synthesis: parsed.synthesis,
+                dossierId: activeDossier?.id,
+                generatedAt: new Date().toISOString(),
+            }, newExpertRecordId());
+            const formattedDialogue = parsed.dialogue.map((entry) => {
+                const matchedAgent = activeAgents.find((agent) => agent.id === entry.agentId || agent.name.includes(entry.agentName)) ?? activeAgents[0];
+                return {
+                    agentName: matchedAgent?.name ?? entry.agentName,
+                    avatar: matchedAgent?.avatarUrl ?? '',
+                    role: matchedAgent?.role ?? 'expert',
+                    title: matchedAgent?.title ?? 'Expert',
+                    text: entry.text,
+                };
+            });
+            setDialogue(formattedDialogue);
+            setUnifiedSynthesis(parsed.synthesis);
+            setPersistenceLabel(saved.syncStatus === 'synced' ? 'Conseil synchronisé avec votre compte.' : 'Conseil conservé dans la file sécurisée, en attente de synchronisation.');
+            onNotification(
+                saved.syncStatus === 'synced' ? "Conseil enregistré" : "Conseil en attente de synchronisation",
+                saved.syncStatus === 'synced' ? "La stratégie est disponible dans votre historique." : "Le résultat sera synchronisé au retour du réseau.",
+                saved.syncStatus === 'synced' ? "success" : "info",
+            );
         } catch (e: any) {
             onNotification("Erreur Délibération", e.message || "Erreur de communication", "warning");
         } finally {
             setIsDeliberating(false);
+        }
+    };
+
+    const handleAttachStrategy = async () => {
+        if (!unifiedSynthesis || !onAttachStrategyToDossier || !activeDossier) {
+            onNotification('Dossier requis', 'Sélectionnez un dossier actif avant d’y joindre cette stratégie.', 'warning');
+            return;
+        }
+        try {
+            await onAttachStrategyToDossier({
+                title: `Stratégie du Conseil : ${topic.slice(0, 40)}${topic.length > 40 ? '…' : ''}`,
+                content: JSON.stringify(unifiedSynthesis, null, 2),
+            });
+            onNotification('Stratégie jointe', `La stratégie a été ajoutée au dossier « ${activeDossier.title} ».`, 'success');
+        } catch (error) {
+            onNotification('Ajout impossible', error instanceof Error ? error.message : 'Le dossier n’a pas pu être mis à jour.', 'warning');
+        }
+    };
+
+    const copyImmediateStep = async () => {
+        if (!unifiedSynthesis) return;
+        try {
+            await navigator.clipboard.writeText(unifiedSynthesis.nextImmediateStep);
+            onNotification('Action copiée', 'La prochaine action est dans le presse-papiers.', 'success');
+        } catch {
+            onNotification('Copie impossible', 'Votre navigateur a refusé l’accès au presse-papiers.', 'warning');
         }
     };
 
@@ -155,10 +217,16 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
                         Chambre du Conseil des Experts
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                        Confrontez vos défis complexes à l'analyse croisée de vos experts. Le Conseil délibère et produit un plan stratégique unifié, sans contradictions.
+                        Confrontez vos défis complexes à l'analyse croisée de vos experts. Le Conseil produit une proposition structurée à vérifier avant exécution.
                     </p>
                 </div>
             </div>
+
+            {persistenceLabel && (
+                <p role="status" className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs font-semibold text-indigo-900">
+                    {persistenceLabel}
+                </p>
+            )}
 
             {/* Selection des Experts & Formulaire */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
@@ -277,9 +345,9 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-md uppercase">
-                                    Consensus Atteint
+                                    Synthèse générée
                                 </span>
-                                <span className="text-xs text-slate-400 font-bold">• Décision Collégiale</span>
+                                <span className="text-xs text-slate-400 font-bold">• Proposition du Conseil</span>
                             </div>
                             <h3 className="text-xl font-black text-slate-900 mt-1">
                                 Feuille de Route Stratégique Unifiée
@@ -288,15 +356,7 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
 
                         <div className="flex gap-2">
                             <button
-                                onClick={() => {
-                                    if (onAttachStrategyToDossier) {
-                                        onAttachStrategyToDossier({
-                                            title: `Stratégie Unifiée : ${topic.slice(0, 40)}...`,
-                                            content: JSON.stringify(unifiedSynthesis, null, 2)
-                                        });
-                                    }
-                                    onNotification("Stratégie Enregistrée", "Le plan du Conseil a été injecté dans vos dossiers actifs.", "success");
-                                }}
+                                onClick={handleAttachStrategy}
                                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
                             >
                                 <CheckCircle2 size={14} /> Injecter dans le Dossier
@@ -367,10 +427,10 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
                                 </p>
                             </div>
                             <button
-                                onClick={() => onNotification("Action Lancée", `Lancement de : "${unifiedSynthesis.nextImmediateStep}"`, "success")}
+                                onClick={copyImmediateStep}
                                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs mt-3"
                             >
-                                Exécuter Cette Action Immédiate <ArrowRight size={14} />
+                                Copier Cette Action <ArrowRight size={14} />
                             </button>
                         </div>
                     </div>

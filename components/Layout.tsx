@@ -1052,6 +1052,7 @@ export const Layout: React.FC<LayoutProps> = ({
           onClose={() => { setIsDialloOSOpen(false); setDialloInitialPrompt(undefined); }}
           onNavigate={onTabChange}
           userProfile={userProfile}
+          initialPrompt={dialloInitialPrompt}
         />
 
         <UniversalSearchModal

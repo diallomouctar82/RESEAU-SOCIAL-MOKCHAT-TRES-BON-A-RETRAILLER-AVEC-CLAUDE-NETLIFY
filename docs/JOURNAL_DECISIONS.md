@@ -561,3 +561,15 @@ Chaque décision respecte le formalisme strict suivant :
 - **Déontologie** : aucune estimation d'aide, règle de visa, référence juridique ou conclusion médicale n'est présentée comme officielle sans vérification. Les URLs officielles sont HTTPS et configurables par environnement.
 - **Données retirées** : annonces logement, procédures administratives et position GPS de démonstration qui pouvaient être confondues avec des données réelles.
 - **Validation** : tests contractuels ciblés et build Vite de production.
+
+---
+
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : `Diallo OS`, `Experts Diallo`, `Conseil multi-experts`.
+* **Problème / Besoin initial** : Les échanges et résultats IA restaient dans l’état React ou dans des mémoires locales, les JSON fournisseur étaient consommés sans validation et plusieurs réponses vides déclenchaient des succès fictifs.
+* **Décision retenue** : Réutiliser les tables propriétaires `agent_chat_sessions/messages` pour chaque conversation Expert et étendre `module_records` au namespace `experts` pour les délibérations, commandes d’orchestration, brouillons et bilans. Chaque sortie structurée est validée avant navigation ou affichage; les écritures utilisent un UUID idempotent et l’interface distingue synchronisé, en attente et erreur.
+* **Conséquences** : Les conseils peuvent être restaurés, une panne de persistance n’est plus masquée par une réponse factice, et aucun résultat pédagogique n’est présenté comme certification ou document signé. Les tables restent protégées par RLS propriétaire et ne sont plus accordées à `anon`.
+* **Validation** : migration et types versionnés, 12 tests locaux réussis, build Vite réussi. La migration, le fournisseur réel et le parcours E2E ne sont pas déclarés validés tant qu’ils ne sont pas testés sur une branche Supabase/Netlify.
+* **Statut** : `Implémenté localement — migration et recette E2E requises`.
+
+---
