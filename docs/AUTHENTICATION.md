@@ -43,7 +43,11 @@ Le code est prêt ; il manque la configuration du provider côté Google Cloud +
 1. Google Cloud Console (projet `gen-lang-client-0283381376`, déjà lié à Gemini) → **APIs & Services → Credentials** → Client OAuth existant (`696305097958-het97su4mr1qru48q6ja9q9a6atki5qd.apps.googleusercontent.com`, déjà utilisé pour Maps/Workspace) ou nouveau client.
 2. Ajouter dans **Authorized redirect URIs** : `https://rqciahtpixdjbyoajomg.supabase.co/auth/v1/callback`.
 3. Copier Client ID + Client Secret dans **Supabase Dashboard → Authentication → Providers → Google**.
-4. Ajouter les URLs Netlify (production + éventuels aperçus) à la liste **Redirect URLs** de Supabase Auth.
+4. Ajouter les URLs Netlify à la liste **Redirect URLs** de Supabase Auth. **Deux sites Netlify sont liés à ce même dépôt GitHub** (déploient tous les deux automatiquement à chaque push sur `main`) — ajouter les deux :
+   - `https://lovely-maamoul-478226.netlify.app/**`
+   - `https://incandescent-moxie-cbffe6.netlify.app/**`
+
+   *(27 août 2026 : un premier test a révélé que les variables d'environnement Supabase n'étaient configurées que sur `lovely-maamoul-478226` — `incandescent-moxie-cbffe6` recevait donc l'URL de repli `placeholder.supabase.co`. Corrigé : les 4 variables sont désormais posées sur les deux sites, un déploiement a été redéclenché sur `incandescent-moxie-cbffe6`, et le bundle réellement servi a été vérifié. Si un troisième site Netlify pour ce dépôt apparaît un jour, penser à répéter cette configuration.)*
 
 Tant que cette étape n'est pas faite, le bouton Google affiche une erreur propre et catchée (pas un écran blanc) — vérifié par test automatisé (build + navigateur headless, avec et sans configuration).
 
