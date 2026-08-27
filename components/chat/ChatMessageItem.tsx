@@ -120,8 +120,18 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
           {/* Video Content */}
           {message.mediaType === 'video' && message.mediaUrl && (
-            <div className="rounded-xl overflow-hidden max-h-56 border border-black/10">
-              <video src={message.mediaUrl} controls className="w-full h-full rounded-xl bg-black" playsInline />
+            <div className="rounded-xl overflow-hidden max-h-64 border border-black/10 bg-black">
+              <video 
+                src={message.mediaUrl} 
+                controls 
+                playsInline 
+                preload="auto"
+                className="w-full h-full max-h-64 rounded-xl bg-black object-contain"
+                onEnded={(e) => {
+                  const video = e.target as HTMLVideoElement;
+                  video.currentTime = 0;
+                }}
+              />
             </div>
           )}
 

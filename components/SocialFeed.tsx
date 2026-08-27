@@ -351,8 +351,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setNewPostVideo(url);
+      // Convert to persistent Data URL (Base64) to ensure video can be replayed after save, refresh, or session restart
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setNewPostVideo(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -955,8 +961,23 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
                       {/* Post Video Media */}
                       {post.videoUrl && (
-                        <div className="rounded-2xl overflow-hidden max-h-80 bg-slate-950 border border-slate-100">
-                          <video src={post.videoUrl} controls className="w-full h-full" />
+                        <div className="relative rounded-2xl overflow-hidden max-h-96 bg-slate-950 border border-slate-200/80 shadow-inner group">
+                          <video 
+                            src={post.videoUrl} 
+                            controls 
+                            playsInline
+                            preload="auto"
+                            className="w-full h-full max-h-96 object-contain bg-black"
+                            onEnded={(e) => {
+                              // Reset time to allow instant replay
+                              const video = e.target as HTMLVideoElement;
+                              video.currentTime = 0;
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-md rounded-full text-[10px] font-bold text-white flex items-center gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Video size={11} className="text-sky-400" />
+                            <span>Vidéo HD</span>
+                          </div>
                         </div>
                       )}
 

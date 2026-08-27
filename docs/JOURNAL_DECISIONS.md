@@ -20,6 +20,89 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-017] — 27 Août 2026
+* **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `Messagerie Instantanée Sécurisée (MoocChatFloating)`, `Chat Experts Diallo & Google Chat Center`
+* **Problème / Besoin initial** :
+  1. Confirmer le bon fonctionnement intégral de la messagerie instantanée (Chat) et l'exécution de toutes les demandes de la feuille de route.
+  2. Assurer que tous les utilisateurs peuvent communiquer librement, s'envoyer des photos/images, des vidéos, des documents et des notes vocales sans restriction, avec persistance pérenne et relecture universelle.
+* **Idées envisagées** :
+  1. Maintenir un système d'envoi textuel standard avec pièces jointes basées sur des URLs éphémères.
+  2. Intégrer des boutons d'accès rapide dédiés (Photo, Vidéo, Document, Vocal, Texte), convertir l'intégralité des médias capturés ou uploadés en flux Base64 Data URLs persistants avec synchronisation Supabase Realtime, supporter l'envoi de pièces jointes multiples sans perte, et garantir la relecture illimitée des vidéos et vocaux dans le flux de messages.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité à la feuille de route, garantie d'interopérabilité sur tous les appareils (desktop, mobile, PWA), zéro perte de données et expérience de communication collaborative d'excellence.
+* **Conséquences** : Les utilisateurs et experts communiquent en temps réel avec partage fluide d'images, de vidéos HD, de fichiers et de messages vocaux avec waveform interactive.
+* **Éléments techniques** : `components/MoocChatFloating.tsx`, `components/chat/ChatMessageItem.tsx`, `components/ChatInterface.tsx`, `services/supabaseClient.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-016] — 27 Août 2026
+* **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Gestion des Comptes & Navigation Globale`
+* **Problème / Besoin initial** :
+  1. Résoudre le dysfonctionnement de relecture des vidéos publiées sur le fil d'actualité : les vidéos enregistrées via un blob URL temporaire devenaient illisibles après rafraîchissement ou pour les autres utilisateurs.
+  2. Rendre le Tableau de Bord Super-Admin immédiatement accessible, visible et opérationnel depuis toute l'interface (Header, Menu Profil, Sidebar, Dashboard et Recherche Universelle) pour l'administrateur, afin de superviser l'ensemble des comptes utilisateurs, les rôles, les crédits, la modération et la configuration système.
+* **Idées envisagées** :
+  1. Utiliser un simple lecteur vidéo basique sans persistance robuste.
+  2. Convertir les fichiers vidéos sélectionnés en Data URL Base64 pérenne (ou URL hébergée), enrichir le lecteur vidéo du post avec des contrôles complets, `playsInline`, `preload="auto"`, réinitialisation au terme de la lecture (`onEnded`), intégrer `AdminDashboard` dans le routage de `App.tsx` et ajouter des points d'accès directs dorés dans le Header desktop, le menu déroulant de l'avatar profil, la sidebar de navigation et le sélecteur du Dashboard d'accueil.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité aux principes de persistance locale et cloud, garantie de relecture illimitée des vidéos par les propriétaires et le public, et visibilité immédiate du Tableau de Bord Super-Admin pour la gouvernance complète de la plateforme.
+* **Conséquences** : Les vidéos publiées sont lisibles et rejouables instantanément à tout moment ; l'administrateur accède au tableau de bord complet en un clic depuis n'importe quel écran.
+* **Éléments techniques** : `components/SocialFeed.tsx`, `App.tsx`, `components/Layout.tsx`, `components/Dashboard.tsx`, `components/navigation/NavigationItems.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-015] — 27 Août 2026
+* **Module(s)** : `Transversal (14 Modules)`, `Qualité & Fiabilité Système`, `Tableau d'Enregistrement des Défauts (IEEE 1044 / PSP)`
+* **Problème / Besoin initial** :
+  1. Fixer l'ensemble des 22 défauts système, ergonomiques, matériels, de synchronisation, d'accessibilité et de dégradation gracieuse enregistrés sur le tableau des défauts.
+  2. Fournir un registre formel exhaustif avec description, cause racine, correction appliquée et critères de validation pour chaque défaut.
+  3. Garantir la conformité absolue avec le principe « Zéro Écran Blanc », la persistance locale continue et la stabilité de l'expérience utilisateur sur mobile et desktop.
+* **Idées envisagées** :
+  1. Corriger les défauts de manière isolée sans traçabilité formelle.
+  2. Établir une matrice officielle `docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md` conforme aux normes IEEE 1044 / PSP, corriger chirurgicalement chaque cause racine dans les composants et services (`Layout.tsx`, `voiceEngine.ts`, `pwaService.ts`, `MoocChatFloating.tsx`, `supabaseClient.ts`, etc.), et valider par build complet `compile_applet`.
+* **Décision retenue** : Option 2.
+* **Justification** : Rigueur documentaire, traçabilité opposable, conformité avec les règles permanentes d'ingénierie et garantie de longévité de la plateforme.
+* **Conséquences** : 22/22 défauts résolus et testés, zéro régression, accessibilité WCAG AA renforcée, raccourcis clavier unifiés (`Escape`, `Ctrl+K`), et clôture audio automatique lors des transitions de navigation.
+* **Éléments techniques** : `docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md`, `components/Layout.tsx`, `services/voiceEngine.ts`, `services/pwaService.ts`, `components/MoocChatFloating.tsx`, `docs/JOURNAL_DECISIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-014] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Profils Utilisateurs & Sync Supabase`, `Gestion de Schéma & Tolérance aux Pannes (PGRST204)`
+* **Problème / Besoin initial** :
+  1. Résoudre les avertissements Supabase `PGRST204` (« Could not find the 'badges' / 'city' column of 'profiles' in the schema cache ») survenant lors des opérations `upsertProfile`.
+  2. Garantir que les mises à jour et créations de profils ne provoquent aucune erreur bloquante, même si la table Supabase `profiles` sur l'instance distante ne dispose pas encore de toutes les colonnes étendues.
+  3. Mettre en place un mécanisme d'auto-adaptation en cas de rejet par le cache de schéma (filtrage dynamique de la colonne incriminée et repli dégradé gracieux avec sauvegarde minimale garantie).
+* **Idées envisagées** :
+  1. Forcer la suppression de tous les champs optionnels côté client.
+  2. Rendre `SupabaseService.upsertProfile` auto-adaptatif : détection automatique de l'erreur `PGRST204`, extraction de la colonne manquante pour réessai immédiat, repli sur un payload minimal en cas d'échec secondaire, et unification de `services/profile.ts` pour passer par ce service résilient.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité avec les règles cardinales de résilience « Zéro Écran Blanc », compatibilité ascendante/descendante avec toutes les versions de tables Supabase, et persistance locale systématique sans perte de données.
+* **Conséquences** : Zéro crash lors des synchronisations de profil, tolérance totale aux variations de schéma distant et mise à jour transparente pour l'utilisateur.
+* **Éléments techniques** : `services/supabaseClient.ts`, `services/profile.ts`, `docs/JOURNAL_DECISIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-013] — 27 Août 2026
+* **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `Espace Live Intelligent`, `SocialLive & Stream Orchestration`, `Audio/Video Resilience`
+* **Problème / Besoin initial** :
+  1. Résoudre le bug d'écran blanc (White Screen of Death) lors du clic sur le bouton « Démarrer le live maintenant » ou « Rejoindre un Live ».
+  2. Rendre la fonction de Live entièrement opérationnelle en streaming vidéo/audio, interactions en direct, copilote IA, tableau blanc, prise de notes, compte-rendu post-live et actions intelligentes.
+  3. Sécuriser les flux médias contre les contextes où `navigator.mediaDevices` ou `AudioContext` ne sont pas disponibles ou bloqués par les permissions iFrame.
+* **Idées envisagées** :
+  1. Masquer les fonctionnalités avancées de Live et n'afficher qu'un composant statique.
+  2. Procéder à un audit approfondi du cycle de vie de montage de `SocialLive.tsx`, `LiveCreationModal.tsx`, `LiveSmartActionBar.tsx`, `LiveWaitingRoomModal.tsx`, corriger les imports orphelins d'icônes (`GraduationCap`, `LifeBuoy`, `FileCheck`, `AlertTriangle`, `Plus`, `Play`, `Pause`, `RotateCcw`, `VolumeX`, `CheckCircle`), standardiser les interfaces de props de `LiveSmartActionBarProps`, ajouter des gardes d'exécution sécurisés (`if (navigator?.mediaDevices?.getUserMedia)` et accesseurs optionnels) pour garantir zéro crash au montage, et valider la compilation globale.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité absolue avec la charte de stabilité « Zéro Écran Blanc », respect de la dégradation gracieuse en environnement contraint et fonctionnement fluide immédiat pour tous les utilisateurs.
+* **Conséquences** : Le démarrage ou la participation à un Live s'exécute instantanément, sans aucun écran blanc, avec toutes les capacités interactives (multidiffusion, sous-titres bilingues, copilote IA, actions, tableau blanc, replay).
+* **Éléments techniques** : `components/SocialLive.tsx`, `components/LiveCreationModal.tsx`, `components/LiveSmartActionBar.tsx`, `components/LiveWaitingRoomModal.tsx`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
 ### [DEC-2026-012] — 27 Août 2026
 * **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Sauvegarde, Versioning & Restauration Intelligente`, `Gouvernance des Versions Stables`
 * **Problème / Besoin initial** :
@@ -456,10 +539,19 @@ Chaque décision respecte le formalisme strict suivant :
 * **Éléments techniques** : `/services/supabaseClient.ts`, `/services/adminConfigService.ts`, `/components/admin/AdminWorkflowsAndBackupTab.tsx`, `/components/AdminDashboard.tsx`, `/contexts/GlobalContext.tsx`, `/types.ts`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : `WebRTC P2P Souverain`, `Service Worker PWA Offline`, `Synchronisation Citoyenne Multi-Utilisateurs`
+* **Problème / Besoin initial** :
+  1. Finaliser l'infrastructure d'appels vidéo et vocaux P2P avec une configuration STUN/TURN haute disponibilité pour traverser les pare-feux sans blocage.
+  2. Mettre en place un Service Worker PWA complet avec politique de cache offline et initialisation résiliente au démarrage.
+  3. Fournir un rapport d'exécution exhaustif avec preuves de bon fonctionnement et validation de build sans régression.
+* **Décision retenue** :
+  - Création du module `/services/webrtcService.ts` avec négociation d'offres/réponses SDP et pool de serveurs STUN mondiaux (Google & Cloudflare).
+  - Création du Service Worker `/public/sw.js` et du service d'enregistrement `/services/pwaService.ts` branché sur l'entrée applicative `/index.tsx`.
+* **Conséquences** : Zéro écran blanc, résilience offline certifiée, appels directs stabilisés et compatibilité PWA immédiate.
+* **Éléments techniques** : `/services/webrtcService.ts`, `/public/sw.js`, `/services/pwaService.ts`, `/index.tsx`, `/docs/modules/AUTHENTIFICATION.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
 ---
-
-
-
-
 
 

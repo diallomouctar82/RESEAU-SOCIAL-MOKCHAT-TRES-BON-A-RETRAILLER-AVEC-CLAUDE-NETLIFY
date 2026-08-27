@@ -88,6 +88,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimeoutRef = useRef<any>(null);
 
   // Synchronize localStorage cache
@@ -313,9 +315,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const audioUrl = URL.createObjectURL(audioBlob);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            setRecordedAudioUrl(reader.result);
+          }
+        };
+        reader.readAsDataURL(audioBlob);
         setRecordedAudioBlob(audioBlob);
-        setRecordedAudioUrl(audioUrl);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -394,105 +401,187 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       const isAud = file.type.startsWith('audio/');
       
       const fileType = isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'document';
-      const fileUrl = URL.createObjectURL(file);
-      const sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+      const sizeStr = file.size > 1024 * 1024 
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+        : `${(file.size / 1024).toFixed(0)} KB`;
 
-      setAttachedFiles(prev => [...prev, {
-        name: file.name,
-        size: sizeStr,
-        type: fileType,
-        url: fileUrl
-      }]);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setAttachedFiles(prev => [...prev, {
+            name: file.name,
+            size: sizeStr,
+            type: fileType,
+            url: reader.result as string
+          }]);
+        }
+      };
+      reader.readAsDataURL(file);
     });
+
+    // Reset input so re-selecting same file works
+    e.target.value = '';
   };
 
   // --- Send Message ---
   const handleSendMessage = async () => {
     if (!currentChatId || (!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob)) return;
 
-    const messageId = `msg-${Date.now()}`;
     const now = new Date();
+    const currentReplyTo = replyingTo;
+    const filesToSend = [...attachedFiles];
+    const textToSend = inputText.trim();
+    const currentAudioBlob = recordedAudioBlob;
+    const currentAudioUrl = recordedAudioUrl;
+    const currentAudioDuration = recordingDuration || 5;
 
-    let mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text';
-    let mediaUrl: string | undefined = undefined;
-    let fileName: string | undefined = undefined;
-    let fileSize: string | undefined = undefined;
-    let audioDuration: number | undefined = undefined;
-
-    if (recordedAudioBlob && recordedAudioUrl) {
-      mediaType = 'audio';
-      mediaUrl = recordedAudioUrl;
-      audioDuration = recordingDuration || 5;
-    } else if (attachedFiles.length > 0) {
-      const first = attachedFiles[0];
-      mediaType = first.type as any;
-      mediaUrl = first.url;
-      fileName = first.name;
-      fileSize = first.size;
-    }
-
-    const newMessage: ChatMessage = {
-      id: messageId,
-      conversationId: currentChatId,
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderAvatar: currentUser.avatar,
-      senderRole: currentUser.role || 'citizen',
-      text: inputText.trim() || undefined,
-      mediaType: mediaType,
-      mediaUrl: mediaUrl,
-      fileName: fileName,
-      fileSize: fileSize,
-      audioDuration: audioDuration,
-      timestamp: now,
-      isRead: true,
-      status: 'sent',
-      replyTo: replyingTo ? {
-        id: replyingTo.id,
-        text: replyingTo.text,
-        senderName: replyingTo.senderName,
-        mediaType: replyingTo.mediaType
-      } : undefined
-    };
-
-    // Optimistic Update
-    setConversations(prev => prev.map(c => {
-      if (c.id === currentChatId) {
-        return {
-          ...c,
-          lastMessage: newMessage.text || (mediaType === 'audio' ? '🎙️ Message vocal' : '📎 Document partagé'),
-          lastMessageTime: 'À l\'instant',
-          messages: [...c.messages, newMessage]
-        };
-      }
-      return c;
-    }));
-
-    // Reset inputs
+    // Reset inputs immediately for responsive UX
     setInputText('');
     setAttachedFiles([]);
     setRecordedAudioBlob(null);
     setRecordedAudioUrl(null);
     setReplyingTo(null);
 
-    // Send to Supabase
-    supabaseService.sendMessage({
-      id: messageId,
-      conversation_id: currentChatId,
-      sender_id: currentUser.id,
-      sender_name: currentUser.name,
-      sender_avatar: currentUser.avatar,
-      sender_role: currentUser.role || 'citizen',
-      text: newMessage.text,
-      media_type: mediaType,
-      media_url: mediaUrl,
-      file_name: fileName,
-      file_size: fileSize,
-      voice_url: mediaType === 'audio' ? mediaUrl : undefined,
-      voice_duration: audioDuration,
-      status: 'sent',
-      reply_to: newMessage.replyTo
-    }).catch(() => {});
+    const newMessagesList: ChatMessage[] = [];
+
+    if (currentAudioBlob && currentAudioUrl) {
+      // Audio Voice message
+      const audioMsgId = `msg-${Date.now()}`;
+      const audioMsg: ChatMessage = {
+        id: audioMsgId,
+        conversationId: currentChatId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        senderRole: currentUser.role || 'citizen',
+        text: textToSend || undefined,
+        mediaType: 'audio',
+        mediaUrl: currentAudioUrl,
+        audioDuration: currentAudioDuration,
+        timestamp: now,
+        isRead: true,
+        status: 'sent',
+        replyTo: currentReplyTo ? {
+          id: currentReplyTo.id,
+          text: currentReplyTo.text,
+          senderName: currentReplyTo.senderName,
+          mediaType: currentReplyTo.mediaType
+        } : undefined
+      };
+      newMessagesList.push(audioMsg);
+    } else if (filesToSend.length > 0) {
+      // Primary attached file (with optional text)
+      const primaryFile = filesToSend[0];
+      const primaryMsgId = `msg-${Date.now()}`;
+      const primaryMsg: ChatMessage = {
+        id: primaryMsgId,
+        conversationId: currentChatId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        senderRole: currentUser.role || 'citizen',
+        text: textToSend || undefined,
+        mediaType: primaryFile.type as any,
+        mediaUrl: primaryFile.url,
+        fileName: primaryFile.name,
+        fileSize: primaryFile.size,
+        timestamp: now,
+        isRead: true,
+        status: 'sent',
+        replyTo: currentReplyTo ? {
+          id: currentReplyTo.id,
+          text: currentReplyTo.text,
+          senderName: currentReplyTo.senderName,
+          mediaType: currentReplyTo.mediaType
+        } : undefined
+      };
+      newMessagesList.push(primaryMsg);
+
+      // Additional files as sequential messages
+      for (let i = 1; i < filesToSend.length; i++) {
+        const extraFile = filesToSend[i];
+        const extraMsgId = `msg-${Date.now()}-${i}`;
+        const extraMsg: ChatMessage = {
+          id: extraMsgId,
+          conversationId: currentChatId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+          senderRole: currentUser.role || 'citizen',
+          text: undefined,
+          mediaType: extraFile.type as any,
+          mediaUrl: extraFile.url,
+          fileName: extraFile.name,
+          fileSize: extraFile.size,
+          timestamp: new Date(Date.now() + i * 50),
+          isRead: true,
+          status: 'sent'
+        };
+        newMessagesList.push(extraMsg);
+      }
+    } else if (textToSend) {
+      // Standard text message
+      const textMsgId = `msg-${Date.now()}`;
+      const textMsg: ChatMessage = {
+        id: textMsgId,
+        conversationId: currentChatId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        senderRole: currentUser.role || 'citizen',
+        text: textToSend,
+        mediaType: 'text',
+        timestamp: now,
+        isRead: true,
+        status: 'sent',
+        replyTo: currentReplyTo ? {
+          id: currentReplyTo.id,
+          text: currentReplyTo.text,
+          senderName: currentReplyTo.senderName,
+          mediaType: currentReplyTo.mediaType
+        } : undefined
+      };
+      newMessagesList.push(textMsg);
+    }
+
+    if (newMessagesList.length === 0) return;
+
+    // Optimistic UI Update
+    const lastMsg = newMessagesList[newMessagesList.length - 1];
+    setConversations(prev => prev.map(c => {
+      if (c.id === currentChatId) {
+        return {
+          ...c,
+          lastMessage: lastMsg.text || (lastMsg.mediaType === 'audio' ? '🎙️ Message vocal' : lastMsg.mediaType === 'image' ? '📷 Photo' : lastMsg.mediaType === 'video' ? '🎥 Vidéo' : '📎 Fichier partagé'),
+          lastMessageTime: 'À l\'instant',
+          messages: [...c.messages, ...newMessagesList]
+        };
+      }
+      return c;
+    }));
+
+    // Send each message to Supabase
+    for (const msg of newMessagesList) {
+      supabaseService.sendMessage({
+        id: msg.id,
+        conversation_id: currentChatId,
+        sender_id: currentUser.id,
+        sender_name: currentUser.name,
+        sender_avatar: currentUser.avatar,
+        sender_role: currentUser.role || 'citizen',
+        text: msg.text,
+        media_type: msg.mediaType,
+        media_url: msg.mediaUrl,
+        file_name: msg.fileName,
+        file_size: msg.fileSize,
+        voice_url: msg.mediaType === 'audio' ? msg.mediaUrl : undefined,
+        voice_duration: msg.audioDuration,
+        status: 'sent',
+        reply_to: msg.replyTo
+      }).catch((err) => {
+        console.warn('Erreur envoi message Supabase (sauvegardé en local):', err);
+      });
+    }
   };
 
   // --- Reactions Handler ---
@@ -991,14 +1080,50 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 )}
 
                 {/* Input Bar */}
-                <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
+                <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-1.5 sm:gap-2">
                   
-                  {/* File Attachment Button */}
+                  {/* Image Attachment Button */}
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    title="Envoyer une photo / image"
+                  >
+                    <Image size={18} />
+                  </button>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  {/* Video Attachment Button */}
+                  <button
+                    type="button"
+                    onClick={() => videoInputRef.current?.click()}
+                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    title="Envoyer une vidéo"
+                  >
+                    <Video size={18} />
+                  </button>
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    multiple
+                    accept="video/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  {/* Document & File Attachment Button */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-2xl transition-colors"
-                    title="Ajouter un fichier, une photo ou une vidéo"
+                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    title="Ajouter un document ou fichier (.pdf, .doc, .zip)"
                   >
                     <Paperclip size={18} />
                   </button>
@@ -1006,7 +1131,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.xls,.xlsx,.ppt,.pptx"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -1024,7 +1149,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     }}
                     placeholder={isRecordingVoice ? 'Enregistrement en cours...' : 'Écrivez un message sécurisé...'}
                     disabled={isRecordingVoice}
-                    className="flex-1 px-4 py-2.5 bg-slate-100 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-100 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 min-w-0"
                   />
 
                   {/* Voice Record Button or Send Button */}

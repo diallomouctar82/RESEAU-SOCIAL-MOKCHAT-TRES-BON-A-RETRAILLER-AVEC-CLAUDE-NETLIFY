@@ -15,6 +15,7 @@ import {
   Users, 
   MessageSquare, 
   ShieldCheck, 
+  Shield,
   MapPin, 
   HardDrive, 
   Video, 
@@ -232,6 +233,17 @@ export const MAIN_NAV_ITEMS: NavItemDef[] = [
     description: 'Délibération collégiale réunissant plusieurs experts Diallo pour arbitrer un dossier stratégique.',
     keywords: ['conseil', 'sages', 'deliberation', 'collegial', 'reunion', 'experts', 'dossier complexe', 'arbitrage'],
     legacyName: 'Conseil Réuni'
+  },
+  {
+    id: 'admin',
+    label: 'Tableau de Bord Super-Admin',
+    shortLabel: 'Super-Admin',
+    icon: Shield,
+    category: 'Communauté & Conseil',
+    description: 'Supervision globale souveraine, gestion de tous les comptes, rôles, modération, sauvegardes et configuration système.',
+    keywords: ['admin', 'administrateur', 'super admin', 'comptes', 'utilisateurs', 'moderation', 'sauvegarde', 'systeme', 'roles', 'credits', 'configuration', 'dashboard admin'],
+    badge: 'Super-Admin',
+    legacyName: 'Console Super-Admin'
   }
 ];
 

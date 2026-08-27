@@ -4,10 +4,11 @@ import {
   Sparkles, Zap, MessageSquare, Mic, MicOff, Video, VideoOff, Layout, 
   BarChart3, Command, FileText, Gift, PieChart, Share2, HelpCircle, 
   BookOpen, ListTodo, Shield, ArrowRight, PhoneOff, Award, Eye, 
-  Radio, Volume2, UserPlus, UserCheck, ChevronRight, Download, Maximize2, 
-  Camera, Lock, Globe, Flame, AlertCircle, CheckCircle2, Sliders, ExternalLink,
+  Radio, Volume2, UserPlus, UserCheck, ChevronRight, ChevronLeft, Download, Maximize2, 
+  Camera, Lock, Globe, Flame, AlertCircle, CheckCircle2, CheckCircle, Sliders, ExternalLink,
   ShoppingBag, ShieldAlert, CheckSquare, Bell, Calendar, Clock, Bookmark,
-  Compass, Copy, EyeOff, Headphones
+  Compass, Copy, EyeOff, Headphones, GraduationCap, LifeBuoy, FileCheck,
+  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { 
@@ -314,6 +315,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   const startLocalMedia = async () => {
     try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        console.warn("getUserMedia not available in this environment");
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localStreamRef.current = stream;
       if (localVideoRef.current) {
@@ -322,25 +327,27 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
       // Audio Level Analyzer
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioContextClass();
-      audioContextRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
+      if (AudioContextClass) {
+        const ctx = new AudioContextClass();
+        audioContextRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-      const checkVolume = () => {
-        if (!localStreamRef.current) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-        setAudioVolume(Math.min(100, Math.round((sum / bufferLength) * 2)));
-        requestAnimationFrame(checkVolume);
-      };
-      checkVolume();
+        const checkVolume = () => {
+          if (!localStreamRef.current || !analyser) return;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          setAudioVolume(Math.min(100, Math.round((sum / bufferLength) * 2)));
+          requestAnimationFrame(checkVolume);
+        };
+        checkVolume();
+      }
     } catch (e) {
       console.warn("Real media permission fallback", e);
     }

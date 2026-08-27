@@ -6,35 +6,43 @@ import {
 } from 'lucide-react';
 
 interface LiveSmartActionBarProps {
-  onAddPersonalNote: (text: string, category: 'reminder' | 'task' | 'project' | 'learning') => void;
-  onCreateTask: () => void;
-  onCreateReminder: () => void;
-  onBookAppointment: () => void;
-  onAddToParcours: () => void;
-  onRequestExpertHelp: () => void;
-  onSaveResource: () => void;
-  onContinuePrivate: () => void;
-  onJoinTribe: () => void;
-  onOpenInCampus: () => void;
-  onSendToStudio: () => void;
-  onVerifyFact: () => void;
-  currentLiveTitle: string;
+  liveStream?: any;
+  currentLiveTitle?: string;
+  onAddPersonalNote?: (text: string, category: 'reminder' | 'task' | 'project' | 'learning') => void;
+  onCreateTask?: (title?: string) => void;
+  onCreateReminder?: () => void;
+  onBookAppointment?: () => void;
+  onAddToParcours?: () => void;
+  onRequestExpertHelp?: () => void;
+  onSummonExpert?: (specialty: string) => void;
+  onFactCheckSource?: () => void;
+  onRequestInstantHelp?: () => void;
+  onSaveResource?: () => void;
+  onContinuePrivate?: () => void;
+  onJoinTribe?: () => void;
+  onOpenInCampus?: () => void;
+  onSendToStudio?: () => void;
+  onVerifyFact?: () => void;
 }
 
 export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
+  liveStream,
+  currentLiveTitle,
   onAddPersonalNote,
   onCreateTask,
   onCreateReminder,
   onBookAppointment,
   onAddToParcours,
   onRequestExpertHelp,
+  onSummonExpert,
+  onFactCheckSource,
+  onRequestInstantHelp,
   onSaveResource,
   onContinuePrivate,
   onJoinTribe,
   onOpenInCampus,
   onSendToStudio,
-  onVerifyFact,
-  currentLiveTitle
+  onVerifyFact
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [quickNoteText, setQuickNoteText] = useState('');
@@ -44,7 +52,9 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
   const handleSaveQuickNote = () => {
     if (!quickNoteText.trim()) return;
-    onAddPersonalNote(quickNoteText.trim(), noteCategory);
+    if (onAddPersonalNote) {
+      onAddPersonalNote(quickNoteText.trim(), noteCategory);
+    }
     setQuickNoteText('');
     setShowNoteInput(false);
     setSavedSuccess(true);
@@ -68,7 +78,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         {/* Essential Quick Action Shortcuts */}
         <button
-          onClick={onCreateTask}
+          onClick={() => onCreateTask && onCreateTask()}
           className="p-2 hover:bg-white/10 text-slate-300 hover:text-emerald-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
           title="Créer une tâche issue du Live"
         >
@@ -77,7 +87,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
         </button>
 
         <button
-          onClick={onBookAppointment}
+          onClick={() => onBookAppointment && onBookAppointment()}
           className="p-2 hover:bg-white/10 text-slate-300 hover:text-indigo-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
           title="Prendre rendez-vous avec l'intervenant"
         >
@@ -86,7 +96,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
         </button>
 
         <button
-          onClick={onAddToParcours}
+          onClick={() => onAddToParcours && onAddToParcours()}
           className="p-2 hover:bg-white/10 text-slate-300 hover:text-amber-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
           title="Ajouter au parcours projet"
         >
@@ -95,7 +105,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
         </button>
 
         <button
-          onClick={onVerifyFact}
+          onClick={() => onVerifyFact && onVerifyFact()}
           className="p-2 hover:bg-white/10 text-slate-300 hover:text-cyan-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
           title="Vérifier une information (Fiche Source)"
         >
@@ -208,7 +218,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 2: Créer une tâche */}
             <button
-              onClick={() => { setIsExpanded(false); onCreateTask(); }}
+              onClick={() => { setIsExpanded(false); if (onCreateTask) onCreateTask(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-emerald-600/20 border border-white/5 hover:border-emerald-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -220,7 +230,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 3: Prendre RDV */}
             <button
-              onClick={() => { setIsExpanded(false); onBookAppointment(); }}
+              onClick={() => { setIsExpanded(false); if (onBookAppointment) onBookAppointment(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-purple-600/20 border border-white/5 hover:border-purple-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -232,7 +242,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 4: Ajouter au parcours */}
             <button
-              onClick={() => { setIsExpanded(false); onAddToParcours(); }}
+              onClick={() => { setIsExpanded(false); if (onAddToParcours) onAddToParcours(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-amber-600/20 border border-white/5 hover:border-amber-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -244,7 +254,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 5: Demander aide expert (SOS) */}
             <button
-              onClick={() => { setIsExpanded(false); onRequestExpertHelp(); }}
+              onClick={() => { setIsExpanded(false); if (onRequestExpertHelp) onRequestExpertHelp(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-rose-600/20 border border-white/5 hover:border-rose-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-rose-600/20 text-rose-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -256,7 +266,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 6: Enregistrer cette ressource */}
             <button
-              onClick={() => { setIsExpanded(false); onSaveResource(); }}
+              onClick={() => { setIsExpanded(false); if (onSaveResource) onSaveResource(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-cyan-600/20 border border-white/5 hover:border-cyan-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -268,7 +278,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 7: Continuer en privé */}
             <button
-              onClick={() => { setIsExpanded(false); onContinuePrivate(); }}
+              onClick={() => { setIsExpanded(false); if (onContinuePrivate) onContinuePrivate(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-blue-600/20 border border-white/5 hover:border-blue-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -280,7 +290,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 8: Rejoindre la Tribu */}
             <button
-              onClick={() => { setIsExpanded(false); onJoinTribe(); }}
+              onClick={() => { setIsExpanded(false); if (onJoinTribe) onJoinTribe(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-orange-600/20 border border-white/5 hover:border-orange-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-orange-600/20 text-orange-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -292,7 +302,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 9: Ouvrir dans Campus */}
             <button
-              onClick={() => { setIsExpanded(false); onOpenInCampus(); }}
+              onClick={() => { setIsExpanded(false); if (onOpenInCampus) onOpenInCampus(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-teal-600/20 border border-white/5 hover:border-teal-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-teal-600/20 text-teal-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -304,7 +314,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 10: Envoyer dans Studio */}
             <button
-              onClick={() => { setIsExpanded(false); onSendToStudio(); }}
+              onClick={() => { setIsExpanded(false); if (onSendToStudio) onSendToStudio(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-pink-600/20 border border-white/5 hover:border-pink-500/40 rounded-2xl text-left transition-all group space-y-1"
             >
               <div className="w-7 h-7 rounded-xl bg-pink-600/20 text-pink-400 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -316,7 +326,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
             {/* Action 11: Vérifier la source */}
             <button
-              onClick={() => { setIsExpanded(false); onVerifyFact(); }}
+              onClick={() => { setIsExpanded(false); if (onVerifyFact) onVerifyFact(); }}
               className="p-2.5 bg-slate-950/60 hover:bg-cyan-600/20 border border-white/5 hover:border-cyan-500/40 rounded-2xl text-left transition-all group space-y-1 sm:col-span-2"
             >
               <div className="flex items-center gap-2">

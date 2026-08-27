@@ -86,16 +86,66 @@ export class SupabaseService {
     public async upsertProfile(profile: Partial<SupabaseUserProfile>): Promise<any> {
         if (!this.isConfigured() || !profile.id) return null;
         try {
+            const payload: any = {
+                ...profile,
+                updated_at: new Date().toISOString()
+            };
+
             const { data, error } = await supabase
                 .from('profiles')
-                .upsert({
-                    ...profile,
-                    updated_at: new Date().toISOString()
-                })
+                .upsert(payload)
                 .select()
                 .single();
 
             if (error) {
+                // Si la base Supabase n'a pas encore exécuté la migration pour certaines colonnes (badges, skills, city, etc.)
+                if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('column')) {
+                    console.warn('Colonne manquante dans profiles Supabase, tentative avec payload de base:', error.message);
+                    
+                    // Extraire le nom de colonne si présent
+                    const match = error.message?.match(/Could not find the '([^']+)' column/);
+                    const missingCol = match ? match[1] : null;
+                    
+                    const safePayload: any = { ...payload };
+                    if (missingCol) {
+                        delete safePayload[missingCol];
+                    } else {
+                        // Supprimer les colonnes optionnelles étendues pour garantir l'upsert
+                        delete safePayload.badges;
+                        delete safePayload.skills;
+                        delete safePayload.city;
+                        delete safePayload.interests;
+                        delete safePayload.privacy_settings;
+                        delete safePayload.permissions;
+                        delete safePayload.metadata;
+                    }
+
+                    const retry = await supabase
+                        .from('profiles')
+                        .upsert(safePayload)
+                        .select()
+                        .single();
+
+                    if (retry.error) {
+                        console.warn('Erreur seconde tentative upsertProfile Supabase:', retry.error);
+                        // Troisième tentative ultra-minimale (champs essentiels PostgreSQL)
+                        const minimalPayload = {
+                            id: profile.id,
+                            email: profile.email,
+                            name: profile.name,
+                            role: profile.role || 'citizen',
+                            updated_at: new Date().toISOString()
+                        };
+                        const minimalRetry = await supabase
+                            .from('profiles')
+                            .upsert(minimalPayload)
+                            .select()
+                            .single();
+                        return minimalRetry.data || null;
+                    }
+                    return retry.data;
+                }
+
                 console.warn('Erreur upsertProfile Supabase:', error);
                 return null;
             }

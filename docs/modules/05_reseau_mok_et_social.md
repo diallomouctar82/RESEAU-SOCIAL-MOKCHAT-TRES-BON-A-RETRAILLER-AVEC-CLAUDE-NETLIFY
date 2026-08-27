@@ -28,7 +28,7 @@
   - `components/chat/ChatMemberInfoModal.tsx` : Fiche détaillée de l'interlocuteur, badges de vérification KYC, empreinte de chiffrement SHA256-AES et contrôle de confidentialité.
   - `components/chat/ChatReportModal.tsx` : Modal de signalement d'abus et fraude reliée directement au centre de modération Super-Admin (`adminConfigService`).
   - `components/Settings.tsx` & `Profile.tsx` : Gestion et affichage du passeport citoyen, bio, localisation, téléphone et portfolio.
-  - `components/SocialLive.tsx` & `LiveSession.tsx` : Salle de streaming en direct.
+  - `components/SocialLive.tsx` & `LiveCreationModal.tsx` : Espace Live Intelligent haute résilience (zéro écran blanc), streaming vidéo/audio réel avec bascule gracieuse, sélection de Copilotes IA Diallo OS, sous-titres bilingues, protection des données sensibles (vision IA), dock d'actions intelligentes (`LiveSmartActionBar`), salle d'attente technique (`LiveWaitingRoomModal`), tableau blanc collaboratif (`LiveWhiteboard`) et synthèse post-live téléchargeable (`LivePostContinuityModal`).
   - `components/SmartReelViewer.tsx` & `ReelsCreator.tsx` : Lecteur et créateur de courtes vidéos.
   - `components/MokTrustCenter.tsx` & `MokTrustReputationHub.tsx` : Console de réputation et d'intégrité.
 - **Modèles de Données & Tables Supabase (`types.ts`, `docs/supabase_schema.sql`)** :
@@ -51,5 +51,6 @@
   - Fil d'actualité persistant avec identité réelle de l'auteur, réactions et commentaires.
   - Annuaire des membres avec moteur de recherche en temps réel et fiches profils.
   - Messagerie privée souveraine moderne en temps réel (Supabase Realtime + WebRTC Audio/Vidéo + Partage d'écran + Médias + Lecteur Vocal Waveform HD + Modération Super-Admin).
-  - Feed social, Stories, Lecteur de Reels avec produits liés, Live Streams interactifs avec cadeaux.
+  - Feed social, Stories, Lecteur de Reels avec produits liés.
+  - **Espace Live Intelligent 100% Opérationnel** : Création instantanée et programmation sans écran blanc, streaming WebRTC/Hardware résilient, sous-titrage bilingue en temps réel, copilotes IA Diallo OS, tableau blanc interactif, intégration des actions d'apprentissage/projet et compte-rendu post-session.
 - **Évolutions Prévues** : Cercles d'entraide régionaux et tribus thématiques privées.

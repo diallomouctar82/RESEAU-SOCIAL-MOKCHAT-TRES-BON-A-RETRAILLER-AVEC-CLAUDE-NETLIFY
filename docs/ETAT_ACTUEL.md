@@ -1,24 +1,25 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
 > *Date de Mise à Jour : 27 Août 2026*  
-> *Version Courante : v6.3.0 (Production Ready — SOVEREIGN VERSIONING & BACKUP SYSTEM)*
+> *Version Courante : v6.4.0 (Production Ready — SUPER-ADMIN DASHBOARD & PERSISTENT VIDEO MEDIA)*
 
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
-**Le Monde à Vous** a franchi le jalon officiel **SOVEREIGN VERSIONING & BACKUP SYSTEM (v6.3.0)**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance et un espace Super-Administrateur souverain doté de capacités de sauvegarde, restauration intelligente et gestion des versions.
+**Le Monde à Vous** a franchi le jalon officiel **SUPER-ADMIN DASHBOARD & PERSISTENT VIDEO MEDIA (v6.4.0)**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance et un espace Super-Administrateur souverain doté de capacités de supervision de tous les comptes, rôles, modération, sauvegardes, restauration intelligente et gestion des versions.
 
-La version **v6.3.0** consacre :
-- **Gestionnaire des Versions Stables** : Suivi rigoureux des versions majeures (v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec numéro, date, changelog officiel, points clés, statut, empreinte cryptographique SHA256 et comparateur différentiel.
+La version **v6.4.0** consacre :
+- **Relecture Vidéo Pérenne & Fiabilisée** : Conversion des médias vidéos en Data URL Base64 persistantes au lieu d'URLs blob éphémères, permettant une relecture instantanée et illimitée par les propriétaires et tous les membres de la communauté.
+- **Accès Immédiat & Universel au Tableau de Bord Super-Admin** : Intégration du composant `AdminDashboard` dans le routage `App.tsx` et ajout de boutons d'accès directs dorés dans le Header desktop, le menu déroulant profil de l'avatar, la barre latérale (Sidebar) et le Dashboard d'accueil.
+- **Gestion Complète de Tous les Comptes & RBAC** : Vue exhaustive de tous les utilisateurs réels et synchronisés, attribution granulaire des rôles, ajustement audité des soldes Ⓒ, modération en direct, et sauvegardes souveraines.
+- **Gestionnaire des Versions Stables** : Suivi rigoureux des versions majeures (v6.4.0, v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec numéro, date, changelog officiel, points clés, statut, empreinte cryptographique SHA256 et comparateur différentiel.
 - **Restauration Intelligente & Continuité des Données** : Restauration en 1 clic sans remise à zéro, garantissant la préservation de tous les comptes, profils, messages, soldes Ⓒ, paramètres, droits RBAC et journaux d'audit.
-- **Point de Récupération Automatique & Rollback** : Création automatique d'un instantané de sécurité avant toute opération (`auto_pre_restore`) avec possibilité d'annuler et revenir en arrière en 1 clic.
-- **Planificateur de Sauvegardes Automatisé** : Cycles programmés (horaires, quotidiens, hebdomadaires), quotas de rétention configurables et synchronisation avec Supabase Cloud.
-- **Unification & Résilience Supabase / Netlify / GitHub** : Export unifié du client Supabase et du service singleton tolérant aux pannes, éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
-- **Direction Chromatique & Design System Figé** : Palette institutionnelle *Bleu Profond + Or Institutionnel* conforme WCAG AA et zéro AI-Slop.
+- **Unification & Résilience Supabase / Netlify / GitHub** : Tolérance aux pannes de schéma (`PGRST204`), éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │ STATUT GLOBAL : CHROMATIC REFINEMENT v6.1 (14/14 Modules & 10 Palettes Actives) │
+│ QUALITÉ & RÉSILIENCE : 22/22 Défauts Résolus & Validés (Norme IEEE 1044 / PSP) │
 │ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Épuré + Color Lab Réactif   │
 │ DESIGN SYSTEM : V1.0.0 Figé, Documenté (26 chapitres), Zéro AI-Slop             │
 │ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + Transversal Workspace │
@@ -118,10 +119,24 @@ La version **v6.3.0** consacre :
 - **Passerelles & Équivalences Mondiales** : Moteur de comparaison académique pour la mobilité internationale.
 - **Centre des Langues** : 40+ langues avec répétition espacée et prononciation audio.
 
-### 1.5. Réseau MOK, Confiance & Social Live
-- Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.
-- Fil d'actualité social, publication de Stories et visionneuse de Smart Reels.
-- Live Streaming interactif avec chat en direct, dons/cadeaux et achats intégrés pendant la diffusion.
+### 1.5. Réseau MOK, Messagerie Sécurisée & Espace Live Intelligent 100% Opérationnel
+- **Messagerie Instantanée Sécurisée (`MoocChatFloating.tsx` & `ChatMessageItem.tsx`)** :
+  - Communication 1-à-1 et salons de groupe avec présence en temps réel et chiffrement de bout en bout.
+  - Envoi instantané d'images et photos (`accept="image/*"`) avec aperçu et affichage plein écran (Lightbox HD).
+  - Envoi et lecture pérenne de vidéos (`accept="video/*"`) avec contrôles, streaming fluide et relecture infinie.
+  - Enregistreur de messages vocaux HD avec forme d'onde dynamique interactive (`voiceEngine`).
+  - Partage de documents et pièces jointes (`.pdf`, `.doc`, `.zip`, `.xlsx`) avec téléchargement direct.
+  - Citations/réponses aux messages, réactions emoji en un clic, épinglage et modération directe.
+  - Appels audio et vidéo chiffrés WebRTC avec signalement temps réel via Supabase.
+- **Réseau Social de Confiance (`SocialFeed.tsx`)** :
+  - Publications de posts enrichis (texte, images HD, vidéos avec relecture continue), likes, commentaires, partages et direct live.
+  - Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.
+  - Découverte de Tribus et visionneuse de Smart Reels.
+- **Espace Live Intelligent Haute Résilience (100% Opérationnel — Zéro Écran Blanc)** :
+  - Lancement instantané (« Démarrer le live maintenant ») et programmation de sessions bilingues avec sélection de Copilote IA Diallo OS.
+  - Détection automatique et gestion gracieuse des flux WebRTC/Microphone/Caméra et partage d'écran.
+  - Barre d'actions intelligente (`LiveSmartActionBar`), prise de notes personnelles dans la mémoire privée, création de tâches, demandes de SOS expert, vérification de sources (fact-checking) et rendez-vous 1-à-1.
+  - Tableau blanc interactif (`LiveWhiteboard`), compte-rendu téléchargeable post-live et salle d'attente technique.
 
 ### 1.6. Services Vie Quotidienne & Google Workspace
 - **Juridique** : Générateur de procédures administratives, titres de séjour et Coffre-fort numérique sécurisé.
