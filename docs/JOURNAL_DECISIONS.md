@@ -491,3 +491,18 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
+
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Auth`, `Administration`
+* **Problème / Besoin initial** : La session et le profil étaient synchronisés par plusieurs chemins, la console riche n'était pas atteignable, l'annuaire admin reposait sur des comptes fictifs et le navigateur disposait de mutations directes de profils/rôles ainsi que de champs de saisie de secrets.
+* **Décision retenue** :
+  1. `GlobalContext` devient l'unique propriétaire de la session et du profil ; le trigger Auth est l'unique créateur de `profiles`.
+  2. Le vocabulaire RBAC canonique est `user/admin/expert/mentor/moderator/organization/super_admin`.
+  3. Toutes les opérations administratives privilégiées passent par la Function TypeScript `/api/admin/users`, qui vérifie le JWT et les permissions côté serveur, utilise `service_role` uniquement dans Netlify, protège le dernier super-administrateur et écrit dans `audit_logs`.
+  4. Les colonnes `status`, `permissions` et `admin_notes` ainsi que le quota partagé sont livrés par une migration complémentaire, sans redéfinir les migrations cœur Auth.
+  5. Les secrets fournisseurs sont exclus du contrat navigateur ; l'UI reçoit seulement le nom de variable et un booléen de présence.
+* **Conséquences** : suppression des faux succès locaux, des IDs non UUID, des suppressions profil-only et des promotions par adresse codée en dur. La console conserve ses onglets riches mais distingue les données cloud vérifiées des préférences locales existantes.
+* **Validation** : 8 tests unitaires du contrat admin réussis et build Vite réussi. Typecheck global toujours bloqué par des erreurs historiques hors périmètre ; migrations et E2E live non exécutés.
+* **Statut** : `Implémenté localement — déploiement/migrations/E2E requis`.
+
+---

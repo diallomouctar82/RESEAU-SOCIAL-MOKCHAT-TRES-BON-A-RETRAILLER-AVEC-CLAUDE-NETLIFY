@@ -495,14 +495,21 @@ export const Layout: React.FC<LayoutProps> = ({
                     <div className="p-2 border-b border-gray-50 mb-1.5">
                       <p className="text-xs font-bold text-slate-900 truncate">{userProfile.name}</p>
                       <p className="text-[10px] text-gray-500 truncate">{userProfile.email}</p>
-                      {userProfile.role === 'admin' && (
-                        <span className="text-[9px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold mt-1 inline-block">ADMIN PRINCIPAL</span>
+                      {['admin', 'super_admin'].includes(userProfile.role) && (
+                        <span className="text-[9px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold mt-1 inline-block">
+                          {userProfile.role === 'super_admin' ? 'SUPER-ADMIN' : 'ADMINISTRATEUR'}
+                        </span>
                       )}
                     </div>
                     
                     <button onClick={() => {onTabChange('profile'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <User size={14} /> Mon Profil
                     </button>
+                    {['admin', 'super_admin'].includes(userProfile.role) && (
+                      <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-red-50 rounded-xl text-xs flex items-center gap-2 text-red-700 font-bold">
+                        <Shield size={14} /> Console d’administration
+                      </button>
+                    )}
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>

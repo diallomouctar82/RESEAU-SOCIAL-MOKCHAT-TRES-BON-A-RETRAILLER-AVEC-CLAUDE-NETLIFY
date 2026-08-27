@@ -3,7 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { Globe, Loader2, AlertCircle } from 'lucide-react';
 import { consumeOAuthCallbackError, signInWithGoogle } from '../services/auth';
 
-export const Auth: React.FC = () => {
+interface AuthProps {
+    externalError?: string | null;
+}
+
+export const Auth: React.FC<AuthProps> = ({ externalError }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -63,9 +67,9 @@ export const Auth: React.FC = () => {
                         {isLoading ? 'Connexion en cours…' : 'Continuer avec Google'}
                     </button>
 
-                    {error && (
-                        <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                            <AlertCircle size={16} className="shrink-0" /> {error}
+                    {(error || externalError) && (
+                        <div role="alert" className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                            <AlertCircle size={16} className="shrink-0" /> {error || externalError}
                         </div>
                     )}
                 </div>

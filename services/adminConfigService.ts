@@ -34,133 +34,39 @@ const ADMIN_SNAPSHOTS_KEY = 'lmav_admin_snapshots_v1';
 const ADMIN_SCHEDULE_KEY = 'lmav_admin_backup_schedule_v1';
 const ADMIN_LAST_RESTORE_RESULT_KEY = 'lmav_admin_last_restore_result_v1';
 
+/**
+ * Supprime systématiquement les anciens secrets et la télémétrie simulée.
+ * Les états d'exécution réels sont fournis séparément par la Function Netlify.
+ */
+const sanitizeAIProvider = (input: unknown): AIProviderConfig | null => {
+  if (!input || typeof input !== 'object') return null;
+  const source = input as Record<string, any>;
+  if (typeof source.id !== 'string' || typeof source.name !== 'string' || typeof source.provider !== 'string') return null;
+  return {
+    id: source.id,
+    name: source.name,
+    provider: source.provider as AIProviderConfig['provider'],
+    isEnabled: source.isEnabled === true,
+    isDefault: source.isDefault === true,
+    priority: Number.isFinite(source.priority) ? source.priority : 99,
+    tier: (source.tier || 'fallback') as AIProviderConfig['tier'],
+    defaultModel: typeof source.defaultModel === 'string' ? source.defaultModel : '',
+    availableModels: Array.isArray(source.availableModels) ? source.availableModels.filter((model: unknown) => typeof model === 'string') : [],
+    temperature: Number.isFinite(source.temperature) ? source.temperature : 0.7,
+    maxTokens: Number.isFinite(source.maxTokens) ? source.maxTokens : 2048,
+    status: 'unknown',
+    qualityScore: 0,
+    minQualityThreshold: Number.isFinite(source.minQualityThreshold) ? source.minQualityThreshold : 70,
+    maxLatencyThresholdMs: Number.isFinite(source.maxLatencyThresholdMs) ? source.maxLatencyThresholdMs : 2500,
+    costPer1kInputTokens: Number.isFinite(source.costPer1kInputTokens) ? source.costPer1kInputTokens : 0,
+    costPer1kOutputTokens: Number.isFinite(source.costPer1kOutputTokens) ? source.costPer1kOutputTokens : 0,
+    consecutiveErrors: 0,
+    totalCalls: 0,
+    successCalls: 0,
+    isCustom: source.isCustom === true
+  };
+};
 
-// ── 1. UTILISATEURS ET RÔLES INITIAUX ──
-const INITIAL_USERS: AdminUserRecord[] = [
-  {
-    id: 'u-admin-1',
-    name: 'Superviseur Général DIALLO',
-    email: 'visionsmart224@gmail.com',
-    role: 'super_admin',
-    status: 'active',
-    country: 'International',
-    credits: 1000000,
-    joinedAt: '2025-01-01',
-    lastLogin: '2026-08-27 15:40',
-    permissions: ['all', 'manage_users', 'manage_ai', 'manage_templates', 'sign_documents', 'stamp_documents', 'manage_workflows', 'system_backup', 'broadcast_notifications'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-    notes: 'Super-Administrateur Suprême de la plateforme Le Monde à Vous.'
-  },
-  {
-    id: 'u-expert-dir',
-    name: 'Directeur DIALLO',
-    email: 'directeur.diallo@lemondeavous.com',
-    role: 'expert',
-    status: 'active',
-    country: 'France / Sénégal',
-    credits: 50000,
-    joinedAt: '2025-01-15',
-    lastLogin: '2026-08-27 14:12',
-    permissions: ['access_council', 'sign_documents', 'manage_workflows', 'view_dossiers'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
-    assignedExpertId: '8',
-    notes: 'Chef de Projet & Coordinateur Stratégique.'
-  },
-  {
-    id: 'u-expert-jur',
-    name: 'Maître DIALLO',
-    email: 'maitre.diallo@lemondeavous.com',
-    role: 'expert',
-    status: 'active',
-    country: 'France',
-    credits: 50000,
-    joinedAt: '2025-01-15',
-    lastLogin: '2026-08-27 11:30',
-    permissions: ['access_council', 'sign_documents', 'stamp_documents', 'review_contracts'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&h=120&fit=crop',
-    assignedExpertId: '1',
-    notes: 'Juriste Émérite & Droit International.'
-  },
-  {
-    id: 'u-expert-prof',
-    name: 'Professeur DIALLO',
-    email: 'professeur.diallo@lemondeavous.com',
-    role: 'expert',
-    status: 'active',
-    country: 'Canada / Guinée',
-    credits: 50000,
-    joinedAt: '2025-01-20',
-    lastLogin: '2026-08-26 18:45',
-    permissions: ['access_council', 'sign_documents', 'issue_diplomas'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop',
-    assignedExpertId: '3',
-    notes: 'Doyen Campus & Pédagogie d’Excellence.'
-  },
-  {
-    id: 'u-citoyen-1',
-    name: 'Alexandre Dupont',
-    email: 'alex.d@example.com',
-    role: 'citizen',
-    status: 'active',
-    country: 'France',
-    credits: 2450,
-    joinedAt: '2025-02-10',
-    lastLogin: '2026-08-27 09:22',
-    permissions: ['standard_access', 'create_dossiers', 'generate_letters'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=120&h=120&fit=crop',
-    notes: 'Dossier expatriation Canada en cours.'
-  },
-  {
-    id: 'u-partner-1',
-    name: 'Sarah Koné (AfriqLogistics B2B)',
-    email: 'sarah.kone@afriqlogistics.com',
-    role: 'partner',
-    status: 'active',
-    country: 'Côte d’Ivoire',
-    credits: 12800,
-    joinedAt: '2025-03-01',
-    lastLogin: '2026-08-27 13:05',
-    permissions: ['standard_access', 'b2b_market', 'rfq_submit', 'trade_negotiate'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop',
-    notes: 'Fournisseur vérifié Marché Mondial B2B.'
-  },
-  {
-    id: 'u-citoyen-2',
-    name: 'Aïcha Benali',
-    email: 'aicha.b@maroc.ma',
-    role: 'citizen',
-    status: 'active',
-    country: 'Maroc',
-    credits: 1800,
-    joinedAt: '2025-03-15',
-    lastLogin: '2026-08-25 16:10',
-    permissions: ['standard_access', 'create_dossiers'],
-    kycVerified: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&h=120&fit=crop',
-    notes: 'Parcours Campus Master Data & IA.'
-  },
-  {
-    id: 'u-citoyen-3',
-    name: 'Jean Martin',
-    email: 'j.martin@test.com',
-    role: 'citizen',
-    status: 'suspended',
-    country: 'Belgique',
-    credits: 0,
-    joinedAt: '2025-04-02',
-    lastLogin: '2026-07-12 10:00',
-    permissions: ['standard_access'],
-    kycVerified: false,
-    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop',
-    notes: 'Compte suspendu pour tentative d’usurpation.'
-  }
-];
 
 // ── 2. FOURNISSEURS IA ET MODÈLES AUTO-RÉSILIENTS ──
 const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
@@ -172,22 +78,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: true,
     priority: 1,
     tier: 'primary',
-    apiKey: 'AIzaSy************************',
     defaultModel: 'gemini-2.5-flash',
     availableModels: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'],
     temperature: 0.7,
     maxTokens: 8192,
-    latencyMs: 140,
-    status: 'online',
-    qualityScore: 98,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 70,
     maxLatencyThresholdMs: 2000,
     costPer1kInputTokens: 0.00015,
     costPer1kOutputTokens: 0.00060,
     consecutiveErrors: 0,
-    totalCalls: 1240,
-    successCalls: 1238,
-    lastHealthCheck: '2026-08-27 15:45'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-claude',
@@ -197,23 +100,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 2,
     tier: 'secondary',
-    apiKey: 'sk-ant-***********************',
     defaultModel: 'claude-3-5-sonnet-20241022',
     availableModels: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
     temperature: 0.5,
     maxTokens: 8192,
-    endpointUrl: 'https://api.anthropic.com/v1/messages',
-    latencyMs: 195,
-    status: 'online',
-    qualityScore: 99,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 75,
     maxLatencyThresholdMs: 2500,
     costPer1kInputTokens: 0.003,
     costPer1kOutputTokens: 0.015,
     consecutiveErrors: 0,
-    totalCalls: 890,
-    successCalls: 887,
-    lastHealthCheck: '2026-08-27 15:40'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-openai',
@@ -223,23 +122,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 3,
     tier: 'secondary',
-    apiKey: 'sk-proj-**********************',
     defaultModel: 'gpt-4o',
     availableModels: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o3-mini', 'gpt-4-turbo'],
     temperature: 0.6,
     maxTokens: 4096,
-    endpointUrl: 'https://api.openai.com/v1/chat/completions',
-    latencyMs: 220,
-    status: 'online',
-    qualityScore: 96,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 70,
     maxLatencyThresholdMs: 2200,
     costPer1kInputTokens: 0.0025,
     costPer1kOutputTokens: 0.010,
     consecutiveErrors: 0,
-    totalCalls: 670,
-    successCalls: 668,
-    lastHealthCheck: '2026-08-27 15:35'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-deepseek',
@@ -249,23 +144,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 4,
     tier: 'tertiary',
-    apiKey: 'sk-ds-************************',
     defaultModel: 'deepseek-chat',
     availableModels: ['deepseek-chat', 'deepseek-reasoner'],
     temperature: 0.6,
     maxTokens: 8192,
-    endpointUrl: 'https://api.deepseek.com/chat/completions',
-    latencyMs: 310,
-    status: 'online',
-    qualityScore: 94,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 65,
     maxLatencyThresholdMs: 3000,
     costPer1kInputTokens: 0.00014,
     costPer1kOutputTokens: 0.00028,
     consecutiveErrors: 0,
-    totalCalls: 450,
-    successCalls: 446,
-    lastHealthCheck: '2026-08-27 15:30'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-mistral',
@@ -275,23 +166,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 5,
     tier: 'tertiary',
-    apiKey: 'sk-mistral-*******************',
     defaultModel: 'mistral-large-latest',
     availableModels: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest', 'pixtral-large-latest'],
     temperature: 0.7,
     maxTokens: 4096,
-    endpointUrl: 'https://api.mistral.ai/v1/chat/completions',
-    latencyMs: 180,
-    status: 'online',
-    qualityScore: 92,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 65,
     maxLatencyThresholdMs: 2000,
     costPer1kInputTokens: 0.002,
     costPer1kOutputTokens: 0.006,
     consecutiveErrors: 0,
-    totalCalls: 320,
-    successCalls: 318,
-    lastHealthCheck: '2026-08-27 15:25'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-grok',
@@ -301,23 +188,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 6,
     tier: 'fallback',
-    apiKey: 'xai-**************************',
     defaultModel: 'grok-2-1212',
     availableModels: ['grok-2-1212', 'grok-2-vision-1212', 'grok-beta'],
     temperature: 0.7,
     maxTokens: 4096,
-    endpointUrl: 'https://api.x.ai/v1/chat/completions',
-    latencyMs: 260,
-    status: 'online',
-    qualityScore: 91,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 65,
     maxLatencyThresholdMs: 2500,
     costPer1kInputTokens: 0.002,
     costPer1kOutputTokens: 0.010,
     consecutiveErrors: 0,
-    totalCalls: 180,
-    successCalls: 178,
-    lastHealthCheck: '2026-08-27 15:20'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-qwen',
@@ -327,23 +210,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 7,
     tier: 'fallback',
-    apiKey: 'sk-qwen-***********************',
     defaultModel: 'qwen-plus',
     availableModels: ['qwen-plus', 'qwen-max', 'qwen-turbo', 'qwen2.5-72b-instruct'],
     temperature: 0.7,
     maxTokens: 8192,
-    endpointUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
-    latencyMs: 340,
-    status: 'online',
-    qualityScore: 90,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 60,
     maxLatencyThresholdMs: 3000,
     costPer1kInputTokens: 0.0004,
     costPer1kOutputTokens: 0.0012,
     consecutiveErrors: 0,
-    totalCalls: 140,
-    successCalls: 139,
-    lastHealthCheck: '2026-08-27 15:15'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-kimi',
@@ -353,23 +232,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 8,
     tier: 'fallback',
-    apiKey: 'sk-kimi-***********************',
     defaultModel: 'moonshot-v1-32k',
     availableModels: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
     temperature: 0.6,
     maxTokens: 4096,
-    endpointUrl: 'https://api.moonshot.cn/v1/chat/completions',
-    latencyMs: 390,
-    status: 'online',
-    qualityScore: 89,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 60,
     maxLatencyThresholdMs: 3500,
     costPer1kInputTokens: 0.0015,
     costPer1kOutputTokens: 0.0030,
     consecutiveErrors: 0,
-    totalCalls: 95,
-    successCalls: 94,
-    lastHealthCheck: '2026-08-27 15:10'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-openrouter',
@@ -379,23 +254,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 9,
     tier: 'fallback',
-    apiKey: 'sk-or-v1-*********************',
     defaultModel: 'anthropic/claude-3.5-sonnet',
     availableModels: ['anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'meta-llama/llama-3.3-70b-instruct', 'deepseek/deepseek-r1'],
     temperature: 0.7,
     maxTokens: 4096,
-    endpointUrl: 'https://openrouter.ai/api/v1/chat/completions',
-    latencyMs: 280,
-    status: 'online',
-    qualityScore: 93,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 65,
     maxLatencyThresholdMs: 2800,
     costPer1kInputTokens: 0.002,
     costPer1kOutputTokens: 0.008,
     consecutiveErrors: 0,
-    totalCalls: 210,
-    successCalls: 209,
-    lastHealthCheck: '2026-08-27 15:05'
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-huggingface',
@@ -405,23 +276,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 10,
     tier: 'fallback',
-    apiKey: 'hf_****************************',
     defaultModel: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
     availableModels: ['meta-llama/Meta-Llama-3.1-70B-Instruct', 'mistralai/Mistral-7B-Instruct-v0.3', 'Qwen/Qwen2.5-72B-Instruct'],
     temperature: 0.7,
     maxTokens: 2048,
-    endpointUrl: 'https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3.1-70B-Instruct',
-    latencyMs: 420,
-    status: 'degraded',
-    qualityScore: 84,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 55,
     maxLatencyThresholdMs: 4000,
     costPer1kInputTokens: 0.0005,
     costPer1kOutputTokens: 0.0015,
-    consecutiveErrors: 1,
-    totalCalls: 60,
-    successCalls: 58,
-    lastHealthCheck: '2026-08-27 14:50'
+    consecutiveErrors: 0,
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-replicate',
@@ -431,22 +298,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 11,
     tier: 'fallback',
-    apiKey: 'r8_****************************',
     defaultModel: 'meta/meta-llama-3-70b-instruct',
     availableModels: ['meta/meta-llama-3-70b-instruct', 'mistralai/mixtral-8x7b-instruct-v0.1'],
     temperature: 0.7,
     maxTokens: 2048,
-    latencyMs: 450,
-    status: 'degraded',
-    qualityScore: 82,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 50,
     maxLatencyThresholdMs: 4500,
     costPer1kInputTokens: 0.0007,
     costPer1kOutputTokens: 0.0020,
-    consecutiveErrors: 1,
-    totalCalls: 45,
-    successCalls: 43,
-    lastHealthCheck: '2026-08-27 14:40'
+    consecutiveErrors: 0,
+    totalCalls: 0,
+    successCalls: 0
   },
   {
     id: 'prov-ollama',
@@ -456,23 +320,19 @@ const INITIAL_AI_PROVIDERS: AIProviderConfig[] = [
     isDefault: false,
     priority: 12,
     tier: 'fallback',
-    apiKey: 'local-sovereign-token',
     defaultModel: 'llama3:latest',
     availableModels: ['llama3:latest', 'mistral:latest', 'qwen2.5:latest', 'deepseek-r1:latest'],
     temperature: 0.7,
     maxTokens: 4096,
-    endpointUrl: 'http://localhost:11434/v1/chat/completions',
-    latencyMs: 95,
-    status: 'online',
-    qualityScore: 88,
+    status: 'unknown',
+    qualityScore: 0,
     minQualityThreshold: 50,
     maxLatencyThresholdMs: 1500,
     costPer1kInputTokens: 0.0,
     costPer1kOutputTokens: 0.0,
     consecutiveErrors: 0,
-    totalCalls: 310,
-    successCalls: 310,
-    lastHealthCheck: '2026-08-27 15:00'
+    totalCalls: 0,
+    successCalls: 0
   }
 ];
 
@@ -850,38 +710,12 @@ const INITIAL_WORKFLOWS: WorkflowPipelineConfig[] = [
 ];
 
 // ── 8. JOURNAUX D’AUDIT INITIAUX ──
-const INITIAL_LOGS: SystemAuditLog[] = [
-  { id: 'log-1', timestamp: '2026-08-27 15:35:12', level: 'info', category: 'auth', message: 'Connexion Super-Administrateur réussie (visionsmart224@gmail.com)', actor: 'visionsmart224@gmail.com', ipAddress: '194.254.119.82' },
-  { id: 'log-2', timestamp: '2026-08-27 15:20:04', level: 'security', category: 'document', message: 'Signature officielle apposée sur Lettre N° DOS-2026-ADM-771 par Maître Diallo', actor: 'Maître DIALLO', ipAddress: '82.64.12.90', metadata: { templateId: 'tpl-recours-prefecture', hash: '9f86d081...' } },
-  { id: 'log-3', timestamp: '2026-08-27 14:55:30', level: 'info', category: 'ai', message: 'Appel Gemini 2.5 Flash réussi pour Orchestration de Parcours (Durée : 412ms)', actor: 'Diallo OS', ipAddress: '127.0.0.1' },
-  { id: 'log-4', timestamp: '2026-08-27 14:10:18', level: 'warning', category: 'ai', message: 'Fournisseur Mistral Local : latence dégradée (180ms). Basculement automatique vers Gemini Flash.', actor: 'AI Gateway', ipAddress: '10.0.4.12' },
-  { id: 'log-5', timestamp: '2026-08-27 13:40:02', level: 'info', category: 'sync', message: 'Sauvegarde automatique IndexedDB / Local-First synchronisée avec succès.', actor: 'Système Cloud', ipAddress: '10.0.1.5' },
-  { id: 'log-6', timestamp: '2026-08-27 11:15:44', level: 'info', category: 'payment', message: 'Séquestre Wallet LMAV créé pour Contrat B2B N° B2B-2026-LMAV-882 (Montant : 112 500 €)', actor: 'Sarah Koné', ipAddress: '41.189.160.2' }
-];
+// Aucun journal de démonstration : l'interface Admin reçoit audit_logs via adminApi.
+const INITIAL_LOGS: SystemAuditLog[] = [];
 
 // ── 9. NOTIFICATIONS BROADCAST INITIALES ──
-const INITIAL_NOTIFS: BroadcastNotification[] = [
-  {
-    id: 'bc-1',
-    title: 'Mise à niveau Souveraine Diallo OS 2026',
-    message: 'Tous les modules de la plateforme bénéficient désormais du nouveau moteur de signatures officielles et de la synchronisation instantanée.',
-    priority: 'info',
-    targetAudience: 'all',
-    sentAt: '2026-08-27 08:00',
-    readCount: 1420,
-    active: true
-  },
-  {
-    id: 'bc-2',
-    title: 'Ouverture du Salon B2B Export Afrique-Europe',
-    message: 'Les sessions de mise en relation directe avec les acheteurs européens débutent ce vendredi à 14h GMT.',
-    priority: 'info',
-    targetAudience: 'partners',
-    sentAt: '2026-08-26 10:30',
-    readCount: 380,
-    active: true
-  }
-];
+// Aucun compteur de réception simulé n'est affiché dans la console réelle.
+const INITIAL_NOTIFS: BroadcastNotification[] = [];
 
 // ── 10. MODÉRATION DES CONTENUS & SIGNALEMENTS ──
 const INITIAL_MODERATION_ITEMS: ContentModerationItem[] = [
@@ -1330,8 +1164,12 @@ const INITIAL_SNAPSHOTS: BackupSnapshotRecord[] = [
 export class AdminConfigService {
   private static instance: AdminConfigService;
   
-  private users: AdminUserRecord[] = INITIAL_USERS;
-  private aiProviders: AIProviderConfig[] = INITIAL_AI_PROVIDERS;
+  // Les identités ne sont jamais initialisées depuis des données locales.
+  // La console les reçoit exclusivement via adminApi.
+  private users: AdminUserRecord[] = [];
+  private aiProviders: AIProviderConfig[] = INITIAL_AI_PROVIDERS
+    .map(sanitizeAIProvider)
+    .filter((provider): provider is AIProviderConfig => provider !== null);
   private modules: PlatformModuleConfig[] = INITIAL_MODULES;
   private templates: OfficialDocumentTemplate[] = INITIAL_TEMPLATES;
   private signatures: OfficialSignature[] = INITIAL_SIGNATURES;
@@ -1352,11 +1190,9 @@ export class AdminConfigService {
   private lastRestoreResult: RestoreOperationResult | null = null;
 
   private listeners: (() => void)[] = [];
+  private adminRuntimeInitialized = false;
 
-  private constructor() {
-    this.loadFromStorage();
-    this.initSupabaseRealtimeSync();
-  }
+  private constructor() {}
 
   public static getInstance(): AdminConfigService {
     if (!AdminConfigService.instance) {
@@ -1365,87 +1201,15 @@ export class AdminConfigService {
     return AdminConfigService.instance;
   }
 
-
   /**
-   * Initialisation de la synchronisation bidirectionnelle et écoute Realtime Supabase
+   * Active les données de configuration exclusivement lorsque la console
+   * d'administration est effectivement ouverte par un rôle autorisé. Les
+   * écrans utilisateurs et le chat n'initialisent plus la synchro profils.
    */
-  private initSupabaseRealtimeSync(): void {
-    // 1. Synchronisation initiale en arrière-plan
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
-        this.syncWithSupabase().catch(err => {
-          console.warn('Sync initiale Supabase utilisateurs:', err);
-        });
-      }, 500);
-
-      // 2. Écouteur Realtime sur la table profiles
-      try {
-        supabaseService.subscribeToProfilesRealtime({
-          onInsert: (cloudProfile) => {
-            this.handleRealtimeProfileInsertOrUpdate(cloudProfile, 'insert');
-          },
-          onUpdate: (cloudProfile) => {
-            this.handleRealtimeProfileInsertOrUpdate(cloudProfile, 'update');
-          },
-          onDelete: (deletedId) => {
-            this.handleRealtimeProfileDelete(deletedId);
-          }
-        });
-      } catch (err) {
-        console.warn('Erreur abonnement Realtime profiles:', err);
-      }
-    }
-  }
-
-  private handleRealtimeProfileInsertOrUpdate(profile: any, eventType: 'insert' | 'update'): void {
-    if (!profile || !profile.id) return;
-    const isSuperAdmin = profile.email?.toLowerCase() === 'visionsmart224@gmail.com' || profile.role === 'super_admin';
-    const existingIndex = this.users.findIndex(u => u.id === profile.id || (profile.email && u.email.toLowerCase() === profile.email.toLowerCase()));
-
-    const userRecord: AdminUserRecord = {
-      id: profile.id,
-      name: isSuperAdmin ? 'Superviseur Général DIALLO' : (profile.name || profile.email?.split('@')[0] || 'Utilisateur'),
-      email: profile.email || `user-${profile.id.substring(0, 8)}@lemondeavous.com`,
-      role: isSuperAdmin ? 'super_admin' : (profile.role || 'citizen'),
-      status: (profile.status as any) || 'active',
-      country: profile.country || 'France',
-      city: profile.city || 'Paris',
-      title: profile.title || (isSuperAdmin ? 'Super-Administrateur Principal' : 'Citoyen Actif'),
-      bio: profile.bio || '',
-      phone: profile.phone || '',
-      citizenshipId: profile.citizenship_id || (isSuperAdmin ? 'LMAV-SUPREME-ADMIN-01' : `LMAV-${new Date().getFullYear()}-USR`),
-      credits: isSuperAdmin ? 1000000 : (profile.credits ?? 250),
-      xp: isSuperAdmin ? 999999 : (profile.xp ?? 50),
-      level: isSuperAdmin ? 99 : (profile.level ?? 1),
-      joinedAt: profile.created_at ? new Date(profile.created_at).toISOString().split('T')[0] : (existingIndex >= 0 ? this.users[existingIndex].joinedAt : new Date().toISOString().split('T')[0]),
-      lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      permissions: isSuperAdmin ? ['all', 'manage_users', 'manage_ai', 'manage_modules', 'manage_moderation', 'manage_templates', 'sign_documents', 'stamp_documents', 'manage_workflows', 'system_backup', 'broadcast_notifications', 'access_council', 'b2b_market', 'standard_access'] : (profile.permissions || ['standard_access']),
-      kycVerified: profile.is_verified ?? (profile.kyc_status === 'verified'),
-      avatarUrl: profile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-      origin: 'supabase_cloud'
-    };
-
-    if (existingIndex >= 0) {
-      this.users[existingIndex] = {
-        ...this.users[existingIndex],
-        ...userRecord,
-        notes: this.users[existingIndex].notes || userRecord.notes
-      };
-    } else {
-      this.users.unshift(userRecord);
-      this.addLog('info', 'auth', `Nouveau compte Supabase synchronisé en temps réel : ${userRecord.name} (${userRecord.email})`, 'Realtime Sentinel');
-    }
-
-    this.notify();
-  }
-
-  private handleRealtimeProfileDelete(deletedId: string): void {
-    const target = this.users.find(u => u.id === deletedId);
-    if (target && target.email.toLowerCase() !== 'visionsmart224@gmail.com') {
-      this.users = this.users.filter(u => u.id !== deletedId);
-      this.addLog('warning', 'auth', `Compte supprimé à distance (Realtime) : ${target.name} (${target.email})`, 'Realtime Sentinel');
-      this.notify();
-    }
+  public activateAdminRuntime(): void {
+    if (this.adminRuntimeInitialized) return;
+    this.adminRuntimeInitialized = true;
+    this.loadFromStorage();
   }
 
   public subscribe(listener: () => void): () => void {
@@ -1465,8 +1229,11 @@ export class AdminConfigService {
       const stored = localStorage.getItem(ADMIN_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.users) this.users = parsed.users;
-        if (parsed.aiProviders) this.aiProviders = parsed.aiProviders;
+        if (Array.isArray(parsed.aiProviders)) {
+          this.aiProviders = parsed.aiProviders
+            .map(sanitizeAIProvider)
+            .filter((provider: AIProviderConfig | null): provider is AIProviderConfig => provider !== null);
+        }
         if (parsed.modules) this.modules = parsed.modules;
         if (parsed.templates) this.templates = parsed.templates;
         if (parsed.signatures) this.signatures = parsed.signatures;
@@ -1523,15 +1290,6 @@ export class AdminConfigService {
         } catch {}
       }
 
-      // Sécurité absolue : garantir que visionsmart224@gmail.com est toujours présent et super_admin
-      const superAdminIndex = this.users.findIndex(u => u.email.toLowerCase() === 'visionsmart224@gmail.com');
-      if (superAdminIndex === -1) {
-        this.users.unshift(INITIAL_USERS[0]);
-      } else {
-        this.users[superAdminIndex].role = 'super_admin';
-        this.users[superAdminIndex].status = 'active';
-        this.users[superAdminIndex].permissions = ['all', 'manage_users', 'manage_ai', 'manage_modules', 'manage_moderation', 'manage_templates', 'sign_documents', 'stamp_documents', 'manage_workflows', 'system_backup', 'broadcast_notifications', 'access_council', 'b2b_market', 'standard_access'];
-      }
     } catch (e) {
       console.warn('Erreur lors du chargement de la config admin:', e);
     }
@@ -1540,8 +1298,7 @@ export class AdminConfigService {
   private saveToStorage(): void {
     try {
       const payload = {
-        users: this.users,
-        aiProviders: this.aiProviders,
+        aiProviders: this.aiProviders.map(sanitizeAIProvider).filter(Boolean),
         modules: this.modules,
         templates: this.templates,
         signatures: this.signatures,
@@ -1568,7 +1325,11 @@ export class AdminConfigService {
 
   // ── GETTERS ──
   public getUsers(): AdminUserRecord[] { return [...this.users]; }
-  public getAIProviders(): AIProviderConfig[] { return [...this.aiProviders]; }
+  public getAIProviders(): AIProviderConfig[] {
+    return this.aiProviders
+      .map(sanitizeAIProvider)
+      .filter((provider): provider is AIProviderConfig => provider !== null);
+  }
   public getModules(): PlatformModuleConfig[] { return [...this.modules]; }
   public getTemplates(): OfficialDocumentTemplate[] { return [...this.templates]; }
   public getSignatures(): OfficialSignature[] { return [...this.signatures]; }
@@ -1591,455 +1352,84 @@ export class AdminConfigService {
 
   // ── GESTION DES UTILISATEURS AVANCÉE ──
   public updateUser(id: string, updates: Partial<AdminUserRecord>): void {
-    const user = this.users.find(u => u.id === id);
-    if (user && user.email.toLowerCase() === 'visionsmart224@gmail.com') {
-      // Protection du super-administrateur
-      updates.role = 'super_admin';
-      updates.status = 'active';
-    }
-
-    this.users = this.users.map(u => u.id === id ? { ...u, ...updates } : u);
-    this.addLog('info', 'admin', `Mise à jour de l'utilisateur ${user?.name || id}`, 'Super-Admin');
-    
-    // Sync Supabase en arrière-plan
-    if (user) {
-      supabaseService.updateAdminUserProfile({
-        id: user.id,
-        name: updates.name || user.name,
-        role: (updates.role as any) || user.role,
-        is_verified: updates.kycVerified !== undefined ? updates.kycVerified : user.kycVerified,
-        credits: updates.credits !== undefined ? updates.credits : user.credits,
-        country: updates.country || user.country
-      }).catch(() => {});
-    }
-
-    this.notify();
+    void id;
+    void updates;
+    throw new Error('Gestion utilisateur désactivée ici : utiliser adminApi (Function serveur).');
   }
 
   public promoteToAdmin(id: string, isSuperAdmin: boolean = false): void {
-    const targetRole = isSuperAdmin ? 'super_admin' : 'admin';
-    const allPermissions = [
-      'all', 'manage_users', 'manage_ai', 'manage_modules', 
-      'manage_moderation', 'manage_templates', 'sign_documents', 
-      'stamp_documents', 'manage_workflows', 'system_backup', 
-      'broadcast_notifications', 'access_council', 'b2b_market', 'standard_access'
-    ];
-
-    this.users = this.users.map(u => {
-      if (u.id === id) {
-        return {
-          ...u,
-          role: targetRole,
-          status: 'active',
-          permissions: allPermissions,
-          kycVerified: true
-        };
-      }
-      return u;
-    });
-
-    const user = this.users.find(u => u.id === id);
-    this.addLog('security', 'admin', `ÉLÉVATION PRIVILÈGE : L'utilisateur ${user?.name} (${user?.email}) a été promu ${targetRole.toUpperCase()}`, 'Super-Admin');
-    this.notify();
+    void id;
+    void isSuperAdmin;
+    throw new Error('Promotion locale désactivée : utiliser adminApi.');
   }
 
-  public demoteUser(id: string, targetRole: 'citizen' | 'expert' | 'partner' = 'citizen'): boolean {
-    const user = this.users.find(u => u.id === id);
-    if (!user) return false;
-    
-    if (user.email.toLowerCase() === 'visionsmart224@gmail.com') {
-      this.addLog('warning', 'admin', `Tentative bloquée de rétrogradation du Super-Administrateur Suprême (${user.email})`, 'Système Sécurité');
-      return false;
-    }
-
-    this.users = this.users.map(u => {
-      if (u.id === id) {
-        return {
-          ...u,
-          role: targetRole,
-          permissions: targetRole === 'expert' ? ['access_council', 'sign_documents', 'view_dossiers'] : ['standard_access']
-        };
-      }
-      return u;
-    });
-
-    this.addLog('warning', 'admin', `Rétrogradation du rôle de ${user.name} vers ${targetRole}`, 'Super-Admin');
-    this.notify();
-    return true;
+  public demoteUser(id: string, targetRole: AdminUserRecord['role'] = 'user'): boolean {
+    void id;
+    void targetRole;
+    throw new Error('Rétrogradation locale désactivée : utiliser adminApi.');
   }
 
   public toggleUserPermission(userId: string, permission: string): void {
-    const user = this.users.find(u => u.id === userId);
-    if (!user) return;
-    if (user.email.toLowerCase() === 'visionsmart224@gmail.com') return; // Invariable
-
-    const hasPerm = user.permissions.includes(permission);
-    let newPerms: string[];
-    if (hasPerm) {
-      newPerms = user.permissions.filter(p => p !== permission);
-    } else {
-      newPerms = [...user.permissions, permission];
-    }
-
-    this.updateUser(userId, { permissions: newPerms });
-    this.addLog('info', 'admin', `Permission '${permission}' ${hasPerm ? 'révoquée pour' : 'attribuée à'} ${user.name}`, 'Super-Admin');
+    void userId;
+    void permission;
+    throw new Error('Gestion locale des permissions désactivée : utiliser adminApi.');
   }
 
   public setUserStatus(userId: string, status: AdminUserRecord['status']): void {
-    const user = this.users.find(u => u.id === userId);
-    if (!user) return;
-    if (user.email.toLowerCase() === 'visionsmart224@gmail.com' && status !== 'active') {
-      this.addLog('warning', 'admin', `Action bloquée : Le statut du Super-Administrateur ne peut être modifié.`, 'Système Sécurité');
-      return;
-    }
-
-    this.updateUser(userId, { status });
-    this.addLog('warning', 'admin', `Statut de ${user.name} modifié en : ${status.toUpperCase()}`, 'Super-Admin');
+    void userId;
+    void status;
+    throw new Error('Gestion locale des statuts désactivée : utiliser adminApi.');
   }
 
   public approveUser(userId: string): void {
-    this.updateUser(userId, { status: 'active', kycVerified: true });
-    this.addLog('info', 'admin', `Validation et activation du compte pour l'utilisateur ${userId}`, 'Super-Admin');
+    void userId;
+    throw new Error('Validation locale désactivée : utiliser adminApi.');
   }
 
   public addUser(user: Omit<AdminUserRecord, 'id' | 'joinedAt' | 'lastLogin'>): AdminUserRecord {
-    const newUser: AdminUserRecord = {
-      ...user,
-      id: `usr-${Date.now()}`,
-      joinedAt: new Date().toISOString().split('T')[0],
-      lastLogin: 'Jamais'
-    };
-    this.users.unshift(newUser);
-    this.addLog('info', 'admin', `Création du nouvel utilisateur ${newUser.name} (${newUser.email})`, 'Super-Admin');
-    
-    // Sync Supabase
-    supabaseService.upsertProfile({
-      id: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      role: newUser.role as any,
-      is_verified: newUser.kycVerified,
-      credits: newUser.credits,
-      country: newUser.country
-    }).catch(() => {});
-
-    this.notify();
-    return newUser;
+    void user;
+    throw new Error('Création locale désactivée : utiliser adminApi afin que Supabase Auth génère un UUID.');
   }
 
   public deleteUser(id: string): boolean {
-    const user = this.users.find(u => u.id === id);
-    if (!user) return false;
-    if (user.email.toLowerCase() === 'visionsmart224@gmail.com') {
-      this.addLog('security', 'admin', `Tentative illégale de suppression du compte Super-Administrateur Suprême bloquée.`, 'Système');
-      return false;
-    }
-
-    this.users = this.users.filter(u => u.id !== id);
-    this.addLog('warning', 'admin', `Suppression définitive de l'utilisateur ${user.name} (${user.email})`, 'Super-Admin');
-    
-    // Suppression Supabase
-    supabaseService.deleteAdminUserProfile(id).catch(() => {});
-    
-    this.notify();
-    return true;
+    void id;
+    throw new Error('Suppression locale désactivée : utiliser adminApi pour supprimer Auth et profil ensemble.');
   }
 
   /**
    * Synchronisation explicite et complète de tous les comptes avec Supabase
    */
   public async syncWithSupabase(): Promise<{ success: boolean; totalUsers: number; newUsersCount: number; errors: string[] }> {
-    const errors: string[] = [];
-    let newUsersCount = 0;
-
-    try {
-      if (!supabaseService.isConfigured()) {
-        return {
-          success: true,
-          totalUsers: this.users.length,
-          newUsersCount: 0,
-          errors: ['Supabase non configuré (Mode Local-First Souverain actif)']
-        };
-      }
-
-      const cloudProfiles = await supabaseService.fetchAdminProfiles();
-      if (!cloudProfiles || cloudProfiles.length === 0) {
-        // Pousser les utilisateurs locaux vers Supabase s'il est vide
-        for (const localUser of this.users) {
-          try {
-            await supabaseService.upsertProfile({
-              id: localUser.id,
-              email: localUser.email,
-              name: localUser.name,
-              role: localUser.role as any,
-              country: localUser.country,
-              city: localUser.city || 'Paris',
-              title: localUser.title,
-              bio: localUser.bio,
-              avatar_url: localUser.avatarUrl,
-              citizenship_id: localUser.citizenshipId,
-              credits: localUser.credits,
-              xp: localUser.xp || 50,
-              level: localUser.level || 1,
-              is_verified: localUser.kycVerified
-            });
-          } catch (err: any) {
-            errors.push(`Erreur push profil ${localUser.email}: ${err?.message}`);
-          }
-        }
-        return {
-          success: true,
-          totalUsers: this.users.length,
-          newUsersCount: 0,
-          errors
-        };
-      }
-
-      // Fusionner chaque profil Supabase dans la liste locale
-      cloudProfiles.forEach(cp => {
-        if (!cp.id) return;
-        const isSuperAdmin = cp.email?.toLowerCase() === 'visionsmart224@gmail.com' || cp.role === 'super_admin';
-        const existingIdx = this.users.findIndex(u => u.id === cp.id || (cp.email && u.email.toLowerCase() === cp.email.toLowerCase()));
-
-        const mappedRecord: AdminUserRecord = {
-          id: cp.id,
-          name: isSuperAdmin ? 'Superviseur Général DIALLO' : (cp.name || cp.email?.split('@')[0] || 'Utilisateur'),
-          email: cp.email || `user-${cp.id.substring(0, 8)}@lemondeavous.com`,
-          role: isSuperAdmin ? 'super_admin' : (cp.role === 'admin' ? 'admin' : (cp.role as any) || 'citizen'),
-          status: (cp.status as any) || 'active',
-          country: cp.country || 'France',
-          city: cp.city || 'Paris',
-          title: cp.title || (isSuperAdmin ? 'Super-Administrateur Principal' : 'Citoyen Actif'),
-          bio: cp.bio || '',
-          phone: cp.phone || '',
-          citizenshipId: cp.citizenship_id || (isSuperAdmin ? 'LMAV-SUPREME-ADMIN-01' : `LMAV-${new Date().getFullYear()}-USR`),
-          credits: isSuperAdmin ? 1000000 : (cp.credits ?? 250),
-          xp: isSuperAdmin ? 999999 : (cp.xp ?? 50),
-          level: isSuperAdmin ? 99 : (cp.level ?? 1),
-          joinedAt: cp.created_at ? new Date(cp.created_at).toISOString().split('T')[0] : (existingIdx >= 0 ? this.users[existingIdx].joinedAt : new Date().toISOString().split('T')[0]),
-          lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          permissions: isSuperAdmin 
-            ? ['all', 'manage_users', 'manage_ai', 'manage_modules', 'manage_moderation', 'manage_templates', 'sign_documents', 'stamp_documents', 'manage_workflows', 'system_backup', 'broadcast_notifications', 'access_council', 'b2b_market', 'standard_access']
-            : (existingIdx >= 0 ? this.users[existingIdx].permissions : ['standard_access']),
-          kycVerified: cp.is_verified ?? false,
-          avatarUrl: cp.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-          origin: 'supabase_cloud',
-          notes: existingIdx >= 0 ? this.users[existingIdx].notes : undefined
-        };
-
-        if (existingIdx >= 0) {
-          this.users[existingIdx] = {
-            ...this.users[existingIdx],
-            ...mappedRecord,
-            permissions: isSuperAdmin ? mappedRecord.permissions : this.users[existingIdx].permissions,
-            notes: this.users[existingIdx].notes || mappedRecord.notes
-          };
-        } else {
-          this.users.push(mappedRecord);
-          newUsersCount++;
-        }
-      });
-
-      // Garantir le Super-Admin au sommet
-      const saIdx = this.users.findIndex(u => u.email.toLowerCase() === 'visionsmart224@gmail.com');
-      if (saIdx > 0) {
-        const [superAdminUser] = this.users.splice(saIdx, 1);
-        this.users.unshift(superAdminUser);
-      }
-
-      this.addLog('info', 'sync', `Synchronisation Supabase réussie : ${this.users.length} comptes synchronisés (${newUsersCount} nouveaux découverts).`, 'Super-Admin');
-      this.notify();
-
-      return {
-        success: true,
-        totalUsers: this.users.length,
-        newUsersCount,
-        errors
-      };
-    } catch (err: any) {
-      errors.push(err?.message || 'Exception sync Supabase');
-      return {
-        success: false,
-        totalUsers: this.users.length,
-        newUsersCount: 0,
-        errors
-      };
-    }
+    return {
+      success: false,
+      totalUsers: 0,
+      newUsersCount: 0,
+      errors: ['Synchronisation locale désactivée : utiliser adminApi.']
+    };
   }
 
   /**
    * Enregistrement ou synchronisation instantanée d'un compte (appelé lors du Login, Signup ou chargement de session)
    */
-  public registerOrSyncUser(userData: {
-    id?: string;
-    email: string;
-    name?: string;
-    role?: 'super_admin' | 'admin' | 'expert' | 'partner' | 'citizen' | 'guest';
-    country?: string;
-    city?: string;
-    title?: string;
-    bio?: string;
-    avatarUrl?: string;
-    citizenshipId?: string;
-    credits?: number;
-    xp?: number;
-    level?: number;
-    kycVerified?: boolean;
-  }): AdminUserRecord {
-    const isSuperAdmin = userData.email.trim().toLowerCase() === 'visionsmart224@gmail.com' || userData.role === 'super_admin';
-    const cleanEmail = userData.email.trim().toLowerCase();
-    const existingIndex = this.users.findIndex(u => (userData.id && u.id === userData.id) || u.email.toLowerCase() === cleanEmail);
-
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const countryCode = userData.country ? userData.country.substring(0, 2).toUpperCase() : 'FR';
-    const citizenshipId = userData.citizenshipId || (isSuperAdmin ? 'LMAV-SUPREME-ADMIN-01' : `LMAV-${new Date().getFullYear()}-${Math.floor(Math.random()*9000)+1000}-${countryCode}`);
-
-    const record: AdminUserRecord = {
-      id: userData.id || (existingIndex >= 0 ? this.users[existingIndex].id : `usr-${Date.now()}`),
-      name: isSuperAdmin ? 'Superviseur Général DIALLO' : (userData.name || cleanEmail.split('@')[0]),
-      email: cleanEmail,
-      role: isSuperAdmin ? 'super_admin' : (userData.role || (existingIndex >= 0 ? this.users[existingIndex].role : 'citizen')),
-      status: 'active',
-      country: userData.country || (existingIndex >= 0 ? this.users[existingIndex].country : 'France'),
-      city: userData.city || (existingIndex >= 0 ? this.users[existingIndex].city : 'Paris'),
-      title: userData.title || (isSuperAdmin ? 'Super-Administrateur Principal' : (existingIndex >= 0 ? this.users[existingIndex].title : 'Citoyen Actif')),
-      bio: userData.bio || (existingIndex >= 0 ? this.users[existingIndex].bio : 'Citoyen engagé dans la communauté Le Monde à Vous.'),
-      citizenshipId: citizenshipId,
-      credits: isSuperAdmin ? 1000000 : (userData.credits !== undefined ? userData.credits : (existingIndex >= 0 ? this.users[existingIndex].credits : 250)),
-      xp: isSuperAdmin ? 999999 : (userData.xp !== undefined ? userData.xp : (existingIndex >= 0 ? this.users[existingIndex].xp : 50)),
-      level: isSuperAdmin ? 99 : (userData.level !== undefined ? userData.level : (existingIndex >= 0 ? this.users[existingIndex].level : 1)),
-      joinedAt: existingIndex >= 0 ? this.users[existingIndex].joinedAt : new Date().toISOString().split('T')[0],
-      lastLogin: now,
-      permissions: isSuperAdmin 
-        ? ['all', 'manage_users', 'manage_ai', 'manage_modules', 'manage_moderation', 'manage_templates', 'sign_documents', 'stamp_documents', 'manage_workflows', 'system_backup', 'broadcast_notifications', 'access_council', 'b2b_market', 'standard_access']
-        : (existingIndex >= 0 ? this.users[existingIndex].permissions : ['standard_access']),
-      kycVerified: isSuperAdmin ? true : (userData.kycVerified !== undefined ? userData.kycVerified : (existingIndex >= 0 ? this.users[existingIndex].kycVerified : false)),
-      avatarUrl: userData.avatarUrl || (existingIndex >= 0 ? this.users[existingIndex].avatarUrl : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'),
-      origin: supabaseService.isConfigured() ? 'supabase_cloud' : 'local_session'
-    };
-
-    if (existingIndex >= 0) {
-      this.users[existingIndex] = {
-        ...this.users[existingIndex],
-        ...record,
-        lastLogin: now
-      };
-    } else {
-      this.users.unshift(record);
-      this.addLog('info', 'auth', `Nouveau compte utilisateur enregistré : ${record.name} (${record.email})`, 'Super-Admin');
-    }
-
-    this.notify();
-    return record;
+  public registerOrSyncUser(_userData: { email: string }): AdminUserRecord {
+    throw new Error('Enregistrement local désactivé : le trigger Auth est l’unique créateur de profils.');
   }
 
   /**
    * Diagnostic et réparation automatique de tous les comptes (réconciliation, permissions manquantes, profils orphelins)
    */
   public async reconcileAndRepairAllAccounts(): Promise<{ fixedCount: number; details: string[] }> {
-    const details: string[] = [];
-    let fixedCount = 0;
-
-    // 1. Récupérer les profils du Cloud Supabase si accessible
-    await this.syncWithSupabase();
-
-    // 2. Vérifier et réparer chaque compte local
-    this.users = this.users.map(u => {
-      let modified = false;
-      const isSuperAdmin = u.email.toLowerCase() === 'visionsmart224@gmail.com';
-      const repaired: AdminUserRecord = { ...u };
-
-      // Vérifier le Super-Admin
-      if (isSuperAdmin) {
-        if (repaired.role !== 'super_admin' || repaired.status !== 'active') {
-          repaired.role = 'super_admin';
-          repaired.status = 'active';
-          repaired.kycVerified = true;
-          modified = true;
-          details.push(`Compte Super-Admin ${u.email} restauré avec pleins pouvoirs.`);
-        }
-      }
-
-      // Réparer les permissions vides
-      if (!repaired.permissions || repaired.permissions.length === 0) {
-        repaired.permissions = isSuperAdmin 
-          ? ['all', 'manage_users', 'manage_ai', 'manage_modules', 'manage_moderation', 'manage_templates', 'sign_documents', 'stamp_documents', 'manage_workflows', 'system_backup', 'broadcast_notifications', 'access_council', 'b2b_market', 'standard_access']
-          : (repaired.role === 'expert' ? ['access_council', 'sign_documents', 'view_dossiers'] : ['standard_access']);
-        modified = true;
-        details.push(`Permissions initialisées pour ${u.email}`);
-      }
-
-      // Réparer le Citizenship ID manquant
-      if (!repaired.citizenshipId) {
-        const countryCode = (repaired.country || 'FR').substring(0, 2).toUpperCase();
-        repaired.citizenshipId = isSuperAdmin ? 'LMAV-SUPREME-ADMIN-01' : `LMAV-${new Date().getFullYear()}-${Math.floor(Math.random()*9000)+1000}-${countryCode}`;
-        modified = true;
-        details.push(`Passeport numérique généré pour ${u.email} (${repaired.citizenshipId})`);
-      }
-
-      // Réparer les crédits manquants
-      if (repaired.credits === undefined || isNaN(repaired.credits)) {
-        repaired.credits = isSuperAdmin ? 1000000 : 250;
-        modified = true;
-        details.push(`Solde de crédits ajusté pour ${u.email} (${repaired.credits} Ⓒ)`);
-      }
-
-      // Réparer l'avatar manquant
-      if (!repaired.avatarUrl || repaired.avatarUrl.trim() === '') {
-        repaired.avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop';
-        modified = true;
-        details.push(`Avatar par défaut attribué pour ${u.email}`);
-      }
-
-      if (modified) fixedCount++;
-      return repaired;
-    });
-
-    // 3. Dédupliquer les utilisateurs par email
-    const uniqueMap = new Map<string, AdminUserRecord>();
-    for (const u of this.users) {
-      const key = u.email.toLowerCase().trim();
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, u);
-      } else {
-        // Fusionner
-        const existing = uniqueMap.get(key)!;
-        uniqueMap.set(key, {
-          ...existing,
-          ...u,
-          credits: Math.max(existing.credits, u.credits),
-          kycVerified: existing.kycVerified || u.kycVerified
-        });
-        details.push(`Doublon fusionné pour l'email ${key}`);
-        fixedCount++;
-      }
-    }
-    this.users = Array.from(uniqueMap.values());
-
-    // Garantir le Super-Admin au sommet
-    const saIdx = this.users.findIndex(u => u.email.toLowerCase() === 'visionsmart224@gmail.com');
-    if (saIdx > 0) {
-      const [superAdminUser] = this.users.splice(saIdx, 1);
-      this.users.unshift(superAdminUser);
-    }
-
-    this.addLog('security', 'admin', `Audit & Réparation des comptes achevé : ${fixedCount} anomalies résolues sur ${this.users.length} comptes.`, 'Super-Admin');
-    this.notify();
-
-    return { fixedCount, details };
+    throw new Error('Réconciliation locale désactivée : les comptes Auth sont réparés uniquement par une opération serveur dédiée.');
   }
 
   /**
    * Ajustement de crédits avec trace d'audit
    */
   public adjustUserCredits(userId: string, amount: number, reason: string = 'Ajustement Administratif'): AdminUserRecord | null {
-    const user = this.users.find(u => u.id === userId);
-    if (!user) return null;
-
-    const newCredits = Math.max(0, user.credits + amount);
-    this.updateUser(userId, { credits: newCredits });
-    this.addLog('info', 'payment', `Crédits de ${user.name} modifiés de ${amount > 0 ? '+' : ''}${amount} Ⓒ (Nouveau solde: ${newCredits} Ⓒ). Motif : ${reason}`, 'Super-Admin');
-    return { ...user, credits: newCredits };
+    void userId;
+    void amount;
+    void reason;
+    throw new Error('Ajustement local de crédits désactivé : utiliser le ledger serveur audité.');
   }
 
   /**
@@ -2119,7 +1509,7 @@ export class AdminConfigService {
       status: 'flagged'
     };
     this.moderationItems.unshift(newItem);
-    this.addLog('warning', 'moderation', `Nouveau contenu signalé pour modération : ${newItem.title}`, 'Mooc-Chat-Guard');
+    this.addLog('warning', 'admin', `Nouveau contenu signalé pour modération : ${newItem.title}`, 'Mooc-Chat-Guard');
     this.notify();
     return newItem;
   }
@@ -2138,7 +1528,7 @@ export class AdminConfigService {
       status: 'pending'
     };
     this.userReports.unshift(newReport);
-    this.addLog('warning', 'moderation', `Signalement utilisateur reçu de ${newReport.reporterName} concernant ${newReport.reportedUserName}`, 'Mooc-Chat-Guard');
+    this.addLog('warning', 'admin', `Signalement utilisateur reçu de ${newReport.reporterName} concernant ${newReport.reportedUserName}`, 'Mooc-Chat-Guard');
     this.notify();
     return newReport;
   }
@@ -2205,9 +1595,15 @@ export class AdminConfigService {
 
   // ── GESTION DE L'IA ET RÉSILIENCE MULTI-FOURNISSEUR ──
   public updateAIProvider(id: string, updates: Partial<AIProviderConfig>): void {
+    const safeUpdates = sanitizeAIProvider({
+      ...(this.aiProviders.find(provider => provider.id === id) || {}),
+      ...updates,
+      id
+    });
+    if (!safeUpdates) return;
     this.aiProviders = this.aiProviders.map(p => {
       if (p.id === id) {
-        return { ...p, ...updates };
+        return safeUpdates;
       }
       if (updates.isDefault && p.id !== id) {
         return { ...p, isDefault: false };
@@ -2219,15 +1615,16 @@ export class AdminConfigService {
   }
 
   public addAIProvider(provider: Omit<AIProviderConfig, 'id' | 'consecutiveErrors' | 'totalCalls' | 'successCalls'>): AIProviderConfig {
-    const newProvider: AIProviderConfig = {
+    const newProvider = sanitizeAIProvider({
       ...provider,
       id: `prov-custom-${Date.now()}`,
       consecutiveErrors: 0,
       totalCalls: 0,
       successCalls: 0,
       isCustom: true,
-      lastHealthCheck: new Date().toISOString()
-    };
+      status: 'unknown'
+    });
+    if (!newProvider) throw new Error('Configuration fournisseur invalide.');
     this.aiProviders.push(newProvider);
     this.addLog('info', 'ai', `Nouveau fournisseur d'IA connecté : ${newProvider.name} (${newProvider.provider})`, 'Super-Admin');
     this.notify();
@@ -2290,10 +1687,8 @@ export class AdminConfigService {
     const provider = this.aiProviders.find(p => p.id === id);
     if (!provider) return;
     this.updateAIProvider(id, {
-      status: 'online',
-      consecutiveErrors: 0,
-      lastErrorMessage: undefined,
-      lastHealthCheck: new Date().toISOString()
+      status: 'unknown',
+      consecutiveErrors: 0
     });
     this.addLog('info', 'ai', `Rétablissement et réadmission du fournisseur ${provider.name} dans la chaîne active`, 'Super-Admin');
   }
@@ -2719,18 +2114,10 @@ export class AdminConfigService {
           });
         }
       } else if (sourcePayload && Array.isArray(sourcePayload.users)) {
-        finalUsers = sourcePayload.users;
+        // Les sauvegardes de configuration ne restaurent jamais Auth/profiles.
+        finalUsers = this.users;
       } else {
-        finalUsers = INITIAL_USERS;
-      }
-
-      // Protection inaliénable du Super-Administrateur
-      const superAdminIndex = finalUsers.findIndex(u => u.email.toLowerCase() === 'visionsmart224@gmail.com');
-      if (superAdminIndex === -1) {
-        finalUsers.unshift(INITIAL_USERS[0]);
-      } else {
-        finalUsers[superAdminIndex].role = 'super_admin';
-        finalUsers[superAdminIndex].status = 'active';
+        finalUsers = this.users;
       }
 
       // ── APPLICATION DE L'ÉTAT ──
@@ -2897,7 +2284,7 @@ export class AdminConfigService {
 
   public resetToFactoryDefaults(options?: { preserveUsers?: boolean }): void {
     const preserveUsers = options?.preserveUsers ?? true;
-    const keptUsers = preserveUsers ? [...this.users] : INITIAL_USERS;
+    const keptUsers = preserveUsers ? [...this.users] : [];
 
     this.createSnapshot(
       `Point de Sécurité Avant Réinitialisation Usine`,

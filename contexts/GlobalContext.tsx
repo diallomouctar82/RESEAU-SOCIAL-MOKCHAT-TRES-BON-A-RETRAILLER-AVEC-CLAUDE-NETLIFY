@@ -1,14 +1,19 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
-import type { UserProfile, Notification, UserShop, WalletTransaction } from '../types';
-import { USER_PROFILE, MOCK_TRANSACTIONS } from '../constants';
-import { supabaseService, type EditableProfileChanges } from '../services/supabaseClient';
+import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { Notification, UserProfile, UserShop, WalletTransaction } from '../types';
+import { MOCK_TRANSACTIONS } from '../constants';
+import { onAuthStateChange, signOut, type Session } from '../services/auth';
+import { fetchUserProfile, updateOwnProfile } from '../services/profile';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 
 interface GlobalContextType {
     userProfile: UserProfile;
     notifications: Notification[];
     transactions: WalletTransaction[];
     isSupabaseConnected: boolean;
-    hydrateUserProfile: (profile: UserProfile | null) => void;
+    isAuthenticated: boolean;
+    isAuthChecking: boolean;
+    authError: string | null;
+    refreshProfile: () => Promise<void>;
     updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
     addNotification: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'alert') => void;
     markNotificationRead: (id: string) => void;
@@ -16,120 +21,195 @@ interface GlobalContextType {
     updateUserCredits: (amount: number) => void;
     updateUserXp: (amount: number) => void;
     addTransaction: (transaction: WalletTransaction) => void;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
-const editableAppPatch = (updates: Partial<UserProfile>): Partial<UserProfile> => ({
-    ...(updates.name !== undefined ? { name: updates.name } : {}),
-    ...(updates.title !== undefined ? { title: updates.title } : {}),
-    ...(updates.bio !== undefined ? { bio: updates.bio } : {}),
-    ...(updates.country !== undefined ? { country: updates.country } : {}),
-    ...(updates.city !== undefined ? { city: updates.city } : {}),
-    ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
-    ...(updates.website !== undefined ? { website: updates.website } : {}),
-    ...(updates.avatarUrl !== undefined ? { avatarUrl: updates.avatarUrl } : {}),
-    ...(updates.preferredLanguage !== undefined ? { preferredLanguage: updates.preferredLanguage } : {}),
-    ...(updates.interests !== undefined ? { interests: updates.interests } : {}),
-    ...(updates.shop !== undefined ? { shop: updates.shop } : {}),
-});
+// État neutre, jamais présenté comme un compte connecté. L'identité affichée
+// provient exclusivement de profiles après validation de la session Supabase.
+const EMPTY_USER_PROFILE: UserProfile = {
+    id: '',
+    email: '',
+    name: '',
+    role: 'user',
+    accountStatus: 'active',
+    citizenshipId: '',
+    level: 1,
+    xp: 0,
+    nextLevelXp: 500,
+    credits: 0,
+    avatarUrl: '',
+    preferredLanguage: 'fr',
+    twoFactorEnabled: false,
+    skills: [],
+    badges: [],
+    interests: []
+};
 
-const editableDatabasePatch = (updates: Partial<UserProfile>): EditableProfileChanges => ({
-    ...(updates.name !== undefined ? { name: updates.name } : {}),
-    ...(updates.title !== undefined ? { title: updates.title } : {}),
-    ...(updates.bio !== undefined ? { bio: updates.bio } : {}),
-    ...(updates.country !== undefined ? { country: updates.country } : {}),
-    ...(updates.city !== undefined ? { city: updates.city } : {}),
-    ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
-    ...(updates.website !== undefined ? { website: updates.website } : {}),
-    ...(updates.avatarUrl !== undefined ? { avatar_url: updates.avatarUrl } : {}),
-    ...(updates.preferredLanguage !== undefined ? { preferred_language: updates.preferredLanguage } : {}),
-    ...(updates.interests !== undefined ? { interests: updates.interests } : {}),
+const toOwnProfilePayload = (profile: UserProfile, updates: Partial<UserProfile>) => ({
+    name: updates.name ?? profile.name,
+    title: updates.title ?? profile.title,
+    bio: updates.bio ?? profile.bio,
+    country: updates.country ?? profile.country,
+    city: updates.city ?? profile.city,
+    phone: updates.phone ?? profile.phone,
+    website: updates.website ?? profile.website,
+    avatar_url: updates.avatarUrl ?? profile.avatarUrl,
+    preferred_language: updates.preferredLanguage ?? profile.preferredLanguage,
+    interests: updates.interests ?? profile.interests
 });
 
 export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [userProfile, setUserProfile] = useState<UserProfile>(USER_PROFILE);
+    const [userProfile, setUserProfile] = useState<UserProfile>(EMPTY_USER_PROFILE);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isAuthChecking, setIsAuthChecking] = useState(true);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const currentSessionRef = useRef<Session | null>(null);
+    const loadedSessionKeyRef = useRef<string | null | undefined>(undefined);
+    const authRequestRef = useRef(0);
+
     const [notifications, setNotifications] = useState<Notification[]>([
-        { id: '1', title: 'Système Prêt', message: 'Bienvenue sur la version optimisée de Le Monde à Vous.', type: 'success', timestamp: new Date(), read: false },
+        { id: '1', title: 'Système Prêt', message: 'Bienvenue sur Le Monde à Vous.', type: 'success', timestamp: new Date(), read: false }
     ]);
     const [transactions, setTransactions] = useState<WalletTransaction[]>(MOCK_TRANSACTIONS);
-    const isSupabaseConnected = supabaseService.isConfigured();
 
-    // Auth/App owns hydration. Keeping it separate from editing prevents the
-    // fetched role/credits/id from being written back by a second sync loop.
-    const hydrateUserProfile = (profile: UserProfile | null) => {
-        setUserProfile(profile || USER_PROFILE);
+    const loadSessionProfile = async (session: Session | null, force = false) => {
+        const sessionKey = session?.access_token || null;
+        if (!force && loadedSessionKeyRef.current === sessionKey) return;
+        loadedSessionKeyRef.current = sessionKey;
+        const requestId = ++authRequestRef.current;
+        currentSessionRef.current = session;
+        setAuthError(null);
+
+        if (!session?.user) {
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setIsAuthChecking(false);
+            return;
+        }
+
+        let profile: UserProfile | null;
+        try {
+            profile = await fetchUserProfile(session.user.id);
+        } catch {
+            if (requestId !== authRequestRef.current) return;
+            loadedSessionKeyRef.current = undefined;
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setAuthError('Impossible de charger votre profil. Réessayez dans quelques instants.');
+            setIsAuthChecking(false);
+            return;
+        }
+        if (requestId !== authRequestRef.current) return;
+        if (!profile) {
+            loadedSessionKeyRef.current = undefined;
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setAuthError('Votre identité est valide, mais votre profil applicatif est introuvable. Contactez un administrateur.');
+            setIsAuthChecking(false);
+            return;
+        }
+
+        if (profile.accountStatus !== 'active') {
+            currentSessionRef.current = null;
+            loadedSessionKeyRef.current = null;
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setAuthError(profile.accountStatus === 'suspended'
+                ? 'Ce compte est suspendu. Contactez un administrateur.'
+                : 'Ce compte est en attente d’activation par un administrateur.');
+            setIsAuthChecking(false);
+            await signOut().catch(() => undefined);
+            return;
+        }
+
+        setUserProfile(profile);
+        setIsAuthenticated(true);
+        setIsAuthChecking(false);
     };
 
+    useEffect(() => {
+        let active = true;
+        // Supabase émet INITIAL_SESSION : un getSession() parallèle ferait
+        // une seconde synchronisation inutile du même profil.
+        const unsubscribe = onAuthStateChange((_event, session) => {
+            if (active) void loadSessionProfile(session).catch(() => {
+                if (!active) return;
+                loadedSessionKeyRef.current = undefined;
+                setAuthError('Impossible de vérifier la nouvelle session.');
+                setIsAuthChecking(false);
+            });
+        });
+        return () => {
+            active = false;
+            authRequestRef.current += 1;
+            unsubscribe();
+        };
+    }, []);
+
     const addNotification = (title: string, message: string, type: 'success' | 'info' | 'warning' | 'alert') => {
-        setNotifications((previous) => [{
+        const newNotif: Notification = {
             id: crypto.randomUUID(),
             title,
             message,
             type,
             timestamp: new Date(),
-            read: false,
-        }, ...previous]);
+            read: false
+        };
+        setNotifications((previous) => [newNotif, ...previous]);
     };
 
     const markNotificationRead = (id: string) => {
-        setNotifications((previous) => previous.map((notification) => (
-            notification.id === id ? { ...notification, read: true } : notification
-        )));
+        setNotifications((previous) => previous.map((notification) => notification.id === id ? { ...notification, read: true } : notification));
+    };
+
+    const refreshProfile = async () => {
+        await loadSessionProfile(currentSessionRef.current, true);
     };
 
     const updateUserProfile = async (updates: Partial<UserProfile>) => {
-        const localPatch = editableAppPatch(updates);
-        setUserProfile((previous) => ({ ...previous, ...localPatch }));
+        const session = currentSessionRef.current;
+        if (!session?.user || session.user.id !== userProfile.id) throw new Error('Session requise pour modifier le profil.');
 
-        const databasePatch = editableDatabasePatch(updates);
-        if (isSupabaseConnected && Object.keys(databasePatch).length > 0) {
-            const saved = await supabaseService.updateMyProfile(databasePatch);
-            if (!saved) throw new Error('La mise à jour du profil n’a pas été enregistrée.');
-        }
+        await updateOwnProfile(session.user.id, toOwnProfilePayload(userProfile, updates));
+        setUserProfile((previous) => ({
+            ...previous,
+            ...updates,
+            id: previous.id,
+            email: previous.email,
+            role: previous.role,
+            accountStatus: previous.accountStatus
+        }));
     };
 
-    const updateUserShop = (shop: UserShop) => {
-        void updateUserProfile({ shop });
-    };
+    const updateUserShop = (shop: UserShop) => setUserProfile((previous) => ({ ...previous, shop }));
 
-    // These two values remain transient UI projections. Durable changes are
-    // only made by the trusted award/ledger RPCs, never by browser upserts.
     const updateUserCredits = (amount: number) => {
         setUserProfile((previous) => ({ ...previous, credits: previous.credits + amount }));
+    };
+
+    const addTransaction = (transaction: WalletTransaction) => {
+        setTransactions((previous) => [transaction, ...previous]);
+        if (transaction.currency === 'Credits' || transaction.currency === 'Ⓒ') updateUserCredits(transaction.amount);
     };
 
     const updateUserXp = (amount: number) => {
         setUserProfile((previous) => {
             const xp = previous.xp + amount;
-            const levelUp = xp >= previous.nextLevelXp;
-            if (levelUp) {
-                queueMicrotask(() => addNotification(
-                    'Niveau Supérieur ! 🌟',
-                    `Félicitations, vous êtes passé niveau ${previous.level + 1} !`,
-                    'success',
-                ));
-            }
-            return {
-                ...previous,
-                xp,
-                level: levelUp ? previous.level + 1 : previous.level,
-                nextLevelXp: levelUp ? previous.nextLevelXp + ((previous.level + 1) * 500) : previous.nextLevelXp,
-            };
+            if (xp < previous.nextLevelXp) return { ...previous, xp };
+            const level = previous.level + 1;
+            addNotification('Niveau supérieur ! 🌟', `Félicitations, vous êtes passé niveau ${level} !`, 'success');
+            return { ...previous, xp, level, nextLevelXp: previous.nextLevelXp + level * 500 };
         });
     };
 
-    const addTransaction = (transaction: WalletTransaction) => {
-        setTransactions((previous) => [transaction, ...previous]);
-        if (transaction.currency === 'Credits' || transaction.currency === 'Ⓒ') {
-            updateUserCredits(transaction.amount);
-        }
-    };
-
-    const logout = () => {
-        setUserProfile(USER_PROFILE);
-        setTransactions(MOCK_TRANSACTIONS);
+    const logout = async () => {
+        await signOut();
+        currentSessionRef.current = null;
+        loadedSessionKeyRef.current = null;
+        setUserProfile(EMPTY_USER_PROFILE);
+        setIsAuthenticated(false);
     };
 
     return (
@@ -137,8 +217,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             userProfile,
             notifications,
             transactions,
-            isSupabaseConnected,
-            hydrateUserProfile,
+            isSupabaseConnected: isSupabaseConfigured,
+            isAuthenticated,
+            isAuthChecking,
+            authError,
+            refreshProfile,
             updateUserProfile,
             addNotification,
             markNotificationRead,
@@ -146,7 +229,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             updateUserCredits,
             updateUserXp,
             addTransaction,
-            logout,
+            logout
         }}>
             {children}
         </GlobalContext.Provider>

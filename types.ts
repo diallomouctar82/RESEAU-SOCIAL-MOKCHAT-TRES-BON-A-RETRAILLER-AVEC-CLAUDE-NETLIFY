@@ -39,7 +39,8 @@ export interface Agent {
     category?: string;
 }
 
-export type UserRole = 'user' | 'admin';
+export type PlatformRole = 'user' | 'admin' | 'expert' | 'mentor' | 'moderator' | 'organization' | 'super_admin';
+export type UserRole = PlatformRole;
 
 export interface UserProfile {
     id: string;
@@ -53,6 +54,7 @@ export interface UserProfile {
     phone?: string;
     website?: string;
     role: UserRole;
+    accountStatus?: 'active' | 'pending' | 'suspended';
     citizenshipId: string;
     level: number;
     xp: number;
@@ -4697,7 +4699,7 @@ export interface AdminUserRecord {
   id: string;
   name: string;
   email: string;
-  role: 'super_admin' | 'admin' | 'expert' | 'partner' | 'citizen' | 'guest';
+  role: PlatformRole;
   status: 'active' | 'pending' | 'suspended';
   country: string;
   city?: string;
@@ -4738,7 +4740,7 @@ export type SupportedAIProviderType =
   | 'custom';
 
 export type AIProviderTier = 'primary' | 'secondary' | 'tertiary' | 'fallback' | 'quarantined';
-export type AIProviderStatus = 'online' | 'degraded' | 'offline' | 'quarantined' | 'testing';
+export type AIProviderStatus = 'unknown' | 'online' | 'degraded' | 'offline' | 'quarantined' | 'testing';
 
 export interface AIProviderConfig {
   id: string;
@@ -4748,12 +4750,17 @@ export interface AIProviderConfig {
   isDefault: boolean;
   priority: number; // 1 = top priority, 2, 3, etc.
   tier: AIProviderTier;
-  apiKey: string;
+  /**
+   * Les secrets fournisseur ne font jamais partie du contrat navigateur.
+   * Conservé optionnel uniquement pour compatibilité de lecture d'anciens
+   * objets; AdminConfigService les supprime systématiquement.
+   */
+  apiKey?: never;
   defaultModel: string;
   availableModels: string[];
   temperature: number;
   maxTokens: number;
-  endpointUrl?: string;
+  endpointUrl?: never;
   latencyMs?: number;
   status: AIProviderStatus;
   qualityScore: number; // 0 to 100
@@ -4766,7 +4773,7 @@ export interface AIProviderConfig {
   successCalls: number;
   lastHealthCheck?: string;
   lastErrorMessage?: string;
-  headers?: Record<string, string>;
+  headers?: never;
   isCustom?: boolean;
 }
 
@@ -5152,7 +5159,6 @@ export interface VersionComparisonResult {
   };
   breakingChanges: string[];
 }
-
 
 
 

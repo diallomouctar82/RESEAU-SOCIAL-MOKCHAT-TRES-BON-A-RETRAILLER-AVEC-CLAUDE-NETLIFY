@@ -5,6 +5,17 @@
 
 ---
 
+## Correctif vérifié — Auth, profils et administration cloud (27 août 2026)
+
+- La session et le profil ont désormais une source unique dans `GlobalContext`; le profil n'est plus créé/upserté depuis le navigateur et les sessions `pending`/`suspended` sont refusées.
+- La console riche est atteignable depuis l'application pour `admin` et `super_admin`. Son annuaire, ses compteurs d'identité et son audit proviennent de Supabase Auth via `/api/admin/users`, sans `MOCK_USERS_DB`.
+- Les créations utilisent l'invitation Supabase Auth et un UUID serveur. Rôles, permissions, suspension/réactivation et suppression Auth+profil sont autorisés côté serveur et audités.
+- Les secrets privilégiés restent dans `Netlify.env`; l'interface n'affiche qu'un booléen configuré/non configuré et ne saisit ni ne stocke de clé fournisseur.
+- Preuves locales : `node --test tests/admin-api.test.mjs` = 8/8 ; `npm run build` = réussi. Le typecheck global reste rouge sur des anomalies historiques hors de ce lot : aucun statut « TypeScript strict vert » n'est revendiqué.
+- Déploiement non effectué : les migrations et variables Netlify doivent être appliquées dans l'ordre documenté avant validation E2E OAuth/admin.
+
+---
+
 ## 🎯 SYNTHÈSE EXÉCUTIVE
 > **Rectificatif d'audit du 27 août 2026** : les affirmations historiques « Production Ready » ci-dessous décrivent une cible produit et non une preuve E2E. Pour les modules IA/Studio, le code source utilise désormais une passerelle Netlify authentifiée et un stockage Supabase privé. La production reste **configuration requise** tant que `GEMINI_API_KEY` et `SUPABASE_SERVICE_ROLE_KEY` ne sont pas définies sur Netlify et que les migrations ne sont pas appliquées. Build local : réussi. Tests de frontières IA : 3/3. Test E2E fournisseur : bloqué par l'absence volontaire de secrets dans le dépôt.
 

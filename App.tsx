@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/Layout';
@@ -28,18 +28,14 @@ import { GoogleDriveCenter } from './components/GoogleDriveCenter';
 import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
+import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream } from './types';
-import { onAuthStateChange, signOut } from './services/auth';
-import { fetchUserProfile } from './services/profile';
 import './styles/accessibility.css';
 
 // Composant interne qui consomme le contexte
 const AppContent = () => {
-  const { userProfile, notifications, hydrateUserProfile, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
-  
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthChecking, setIsAuthChecking] = useState(true); 
+  const { userProfile, notifications, isAuthenticated, isAuthChecking, authError, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
   
   const [activeTab, setActiveTab] = useState('home'); 
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
@@ -49,69 +45,13 @@ const AppContent = () => {
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
 
-  // SESSION SUPABASE : au montage, puis à chaque changement (connexion,
-  // déconnexion, retour de redirection OAuth Google), charge le profil
-  // applicatif correspondant depuis la table `profiles`. Le rôle
-  // (admin/user) n'est plus jamais déterminé côté client : il vient
-  // de la base, fixé serveur par le trigger handle_new_user.
-  useEffect(() => {
-      let isMounted = true;
-      let requestVersion = 0;
-      let hydratedUserId: string | null = null;
-
-      const applySession = async (userId: string | undefined, event: string, version: number) => {
-          if (!userId) {
-              if (isMounted) {
-                  hydratedUserId = null;
-                  hydrateUserProfile(null);
-                  setIsAuthenticated(false);
-                  setIsAuthChecking(false);
-              }
-              return;
-          }
-          const profile = await fetchUserProfile(userId);
-          if (!isMounted || version !== requestVersion) return;
-          if (profile) {
-              const isNewSignIn = event === 'SIGNED_IN' && hydratedUserId !== userId;
-              hydratedUserId = userId;
-              hydrateUserProfile(profile);
-              setIsAuthenticated(true);
-              if (isNewSignIn) {
-                  addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${profile.name.split(' ')[0]}.`, "success");
-              } else if (event === 'INITIAL_SESSION') {
-                  addNotification("Retour", `Bon retour parmi nous, ${profile.name.split(' ')[0]}.`, "info");
-              }
-          } else {
-              console.error('Session Supabase active mais profil applicatif introuvable.');
-              setIsAuthenticated(false);
-          }
-          setIsAuthChecking(false);
-      };
-
-      // Supabase emits INITIAL_SESSION, so a second getSession()/profile sync
-      // is unnecessary. Defer async work outside the auth callback lock.
-      const unsubscribe = onAuthStateChange((event, session) => {
-          const version = ++requestVersion;
-          queueMicrotask(() => {
-              void applySession(session?.user.id, event, version);
-          });
-      });
-
-      return () => {
-          isMounted = false;
-          unsubscribe();
-      };
-  }, []);
-
   // ACTIONS
   const handleLogout = async () => {
       try {
-          await signOut();
+          await logout();
       } catch (e) {
           console.error('Erreur déconnexion Supabase:', e);
       }
-      logout();
-      setIsAuthenticated(false);
       setActiveTab('home');
   };
 
@@ -139,7 +79,7 @@ const AppContent = () => {
   }
 
   if (!isAuthenticated) {
-      return <Auth />;
+      return <Auth externalError={authError} />;
   }
 
   return (
@@ -153,6 +93,8 @@ const AppContent = () => {
     >
       
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} />}
+
+      {activeTab === 'admin' && ['admin', 'super_admin'].includes(userProfile.role) && <AdminDashboard />}
 
       {activeTab === 'google-maps' && <GoogleMapsExplorer />}
 
