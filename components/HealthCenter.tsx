@@ -1,9 +1,23 @@
 
-import React, { useState } from 'react';
-import { HeartPulse, ShieldAlert, Stethoscope, AlertTriangle, Phone, Activity, Globe, Thermometer, User, FileText, CheckCircle, Volume2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { HeartPulse, ShieldAlert, Stethoscope, AlertTriangle, Phone, Activity, Globe, Thermometer, FileText, Volume2, ExternalLink, MapPin } from 'lucide-react';
 import { aiService } from '../services/ai'; // Import du Service Central
 import { SymptomAnalysis, UserProfile, Country } from '../types';
 import { COUNTRIES } from '../constants';
+import { useModuleRecords } from '../hooks/useModuleRecords';
+import { LIFE_OFFICIAL_SOURCES, MEDICAL_DISCLAIMER } from '../services/lifeSources';
+import { ModuleSyncStatus } from './life/ModuleSyncStatus';
+
+interface HealthGuidanceRecord {
+    symptoms: string;
+    result: SymptomAnalysis;
+    sourceUrl: string;
+    createdAt: string;
+}
+
+interface HealthPreferenceRecord {
+    emergencyCountryCode: string;
+}
 
 interface HealthCenterProps {
     userProfile: UserProfile;
@@ -16,17 +30,39 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
     const [symptoms, setSymptoms] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<SymptomAnalysis | null>(null);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
 
     // SOS State
     const [selectedCountry, setSelectedCountry] = useState<Country | null>(COUNTRIES[0]); // Default France
 
     // Translation State (TTS for Allergies)
     const [isTranslating, setIsTranslating] = useState(false);
+    const [locationLabel, setLocationLabel] = useState('Position non partagée');
+    const [locationError, setLocationError] = useState<string | null>(null);
+    const guidanceHydratedRef = useRef(false);
+
+    const guidanceStore = useModuleRecords<HealthGuidanceRecord>('health', 'symptom_guidance', userProfile.id);
+    const preferenceStore = useModuleRecords<HealthPreferenceRecord>('health', 'emergency_preferences', userProfile.id);
+
+    useEffect(() => {
+        const savedCode = preferenceStore.records[0]?.payload.emergencyCountryCode;
+        if (savedCode) setSelectedCountry(COUNTRIES.find((country) => country.code === savedCode) ?? COUNTRIES[0]);
+    }, [preferenceStore.records]);
+
+    useEffect(() => {
+        if (guidanceHydratedRef.current || guidanceStore.isLoading) return;
+        guidanceHydratedRef.current = true;
+        const latest = guidanceStore.records[0]?.payload;
+        if (!latest) return;
+        setSymptoms(latest.symptoms);
+        setAnalysisResult(latest.result);
+    }, [guidanceStore.isLoading, guidanceStore.records]);
 
     const handleSymptomAnalysis = async () => {
         if (!symptoms.trim()) return;
         setIsAnalyzing(true);
         setAnalysisResult(null);
+        setAnalysisError(null);
 
         try {
             // Utilisation du Service IA Centralisé
@@ -52,20 +88,61 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                 }`
             );
 
-            setAnalysisResult(result);
+            const safeResult = { ...result, disclaimer: MEDICAL_DISCLAIMER };
+            setAnalysisResult(safeResult);
+            await guidanceStore.save({
+                symptoms: symptoms.trim(),
+                result: safeResult,
+                sourceUrl: LIFE_OFFICIAL_SOURCES.health.url,
+                createdAt: new Date().toISOString(),
+            });
         } catch (e) {
             console.error("Health Analysis Error", e);
-            alert("Erreur d'analyse. Veuillez réessayer plus tard.");
+            setAnalysisError("L'orientation n'a pas pu être produite. En cas d'urgence, contactez immédiatement les secours locaux.");
         } finally {
             setIsAnalyzing(false);
         }
     };
 
     const handleSpeakMedicalInfo = async (text: string) => {
-        // Placeholder for TTS functionality - reusing existing pattern could be done here
-        // For now, visual feedback
+        if (!('speechSynthesis' in window)) return;
         setIsTranslating(true);
-        setTimeout(() => setIsTranslating(false), 2000);
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.onend = () => setIsTranslating(false);
+        utterance.onerror = () => setIsTranslating(false);
+        window.speechSynthesis.speak(utterance);
+    };
+
+    const handleCountryChange = async (code: string) => {
+        setSelectedCountry(COUNTRIES.find((country) => country.code === code) ?? null);
+        try {
+            await preferenceStore.saveSingleton({ emergencyCountryCode: code });
+        } catch {
+            // The shared sync status explains whether the preference is queued or failed.
+        }
+    };
+
+    const requestLocation = () => {
+        setLocationError(null);
+        if (!navigator.geolocation) {
+            setLocationError('La géolocalisation n’est pas disponible sur cet appareil.');
+            return;
+        }
+        setLocationLabel('Localisation en cours…');
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => setLocationLabel(`${coords.latitude.toFixed(4)}°, ${coords.longitude.toFixed(4)}°`),
+            () => {
+                setLocationLabel('Position non partagée');
+                setLocationError('Autorisation refusée ou position indisponible.');
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+        );
+    };
+
+    const retryHealthSync = async () => {
+        await guidanceStore.retrySync();
+        await preferenceStore.reload();
     };
 
     return (
@@ -106,6 +183,16 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                 </div>
             </div>
 
+            <div className="mx-auto w-full max-w-5xl px-6 pt-4">
+                <ModuleSyncStatus
+                    phase={guidanceStore.syncPhase}
+                    isLoading={guidanceStore.isLoading || preferenceStore.isLoading}
+                    error={guidanceStore.error || preferenceStore.error}
+                    hasQueuedChanges={guidanceStore.hasQueuedChanges || preferenceStore.hasQueuedChanges}
+                    onRetry={() => void retryHealthSync()}
+                />
+            </div>
+
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="max-w-5xl mx-auto">
                     
@@ -118,7 +205,7 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                                         <Stethoscope size={24} /> Décrivez vos symptômes
                                     </h2>
                                     <p className="text-sm text-gray-500 mb-4">
-                                        L'IA analyse vos symptômes pour évaluer l'urgence. <span className="font-bold text-red-500">En cas d'urgence vitale, appelez le 15 ou 112 immédiatement.</span>
+                                        Cette orientation informative aide à évaluer la priorité. <span className="font-bold text-red-500">En cas d'urgence vitale, appelez immédiatement les secours locaux.</span>
                                     </p>
                                     <textarea 
                                         value={symptoms}
@@ -137,6 +224,11 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                                         {isAnalyzing ? <Activity className="animate-spin" /> : <HeartPulse />}
                                         {isAnalyzing ? 'Analyse médicale en cours...' : 'Lancer l\'Analyse'}
                                     </button>
+                                    {analysisError && <p className="mt-3 text-sm font-semibold text-red-700" role="alert">{analysisError}</p>}
+                                    <a href={LIFE_OFFICIAL_SOURCES.health.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-700 underline">
+                                        {LIFE_OFFICIAL_SOURCES.health.label} <ExternalLink size={12} />
+                                    </a>
+                                    <p className="mt-1 text-[11px] text-slate-500">{LIFE_OFFICIAL_SOURCES.health.scope}</p>
                                 </div>
                             </div>
 
@@ -207,28 +299,28 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                                 <select 
                                     className="w-full p-4 text-lg bg-gray-50 border border-gray-200 rounded-xl mb-8 focus:ring-2 focus:ring-red-500 outline-none font-bold"
                                     value={selectedCountry?.code || ''}
-                                    onChange={(e) => setSelectedCountry(COUNTRIES.find(c => c.code === e.target.value) || null)}
+                                    onChange={(e) => void handleCountryChange(e.target.value)}
                                 >
                                     {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
                                 </select>
 
                                 {selectedCountry?.emergencyNumbers && (
                                     <div className="grid grid-cols-3 gap-4">
-                                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center hover:bg-blue-100 transition-colors cursor-pointer group">
+                                        <a href={`tel:${selectedCountry.emergencyNumbers.police}`} className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center hover:bg-blue-100 transition-colors group" aria-label={`Appeler la police au ${selectedCountry.emergencyNumbers.police}`}>
                                             <div className="text-xs font-bold text-blue-400 uppercase mb-2">Police</div>
                                             <div className="text-4xl font-black text-blue-900 group-hover:scale-110 transition-transform">{selectedCountry.emergencyNumbers.police}</div>
                                             <div className="mt-2 text-[10px] text-blue-400">Appuyer pour appeler</div>
-                                        </div>
-                                        <div className="bg-red-50 p-6 rounded-2xl border border-red-100 text-center hover:bg-red-100 transition-colors cursor-pointer group">
+                                        </a>
+                                        <a href={`tel:${selectedCountry.emergencyNumbers.ambulance}`} className="bg-red-50 p-6 rounded-2xl border border-red-100 text-center hover:bg-red-100 transition-colors group" aria-label={`Appeler une ambulance au ${selectedCountry.emergencyNumbers.ambulance}`}>
                                             <div className="text-xs font-bold text-red-400 uppercase mb-2">Ambulance</div>
                                             <div className="text-4xl font-black text-red-900 group-hover:scale-110 transition-transform">{selectedCountry.emergencyNumbers.ambulance}</div>
                                             <div className="mt-2 text-[10px] text-red-400">Appuyer pour appeler</div>
-                                        </div>
-                                        <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100 text-center hover:bg-orange-100 transition-colors cursor-pointer group">
+                                        </a>
+                                        <a href={`tel:${selectedCountry.emergencyNumbers.fire}`} className="bg-orange-50 p-6 rounded-2xl border border-orange-100 text-center hover:bg-orange-100 transition-colors group" aria-label={`Appeler les pompiers au ${selectedCountry.emergencyNumbers.fire}`}>
                                             <div className="text-xs font-bold text-orange-400 uppercase mb-2">Pompiers</div>
                                             <div className="text-4xl font-black text-orange-900 group-hover:scale-110 transition-transform">{selectedCountry.emergencyNumbers.fire}</div>
                                             <div className="mt-2 text-[10px] text-orange-400">Appuyer pour appeler</div>
-                                        </div>
+                                        </a>
                                     </div>
                                 )}
                             </div>
@@ -236,10 +328,11 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                             <div className="bg-gray-900 text-white p-6 rounded-2xl flex items-center justify-between">
                                 <div>
                                     <div className="font-bold text-lg">Position GPS Actuelle</div>
-                                    <div className="text-sm text-gray-400">48.8566° N, 2.3522° E (Paris, FR)</div>
+                                    <div className="text-sm text-gray-400">{locationLabel}</div>
+                                    {locationError && <div className="text-xs text-red-300" role="alert">{locationError}</div>}
                                 </div>
-                                <button className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors">
-                                    <Globe size={24} />
+                                <button type="button" onClick={requestLocation} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors" aria-label="Partager temporairement ma position">
+                                    <MapPin size={24} />
                                 </button>
                             </div>
                         </div>
@@ -303,7 +396,9 @@ export const HealthCenter: React.FC<HealthCenterProps> = ({ userProfile }) => {
                                                 Traduire mes allergies et mon groupe sanguin dans la langue locale pour les secouristes.
                                             </p>
                                             <button 
-                                                onClick={() => handleSpeakMedicalInfo("Je suis allergique à la Pénicilline.")}
+                                                onClick={() => handleSpeakMedicalInfo(
+                                                    `Mon groupe sanguin est ${userProfile.medical?.bloodType || 'non renseigné'}. Mes allergies connues sont : ${userProfile.medical?.allergies.join(', ') || 'aucune renseignée'}.`,
+                                                )}
                                                 className="w-full bg-white text-indigo-600 py-2 rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-50 transition-colors"
                                             >
                                                 {isTranslating ? <Activity className="animate-spin" size={16} /> : <Volume2 size={16} />}

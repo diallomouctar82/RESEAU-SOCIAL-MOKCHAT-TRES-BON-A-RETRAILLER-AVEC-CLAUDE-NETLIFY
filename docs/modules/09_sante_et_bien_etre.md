@@ -35,5 +35,6 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Terminé** : Fiche médicale d'urgence, gestion des allergies et antécédents, conseils préventifs structurés.
+- **Clôture du point partiel d'audit (août 2026)** : les orientations sont persistées dans `module_records`, accompagnées d'un avertissement médical obligatoire et d'une source OMS configurable. Les appels utilisent désormais des liens `tel:`, la position n'est affichée qu'après consentement du navigateur et la lecture vocale utilise réellement l'API de synthèse vocale.
 - **Partiel / En cours** : Rappels automatiques de prises médicamenteuses.
 - **Évolutions Prévues** : Interopérabilité sécurisée avec le standard de santé HL7/FHIR.

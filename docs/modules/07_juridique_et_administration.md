@@ -36,5 +36,6 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Terminé** : Catalogue des procédures courantes, générateur de courriers types, Coffre-fort avec journal de sécurité.
+- **Clôture du point partiel d'audit (août 2026)** : procédures, analyses de documents et courriers sont persistés dans `module_records` avec RLS propriétaire, reprise de synchronisation et états vide/chargement/erreur. Les contenus interdisent les références inventées, affichent leur limite non autoritative et renvoient vers une source officielle HTTPS configurable.
 - **Partiel / En cours** : Intégration directe avec les portails gouvernementaux de téléprocédure.
 - **Évolutions Prévues** : Signature électronique certifiée eIDAS des actes générés.

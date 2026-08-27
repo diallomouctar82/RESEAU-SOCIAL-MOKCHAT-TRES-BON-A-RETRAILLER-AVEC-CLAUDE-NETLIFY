@@ -531,7 +531,6 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Implémenté localement — déploiement/migrations/E2E requis`.
 
 ---
-
 ### [DEC-2026-022] — 27 Août 2026
 * **Module(s)** : `MokTrust`, `Réseau MOK`, `Modération`, `Supabase`
 * **Problème / Besoin initial** : Les onglets MokTrust affichaient un score fixe
@@ -556,4 +555,9 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
----
+# 2026-08-27 — Clôture des points partiels « Vie » de l'audit
+
+- **Décision** : utiliser le dépôt partagé `module_records` pour Santé, Habitat, Droit/Démarches et Mobilité, sans créer de schéma parallèle.
+- **Déontologie** : aucune estimation d'aide, règle de visa, référence juridique ou conclusion médicale n'est présentée comme officielle sans vérification. Les URLs officielles sont HTTPS et configurables par environnement.
+- **Données retirées** : annonces logement, procédures administratives et position GPS de démonstration qui pouvaient être confondues avec des données réelles.
+- **Validation** : tests contractuels ciblés et build Vite de production.

@@ -1,4 +1,6 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
+> **Mise à jour modules Vie — 27 août 2026** : Santé, Habitat, Droit/Démarches et Mobilité disposent d'une persistance `module_records`, d'états de synchronisation explicites, de sources officielles configurables et d'avertissements médicaux/juridiques/consulaires. Les jeux de données de démonstration qui se présentaient comme réels ont été retirés des écrans concernés.
+
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
 > *Date de Mise à Jour : 27 Août 2026*  
 > *Version Courante : v6.3.0 (Production Ready — SOVEREIGN VERSIONING & BACKUP SYSTEM)*
