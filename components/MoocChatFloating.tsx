@@ -795,7 +795,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       <Shield size={12} className="text-blue-400" />
                     </div>
                     <div className="text-[10px] text-slate-300 truncate">
-                      {activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'En ligne' : (activeChat.participantTitle || 'Membre vérifié')}
+                      {activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'En ligne' : (activeChat.participantTitle || 'Membre Mok')}
                     </div>
                   </div>
                 </div>
@@ -982,7 +982,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                           <div className="min-w-0">
                             <div className="font-extrabold text-xs text-slate-900 truncate flex items-center gap-1.5">
                               <span>{member.name}</span>
-                              <Shield size={12} className="text-blue-600" />
+                              {member.isVerified && <Shield size={12} className="text-blue-600" aria-label="Profil vérifié" />}
                             </div>
                             <div className="text-[10px] text-slate-500 truncate">{member.title}</div>
                             <div className="text-[9px] text-indigo-600 font-semibold">{member.country}</div>
