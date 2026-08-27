@@ -3,7 +3,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(15);
 
 -- Deterministic identities used to prove isolation.
 insert into auth.users (
@@ -70,6 +70,11 @@ select throws_ok(
   '42501',
   null,
   'browser cannot promote its profile role'
+);
+select is(
+  has_table_privilege('authenticated','public.profiles','update'),
+  false,
+  'browser has no direct profile UPDATE privilege and must use the allow-listed RPC'
 );
 select throws_ok(
   $$ select public.award_xp_and_credits('10000000-0000-4000-8000-000000000001',100,100) $$,

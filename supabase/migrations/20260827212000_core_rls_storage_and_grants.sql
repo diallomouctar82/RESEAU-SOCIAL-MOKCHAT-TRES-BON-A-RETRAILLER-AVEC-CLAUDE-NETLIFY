@@ -363,8 +363,6 @@ alter default privileges in schema public revoke execute on functions from publi
 
 revoke all on table public.profiles from authenticated;
 grant select on table public.profiles to authenticated;
-grant update (name,title,bio,country,city,phone,website,avatar_url,preferred_language,interests,privacy_settings)
-  on table public.profiles to authenticated;
 grant select,insert,update,delete on table public.profile_skills to authenticated;
 grant select on table public.profile_badges to authenticated;
 grant select,insert,update,delete on table public.posts to authenticated;

@@ -84,14 +84,10 @@ alter table public.wallet_transactions add column if not exists idempotency_key 
 alter table public.wallet_transactions add column if not exists created_by uuid references public.profiles(id) on delete set null;
 alter table public.wallet_transactions add column if not exists metadata jsonb not null default '{}'::jsonb;
 
-create unique index if not exists uq_conversation_participant
-  on public.conversation_participants(conversation_id, user_id);
 create unique index if not exists uq_direct_conversation_key
   on public.conversations(direct_key) where is_group = false and direct_key is not null;
 create unique index if not exists uq_message_client_id
   on public.messages(sender_id, client_message_id);
-create unique index if not exists uq_post_reaction
-  on public.post_reactions(post_id, user_id);
 create unique index if not exists uq_wallet_transaction_idempotency
   on public.wallet_transactions(user_id, idempotency_key)
   where idempotency_key is not null;
@@ -99,8 +95,6 @@ create index if not exists idx_conversation_participants_user
   on public.conversation_participants(user_id, conversation_id);
 create index if not exists idx_messages_conversation_created
   on public.messages(conversation_id, created_at desc);
-create index if not exists idx_posts_created
-  on public.posts(created_at desc);
 create index if not exists idx_comments_post_created
   on public.comments(post_id, created_at);
 create index if not exists idx_stories_active
@@ -109,6 +103,23 @@ create index if not exists idx_user_blocks_blocked
   on public.user_blocks(blocked_id, blocker_id);
 create index if not exists idx_abuse_reports_status
   on public.abuse_reports(status, created_at desc);
+create index if not exists idx_abuse_reports_reporter
+  on public.abuse_reports(reporter_id, created_at desc);
+create index if not exists idx_abuse_reports_target_user
+  on public.abuse_reports(target_user_id, created_at desc)
+  where target_user_id is not null;
+create index if not exists idx_abuse_reports_assigned_to
+  on public.abuse_reports(assigned_to, created_at desc)
+  where assigned_to is not null;
+create index if not exists idx_abuse_reports_conversation
+  on public.abuse_reports(conversation_id, created_at desc)
+  where conversation_id is not null;
+create index if not exists idx_abuse_reports_message
+  on public.abuse_reports(message_id, created_at desc)
+  where message_id is not null;
+create index if not exists idx_abuse_reports_post
+  on public.abuse_reports(post_id, created_at desc)
+  where post_id is not null;
 create index if not exists idx_audit_logs_entity
   on public.audit_logs(entity_type, entity_id, created_at desc);
 
