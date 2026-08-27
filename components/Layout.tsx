@@ -781,7 +781,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </aside>
 
         {/* ─── MAIN CONTENT VIEWPORT ─── */}
-        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-32 md:pb-0">
+        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-36 md:pb-0">
           <div className="max-w-[1700px] mx-auto h-full flex flex-col">
             {activeTab !== 'home' && (() => {
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
@@ -808,15 +808,15 @@ export const Layout: React.FC<LayoutProps> = ({
         </main>
 
         {/* ─── MOBILE SMART DOCK (COMPACT & EXPANDABLE) ─── */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
           
           {/* Expanded Menu Drawer */}
           <div 
-            className={`bg-white/95 backdrop-blur-2xl border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden ${
+            className={`bg-white/95 backdrop-blur-2xl border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden pointer-events-auto ${
               isMobileMenuExpanded ? 'h-auto max-h-[85vh] opacity-100 shadow-[0_-10px_40px_rgba(0,0,0,0.25)]' : 'h-0 opacity-0'
             }`}
           >
-            <div className="p-4 pb-24 flex flex-col h-full">
+            <div className="p-4 pb-28 flex flex-col h-full">
               <div className="flex justify-between items-center mb-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-black text-slate-900">Espaces & Piliers de Vie</h2>
@@ -888,13 +888,13 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Bottom Dock Bar (5 Essential Actions) */}
-          <div className="px-4 pb-3 pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5] to-transparent">
-            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-6 h-18">
+          <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5]/90 to-transparent pointer-events-auto">
+            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
               
               {/* 1. Home */}
               <button 
                 onClick={() => {onTabChange('home'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
               >
                 <LayoutGrid size={22} className={activeTab === 'home' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -902,7 +902,7 @@ export const Layout: React.FC<LayoutProps> = ({
               {/* 2. Mon Parcours */}
               <button 
                 onClick={() => {onTabChange('parcours'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
               >
                 <FolderKanban size={22} className={activeTab === 'parcours' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -910,15 +910,15 @@ export const Layout: React.FC<LayoutProps> = ({
               {/* 3. Central Diallo OS Button */}
               <button 
                 onClick={() => setIsDialloOSOpen(true)}
-                className="flex flex-col items-center justify-center w-15 h-15 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-6 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20"
+                className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
               >
-                <Sparkles size={24} className="animate-pulse" />
+                <Sparkles size={22} className="animate-pulse" />
               </button>
 
               {/* 4. Réseau MOC */}
               <button 
                 onClick={() => {onTabChange('social'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
               >
                 <Users size={22} className={activeTab === 'social' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -926,7 +926,7 @@ export const Layout: React.FC<LayoutProps> = ({
               {/* 5. Menu Drawer Toggle */}
               <button 
                 onClick={() => setIsMobileMenuExpanded(!isMobileMenuExpanded)} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
               >
                 {isMobileMenuExpanded ? <ChevronDown size={22} /> : <Menu size={22} />}
               </button>

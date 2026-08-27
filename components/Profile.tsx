@@ -39,9 +39,15 @@ export const Profile: React.FC<ProfileProps> = ({ userProfile = DEFAULT_PROFILE 
              <div>
                 <h2 className="text-sm font-semibold text-brand-400 uppercase tracking-widest mb-1">Passeport Citoyen du Monde</h2>
                 <h1 className="text-3xl font-bold tracking-tight">{userProfile.name}</h1>
+                <p className="text-brand-300 font-medium text-sm mt-0.5">{userProfile.title || 'Citoyen Actif'}</p>
                 <p className="text-slate-400 flex items-center justify-center md:justify-start gap-2 mt-1">
                   <Shield size={16} /> {userProfile.citizenshipId}
                 </p>
+                {userProfile.bio && (
+                  <p className="text-xs text-slate-300 italic mt-2 max-w-lg">
+                    « {userProfile.bio} »
+                  </p>
+                )}
              </div>
 
              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto md:mx-0 bg-white/5 p-4 rounded-xl border border-white/10">
@@ -51,7 +57,7 @@ export const Profile: React.FC<ProfileProps> = ({ userProfile = DEFAULT_PROFILE 
                </div>
                <div>
                  <div className="text-xs text-slate-400 uppercase">Origine</div>
-                 <div className="font-medium flex items-center gap-1"><MapPin size={12} /> France</div>
+                 <div className="font-medium flex items-center gap-1"><MapPin size={12} /> {userProfile.city || 'Paris'}, {userProfile.country || 'France'}</div>
                </div>
              </div>
              

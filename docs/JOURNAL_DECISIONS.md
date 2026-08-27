@@ -20,6 +20,145 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-012] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Sauvegarde, Versioning & Restauration Intelligente`, `Gouvernance des Versions Stables`
+* **Problème / Besoin initial** :
+  1. Mettre en place un système complet de sauvegarde, de restauration et de gestion des versions dans l'espace Super-Admin.
+  2. Conserver au minimum les trois dernières versions stables de la plateforme, avec leur numéro de version, date de publication, changelog détaillé, checksums d'intégrité et statut opérationnel.
+  3. Concevoir une restauration intelligente qui ne remet **JAMAIS** la plateforme à zéro : préservation intégrale garantie de toutes les données utilisateurs (comptes, profils, messages, médias, paramètres, rôles RBAC, publications, soldes Ⓒ, statistiques, logs d'audit), sans interruption majeure de service.
+  4. Garantir la sécurité absolue avant toute restauration : création automatique d'un instantané (point de récupération pré-restauration) et vérification préalable de la compatibilité du schéma de base de données.
+  5. Offrir depuis le tableau de bord Super-Admin la visualisation de l'historique des versions, la comparaison différentielle entre versions, la restauration en un clic avec dialogue de confirmation et sélection des données à préserver, la planification personnalisable des sauvegardes automatiques, et l'annulation immédiate (Undo / Rollback) de la dernière restauration.
+* **Idées envisagées** :
+  1. Utiliser un simple dump/restore brut de `localStorage` risquant d'écraser les comptes et les profils créés ultérieurement.
+  2. Implémenter une architecture de versioning souveraine et de fusion intelligente (`intelligentRestore` dans `adminConfigService.ts`) avec préservation granulaire des entités vivantes, vérification de compatibilité de schéma (`verifyDatabaseCompatibility`), registre formel des versions stables (`getStableVersions`), création automatique de snapshot de sécurité pré-restauration, mécanisme d'annulation en 1 clic (`undoLastRestore`), planificateur automatisé (`BackupScheduleConfig`) avec élagage automatique, comparateur différentiel (`compareVersions`), et interface Super-Admin modulaire (`AdminWorkflowsAndBackupTab.tsx`).
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue des données des citoyens et utilisateurs, continuité d'exploitation sans perte d'information, traçabilité des montées de version et conformité stricte aux exigences de souveraineté et de déploiement universel (GitHub, Netlify, Cloud Run, Supabase).
+* **Conséquences** : Les opérations de maintenance et de retour de version peuvent être menées en toute confiance par le Super-Admin en un clic sans risque de réinitialisation destructrice ni d'écran blanc.
+* **Éléments techniques** : `types.ts` (`PlatformReleaseVersion`, `BackupSnapshotRecord`, `BackupScheduleConfig`, `RestoreOperationResult`, `VersionComparisonResult`), `services/adminConfigService.ts`, `components/admin/AdminWorkflowsAndBackupTab.tsx`, `docs/HISTORIQUE_VERSIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-011] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Gestion des Utilisateurs & RBAC`, `Supabase Realtime & Auth Sync`
+* **Problème / Besoin initial** :
+  1. Garantir que chaque compte créé ou connecté via Supabase (ou en session locale) apparaisse automatiquement et sans aucune exception dans le tableau de bord Super-Admin en temps réel.
+  2. Fournir des capacités d'administration complètes : gestion individuelle de chaque compte, approbation, suspension, réactivation, suppression, attribution des rôles et privilèges granulaires RBAC, ajustement des crédits Ⓒ avec motif d'audit, consultation de l'historique et des journaux d'audit, et exports CSV/JSON.
+  3. Identifier et corriger automatiquement tout problème de compte existant non visible ou corrompu grâce à un moteur de diagnostic, déduplication et réconciliation automatique des comptes sans casser l'existant et en restant 100% compatible GitHub, Netlify et Cloud Run.
+* **Idées envisagées** :
+  1. Faire un simple rechargement manuel de la table `profiles` sans écouteur temps réel ni mécanisme d'auto-réparation.
+  2. Mettre en place un système complet de synchronisation bi-directionnelle et temps réel avec Supabase (`subscribeToProfilesRealtime`), enrichir `adminConfigService` avec `registerOrSyncUser`, `syncWithSupabase` et `reconcileAndRepairAllAccounts`, connecter les cycles de vie d'authentification (`Auth.tsx`, `App.tsx`, `onAuthStateChange`), et concevoir une interface de gestion d'utilisateurs ultra-complète (`AdminUsersTab.tsx`) avec indicateur d'état cloud en direct, bouton de synchronisation forcée, bouton de diagnostic/réparation, filtrage multicritère (rôle, statut, origine, KYC, tri), modales d'édition complète des privilèges RBAC, modal d'historique d'audit et modal d'ajustement de crédits.
+* **Décision retenue** : Option 2.
+* **Justification** : Zéro compte invisible ou perdu, visibilité instantanée dès l'inscription ou la connexion, protection absolue du Super-Admin (`visionsmart224@gmail.com`), intégrité des données garantie même en cas de coupure réseau (dégradation gracieuse Local-First) et conformité totale avec les directives d'infrastructure.
+* **Conséquences** : Tout utilisateur créé ou connecté via Supabase ou session locale est réconcilié, indexé et visible en temps réel par le Super-Admin avec traçabilité intégrale.
+* **Éléments techniques** : `types.ts`, `services/supabaseClient.ts`, `services/adminConfigService.ts`, `components/admin/AdminUsersTab.tsx`, `components/Auth.tsx`, `App.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-010] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `01_DIALLO_OS_ET_EXPERTS`, `Espace Super-Admin Souverain`, `AI Resilience & Orchestration Hub`
+* **Problème / Besoin initial** :
+  1. Concevoir une architecture auto-résiliente avec bascule automatique (failover) sans interruption entre plusieurs fournisseurs d'IA (OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Mistral, xAI Grok, Alibaba Qwen, Moonshot Kimi, OpenRouter, Replicate, Hugging Face, Ollama Local/Souverain, etc.).
+  2. Fournir dans le tableau de bord Super-Admin un gestionnaire unique permettant de connecter, activer, désactiver, prioriser par rangs (#1, #2, etc.), tester en direct et surveiller tous les fournisseurs majeurs.
+  3. Définir des règles de gouvernance strictes : chaînes de secours, seuils de qualité minimaux (exclusion automatique de tout fournisseur sous le seuil), plafonds de latence tolérée, seuils budgétaires et mise en quarantaine automatique après N échecs consécutifs avec réadmission et retour automatique au meilleur fournisseur (failback).
+* **Idées envisagées** :
+  1. S'appuyer uniquement sur le SDK Gemini avec un simple try/catch renvoyant une chaîne statique en cas d'erreur.
+  2. Bâtir un moteur d'orchestration et de résilience complet (`services/aiRoutingService.ts`), transformer `services/ai.ts` en une façade transparente compatible avec l'ensemble des modules existants, étendre les types (`AIProviderConfig`, `AIRoutingPolicyConfig`, `AIFailoverEvent`, `AIExecutionResult`), enrichir `adminConfigService` avec toutes les opérations de contrôle (réordonnancement, quarantaine, réadmission, test de sonde, ajout custom), et créer un hub de contrôle d'administration haut de gamme (`components/admin/AdminAIResilienceHub.tsx`) doté de 4 sous-vues : Cartes de contrôle des nœuds, Gouvernance & Seuils, Banc d'essai interactif de simulation de bascule en direct, et Journal d'audit des bascules.
+* **Décision retenue** : Option 2.
+* **Justification** : Zéro dépendance bloquante à un fournisseur d'IA unique, continuité absolue de service pour l'ensemble des 14 modules de la plateforme même en cas de panne mondiale d'un fournisseur ou de restriction de quota (429/500/timeout), et supervision souveraine en direct par le Super-Admin.
+* **Conséquences** : Zéro écran blanc, dégradation gracieuse souveraine garantie, persistance des configurations, auditabilité totale des requêtes et compatibilité intégrale avec Supabase, GitHub et Netlify.
+* **Éléments techniques** : `types.ts`, `services/aiRoutingService.ts`, `services/ai.ts`, `services/adminConfigService.ts`, `components/admin/AdminAIResilienceHub.tsx`, `components/admin/AdminAIAndModulesTab.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-009] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Mobile UX & Smart Dock`, `Mooc Chat Floating`
+* **Problème / Besoin initial** :
+  1. Mise en place d'un espace Super-Admin souverain complet pilotable depuis la plateforme avec attribution automatique de tous les privilèges au compte `visionsmart224@gmail.com` lors de son authentification via Supabase (sans jamais coder de mot de passe en dur). L'espace devait permettre la gestion complète des utilisateurs (RBAC, suspension, suppression, promotion/rétrogradation admin), la modération des contenus et signalements, les paramètres globaux (Live, Commerce, MokTrust, etc.), l'orchestration IA et les sauvegardes.
+  2. Sur mobile, le bouton flottant du Mooc Chat était masqué ou en collision avec le menu latéral / barre de navigation dock inférieure (`bottom dock`). Nécessité d'un audit complet de l'interface mobile pour éliminer tout chevauchement ou blocage d'interactions.
+* **Idées envisagées** :
+  1. Utiliser un simple flag local dans le state React pour l'admin et cacher le bouton chat sur mobile.
+  2. Créer une suite administrative complète et modulaire (`components/AdminDashboard.tsx`, `components/admin/*`, `services/adminConfigService.ts`) connectée à Supabase avec dégradation gracieuse locale, et refondre le positionnement responsive du Mooc Chat (`bottom-24 right-4 md:bottom-6 md:right-6`), du smart dock mobile (`pointer-events-none` sur le wrapper / `pointer-events-auto` sur le dock avec gestion de safe-area iOS/Android `pb-[max(0.75rem,env(safe-area-inset-bottom))]` et `pb-36` sur le viewport principal), ainsi que l'ajustement du scroll horizontal sur les onglets et boîtes de dialogue.
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue, absence totale de mot de passe dans le code, conformité Supabase Cloud, flexibilité totale sur mobile avec accès immédiat au Mooc Chat sans aucun masquage par le dock.
+* **Conséquences** : Navigation mobile fluide, zéro collision de z-index, accès super-admin protégé et 100% opérationnel pour `visionsmart224@gmail.com`.
+* **Éléments techniques** : `components/AdminDashboard.tsx`, `components/admin/`, `services/adminConfigService.ts`, `components/Layout.tsx`, `components/MoocChatFloating.tsx`, `components/DialloOS.tsx`, `components/settings/BrandColorLabModal.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-008] — 27 Août 2026
+* **Module(s)** : `11_STUDIO_ET_CREATION`, `Co-Création & Collaboration`, `Partage d'Actifs`
+* **Problème / Besoin initial** : Intégrer dans le Studio créatif une suite d'outils collaboratifs complète comprenant le partage fluide de contenu multimédia (images, vidéos, analyses vision, scripts d'avatars), la création et gestion de cercles/groupes de discussion thématiques, et des espaces de co-création d'articles ou de projets en équipe avec répartition des tâches, gestion d'étapes et boîte à idées communautaires.
+* **Idées envisagées** :
+  1. Créer un écran externe séparé du Studio.
+  2. Intégrer un onglet dédié « Co-Création & Collaboration » au sein de `components/Studio.tsx`, complété par des boutons d'actions directes « Partager dans le Hub Collaboratif » sur chaque résultat généré (image, vidéo, vision, avatar) et un composant modulaire `components/StudioCollaboration.tsx` doté de 4 sous-espaces spécialisés (Projets & Articles, Cercles de Discussion, Bibliothèque de Ressources Partagées, Boîte à Idées).
+* **Décision retenue** : Option 2. Typage complet dans `types.ts` (`StudioTab`, `CoCreationProject`, `DiscussionCircle`, `SharedStudioResource`, `CommunityCollaborationIdea`), implémentation de `components/StudioCollaboration.tsx` avec persistance locale et dégradation gracieuse, et liaison bidirectionnelle dans `components/Studio.tsx`.
+* **Justification** : Expérience utilisateur fluide et unifiée dans le Studio : un créateur peut générer un média par IA et l'envoyer directement en un clic dans la bibliothèque d'actifs partagés ou le lier à un projet de co-création sans changer de contexte.
+* **Conséquences** : Zéro régression sur la génération multimédia existante, compatibilité totale Netlify et déploiement cloud sans écran blanc.
+* **Éléments techniques** : `types.ts`, `components/Studio.tsx`, `components/StudioCollaboration.tsx`, `docs/modules/11_studio_et_creation.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-007] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Identité & Profils`, `Auth`, `Mok Social`
+* **Problème / Besoin initial** : L'authentification devait reposer entièrement et exclusivement sur Supabase (en remplacement complet de Firebase) avec une suite complète : inscription avec création immédiate de profil (nom complet, avatar certifié, titre, bio, localisation, passeport citoyen), connexion, mot de passe oublié, réinitialisation de mot de passe, renvoi d'email de confirmation, gestion sécurisée du « Se souvenir de moi », synchronisation de session au démarrage, et liaison directe des publications du fil d'actualité au profil réel de l'auteur.
+* **Idées envisagées** :
+  1. Conserver un flux hybride combinant Firebase Auth et Supabase DB.
+  2. Implémenter une suite complète Supabase Auth (`signUp`, `signIn`, `resetPasswordForEmail`, `updateUserPassword`, `resendVerificationEmail`, `getSession`, `onAuthStateChange`, `signInWithOAuth`) avec création automatique d'un profil dans `public.profiles` dès la première connexion/inscription, et synchronisation bi-directionnelle avec le `GlobalContext` et `App.tsx`.
+* **Décision retenue** : Option 2. Refonte intégrale de `components/Auth.tsx` et enrichissement de `services/supabaseClient.ts` et `App.tsx`.
+* **Justification** : Conformité stricte aux directives de souveraineté et d'architecture sans écran blanc, persistance de session robuste et attribution garantie des publications aux profils réels des utilisateurs.
+* **Conséquences** : Toutes les actions sociales (création de post, commentaires, réactions, consultation de profil) utilisent l'identité réelle de l'utilisateur connecté sans aucun placeholder générique.
+* **Éléments techniques** : `components/Auth.tsx`, `services/supabaseClient.ts`, `App.tsx`, `components/SocialFeed.tsx`, `contexts/GlobalContext.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-006] — 27 Août 2026
+* **Module(s)** : `10_RESEAU_ET_COMMUNAUTE_MOK`, `14_SECURITE_ET_INFRASTRUCTURE`, `Identité & Profils`, `Mok Social`
+* **Problème / Besoin initial** : Mettre en place un système complet et authentique d'identité utilisateur et de profils réels. Chaque utilisateur doit posséder une identité unique (photo, nom, bio, localisation, passeport) prise en compte dans toute l'application (fil d'actualité, publications avec identité réelle, annuaire des membres, messagerie privée directe), avec persistance cloud Supabase et dégradation locale fluide.
+* **Idées envisagées** :
+  1. Maintenir un profil mock statique dans les constantes.
+  2. Créer une architecture d'identité dynamique reliant `GlobalContext`, `Settings`, `Profile`, `SocialFeed`, `MemberProfileModal` et `MoocChatFloating` avec persistance bidirectionnelle Supabase (tables `profiles`, `community_posts`, `chat_conversations`, `chat_messages`) et session locale sécurisée (`localStorage`).
+* **Décision retenue** : Option 2. Schéma SQL exhaustif dans `docs/supabase_schema.sql`, typage enrichi dans `types.ts` et `supabaseClient.ts`, synchronisation dynamique dans `GlobalContext.tsx`, et refactorisation de `SocialFeed.tsx` et `Settings.tsx`.
+* **Justification** : Élimine toute ambiguïté sur l'identité de l'auteur d'une publication, assure une recherche et consultation fluide des profils membres, et connecte directement la messagerie et les publications au backend Supabase.
+* **Conséquences** : Les publications créées portent toujours l'identité exacte de l'utilisateur connecté ; les modifications de profil dans les Paramètres se répercutent instantanément dans l'ensemble de l'écosystème.
+* **Éléments techniques** : `docs/supabase_schema.sql`, `types.ts`, `services/supabaseClient.ts`, `contexts/GlobalContext.tsx`, `components/SocialFeed.tsx`, `components/Settings.tsx`, `components/Profile.tsx`, `components/MoocChatFloating.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-005] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Socle Global`, `AGENTS.md`, `GEMINI.md`
+* **Problème / Besoin initial** : Garantir la portabilité et le déploiement continu immédiat sur GitHub, Netlify, Cloud Run et Vercel sans jamais risquer d'écran blanc (*White Screen of Death*), et standardiser Supabase comme backend par défaut sans dépendance bloquante à Firebase.
+* **Idées envisagées** :
+  1. Maintenir Firebase couplé avec des initialisations directes au chargement de module.
+  2. Adopter Supabase comme backend cloud par défaut, découpler tous les services avec initialisation lazy à la demande (`getClient()`), fallback gracieux (Local-First IndexedDB) et passage exclusif des clés via variables d'environnement.
+* **Décision retenue** : Intégration de la directive permanente dans `AGENTS.md` et `GEMINI.md`, création du service résilient `services/supabaseClient.ts`, sécurisation lazy de `services/googleWorkspace.ts` et génération de `.env.example`.
+* **Justification** : Résilience absolue au démarrage, zéro écran blanc même en l'absence temporaire de variables d'environnement, portabilité GitHub/Netlify immédiate.
+* **Conséquences** : Tout futur projet et module utilise Supabase par défaut sans bloquer le rendu React.
+* **Éléments techniques** : `AGENTS.md`, `GEMINI.md`, `.env.example`, `services/supabaseClient.ts`, `package.json` (`@supabase/supabase-js`).
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-004] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `07_JURIDIQUE_ET_ADMINISTRATION`, `Administration Centrale`
+* **Problème / Besoin initial** : L'administrateur général avait besoin de piloter l'intégralité de la plateforme (utilisateurs, rôles RBAC, fournisseurs IA, clés API, modèles de lettres, signatures autographes, cachets/sceaux, workflows A➔B, sauvegardes et journaux) sans jamais toucher au code.
+* **Idées envisagées** :
+  1. Panneaux de configuration dispersés dans le code ou les fichiers de constantes.
+  2. Tableau de bord centralisé no-code avec persistance Local-First réactive, bibliothèque d'actes officiels, moteur de résolution de variables et prévisualisation haute fidélité en temps réel avec export PDF/impression.
+* **Décision retenue** : Création du Service Central `adminConfigService.ts` et du tableau de bord modulaire `AdminDashboard.tsx` découpé en 6 sous-modules spécialisés (`AdminOverviewTab`, `AdminUsersTab`, `AdminAIAndModulesTab`, `AdminTemplatesAndStampsTab`, `AdminWorkflowsAndBackupTab`, `AdminLogsAndBroadcastTab`, `OfficialLetterPreviewModal`).
+* **Justification** : Autonomie opérationnelle totale du Super-Administrateur, conformité institutionnelle des lettres générées, gouvernance de sécurité et traçabilité audit complète.
+* **Conséquences** : Uniformisation des actions primaires (fond bleu, texte blanc), sauvegarde instantanée en Snapshot JSON, gestion des quotas de crédits Ⓒ et validation KYC.
+* **Éléments techniques** : `services/adminConfigService.ts`, `components/AdminDashboard.tsx`, `components/admin/*`, `types.ts`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
 ### [DEC-2025-001] — 15 Décembre 2025
 * **Module(s)** : `01_DIALLO_OS_ET_EXPERTS`, `Global`
 * **Problème / Besoin initial** : Éviter que les utilisateurs ne perçoivent les assistants comme des robots distants et désincarnés.
@@ -298,19 +437,27 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-018] — 27 Août 2026
-* **Module(s)** : `Global UI`, `Buttons & Controls`, `Accessibility`, `DesignTokens`
-* **Problème / Besoin initial** : Uniformiser l'ensemble des boutons et contrôles d'action de l'application selon la règle de cohérence absolue : **fond bleu institutionnel et écriture blanche** (aligné sur le bouton Accueil), éliminant la dispersion des couleurs secondaires orange/rouge.
+### [DEC-2026-020] — 27 Août 2026
+* **Module(s)** : `Super Admin`, `Gestion des Versions`, `Sauvegarde & Restauration Intelligente`, `Supabase Client`, `Résilience Déploiement`
+* **Problème / Besoin initial** :
+  1. Corriger l'erreur de build suite à la refactorisation de Supabase (`supabaseService` manquant).
+  2. Mettre en place un système complet de sauvegarde, de restauration et de gestion des versions dans l'espace Super Admin : conservation d'au minimum les trois dernières versions stables (numéro, date, changelog, statut), restauration intelligente préservant l'intégralité des données utilisateurs (comptes, profils, messages, médias, paramètres, rôles, publications, stats, logs), point de récupération automatique pré-restauration, comparaison de versions, planification des sauvegardes, annulation / rollback en 1 clic, compatibilité totale Supabase / GitHub / Netlify avec zéro écran blanc.
 * **Idées envisagées** :
-  1. Laisser des couleurs variées selon les sous-composants.
-  2. Procéder à une harmonisation systématique de tous les boutons primaires d'action, en-têtes d'outils, badges d'état et zones d'interaction vers la palette bleue souveraine avec texte blanc haute lisibilité (`bg-blue-600 hover:bg-blue-700 text-white`).
-* **Décision retenue** : Option 2 appliquée sur l'ensemble des composants transversaux (`ActionableAISuggestion`, `PointAToBPathway`, `EmptyStateGuide`, `KnowledgeCard`, `AISynthesisCard`, `SmartConfirmModal`, `FocusAndPresentationControls`, `GuidedModeModal`, `UniversalScannerModal`, `BilingualConversationModal`, `UnifiedSettingsModal`, `QuickActionZone`, `StatusBadge`).
-* **Justification** : « Garantit une identité visuelle unifiée, sobre, technologique et épurée, sans dispersion visuelle, offrant une clarté immédiate à l'utilisateur. »
-* **Conséquences** : Cohérence parfaite entre la barre de navigation, les cartes décisionnelles, les modales interactives et les boutons d'action.
-* **Éléments techniques** : `/components/ui/ActionableAISuggestion.tsx`, `/components/ui/PointAToBPathway.tsx`, `/components/ui/EmptyStateGuide.tsx`, `/components/ui/KnowledgeCard.tsx`, `/components/ui/AISynthesisCard.tsx`, `/components/ui/SmartConfirmModal.tsx`, `/components/ui/FocusAndPresentationControls.tsx`, `/components/accessibility/GuidedModeModal.tsx`, `/components/scanner/UniversalScannerModal.tsx`, `/components/translation/BilingualConversationModal.tsx`, `/components/settings/UnifiedSettingsModal.tsx`, `/components/ui/QuickActionZone.tsx`, `/components/ui/StatusBadge.tsx`.
+  1. Système basique d'export JSON sans gestion d'historique ni préservation sélective.
+  2. Architecture souveraine unifiée et certifiée :
+     - **Unification Supabase** : `services/supabaseClient.ts` exportant à la fois l'instance `supabase`, l'interface `SupabaseUserProfile` et le singleton `supabaseService` avec toutes les méthodes résilientes et tolérantes aux pannes.
+     - **Registre des Versions Stables** : conservation et consultation des versions majeures (v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec métadonnées complètes (schéma, checksum, modules, providers IA, changelog).
+     - **Moteur de Restauration Intelligente** : fusion et conservation des collections utilisateurs sans écrasement ni remise à zéro, création systématique d'un instantané automatique `auto_pre_restore` pour retour arrière instantané (Rollback).
+     - **Planificateur Automatisé** : configuration de la fréquence (horaire, quotidienne, hebdomadaire), quotas de rétention, synchronisation Cloud Supabase et déclenchement manuel immédiat.
+     - **Tableau de Bord Super Admin** : onglet dédié enrichi avec comparateur de versions, filtres d'instantanés, import/export JSON et panneau de rollback d'urgence.
+* **Décision retenue** : Option 2 validée, testée et compilée avec succès.
+* **Justification** : « Garantit la pérennité absolue des données et la souveraineté totale du Super-Administrateur sur l'évolution du système. »
+* **Conséquences** : Zéro régression, build de production vert, résilience totale face aux pannes ou clés manquantes, conservation garantie de toutes les données utilisateurs lors des restaurations.
+* **Éléments techniques** : `/services/supabaseClient.ts`, `/services/adminConfigService.ts`, `/components/admin/AdminWorkflowsAndBackupTab.tsx`, `/components/AdminDashboard.tsx`, `/contexts/GlobalContext.tsx`, `/types.ts`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
+
 
 
 

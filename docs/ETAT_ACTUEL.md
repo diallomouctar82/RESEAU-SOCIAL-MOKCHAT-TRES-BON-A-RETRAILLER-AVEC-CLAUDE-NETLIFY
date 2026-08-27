@@ -1,22 +1,20 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
 > *Date de Mise à Jour : 27 Août 2026*  
-> *Version Courante : v6.1 (Production Ready — CHROMATIC REFINEMENT & COLOR LAB)*
+> *Version Courante : v6.3.0 (Production Ready — SOVEREIGN VERSIONING & BACKUP SYSTEM)*
 
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
-**Le Monde à Vous** a franchi le jalon officiel **PREMIUM EXPERIENCE V1 & CHROMATIC REFINEMENT**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet et un réseau de confiance.
+**Le Monde à Vous** a franchi le jalon officiel **SOVEREIGN VERSIONING & BACKUP SYSTEM (v6.3.0)**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance et un espace Super-Administrateur souverain doté de capacités de sauvegarde, restauration intelligente et gestion des versions.
 
-La version **v6.1 (Chromatic Refinement & Color Lab)** consacre :
-- **Une Direction Chromatique d'Élite** : Évolution vers une identité *Bleu Profond + Premium + Internationale + Institutionnelle + Technologique + Élégante*, bannissant les aplats et dégradés agressifs pour des surfaces claires, respirantes et contrastées.
-- **Laboratoire Chromatique Interactif (Color Lab)** : 10 palettes institutionnelles et technologiques complètes accessibles en 1 clic (`BrandColorLabModal.tsx`) avec bascule instantanée des variables CSS globales.
-- **Un Manifeste Fondateur & Inaltérable** : *« Simple devant, intelligente derrière. Nous nous adaptons à vous, pas l'inverse. »*
-- **Un Design System V1 en 26 Sections** : Fondations figées (`DesignTokens.ts`, architecture modulaire, typographies 'Outfit' & 'Plus Jakarta Sans', constitution UI stricte).
-- **Une Navigation Intuitive en 5 Piliers** : Barre supérieure flottante avec recherche `Ctrl+K`, mode *Guide-moi* pas-à-pas, Scanner Universel OCR, traducteur bilingue et connecteurs transversaux Google Workspace.
-- **Une Suite de Composants Décisionnels & Actionnables** : `ActionableAISuggestion`, `KnowledgeCard`, `AISynthesisCard`, `SmartConfirmModal`, `PointAToBPathway`, `StatusBadge`, `SourceCitationCard`.
-- **Des Golden Screens de Référence** : Dashboard d'accueil, Diallo OS, GPS Carrière, Campus, Marché Mondial, Réseau MOC.
-- **Un Dossier de Passation & Consolidation pour Claude Code** : Registres, dette de design maîtrisée, matrice de cohérence 100% conforme.
+La version **v6.3.0** consacre :
+- **Gestionnaire des Versions Stables** : Suivi rigoureux des versions majeures (v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec numéro, date, changelog officiel, points clés, statut, empreinte cryptographique SHA256 et comparateur différentiel.
+- **Restauration Intelligente & Continuité des Données** : Restauration en 1 clic sans remise à zéro, garantissant la préservation de tous les comptes, profils, messages, soldes Ⓒ, paramètres, droits RBAC et journaux d'audit.
+- **Point de Récupération Automatique & Rollback** : Création automatique d'un instantané de sécurité avant toute opération (`auto_pre_restore`) avec possibilité d'annuler et revenir en arrière en 1 clic.
+- **Planificateur de Sauvegardes Automatisé** : Cycles programmés (horaires, quotidiens, hebdomadaires), quotas de rétention configurables et synchronisation avec Supabase Cloud.
+- **Unification & Résilience Supabase / Netlify / GitHub** : Export unifié du client Supabase et du service singleton tolérant aux pannes, éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
+- **Direction Chromatique & Design System Figé** : Palette institutionnelle *Bleu Profond + Or Institutionnel* conforme WCAG AA et zéro AI-Slop.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐

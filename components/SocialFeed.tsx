@@ -12,7 +12,7 @@ import {
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
   ChatConversation, ChatMessage, MemberProfile, Story, UserProfile, PostDocument, PostVisibility, PostReactionType 
 } from '../types';
-import { AGENTS, USER_PROFILE, REELS, STORIES, ACTIVE_LIVES, TRIBES, LEADERBOARD, MOCK_CHATS, MOCK_MEMBERS, POSTS as INITIAL_POSTS } from '../constants';
+import { AGENTS, REELS, STORIES, ACTIVE_LIVES, TRIBES, LEADERBOARD, MOCK_CHATS, MOCK_MEMBERS, POSTS as INITIAL_POSTS } from '../constants';
 import { ReelsCreator } from './ReelsCreator';
 import { SmartReelViewer } from './SmartReelViewer';
 import { UniversalCreator } from './UniversalCreator';
@@ -22,6 +22,8 @@ import { StoryViewerModal } from './StoryViewerModal';
 import { LiveCreationModal } from './LiveCreationModal';
 import { LiveReplayModal } from './LiveReplayModal';
 import { cloudService } from '../services/cloud';
+import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient';
+import { useGlobal } from '../contexts/GlobalContext';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -29,6 +31,7 @@ interface SocialFeedProps {
 }
 
 export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat }) => {
+  const { userProfile: currentUser, isSupabaseConnected } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
   const [feedFilter, setFeedFilter] = useState<'for_you' | 'following' | 'community' | 'tech' | 'legal' | 'business'>('for_you');
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +42,6 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [reels, setReels] = useState<Reel[]>(REELS);
   const [lives, setLives] = useState<LiveStream[]>(ACTIVE_LIVES);
   const [members, setMembers] = useState<MemberProfile[]>(MOCK_MEMBERS);
-  const [currentUser, setCurrentUser] = useState<UserProfile>(USER_PROFILE);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   // User Reactions & Bookmarks state
@@ -85,12 +87,41 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
   // Load Cloud Data on mount
   useEffect(() => {
-    const fetchPosts = async () => {
+    const fetchPostsAndMembers = async () => {
       setIsLoadingPosts(true);
       try {
-        const fetched = await cloudService.getAllPosts();
+        // 1. Fetch Posts from Supabase if connected, else IndexedDB
+        let fetched: Post[] = [];
+        if (supabaseService.isConfigured()) {
+          const remotePosts = await supabaseService.getPosts();
+          if (remotePosts && remotePosts.length > 0) {
+            fetched = remotePosts.map(rp => ({
+              id: rp.id,
+              authorId: rp.author_id,
+              authorName: rp.author_name,
+              authorAvatar: rp.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+              authorTitle: rp.author_role || 'Membre Communauté',
+              content: rp.content,
+              imageUrl: rp.image_url,
+              videoUrl: rp.video_url,
+              document: rp.document,
+              category: rp.category || 'Général',
+              tags: rp.tags || [],
+              visibility: rp.visibility || 'public',
+              timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              likes: rp.likes_count || 0,
+              comments: rp.comments_count || 0,
+              reactions: rp.reactions || { like: rp.likes_count || 0 },
+              commentsList: []
+            }));
+          }
+        }
+
+        if (fetched.length === 0) {
+          fetched = await cloudService.getAllPosts();
+        }
+
         if (fetched && fetched.length > 0) {
-          // Merge initial rich posts if not present
           const merged = [...fetched];
           INITIAL_POSTS.forEach(initP => {
             if (!merged.some(p => p.id === initP.id)) {
@@ -101,6 +132,46 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         } else {
           setPosts(INITIAL_POSTS);
         }
+
+        // 2. Fetch Members from Supabase if connected
+        if (supabaseService.isConfigured()) {
+          const profiles = await supabaseService.searchProfiles();
+          if (profiles && profiles.length > 0) {
+            const mappedMembers: MemberProfile[] = profiles.map(p => ({
+              id: p.id,
+              name: p.name,
+              avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+              title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
+              bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
+              location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
+              joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
+              isVerified: p.is_verified ?? true,
+              isFollowing: false,
+              followersCount: p.followers_count ?? 12,
+              followingCount: p.following_count ?? 8,
+              postsCount: 5,
+              storiesCount: 2,
+              reelsCount: 1,
+              livesCount: 0,
+              skills: p.skills?.map(s => s.name) || ['Coopération', 'Tech'],
+              privacySettings: p.privacy_settings || {
+                profileVisibility: 'public',
+                allowMessagesFrom: 'all',
+                showOnlineStatus: true,
+                allowTagging: true,
+                showActivityFeed: true
+              }
+            }));
+            // Merge with MOCK_MEMBERS
+            const mergedMembers = [...mappedMembers];
+            MOCK_MEMBERS.forEach(mockM => {
+              if (!mergedMembers.some(m => m.name.toLowerCase() === mockM.name.toLowerCase())) {
+                mergedMembers.push(mockM);
+              }
+            });
+            setMembers(mergedMembers);
+          }
+        }
       } catch (e) {
         console.warn("Using default initial posts", e);
         setPosts(INITIAL_POSTS);
@@ -108,7 +179,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         setIsLoadingPosts(false);
       }
     };
-    fetchPosts();
+    fetchPostsAndMembers();
   }, []);
 
   // Filter posts dynamically based on selected feed filter & search
@@ -317,7 +388,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       authorId: currentUser.id || 'u1',
       authorName: currentUser.name,
       authorAvatar: currentUser.avatarUrl,
-      authorTitle: 'Membre Certifié Mooc',
+      authorTitle: currentUser.title || 'Membre Communauté',
       content: newPostContent,
       imageUrl: newPostImage || undefined,
       videoUrl: newPostVideo || undefined,
@@ -335,6 +406,31 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
     const updatedPosts = [newPost, ...posts];
     setPosts(updatedPosts);
+
+    // Save to Supabase if connected
+    if (supabaseService.isConfigured()) {
+      try {
+        await supabaseService.createPost({
+          id: newPost.id,
+          author_id: currentUser.id || 'u1',
+          author_name: currentUser.name,
+          author_role: currentUser.title || 'Citoyen',
+          author_avatar: currentUser.avatarUrl,
+          content: newPost.content,
+          image_url: newPost.imageUrl,
+          video_url: newPost.videoUrl,
+          document: newPost.document,
+          category: newPost.category,
+          tags: newPost.tags || [],
+          visibility: newPost.visibility,
+          likes_count: 0,
+          comments_count: 0,
+          reactions: { like: 0 }
+        });
+      } catch (err) {
+        console.warn('Could not save post to Supabase', err);
+      }
+    }
     await cloudService.savePost(newPost);
 
     // Reset Composer
@@ -477,22 +573,23 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           {/* Access Mon Espace Personnel */}
           <button
             onClick={() => {
-              const myProfile = members.find(m => m.id === 'u1') || {
-                id: 'u1',
+              const myProfile: MemberProfile = {
+                id: currentUser.id || 'u1',
                 name: currentUser.name,
                 avatarUrl: currentUser.avatarUrl,
-                title: 'Développeur Fullstack & Fondateur Mooc',
-                bio: 'Passionné d\'IA et de technologies décentralisées.',
-                location: 'Paris & Conakry',
-                joinedDate: 'Janvier 2025',
+                title: currentUser.title || (currentUser.role === 'admin' ? 'Superviseur Système' : 'Citoyen du Monde'),
+                bio: currentUser.bio || 'Citoyen engagé de la communauté Le Monde à Vous.',
+                location: `${currentUser.city || 'Paris'}, ${currentUser.country || 'France'}`,
+                joinedDate: '2025',
                 isVerified: true,
                 isFollowing: false,
-                followersCount: 1420,
-                followingCount: 238,
-                postsCount: posts.filter(p => p.authorId === 'u1' || p.authorName === currentUser.name).length,
+                followersCount: 142,
+                followingCount: 38,
+                postsCount: posts.filter(p => p.authorId === (currentUser.id || 'u1') || p.authorName === currentUser.name).length,
                 storiesCount: stories.filter(s => s.author === currentUser.name).length,
                 reelsCount: reels.filter(r => r.author === currentUser.name).length,
-                livesCount: 7,
+                livesCount: 0,
+                skills: ['Coopération', 'Tech', 'Innovation'],
                 privacySettings: {
                   profileVisibility: 'public',
                   allowMessagesFrom: 'all',
