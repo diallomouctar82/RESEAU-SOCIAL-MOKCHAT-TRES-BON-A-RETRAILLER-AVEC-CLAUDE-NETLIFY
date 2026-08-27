@@ -750,6 +750,7 @@ export interface Tribe {
 
 export interface Comment {
     id: string;
+    authorId?: string;
     authorName: string;
     authorAvatar: string;
     content: string;
@@ -806,8 +807,10 @@ export interface MemberProfile {
     title: string;
     bio: string;
     location: string;
+    country?: string;
     joinedDate: string;
     isVerified?: boolean;
+    isOnline?: boolean;
     isFollowing?: boolean;
     followersCount: number;
     followingCount: number;
@@ -918,6 +921,8 @@ export interface ChatAttachment {
 
 export interface ChatMessage {
     id: string;
+    /** Identifiant idempotent généré côté client, distinct de l'UUID serveur. */
+    clientId?: string;
     conversationId?: string;
     senderId: string;
     senderName?: string;
@@ -931,7 +936,7 @@ export interface ChatMessage {
     audioDuration?: number; // seconds
     timestamp: Date | string;
     isRead: boolean;
-    status?: 'sending' | 'sent' | 'delivered' | 'read';
+    status?: 'pending' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
     reactions?: Record<string, string[]>; // { '👍': ['user-1', 'user-2'] }
     replyTo?: {
         id: string;
@@ -5147,11 +5152,6 @@ export interface VersionComparisonResult {
   };
   breakingChanges: string[];
 }
-
-
-
-
-
 
 
 

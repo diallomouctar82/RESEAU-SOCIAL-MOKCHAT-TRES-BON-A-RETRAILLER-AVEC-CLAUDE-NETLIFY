@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldAlert, X, AlertTriangle, CheckCircle, Lock, UserX } from 'lucide-react';
 import { ChatMessage, ChatConversation } from '../../types';
-import { adminConfigService } from '../../services/adminConfigService';
+import { mokChatService } from '../../services/mokChat';
 
 interface ChatReportModalProps {
   isOpen: boolean;
@@ -9,8 +9,7 @@ interface ChatReportModalProps {
   targetMessage?: ChatMessage | null;
   conversation: ChatConversation;
   currentUserId: string;
-  currentUserName: string;
-  onBlockUser?: (userId: string) => void;
+  onBlockUser?: (userId: string) => void | Promise<void>;
 }
 
 export const ChatReportModal: React.FC<ChatReportModalProps> = ({
@@ -19,17 +18,18 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
   targetMessage,
   conversation,
   currentUserId,
-  currentUserName,
   onBlockUser
 }) => {
   const [reason, setReason] = useState<'fraud' | 'inappropriate' | 'spam' | 'harassment' | 'other'>('inappropriate');
   const [details, setDetails] = useState('');
   const [alsoBlock, setAlsoBlock] = useState(true);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const reportReasonLabels: Record<string, string> = {
@@ -40,47 +40,33 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
       other: 'Autre infraction aux règles de la communauté'
     };
 
-    // 1. Ajouter le signalement à l'espace Super-Admin Modération
-    adminConfigService.addUserReport({
-      targetType: targetMessage ? 'comment' : 'user',
-      targetId: targetMessage?.id || conversation.participantId,
-      targetTitle: targetMessage ? `Message dans ${conversation.participantName}` : `Utilisateur ${conversation.participantName}`,
-      reportedUserId: conversation.participantId,
-      reportedUserName: conversation.participantName,
-      reporterId: currentUserId,
-      reporterName: currentUserName,
-      reason: reason,
-      details: details ? `${reportReasonLabels[reason]} : ${details}` : reportReasonLabels[reason]
-    });
-
-    // 2. Ajouter l'élément de contenu modéré si message spécifique
-    if (targetMessage) {
-      adminConfigService.addModerationItem({
-        type: 'comment',
-        title: `Message signalé de ${conversation.participantName}`,
-        contentSnippet: targetMessage.text || (targetMessage.mediaType === 'audio' ? 'Message vocal' : 'Fichier multimédia'),
-        authorId: conversation.participantId,
-        authorName: conversation.participantName,
-        flagsReason: [reportReasonLabels[reason]],
-        moduleOrigin: 'Mooc Chat'
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await mokChatService.reportAbuse({
+        reporterId: currentUserId,
+        reportedUserId: conversation.isGroup ? undefined : conversation.participantId,
+        conversationId: conversation.id,
+        messageId: targetMessage?.id,
+        reason,
+        details: details ? `${reportReasonLabels[reason]} : ${details}` : reportReasonLabels[reason],
       });
+      if (!conversation.isGroup && alsoBlock && onBlockUser) await onBlockUser(conversation.participantId);
+      setIsSubmitted(true);
+      window.setTimeout(() => {
+        setIsSubmitted(false);
+        onClose();
+      }, 1600);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Le signalement n’a pas pu être transmis.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // 3. Bloquer l'utilisateur si demandé
-    if (alsoBlock && onBlockUser) {
-      onBlockUser(conversation.participantId);
-    }
-
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setIsSubmitted(false);
-      onClose();
-    }, 2000);
   };
 
   return (
     <div className="fixed inset-0 z-70 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scale-up">
+      <div role="dialog" aria-modal="true" aria-labelledby="chat-report-title" className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scale-up">
         
         {/* Header */}
         <div className="p-4 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white flex items-center justify-between">
@@ -89,11 +75,11 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
               <ShieldAlert size={20} className="text-white" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-white">Signalement de Sécurité</h3>
-              <p className="text-[11px] text-rose-100">Transmis au Super-Admin & Modération LMAV</p>
+              <h3 id="chat-report-title" className="font-extrabold text-sm text-white">Signalement de sécurité</h3>
+              <p className="text-[11px] text-rose-100">Enregistrement dans la file de modération</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-white/80 hover:text-white rounded-full hover:bg-white/10">
+          <button type="button" aria-label="Fermer le signalement" onClick={onClose} className="p-1.5 text-white/80 hover:text-white rounded-full hover:bg-white/10">
             <X size={18} />
           </button>
         </div>
@@ -106,7 +92,7 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
             </div>
             <h4 className="font-extrabold text-slate-900 text-base">Signalement Envoyé avec Succès</h4>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Nos équipes de modération et le Super-Administrateur ont été notifiés. Des mesures conservatoires ont été appliquées.
+              Le signalement a été enregistré pour examen.{!conversation.isGroup && alsoBlock ? ' Le membre a également été bloqué pour votre compte.' : ''}
             </p>
           </div>
         ) : (
@@ -116,10 +102,10 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
             <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-1">
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Membre concerné</div>
               <div className="flex items-center gap-2.5">
-                <img src={conversation.participantAvatar} className="w-8 h-8 rounded-full object-cover" />
+                <img src={conversation.participantAvatar} alt="" className="w-8 h-8 rounded-full object-cover" />
                 <div className="min-w-0">
                   <div className="font-bold text-xs text-slate-900 truncate">{conversation.participantName}</div>
-                  <div className="text-[10px] text-slate-500">{conversation.participantTitle || 'Membre vérifié'}</div>
+                  <div className="text-[10px] text-slate-500">{conversation.participantTitle || 'Membre Mok'}</div>
                 </div>
               </div>
               {targetMessage?.text && (
@@ -158,7 +144,7 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
             </div>
 
             {/* Block checkbox */}
-            <label className="flex items-center gap-2.5 p-3 bg-rose-50/60 border border-rose-100 rounded-xl cursor-pointer">
+            {!conversation.isGroup && <label className="flex items-center gap-2.5 p-3 bg-rose-50/60 border border-rose-100 rounded-xl cursor-pointer">
               <input
                 type="checkbox"
                 checked={alsoBlock}
@@ -169,9 +155,10 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
                 <UserX size={14} className="text-rose-600" />
                 <span>Bloquer immédiatement cet utilisateur</span>
               </div>
-            </label>
+            </label>}
 
             {/* Buttons */}
+            {submitError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{submitError}</p>}
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -182,10 +169,11 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                disabled={isSubmitting}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 <ShieldAlert size={14} />
-                Transmettre à la modération
+                {isSubmitting ? 'Transmission…' : 'Transmettre à la modération'}
               </button>
             </div>
 

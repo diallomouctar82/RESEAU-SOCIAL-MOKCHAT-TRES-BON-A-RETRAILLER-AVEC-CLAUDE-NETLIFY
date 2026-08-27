@@ -62,19 +62,17 @@ export const ChatMemberInfoModal: React.FC<ChatMemberInfoModalProps> = ({
             
             <h3 className="font-extrabold text-slate-900 text-base flex items-center justify-center gap-1.5 pt-1">
               {conversation.participantName}
-              <ShieldCheck size={16} className="text-blue-600" />
+              <ShieldCheck size={16} className="text-blue-600" aria-label="Compte Mok" />
             </h3>
             
-            <p className="text-xs font-semibold text-slate-500">{conversation.participantTitle || 'Membre vérifié LMAV'}</p>
+            <p className="text-xs font-semibold text-slate-500">{conversation.participantTitle || 'Membre Mok'}</p>
             
             <div className="flex items-center justify-center gap-2 pt-1 text-[11px] text-slate-500">
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${conversation.isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${conversation.isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                 {conversation.isOnline ? 'En ligne' : (conversation.lastSeen ? `Vu ${conversation.lastSeen}` : 'Hors ligne')}
               </span>
-              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded-full">
-                KYC Vérifié
-              </span>
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded-full">Compte authentifié</span>
             </div>
           </div>
 
@@ -107,11 +105,9 @@ export const ChatMemberInfoModal: React.FC<ChatMemberInfoModalProps> = ({
             
             <div className="flex items-center justify-between">
               <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                <Lock size={13} className="text-emerald-600" /> Chiffrement
+                <Lock size={13} className="text-emerald-600" /> Protection
               </span>
-              <span className="font-bold text-emerald-700 font-mono text-[10px]">
-                {conversation.encryptionFingerprint || 'SHA256-AES-LMAV-OK'}
-              </span>
+              <span className="font-bold text-emerald-700 text-[10px]">Session + règles d’accès</span>
             </div>
 
             <div className="flex items-center justify-between">
@@ -142,7 +138,7 @@ export const ChatMemberInfoModal: React.FC<ChatMemberInfoModalProps> = ({
               <span className="text-[10px] text-slate-400">{conversation.isMuted ? 'Désactivé' : 'Actif'}</span>
             </button>
 
-            <button
+            {!conversation.isGroup && <button
               onClick={onToggleBlock}
               className="w-full p-2.5 hover:bg-rose-50 rounded-xl flex items-center justify-between text-xs font-bold text-rose-700 transition-colors"
             >
@@ -151,7 +147,7 @@ export const ChatMemberInfoModal: React.FC<ChatMemberInfoModalProps> = ({
                 <span>{conversation.isBlocked ? 'Débloquer cet utilisateur' : 'Bloquer cet utilisateur'}</span>
               </div>
               <span className="text-[10px] font-bold text-rose-500">{conversation.isBlocked ? 'Bloqué' : ''}</span>
-            </button>
+            </button>}
 
             <button
               onClick={() => { onClose(); onOpenReport(); }}

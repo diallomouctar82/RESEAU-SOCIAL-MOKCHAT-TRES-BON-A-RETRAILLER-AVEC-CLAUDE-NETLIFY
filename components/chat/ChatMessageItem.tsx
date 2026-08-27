@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Check, CheckCheck, Play, Pause, Download, FileText, Reply, Smile, 
-  MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2
+  MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2, RotateCcw
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 
@@ -16,6 +16,7 @@ interface ChatMessageItemProps {
   onDelete?: (messageId: string) => void;
   onEdit?: (message: ChatMessage) => void;
   onPin?: (messageId: string) => void;
+  onRetry?: (messageId: string) => void;
   playingAudioId: string | null;
   onToggleAudio: (messageId: string, audioUrl?: string) => void;
   audioProgress?: number; // 0 to 100
@@ -35,6 +36,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onDelete,
   onEdit,
   onPin,
+  onRetry,
   playingAudioId,
   onToggleAudio,
   audioProgress = 0,
@@ -199,8 +201,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 <CheckCheck size={13} className="text-blue-300" title="Lu" />
               ) : message.status === 'delivered' ? (
                 <CheckCheck size={13} className="text-slate-300" title="Distribué" />
-              ) : message.status === 'sending' ? (
+              ) : message.status === 'sending' || message.status === 'pending' ? (
                 <span className="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
+              ) : message.status === 'failed' ? (
+                <span className="font-bold text-rose-200">Échec</span>
               ) : (
                 <Check size={13} className="text-slate-300" title="Envoyé" />
               )
@@ -209,10 +213,20 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
         </div>
 
+        {message.status === 'failed' && onRetry && (
+          <button
+            type="button"
+            onClick={() => onRetry(message.id)}
+            className={`mt-1 flex items-center gap-1 text-[10px] font-bold text-rose-600 hover:text-rose-700 ${isMe ? 'ml-auto' : ''}`}
+          >
+            <RotateCcw size={11} /> Réessayer l’envoi
+          </button>
+        )}
+
         {/* Reaction Badges Container */}
         {message.reactions && Object.keys(message.reactions).length > 0 && (
           <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-            {Object.entries(message.reactions).map(([emoji, users]) => {
+            {(Object.entries(message.reactions) as Array<[string, string[]]>).map(([emoji, users]) => {
               if (!users || users.length === 0) return null;
               const hasReacted = isMe;
               return (

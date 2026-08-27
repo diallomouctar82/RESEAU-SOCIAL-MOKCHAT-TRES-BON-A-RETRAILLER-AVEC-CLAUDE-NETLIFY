@@ -1,5 +1,5 @@
 
-import { createClient, type Session, type User, type RealtimeChannel } from '@supabase/supabase-js';
+import { createClient, type Session, type User } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -201,102 +201,6 @@ export class SupabaseService {
         }
     }
 
-    public async getPosts(): Promise<any[]> {
-        if (!this.isConfigured()) return [];
-        try {
-            const { data, error } = await supabase
-                .from('posts')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (error || !data) return [];
-            return data;
-        } catch (err) {
-            console.warn('Erreur getPosts Supabase:', err);
-            return [];
-        }
-    }
-
-    public async createPost(post: any): Promise<any> {
-        if (!this.isConfigured()) return null;
-        try {
-            const { data, error } = await supabase
-                .from('posts')
-                .insert([{
-                    ...post,
-                    created_at: new Date().toISOString()
-                }])
-                .select()
-                .single();
-
-            if (error) return null;
-            return data;
-        } catch (err) {
-            console.warn('Erreur createPost Supabase:', err);
-            return null;
-        }
-    }
-
-    public async getConversations(userId: string): Promise<any[]> {
-        if (!this.isConfigured() || !userId) return [];
-        try {
-            const { data, error } = await supabase
-                .from('conversations')
-                .select('*')
-                .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
-                .order('updated_at', { ascending: false });
-
-            if (error || !data) return [];
-            return data;
-        } catch (err) {
-            console.warn('Erreur getConversations Supabase:', err);
-            return [];
-        }
-    }
-
-    public subscribeToPresence(
-        userInfo: { id: string; name: string; avatarUrl?: string; avatar?: string },
-        onSync: (state: Record<string, any>) => void
-    ): () => void {
-        if (!this.isConfigured() || !userInfo?.id) {
-            return () => {};
-        }
-        try {
-            const channel: RealtimeChannel = supabase.channel('online-users', {
-                config: {
-                    presence: {
-                        key: userInfo.id,
-                    },
-                },
-            });
-
-            channel
-                .on('presence', { event: 'sync' }, () => {
-                    const presenceState = channel.presenceState();
-                    onSync(presenceState);
-                })
-                .subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
-                        await channel.track({
-                            id: userInfo.id,
-                            name: userInfo.name,
-                            avatar: userInfo.avatarUrl || userInfo.avatar,
-                            onlineAt: new Date().toISOString()
-                        });
-                    }
-                });
-
-            return () => {
-                channel.untrack().catch(() => {});
-                supabase.removeChannel(channel).catch(() => {});
-            };
-        } catch (err) {
-            console.warn('Erreur subscribeToPresence Supabase:', err);
-            return () => {};
-        }
-    }
-
     public subscribeToCallSignals(userId: string, onSignal: (signal: any) => void): () => void {
         if (!this.isConfigured() || !userId) return () => {};
         try {
@@ -330,118 +234,6 @@ export class SupabaseService {
             });
         } catch (err) {
             console.warn('Erreur sendCallSignal:', err);
-        }
-    }
-
-    public subscribeToChat(
-        chatId: string,
-        handlers: {
-            onMessage?: (msg: any) => void;
-            onUpdate?: (msg: any) => void;
-            onDelete?: (id: string) => void;
-        }
-    ): () => void {
-        if (!this.isConfigured() || !chatId) return () => {};
-        try {
-            const channel = supabase
-                .channel(`chat-${chatId}`)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'INSERT',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${chatId}`
-                    },
-                    (payload) => {
-                        handlers.onMessage?.(payload.new);
-                    }
-                )
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'UPDATE',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${chatId}`
-                    },
-                    (payload) => {
-                        handlers.onUpdate?.(payload.new);
-                    }
-                )
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'DELETE',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${chatId}`
-                    },
-                    (payload) => {
-                        handlers.onDelete?.(payload.old?.id);
-                    }
-                )
-                .subscribe();
-
-            return () => {
-                supabase.removeChannel(channel).catch(() => {});
-            };
-        } catch (err) {
-            console.warn('Erreur subscribeToChat Supabase:', err);
-            return () => {};
-        }
-    }
-
-    public async sendMessage(msg: any): Promise<any> {
-        if (!this.isConfigured()) return null;
-        try {
-            const { data, error } = await supabase
-                .from('messages')
-                .insert([{
-                    ...msg,
-                    created_at: new Date().toISOString()
-                }])
-                .select()
-                .single();
-
-            if (error) return null;
-            return data;
-        } catch (err) {
-            console.warn('Erreur sendMessage Supabase:', err);
-            return null;
-        }
-    }
-
-    public async updateChatMessage(msgId: string, updates: any): Promise<any> {
-        if (!this.isConfigured() || !msgId) return null;
-        try {
-            const { data, error } = await supabase
-                .from('messages')
-                .update(updates)
-                .eq('id', msgId)
-                .select()
-                .single();
-
-            if (error) return null;
-            return data;
-        } catch (err) {
-            console.warn('Erreur updateChatMessage Supabase:', err);
-            return null;
-        }
-    }
-
-    public async deleteChatMessage(msgId: string): Promise<boolean> {
-        if (!this.isConfigured() || !msgId) return false;
-        try {
-            const { error } = await supabase
-                .from('messages')
-                .delete()
-                .eq('id', msgId);
-
-            return !error;
-        } catch (err) {
-            console.warn('Erreur deleteChatMessage Supabase:', err);
-            return false;
         }
     }
 
@@ -502,4 +294,3 @@ export class SupabaseService {
 
 export const supabaseService = new SupabaseService();
 export type { Session, User };
-
