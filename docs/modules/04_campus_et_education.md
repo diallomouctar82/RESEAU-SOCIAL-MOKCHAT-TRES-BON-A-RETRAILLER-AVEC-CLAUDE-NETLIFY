@@ -43,3 +43,8 @@
 ## 🛡️ 5. RÈGLES MÉTIER ET DÉONTOLOGIE
 - **Incarnation Humaine Déontologique** : Professeur Diallo est un enseignant émérite de la Famille DIALLO, jamais une IA ou un robot.
 - **Non-infantilisation** : Respect absolu du rythme d'apprentissage des adultes et adolescents.
+
+## 📊 6. ÉTAT TECHNIQUE VÉRIFIÉ — 27 AOÛT 2026
+- Progression de cours, sessions d'évaluation et demandes d'attestation sont persistées sous RLS dans `module_records`; IndexedDB est réservé à la file hors ligne.
+- Les documents produits par l'application sont libellés **attestations de progression auto-déclarées** : aucune reconnaissance d'établissement, signature autoritative ou équivalence officielle n'est prétendue.
+- Le catalogue pédagogique local reste un contenu éditorial à faire valider par chaque autorité éducative avant un usage officiel.

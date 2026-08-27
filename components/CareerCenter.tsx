@@ -50,6 +50,7 @@ import {
   ConquestWarRoomDossier
 } from '../types';
 import { AIProxyClient, Modality } from '../services/aiProxy';
+import { moduleRepository, type SyncPhase } from '../services/moduleRepository';
 import { Avatar3D } from './Avatar3D';
 
 // Career Accomplishment Sub-components
@@ -286,24 +287,36 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
 
 
   // --- CONQUEST & MASTER RESUME STATE (Carrière 3/7) ---
-  const [masterResume, setMasterResume] = useState<MasterResumeProfile>(() => {
-    const saved = localStorage.getItem('lmav_master_resume');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {
+  const [masterResume, setMasterResume] = useState<MasterResumeProfile>(() => ({
       ...INITIAL_MASTER_RESUME,
       fullName: userProfile.name || INITIAL_MASTER_RESUME.fullName,
       email: userProfile.email || INITIAL_MASTER_RESUME.email
-    };
-  });
+  }));
+  const [masterResumeRecordId, setMasterResumeRecordId] = useState<string>();
+  const [careerSyncPhase, setCareerSyncPhase] = useState<SyncPhase>(moduleRepository.getSyncPhase());
+
+  useEffect(() => moduleRepository.subscribe(setCareerSyncPhase), []);
+  useEffect(() => {
+    let active = true;
+    void moduleRepository.list<MasterResumeProfile>('career', 'master_resume')
+      .then(([record]) => {
+        if (!active || !record) return;
+        setMasterResume(record.payload);
+        setMasterResumeRecordId(record.id);
+      })
+      .catch((error) => console.warn('CV maître cloud indisponible', error));
+    return () => { active = false; };
+  }, []);
 
   const [activeConquestDossier, setActiveConquestDossier] = useState<ConquestWarRoomDossier | null>(null);
   const [conquestDossiersCache, setConquestDossiersCache] = useState<Record<string, ConquestWarRoomDossier>>({});
 
   const handleUpdateMasterResume = (updated: MasterResumeProfile) => {
     setMasterResume(updated);
-    localStorage.setItem('lmav_master_resume', JSON.stringify(updated));
+    void moduleRepository.upsert('career', 'master_resume', updated, {
+      id: masterResumeRecordId,
+      idempotencyKey: 'master-resume:singleton',
+    }).then((record) => setMasterResumeRecordId(record.id));
   };
 
   const handleOpenConquestWarRoom = (opportunity: RadarOpportunityItem) => {
@@ -730,6 +743,13 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
               <p className="text-slate-400 text-sm md:text-base mt-2 max-w-2xl leading-relaxed">
                 De votre situation actuelle jusqu'à l'atteinte réelle de votre objectif : GPS intelligent, Jumeau Pro, Conseil d'Experts et Coach 3D.
               </p>
+              {careerSyncPhase !== 'idle' && (
+                <p className={`mt-2 text-xs font-semibold ${careerSyncPhase === 'error' ? 'text-amber-300' : 'text-blue-300'}`} role="status">
+                  {careerSyncPhase === 'syncing' ? 'Synchronisation du dossier carrière…'
+                    : careerSyncPhase === 'offline' ? 'Hors ligne — modifications placées dans la file d’attente.'
+                      : 'Synchronisation cloud indisponible — modification conservée dans la file d’attente.'}
+                </p>
+              )}
             </div>
             
             {/* Top Navigation Tabs & Master CV */}

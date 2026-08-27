@@ -11,6 +11,7 @@ import {
   CommunityCollaborationIdea, CoAuthorMember, CoCreationStatus, CoCreationType 
 } from '../types';
 import { useGlobal } from '../contexts/GlobalContext';
+import { moduleRepository, type SyncPhase } from '../services/moduleRepository';
 
 interface StudioCollaborationProps {
   initialStudioAsset?: {
@@ -329,59 +330,46 @@ export const StudioCollaboration: React.FC<StudioCollaborationProps> = ({
   // Navigation interne
   const [activeSection, setActiveSection] = useState<'projects' | 'circles' | 'resources' | 'ideas'>('projects');
 
-  // États des données avec persistance locale
-  const [projects, setProjects] = useState<CoCreationProject[]>(() => {
-    try {
-      const saved = localStorage.getItem('lmav_studio_collab_projects');
-      return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
-    } catch {
-      return INITIAL_PROJECTS;
-    }
-  });
+  const [projects, setProjects] = useState<CoCreationProject[]>([]);
+  const [circles, setCircles] = useState<DiscussionCircle[]>([]);
+  const [resources, setResources] = useState<SharedStudioResource[]>([]);
+  const [ideas, setIdeas] = useState<CommunityCollaborationIdea[]>([]);
+  const [collaborationRecordId, setCollaborationRecordId] = useState<string>();
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [syncPhase, setSyncPhase] = useState<SyncPhase>(moduleRepository.getSyncPhase());
 
-  const [circles, setCircles] = useState<DiscussionCircle[]>(() => {
-    try {
-      const saved = localStorage.getItem('lmav_studio_collab_circles');
-      return saved ? JSON.parse(saved) : INITIAL_CIRCLES;
-    } catch {
-      return INITIAL_CIRCLES;
-    }
-  });
-
-  const [resources, setResources] = useState<SharedStudioResource[]>(() => {
-    try {
-      const saved = localStorage.getItem('lmav_studio_collab_resources');
-      return saved ? JSON.parse(saved) : INITIAL_RESOURCES;
-    } catch {
-      return INITIAL_RESOURCES;
-    }
-  });
-
-  const [ideas, setIdeas] = useState<CommunityCollaborationIdea[]>(() => {
-    try {
-      const saved = localStorage.getItem('lmav_studio_collab_ideas');
-      return saved ? JSON.parse(saved) : INITIAL_IDEAS;
-    } catch {
-      return INITIAL_IDEAS;
-    }
-  });
-
-  // Sauvegarde automatique
+  useEffect(() => moduleRepository.subscribe(setSyncPhase), []);
   useEffect(() => {
-    localStorage.setItem('lmav_studio_collab_projects', JSON.stringify(projects));
-  }, [projects]);
+    let active = true;
+    void moduleRepository.list<{
+      projects: CoCreationProject[];
+      circles: DiscussionCircle[];
+      resources: SharedStudioResource[];
+      ideas: CommunityCollaborationIdea[];
+    }>('studio', 'collaboration_state').then(([record]) => {
+      if (!active) return;
+      if (record) {
+        setCollaborationRecordId(record.id);
+        setProjects(record.payload.projects ?? []);
+        setCircles(record.payload.circles ?? []);
+        setResources(record.payload.resources ?? []);
+        setIdeas(record.payload.ideas ?? []);
+      }
+    }).catch((error) => console.warn('Collaboration Studio cloud indisponible', error))
+      .finally(() => { if (active) setIsHydrated(true); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('lmav_studio_collab_circles', JSON.stringify(circles));
-  }, [circles]);
-
-  useEffect(() => {
-    localStorage.setItem('lmav_studio_collab_resources', JSON.stringify(resources));
-  }, [resources]);
-
-  useEffect(() => {
-    localStorage.setItem('lmav_studio_collab_ideas', JSON.stringify(ideas));
-  }, [ideas]);
+    if (!isHydrated) return;
+    const timer = window.setTimeout(() => {
+      void moduleRepository.upsert('studio', 'collaboration_state', { projects, circles, resources, ideas }, {
+        id: collaborationRecordId,
+        idempotencyKey: 'collaboration-state:singleton',
+      }).then((record) => setCollaborationRecordId(record.id));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [projects, circles, resources, ideas, isHydrated, collaborationRecordId]);
 
   // État de l'éditeur de co-création actif
   const [selectedProject, setSelectedProject] = useState<CoCreationProject | null>(null);
@@ -836,6 +824,13 @@ export const StudioCollaboration: React.FC<StudioCollaborationProps> = ({
             <p className="text-blue-200/80 text-sm leading-relaxed">
               Un espace tout-en-un pour co-rédiger des articles majeurs, orchestrer des projets de développement, échanger au sein de cercles de réflexion et mutualiser vos ressources créatives.
             </p>
+            {syncPhase !== 'idle' && (
+              <p className="text-xs font-semibold text-amber-200" role="status">
+                {syncPhase === 'syncing' ? 'Synchronisation cloud…'
+                  : syncPhase === 'offline' ? 'Hors ligne — changements placés dans la file d’attente.'
+                    : 'Cloud indisponible — changements placés dans la file d’attente.'}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

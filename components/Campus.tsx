@@ -62,6 +62,7 @@ import {
 } from '../types';
 import { AIProxyClient } from '../services/aiProxy';
 import { cloudService } from '../services/cloud';
+import { campusRepository } from '../services/campusRepository';
 import { useGlobal } from '../contexts/GlobalContext';
 import { campusPedagogicalEngine } from '../services/campusPedagogicalEngine';
 import { OFFICIAL_CURRICULUMS, MOCK_EXAM_BLUEPRINTS, ACADEMIC_EQUIVALENCES } from '../services/curriculumRegistry';
@@ -126,11 +127,9 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
   const loadData = async () => {
       setIsLoadingCourses(true);
       const allCourses = await cloudService.getAllCourses();
-      const enrollments = await cloudService.getStudentEnrollments(userProfile.id);
-      const myCerts = await cloudService.getCertificates();
-      
-      const userCerts = myCerts.filter(c => c.studentName === userProfile.name);
-      setCertificates(userCerts);
+      const enrollments = await campusRepository.getEnrollments(userProfile.id);
+      const myCerts = await campusRepository.getCertificateClaims(userProfile.id);
+      setCertificates(myCerts);
 
       const enrichedCourses = allCourses.map(c => {
           const enroll = enrollments.find(e => e.courseId === c.id);
@@ -249,7 +248,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
 
   const handleCompleteLesson = async (lessonId: string) => {
       if (!selectedCourse) return;
-      await cloudService.updateLessonProgress(userProfile.id, selectedCourse.id, lessonId);
+      await campusRepository.completeLesson(userProfile.id, selectedCourse.id, lessonId);
       
       if (!completedLessonIds.includes(lessonId)) {
           setCompletedLessonIds([...completedLessonIds, lessonId]);
@@ -370,7 +369,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       const finishedSession = { ...currentSession, score, passed, isFinished: true };
       setExamSession(finishedSession);
       
-      await cloudService.saveExamSession(userProfile.id, selectedCourse.id, finishedSession);
+      await campusRepository.saveExamSession(userProfile.id, selectedCourse.id, finishedSession);
       
       if (passed) {
           const cert: Certificate = {
@@ -383,7 +382,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
               serialNumber: `LMAV-${selectedCourse.id.toUpperCase()}-${Math.floor(Math.random()*100000)}`,
               institution: selectedCourse.institution || `Académie Mondiale (${studentProfile.selectedCountryName})`
           };
-          await cloudService.issueCertificate(cert);
+          await campusRepository.saveCertificateClaim(cert, userProfile.id);
           setEarnedCertificate(cert);
           setCertificates(prev => [...prev, cert]);
           if (onExamPass) onExamPass(selectedCourse.title, score);
@@ -428,7 +427,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                     onClick={() => setCurrentView('my-diplomas')}
                     className="bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm"
                   >
-                      <Award className="text-amber-500" size={16} /> Diplômes ({certificates.length})
+                      <Award className="text-amber-500" size={16} /> Attestations ({certificates.length})
                   </button>
               </div>
           </div>
@@ -542,7 +541,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                       <h2 className="text-xl font-bold text-slate-900">Cours & Modules Académiques</h2>
-                      <p className="text-xs text-slate-500">Programmes certifiants du fondamental au supérieur</p>
+                      <p className="text-xs text-slate-500">Parcours d’apprentissage du fondamental au supérieur; reconnaissance externe non configurée</p>
                   </div>
 
                   {/* Filtres de Niveaux */}
@@ -635,12 +634,12 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       return (
           <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8 animate-fade-up">
               <button onClick={() => setCurrentView('catalog')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-xs mb-4"><ChevronLeft size={16} /> Retour au Campus</button>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3"><Award className="text-amber-500" /> Mes Diplômes & Certifications</h1>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3"><Award className="text-amber-500" /> Mes attestations de progression</h1>
               
               {certificates.length === 0 ? (
                   <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
                       <GraduationCap size={64} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-slate-500 text-sm">Aucun diplôme obtenu pour le moment.</p>
+                      <p className="text-slate-500 text-sm">Aucune attestation enregistrée pour le moment.</p>
                       <button onClick={() => setCurrentView('catalog')} className="mt-4 text-indigo-600 font-bold text-xs hover:underline">Commencer un cours</button>
                   </div>
               ) : (
@@ -780,12 +779,12 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                           <div className="w-24 h-24 bg-rose-100 rounded-3xl flex items-center justify-center mx-auto text-rose-600 shadow-md">
                               <GraduationCap size={48} />
                           </div>
-                          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Examen Final de Certification</h2>
+                          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Évaluation finale du parcours</h2>
                           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-left space-y-3 text-xs">
                               <div className="flex items-center gap-3"><Clock className="text-slate-400" size={16} /> <span className="font-bold">Durée : 20 Minutes</span></div>
                               <div className="flex items-center gap-3"><FileText className="text-slate-400" size={16} /> <span className="font-bold">10 Questions de Synthèse ({studentProfile.selectedCountryName})</span></div>
                               <div className="flex items-center gap-3"><CheckCircle className="text-slate-400" size={16} /> <span className="font-bold">Note requise : 10/20</span></div>
-                              <div className="flex items-center gap-3"><Award className="text-slate-400" size={16} /> <span className="font-bold">Certificat Numéroté & Vérifié</span></div>
+                              <div className="flex items-center gap-3"><Award className="text-slate-400" size={16} /> <span className="font-bold">Attestation de progression non vérifiée par un établissement</span></div>
                           </div>
                           <button onClick={prepareExam} className="bg-rose-600 text-white px-10 py-3.5 rounded-2xl font-bold text-sm hover:bg-rose-700 shadow-lg transition-all">
                               {isExamSubmitting ? 'Préparation de la salle...' : 'Démarrer l\'Épreuve'}
@@ -841,7 +840,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                           {examSession.passed && earnedCertificate ? (
                               <div className="bg-white border-4 border-slate-900 p-8 rounded-2xl shadow-xl relative text-center mb-6 cursor-pointer" onClick={() => setCurrentView('certificate-view')}>
                                   <School size={36} className="mx-auto mb-3 text-slate-800" />
-                                  <h3 className="font-serif text-xl font-bold text-slate-900 mb-1 uppercase tracking-wider">Certificat de Réussite</h3>
+                                  <h3 className="font-serif text-xl font-bold text-slate-900 mb-1 uppercase tracking-wider">Attestation de progression</h3>
                                   <p className="text-xs text-slate-500 italic mb-4">Décerné à {earnedCertificate.studentName}</p>
                                   <div className="text-base font-bold text-indigo-900 mb-1">{earnedCertificate.courseTitle}</div>
                                   <div className="text-xs text-slate-400 font-mono">{earnedCertificate.serialNumber}</div>
@@ -855,8 +854,9 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                   {currentView === 'certificate-view' && earnedCertificate && (
                       <div className="flex flex-col items-center justify-center h-full p-4">
                           <div className="bg-[#fffbf0] p-10 sm:p-14 rounded-3xl shadow-2xl border-[16px] border-slate-900 text-center max-w-3xl w-full relative">
-                              <h1 className="font-serif text-3xl sm:text-4xl font-black text-slate-900 mb-2 uppercase tracking-widest">Diplôme Officiel</h1>
-                              <p className="text-sm text-slate-600 italic mb-6">Ce document certifie que</p>
+                              <h1 className="font-serif text-3xl sm:text-4xl font-black text-slate-900 mb-2 uppercase tracking-widest">Attestation de progression</h1>
+                              <p className="text-sm text-amber-700 font-semibold mb-3">Document applicatif auto-déclaré — non vérifié ni émis par un établissement.</p>
+                              <p className="text-sm text-slate-600 italic mb-6">Ce document indique que</p>
                               <h2 className="text-2xl sm:text-3xl font-bold text-indigo-900 mb-6 font-serif underline decoration-amber-400/50">{earnedCertificate.studentName}</h2>
                               <p className="text-sm text-slate-600 mb-2">a validé avec succès le cursus certifiant</p>
                               <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mb-8">{earnedCertificate.courseTitle}</h3>

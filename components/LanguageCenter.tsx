@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Languages, Volume2, Play, BookOpen, MessageCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { AIProxyClient } from '../services/aiProxy';
 import { UserProfile } from '../types';
 import { DAILY_VOCABULARY, LANGUAGE_LESSONS } from '../constants';
+import { moduleRepository, type SyncPhase } from '../services/moduleRepository';
 
 interface LanguageCenterProps {
     userProfile: UserProfile;
@@ -18,6 +19,37 @@ export const LanguageCenter: React.FC<LanguageCenterProps> = ({ userProfile }) =
     const [textToTranslate, setTextToTranslate] = useState('');
     const [translationResult, setTranslationResult] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
+    const [recordId, setRecordId] = useState<string>();
+    const [isHydrated, setIsHydrated] = useState(false);
+    const [syncPhase, setSyncPhase] = useState<SyncPhase>(moduleRepository.getSyncPhase());
+
+    useEffect(() => moduleRepository.subscribe(setSyncPhase), []);
+    useEffect(() => {
+        let active = true;
+        void moduleRepository.list<{
+            activeTab: 'daily' | 'practice' | 'translate';
+            selectedScenario: string | null;
+            conversation: { role: 'user' | 'model'; text: string }[];
+        }>('languages', 'learning_progress').then(([record]) => {
+            if (!active || !record) return;
+            setRecordId(record.id);
+            setActiveTab(record.payload.activeTab ?? 'daily');
+            setSelectedScenario(record.payload.selectedScenario ?? null);
+            setConversation(record.payload.conversation ?? []);
+        }).catch((error) => console.warn('Progression linguistique cloud indisponible', error))
+          .finally(() => { if (active) setIsHydrated(true); });
+        return () => { active = false; };
+    }, []);
+    useEffect(() => {
+        if (!isHydrated) return;
+        const timer = window.setTimeout(() => {
+            void moduleRepository.upsert('languages', 'learning_progress', { activeTab, selectedScenario, conversation }, {
+                id: recordId,
+                idempotencyKey: 'learning-progress:singleton',
+            }).then((record) => setRecordId(record.id));
+        }, 350);
+        return () => window.clearTimeout(timer);
+    }, [activeTab, selectedScenario, conversation, isHydrated, recordId]);
 
     const startScenario = (scenario: string) => {
         setSelectedScenario(scenario);
@@ -54,7 +86,7 @@ export const LanguageCenter: React.FC<LanguageCenterProps> = ({ userProfile }) =
             {/* Header */}
             <div className="bg-indigo-600 text-white p-8 shadow-lg">
                 <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div><h1 className="text-3xl font-bold">Centre Linguistique</h1><p className="text-indigo-100">Maîtrisez la langue, maîtrisez votre intégration.</p></div>
+                    <div><h1 className="text-3xl font-bold">Centre Linguistique</h1><p className="text-indigo-100">Maîtrisez la langue, maîtrisez votre intégration.</p>{syncPhase !== 'idle' && <p className="mt-1 text-xs text-amber-200" role="status">{syncPhase === 'syncing' ? 'Synchronisation…' : 'Progression en attente de synchronisation.'}</p>}</div>
                     <div className="flex gap-2 bg-white/10 p-1 rounded-xl">
                         <button onClick={() => setActiveTab('daily')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'daily' ? 'bg-white text-indigo-600' : 'text-white'}`}>Quotidien</button>
                         <button onClick={() => setActiveTab('practice')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'practice' ? 'bg-white text-indigo-600' : 'text-white'}`}>Immersion</button>

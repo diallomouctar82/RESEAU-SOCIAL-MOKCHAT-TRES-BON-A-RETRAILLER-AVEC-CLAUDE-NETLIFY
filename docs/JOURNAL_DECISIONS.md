@@ -31,6 +31,15 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-014] — 27 Août 2026
+* **Module(s)** : Dossiers de vie, Carrière, Campus, Langues, Studio collaboratif.
+* **Problème / Besoin initial** : les états métier structurants reposaient sur `localStorage` ou IndexedDB sans autorité cloud commune.
+* **Décision retenue** : un dépôt typé Supabase-first (`moduleRepository`) persiste des `module_records` protégés par RLS et versionnés. IndexedDB ne contient que les mutations en attente et se vide après synchronisation.
+* **Conséquences** : états `idle/syncing/offline/error` explicites, idempotence, reprise réseau et suppression des jeux de données fictifs chargés comme s'ils étaient réels. Les attestations Campus restent explicitement non vérifiées faute d'autorité éducative.
+* **Éléments techniques** : `services/moduleRepository.ts`, `services/dossierService.ts`, `services/campusRepository.ts`, `services/careerRadarEngine.ts`, `components/CareerCenter.tsx`, `components/LanguageCenter.tsx`, `components/StudioCollaboration.tsx`, migration `20260827213000_module_records.sql`.
+* **Preuves** : tests ciblés 3/3; build Vite réussi.
+* **Statut** : `Développé`, `Testé localement`, `Migration Supabase requise`.
+
 ### [DEC-2026-013] — 27 Août 2026
 * **Module(s)** : Experts Diallo, Conseil, Carrière, Campus, Langues, Vie, Commerce et Studio (appels IA partagés).
 * **Problème / Besoin initial** : des composants appelaient directement le SDK fournisseur depuis le navigateur, avec configuration fragile et sorties multimédia inline non durables.

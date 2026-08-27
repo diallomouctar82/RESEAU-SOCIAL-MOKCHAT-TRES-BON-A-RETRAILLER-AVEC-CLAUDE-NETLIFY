@@ -49,6 +49,6 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Code prêt, configuration requise** : génération image/vidéo/vision/avatar sécurisée et stockage privé implémentés. Le build Vite et les tests de frontières passent localement.
-- **Partiel** : la co-création conserve encore des données locales; sa synchronisation Supabase est traitée dans le sous-lot de persistance métier séparé.
+- **Co-création synchronisée** : projets, cercles, ressources et idées utilisent `module_records` sous RLS; IndexedDB sert uniquement de file d'attente hors ligne avec état explicite.
 - **Bloqué E2E** : aucun secret IA ni `SUPABASE_SERVICE_ROLE_KEY` n'est actuellement configuré sur le site Netlify audité; il est donc interdit d'annoncer la génération fonctionnelle en production.
 - **Évolutions Prévues** : Curseur collaboratif multi-utilisateurs et doublage multilingue direct.

@@ -42,6 +42,8 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
+> **Rectificatif d'implémentation (27 août 2026)** : le CV Maître et l'état du Radar sont désormais chargés depuis Supabase `module_records`, avec file IndexedDB hors ligne et état de synchronisation visible. Les opportunités de démonstration ne sont plus chargées automatiquement et aucun fallback fictif n'est produit en cas d'échec IA. Une source d'opportunités vérifiée reste à configurer avant de déclarer le Radar E2E fonctionnel.
+
 - **Carrière 1/7 (Terminé)** : Architecture modulaire complète, Diagnostic 17 critères, Coach 3D avec feedback vocal, Pipeline Kanban opérationnel, Jumeau Numérique certifié.
 - **Carrière 2/7 (Terminé - Radar Intelligent & Agent de Conquête)** :
   - **Recherche par Intention Naturelle** : Décodage sémantique des intentions utilisateurs (emploi, clients B2B, fonds, sourcing achats) sans mots-clés rigides.
@@ -158,4 +160,3 @@
     8. **Test de Cohérence du Cap (`CareerCoherenceAuditModal.tsx`)** : Vérification automatique de l'alignement entre les actions quotidiennes et le Point B de référence.
     9. **Opportunités Surprises (`CareerSurpriseOpportunityModal.tsx`)** : Décloisonnement algorithmique et détection de postes atypiques exploitant les compétences transférables.
     10. **Mon Impact & Transmission (`CareerImpactTransmissionModal.tsx`)** : Boucle vertueuse *Apprendre ➔ Progresser ➔ Accomplir ➔ Transmettre* avec métriques d'utilité collective (personnes aidées, mentorats, Tribus actives).
-

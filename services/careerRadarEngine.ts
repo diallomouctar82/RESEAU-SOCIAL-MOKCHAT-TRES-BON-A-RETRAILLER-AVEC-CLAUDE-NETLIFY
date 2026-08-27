@@ -9,6 +9,7 @@ import {
   OpportunityTemporalReadiness 
 } from '../types';
 import { AIProxyClient } from './aiProxy';
+import { moduleRepository } from './moduleRepository';
 
 // ══════════════════════════════════════════════════════════════════════════
 // 📚 BASE RÉFÉRENTIELLE D'OPPORTUNITÉS MULTI-SOURCES RÉELLES ET STRUCTURÉES
@@ -543,55 +544,46 @@ export class CareerRadarEngine {
   private signals: RadarHiddenSignal[] = [];
   private missions: ContinuousSearchMission[] = [];
   private feedbacks: OpportunityFeedbackRecord[] = [];
+  private stateRecordId?: string;
+  private readonly hydration: Promise<void>;
 
   constructor() {
-    this.loadFromStorage();
+    this.hydration = this.loadFromCloud();
   }
 
-  private loadFromStorage() {
+  public ready(): Promise<void> {
+    return this.hydration;
+  }
+
+  private async loadFromCloud(): Promise<void> {
     try {
-      const savedOpps = localStorage.getItem('lmav_radar_opps_v2');
-      if (savedOpps) {
-        this.opportunities = JSON.parse(savedOpps);
-      } else {
-        this.opportunities = INITIAL_RADAR_OPPORTUNITIES;
-      }
-
-      const savedSignals = localStorage.getItem('lmav_radar_signals_v2');
-      if (savedSignals) {
-        this.signals = JSON.parse(savedSignals);
-      } else {
-        this.signals = INITIAL_RADAR_SIGNALS;
-      }
-
-      const savedMissions = localStorage.getItem('lmav_radar_missions_v2');
-      if (savedMissions) {
-        this.missions = JSON.parse(savedMissions);
-      } else {
-        this.missions = INITIAL_SEARCH_MISSIONS;
-      }
-
-      const savedFeedbacks = localStorage.getItem('lmav_radar_feedbacks_v2');
-      if (savedFeedbacks) {
-        this.feedbacks = JSON.parse(savedFeedbacks);
-      }
+      const [record] = await moduleRepository.list<{
+        opportunities: RadarOpportunityItem[];
+        signals: RadarHiddenSignal[];
+        missions: ContinuousSearchMission[];
+        feedbacks: OpportunityFeedbackRecord[];
+      }>('career', 'radar_state');
+      if (!record) return;
+      this.stateRecordId = record.id;
+      this.opportunities = record.payload.opportunities ?? [];
+      this.signals = record.payload.signals ?? [];
+      this.missions = record.payload.missions ?? [];
+      this.feedbacks = record.payload.feedbacks ?? [];
     } catch (e) {
-      console.warn('Storage loading error, using defaults', e);
-      this.opportunities = INITIAL_RADAR_OPPORTUNITIES;
-      this.signals = INITIAL_RADAR_SIGNALS;
-      this.missions = INITIAL_SEARCH_MISSIONS;
+      console.warn('Radar cloud indisponible; aucune opportunité fictive chargée.', e);
     }
   }
 
-  private saveToStorage() {
-    try {
-      localStorage.setItem('lmav_radar_opps_v2', JSON.stringify(this.opportunities));
-      localStorage.setItem('lmav_radar_signals_v2', JSON.stringify(this.signals));
-      localStorage.setItem('lmav_radar_missions_v2', JSON.stringify(this.missions));
-      localStorage.setItem('lmav_radar_feedbacks_v2', JSON.stringify(this.feedbacks));
-    } catch (e) {
-      console.warn('Failed to save radar state to localStorage', e);
-    }
+  private saveToCloud() {
+    void moduleRepository.upsert('career', 'radar_state', {
+      opportunities: this.opportunities,
+      signals: this.signals,
+      missions: this.missions,
+      feedbacks: this.feedbacks,
+    }, {
+      id: this.stateRecordId,
+      idempotencyKey: 'radar-state:singleton',
+    }).then((record) => { this.stateRecordId = record.id; });
   }
 
   // Getters
@@ -649,7 +641,7 @@ export class CareerRadarEngine {
     if (newStatus === 'a_etudier' || newStatus === 'action_engagee') {
       opp.savedAt = new Date().toLocaleDateString('fr-FR');
     }
-    this.saveToStorage();
+    this.saveToCloud();
     return opp;
   }
 
@@ -657,7 +649,7 @@ export class CareerRadarEngine {
     const opp = this.opportunities.find(o => o.id === opportunityId);
     if (!opp) return false;
     opp.isFavorite = !opp.isFavorite;
-    this.saveToStorage();
+    this.saveToCloud();
     return opp.isFavorite;
   }
 
@@ -669,7 +661,7 @@ export class CareerRadarEngine {
       timestamp: new Date().toISOString()
     };
     this.feedbacks.unshift(newRecord);
-    this.saveToStorage();
+    this.saveToCloud();
   }
 
   // Manage Continuous Search Missions
@@ -682,7 +674,7 @@ export class CareerRadarEngine {
       lastScannedAt: 'Initialisation en cours'
     };
     this.missions.unshift(newMission);
-    this.saveToStorage();
+    this.saveToCloud();
     return newMission;
   }
 
@@ -690,14 +682,14 @@ export class CareerRadarEngine {
     const mission = this.missions.find(m => m.id === missionId);
     if (!mission) return null;
     mission.status = mission.status === 'active' ? 'paused' : 'active';
-    this.saveToStorage();
+    this.saveToCloud();
     return mission;
   }
 
   public deleteMission(missionId: string): boolean {
     const initialLen = this.missions.length;
     this.missions = this.missions.filter(m => m.id !== missionId);
-    this.saveToStorage();
+    this.saveToCloud();
     return this.missions.length < initialLen;
   }
 
@@ -797,99 +789,13 @@ FORMAT DE RÉPONSE OBLIGATOIRE EN JSON STRICT (SANS MARKDOWN NI BLABLA) :
 
       // Merge into local list avoiding duplicates
       this.opportunities = [...results, ...this.opportunities];
-      this.saveToStorage();
+      this.saveToCloud();
       return results;
 
     } catch (err) {
       console.warn('Radar distant indisponible : aucune opportunité inventée.', err);
       return [];
     }
-  }
-
-  // Fallback Rule-Based Generation
-  private generateFallbackMatches(
-    query: string, 
-    universe: OpportunityUniverse, 
-    pointA: CareerPointA, 
-    pointB: CareerPointB
-  ): RadarOpportunityItem[] {
-    const qLower = query.toLowerCase();
-    const mockList: RadarOpportunityItem[] = [
-      {
-        id: `opp-fb-${Date.now()}-1`,
-        title: `Opportunité Ciblée : ${query || pointB.title}`,
-        entity: 'Consortium International LMAV & Partenaires',
-        universe,
-        opportunityType: universe === 'emploi' ? 'Poste Clé / Mission' : universe === 'clients' ? 'Marché Privé B2B' : universe === 'fonds' ? 'Programme de Financement' : 'Centrale d\'Achat Pro',
-        location: `${pointA.location} & International`,
-        locationScope: 'regional',
-        country: 'Afrique de l\'Ouest / Europe',
-        countryFlag: '🌍',
-        description: `Opportunité qualifiée correspondant directement à votre intention de conquête : "${query}". Validée par les protocoles de conformité Mok Trust.`,
-        publicationDate: 'Aujourd\'hui',
-        deadlineDate: 'Dans 20 jours',
-        daysRemaining: 20,
-        isUrgent: false,
-        compensationOrBudget: pointB.targetSalaryOrRevenue || 'Rémunération compétitive alignée marché',
-        sourceType: 'reseau_mok',
-        sourceName: 'Réseau MOK & Partenaires Certifiés',
-        matchScore: 91,
-        compatibilityTier: 'Élevée',
-        readiness: 'ready_now',
-        whyForMe: `Votre profil (${pointA.currentTitle}) et vos compétences enregistrées correspondent à 90% aux critères d'admissibilité pour ${pointB.title}.`,
-        matchedStrengths: pointA.hardSkills.slice(0, 3).map(s => s.name),
-        missingCompetencies: ['Certification Complémentaire'],
-        gapPlan: {
-          missingSkills: [
-            {
-              skill: 'Approfondissement Spécifique',
-              courseTitle: 'Perfectionnement Métier & Exigences Marché',
-              estimatedHours: 6
-            }
-          ],
-          daysUntilDeadline: 20,
-          preparationFeasibility: 'faisable_avant_deadline',
-          strategicAdvice: 'Vous pouvez candidater immédiatement et suivre le module Campus en parallèle.'
-        },
-        trustScore: 97,
-        isVerifiedEntity: true,
-        riskLevel: 'safe',
-        vaultStatus: 'decouverte'
-      },
-      {
-        id: `opp-fb-${Date.now()}-2`,
-        title: `Projet Stratégique & Développement Commercial`,
-        entity: 'Alliance Régionale de Croissance',
-        universe,
-        opportunityType: universe === 'emploi' ? 'Contrat de Cadre' : universe === 'clients' ? 'Appel d\'Offres Prive' : universe === 'fonds' ? 'Bourse d\'Expansion' : 'Fourniture & Sourcing Direct',
-        location: 'Zone UEMOA / Hybride',
-        locationScope: 'regional',
-        country: 'Sénégal / Côte d\'Ivoire',
-        countryFlag: '🇸🇳',
-        description: `Recherche d'un partenaire qualifié pour accélérer la pénétration de marché et la distribution de solutions certifiées.`,
-        publicationDate: 'Hier',
-        deadlineDate: 'Dans 35 jours',
-        daysRemaining: 35,
-        isUrgent: false,
-        compensationOrBudget: 'Sur devis / Grille officielle',
-        sourceType: 'marche_mondial',
-        sourceName: 'Marché Mondial B2B LMAV',
-        matchScore: 86,
-        compatibilityTier: 'Forte',
-        readiness: 'to_prepare',
-        whyForMe: `Excellente passerelle pour consolider vos acquis et développer un réseau d'affaires solide dans votre secteur.`,
-        matchedStrengths: ['Leadership', 'Négociation', 'Gestion'],
-        missingCompetencies: ['Conformité Réglementaire Avancée'],
-        trustScore: 95,
-        isVerifiedEntity: true,
-        riskLevel: 'safe',
-        vaultStatus: 'decouverte'
-      }
-    ];
-
-    this.opportunities = [...mockList, ...this.opportunities];
-    this.saveToStorage();
-    return mockList;
   }
 }
 

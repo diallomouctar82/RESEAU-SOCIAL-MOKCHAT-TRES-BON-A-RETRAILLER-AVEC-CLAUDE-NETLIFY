@@ -1,10 +1,9 @@
 import { DossierParcours, DossierStep, DossierTask, DossierDocument, DossierDeliverable, DossierCategory } from '../types';
-import { DEFAULT_DOSSIERS } from '../constants';
 import { AIProxyClient } from './aiProxy';
 import { memoryService } from './memory';
+import { moduleRepository } from './moduleRepository';
 
 class DossierService {
-    private readonly DOSSIER_STORAGE_KEY = 'lmav_dossiers_v2';
     private dossiersCache: DossierParcours[] | null = null;
 
     /**
@@ -13,16 +12,12 @@ class DossierService {
     async getAllDossiers(): Promise<DossierParcours[]> {
         if (this.dossiersCache) return this.dossiersCache;
         try {
-            const stored = localStorage.getItem(this.DOSSIER_STORAGE_KEY);
-            if (stored) {
-                this.dossiersCache = JSON.parse(stored);
-                return this.dossiersCache || DEFAULT_DOSSIERS;
-            }
-            this.dossiersCache = [...DEFAULT_DOSSIERS];
-            this.persist();
+            const records = await moduleRepository.list<DossierParcours>('dossiers', 'dossier');
+            this.dossiersCache = records.map((record) => record.payload);
             return this.dossiersCache;
         } catch (e) {
-            return DEFAULT_DOSSIERS;
+            console.warn('Chargement des dossiers impossible', e);
+            return [];
         }
     }
 
@@ -46,7 +41,7 @@ class DossierService {
         targetDate?: string;
     }): Promise<DossierParcours> {
         const dossiers = await this.getAllDossiers();
-        const id = `dossier-${Date.now()}`;
+        const id = crypto.randomUUID();
 
         // Initialisation standardisée selon la méthodologie :
         // DIAGNOSTIQUER -> COMPRENDRE -> PLANIFIER -> ACCOMPAGNER -> PRODUIRE -> ÉVALUER -> CORRIGER -> SUIVRE -> ATTEINDRE L'OBJECTIF
@@ -134,7 +129,7 @@ class DossierService {
 
         dossiers.unshift(newDossier);
         this.dossiersCache = dossiers;
-        this.persist();
+        await this.persist();
 
         // Enregistrement dans la mémoire active
         await memoryService.addOrUpdateMemory({
@@ -180,7 +175,7 @@ class DossierService {
             dossier.nextAction = `Poursuivre l'étape "${nextStep.title}" avec l'expert assigné.`;
         }
 
-        this.persist();
+        await this.persist();
         return dossier;
     }
 
@@ -195,7 +190,7 @@ class DossierService {
         if (task) {
             task.completed = !task.completed;
             dossier.lastActiveDate = 'À l’instant';
-            this.persist();
+            await this.persist();
         }
         return dossier;
     }
@@ -212,7 +207,7 @@ class DossierService {
             ...task
         });
         dossier.lastActiveDate = 'À l’instant';
-        this.persist();
+        await this.persist();
         return dossier;
     }
 
@@ -239,7 +234,7 @@ class DossierService {
         });
 
         dossier.lastActiveDate = 'À l’instant';
-        this.persist();
+        await this.persist();
         return dossier;
     }
 
@@ -275,13 +270,14 @@ class DossierService {
         }
     }
 
-    public persist(): void {
+    public async persist(): Promise<void> {
         if (this.dossiersCache) {
-            try {
-                localStorage.setItem(this.DOSSIER_STORAGE_KEY, JSON.stringify(this.dossiersCache));
-            } catch (e) {
-                console.error("Erreur sauvegarde locale dossiers", e);
-            }
+            await Promise.all(this.dossiersCache.map((dossier) => moduleRepository.upsert(
+                'dossiers',
+                'dossier',
+                dossier,
+                { id: dossier.id, status: dossier.status === 'complete' || dossier.status === 'objectif_atteint' ? 'completed' : 'active' },
+            )));
         }
     }
 }
