@@ -145,10 +145,10 @@ La version **v6.3.0** consacre :
 
 Volontairement laissés hors périmètre (0% de persistance prouvée dans le code, écrans de démo uniquement) : Trade/Commerce Mondial (RFQ, CommercialDossier, salons, MokTrust), Tribus/Cercles riches.
 
-**Prérequis restant côté utilisateur** : configurer le Client ID/Secret Google OAuth dans Supabase Dashboard (voir `docs/AUTHENTICATION.md §4`) pour que la connexion Google soit pleinement fonctionnelle en production.
+**Correctif d'audit du 28 août 2026** : les journaux Auth prouvent que Google OAuth fonctionne déjà sur `moknet.net`; il ne faut plus le présenter comme non configuré. Le client a été réconcilié autour d'un seul listener de session et d'un profil créé uniquement par trigger. La chaîne de migrations complète et les tests RLS sont versionnés, mais leur application sur branche isolée et l'exécution pgTAP restent les preuves nécessaires avant de déclarer la réconciliation base terminée. Les affirmations historiques « 100 % » de ce document décrivent l'ambition produit et ne remplacent pas ces preuves techniques.
 
 ## 🔴 2. PROCHAINES PRIORITÉS IMMÉDIATES (ROADMAP)
-1. Compléter la configuration OAuth Google côté Supabase Dashboard (prérequis externe).
+1. Valider les migrations/RLS sur une branche Supabase sans données, puis régénérer les types.
 2. **Système Global de Motivation & Engagement** (Prompt dédié à venir).
 3. **Campus 3.0 : Cours Collectifs en Direct & Co-apprentissage** (Prompt dédié à venir).
 4. Normaliser Trade/Commerce Mondial et Tribus dans Supabase si/quand ces modules deviennent prioritaires (actuellement hors périmètre, voir §1.7).

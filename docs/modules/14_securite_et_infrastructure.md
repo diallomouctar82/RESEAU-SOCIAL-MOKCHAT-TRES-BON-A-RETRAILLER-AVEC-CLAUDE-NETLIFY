@@ -12,7 +12,7 @@
 ## 👥 2. UTILISATEURS CONCERNÉS & PARCOURS
 - **Publics** : Administrateurs système, superviseurs d'experts, utilisateurs généraux.
 - **Parcours Type** :
-  1. Authentification sécurisée via `components/Auth.tsx` (avec distinction automatique du compte superviseur `visionsmart224@gmail.com`).
+  1. Authentification sécurisée via `components/Auth.tsx`; aucun compte privilégié n'est déduit d'une adresse email.
   2. Attribution des droits, jetons de session et permissions d'interface.
   3. Journalisation transparente des événements de sécurité dans le Coffre-fort numérique (`SecurityLog`).
 
@@ -32,12 +32,13 @@
 
 ## 🛡️ 4. RÈGLES MÉTIER & SÉCURITÉ
 - **Protection des Secrets Serveur** : Clés Gemini et API tierces isolées côté serveur, jamais transmises au navigateur. `service_role` Supabase jamais exposée au frontend (uniquement la clé `publishable`).
-- **Principe du Moindre Privilège** : Les fonctions d'administration et de modération globale sont réservées au rôle `admin`, fixé **côté base** (trigger serveur), plus jamais calculé côté client. Row Level Security activé sur toutes les tables (voir `docs/SUPABASE_ARCHITECTURE.md`).
+- **Principe du Moindre Privilège** : le trigger attribue uniquement `user`. Toute promotion est une mutation administrative explicite, auditée et protégée côté serveur. La Row Level Security et les grants restent les deux contrôles complémentaires (voir `docs/SUPABASE_ARCHITECTURE.md`).
 - **Conformité RGPD** : Droit à l'oubli, exportation complète des données (`cloud.ts`) et chiffrement local.
 
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : Authentification Supabase (Google OAuth), gestion des rôles server-side avec RLS, tableau de bord admin. *(27 août 2026 : migration complète depuis l'ancienne session `localStorage` falsifiable — voir `docs/AUTHENTICATION.md`.)*
-- **Partiel / En cours** : Authentification biométrique WebAuthn / Passkeys ; email/mot de passe réel (reporté, Google restait prioritaire).
+- **Terminé dans le code** : session Auth unique, profil hydraté sans double upsert, callback OAuth expiré traité, migrations RLS versionnées.
+- **Prouvé en exploitation** : le flux Google principal sur `moknet.net` (journaux Auth agrégés du 27 août 2026).
+- **À valider avant clôture** : application des migrations sur branche isolée, tests pgTAP de refus, puis régénération des types. WebAuthn/Passkeys et email/mot de passe restent hors périmètre.
 - **Évolutions Prévues** : Détection proactive des anomalies de connexion et alertes par notification push chiffrée ; activation de la protection "mots de passe compromis" de Supabase Auth une fois l'email/mot de passe implémenté.

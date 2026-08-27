@@ -1,87 +1,64 @@
-# 🗄️ ARCHITECTURE SUPABASE — LE MONDE À VOUS
+# Architecture Supabase — contrat vérifié
 
-> Socle backend (base de données, authentification, permissions, stockage, temps réel).
-> Projet Supabase : **"monde a vous"** (`rqciahtpixdjbyoajomg`, région `eu-west-1`, Postgres 17).
-> *Mise à jour : 27 août 2026 — migration complète Firebase → Supabase.*
+> Mise à jour : 28 août 2026. Ce document distingue le schéma observé, le code versionné et les validations réellement exécutées.
 
----
+## Source de vérité
 
-## 1. Principe directeur
+Le projet actif `rqciahtpixdjbyoajomg` contient 58 tables `public` issues de 18 migrations. L'ancien fichier `docs/supabase_schema.sql` ne décrivait que douze tables et utilisait plusieurs noms incompatibles. Il est désormais un pointeur ; l'unique chaîne SQL exécutable est `supabase/migrations/`, par ordre lexical.
 
-Toute l'app converge vers **une identité unique** : `auth.users` (Supabase Auth) + `public.profiles` (profil applicatif, 1:1). Chaque module métier référence `profiles.id`, jamais un identifiant local par module. RLS activé sur **toutes** les tables contenant des données utilisateur.
-
-**Périmètre de cette mission** (décision explicite, voir section 4) : Identity, Social, Messagerie, Dossiers de vie, Carrière (scope réel), Éducation/Campus, Commerce minimal, Finance, Notifications, Fichiers, Live (intégral), catalogue Agents. **Hors périmètre** : Trade/Commerce Mondial (RFQ, CommercialDossier, salons, MokTrust — ~90 types), Tribus/Cercles riches — 0% de persistance prouvée dans le code au moment de la migration, laissés inchangés (écrans de démo) jusqu'à preuve de besoin produit réel.
-
----
-
-## 2. Domaines et tables
-
-| Domaine | Tables | Notes |
-|---|---|---|
-| **Identity** | `profiles`, `profile_skills`, `profile_badges` | `profiles.id` = `auth.users.id`. `role`/`credits`/`xp`/`level`/`next_level_xp` protégés en écriture (trigger, voir §5). |
-| **Social** | `posts`, `post_documents`, `comments`, `post_reactions`, `stories` | Réactions UNIQUE(post_id, user_id). Commentaires self-FK (réponses imbriquées). |
-| **Messagerie** | `conversations`, `conversation_participants`, `messages`, `agent_chat_sessions`, `agent_chat_messages` | `messages` en Realtime. Chat Expert IA enfin persisté (service `memoryService` existait côté code mais n'était jamais branché). |
-| **Dossiers de vie** | `dossiers`, `dossier_steps`, `dossier_tasks`, `dossier_documents`, `dossier_deliverables`, `dossier_appointments`, `dossier_shares` | Domaine le mieux justifié par l'audit (CRUD réel préexistant). Partage explicite via `dossier_shares`. |
-| **Carrière** | `career_goals`, `career_opportunities`, `career_opportunity_feedback`, `career_search_missions`, `master_resumes`, `career_snapshots` | Seuls Radar + CV Maître avaient un CRUD prouvé. `career_snapshots` (jsonb) reçoit les ~70 autres types Carrière (Boussole, simulations, journal...) sans normalisation forcée. |
-| **Éducation / Campus** | `courses`, `enrollments`, `exam_sessions`, `certificates` | `enrollments` UNIQUE(user_id, course_id). Corrige un bug d'index de l'ancien code (`cloud.ts` indexait les certificats sur `studentName` au lieu d'un vrai `user_id`). |
-| **Commerce (minimal)** | `shops`, `products`, `orders`, `order_items` | `orders`/`order_items` n'existaient pas du tout côté code — nécessaires pour que le panier devienne réel. |
-| **Finance** | `wallet_transactions` | Solde **dérivé** (`get_wallet_balance()`), jamais stocké — évite toute désynchronisation. Écriture uniquement via `insert_wallet_transaction()` (RPC). |
-| **Notifications** | `notifications` | Realtime activé. |
-| **Fichiers** | `documents`, `document_shares` | Métadonnées uniquement ; fichiers réels dans Supabase Storage (§6). Digital Safe était un stub vide côté code (`cloudService.uploadFile` ne stockait rien) — première implémentation réelle. |
-| **Live** | `live_sessions`, `live_speakers`, `live_attendance`, `live_questions` (+upvotes), `live_polls`(+options+votes), `live_agenda_items`, `live_decisions`, `live_action_items`, `live_documents`, `live_source_cards`, `live_products`, `live_personal_notes`, `gift_catalog`, `live_gifts_sent`, `live_replays`, `live_whiteboard_strokes` | Couverture intégrale de `SocialLive.tsx`/`LiveStream` (pas une version réduite — décision explicite, voir §4). |
-| **Agents** | `agents` | Catalogue des 13 experts Diallo. Admin-managé, lecture publique. |
-
-**Standards transverses** : `created_at`/`updated_at` (trigger `set_updated_at`), UUID (`gen_random_uuid()`), index sur toutes les FK, contraintes UNIQUE anti-doublons (réactions, participants, inscriptions, votes).
-
----
-
-## 3. Rôles et permissions
-
-`profiles.role` ∈ `user | admin | expert | mentor | moderator | organization | super_admin` (contrainte `check`). Seuls `user`/`admin` sont utilisés aujourd'hui ; les autres sont préparés pour les évolutions futures sans migration supplémentaire.
-
-- **Bootstrap admin** : le trigger `handle_new_user()` attribue `role = 'admin'` uniquement si l'email correspond à l'admin historique (`visionsmart224@gmail.com`), sinon `'user'`. Cette logique vit **côté base**, plus jamais côté client.
-- **Vérification** : fonction `is_admin()` (SECURITY DEFINER, lit `profiles.role` du user courant) — utilisée dans toutes les policies nécessitant un accès admin.
-- **Colonnes protégées** : `role`, `credits`, `xp`, `level`, `next_level_xp` sur `profiles` ne peuvent être modifiées ni par un `UPDATE` client direct, ni par une policy RLS "own row" — un trigger `protect_profile_sensitive_columns` les restaure à leur valeur précédente sauf appel `service_role` ou RPC de confiance (voir `award_xp_and_credits`).
-
----
-
-## 4. Décisions de périmètre (traçabilité)
-
-1. **Auth + domaines déjà réels uniquement** (validé explicitement) : pas de normalisation de Trade/Commerce Mondial/MokTrust (0% persistance prouvée).
-2. **Live intégral** (ajusté suite à une demande explicite en cours de mission) : contrairement au choix initial "minimal", tout `SocialLive.tsx` est couvert (questions, sondages, agenda, décisions, documents, cadeaux, présence, tableau blanc) — rien de ce qui existe déjà dans l'UI n'est laissé de côté.
-3. **Tribus/Cercles** : hors périmètre (quasi aucune structure réelle dans le code — 1 tribu mock, `members` est un entier, pas une relation).
-
----
-
-## 5. Fonctions RPC clés
-
-| Fonction | Rôle |
+| Fichier | Objet |
 |---|---|
-| `is_admin()` | Vérifie si l'utilisateur courant est admin (utilisée dans les policies). |
-| `can_view_live_session(id)` / `is_live_host(id)` | Visibilité et droits d'écriture sur une session Live. |
-| `can_access_dossier(id)` / `can_write_dossier(id)` | Visibilité et droits d'écriture sur un dossier (propriétaire ou partage explicite). |
-| `get_wallet_balance(user_id, currency)` | Solde dérivé (somme des transactions), avec vérification d'autorisation (soi-même ou admin). |
-| `insert_wallet_transaction(...)` | Seule voie d'écriture dans `wallet_transactions` — vérifie le solde avant un débit. |
-| `award_xp_and_credits(user_id, xp_delta, credits_delta)` | Seule voie légitime pour modifier `credits`/`xp`/`level` sur `profiles`. |
+| `20260827130000_live_schema_snapshot.sql` | snapshot déclaratif des 58 tables, contraintes, index, fonctions, triggers, policies et grants observés |
+| `20260827210000_live_core_baseline.sql` | baseline additive du cœur Identity/Social/Messagerie |
+| `20260827211000_core_schema_and_rpc_reconciliation.sql` | colonnes manquantes, helpers non ambigus et RPC contrôlées |
+| `20260827212000_core_rls_storage_and_grants.sql` | remplacement des policies cœur et réduction des grants |
+| `20260827212500_cross_domain_rls_correlation_fixes.sql` | correction de la corrélation Documents héritée |
 
----
+Une migration additive ne signifie pas qu'elle est déjà appliquée en production. Le dépôt est la proposition reproductible ; son déploiement suit une validation sur branche Supabase isolée.
 
-## 6. Storage
+## Noms canoniques
 
-Deux buckets (pas un par écran) :
-- **`public`** — avatars, images de posts/stories. Lecture publique, écriture restreinte au chemin `{domaine}/{user_id}/...` du propriétaire.
-- **`private`** — documents, CV, pièces Carrière/Campus. Aucune URL publique permanente ; accès uniquement au propriétaire (policy Storage), le partage explicite (`document_shares`/`dossier_shares`) se fait par **signed URLs** générées côté app, jamais en élargissant la policy du bucket.
+Le code doit réutiliser les noms actifs, sans tables parallèles :
 
----
+| Domaine | Tables |
+|---|---|
+| Identité | `profiles`, `profile_skills`, `profile_badges` |
+| Réseau | `posts`, `post_documents`, `comments`, `post_reactions`, `stories` |
+| MokChat | `conversations`, `conversation_participants`, `messages`, `message_reactions`, `user_presence`, `user_blocks`, `abuse_reports` |
+| Transverse | `notifications`, `audit_logs` |
 
-## 7. Realtime
+Les noms `social_posts`, `post_comments`, `conversation_members`, `participant1_id` et `participant2_id` ne font pas partie du contrat. Une conversation est liée à ses utilisateurs par `conversation_participants(conversation_id,user_id)`.
 
-Activé uniquement là où il apporte une vraie valeur (mission section 26) : `messages`, `notifications`, `live_questions`, `live_poll_votes`, `live_whiteboard_strokes`. Pas de Realtime généralisé à toutes les tables.
+## Identité et profil
 
----
+`auth.users.id = profiles.id`. La création du profil appartient exclusivement au trigger `handle_new_user`; le navigateur ne fait jamais de `INSERT`/`UPSERT profiles`.
 
-## 8. État des lieux avant/après
+Le trigger n'accepte de `raw_user_meta_data` que le nom et l'avatar. Il attribue toujours le rôle initial `user`; aucun email codé en dur ni champ `role` fourni par le client ne peut créer un administrateur. Les rôles existants sont conservés lors de la migration.
 
-Avant cette mission : **aucun backend réel**. Authentification 100% simulée (mot de passe jamais vérifié, session falsifiable via `localStorage`), toutes les données en `localStorage`/IndexedDB/state React, un seul projet Supabase existant avec une table stub vide (`mok`, supprimée lors de cette migration).
+Les colonnes `id`, `email`, `role`, `credits`, `xp`, `level`, `next_level_xp`, `two_factor_enabled` et `created_at` sont protégées. Les changements de rôle passent par `admin_set_user_role(...)`, avec autorisation serveur et journal d'audit. Les gains passent par une fonction réservée au `service_role`.
 
-Voir `docs/AUTHENTICATION.md` pour le détail du flux d'authentification et `docs/JOURNAL_DECISIONS.md` pour l'historique des décisions.
+## RLS et annuaire
+
+La lecture complète de `profiles` est limitée au propriétaire et aux administrateurs. Les autres écrans utilisent :
+
+- `search_public_profiles(p_query,p_limit)` pour l'annuaire ;
+- `get_public_profiles(p_user_ids)` pour résoudre des auteurs ou participants ;
+- `update_my_profile(p_changes)` pour les champs personnels autorisés.
+
+Les projections publiques n'incluent jamais email, téléphone, rôle, crédits ou identifiant citoyen. Elles appliquent visibilité et blocages, et limitent le nombre d'identifiants.
+
+Les policies de messagerie utilisent des helpers paramétrés (`private.is_conversation_member(conversation_id)`) afin d'éviter les anciennes tautologies comme `cp.conversation_id = cp.conversation_id`. Les grants `anon` sont révoqués sur le schéma applicatif et les fonctions sensibles ne sont pas exécutables par le navigateur.
+
+## Données et types
+
+`services/database.types.ts` est le type généré depuis le schéma actif avant application des migrations de réconciliation. Après chaque migration distante validée, il faut le régénérer et committer le diff. Les nouveaux appels RPC sont temporairement isolés derrière le service de données afin de ne pas diffuser des casts dans les composants.
+
+## Validation reproductible
+
+Le test `supabase/tests/core_rls_test.sql` couvre les cas autorisés et refusés : profil complet, annuaire sans données sensibles, isolation des conversations/messages, rôle/crédits et fonctions sensibles. Il doit être exécuté par `supabase test db` après un reset local ou sur une branche sans données.
+
+État au 28 août 2026 : le contrôle statique des cinq migrations est vert. Le reset/apply PostgreSQL et pgTAP ne sont pas déclarés réussis tant que leur sortie n'a pas été capturée dans le rapport d'intégration.
+
+## Réglages externes
+
+Les éléments suivants ne sont pas encodables dans une migration SQL et restent des contrôles opérateur : provider Google et URLs de redirection Auth, protection des mots de passe compromis, paramètres Realtime et rotation des clés. Aucun secret `service_role`, OAuth ou base de données ne doit entrer dans Git ni dans une variable `VITE_*`.

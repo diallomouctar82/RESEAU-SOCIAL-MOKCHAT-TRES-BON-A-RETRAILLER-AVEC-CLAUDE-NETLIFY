@@ -4,6 +4,17 @@
 
 ---
 
+### [DEC-2026-021] — 28 Août 2026
+* **Module(s)** : Auth, profils, Supabase, MokChat/Réseau.
+* **Constat** : le dépôt ne reproduisait pas les 58 tables actives, le client lançait deux synchronisations de profil et des policies corrélaient des alias avec eux-mêmes. Une policy exposait aussi les lignes complètes de `profiles` à tout compte authentifié.
+* **Décision** : conserver les noms actifs (`posts`, `comments`, `conversation_participants`), versionner un snapshot suivi de migrations additives, isoler les prédicats RLS dans des helpers paramétrés, et séparer strictement hydratation et édition du profil.
+* **Sécurité** : `handle_new_user` attribue toujours `user`; l'annuaire passe par une projection RPC sans email/rôle/crédits; les mutations sensibles sont auditables et réservées au serveur. Les identifiants mock non UUID ne sont jamais envoyés à PostgREST.
+* **Preuve** : contrôle statique des migrations vert. Les logs Auth prouvent le flux Google principal. L'apply PostgreSQL et pgTAP restent explicitement non validés jusqu'au rapport de branche isolée.
+* **Éléments techniques** : `services/auth.ts`, `services/profile.ts`, `services/supabaseClient.ts`, `contexts/GlobalContext.tsx`, `supabase/migrations/*`, `supabase/tests/core_rls_test.sql`.
+* **Statut** : implémenté en source, validation distante en attente.
+
+---
+
 ## 📋 FORMAT D'UNE ENTRÉE DE DÉCISION
 Chaque décision respecte le formalisme strict suivant :
 - **ID & Date** : Identifiant unique `DEC-YYYY-NNN` et date de validation.
@@ -457,7 +468,6 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
-
 
 
 
