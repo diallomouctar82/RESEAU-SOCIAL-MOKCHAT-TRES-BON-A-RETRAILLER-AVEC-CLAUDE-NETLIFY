@@ -1,5 +1,5 @@
 # 💰 MODULE 12 — FINANCE, WALLET & MONNAIES
-> **Portefeuille Multi-Devises, Crédits LMAV, Conversion Instantanée & Séquestre Sécurisé (Escrow)**
+> **Ledger interne multi-devises et séquestre logique — aucun statut bancaire ou paiement externe**
 
 ---
 
@@ -13,15 +13,16 @@
 - **Publics** : Tous les utilisateurs effectuant des achats (cours, produits, abonnements), vendeurs encaissant des revenus, étudiants recevant des récompenses d'études.
 - **Parcours Type** :
   1. Consultation du solde global et de la répartition par devise dans `Wallet.tsx`.
-  2. Rechargement du compte en Crédits ou retrait des gains vers un compte tiers.
+  2. Transfert atomique entre deux UUID utilisateurs MokChat authentifiés.
   3. Suivi de l'historique détaillé des débits, crédits et fonds bloqués sous séquestre commercial.
 
 ---
 
 ## ⚙️ 3. COMPOSANTS & ARCHITECTURE TECHNIQUE
 - **Fichiers Clés** :
-  - `components/Wallet.tsx` : Espace bancaire et gestionnaire de portefeuille.
-  - `contexts/GlobalContext.tsx` : Méthodes `updateUserCredits`, `addTransaction`.
+  - `components/Wallet.tsx` : lecture du ledger et transfert interne sans mutation locale du solde.
+  - `services/walletLedger.ts` : accès typé aux RPC de solde et transfert.
+  - `supabase/migrations/20260827213100_wallet_commerce.sql` : ledger immuable, verrous atomiques, idempotence et escrow commerce.
 - **Modèles de Données (`types.ts`)** :
   - `Currency`, `WalletTransaction`, `UserProfile.credits`.
 
@@ -34,6 +35,7 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : Portefeuille multi-devises, gestion des Crédits Ⓒ, historique des transactions, simulation de conversion.
-- **Partiel / En cours** : Intégration de passerelles directes Mobile Money (Orange Money, Wave, M-Pesa).
-- **Évolutions Prévues** : Micro-crédit d'honneur communautaire pour financer des bourses d'études Campus.
+- **Implémenté dans le code** : solde dérivé de toutes les écritures, historique Supabase, ledger non modifiable, transfert débit/crédit atomique et idempotent, séquestre logique relié aux commandes.
+- **Testé localement** : tests ciblés et build Vite.
+- **Configuration requise** : migrations cœur puis `20260827213100_wallet_commerce.sql`; données et utilisateurs de test Supabase pour l'E2E.
+- **Non revendiqué** : carte bancaire, recharge, retrait, change réel, crédit, Mobile Money et paiement externe. Le convertisseur est explicitement indicatif et ne produit aucune écriture.

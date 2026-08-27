@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { BuyRequestRFQ, TradeQuote } from '../types';
 import { AIProxyClient } from '../services/aiProxy';
+import { commerceService } from '../services/commerceService';
 
 interface TradeRFQHubProps {
   rfqs: BuyRequestRFQ[];
@@ -57,6 +58,8 @@ export const TradeRFQHub: React.FC<TradeRFQHubProps> = ({
   const [rfqDeadline, setRfqDeadline] = useState('30/05/2026');
   const [rfqSpecs, setRfqSpecs] = useState('Carton résistant humidité, Norme ISO, Certificat phytosanitaire');
   const [isAiDrafting, setIsAiDrafting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
 
   // Quote Form
   const [isQuoting, setIsQuoting] = useState(false);
@@ -98,7 +101,7 @@ Réponds en texte clair et concis (environ 80-100 mots).`;
     }
   };
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rfqTitle.trim()) return;
 
@@ -122,13 +125,43 @@ Réponds en texte clair et concis (environ 80-100 mots).`;
       quotes: []
     };
 
-    onCreateRFQ(newRfq);
-    setActiveTab('browse');
-    setRfqTitle('');
-    setRfqDesc('');
+    setIsSaving(true);
+    setPersistenceError(null);
+    try {
+      const deadlineParts = rfqDeadline.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const deadline = deadlineParts
+        ? `${deadlineParts[3]}-${deadlineParts[2]}-${deadlineParts[1]}T23:59:59.000Z`
+        : undefined;
+      const persisted = await commerceService.createRfq({
+        title: rfqTitle,
+        specifications: {
+          category: rfqCategory,
+          dimension: rfqDimension,
+          description: rfqDesc,
+          quantityRequested: rfqQuantity,
+          unit: rfqUnit,
+          targetDestinationCountry: rfqDestCountry,
+          targetDestinationCity: rfqDestCity,
+          criteria: newRfq.specifications,
+        },
+        currency: 'EUR',
+        budget: rfqTargetPrice ? rfqTargetPrice * rfqQuantity : undefined,
+        deadline,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      onCreateRFQ({ ...newRfq, id: persisted.id });
+      setActiveTab('browse');
+      setRfqTitle('');
+      setRfqDesc('');
+    } catch (error) {
+      console.error(error);
+      setPersistenceError('Publication impossible : la demande n’a pas été enregistrée. Vérifiez votre session et la migration commerce.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleSubmitQuoteAction = () => {
+  const handleSubmitQuoteAction = async () => {
     if (!selectedRfq) return;
     const newQuote: Partial<TradeQuote> = {
       supplierName: 'Mon Entreprise Export',
@@ -149,9 +182,31 @@ Réponds en texte clair et concis (environ 80-100 mots).`;
       commercialDocsAvailable: ['Facture Pro Forma', 'Certificat d\'origine']
     };
 
-    onSubmitQuote(selectedRfq.id, newQuote);
-    setIsQuoting(false);
-    setSelectedRfq(null);
+    setIsSaving(true);
+    setPersistenceError(null);
+    try {
+      await commerceService.submitQuote({
+        rfqId: selectedRfq.id,
+        amount: newQuote.totalPrice ?? 0,
+        currency: selectedRfq.currency,
+        incoterm: quoteIncoterm,
+        proposal: {
+          unitPrice: quotePricePerUnit,
+          quantity: selectedRfq.quantityRequested,
+          leadTimeDays: quoteLeadDays,
+          shippingEstimate: quoteShipping,
+          notes: quoteNotes,
+        },
+      });
+      onSubmitQuote(selectedRfq.id, newQuote);
+      setIsQuoting(false);
+      setSelectedRfq(null);
+    } catch (error) {
+      console.error(error);
+      setPersistenceError('Cotation non enregistrée. Aucun succès local n’est affiché sans confirmation Supabase.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -233,6 +288,11 @@ Réponds en texte clair et concis (environ 80-100 mots).`;
       </div>
 
       {/* CREATE TAB */}
+      {persistenceError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-200">
+          <BadgeAlert size={15} /> {persistenceError}
+        </div>
+      )}
       {activeTab === 'create' && (
         <div className="p-6 bg-slate-900 border border-white/10 rounded-3xl text-white space-y-6 animate-fade-down">
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -412,9 +472,10 @@ Réponds en texte clair et concis (environ 80-100 mots).`;
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold rounded-xl shadow-lg transition-transform hover:scale-105 disabled:opacity-50"
               >
-                Publier sur le Marché Mondial
+                {isSaving ? 'Enregistrement Supabase…' : 'Publier sur le Marché Mondial'}
               </button>
             </div>
           </form>
@@ -612,11 +673,12 @@ Réponds en texte clair et concis (environ 80-100 mots).`;
               </button>
               <button
                 type="button"
-                onClick={handleSubmitQuoteAction}
-                className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1.5"
+                onClick={() => void handleSubmitQuoteAction()}
+                disabled={isSaving || quotePricePerUnit < 0}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Send size={14} />
-                <span>Envoyer la cotation officielle</span>
+                <span>{isSaving ? 'Enregistrement…' : 'Envoyer la cotation'}</span>
               </button>
             </div>
           </div>

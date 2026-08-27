@@ -31,6 +31,15 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : Wallet, Commerce, Trade/RFQ.
+* **Problème / Besoin initial** : le Wallet gonflait le solde en état React et la création de commande faisait confiance aux prix du navigateur; RFQ et cotations affichaient des succès locaux.
+* **Décision retenue** : conserver les tables live `wallet_transactions`, `shops`, `products`, `orders`, `order_items`; rendre le ledger immuable; agréger les soldes et transférer par RPC atomiques; calculer prix/stock serveur; séparer les états `orders` des états escrow; persister RFQ/cotations et auditer les transitions.
+* **Conséquences** : aucun faux paiement, change, Mobile Money ou succès cloud. L'interface échoue explicitement si Supabase est absent. Le séquestre est une logique interne, pas un prestataire réglementé.
+* **Éléments techniques** : `components/Wallet.tsx`, `components/Shop.tsx`, `components/TradeRFQHub.tsx`, `services/walletLedger.ts`, `services/commerceService.ts`, migration `20260827213100_wallet_commerce.sql`.
+* **Preuves** : tests ciblés 3/3; build Vite réussi.
+* **Statut** : `Développé`, `Testé localement`, `Migration et E2E Supabase requis`.
+
 ### [DEC-2026-014] — 27 Août 2026
 * **Module(s)** : Dossiers de vie, Carrière, Campus, Langues, Studio collaboratif.
 * **Problème / Besoin initial** : les états métier structurants reposaient sur `localStorage` ou IndexedDB sans autorité cloud commune.
@@ -486,7 +495,6 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
-
 
 
 

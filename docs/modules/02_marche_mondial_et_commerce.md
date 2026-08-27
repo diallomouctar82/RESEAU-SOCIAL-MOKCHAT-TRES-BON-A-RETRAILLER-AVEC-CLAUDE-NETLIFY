@@ -35,10 +35,14 @@
 - **Contrats Normés** : Tous les échanges B2B intègrent les standards internationaux de la Chambre de Commerce Internationale (Incoterms 2020).
 - **Sécurité Financière** : Blocage des fonds en séquestre jusqu'à validation de la conformité de la marchandise à la livraison.
 - **Mok Trust** : Notation obligatoire des parties après chaque transaction complétée.
+- **Autorité serveur** : `create_commerce_order` relit prix, devise, vendeur, minimum et stock depuis `products`; le navigateur ne fournit jamais le prix final.
+- **Machine d'état réelle** : `pending → paid → shipped → completed`, avec `cancelled` uniquement sur les transitions autorisées. Les états du séquestre sont séparés de ceux de `orders`.
+- **Traçabilité** : RFQ, cotations, commandes et séquestres produisent des événements d'audit. Les mutations sensibles passent par des RPC `SECURITY DEFINER` à `search_path` vide et privilèges révoqués par défaut.
 
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : Catalogue tridimensionnel, Calculateur de coût complet (*Landed Cost*), Système de RFQ, Négociation assistée, Salons virtuels.
-- **Partiel / En cours** : Intégration de documents douaniers officiels scannés par OCR.
-- **Évolutions Prévues** : Agents autonomes de négociation pour pré-traiter les demandes 24h/24.
+- **Implémenté dans le code** : lecture du catalogue live `products/shops`; création atomique de commandes; publication de RFQ et cotations persistées; séquestre logique financé par le ledger; idempotence, RLS, audit et transitions contractuelles.
+- **Testé localement** : tests de frontières Wallet/Commerce et build Vite.
+- **Configuration requise** : appliquer `20260827213100_wallet_commerce.sql` après les migrations cœur Supabase. Aucun paiement, transporteur, douane ou escrow réglementé externe n'est connecté ou simulé.
+- **Toujours partiel** : les consoles Import/Export, salons, négociation et logistique conservent des moteurs d'aide sans preuve d'intégration à des prestataires officiels.
