@@ -40,6 +40,8 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : 8 Experts modélisés, Salle de conseil opérationnelle, Orchestrateur fonctionnel, Synthèse vocale multilingue.
-- **Partiel / En cours** : Intégration d'un historique de délibération persistant sous Cloud Firestore.
+- **Code prêt et testé localement** : 8 Experts modélisés, Salle de conseil et orchestrateur reliés à une façade IA unique authentifiée (`/api/ai`). Aucun SDK ni secret fournisseur n'est embarqué dans le bundle Vite.
+- **Persistance média** : les sorties image, audio et vidéo sont stockées dans le bucket Supabase privé `studio-generated`; les URL temporaires sont renouvelables après contrôle du propriétaire. Les opérations vidéo sont rattachées à l'utilisateur côté serveur.
+- **Configuration externe requise** : `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` et `SUPABASE_SERVICE_ROLE_KEY` doivent être définies dans Netlify, puis la migration `20260827214000_ai_proxy_assets.sql` appliquée. Tant que ce n'est pas fait, le service échoue explicitement avec `PROVIDER_NOT_CONFIGURED`; aucun faux conseil n'est généré.
+- **Non prouvé en production** : qualité des réponses fournisseur, quotas réels et parcours E2E Netlify/Supabase.
 - **Évolutions Prévues** : Avatars 3D photo-réalistes animés en temps réel lors des sessions vocales.

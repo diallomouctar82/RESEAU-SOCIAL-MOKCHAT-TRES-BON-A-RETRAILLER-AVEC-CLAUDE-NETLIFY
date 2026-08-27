@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Languages, Volume2, Play, BookOpen, MessageCircle, RotateCcw, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { UserProfile } from '../types';
 import { DAILY_VOCABULARY, LANGUAGE_LESSONS } from '../constants';
 
@@ -32,7 +32,7 @@ export const LanguageCenter: React.FC<LanguageCenterProps> = ({ userProfile }) =
         setConversation(prev => [...prev, { role: 'user', text: userMsg }]);
         setIsThinking(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const prompt = `Agis comme un prof de langue. Scénario: ${selectedScenario}. Dernier message: "${userMsg}". Réponds et corrige si besoin.`;
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
             setConversation(prev => [...prev, { role: 'model', text: response.text || "Je n'ai pas compris." }]);
@@ -43,7 +43,7 @@ export const LanguageCenter: React.FC<LanguageCenterProps> = ({ userProfile }) =
         if (!textToTranslate.trim()) return;
         setIsTranslating(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: `Traduis et explique : "${textToTranslate}"` });
             setTranslationResult(response.text || "Erreur.");
         } catch (e) { console.error(e); } finally { setIsTranslating(false); }

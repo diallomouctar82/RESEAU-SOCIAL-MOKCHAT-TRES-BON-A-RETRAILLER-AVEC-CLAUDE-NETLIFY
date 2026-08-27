@@ -3,7 +3,7 @@ import {
   Camera, Upload, FileText, CheckCircle2, AlertTriangle, Sparkles, 
   X, RefreshCw, DollarSign, Building2, Calendar, ShieldCheck, ArrowRight 
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface TradeDocumentOcrModalProps {
   isOpen: boolean;
@@ -51,7 +51,7 @@ export const TradeDocumentOcrModal: React.FC<TradeDocumentOcrModalProps> = ({
     setIsProcessing(true);
     try {
       // If we have actual file base64 or fallback simulation with Gemini
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es l'OCR IA Commercial International de Diallo OS.
       Analyse cette facture commerciale / facture pro forma / document douanier international.
       Extrais avec précision les données :

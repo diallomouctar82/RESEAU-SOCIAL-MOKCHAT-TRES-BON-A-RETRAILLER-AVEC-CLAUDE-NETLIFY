@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { CreditCard, RefreshCw, Send, History, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, DollarSign, Globe, Lock, CheckCircle, Smartphone, Sparkles, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { CURRENCIES } from '../constants';
 import { Currency, UserProfile } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { useGlobal } from '../contexts/GlobalContext';
 
 interface WalletProps {
@@ -86,7 +86,7 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
     const getFinancialAdvice = async () => {
         setIsThinking(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const prompt = `Agis comme un conseiller financier personnel.
             Profil : ${userProfile.name}.
             Solde actuel : 1250.00 €.

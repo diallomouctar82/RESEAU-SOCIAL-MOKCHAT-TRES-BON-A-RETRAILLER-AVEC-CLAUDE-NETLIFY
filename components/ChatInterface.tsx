@@ -27,7 +27,7 @@ import {
     Compass
 } from 'lucide-react';
 import { Agent, Message } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { useGlobal } from '../contexts/GlobalContext';
 import { memoryService } from '../services/memory';
@@ -122,7 +122,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
     setIsLoading(true);
 
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new AIProxyClient();
         
         // 1. Récupération du Contexte (RAG)
         let contextInjection = "";

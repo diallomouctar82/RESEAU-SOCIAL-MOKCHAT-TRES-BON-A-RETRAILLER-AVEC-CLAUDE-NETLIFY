@@ -5,7 +5,7 @@ import {
   Sparkles, History, Filter, FileText, ChevronRight, Layers, Sliders
 } from 'lucide-react';
 import { StockItem, Warehouse, StockMovement, SupplierItem } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../services/aiProxy';
 
 interface CentralStockWarehouseManagerProps {
   stockList: StockItem[];
@@ -117,7 +117,7 @@ export const CentralStockWarehouseManager: React.FC<CentralStockWarehouseManager
     if (!aiAddInput.trim()) return;
     setIsAiProcessing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `Tu es le moteur de classification et de création de fiches produits pour la plateforme mondiale de commerce Diallo OS.

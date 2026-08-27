@@ -4,7 +4,7 @@ import {
   Calendar, ShieldCheck, FileText, Users, Bot, Layers, AlertTriangle, 
   Compass, ChevronRight, Play, RefreshCw 
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface TradeCommercialOrchestratorModalProps {
   isOpen: boolean;
@@ -48,7 +48,7 @@ export const TradeCommercialOrchestratorModal: React.FC<TradeCommercialOrchestra
   const handleGenerateRoadmap = async () => {
     setIsGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es l'Orchestrateur Commercial Suprême de Diallo OS pour la plateforme 'Le Monde à Vous'.
       L'utilisateur exprime l'intention commerciale suivante :
       "${objectivePrompt}"

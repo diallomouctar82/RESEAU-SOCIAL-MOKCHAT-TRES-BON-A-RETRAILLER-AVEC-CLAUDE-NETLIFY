@@ -20,8 +20,7 @@ import {
   Target
 } from 'lucide-react';
 import { Avatar3D } from '../Avatar3D';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { decodeAudioData, base64ToUint8Array } from '../../services/audioUtils';
+import { AIProxyClient, Modality } from '../../services/aiProxy';
 import { Coach3DSimulationSession } from '../../types';
 import { MOCK_COACH_SESSIONS } from './careerDefaults';
 
@@ -117,12 +116,12 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
   const speakText = async (text: string) => {
     setAvatarState('speaking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
+      const apiKey = true;
       if (!apiKey) {
         setAvatarState('idle');
         return;
       }
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text }] }],
@@ -132,19 +131,12 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
         },
       });
 
-      const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64) {
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        const ctx = audioContextRef.current;
-        if (ctx.state === 'suspended') await ctx.resume();
-        const buffer = await decodeAudioData(base64ToUint8Array(base64), ctx, 24000, 1);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.onended = () => setAvatarState('idle');
-        source.start();
+      const audioUrl = response.candidates?.[0]?.content?.parts?.[0]?.fileData?.fileUri;
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => setAvatarState('idle');
+        audio.onerror = () => setAvatarState('idle');
+        await audio.play();
       } else {
         setAvatarState('idle');
       }
@@ -206,9 +198,9 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
     const persona = getPersonaDetails(selectedMode);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
+      const apiKey = true;
       if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new AIProxyClient();
         const prompt = `Tu es le Coach 3D interactif de Le Monde à Vous.
         Rôle: ${persona.persona}.
         Mode: ${persona.title}.
@@ -252,9 +244,9 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
     const persona = getPersonaDetails(selectedMode);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
+      const apiKey = true;
       if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new AIProxyClient();
         const prompt = `Tu es un examinateur expert et coach professionnel d'élite.
         Contexte: ${persona.title} (${persona.persona}).
         Question posée: "${currentQuestion}"

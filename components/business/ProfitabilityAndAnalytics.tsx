@@ -5,7 +5,7 @@ import {
   HelpCircle, Lightbulb, ChevronRight, Layers, FileText
 } from 'lucide-react';
 import { ProductProfitability, CountrySalesAnalytics, BusinessGoal } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../services/aiProxy';
 
 interface ProfitabilityAndAnalyticsProps {
   profitabilityList: ProductProfitability[];
@@ -35,7 +35,7 @@ export const ProfitabilityAndAnalytics: React.FC<ProfitabilityAndAnalyticsProps>
   const handleRunAiDiagnostic = async () => {
     setIsDiagnosing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `Tu es le Directeur Stratégique et Data Analyst de Diallo OS pour le Marché Mondial.

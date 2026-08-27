@@ -31,6 +31,15 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-013] — 27 Août 2026
+* **Module(s)** : Experts Diallo, Conseil, Carrière, Campus, Langues, Vie, Commerce et Studio (appels IA partagés).
+* **Problème / Besoin initial** : des composants appelaient directement le SDK fournisseur depuis le navigateur, avec configuration fragile et sorties multimédia inline non durables.
+* **Décision retenue** : une façade frontend unique appelle la fonction Netlify `/api/ai`. La fonction vérifie le JWT Supabase, applique quota, allowlists, limites et timeouts, conserve les secrets dans `Netlify.env`, persiste les médias privés et lie chaque opération vidéo à son propriétaire. Aucun fallback fictif n'est produit.
+* **Conséquences** : la source est compatible avec un déploiement sécurisé, mais l'IA reste explicitement indisponible jusqu'à configuration des secrets Netlify et application de la migration Supabase. Les URL signées sont renouvelables sans exposer le service role.
+* **Éléments techniques** : `services/aiProxy.ts`, `services/ai.ts`, `services/aiRoutingService.ts`, `netlify/functions/ai-proxy.ts`, `supabase/migrations/20260827214000_ai_proxy_assets.sql`, `tests/ai-proxy-boundaries.test.mjs`.
+* **Preuves** : build Vite réussi; tests ciblés 3/3; scan frontend sans SDK/secret Gemini direct.
+* **Statut** : `Développé`, `Testé localement`, `Configuration externe requise`.
+
 ### [DEC-2026-012] — 27 Août 2026
 * **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Sauvegarde, Versioning & Restauration Intelligente`, `Gouvernance des Versions Stables`
 * **Problème / Besoin initial** :

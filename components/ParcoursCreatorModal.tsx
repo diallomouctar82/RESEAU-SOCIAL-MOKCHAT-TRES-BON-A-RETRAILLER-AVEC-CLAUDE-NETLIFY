@@ -29,7 +29,7 @@ import {
 import { AGENTS } from '../constants';
 import { DossierCategory, DossierParcours, DossierStep } from '../types';
 import { dossierService } from '../services/dossierService';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface ParcoursCreatorModalProps {
     isOpen: boolean;
@@ -207,7 +207,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
         setGenerationStepStatus("Analyse multimodale du document par Diallo OS...");
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             
             // Read file as base64 if image
             let prompt = `Analyse ce document officiel/technique.
@@ -241,7 +241,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
         const inputGoal = customPrompt || (creationMode === 'voice' ? voiceTranscript : promptText);
         
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
 
             const systemPrompt = `Tu es Diallo OS, le cerveau orchestrateur de la plateforme "LE MONDE À VOUS".
             Tu dois structurer un Parcours de Vie universel selon la philosophie absolue :

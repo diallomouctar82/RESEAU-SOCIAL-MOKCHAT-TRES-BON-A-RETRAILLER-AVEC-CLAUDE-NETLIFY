@@ -1,6 +1,6 @@
 import { DossierParcours, DossierStep, DossierTask, DossierDocument, DossierDeliverable, DossierCategory } from '../types';
 import { DEFAULT_DOSSIERS } from '../constants';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from './aiProxy';
 import { memoryService } from './memory';
 
 class DossierService {
@@ -142,7 +142,9 @@ class DossierService {
             key: `Nouveau Dossier: ${data.title}`,
             value: data.goal,
             agentId: data.leadAgentId,
-            dossierId: id
+            dossierId: id,
+            verified: false,
+            confidence: 1,
         });
 
         return newDossier;
@@ -246,7 +248,7 @@ class DossierService {
      */
     async generateNextActionRecommendation(dossier: DossierParcours): Promise<string> {
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const prompt = `
             Tu es l'Orchestrateur Central de la plateforme 'Le Monde à Vous'.
             Analyse ce dossier en cours :
@@ -273,7 +275,7 @@ class DossierService {
         }
     }
 
-    private persist() {
+    public persist(): void {
         if (this.dossiersCache) {
             try {
                 localStorage.setItem(this.DOSSIER_STORAGE_KEY, JSON.stringify(this.dossiersCache));

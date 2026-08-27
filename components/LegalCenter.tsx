@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { Scale, FileText, Upload, AlertTriangle, CheckCircle, Clock, Loader2, Send, ScanText, Sparkles, ChevronRight } from 'lucide-react';
 import { LEGAL_PROCEDURES, USER_PROFILE } from '../constants';
 import { LegalDocAnalysis, UserProfile } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface LegalCenterProps {
     userProfile: UserProfile;
@@ -39,7 +39,7 @@ export const LegalCenter: React.FC<LegalCenterProps> = ({ userProfile }) => {
         setScanResult(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             
             const prompt = `Agis comme Maître Diallo. Analyse cette image de document officiel.
             
@@ -79,7 +79,7 @@ export const LegalCenter: React.FC<LegalCenterProps> = ({ userProfile }) => {
         setGeneratedLetter('');
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const prompt = `Agis comme Maître Diallo. Rédige un courrier officiel et juridique pour ce sujet : "${writerSubject}".
             
             Profil :

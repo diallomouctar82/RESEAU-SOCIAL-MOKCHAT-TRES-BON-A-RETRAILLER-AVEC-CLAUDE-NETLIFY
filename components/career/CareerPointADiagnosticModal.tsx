@@ -20,7 +20,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { CareerPointA, CareerPointB, CareerMissionPlan, CareerGapAnalysis } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../services/aiProxy';
 
 interface CareerPointADiagnosticModalProps {
   initialPointA: CareerPointA;
@@ -91,10 +91,10 @@ export const CareerPointADiagnosticModal: React.FC<CareerPointADiagnosticModalPr
     setCalculationLog('Initialisation du calcul des écarts Point A ➔ Point B...');
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
+      const apiKey = true;
       if (apiKey) {
         setCalculationLog('Analyse multidimensionnelle des 17 critères avec Diallo OS...');
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new AIProxyClient();
         const prompt = `Agis comme le Moteur d'Accomplissement Professionnel et Entrepreneurial de Le Monde à Vous.
         POINT A DE L'UTILISATEUR :
         - Titre actuel: ${formData.currentTitle}

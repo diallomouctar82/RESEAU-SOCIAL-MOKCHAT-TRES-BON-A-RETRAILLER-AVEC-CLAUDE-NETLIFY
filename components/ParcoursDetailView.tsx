@@ -44,7 +44,7 @@ import { AGENTS } from '../constants';
 import { dossierService } from '../services/dossierService';
 import { memoryService } from '../services/memory';
 import { useGlobal } from '../contexts/GlobalContext';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface ParcoursDetailViewProps {
     parcours: DossierParcours;
@@ -164,7 +164,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
     const handleGenerateDynamicPlanB = async () => {
         setIsGeneratingPlanB(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const prompt = `L'utilisateur suit le parcours : "${parcours.title}" avec l'objectif : "${parcours.goal}".
             Un blocage est survenu ou un pivot est nécessaire : "${customPivotReason || 'Imprévu administratif ou réglementaire'}".
             Propose une stratégie alternative "PLAN B" réaliste, constructive et immédiate pour atteindre un résultat équivalent ou sécuriser la suite.

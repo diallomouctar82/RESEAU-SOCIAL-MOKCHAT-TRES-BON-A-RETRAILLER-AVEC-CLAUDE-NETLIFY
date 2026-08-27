@@ -54,7 +54,7 @@ import { LiveSession } from './LiveSession';
 import { ExpertsCatalogue } from './ExpertsCatalogue';
 import { ChefDeProjetSuite } from './ChefDeProjetSuite';
 import { UnifiedCouncilRoom } from './UnifiedCouncilRoom';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { useGlobal } from '../contexts/GlobalContext';
 
 interface ExpertsHubProps {
@@ -231,7 +231,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         if (!docTitle.trim()) return;
         setIsGeneratingDoc(true);
         try {
-            const ai = new GoogleGenAI();
+            const ai = new AIProxyClient();
             const prompt = `En tant qu'expert professionnel de haut niveau de la famille Diallo, rédige un document officiel formel, rigoureux, complet et prêt à l'emploi.
             Type de document : ${docType}
             Titre : ${docTitle}
@@ -269,7 +269,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         setExamEvaluation(null);
         setExamUserAnswer('');
         try {
-            const ai = new GoogleGenAI();
+            const ai = new AIProxyClient();
             const prompt = `Tu es Professeur Diallo, Doyen de l'Éducation.
             Génère une question d'évaluation approfondie et concrète de niveau : ${academicLevel} sur le sujet : "${examSubject}".
             La question doit évaluer la maîtrise conceptuelle et pratique de l'apprenant (mise en situation, calcul ou cas pratique).`;
@@ -291,7 +291,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         if (!examUserAnswer.trim() || !examQuestion) return;
         setIsEvaluatingExam(true);
         try {
-            const ai = new GoogleGenAI();
+            const ai = new AIProxyClient();
             const prompt = `Tu es Professeur Diallo. Évalue la réponse de l'étudiant avec bienveillance et rigueur.
             Niveau : ${academicLevel}
             Question : ${examQuestion}

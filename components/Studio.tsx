@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { Video, Image as ImageIcon, Eye, Sparkles, AlertCircle, Download, MonitorPlay, X, Upload, User, Play, Users, Share2 } from 'lucide-react';
 import { StudioTab, GeneratedMedia } from '../types';
 import { Avatar3D } from './Avatar3D';
@@ -32,17 +32,6 @@ export const Studio: React.FC = () => {
   const [selectedAvatarId, setSelectedAvatarId] = useState('1');
   const [avatarState, setAvatarState] = useState<'idle' | 'speaking'>('idle');
 
-  const checkApiKey = async () => {
-    if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if(!hasKey) {
-            await window.aistudio.openSelectKey();
-        }
-        return true;
-    }
-    return true;
-  };
-
   const handleGenerate = async () => {
     if (!prompt && activeTab !== 'vision' && activeTab !== 'avatar') return;
     if (activeTab === 'vision' && !visionImage && !prompt) return;
@@ -52,8 +41,7 @@ export const Studio: React.FC = () => {
     setError(null);
 
     try {
-      await checkApiKey();
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
 
       if (activeTab === 'image') {
         const response = await ai.models.generateContent({
@@ -69,8 +57,8 @@ export const Studio: React.FC = () => {
         
         let imageUrl = null;
         for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-                imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+            if (part.fileData?.fileUri) {
+                imageUrl = part.fileData.fileUri;
                 break;
             }
         }
@@ -94,10 +82,7 @@ export const Studio: React.FC = () => {
         }
 
         if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-            const uri = operation.response.generatedVideos[0].video.uri;
-            const fetchRes = await fetch(`${uri}&key=${process.env.API_KEY}`);
-            const blob = await fetchRes.blob();
-            setResult(URL.createObjectURL(blob));
+            setResult(operation.response.generatedVideos[0].video.uri);
         } else {
             throw new Error("Aucune vidéo générée.");
         }

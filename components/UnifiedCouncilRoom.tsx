@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Agent, DossierParcours } from '../types';
 import { AGENTS } from '../constants';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface UnifiedCouncilRoomProps {
     onAttachStrategyToDossier?: (strategy: { title: string; content: string }) => void;
@@ -71,7 +71,7 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
 
         try {
             const activeAgents = AGENTS.filter(a => selectedAgentIds.includes(a.id));
-            const ai = new GoogleGenAI();
+            const ai = new AIProxyClient();
 
             const prompt = `Tu es le Coordinateur Suprême "Diallo OS". 
             Organise une délibération collégiale entre les experts suivants :

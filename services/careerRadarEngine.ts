@@ -8,7 +8,7 @@ import {
   OpportunityUniverse, 
   OpportunityTemporalReadiness 
 } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from './aiProxy';
 
 // ══════════════════════════════════════════════════════════════════════════
 // 📚 BASE RÉFÉRENTIELLE D'OPPORTUNITÉS MULTI-SOURCES RÉELLES ET STRUCTURÉES
@@ -713,12 +713,7 @@ export class CareerRadarEngine {
     const { naturalQuery, universe, pointA, pointB } = params;
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (!apiKey) {
-        return this.generateFallbackMatches(naturalQuery, universe, pointA, pointB);
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new AIProxyClient();
 
       const prompt = `Tu es le Radar Intelligent d'Opportunités de la plateforme "Le Monde à Vous".
 Ta mission est d'analyser l'intention naturelle de l'utilisateur et de générer 4 opportunités concrètes, hautement ciblées, explicables et réalistes.
@@ -806,8 +801,8 @@ FORMAT DE RÉPONSE OBLIGATOIRE EN JSON STRICT (SANS MARKDOWN NI BLABLA) :
       return results;
 
     } catch (err) {
-      console.warn('Radar Gemini generation failed, using fallback engine', err);
-      return this.generateFallbackMatches(naturalQuery, universe, pointA, pointB);
+      console.warn('Radar distant indisponible : aucune opportunité inventée.', err);
+      return [];
     }
   }
 

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AGENTS, USER_PROFILE } from '../constants';
 import { Agent, CouncilStep } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { Users, Sparkles, Send, CheckCircle, FileText, Play, RotateCcw, BrainCircuit, MessageSquare, Briefcase, Globe, Scale, HeartPulse, Home } from 'lucide-react';
 import { Avatar3D } from './Avatar3D';
 
@@ -29,7 +29,7 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
         setIsProcessing(true);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             
             // 1. SELECT AGENTS & INITIAL PLAN
             const setupPrompt = `
@@ -85,7 +85,7 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
             setCurrentSpeakerId(agent.id);
             
             try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                const ai = new AIProxyClient();
                 const context = `
                     Projet: "${topic}".
                     Tu es ${agent.name} (${agent.title}).

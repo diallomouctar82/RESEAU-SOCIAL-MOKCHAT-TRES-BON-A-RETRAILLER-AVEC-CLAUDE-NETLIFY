@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { AIProxyClient, Modality } from '../services/aiProxy';
 import { 
     Mic, 
     MicOff, 
@@ -74,7 +74,7 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     setErrorMsg(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const inputCtx = new AudioContextClass({ sampleRate: 16000 });

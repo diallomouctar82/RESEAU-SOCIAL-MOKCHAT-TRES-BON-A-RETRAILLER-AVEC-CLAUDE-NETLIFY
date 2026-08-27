@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, Image as ImageIcon, RotateCcw, Zap, Send, Wand2, ArrowRight, Instagram, Video, Type, Check, RefreshCw, Sparkles, Loader2, Maximize2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { Post, ReelDraft } from '../types';
 
 interface UniversalCreatorProps {
@@ -90,7 +90,7 @@ export const UniversalCreator: React.FC<UniversalCreatorProps> = ({ onClose, onP
 
     const analyzeImage = async (base64Image: string) => {
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: {
@@ -111,7 +111,7 @@ export const UniversalCreator: React.FC<UniversalCreatorProps> = ({ onClose, onP
         setIsGeneratingCaption(true);
         
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const prompt = `Tu es un expert des réseaux sociaux. Regarde cette image et écris une légende parfaite pour un post ${mode}.
             Style: ${vibe === 'fun' ? 'Drôle et engageant' : vibe === 'pro' ? 'Professionnel et inspirant' : 'Poétique et artistique'}.
             Ajoute 3-5 hashtags pertinents.

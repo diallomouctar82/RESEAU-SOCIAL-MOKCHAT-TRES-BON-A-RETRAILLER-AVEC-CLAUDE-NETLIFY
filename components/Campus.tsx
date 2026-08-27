@@ -60,7 +60,7 @@ import {
     MockExamBlueprint,
     MockExamReport
 } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { cloudService } from '../services/cloud';
 import { useGlobal } from '../contexts/GlobalContext';
 import { campusPedagogicalEngine } from '../services/campusPedagogicalEngine';
@@ -182,7 +182,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       if (!selectedCourse) return;
       setIsGeneratingContent(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           let prompt = "";
           
           if (type === 'theory') {
@@ -272,7 +272,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       setRevisionChat(prev => [...prev, {role: 'user', text: userMsg}]);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           const prompt = `Tu es Professeur Diallo, tuteur bienveillant pour le cours "${selectedCourse.title}" (${studentProfile.selectedCountryName} - ${studentProfile.selectedLevelName}). 
           L'étudiant te dit : "${userMsg}".
           Réponds de manière ultra-pédagogique, sans jargon superflu. Si l'étudiant a une incompréhension, propose-lui un mini-exercice ou une analogie concrète.
@@ -293,7 +293,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       }]);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           const prompt = `Génère une fiche de révision dense pour : "${selectedCourse.title}" (${studentProfile.selectedCountryName} - ${studentProfile.selectedLevelName}). Concepts clés, Propriétés, Pièges d'examen classiques. Markdown.`;
           const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
           setRevisionNote(response.text || "");
@@ -306,7 +306,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       setIsExamSubmitting(true);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           const prompt = `
             Génère un examen final SÉRIEUX et CONFORME aux épreuves officielles pour le cours "${selectedCourse.title}" (${selectedCourse.level}, ${studentProfile.selectedCountryName}).
             10 Questions à Choix Multiples (QCM) de niveau examen officiel.

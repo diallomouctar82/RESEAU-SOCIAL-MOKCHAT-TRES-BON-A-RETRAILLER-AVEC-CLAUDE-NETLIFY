@@ -9,7 +9,7 @@ import {
   ShoppingBag, ShieldAlert, CheckSquare, Bell, Calendar, Clock, Bookmark,
   Compass, Copy, EyeOff, Headphones
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { 
   LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc, 
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
@@ -410,7 +410,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const handleTriggerVisionAnalysis = async () => {
     setIsVisionAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es Diallo OS en analyse Vision IA pendant le Live "${liveData.title}".
       L'intervenant présente un document / schéma / objet à la caméra.
       Décris précisément ce que tu observes, les points clés administratifs ou techniques, et le conseil immédiat pour la salle.`;
@@ -502,7 +502,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setCatchupDigest("Génération du résumé des 20 premières minutes par Diallo OS...");
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [{
@@ -526,7 +526,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setIsAssistantThinking(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [{

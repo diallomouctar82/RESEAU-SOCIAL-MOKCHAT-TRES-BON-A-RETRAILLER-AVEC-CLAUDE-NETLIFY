@@ -6,6 +6,8 @@
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
+> **Rectificatif d'audit du 27 août 2026** : les affirmations historiques « Production Ready » ci-dessous décrivent une cible produit et non une preuve E2E. Pour les modules IA/Studio, le code source utilise désormais une passerelle Netlify authentifiée et un stockage Supabase privé. La production reste **configuration requise** tant que `GEMINI_API_KEY` et `SUPABASE_SERVICE_ROLE_KEY` ne sont pas définies sur Netlify et que les migrations ne sont pas appliquées. Build local : réussi. Tests de frontières IA : 3/3. Test E2E fournisseur : bloqué par l'absence volontaire de secrets dans le dépôt.
+
 **Le Monde à Vous** a franchi le jalon officiel **SOVEREIGN VERSIONING & BACKUP SYSTEM (v6.3.0)**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance et un espace Super-Administrateur souverain doté de capacités de sauvegarde, restauration intelligente et gestion des versions.
 
 La version **v6.3.0** consacre :
