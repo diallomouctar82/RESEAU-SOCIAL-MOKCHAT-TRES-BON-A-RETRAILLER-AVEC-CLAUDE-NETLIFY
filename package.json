@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
+    "@vis.gl/react-google-maps": "^1.9.0",
+    "firebase": "^12.18.0",
     "lucide-react": "^0.556.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

@@ -1,10 +1,41 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { PlayCircle, TrendingUp, ShieldAlert, FileText, Wallet, ArrowRight, BrainCircuit, Sun, CloudRain, Briefcase, GraduationCap, Plane, Clock, Sparkles, Zap, Users, Shield, HardDrive, Globe, CreditCard, Activity, RefreshCw, Database, Wifi, Search, Server } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
-import { COURSES, LEGAL_PROCEDURES, JOBS } from '../constants';
+import { 
+  PlayCircle, 
+  TrendingUp, 
+  ShieldAlert, 
+  FileText, 
+  Wallet, 
+  ArrowRight, 
+  BrainCircuit, 
+  Briefcase, 
+  GraduationCap, 
+  Sparkles, 
+  Users, 
+  Shield, 
+  HardDrive, 
+  Globe, 
+  CreditCard, 
+  Activity, 
+  RefreshCw, 
+  Database, 
+  Wifi, 
+  Search, 
+  FolderKanban, 
+  Compass,
+  CheckCircle2,
+  Calendar,
+  Layers,
+  MapPin,
+  Clock
+} from 'lucide-react';
+import { DEFAULT_DOSSIERS } from '../constants';
 import { cloudService } from '../services/cloud';
+import { EditorialHero } from './ui/EditorialHero';
+import { PointAToBPathway } from './ui/PointAToBPathway';
+import { StatusBadge } from './ui/StatusBadge';
+import { QuickActionZone } from './ui/QuickActionZone';
 
 // Données Mock Admin intégrées localement pour la fusion
 const MOCK_USERS_DB = [
@@ -16,10 +47,11 @@ const MOCK_USERS_DB = [
 
 interface DashboardProps {
     userProfile: UserProfile;
-    onNavigate: (tab: string) => void;
+    onNavigate: (tab: string, context?: any) => void;
+    onOpenCapModal?: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, onOpenCapModal }) => {
     // STATE: DASHBOARD MODE (Personal vs System)
     const [viewMode, setViewMode] = useState<'personal' | 'system'>('personal');
 
@@ -49,122 +81,305 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
     );
 
     return (
-        <div className="p-6 max-w-[1800px] mx-auto space-y-6 animate-fade-up bg-slate-50 min-h-full pb-32">
+        <div className="p-4 sm:p-8 max-w-[1700px] mx-auto space-y-8 animate-fade-up bg-slate-50/60 min-h-full pb-36 font-sans">
             
-            {/* 🎛️ SUPER HEADER (Toggle Mode) */}
-            <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+            {/* 🎛️ TOP CONTROL BAR */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200/80 pb-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-                        {viewMode === 'personal' ? 'Tableau de Bord' : 'Console Système'}
-                    </h1>
-                    <p className="text-slate-500 font-medium">
-                        {viewMode === 'personal' ? `Bienvenue, ${userProfile.name.split(' ')[0]}.` : 'Superviseur : Accès Root Actif.'}
-                    </p>
+                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Le Monde à Vous • Plateforme d'Accomplissement</span>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                        {viewMode === 'personal' ? 'Espace Personnel & Décisionnel' : 'Console Système & Supervision'}
+                    </h2>
                 </div>
 
-                {userProfile.role === 'admin' && (
-                    <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm flex items-center">
-                        <button 
-                            onClick={() => setViewMode('personal')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'personal' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            <Users size={16} /> Espace Citoyen
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('system')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'system' ? 'bg-red-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            <Shield size={16} /> Mode Admin
-                        </button>
-                    </div>
-                )}
+                <div className="flex items-center gap-3 self-end sm:self-auto">
+                    {userProfile.role === 'admin' && (
+                        <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex items-center">
+                            <button 
+                                onClick={() => setViewMode('personal')}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'personal' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                <Users size={14} /> Citoyen
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('system')}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'system' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                <Shield size={14} /> Admin
+                            </button>
+                        </div>
+                    )}
+
+                    <QuickActionZone 
+                        onActionClick={onNavigate} 
+                        onOpenDialloOS={() => onNavigate('chat')} 
+                        className="hidden md:flex"
+                    />
+                </div>
             </div>
 
             {/* ==================================================================================
-                                            VUE PERSONNELLE
+                                            VUE PERSONNELLE ÉDITORIALE
                ================================================================================== */}
             {viewMode === 'personal' && (
-                <div className="space-y-6 animate-fade-up">
-                    {/* HUD Header */}
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        <div className="lg:col-span-3 bg-slate-900 rounded-[2rem] p-10 text-white relative overflow-hidden shadow-2xl flex flex-col justify-center min-h-[300px]">
-                            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-600 rounded-full blur-[150px] opacity-20 animate-pulse-soft"></div>
-                            <div className="relative z-10 max-w-2xl">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md border border-white/10">
-                                        <BrainCircuit className="text-brand-400" />
+                <div className="space-y-8 animate-fade-up">
+                    {/* 1. HERO EDITORIAL PERSONNEL */}
+                    <EditorialHero 
+                        userProfile={userProfile}
+                        activeGoalTitle="Décrocher un poste clé en Europe & Valider le Visa Talents"
+                        activeGoalCategory="Carrière & Accomplissement"
+                        nextBestAction={{
+                            title: "Finaliser la simulation d'entretien 3D avec Coach Diallo",
+                            description: "Votre CV Maître a été adapté à 94% à l'offre Tech Lead. Passez à l'oral pour consolider votre argumentaire salarial.",
+                            targetTab: "career",
+                            actionLabel: "Lancer la Simulation d'Entretien"
+                        }}
+                        lastActivity={{
+                            label: "Module Carrière — Décodeur d'offres",
+                            tab: "career",
+                            timeAgo: "Il y a 2h"
+                        }}
+                        onNavigate={onNavigate}
+                        onOpenCapModal={onOpenCapModal}
+                    />
+
+                    {/* 2. SIGNATURE VISUELLE : TRAJECTOIRE POINT A ➔ POINT B */}
+                    <PointAToBPathway 
+                        origin={{
+                            label: "Point A : Diagnostic Initial",
+                            description: "Profil validé, 8 compétences clés identifiées.",
+                        }}
+                        destination={{
+                            label: "Point B : Poste Validé & Installation",
+                            impact: "Accomplissement professionnel avec contrat cadre et accompagnement installation complet.",
+                        }}
+                        currentStepIndex={1}
+                        steps={[
+                            {
+                                id: 's1',
+                                title: 'Diagnostic 360° & Trajectoire',
+                                subtitle: 'Bilan de compétences et alignement stratégique.',
+                                status: 'completed'
+                            },
+                            {
+                                id: 's2',
+                                title: 'CV Maître & Dossier Talents',
+                                subtitle: 'Alignement aux standards recruteurs et marché caché.',
+                                status: 'in_progress',
+                                expertNote: 'Conseiller Diallo a optimisé 4 points d’impact majeurs.'
+                            },
+                            {
+                                id: 's3',
+                                title: 'Simulations & Négociation',
+                                subtitle: 'Entraînement 3D et négociation salariale certifiée.',
+                                status: 'upcoming'
+                            },
+                            {
+                                id: 's4',
+                                title: 'Signature & Installation',
+                                subtitle: 'Validation juridique du contrat et visa d’installation.',
+                                status: 'upcoming'
+                            }
+                        ]}
+                        leadAdvisor={{
+                            name: "Conseiller Diallo",
+                            role: "Stratège Carrière & Marché",
+                        }}
+                        onStepClick={(idx) => onNavigate('career')}
+                        onOpenAdvisor={() => onNavigate('chat')}
+                    />
+
+                    {/* 3. GRILLE COMPLÉMENTAIRE : DOSSIERS VIVANTS & COMPTES */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* Dossiers Vivants Actifs (8 cols) */}
+                        <div className="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+                            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                                <div>
+                                    <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2.5">
+                                        <FolderKanban className="text-orange-600" size={22} />
+                                        <span>Mes Dossiers Transversaux Vivants</span>
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">Accompagnement étape par étape avec la Famille Diallo</p>
+                                </div>
+                                <button 
+                                    onClick={() => onNavigate('parcours')}
+                                    className="text-xs font-bold text-slate-900 hover:text-orange-600 flex items-center gap-1 transition-colors"
+                                >
+                                    <span>Voir tous les dossiers</span>
+                                    <ArrowRight size={14} />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {DEFAULT_DOSSIERS.slice(0, 3).map((dossier, i) => (
+                                    <div 
+                                        key={dossier.id}
+                                        onClick={() => onNavigate('chat')}
+                                        className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 hover:border-orange-300 hover:bg-orange-50/20 transition-all cursor-pointer group flex flex-col justify-between"
+                                    >
+                                        <div>
+                                            <div className="flex justify-between items-center mb-2.5">
+                                                <StatusBadge status={dossier.progress > 70 ? 'success' : 'in_progress'} label={dossier.category} size="sm" />
+                                                <span className="text-xs font-black text-slate-900">{dossier.progress}%</span>
+                                            </div>
+                                            <h4 className="font-bold text-xs text-slate-900 mb-1.5 group-hover:text-orange-700 transition-colors line-clamp-1">
+                                                {dossier.title}
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mb-3">
+                                                {dossier.nextAction}
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden">
+                                                <div className="bg-slate-900 h-full rounded-full transition-all duration-500" style={{ width: `${dossier.progress}%` }} />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span className="text-sm font-bold tracking-widest text-brand-200 uppercase">Briefing Quotidien</span>
-                                </div>
-                                <h2 className="text-5xl font-bold mb-6 leading-tight">
-                                    Vos objectifs <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-white">sont à portée de main.</span>
-                                </h2>
-                                <p className="text-xl text-slate-300 font-light mb-8">
-                                    "Votre dossier de visa a avancé de 20%. N'oubliez pas votre cours d'Anglais à 14h."
-                                </p>
-                                <div className="flex flex-wrap gap-4">
-                                    <button onClick={() => onNavigate('campus')} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold hover:bg-brand-50 transition-colors flex items-center gap-2">
-                                        <PlayCircle size={20} /> Reprendre le Cours
-                                    </button>
-                                    <button onClick={() => onNavigate('council')} className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform flex items-center gap-2 border border-white/10 shadow-lg shadow-indigo-500/30">
-                                        <Users size={20} /> Réunir le Conseil
-                                    </button>
-                                </div>
+                                ))}
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-6 h-full">
-                            {/* Wallet Widget */}
-                            <div onClick={() => onNavigate('wallet')} className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[2rem] p-8 text-white relative overflow-hidden shadow-xl cursor-pointer hover:scale-[1.02] transition-transform">
-                                <Wallet className="absolute top-6 right-6 opacity-20" size={48} />
-                                <div className="text-sm font-medium text-indigo-200 mb-1">Solde Actuel</div>
-                                <div className="text-4xl font-bold mb-8">{userProfile.credits} Ⓒ</div>
-                                <div className="flex items-center gap-2 text-sm bg-black/20 w-fit px-3 py-1 rounded-lg">
-                                    <TrendingUp size={14} className="text-green-400" /> +12% cette semaine
+                        {/* Portefeuille & Progression XP (4 cols) */}
+                        <div className="lg:col-span-4 space-y-4">
+                            {/* Wallet Card */}
+                            <div 
+                                onClick={() => onNavigate('wallet')}
+                                className="bg-slate-900 text-white rounded-3xl p-6 relative overflow-hidden shadow-lg border border-slate-800 cursor-pointer hover:border-slate-700 transition-all group"
+                            >
+                                <div className="absolute top-0 right-0 w-36 h-36 bg-orange-600/20 rounded-full blur-2xl pointer-events-none" />
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-orange-400">
+                                        <Wallet size={20} />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-800/50 flex items-center gap-1">
+                                        <TrendingUp size={12} /> +12% cette semaine
+                                    </span>
+                                </div>
+                                <div className="text-xs text-slate-400 font-medium">Solde de Crédits LMAV</div>
+                                <div className="text-3xl font-black text-white tracking-tight my-1">
+                                    {userProfile.credits.toLocaleString()} Ⓒ
+                                </div>
+                                <div className="text-xs text-slate-300 flex items-center justify-between pt-3 border-t border-slate-800">
+                                    <span>Paiements sécurisés & séquestre</span>
+                                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform text-orange-400" />
                                 </div>
                             </div>
 
-                            {/* Quick Stat */}
-                            <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm flex flex-col justify-center flex-1">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="p-3 bg-green-50 rounded-2xl text-green-600"><Sparkles size={24} /></div>
-                                    <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">Niv. {userProfile.level}</span>
+                            {/* Progression & Rang */}
+                            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Statut Accompli</span>
+                                    <span className="text-xs font-bold bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-full">
+                                        Niveau {userProfile.level}
+                                    </span>
                                 </div>
-                                <div className="text-3xl font-bold text-slate-900 mb-1">{userProfile.xp} XP</div>
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-green-500 h-full w-3/4"></div>
+                                <div className="text-2xl font-black text-slate-900 mb-2">
+                                    {userProfile.xp.toLocaleString()} XP
                                 </div>
-                                <p className="text-xs text-slate-400 mt-2">Prochain rang: Expert</p>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-2">
+                                    <div className="bg-orange-600 h-full w-3/4 rounded-full" />
+                                </div>
+                                <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+                                    <span>Rang actuel : Bâtisseur</span>
+                                    <span>Objectif : Expert Mondial</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Secondary Widgets */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-3xl border border-slate-100 hover:shadow-lg transition-shadow cursor-pointer group">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform"><Briefcase /></div>
-                                <div>
-                                    <h3 className="font-bold text-slate-900">Carrière</h3>
-                                    <p className="text-xs text-slate-500">3 nouvelles offres</p>
+                    {/* 4. HUB DES PILIERS CLÉS & SERVICES TRANSVERSAUX */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                                <Layers size={18} className="text-slate-600" />
+                                <span>Capacités & Espaces Recommandés</span>
+                            </h3>
+                            <span className="text-xs text-slate-400">Services transversaux intégrés</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div 
+                                onClick={() => onNavigate('career')}
+                                className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            >
+                                <div className="flex items-center gap-3.5 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                                        <Briefcase size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 text-sm">Carrière Pro</h4>
+                                        <p className="text-[11px] text-slate-500">Marché caché & CV</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">
+                                    Décodeur d'offres en temps réel et simulation d'entretiens.
+                                </p>
+                                <div className="text-[11px] font-bold text-blue-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                    <span>Accéder à Carrière</span> <ArrowRight size={12} />
                                 </div>
                             </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-3xl border border-slate-100 hover:shadow-lg transition-shadow cursor-pointer group">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform"><ShieldAlert /></div>
-                                <div>
-                                    <h3 className="font-bold text-slate-900">Alertes</h3>
-                                    <p className="text-xs text-slate-500">Visa expire dans 30j</p>
+
+                            <div 
+                                onClick={() => onNavigate('campus')}
+                                className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            >
+                                <div className="flex items-center gap-3.5 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                                        <GraduationCap size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 text-sm">Campus & Cours</h4>
+                                        <p className="text-[11px] text-slate-500">Certifications d'élite</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">
+                                    Programmes officiels et coaching individuel par Professeur Diallo.
+                                </p>
+                                <div className="text-[11px] font-bold text-purple-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                    <span>Ouvrir Campus</span> <ArrowRight size={12} />
                                 </div>
                             </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-3xl border border-slate-100 hover:shadow-lg transition-shadow cursor-pointer group">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform"><Zap /></div>
-                                <div>
-                                    <h3 className="font-bold text-slate-900">Quêtes</h3>
-                                    <p className="text-xs text-slate-500">2/3 complétées</p>
+
+                            <div 
+                                onClick={() => onNavigate('shop')}
+                                className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            >
+                                <div className="flex items-center gap-3.5 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                                        <Globe size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 text-sm">Marché B2B</h4>
+                                        <p className="text-[11px] text-slate-500">Sourcing & RFQ</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">
+                                    Fournisseurs mondiaux certifiés, calcul Incoterms et séquestre.
+                                </p>
+                                <div className="text-[11px] font-bold text-amber-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                    <span>Explorer le Marché</span> <ArrowRight size={12} />
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => onNavigate('council')}
+                                className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            >
+                                <div className="flex items-center gap-3.5 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                                        <Shield size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 text-sm">Conseil des Sages</h4>
+                                        <p className="text-[11px] text-slate-500">Arbitrage Collégial</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">
+                                    Réunion multi-experts Diallo pour délibérer sur vos enjeux clés.
+                                </p>
+                                <div className="text-[11px] font-bold text-emerald-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                    <span>Consulter le Conseil</span> <ArrowRight size={12} />
                                 </div>
                             </div>
                         </div>
@@ -179,7 +394,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                 <div className="space-y-6 animate-fade-up">
                     
                     {/* Admin Nav */}
-                    <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+                    <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-xs border border-slate-200 overflow-x-auto">
                         <button 
                             onClick={() => setActiveAdminTab('cloud')}
                             className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 whitespace-nowrap ${activeAdminTab === 'cloud' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -202,7 +417,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                             onClick={() => setActiveAdminTab('ai-config')}
                             className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors whitespace-nowrap ${activeAdminTab === 'ai-config' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                         >
-                            <BrainCircuit size={16} /> IA & API
+                            <BrainCircuit size={16} /> IA & Supervision
                         </button>
                     </div>
 
@@ -210,7 +425,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                     {activeAdminTab === 'cloud' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Storage Visualization */}
-                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                            <div className="bg-white p-8 rounded-2xl shadow-xs border border-slate-200">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
                                         <Database className="text-blue-500" /> Stockage Local (IndexedDB)
@@ -242,9 +457,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                                         
                                         <div className="w-full h-6 bg-slate-100 rounded-full overflow-hidden relative">
                                             <div 
-                                                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-1000"
+                                                className="h-full bg-slate-900 transition-all duration-1000"
                                                 style={{ width: `${Math.max(1, storageStats.percent)}%` }}
-                                            ></div>
+                                            />
                                         </div>
                                         <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                                             <p className="text-center text-xs text-slate-500 leading-relaxed">
@@ -258,8 +473,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                             </div>
 
                             {/* Network Status */}
-                            <div className="bg-slate-900 text-white p-8 rounded-2xl shadow-lg relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-green-500 rounded-full blur-[100px] opacity-10"></div>
+                            <div className="bg-slate-900 text-white p-8 rounded-2xl shadow-lg relative overflow-hidden border border-slate-800">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-green-500 rounded-full blur-[100px] opacity-10" />
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Wifi size={20} /> Connectivité</h2>
                                 <div className="space-y-4 relative z-10">
                                     <div className="flex items-center justify-between p-3 bg-white/10 rounded-xl">
@@ -270,7 +485,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                                     </div>
                                     
                                     <div className="mt-4">
-                                        <p className="text-xs text-slate-400 uppercase font-bold mb-2">Topologie (Simulée)</p>
+                                        <p className="text-xs text-slate-400 uppercase font-bold mb-2">Topologie</p>
                                         <div className="flex items-center justify-between p-2 border-b border-white/5">
                                             <span className="text-sm opacity-70">Nœud Europe (Paris)</span>
                                             <span className="text-xs text-slate-500">Relais</span>
@@ -294,19 +509,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                             { label: 'Requêtes IA / sec', val: '342', icon: BrainCircuit, col: 'purple', change: '-2%' },
                             { label: 'Pays Couverts', val: '84', icon: Globe, col: 'orange', change: '+3' },
                             ].map((stat, i) => (
-                            <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                                <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-${stat.col}-600`}>
-                                    <stat.icon size={60} />
-                                </div>
+                            <div key={i} className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
                                 <div className="flex justify-between items-start mb-4">
-                                    <div className={`p-3 rounded-xl bg-${stat.col}-50 text-${stat.col}-600`}>
+                                    <div className="p-3 rounded-xl bg-slate-100 text-slate-800">
                                     <stat.icon size={24} />
                                     </div>
                                     <span className={`text-xs font-bold px-2 py-1 rounded-lg ${stat.change.startsWith('+') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
                                     {stat.change}
                                     </span>
                                 </div>
-                                <h3 className="text-3xl font-bold text-slate-800">{stat.val}</h3>
+                                <h3 className="text-3xl font-bold text-slate-900">{stat.val}</h3>
                                 <p className="text-slate-500 text-sm font-medium mt-1">{stat.label}</p>
                             </div>
                             ))}
@@ -318,15 +530,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                             <div className="p-4 border-b border-slate-200 flex justify-between items-center">
                                 <div className="relative w-64">
-                                    <Search className="absolute left-3 top-1/2 -translate-x-1/2 text-slate-400" size={16} />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input 
                                         value={userSearch}
                                         onChange={(e) => setUserSearch(e.target.value)}
                                         placeholder="Rechercher un utilisateur..." 
-                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
                                     />
                                 </div>
-                                <button className="text-sm font-bold text-brand-600 hover:bg-brand-50 px-3 py-1.5 rounded-lg">Exporter CSV</button>
+                                <button className="text-sm font-bold text-slate-900 hover:bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                    Exporter CSV
+                                </button>
                             </div>
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 text-slate-500 uppercase font-bold text-xs">
@@ -342,7 +556,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                                     {filteredUsers.map(u => (
                                         <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4 flex items-center gap-3">
-                                                <img src={u.avatar} className="w-8 h-8 rounded-full bg-slate-200" />
+                                                <img src={u.avatar} className="w-8 h-8 rounded-full bg-slate-200" alt={u.name} />
                                                 <div>
                                                     <div className="font-bold text-slate-900">{u.name}</div>
                                                     <div className="text-xs text-slate-500">{u.email}</div>
@@ -356,7 +570,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate })
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <button className="text-slate-400 hover:text-brand-600 font-bold">Gérer</button>
+                                                <button className="text-slate-400 hover:text-slate-900 font-bold">Gérer</button>
                                             </td>
                                         </tr>
                                     ))}

@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
 import { ChevronRight, Globe, Loader2, Lock, Mail, AlertCircle } from 'lucide-react';
+import { googleSignIn } from '../services/googleWorkspace';
 
 interface AuthProps {
-    onLogin: (email: string) => void;
+    onLogin: (email: string, userDetails?: { name?: string; avatarUrl?: string }) => void;
 }
 
 export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
@@ -13,15 +14,24 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Simulation Google Sign In
-    const handleGoogleLogin = () => {
+    // Google Sign In with Firebase + Workspace Scopes
+    const handleGoogleLogin = async () => {
         setIsLoading(true);
-        // Simulation d'un délai réseau pour l'UX
-        setTimeout(() => {
-            // Par défaut, si l'utilisateur clique sur Google, on le connecte avec l'email admin pour la démo
-            // ou on pourrait ouvrir une modale pour choisir. Ici on simplifie pour l'UX "fluide".
-            onLogin('visionsmart224@gmail.com');
-        }, 1500);
+        setError(null);
+        try {
+            const res = await googleSignIn();
+            if (res?.user && res.user.email) {
+                onLogin(res.user.email, {
+                    name: res.user.displayName || res.user.email.split('@')[0],
+                    avatarUrl: res.user.photoURL || undefined
+                });
+            }
+        } catch (err: any) {
+            console.error('Erreur Google Auth:', err);
+            setError(err.message || 'Échec de la connexion avec Google Workspace.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleEmailSubmit = (e: React.FormEvent) => {

@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { UserShop, Product, ShopAIConfig, UserProfile } from '../types';
-import { Store, ShoppingBag, Bot, Settings, Plus, Sparkles, BarChart, Save, Trash2, Send, Wand2, ImageIcon, Loader2 } from 'lucide-react';
+import { Store, ShoppingBag, Bot, Settings, Plus, Sparkles, BarChart, Save, Trash2, Send, Wand2, ImageIcon, Loader2, LayoutDashboard } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { TradeBusinessOperatingSystem } from './TradeBusinessOperatingSystem';
 
 interface MyShopProps {
   userProfile: UserProfile;
@@ -11,7 +12,7 @@ interface MyShopProps {
 
 export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => {
   const [shop, setShop] = useState<UserShop | undefined>(userProfile.shop);
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'ai-agent'>('overview');
+  const [activeTab, setActiveTab] = useState<'business_os' | 'overview' | 'products' | 'ai-agent'>('business_os');
   
   // Creation Form State
   const [creationForm, setCreationForm] = useState({ name: '', description: '' });
@@ -205,10 +206,31 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
           </div>
 
           <div className="flex gap-4 border-b border-gray-200 pb-1 overflow-x-auto">
-              {['overview', 'products', 'ai-agent'].map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab as any)} className={`pb-3 px-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap capitalize ${activeTab === tab ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>{tab.replace('-', ' ')}</button>
+              {[
+                  { id: 'business_os', label: 'Business OS Mondial (Stocks, Commandes, CRM, Diallo OS)' },
+                  { id: 'overview', label: 'Vue d\'ensemble Vendeur' },
+                  { id: 'products', label: 'Catalogue & Produits' },
+                  { id: 'ai-agent', label: 'Agent Vendeur IA' }
+              ].map(tab => (
+                  <button 
+                    key={tab.id} 
+                    onClick={() => setActiveTab(tab.id as any)} 
+                    className={`pb-3 px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap ${
+                        activeTab === tab.id 
+                            ? 'border-brand-600 text-brand-600' 
+                            : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
               ))}
           </div>
+
+          {activeTab === 'business_os' && (
+              <div className="animate-fade-in">
+                  <TradeBusinessOperatingSystem />
+              </div>
+          )}
 
           {activeTab === 'overview' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

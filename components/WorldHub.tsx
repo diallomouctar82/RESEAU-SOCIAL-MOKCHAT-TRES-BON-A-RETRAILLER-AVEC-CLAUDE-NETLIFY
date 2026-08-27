@@ -1,17 +1,72 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Globe, Plane, Briefcase, GraduationCap, HeartPulse, MapPin, CheckCircle, AlertTriangle, ArrowRight, Loader2, Sparkles, Navigation, Lock, ShieldCheck, Upload, FileText, Share2, Search, Eye, Cloud, RefreshCw, Clock, Server } from 'lucide-react';
-import { COUNTRIES, AGENTS } from '../constants';
-import { MobilityProject, SimulationResult, Country, StoredDocument, DocCategory } from '../types';
+import { 
+    Globe, 
+    Plane, 
+    Briefcase, 
+    GraduationCap, 
+    HeartPulse, 
+    MapPin, 
+    CheckCircle, 
+    AlertTriangle, 
+    ArrowRight, 
+    Loader2, 
+    Sparkles, 
+    Navigation, 
+    Lock, 
+    ShieldCheck, 
+    Upload, 
+    FileText, 
+    Share2, 
+    Search, 
+    Eye, 
+    Cloud, 
+    RefreshCw, 
+    Clock, 
+    Server, 
+    Plus, 
+    Users, 
+    Compass, 
+    BrainCircuit, 
+    Filter, 
+    User, 
+    Building2, 
+    Scale, 
+    ShoppingBag, 
+    CheckCircle2,
+    SlidersHorizontal,
+    Layers
+} from 'lucide-react';
+import { COUNTRIES, AGENTS, DEFAULT_DOSSIERS } from '../constants';
+import { MobilityProject, SimulationResult, Country, StoredDocument, DocCategory, DossierParcours, DossierCategory, ActiveMemoryItem } from '../types';
 import { GoogleGenAI } from '@google/genai';
 import { cloudService } from '../services/cloud';
+import { dossierService } from '../services/dossierService';
+import { memoryService } from '../services/memory';
+import { ParcoursCreatorModal } from './ParcoursCreatorModal';
+import { ParcoursDiagnosticHero } from './ParcoursDiagnosticHero';
+import { ParcoursDetailView } from './ParcoursDetailView';
+import { UnifiedCouncilRoom } from './UnifiedCouncilRoom';
+import { useGlobal } from '../contexts/GlobalContext';
 
 interface WorldHubProps {
     onNavigateToAgent: (agentId: string, initialMessage?: string) => void;
+    onNavigate?: (tab: string, context?: any) => void;
 }
 
-export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
-    const [viewMode, setViewMode] = useState<'mobility' | 'safe'>('mobility');
+export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigate }) => {
+    const { addNotification } = useGlobal();
+
+    // 4 Global Modes: 'parcours' (default), 'mobility', 'safe', 'memory'
+    const [viewMode, setViewMode] = useState<'parcours' | 'mobility' | 'safe' | 'memory'>('parcours');
+
+    // --- PARCOURS STATE ---
+    const [dossiers, setDossiers] = useState<DossierParcours[]>([]);
+    const [selectedDossier, setSelectedDossier] = useState<DossierParcours | null>(null);
+    const [isCreatorModalOpen, setIsCreatorModalOpen] = useState(false);
+    const [isCouncilOpen, setIsCouncilOpen] = useState(false);
+    const [scopeFilter, setScopeFilter] = useState<'all' | 'individual' | 'family' | 'organization'>('all');
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
+    const [parcoursSearchQuery, setParcoursSearchQuery] = useState('');
 
     // --- MOBILITY STATE ---
     const [selectedOrigin, setSelectedOrigin] = useState<Country | null>(null);
@@ -32,39 +87,74 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
     const [lastSyncTime, setLastSyncTime] = useState<string>('En attente');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Initial Load for Safe
+    // --- ACTIVE MEMORY STATE ---
+    const [activeMemories, setActiveMemories] = useState<ActiveMemoryItem[]>([]);
+    const [selectedMemoryLayer, setSelectedMemoryLayer] = useState<string>('all');
+
+    // Initial Load for Parcours and Cloud Safe
     useEffect(() => {
-        const loadDocs = async () => {
-            const files = await cloudService.getAllFiles();
-            const mappedDocs: StoredDocument[] = files.map((f: any) => ({
-                id: f.id,
-                name: f.name,
-                category: f.category as DocCategory,
-                uploadDate: f.uploadDate.toLocaleDateString(),
-                fileSize: cloudService.formatBytes(f.size),
-                isVerified: true
-            }));
-            setDocuments(mappedDocs);
-        };
-        loadDocs();
+        loadParcours();
+        loadSafeDocs();
+        loadMemories();
     }, []);
 
-    // Unlock Animation when switching to Safe tab
+    const loadParcours = async () => {
+        const loaded = await dossierService.getAllDossiers();
+        setDossiers(loaded);
+        if (loaded.length > 0 && !selectedDossier) {
+            setSelectedDossier(loaded[0]);
+        }
+    };
+
+    const loadSafeDocs = async () => {
+        const files = await cloudService.getAllFiles();
+        const mappedDocs: StoredDocument[] = files.map((f: any) => ({
+            id: f.id,
+            name: f.name,
+            category: f.category as DocCategory,
+            uploadDate: f.uploadDate.toLocaleDateString(),
+            fileSize: cloudService.formatBytes(f.size),
+            isVerified: true
+        }));
+        setDocuments(mappedDocs);
+    };
+
+    const loadMemories = async () => {
+        const mems = await memoryService.getActiveMemories();
+        setActiveMemories(mems);
+    };
+
+    // Safe Unlock Animation
     useEffect(() => {
         if (viewMode === 'safe' && isLocked) {
             const interval = setInterval(() => {
                 setAuthProgress(prev => {
                     if (prev >= 100) {
                         clearInterval(interval);
-                        setTimeout(() => setIsLocked(false), 500);
+                        setTimeout(() => setIsLocked(false), 400);
                         return 100;
                     }
-                    return prev + 5;
+                    return prev + 10;
                 });
             }, 30);
             return () => clearInterval(interval);
         }
     }, [viewMode, isLocked]);
+
+    // Handle new Parcours creation from Modal
+    const handleParcoursCreated = (newDossier: DossierParcours) => {
+        setDossiers(prev => [newDossier, ...prev]);
+        setSelectedDossier(newDossier);
+        setViewMode('parcours');
+        addNotification("Parcours Prêt 🚀", `Votre parcours "${newDossier.title}" est actif avec votre équipe d'experts.`, "success");
+    };
+
+    // Handle Parcours update
+    const handleUpdateParcours = async (updated: DossierParcours) => {
+        setDossiers(prev => prev.map(d => d.id === updated.id ? updated : d));
+        setSelectedDossier(updated);
+        await dossierService.persist();
+    };
 
     // --- MOBILITY ACTIONS ---
     const handleSimulation = async () => {
@@ -89,13 +179,13 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
                 "visaType": "Nom du visa probable",
                 "estimatedCost": "Estimation budget (Devise locale)",
                 "processingTime": "Estimation temps",
-                "requirements": ["condition 1", "condition 2", ...],
+                "requirements": ["condition 1", "condition 2"],
                 "advice": "Conseil stratégique court",
                 "agentContactId": "ID de l'agent à contacter (2 pour juridique, 7 pour voyage, 3 pour emploi, 4 pour études)"
             }`;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: { responseMimeType: 'application/json' }
             });
@@ -105,10 +195,26 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
 
         } catch (e) {
             console.error(e);
-            alert("Erreur lors de la simulation. Veuillez réessayer.");
+            addNotification("Erreur Simulation", "Veuillez réessayer l'analyse.", "alert");
         } finally {
             setIsSimulating(false);
         }
+    };
+
+    // Convert Simulation into a Full Parcours
+    const handleConvertSimulationToParcours = async () => {
+        if (!simulationResult || !selectedDestination) return;
+
+        const newParcours = await dossierService.createDossier({
+            title: `Mobilité & Installation : ${selectedDestination.name}`,
+            category: 'projet',
+            goal: `Obtenir le ${simulationResult.visaType} pour ${selectedDestination.name} et finaliser l'installation.`,
+            leadAgentId: simulationResult.agentContactId || '2',
+            collaboratingAgentIds: [simulationResult.agentContactId || '2', '7', '3'],
+            targetDate: simulationResult.processingTime || 'Dans 3 mois'
+        });
+
+        handleParcoursCreated(newParcours);
     };
 
     // --- SAFE ACTIONS ---
@@ -130,9 +236,10 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
             };
             setDocuments([newDoc, ...documents]);
             handleSync();
+            addNotification("Document Sécurisé 🔒", `Le fichier ${file.name} a été crypté et archivé.`, "success");
         } catch (err) {
             console.error(err);
-            alert("Erreur d'upload vers le Cloud Sécurisé.");
+            addNotification("Erreur Upload", "Impossible d'uploader vers le Cloud Sécurisé.", "alert");
         } finally {
             setIsAnalyzingDoc(false);
         }
@@ -143,8 +250,16 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
         setTimeout(() => {
             setIsSyncing(false);
             setLastSyncTime(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-        }, 1500);
+        }, 1200);
     };
+
+    // Filtered Parcours List
+    const filteredParcours = dossiers.filter(d => {
+        const matchScope = scopeFilter === 'all' || (d.scopeMode || 'individual') === scopeFilter;
+        const matchCategory = categoryFilter === 'all' || d.category === categoryFilter;
+        const matchSearch = d.title.toLowerCase().includes(parcoursSearchQuery.toLowerCase()) || d.goal.toLowerCase().includes(parcoursSearchQuery.toLowerCase());
+        return matchScope && matchCategory && matchSearch;
+    });
 
     const filteredDocs = documents.filter(doc => 
         (activeCategory === 'All' || doc.category === activeCategory) &&
@@ -152,269 +267,535 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
     );
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 animate-fade-up">
-            {/* Header Unified */}
-            <div className="bg-slate-900 text-white p-8 pb-16 relative overflow-hidden shrink-0">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-brand-600 rounded-full blur-[100px] opacity-20"></div>
-                <div className="absolute top-0 left-0 w-64 h-64 bg-emerald-600 rounded-full blur-[100px] opacity-10"></div>
+        <div className="flex flex-col h-full bg-slate-100 overflow-y-auto animate-fade-in font-sans">
+            
+            {/* --- TOP UNIFIED HEADER --- */}
+            <div className="bg-slate-950 text-white p-6 md:p-8 pb-14 relative overflow-hidden shrink-0 border-b border-slate-800">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[140px] opacity-20 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-600 rounded-full blur-[110px] opacity-15 pointer-events-none"></div>
                 
-                <div className="relative z-10 max-w-4xl mx-auto text-center space-y-4">
-                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 px-4 py-1.5 rounded-full text-xs font-bold text-white uppercase tracking-wider">
-                        <Globe size={14} /> Espace Monde & Documents
-                    </div>
-                    <h1 className="text-3xl md:text-5xl font-bold">Votre Avenir, Vos Papiers</h1>
-                    <p className="text-slate-300 max-w-2xl mx-auto text-lg">
-                        Préparez votre mobilité internationale et sécurisez vos documents essentiels dans un seul espace blindé.
-                    </p>
+                <div className="relative z-10 max-w-7xl mx-auto space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 px-3.5 py-1 rounded-full text-xs font-bold text-indigo-200 uppercase tracking-wider mb-2">
+                                <Globe size={14} className="text-amber-400" />
+                                <span>Monde / Mes Parcours de Vie</span>
+                                <span className="text-slate-400 font-normal">• Point A ➔ Parcours ➔ Point B</span>
+                            </div>
+                            <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white">
+                                Moteur Universel d'Accomplissement
+                            </h1>
+                            <p className="text-sm text-slate-300 max-w-2xl mt-1">
+                                Orchestration globale de vos objectifs, pièces d'identité, simulations et experts dédiés.
+                            </p>
+                        </div>
 
-                    {/* Tabs Switcher */}
-                    <div className="flex justify-center gap-4 mt-8">
+                        {/* Top Action Button */}
+                        <div className="flex items-center gap-2.5">
+                            <button
+                                onClick={() => setIsCreatorModalOpen(true)}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 transition-all hover:scale-105"
+                            >
+                                <Plus size={18} />
+                                <span>Nouveau Parcours</span>
+                            </button>
+
+                            <button
+                                onClick={() => setIsCouncilOpen(true)}
+                                className="bg-white/10 hover:bg-white/20 border border-white/20 text-slate-200 font-bold text-xs md:text-sm px-4 py-3 rounded-2xl transition-colors flex items-center gap-2"
+                            >
+                                <Users size={16} className="text-amber-400" />
+                                <span>Le Conseil</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Mode Navigation Switcher Tabs */}
+                    <div className="flex flex-wrap items-center gap-2 pt-4">
+                        <button 
+                            onClick={() => setViewMode('parcours')}
+                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                                viewMode === 'parcours' 
+                                    ? 'bg-white text-slate-900 shadow-xl scale-105' 
+                                    : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+                            }`}
+                        >
+                            <Compass size={16} className={viewMode === 'parcours' ? 'text-indigo-600' : ''} />
+                            <span>Mes Parcours ({dossiers.length})</span>
+                        </button>
+
                         <button 
                             onClick={() => setViewMode('mobility')}
-                            className={`px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 ${viewMode === 'mobility' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                                viewMode === 'mobility' 
+                                    ? 'bg-white text-slate-900 shadow-xl scale-105' 
+                                    : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+                            }`}
                         >
-                            <Plane size={18} /> Projet Mobilité
+                            <Plane size={16} className={viewMode === 'mobility' ? 'text-blue-600' : ''} />
+                            <span>Simulateur Mobilité</span>
                         </button>
+
                         <button 
                             onClick={() => setViewMode('safe')}
-                            className={`px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 ${viewMode === 'safe' ? 'bg-emerald-500 text-white shadow-xl scale-105' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                                viewMode === 'safe' 
+                                    ? 'bg-white text-slate-900 shadow-xl scale-105' 
+                                    : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+                            }`}
                         >
-                            <Lock size={18} /> Coffre-fort
+                            <Lock size={16} className={viewMode === 'safe' ? 'text-emerald-600' : ''} />
+                            <span>Coffre-Fort & Documents ({documents.length})</span>
+                        </button>
+
+                        <button 
+                            onClick={() => setViewMode('memory')}
+                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                                viewMode === 'memory' 
+                                    ? 'bg-white text-slate-900 shadow-xl scale-105' 
+                                    : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+                            }`}
+                        >
+                            <BrainCircuit size={16} className={viewMode === 'memory' ? 'text-purple-600' : ''} />
+                            <span>Mémoire Active Diallo OS</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Main Content Card - Overlap Header */}
-            <div className="flex-1 overflow-y-auto px-4 pb-8 -mt-8 relative z-20">
+            {/* --- MAIN CONTENT CONTAINER --- */}
+            <div className="max-w-7xl mx-auto w-full px-4 md:px-6 py-6 space-y-6 -mt-6 relative z-20">
                 
-                {/* MODE MOBILITY */}
-                {viewMode === 'mobility' && (
-                    <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col md:flex-row min-h-[600px] animate-fade-up">
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* MODE 1: MES PARCOURS DE VIE (PRIMARY ENGINE) */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {viewMode === 'parcours' && (
+                    <div className="space-y-6">
                         
-                        {/* Left Panel: Simulator Form */}
-                        <div className="w-full md:w-1/2 p-8 border-r border-slate-100 flex flex-col">
-                            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-                               <Navigation className="text-brand-600" /> Paramètres du Projet
-                            </h2>
+                        {/* Selector & Scope filters bar */}
+                        <div className="bg-white rounded-3xl p-4 md:p-5 shadow-sm border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                             
-                            <div className="space-y-6 flex-1">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">De quel pays partez-vous ?</label>
-                                    <select 
-                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-brand-500 outline-none"
-                                      value={selectedOrigin?.code || ''}
-                                      onChange={(e) => setSelectedOrigin(COUNTRIES.find(c => c.code === e.target.value) || null)}
-                                    >
-                                        <option value="">Sélectionner un pays d'origine</option>
-                                        {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-                                    </select>
-                                </div>
+                            {/* Scope Selector: Personnel / Famille / Entreprise */}
+                            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl overflow-x-auto w-full md:w-auto">
+                                <button
+                                    onClick={() => setScopeFilter('all')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${scopeFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                >
+                                    Tous les périmètres
+                                </button>
+                                <button
+                                    onClick={() => setScopeFilter('individual')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${scopeFilter === 'individual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                >
+                                    <User size={13} /> Personnel
+                                </button>
+                                <button
+                                    onClick={() => setScopeFilter('family')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${scopeFilter === 'family' ? 'bg-amber-100 text-amber-900 shadow-sm font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                                >
+                                    <Users size={13} /> Famille
+                                </button>
+                                <button
+                                    onClick={() => setScopeFilter('organization')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${scopeFilter === 'organization' ? 'bg-purple-100 text-purple-900 shadow-sm font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                                >
+                                    <Building2 size={13} /> Entreprise
+                                </button>
+                            </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Où voulez-vous aller ?</label>
-                                    <select 
-                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-brand-500 outline-none"
-                                      value={selectedDestination?.code || ''}
-                                      onChange={(e) => setSelectedDestination(COUNTRIES.find(c => c.code === e.target.value) || null)}
-                                    >
-                                        <option value="">Sélectionner une destination</option>
-                                        {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nature du projet</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[
-                                            { id: 'work', label: 'Travail', icon: Briefcase },
-                                            { id: 'study', label: 'Études', icon: GraduationCap },
-                                            { id: 'tourism', label: 'Tourisme', icon: Plane },
-                                            { id: 'health', label: 'Santé', icon: HeartPulse }
-                                        ].map((type) => (
-                                            <button
-                                                key={type.id}
-                                                onClick={() => setProjectType(type.id as any)}
-                                                className={`p-3 rounded-xl border flex items-center gap-2 transition-all ${projectType === type.id ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                                            >
-                                                <type.icon size={16} /> {type.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Détails (Âge, Diplômes, Budget...)</label>
-                                    <textarea 
-                                        value={projectDetails}
-                                        onChange={(e) => setProjectDetails(e.target.value)}
-                                        placeholder="Ex: J'ai 28 ans, un Master en Info, et 5000€ d'économies..."
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:ring-2 focus:ring-brand-500 outline-none text-sm"
+                            {/* Search & Category Filter */}
+                            <div className="flex items-center gap-2 w-full md:w-auto">
+                                <div className="relative flex-1 md:w-56">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                    <input 
+                                        type="text"
+                                        value={parcoursSearchQuery}
+                                        onChange={(e) => setParcoursSearchQuery(e.target.value)}
+                                        placeholder="Rechercher un parcours..."
+                                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     />
+                                </div>
+
+                                <select
+                                    value={categoryFilter}
+                                    onChange={(e) => setCategoryFilter(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="all">Toutes catégories</option>
+                                    <option value="projet">Projet & Mobilité</option>
+                                    <option value="education">Éducation & Campus</option>
+                                    <option value="carriere">Carrière & Emploi</option>
+                                    <option value="juridique">Juridique & Visa</option>
+                                    <option value="sante">Santé</option>
+                                    <option value="logement">Logement</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Horizontal Parcours Switcher Carousel */}
+                        <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-thin">
+                            {filteredParcours.map((p) => {
+                                const isSelected = selectedDossier?.id === p.id;
+                                const leadAgent = AGENTS.find(a => a.id === p.leadAgentId);
+
+                                return (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => setSelectedDossier(p)}
+                                        className={`min-w-[280px] max-w-[320px] p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shrink-0 ${
+                                            isSelected 
+                                                ? 'bg-white border-indigo-600 ring-2 ring-indigo-100 shadow-md scale-[1.02]' 
+                                                : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="flex items-center justify-between gap-1 mb-2">
+                                                <span className="text-[10px] font-extrabold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                                                    {p.category}
+                                                </span>
+                                                <span className="text-xs font-black text-indigo-600">
+                                                    {p.progress}%
+                                                </span>
+                                            </div>
+
+                                            <h4 className="font-bold text-slate-900 text-sm line-clamp-1 mb-1" title={p.title}>
+                                                {p.title}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 line-clamp-2 leading-snug">
+                                                {p.goal}
+                                            </p>
+                                        </div>
+
+                                        <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                                {leadAgent && (
+                                                    <img src={leadAgent.avatar} alt={leadAgent.name} className="w-5 h-5 rounded-full object-cover" />
+                                                )}
+                                                <span className="text-[11px] text-slate-500 truncate max-w-[120px]">{leadAgent?.name || 'Diallo'}</span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-semibold">{p.targetDate}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* ACTIVE PARCOURS HERO & DETAIL VIEW */}
+                        {selectedDossier ? (
+                            <div className="space-y-6">
+                                {/* Diallo OS 4-Quadrant Diagnostic Hero */}
+                                <ParcoursDiagnosticHero 
+                                    parcours={selectedDossier}
+                                    onNextActionClick={() => {
+                                        const currentStep = selectedDossier.steps.find(s => s.status === 'in_progress') || selectedDossier.steps[0];
+                                        if (currentStep?.gatewayTab && onNavigate) {
+                                            onNavigate(currentStep.gatewayTab);
+                                        } else {
+                                            onNavigateToAgent(selectedDossier.leadAgentId, `Faisons un point immédiat sur la prochaine étape : "${selectedDossier.nextAction}".`);
+                                        }
+                                    }}
+                                    onConveneCouncil={() => setIsCouncilOpen(true)}
+                                    onTriggerPlanB={() => {
+                                        addNotification("Mode Plan B", "Accédez à l'onglet Plan B pour simuler une nouvelle alternative.", "warning");
+                                    }}
+                                    onNavigateToTab={onNavigate}
+                                    onOpenExpertHotline={(agentId) => onNavigateToAgent(agentId, `Bonjour, je vous contacte concernant le dossier "${selectedDossier.title}".`)}
+                                />
+
+                                {/* Full Interactive Timeline & Journey Details */}
+                                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200">
+                                    <ParcoursDetailView 
+                                        parcours={selectedDossier}
+                                        onUpdateParcours={handleUpdateParcours}
+                                        onNavigateToTab={onNavigate}
+                                        onOpenAgentChat={(agentId, prompt) => onNavigateToAgent(agentId, prompt)}
+                                        onOpenCouncil={() => setIsCouncilOpen(true)}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 space-y-4">
+                                <Compass size={48} className="mx-auto text-slate-300" />
+                                <h3 className="text-lg font-bold text-slate-800">Aucun parcours sélectionné</h3>
+                                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                                    Créez votre premier parcours de vie ou sélectionnez-en un dans la liste ci-dessus.
+                                </p>
+                                <button
+                                    onClick={() => setIsCreatorModalOpen(true)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md inline-flex items-center gap-2"
+                                >
+                                    <Plus size={16} /> Initialiser un Nouveau Parcours
+                                </button>
+                            </div>
+                        )}
+
+                    </div>
+                )}
+
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* MODE 2: SIMULATEUR MOBILITÉ & VISAS */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {viewMode === 'mobility' && (
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col md:flex-row min-h-[600px] animate-fade-in">
+                        {/* Left Panel: Simulator Form */}
+                        <div className="w-full md:w-1/2 p-8 border-r border-slate-100 flex flex-col justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                   <Navigation className="text-indigo-600" /> Paramètres du Projet de Mobilité
+                                </h2>
+                                
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pays d'origine</label>
+                                        <select 
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                          value={selectedOrigin?.code || ''}
+                                          onChange={(e) => setSelectedOrigin(COUNTRIES.find(c => c.code === e.target.value) || null)}
+                                        >
+                                            <option value="">Sélectionner le pays d'origine</option>
+                                            {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pays de destination visé</label>
+                                        <select 
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                          value={selectedDestination?.code || ''}
+                                          onChange={(e) => setSelectedDestination(COUNTRIES.find(c => c.code === e.target.value) || null)}
+                                        >
+                                            <option value="">Sélectionner une destination</option>
+                                            {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Motif du projet</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { id: 'work', label: 'Travail & Emploi', icon: Briefcase },
+                                                { id: 'study', label: 'Études & Master', icon: GraduationCap },
+                                                { id: 'tourism', label: 'Séjour & Tourisme', icon: Plane },
+                                                { id: 'health', label: 'Soins & Santé', icon: HeartPulse }
+                                            ].map((type) => (
+                                                <button
+                                                    key={type.id}
+                                                    type="button"
+                                                    onClick={() => setProjectType(type.id as any)}
+                                                    className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all ${projectType === type.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                >
+                                                    <type.icon size={15} /> {type.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Détails (Âge, Diplômes, Économies, Délais...)</label>
+                                        <textarea 
+                                            value={projectDetails}
+                                            onChange={(e) => setProjectDetails(e.target.value)}
+                                            placeholder="Ex: J'ai 28 ans, titulaire d'un Master en informatique avec 3 ans d'expérience et 6000€ d'économies..."
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:ring-2 focus:ring-indigo-500 outline-none text-xs leading-relaxed resize-none"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
                             <button 
                                 onClick={handleSimulation}
                                 disabled={isSimulating || !selectedOrigin || !selectedDestination || !projectDetails}
-                                className={`w-full py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${isSimulating || !selectedOrigin ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-brand-600 text-white hover:bg-brand-700 hover:scale-[1.02]'}`}
+                                className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${isSimulating || !selectedOrigin ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-[1.01]'}`}
                             >
-                                {isSimulating ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                                {isSimulating ? 'Analyse en cours...' : 'Lancer la Simulation'}
+                                {isSimulating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                                {isSimulating ? 'Simulation multimodale en cours...' : 'Lancer la Simulation de Mobilité'}
                             </button>
                         </div>
 
-                        {/* Right Panel: Results */}
+                        {/* Right Panel: Simulation Results */}
                         <div className="w-full md:w-1/2 p-8 bg-slate-50 flex flex-col justify-center items-center relative overflow-hidden">
                             {!simulationResult ? (
                                 <div className="text-center text-slate-400 max-w-xs">
-                                    <Globe size={64} className="mx-auto mb-4 opacity-20" />
-                                    <h3 className="text-lg font-medium text-slate-600 mb-2">En attente de données</h3>
-                                    <p className="text-sm">Remplissez le formulaire à gauche pour obtenir une analyse complète de votre projet.</p>
+                                    <Globe size={56} className="mx-auto mb-3 opacity-20 text-indigo-600" />
+                                    <h3 className="text-base font-bold text-slate-700 mb-1">Prêt pour la simulation</h3>
+                                    <p className="text-xs text-slate-500 leading-relaxed">
+                                        Remplissez vos critères à gauche pour calculer votre score d'éligibilité, les visas recommandés et les pré-requis.
+                                    </p>
                                 </div>
                             ) : (
-                                <div className="w-full h-full flex flex-col animate-fade-up">
-                                    <div className="text-center mb-6">
-                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Score de Faisabilité</div>
-                                        <div className="relative inline-flex items-center justify-center">
-                                            <svg className="w-32 h-32 transform -rotate-90">
-                                                <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-200" />
-                                                <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="8" fill="transparent" 
-                                                    className={simulationResult.feasibilityScore > 70 ? "text-green-500" : simulationResult.feasibilityScore > 40 ? "text-orange-500" : "text-red-500"}
-                                                    strokeDasharray={377}
-                                                    strokeDashoffset={377 - (377 * simulationResult.feasibilityScore) / 100}
-                                                    style={{ transition: 'stroke-dashoffset 1s ease-out' }}
-                                                />
-                                            </svg>
-                                            <span className="absolute text-3xl font-bold text-slate-800">{simulationResult.feasibilityScore}%</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                            <div className="text-xs font-bold text-slate-400 uppercase mb-1">Visa Recommandé</div>
-                                            <div className="font-bold text-brand-600 text-lg">{simulationResult.visaType}</div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Budget Estimé</div>
-                                                <div className="font-bold text-slate-800">{simulationResult.estimatedCost}</div>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Délais</div>
-                                                <div className="font-bold text-slate-800">{simulationResult.processingTime}</div>
+                                <div className="w-full h-full flex flex-col justify-between animate-fade-in space-y-4">
+                                    <div className="space-y-4">
+                                        <div className="text-center">
+                                            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Score de Faisabilité</div>
+                                            <div className="text-4xl font-black text-indigo-600">
+                                                {simulationResult.feasibilityScore}%
                                             </div>
                                         </div>
 
-                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                            <div className="text-xs font-bold text-slate-400 uppercase mb-2">Pré-requis Clés</div>
-                                            <ul className="space-y-2">
+                                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Voie d'Immigration / Visa Suggéré</div>
+                                            <div className="font-bold text-indigo-700 text-base">{simulationResult.visaType}</div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Budget Estimé</div>
+                                                <div className="font-bold text-slate-800 text-sm">{simulationResult.estimatedCost}</div>
+                                            </div>
+                                            <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Délai de Traitement</div>
+                                                <div className="font-bold text-slate-800 text-sm">{simulationResult.processingTime}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Conditions Préalables Recommandées</div>
+                                            <ul className="space-y-1.5 text-xs text-slate-700">
                                                 {simulationResult.requirements.map((req, i) => (
-                                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                                                        <CheckCircle size={14} className="text-green-500 mt-0.5 shrink-0" /> {req}
+                                                    <li key={i} className="flex items-start gap-1.5">
+                                                        <CheckCircle2 size={13} className="text-emerald-500 mt-0.5 shrink-0" />
+                                                        <span>{req}</span>
                                                     </li>
                                                 ))}
                                             </ul>
                                         </div>
 
-                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3">
-                                            <AlertTriangle className="text-blue-500 shrink-0" size={20} />
-                                            <p className="text-sm text-blue-800 italic">"{simulationResult.advice}"</p>
+                                        <div className="bg-indigo-50/80 p-3.5 rounded-2xl border border-indigo-100 text-xs text-indigo-900 italic">
+                                            "{simulationResult.advice}"
                                         </div>
                                     </div>
 
-                                    <button 
-                                        onClick={() => {
-                                            const agent = AGENTS.find(a => a.id === simulationResult.agentContactId) || AGENTS[1];
-                                            onNavigateToAgent(agent.id, `Bonjour ${agent.name}, j'ai simulé mon projet pour ${selectedDestination?.name}. Score: ${simulationResult.feasibilityScore}%. Visa: ${simulationResult.visaType}. Pouvez-vous m'aider à constituer le dossier ?`);
-                                        }}
-                                        className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"
-                                    >
-                                        Lancer la procédure avec l'Expert <ArrowRight size={18} />
-                                    </button>
+                                    {/* Action to create Parcours directly */}
+                                    <div className="pt-4 flex flex-col sm:flex-row gap-2">
+                                        <button 
+                                            onClick={handleConvertSimulationToParcours}
+                                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-colors"
+                                        >
+                                            <Compass size={15} />
+                                            <span>Transformer en Parcours Officiel</span>
+                                        </button>
+
+                                        <button 
+                                            onClick={() => {
+                                                const agent = AGENTS.find(a => a.id === simulationResult.agentContactId) || AGENTS[1];
+                                                onNavigateToAgent(agent.id, `Bonjour ${agent.name}, j'ai simulé mon projet pour ${selectedDestination?.name}. Score: ${simulationResult.feasibilityScore}%. Visa: ${simulationResult.visaType}.`);
+                                            }}
+                                            className="py-3 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors"
+                                        >
+                                            Chat Expert
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
 
-                {/* MODE SAFE */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* MODE 3: COFFRE-FORT NUMÉRIQUE & DOCUMENTS */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
                 {viewMode === 'safe' && (
-                    <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
-                        
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col animate-fade-in">
                         {isLocked ? (
-                            <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden">
-                                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1600&q=80')] opacity-5 bg-cover"></div>
-                                <div className="z-10 text-center animate-fade-up">
-                                    <div className="w-32 h-32 rounded-full border-4 border-emerald-500/30 flex items-center justify-center mb-8 relative bg-white shadow-xl">
-                                        <ShieldCheck size={64} className="text-emerald-500" />
-                                        <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                                            <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-transparent" />
-                                            <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-emerald-500" strokeDasharray={377} strokeDashoffset={377 - (377 * authProgress) / 100} />
-                                        </svg>
-                                    </div>
-                                    <h2 className="text-2xl font-bold tracking-widest uppercase mb-2 text-slate-800">Coffre-Fort Sécurisé</h2>
-                                    <p className="text-emerald-600 font-mono text-sm font-bold bg-emerald-50 px-3 py-1 rounded-full">{authProgress < 100 ? 'Authentification Biométrique...' : 'Accès Autorisé'}</p>
+                            <div className="flex-1 flex flex-col items-center justify-center p-12 bg-slate-50">
+                                <div className="w-24 h-24 rounded-full border-4 border-emerald-500/30 flex items-center justify-center mb-6 bg-white shadow-xl relative">
+                                    <ShieldCheck size={48} className="text-emerald-500" />
+                                    <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                                        <circle cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
+                                        <circle cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-emerald-500" strokeDasharray={276} strokeDashoffset={276 - (276 * authProgress) / 100} />
+                                    </svg>
                                 </div>
+                                <h2 className="text-xl font-extrabold uppercase tracking-widest text-slate-800 mb-2">Coffre-Fort Numérique</h2>
+                                <p className="text-emerald-600 font-mono text-xs font-bold bg-emerald-50 px-3 py-1 rounded-full">
+                                    {authProgress < 100 ? 'Vérification de la clé de chiffrement...' : 'Accès Déverrouillé'}
+                                </p>
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col animate-fade-up">
+                            <div className="flex-1 flex flex-col p-6 space-y-6">
                                 {/* Safe Toolbar */}
-                                <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-emerald-100 text-emerald-600 p-2 rounded-lg">
-                                            <Lock size={24} />
+                                <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-emerald-100 text-emerald-700 p-2.5 rounded-xl">
+                                            <Lock size={20} />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-slate-800">Mes Documents</h3>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                                            <h3 className="font-bold text-slate-900 text-sm">Pièces & Livrables Sécurisés</h3>
+                                            <p className="text-[11px] text-slate-500 flex items-center gap-1">
                                                 {isSyncing ? <RefreshCw size={10} className="animate-spin" /> : <Cloud size={10} />}
                                                 Synchronisé • {lastSyncTime}
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 w-full md:w-auto">
-                                        <button onClick={handleSync} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-500"><RefreshCw size={20} /></button>
+
+                                    <div className="flex items-center gap-2 w-full md:w-auto">
+                                        <button onClick={handleSync} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600"><RefreshCw size={16} /></button>
                                         <div className="relative flex-1 md:w-64">
-                                            <Search className="absolute left-3 top-1/2 -translate-x-1/2 text-slate-400" size={16} />
-                                            <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Rechercher..." className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm" />
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                            <input 
+                                                value={searchTerm} 
+                                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                                placeholder="Rechercher un document..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                            />
                                         </div>
-                                        <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2 transition-all"><Upload size={18} /> <span className="hidden sm:inline">Ajouter</span></button>
+                                        <button 
+                                            onClick={() => fileInputRef.current?.click()} 
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5"
+                                        >
+                                            <Upload size={14} />
+                                            <span>Ajouter</span>
+                                        </button>
                                         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                                     </div>
                                 </div>
 
-                                {/* Categories */}
-                                <div className="px-6 pt-4 flex gap-2 overflow-x-auto pb-2">
+                                {/* Category Chips */}
+                                <div className="flex gap-2 overflow-x-auto pb-1">
                                     {['All', 'Identity', 'Work', 'Health', 'Education', 'Finance'].map(cat => (
-                                        <button key={cat} onClick={() => setActiveCategory(cat as any)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${activeCategory === cat ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{cat === 'All' ? 'Tous' : cat}</button>
+                                        <button 
+                                            key={cat} 
+                                            onClick={() => setActiveCategory(cat as any)} 
+                                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${activeCategory === cat ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                        >
+                                            {cat === 'All' ? 'Tous' : cat}
+                                        </button>
                                     ))}
                                 </div>
 
-                                {/* Doc Grid */}
-                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[600px]">
-                                    {isAnalyzingDoc && (
-                                        <div className="border-2 border-dashed border-emerald-500 bg-emerald-50 rounded-2xl p-6 flex flex-col items-center justify-center text-emerald-700 animate-pulse"><Upload size={32} className="mb-2" /><span className="font-bold">Chiffrement & Upload...</span></div>
-                                    )}
-                                    {filteredDocs.length === 0 && !isAnalyzingDoc && (
-                                        <div className="col-span-full text-center py-20 text-gray-400">
-                                            <FileText size={48} className="mx-auto mb-4 opacity-20" />
-                                            <p>Le coffre est vide. Ajoutez vos documents importants.</p>
-                                        </div>
-                                    )}
+                                {/* Docs Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {filteredDocs.map(doc => (
-                                        <div key={doc.id} className="group border border-slate-200 rounded-2xl p-4 hover:shadow-lg transition-all cursor-pointer relative bg-white hover:border-emerald-500 flex items-center gap-4">
-                                            <div className={`p-3 rounded-xl flex-shrink-0 ${doc.category === 'Identity' ? 'bg-blue-50 text-blue-600' : doc.category === 'Health' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}><FileText size={24} /></div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-slate-900 text-sm truncate mb-1" title={doc.name}>{doc.name}</h3>
-                                                <div className="text-[10px] text-slate-500 flex items-center gap-2"><span>{doc.fileSize}</span><span>•</span><span>{doc.uploadDate}</span></div>
+                                        <div key={doc.id} className="group border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all bg-white flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="p-3 rounded-xl bg-slate-100 text-slate-700 shrink-0">
+                                                    <FileText size={20} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-slate-900 text-xs truncate" title={doc.name}>
+                                                        {doc.name}
+                                                    </h4>
+                                                    <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                                        <span>{doc.fileSize}</span>
+                                                        <span>•</span>
+                                                        <span>{doc.uploadDate}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><Eye size={16} /></button>
-                                                <button className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600"><Share2 size={16} /></button>
+
+                                            <div className="flex items-center gap-1">
+                                                <button 
+                                                    onClick={() => addNotification("Document", `Consultation de ${doc.name}`, "info")}
+                                                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                                >
+                                                    <Eye size={14} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => addNotification("Partage", `Lien sécurisé généré pour ${doc.name}`, "info")}
+                                                    className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600"
+                                                >
+                                                    <Share2 size={14} />
+                                                </button>
                                             </div>
-                                            {doc.isVerified && <div className="absolute top-2 right-2 text-emerald-500" title="Vérifié"><CheckCircle size={12} /></div>}
                                         </div>
                                     ))}
                                 </div>
@@ -423,7 +804,72 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent }) => {
                     </div>
                 )}
 
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* MODE 4: MÉMOIRE ACTIVE TRANSVERSALE (5 COUCHES) */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {viewMode === 'memory' && (
+                    <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 space-y-6 animate-fade-in">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                                    <BrainCircuit className="text-purple-600" size={22} />
+                                    <span>Mémoire Active Diallo OS (5 Couches Transversales)</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Maintient le contexte unifié entre tous les experts, parcours, sessions live et documents.
+                                </p>
+                            </div>
+
+                            {/* Layer selector */}
+                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto text-xs font-bold">
+                                {['all', 'personal', 'parcours', 'learning', 'documentary', 'conversational'].map((lay) => (
+                                    <button
+                                        key={lay}
+                                        onClick={() => setSelectedMemoryLayer(lay)}
+                                        className={`px-3 py-1.5 rounded-lg transition-colors capitalize ${selectedMemoryLayer === lay ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                    >
+                                        {lay === 'all' ? 'Toutes' : lay}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Memory Items Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {activeMemories
+                                .filter(m => selectedMemoryLayer === 'all' || (m.layer || 'parcours') === selectedMemoryLayer)
+                                .map((mem) => (
+                                    <div key={mem.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:shadow-sm transition-all">
+                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                            <span className="text-[10px] font-extrabold uppercase bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full">
+                                                Couche : {mem.layer || 'Parcours'} • {mem.category}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-semibold">{mem.timestamp}</span>
+                                        </div>
+                                        <h5 className="font-bold text-slate-900 text-xs mb-1">{mem.key}</h5>
+                                        <p className="text-xs text-slate-700 leading-relaxed">{mem.value}</p>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                )}
+
             </div>
+
+            {/* --- MODAL: PARCOURS CREATOR --- */}
+            <ParcoursCreatorModal 
+                isOpen={isCreatorModalOpen}
+                onClose={() => setIsCreatorModalOpen(false)}
+                onParcoursCreated={handleParcoursCreated}
+            />
+
+            {/* --- MODAL: UNIFIED COUNCIL ROOM --- */}
+            {isCouncilOpen && (
+                <UnifiedCouncilRoom 
+                    onClose={() => setIsCouncilOpen(false)}
+                />
+            )}
+
         </div>
     );
 };

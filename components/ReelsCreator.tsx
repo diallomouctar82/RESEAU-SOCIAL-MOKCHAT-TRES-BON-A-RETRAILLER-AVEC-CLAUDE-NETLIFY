@@ -74,6 +74,27 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
     const [generatedThumbnails, setGeneratedThumbnails] = useState<string[]>([]);
 
+    // Action Gateway & Utility State
+    const [selectedCategory, setSelectedCategory] = useState<string>('learning');
+    const [actionType, setActionType] = useState<'none' | 'expert' | 'campus' | 'tribe' | 'career_coach' | 'project' | 'legal_source'>('campus');
+    const [actionLabel, setActionLabel] = useState('Approfondir sur le Campus');
+    const [actionTargetTitle, setActionTargetTitle] = useState('Module de formation certifiant');
+    const [includeQuiz, setIncludeQuiz] = useState(false);
+    const [quizQuestion, setQuizQuestion] = useState('Quelle est la règle essentielle abordée dans cette vidéo ?');
+    const [quizOpt1, setQuizOpt1] = useState('Méthode STAR');
+    const [quizOpt2, setQuizOpt2] = useState('Improvisation');
+    const [quizExplanation, setQuizExplanation] = useState('La méthode STAR garantit une clarté structurée lors des entretiens.');
+
+    // Guided Mode for Beginners (« Diallo, aide-moi à publier ma première vidéo »)
+    const [isGuidedMode, setIsGuidedMode] = useState(false);
+    const [guidedStep, setGuidedStep] = useState<number>(1);
+    const [guidedTopic, setGuidedTopic] = useState('');
+    const [guidedAppearOnScreen, setGuidedAppearOnScreen] = useState(true);
+    const [guidedVoiceType, setGuidedVoiceType] = useState<'my_voice' | 'ai_narration'>('ai_narration');
+    const [guidedAiDraft, setGuidedAiDraft] = useState('');
+    const [isTranslatingMultilingual, setIsTranslatingMultilingual] = useState(false);
+    const [enableAfricanLanguages, setEnableAfricanLanguages] = useState(true);
+
     const videoRef = useRef<HTMLVideoElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -423,6 +444,20 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                             <p className="text-gray-400 text-lg font-light">L'outil de création ultime. De l'idée à la viralité.</p>
                         </div>
                         
+                        {/* MODE CRÉATION GUIDÉE DÉBUTANT */}
+                        <div className="pt-2">
+                            <button
+                                onClick={() => {
+                                    setIsGuidedMode(true);
+                                    setGuidedStep(1);
+                                }}
+                                className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white rounded-2xl font-black text-xs shadow-xl flex items-center justify-center gap-2 border border-white/20 transition-transform active:scale-95"
+                            >
+                                <Sparkles size={16} className="text-amber-300" />
+                                <span>« Diallo, aide-moi à publier ma première vidéo » (Mode Guidé)</span>
+                            </button>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <button onClick={() => fileInputRef.current?.click()} className="group py-8 px-4 bg-white/5 border border-white/10 rounded-3xl hover:bg-white/10 hover:border-purple-500/50 transition-all flex flex-col items-center justify-center gap-4">
                                 <div className="p-4 bg-purple-600/20 rounded-full text-purple-400 group-hover:scale-110 transition-transform"><Upload size={32} /></div>
@@ -741,12 +776,85 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                                 </div>
                                 
                                 <div>
+                                    <label className="text-xs font-bold text-gray-400 mb-1.5 block uppercase">Catégorie d'Impact</label>
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500"
+                                    >
+                                        <option value="learning">🎓 Apprentissage & Masterclass</option>
+                                        <option value="expert">⚖️ Conseil Expert Spécialisé</option>
+                                        <option value="career">💼 Emploi & Carrière</option>
+                                        <option value="project">🚀 Lancement de Projet / Financement</option>
+                                        <option value="legal">📜 Juridique & Droit OHADA</option>
+                                        <option value="tribe">🔥 Action Communautaire & Tribu</option>
+                                        <option value="language">🗣️ Langues & Négociation</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 mb-1.5 block uppercase">Passerelle d'Action (Transformer en Action)</label>
+                                    <div className="space-y-2">
+                                        <select
+                                            value={actionType}
+                                            onChange={(e) => setActionType(e.target.value as any)}
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500"
+                                        >
+                                            <option value="none">Aucune action directe</option>
+                                            <option value="campus">🎓 Rediriger vers un cours sur le Campus</option>
+                                            <option value="expert">🤖 Démarrer un parcours avec un Copilote Expert</option>
+                                            <option value="career_coach">💼 Audit CV & Simulation Entretien</option>
+                                            <option value="project">🚀 Incubation de Projet Diallo OS</option>
+                                            <option value="tribe">👥 Rejoindre une Tribu active</option>
+                                            <option value="legal_source">⚖️ Article de loi officiel (OHADA, etc.)</option>
+                                        </select>
+                                        {actionType !== 'none' && (
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={actionLabel}
+                                                    onChange={(e) => setActionLabel(e.target.value)}
+                                                    placeholder="Libellé du bouton"
+                                                    className="bg-gray-800 border border-gray-700 rounded-xl p-2 text-xs text-white outline-none"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={actionTargetTitle}
+                                                    onChange={(e) => setActionTargetTitle(e.target.value)}
+                                                    placeholder="Titre de la cible"
+                                                    className="bg-gray-800 border border-gray-700 rounded-xl p-2 text-xs text-white outline-none"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
                                     <label className="text-xs font-bold text-gray-500 mb-2 block">Légende Optimisée</label>
                                     <textarea 
                                         value={caption}
                                         onChange={(e) => setCaption(e.target.value)}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm h-24 focus:ring-1 focus:ring-purple-500 outline-none"
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm h-20 focus:ring-1 focus:ring-purple-500 outline-none"
                                     />
+                                </div>
+
+                                {/* MULTILINGUAL & AFRICAN LANGUAGES ACCESSIBILITY */}
+                                <div className="p-3.5 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Languages size={16} className="text-indigo-400" />
+                                            <span className="text-xs font-bold text-indigo-200">Accessibilité Multilingue Diallo OS</span>
+                                        </div>
+                                        <input 
+                                            type="checkbox"
+                                            checked={enableAfricanLanguages}
+                                            onChange={(e) => setEnableAfricanLanguages(e.target.checked)}
+                                            className="accent-indigo-500 rounded h-4 w-4"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-indigo-300/80 leading-relaxed">
+                                        Conserver l'audio original tout en générant automatiquement les sous-titres et doublages en langues africaines (Wolof, Bambara, Lingala, Swahili, Haoussa, Yoruba) + EN/AR.
+                                    </p>
                                 </div>
 
                                 <div className="flex gap-3 pt-2">
@@ -759,17 +867,298 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                                                 caption,
                                                 hashtags,
                                                 viralScore,
-                                                aiSuggestions
+                                                aiSuggestions,
+                                                category: selectedCategory as any,
+                                                actionGateway: actionType !== 'none' ? {
+                                                    type: actionType as any,
+                                                    label: actionLabel,
+                                                    targetTitle: actionTargetTitle
+                                                } : undefined
                                             });
                                             onClose();
                                         }}
                                         className="flex-[2] py-3 bg-green-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-500 shadow-lg"
                                     >
-                                        <CheckCircle size={18} /> Publier
+                                        <CheckCircle size={18} /> Publier le Reel
                                     </button>
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* 3. GUIDED CREATION WIZARD FOR BEGINNERS (6 ÉTAPES) */}
+            {isGuidedMode && (
+                <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-purple-500/40 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 animate-fade-up">
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-xl text-white">
+                                    <Sparkles size={20} />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-black text-white">Diallo Studio — Création Guidée</h2>
+                                    <p className="text-xs text-purple-300">Étape {guidedStep} sur 6 : {
+                                        guidedStep === 1 ? 'Votre Message & Objectif' :
+                                        guidedStep === 2 ? 'Votre Format Préféré' :
+                                        guidedStep === 3 ? 'Génération du Script IA' :
+                                        guidedStep === 4 ? 'Voix & Narration' :
+                                        guidedStep === 5 ? 'Passerelle d\'Action' :
+                                        'Aperçu & Publication'
+                                    }</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsGuidedMode(false)}
+                                className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                                className="bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 h-full transition-all duration-300"
+                                style={{ width: `${(guidedStep / 6) * 100}%` }}
+                            />
+                        </div>
+
+                        {/* Step 1 */}
+                        {guidedStep === 1 && (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-white">Que souhaitez-vous partager ou transmettre ?</h3>
+                                <p className="text-xs text-gray-400">Pas besoin d'expérience. Dites-le simplement avec vos propres mots :</p>
+                                <textarea
+                                    value={guidedTopic}
+                                    onChange={(e) => setGuidedTopic(e.target.value)}
+                                    placeholder="Ex: Je veux expliquer comment négocier son premier contrat d'exportation en Afrique de l'Ouest..."
+                                    className="w-full h-28 bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                    {['Conseil pratique', 'Opportunité d\'affaires', 'Explication juridique', 'Retour d\'expérience'].map((tag) => (
+                                        <button
+                                            key={tag}
+                                            onClick={() => setGuidedTopic(prev => (prev ? prev + ' • ' + tag : tag))}
+                                            className="px-3 py-1 bg-white/5 hover:bg-purple-600/30 border border-white/10 rounded-full text-[11px] text-gray-300"
+                                        >
+                                            + {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 2 */}
+                        {guidedStep === 2 && (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-white">Comment préférez-vous apparaître ?</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setGuidedAppearOnScreen(true)}
+                                        className={`p-4 rounded-2xl border text-left transition-all ${
+                                            guidedAppearOnScreen
+                                                ? 'bg-purple-900/30 border-purple-500 text-white shadow-lg'
+                                                : 'bg-gray-950 border-gray-800 text-gray-400'
+                                        }`}
+                                    >
+                                        <Camera size={24} className="mb-2 text-purple-400" />
+                                        <div className="font-bold text-xs text-white">Face caméra</div>
+                                        <div className="text-[10px] text-gray-400 mt-1">Avec prompteur défilant automatique pour lire sans stress.</div>
+                                    </button>
+                                    <button
+                                        onClick={() => setGuidedAppearOnScreen(false)}
+                                        className={`p-4 rounded-2xl border text-left transition-all ${
+                                            !guidedAppearOnScreen
+                                                ? 'bg-purple-900/30 border-purple-500 text-white shadow-lg'
+                                                : 'bg-gray-950 border-gray-800 text-gray-400'
+                                        }`}
+                                    >
+                                        <Wand2 size={24} className="mb-2 text-pink-400" />
+                                        <div className="font-bold text-xs text-white">Visuels + Voix Off</div>
+                                        <div className="text-[10px] text-gray-400 mt-1">Diallo assemble des images pertinentes avec narration.</div>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 3 */}
+                        {guidedStep === 3 && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-bold text-white">Script Structuré par l'IA Diallo</h3>
+                                    <button
+                                        onClick={async () => {
+                                            if (!guidedTopic) return;
+                                            setIsGeneratingScript(true);
+                                            try {
+                                                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                                                const res = await ai.models.generateContent({
+                                                    model: 'gemini-2.5-flash',
+                                                    contents: `Crée un script court percutant de 30 secondes pour un Reel d'impact sur : "${guidedTopic}".
+                                                    Structure : 1. Accroche directe (3s), 2. Le point clé actionnable (20s), 3. Appel à l'action claire (7s).`
+                                                });
+                                                setGuidedAiDraft(res.text || '');
+                                            } catch (err) {
+                                                setGuidedAiDraft(`Accroche : Saviez-vous que 80% des démarches échouent par manque de méthode claire ?\n\nConseil : Pour réussir, appliquez la règle des 3 étapes simples dès aujourd'hui.\n\nAction : Cliquez sur le bouton ci-dessous pour démarrer.`);
+                                            } finally {
+                                                setIsGeneratingScript(false);
+                                            }
+                                        }}
+                                        className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1"
+                                    >
+                                        <RefreshCw size={12} className={isGeneratingScript ? 'animate-spin' : ''} />
+                                        {guidedAiDraft ? 'Régénérer' : 'Générer automatiquement'}
+                                    </button>
+                                </div>
+                                <textarea
+                                    value={guidedAiDraft || (guidedTopic ? `Voici votre message : ${guidedTopic}\n\n1. L'Accroche : Pourquoi ce sujet est crucial.\n2. Le Point Clé : L'explication étape par étape.\n3. L'Action : Ce que le spectateur doit faire maintenant.` : '')}
+                                    onChange={(e) => setGuidedAiDraft(e.target.value)}
+                                    placeholder="Cliquez sur 'Générer automatiquement'..."
+                                    className="w-full h-32 bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none leading-relaxed"
+                                />
+                            </div>
+                        )}
+
+                        {/* Step 4 */}
+                        {guidedStep === 4 && (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-white">Voix & Accessibilité Langues</h3>
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setGuidedVoiceType('ai_narration')}
+                                            className={`p-3 rounded-xl border text-left text-xs font-bold ${
+                                                guidedVoiceType === 'ai_narration' ? 'bg-indigo-900/40 border-indigo-500 text-white' : 'bg-gray-950 border-gray-800 text-gray-400'
+                                            }`}
+                                        >
+                                            <Sparkles size={16} className="mb-1 text-indigo-400" />
+                                            Voix Off IA HD
+                                        </button>
+                                        <button
+                                            onClick={() => setGuidedVoiceType('my_voice')}
+                                            className={`p-3 rounded-xl border text-left text-xs font-bold ${
+                                                guidedVoiceType === 'my_voice' ? 'bg-indigo-900/40 border-indigo-500 text-white' : 'bg-gray-950 border-gray-800 text-gray-400'
+                                            }`}
+                                        >
+                                            <Mic size={16} className="mb-1 text-indigo-400" />
+                                            Mon propre enregistrement
+                                        </button>
+                                    </div>
+
+                                    <div className="p-3 bg-purple-950/30 border border-purple-500/30 rounded-xl text-xs space-y-1">
+                                        <div className="font-bold text-purple-200 flex items-center gap-1.5">
+                                            <Languages size={14} /> Traduction & Sous-titres automatiques
+                                        </div>
+                                        <p className="text-[11px] text-purple-300/80">
+                                            Votre contenu sera automatiquement sous-titré et audible en Wolof, Bambara, Lingala, Swahili, Haoussa, Yoruba, Français et Anglais.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 5 */}
+                        {guidedStep === 5 && (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-white">Où orienter les spectateurs intéressés ?</h3>
+                                <p className="text-xs text-gray-400">Chaque Reel Mok doit permettre au spectateur de passer à l'action :</p>
+                                <div className="space-y-2">
+                                    {[
+                                        { type: 'campus', title: '🎓 Suivre un cours certifiant sur le Campus Mok', desc: 'Permet d\'apprendre et valider les compétences' },
+                                        { type: 'expert', title: '🤖 Démarrer un parcours avec un Copilote Expert', desc: 'Conseil personnalisé immédiat' },
+                                        { type: 'tribe', title: '👥 Rejoindre la Tribu dédiée', desc: 'Échanger avec une communauté active' },
+                                        { type: 'career_coach', title: '💼 Préparer un entretien / Coaching', desc: 'Simulations et révision de CV' }
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.type}
+                                            onClick={() => {
+                                                setActionType(opt.type as any);
+                                                setActionLabel(opt.title.split(' ')[1] + ' Immédiat');
+                                                setActionTargetTitle(opt.title);
+                                            }}
+                                            className={`w-full p-3 rounded-2xl border text-left transition-all ${
+                                                actionType === opt.type
+                                                    ? 'bg-purple-900/30 border-purple-500 text-white shadow-lg'
+                                                    : 'bg-gray-950 border-gray-800 text-gray-400 hover:border-gray-700'
+                                            }`}
+                                        >
+                                            <div className="font-bold text-xs text-white">{opt.title}</div>
+                                            <div className="text-[10px] text-gray-400">{opt.desc}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 6 */}
+                        {guidedStep === 6 && (
+                            <div className="space-y-4">
+                                <div className="p-4 bg-gray-950 border border-emerald-500/30 rounded-2xl space-y-3">
+                                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                                        <CheckCircle size={16} /> Prêt pour publication
+                                    </div>
+                                    <div className="text-xs text-white font-semibold">
+                                        {guidedTopic || 'Votre Reel d\'impact Diallo OS'}
+                                    </div>
+                                    <div className="text-[11px] text-gray-400 leading-relaxed bg-gray-900 p-2.5 rounded-xl border border-gray-800">
+                                        {guidedAiDraft || 'Script optimisé avec appel à l\'action vers ' + actionTargetTitle}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-purple-300">
+                                        <Sparkles size={12} /> Passerelle configurée : <span className="font-bold text-white">{actionTargetTitle}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step Navigation Controls */}
+                        <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                            {guidedStep > 1 ? (
+                                <button
+                                    onClick={() => setGuidedStep(prev => prev - 1)}
+                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold"
+                                >
+                                    Précédent
+                                </button>
+                            ) : (
+                                <div />
+                            )}
+
+                            {guidedStep < 6 ? (
+                                <button
+                                    onClick={() => setGuidedStep(prev => prev + 1)}
+                                    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 text-white rounded-xl text-xs font-black shadow-lg"
+                                >
+                                    Étape Suivante →
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => {
+                                        onPublish({
+                                            id: Date.now().toString(),
+                                            videoUrl: videoSrc || 'https://assets.mixkit.co/videos/preview/mixkit-business-people-meeting-in-an-office-42861-large.mp4',
+                                            caption: guidedTopic || 'Nouvelle opportunité & méthode par Diallo Studio',
+                                            hashtags: ['#MokStudio', '#Impact', '#DialloOS'],
+                                            viralScore: 92,
+                                            aiSuggestions: ['Publier le matin pour maximiser l\'impact'],
+                                            category: selectedCategory as any,
+                                            actionGateway: {
+                                                type: actionType !== 'none' ? actionType as any : 'campus',
+                                                label: actionLabel || 'Passer à l\'action',
+                                                targetTitle: actionTargetTitle || 'Formation et Action Immédiate'
+                                            }
+                                        });
+                                        setIsGuidedMode(false);
+                                        onClose();
+                                    }}
+                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-lg flex items-center gap-1.5"
+                                >
+                                    <CheckCircle size={14} /> Publier Maintenant
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

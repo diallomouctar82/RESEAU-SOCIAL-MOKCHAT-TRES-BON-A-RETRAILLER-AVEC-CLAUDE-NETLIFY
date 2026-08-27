@@ -5,19 +5,40 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Le Monde à Vous</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+              display: ['Outfit', '"Plus Jakarta Sans"', 'sans-serif'],
+            },
             colors: {
+              navy: {
+                950: '#070D1E',
+                900: '#0B132B',
+                800: '#14213D',
+                700: '#1E293B',
+                600: '#334155',
+              },
+              accent: {
+                DEFAULT: '#EA580C',
+                hover: '#C2410C',
+                light: '#FFF7ED',
+                border: '#FED7AA',
+                subtle: '#FB923C',
+              },
               brand: {
                 50: '#eff6ff',
                 100: '#dbeafe',
                 500: '#3b82f6',
                 600: '#2563eb', // Primary Blue
                 700: '#1d4ed8',
-                900: '#1e3a8a',
+                900: '#0B132B', // Institutional Deep Navy
               }
             },
             keyframes: {

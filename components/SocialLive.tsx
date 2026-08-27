@@ -1,267 +1,2033 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { ACTIVE_LIVES, AGENTS, USER_PROFILE, LIVE_GIFTS } from '../constants';
-import { LiveStream, DonationGoal, LiveLayoutMode, LiveDonor, Agent, LivePoll } from '../types';
-import { X, Users, Send, Bot, Settings, Signal, Wifi, Activity, Check, Heart, Sparkles, Zap, MessageSquare, Mic, Video, Layout, BarChart3, Command, FileText, Gift, PieChart } from 'lucide-react';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { decodeAudioData, base64ToUint8Array } from '../services/audioUtils';
+import { 
+  X, Users, Send, Bot, Settings, Signal, Wifi, Activity, Check, Heart, 
+  Sparkles, Zap, MessageSquare, Mic, MicOff, Video, VideoOff, Layout, 
+  BarChart3, Command, FileText, Gift, PieChart, Share2, HelpCircle, 
+  BookOpen, ListTodo, Shield, ArrowRight, PhoneOff, Award, Eye, 
+  Radio, Volume2, UserPlus, UserCheck, ChevronRight, Download, Maximize2, 
+  Camera, Lock, Globe, Flame, AlertCircle, CheckCircle2, Sliders, ExternalLink,
+  ShoppingBag, ShieldAlert, CheckSquare, Bell, Calendar, Clock, Bookmark,
+  Compass, Copy, EyeOff, Headphones
+} from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
+import { 
+  LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc, 
+  LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
+  LiveCommerceProduct, LiveAgendaItem, LiveDecision, LivePersonalNote,
+  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes
+} from '../types';
+import { AGENTS, USER_PROFILE, LIVE_GIFTS, TRIBES } from '../constants';
 import { Avatar3D } from './Avatar3D';
+import { LiveWhiteboard } from './LiveWhiteboard';
+import { LiveReplayModal } from './LiveReplayModal';
+import { LiveSmartActionBar } from './LiveSmartActionBar';
+import { LiveWaitingRoomModal } from './LiveWaitingRoomModal';
+import { LivePostContinuityModal } from './LivePostContinuityModal';
+import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
+import { LiveInstantHelpModal } from './LiveInstantHelpModal';
+import { LiveExpertBookingModal } from './LiveExpertBookingModal';
+import { useGlobal } from '../contexts/GlobalContext';
 
 interface SocialLiveProps {
-    liveId: string;
-    onClose: () => void;
-    initialData?: LiveStream; 
+  liveId: string;
+  onClose: () => void;
+  initialData?: LiveStream;
+  onNavigateToTab?: (tab: string) => void;
 }
 
-export const SocialLive: React.FC<SocialLiveProps> = ({ liveId, onClose, initialData }) => {
-    const [liveData] = useState<LiveStream>(initialData || ACTIVE_LIVES.find(l => l.id === liveId) || ACTIVE_LIVES[0]);
-    const [aiAgent] = useState<Agent | undefined>(
-        liveData.aiAssistantId ? AGENTS.find(a => a.id === liveData.aiAssistantId) : undefined
-    );
-    
-    // Core State
-    const [messages, setMessages] = useState<{user:string, text:string, isAi?:boolean, isHost?: boolean}[]>([
-        { user: "System", text: `Bienvenue dans le Live de ${liveData.hostName} ! Posez vos questions.`, isAi: true }
-    ]);
-    const [inputMsg, setInputMsg] = useState('');
-    const [viewers, setViewers] = useState(liveData.viewers);
-    const [likes, setLikes] = useState(0);
-    
-    // Interactive State
-    const [showGifts, setShowGifts] = useState(false);
-    const [activeGiftAnimation, setActiveGiftAnimation] = useState<{icon: string, id: number} | null>(null);
-    const [activePoll, setActivePoll] = useState<LivePoll | null>(null);
-    
-    // AI Co-Pilot State
-    const [aiState, setAiState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
-    const [aiActionSuggestion, setAiActionSuggestion] = useState<string | null>(null);
-
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const audioContextRef = useRef<AudioContext | null>(null);
-
-    // Simulated Viewer Growth & Random Events
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setViewers(prev => prev + Math.floor(Math.random() * 5));
-            if (Math.random() > 0.7) setLikes(prev => prev + Math.floor(Math.random() * 10));
-        }, 2000);
-        return () => clearInterval(interval);
-    }, []);
-
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
-
-    const handleSendMessage = () => {
-        if (!inputMsg.trim()) return;
-        setMessages(prev => [...prev, { user: USER_PROFILE.name, text: inputMsg, isHost: true }]);
-        setInputMsg('');
-        if (inputMsg.toLowerCase().includes('question') && aiAgent) {
-            setAiActionSuggestion("L'IA peut répondre à cette question technique.");
-        }
+export const SocialLive: React.FC<SocialLiveProps> = ({ 
+  liveId, 
+  onClose, 
+  initialData,
+  onNavigateToTab
+}) => {
+  const { userProfile, addNotification } = useGlobal();
+  
+  // 1. Core Live Stream Data
+  const [liveData, setLiveData] = useState<LiveStream>(() => {
+    return initialData || {
+      id: liveId,
+      title: 'Masterclass Financement de Projet & Levée de Fonds 🚀',
+      description: 'Session interactive avec l\'Expert Projet Diallo et les membres de la diaspora.',
+      type: 'project_pitch',
+      hostName: 'Sarah Koné',
+      hostAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&fit=crop',
+      viewers: 1420,
+      isMixed: true,
+      aiAssistantId: '1',
+      startedAt: new Date(),
+      duration: 45,
+      isPaid: false,
+      language: 'Français',
+      targetLanguage: 'Anglais',
+      coverImage: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&fit=crop',
+      tribeName: 'Entrepreneurs Africa',
+      isRecordingEnabled: true,
+      isTranslationEnabled: true,
+      isQuestionsEnabled: true,
+      isScreenShareEnabled: true,
+      isVisionEnabled: true,
+      tags: ['#Financement', '#Entrepreneuriat', '#Projet', '#DialloOS']
     };
+  });
 
-    const handleSendGift = (gift: typeof LIVE_GIFTS[0]) => {
-        setShowGifts(false);
-        // Animate Gift
-        const animId = Date.now();
-        setActiveGiftAnimation({ icon: gift.icon, id: animId });
-        setTimeout(() => setActiveGiftAnimation(null), 3000);
-        
-        // Add system message
-        setMessages(prev => [...prev, { user: "System", text: `${USER_PROFILE.name} a envoyé ${gift.name} ${gift.icon}`, isAi: true }]);
-        
-        // Trigger AI thanks
-        if (aiAgent && Math.random() > 0.5) {
-            setTimeout(() => {
-                setAiState('speaking');
-                setTimeout(() => setAiState('idle'), 2000);
-            }, 1000);
-        }
+  const [aiAgent, setAiAgent] = useState<Agent | undefined>(() => {
+    const agentId = liveData.aiAssistantId || '1';
+    return AGENTS.find(a => a.id === agentId) || AGENTS[0];
+  });
+
+  // 2. Hardware & Real Media Streams
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [audioVolume, setAudioVolume] = useState(0);
+  const [networkQuality, setNetworkQuality] = useState<LiveQualityMode>(liveData.qualityMode || 'auto');
+  const [networkLatency, setNetworkLatency] = useState(42); // ms
+
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // 3. Stage & Participants
+  const isHost = liveData.hostName === userProfile.name || userProfile.role === 'admin';
+  const [stageParticipants, setStageParticipants] = useState<LiveStageParticipant[]>([
+    {
+      id: 'spk-host',
+      name: liveData.hostName,
+      avatar: liveData.hostAvatar,
+      role: 'host',
+      isMuted: false,
+      isVideoOn: true,
+      isVerified: true
+    },
+    ...(aiAgent ? [{
+      id: `spk-ai-${aiAgent.id}`,
+      name: `${aiAgent.name} (IA)`,
+      avatar: aiAgent.avatarUrl,
+      role: 'expert_ai' as const,
+      isMuted: false,
+      isVideoOn: true,
+      isAi: true,
+      specialty: aiAgent.specialty,
+      agentId: aiAgent.id
+    }] : [])
+  ]);
+
+  const [stageInvitation, setStageInvitation] = useState<{ inviterName: string } | null>(null);
+  const [isUserOnStage, setIsUserOnStage] = useState(isHost);
+
+  // 4. View Mode: Video Stage / Screen Share / Whiteboard / Documents / Meeting / Commerce / Masterclass
+  const [mainStageMode, setMainStageMode] = useState<'camera' | 'screen' | 'whiteboard' | 'document' | 'council' | 'meeting' | 'commerce' | 'masterclass'>('camera');
+  
+  // 5. Diallo OS Copilot & Real-Time Multilingual Subtitles
+  const [subtitlesMode, setSubtitlesMode] = useState<'off' | 'original' | 'translated' | 'bilingual'>('bilingual');
+  const [selectedViewerLang, setSelectedViewerLang] = useState<string>('Français');
+  const [currentSubtitle, setCurrentSubtitle] = useState<{ speaker: string; text: string; translated?: string }>({
+    speaker: liveData.hostName,
+    text: 'Nous abordons maintenant la structuration du plan de financement...',
+    translated: 'We are now covering the structure of the financing plan...'
+  });
+  const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
+  const [copilotInsight, setCopilotInsight] = useState<string | null>(null);
+  const [showCatchupSummary, setShowCatchupSummary] = useState(false);
+  const [catchupDigest, setCatchupDigest] = useState<string | null>(null);
+
+  // 6. Multimodal Vision IA & Sensitive Data Protection
+  const [isVisionAnalyzing, setIsVisionAnalyzing] = useState(false);
+  const [visionAnalysisResult, setVisionAnalysisResult] = useState<string | null>(null);
+  const [isSensitiveDataDetected, setIsSensitiveDataDetected] = useState(false);
+  const [isBlurOverlayActive, setIsBlurOverlayActive] = useState(false);
+  const [isAudioOnlyMode, setIsAudioOnlyMode] = useState(false);
+
+  // 7. Interactive Sidebar Tabs
+  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant'>('chat');
+  
+  // 8. Personal & Collective Memory
+  const [personalNotes, setPersonalNotes] = useState<LivePersonalNote[]>([
+    {
+      id: 'pn-1',
+      authorId: userProfile.id,
+      text: 'Vérifier la convention de non double-imposition avant de signer le mandat.',
+      timestamp: 'Il y a 10 min',
+      category: 'project'
+    },
+    {
+      id: 'pn-2',
+      authorId: userProfile.id,
+      text: 'Prendre rendez-vous avec Maître Diallo jeudi pour valider les statuts.',
+      timestamp: 'Il y a 5 min',
+      category: 'reminder'
+    }
+  ]);
+
+  const [collectiveDecisions, setCollectiveDecisions] = useState<LiveDecision[]>([
+    {
+      id: 'dec-1',
+      title: 'Adoption du plan de trésorerie prévisionnel 2026',
+      description: 'Validation à l\'unanimité des membres du comité consultatif.',
+      proposedBy: liveData.hostName,
+      timestamp: '12:15',
+      status: 'approved',
+      votesCount: 34
+    }
+  ]);
+
+  const [agendaItems, setAgendaItems] = useState<LiveAgendaItem[]>([
+    { id: 'ag-1', title: '1. Tour de table & cadrage des objectifs', durationMin: 10, isCompleted: true, speaker: liveData.hostName },
+    { id: 'ag-2', title: '2. Étude des mécanismes de garantie et solvabilité', durationMin: 20, isCompleted: false, speaker: 'Directeur Diallo (IA)' },
+    { id: 'ag-3', title: '3. Vote des résolutions & attribution des actions', durationMin: 15, isCompleted: false, speaker: 'Tous' }
+  ]);
+
+  const [commerceProducts, setCommerceProducts] = useState<LiveCommerceProduct[]>([
+    {
+      id: 'prod-1',
+      title: 'Kit Solaire Autonome Haute Puissance (5 kVA)',
+      description: 'Idéal pour fermes agropastorales et PME. Certifié normes régionales.',
+      price: 2450,
+      currency: 'EUR',
+      sellerName: 'Éco-Énergie Sahel SARL',
+      sellerCountry: 'Sénégal',
+      sellerCountryFlag: '🇸🇳',
+      isAvailable: true,
+      imageUrl: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=400&fit=crop'
+    },
+    {
+      id: 'prod-2',
+      title: 'Guide Officiel d\'Investissement OHADA 2026',
+      description: 'Livre de référence + modèles de statuts juridiques personnalisables.',
+      price: 49,
+      currency: 'EUR',
+      sellerName: 'Éditions Juridiques Diallo',
+      sellerCountry: 'Côte d\'Ivoire',
+      sellerCountryFlag: '🇨🇮',
+      isAvailable: true,
+      imageUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&fit=crop'
+    }
+  ]);
+
+  const [attendanceRecords, setAttendanceRecords] = useState<LiveAttendanceRecord[]>([
+    { participantId: userProfile.id, participantName: userProfile.name, joinedAt: '12:00', durationSec: 1800, exercisesCompleted: 2, quizScorePct: 95 }
+  ]);
+
+  // 9. AI Specialized Assistants Roles & Suggestions
+  const [activeSpecializedAiRole, setActiveSpecializedAiRole] = useState<'all' | 'secretary' | 'moderator' | 'director'>('all');
+  const [proactiveExpertSuggestion, setProactiveExpertSuggestion] = useState<{ message: string; agent: Agent } | null>({
+    message: "Le sujet évoqué touche au droit OHADA des sociétés. Souhaitez-vous inviter l'Expert Juridique sur la scène ?",
+    agent: AGENTS.find(a => a.id === '3') || AGENTS[0]
+  });
+
+  // 10. Modals State
+  const [showWaitingRoomModal, setShowWaitingRoomModal] = useState(false);
+  const [showPostContinuityModal, setShowPostContinuityModal] = useState(false);
+  const [showFactCheckModal, setShowFactCheckModal] = useState(false);
+  const [showInstantHelpModal, setShowInstantHelpModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedAgentForBooking, setSelectedAgentForBooking] = useState<Agent>(AGENTS[0]);
+  
+  // Chat & Gifts
+  const [messages, setMessages] = useState<{ user: string; avatar?: string; text: string; isAi?: boolean; isHost?: boolean; timestamp?: string }[]>([
+    { user: "Diallo OS", text: `Bienvenue dans la session intelligente "${liveData.title}". Sous-titres bilingues et copilote IA actifs.`, isAi: true, timestamp: "12:00" },
+    { user: "Amadou Diallo", text: "Bonjour à tous ! Hâte d'écouter les conseils sur les financements transfrontaliers.", timestamp: "12:01" },
+    { user: "Fatou Diop", text: "Est-ce que l'enregistrement sera exportable vers le Campus après le direct ?", timestamp: "12:02" }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [showGifts, setShowGifts] = useState(false);
+  const [activeGiftAnim, setActiveGiftAnim] = useState<{ icon: string; id: number } | null>(null);
+  const [likesCount, setLikesCount] = useState(184);
+
+  // Questions (Q&R Zone)
+  const [questions, setQuestions] = useState<LiveQuestion[]>([
+    {
+      id: 'q-1',
+      authorId: 'u-fatou',
+      authorName: 'Fatou Diop',
+      authorAvatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=100',
+      text: 'Quelles garanties bancaires sont acceptées pour les entrepreneurs de la diaspora ?',
+      timestamp: 'Il y a 4 min',
+      upvotes: 28,
+      userUpvoted: false,
+      status: 'answering',
+      category: 'Financement'
+    },
+    {
+      id: 'q-2',
+      authorId: 'u-jean',
+      authorName: 'Jean-Michel Dubois',
+      authorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
+      text: 'Existe-t-il une convention bilatérale pour éviter la double imposition ?',
+      timestamp: 'Il y a 2 min',
+      upvotes: 19,
+      userUpvoted: true,
+      status: 'open',
+      category: 'Juridique'
+    }
+  ]);
+  const [newQuestionInput, setNewQuestionInput] = useState('');
+
+  // Live Polls & Quizzes
+  const [activePoll, setActivePoll] = useState<LivePoll | null>({
+    id: 'poll-fin',
+    question: 'Quel est votre stade de maturité pour ce projet ?',
+    options: [
+      { id: 'p1', text: 'Idée & Cadrage', votes: 45 },
+      { id: 'p2', text: 'Prototype / MVP prêt', votes: 82 },
+      { id: 'p3', text: 'En recherche active d\'investisseurs', votes: 120 }
+    ],
+    isActive: true,
+    totalVotes: 247
+  });
+  const [hasVotedPoll, setHasVotedPoll] = useState(false);
+
+  // Shared Documents
+  const [sharedDocs, setSharedDocs] = useState<LiveDoc[]>([
+    { id: 'doc-1', name: 'Grille_Cadrage_Financement_Projet_2026.pdf', url: '#', type: 'pdf', size: '2.4 MB', uploadedBy: liveData.hostName, pageCount: 8 },
+    { id: 'doc-2', name: 'Synthese_OHADA_Garanties_Investissement.docx', url: '#', type: 'doc', size: '1.1 MB', uploadedBy: 'Directeur Diallo (IA)', pageCount: 4 }
+  ]);
+
+  // Action Items
+  const [liveActionItems, setLiveActionItems] = useState<LiveActionItem[]>([
+    { id: 'act-1', title: 'Rédiger la note de synthèse financière', category: 'finance', deadline: 'Sous 48h', completed: false },
+    { id: 'act-2', title: 'Consulter l\'Expert Juridique pour le pacte d\'actionnaires', category: 'juridique', deadline: 'Vendredi', completed: false }
+  ]);
+
+  // Private Participant Assistant
+  const [assistantMessages, setAssistantMessages] = useState<{ query: string; answer: string }[]>([
+    { query: 'Qu\'est-ce qu\'une lettre d\'intention ?', answer: 'Une lettre d\'intention (LOI) est un document précontractuel où un investisseur ou partenaire confirme son intérêt formel pour financer ou collaborer sur votre projet.' }
+  ]);
+  const [assistantInput, setAssistantInput] = useState('');
+  const [isAssistantThinking, setIsAssistantThinking] = useState(false);
+
+  // 8. Summon Expert / Council Modal
+  const [showSummonExpertModal, setShowSummonExpertModal] = useState(false);
+  const [summonSearchQuery, setSummonSearchQuery] = useState('');
+  const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
+
+  // 9. Initialize Real Webcam & Mic
+  useEffect(() => {
+    startLocalMedia();
+    return () => {
+      stopLocalMedia();
     };
+  }, []);
 
-    const startPoll = () => {
-        const newPoll: LivePoll = {
-            id: 'poll-1',
-            question: 'Quel sujet pour le prochain live ?',
-            options: [
-                { id: 'o1', text: 'Intelligence Artificielle', votes: 12 },
-                { id: 'o2', text: 'Immigration Canada', votes: 45 },
-                { id: 'o3', text: 'Cryptomonnaies', votes: 8 }
-            ],
-            isActive: true,
-            totalVotes: 65
+  const startLocalMedia = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      // Audio Level Analyzer
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      audioContextRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const checkVolume = () => {
+        if (!localStreamRef.current) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+        setAudioVolume(Math.min(100, Math.round((sum / bufferLength) * 2)));
+        requestAnimationFrame(checkVolume);
+      };
+      checkVolume();
+    } catch (e) {
+      console.warn("Real media permission fallback", e);
+    }
+  };
+
+  const stopLocalMedia = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(t => t.stop());
+      localStreamRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(t => t.stop());
+      screenStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+  };
+
+  // Toggle Mic
+  const toggleMic = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(t => t.enabled = isMicMuted);
+    }
+    setIsMicMuted(!isMicMuted);
+  };
+
+  // Toggle Camera
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach(t => t.enabled = isVideoMuted);
+    }
+    setIsVideoMuted(!isVideoMuted);
+  };
+
+  // Real Screen Share
+  const handleToggleScreenShare = async () => {
+    if (isScreenSharing) {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+        screenStreamRef.current = null;
+      }
+      setIsScreenSharing(false);
+      setMainStageMode('camera');
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        screenStreamRef.current = stream;
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = stream;
+        }
+        setIsScreenSharing(true);
+        setMainStageMode('screen');
+
+        stream.getVideoTracks()[0].onended = () => {
+          setIsScreenSharing(false);
+          setMainStageMode('camera');
         };
-        setActivePoll(newPoll);
-        setTimeout(() => setActivePoll(null), 10000); // Auto close after 10s for demo
-    };
+      } catch (e) {
+        console.warn("Screen share cancelled", e);
+      }
+    }
+  };
 
-    const triggerAiAction = async (action: 'greet' | 'summarize' | 'analyze') => {
-        if (!aiAgent) return;
-        setAiState('thinking');
-        
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            let prompt = "";
-            if (action === 'greet') prompt = `Salue les spectateurs de manière enthousiaste pour le live "${liveData.title}".`;
-            if (action === 'summarize') prompt = "Résume les derniers sujets discutés dans le chat (invente des sujets pertinents).";
-            if (action === 'analyze') prompt = "Analyse le sentiment général du chat et donne un conseil à l'animateur.";
+  // Multimodal Vision IA Snapshot & Analysis
+  const handleTriggerVisionAnalysis = async () => {
+    setIsVisionAnalyzing(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Tu es Diallo OS en analyse Vision IA pendant le Live "${liveData.title}".
+      L'intervenant présente un document / schéma / objet à la caméra.
+      Décris précisément ce que tu observes, les points clés administratifs ou techniques, et le conseil immédiat pour la salle.`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: [{ role: 'user', parts: [{ text: `Tu es ${aiAgent.name}. ${prompt}` }] }]
-            });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      });
 
-            const text = response.text || "Je suis prêt.";
-            setAiState('speaking');
-            setMessages(prev => [...prev, { user: aiAgent.name, text, isAi: true }]);
-            setTimeout(() => setAiState('idle'), 5000); 
-        } catch (e) {
-            setAiState('idle');
+      const resultText = response.text || "Document analysé : Modèle de pacte d'associés conforme aux normes OHADA.";
+      setVisionAnalysisResult(resultText);
+      setMessages(prev => [...prev, {
+        user: "Vision IA Diallo",
+        text: `👁️ Analyse visuelle du document partagé : ${resultText}`,
+        isAi: true
+      }]);
+    } catch (e) {
+      setVisionAnalysisResult("Document analysé : Tableau prévisionnel de trésorerie avec équilibre d'exploitation à M+6.");
+    } finally {
+      setIsVisionAnalyzing(false);
+    }
+  };
+
+  // Summon Expert ("Appeler un Expert")
+  const handleSummonExpert = (agent: Agent) => {
+    setShowSummonExpertModal(false);
+    
+    // Add to stage participants
+    if (!stageParticipants.some(p => p.agentId === agent.id)) {
+      setStageParticipants(prev => [
+        ...prev,
+        {
+          id: `spk-ai-${agent.id}`,
+          name: `${agent.name} (IA)`,
+          avatar: agent.avatarUrl,
+          role: 'expert_ai',
+          isMuted: false,
+          isVideoOn: true,
+          isAi: true,
+          specialty: agent.specialty,
+          agentId: agent.id
         }
+      ]);
+    }
+
+    setAiAgent(agent);
+    setAiCopilotState('speaking');
+
+    const welcomeMsg = `L'expert ${agent.name} (${agent.specialty}) a rejoint la scène en direct ! Posez vos questions spécialisées.`;
+    setMessages(prev => [...prev, { user: "Diallo OS", text: `⚡ ${welcomeMsg}`, isAi: true }]);
+    addNotification("Expert sur Scène ⚖️", `${agent.name} a rejoint le Live pour vous conseiller.`, "success");
+
+    setTimeout(() => setAiCopilotState('idle'), 4000);
+  };
+
+  // "Réunir le Conseil" (Council Room inside Live)
+  const handleAssembleLiveCouncil = () => {
+    setMainStageMode('council');
+    const councilAgents = AGENTS.slice(0, 4);
+    
+    const newParticipants: LiveStageParticipant[] = [
+      stageParticipants[0],
+      ...councilAgents.map(ag => ({
+        id: `spk-ai-${ag.id}`,
+        name: `${ag.name} (IA)`,
+        avatar: ag.avatarUrl,
+        role: 'expert_ai' as const,
+        isMuted: false,
+        isVideoOn: true,
+        isAi: true,
+        specialty: ag.specialty,
+        agentId: ag.id
+      }))
+    ];
+    setStageParticipants(newParticipants);
+
+    setMessages(prev => [...prev, {
+      user: "Diallo OS",
+      text: "🏛️ Le Conseil des Experts est réuni en direct : Projet, Juridique, Finance et Mobilité délibèrent conjointement sur votre dossier.",
+      isAi: true
+    }]);
+
+    addNotification("Conseil Réuni 🏛️", "Table ronde multi-experts activée sur la scène Live.", "info");
+  };
+
+  // "Ce que vous avez manqué" (Catchup Summary)
+  const handleRequestCatchup = async () => {
+    setShowCatchupSummary(true);
+    setCatchupDigest("Génération du résumé des 20 premières minutes par Diallo OS...");
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{
+          role: 'user',
+          parts: [{
+            text: `Résume en 3 puces percutantes ce qui s'est dit au début du Live "${liveData.title}". Mets en avant les points clés pour un spectateur qui arrive en retard.`
+          }]
+        }]
+      });
+      setCatchupDigest(response.text || "1. Présentation des différents types de subventions.\n2. Explication des critères bancaires.\n3. Analyse des garanties diaspora.");
+    } catch (e) {
+      setCatchupDigest("• Cadrage initial du besoin de financement (amorçage vs croissance)\n• Rôle de l'Expert Projet Diallo dans la constitution du dossier\n• 2 questions clés du public déjà traitées sur l'imposition transfrontalière.");
+    }
+  };
+
+  // Private Assistant Inquiry
+  const handleAskPrivateAssistant = async () => {
+    if (!assistantInput.trim()) return;
+    const query = assistantInput.trim();
+    setAssistantInput('');
+    setIsAssistantThinking(true);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{
+          role: 'user',
+          parts: [{
+            text: `Tu es l'assistant privé et discret d'un spectateur du Live "${liveData.title}".
+            L'utilisateur te demande en aparté : "${query}".
+            Réponds de façon ultra-concise, pédagogique et bienveillante en 2-3 phrases max.`
+          }]
+        }]
+      });
+
+      const answer = response.text || "C'est une démarche clé qui facilite la validation auprès des autorités compétentes.";
+      setAssistantMessages(prev => [...prev, { query, answer }]);
+    } catch (e) {
+      setAssistantMessages(prev => [...prev, { query, answer: "Explication synthétique : ce terme désigne la conformité légale obligatoire." }]);
+    } finally {
+      setIsAssistantThinking(false);
+    }
+  };
+
+  // Send Public Message
+  const handleSendMessage = () => {
+    if (!chatInput.trim()) return;
+    const newMsg = {
+      user: userProfile.name,
+      avatar: userProfile.avatarUrl,
+      text: chatInput.trim(),
+      isHost: isHost,
+      timestamp: 'À l\'instant'
     };
+    setMessages(prev => [...prev, newMsg]);
+    setChatInput('');
 
-    return (
-        <div className="fixed inset-0 bg-black z-[200] flex flex-col md:flex-row overflow-hidden font-sans text-white">
-            
-            {/* 1. MAIN STAGE */}
-            <div className="flex-1 relative bg-gray-900 flex flex-col">
-                
-                {/* Header */}
-                <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-red-600 px-3 py-1 rounded-md font-bold text-xs flex items-center gap-2 animate-pulse shadow-red-600/50 shadow-lg">
-                            <div className="w-2 h-2 bg-white rounded-full"></div> LIVE
-                        </div>
-                        <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-md flex items-center gap-2 text-xs border border-white/10 font-mono">
-                            <Users size={14} /> {viewers.toLocaleString()}
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="p-2 bg-black/40 hover:bg-white/20 rounded-full backdrop-blur-md transition-colors border border-white/10">
-                        <X size={20} />
-                    </button>
-                </div>
+    // Trigger AI reaction if question
+    if (chatInput.toLowerCase().includes('comment') || chatInput.toLowerCase().includes('pourquoi') || chatInput.toLowerCase().includes('expert')) {
+      setTimeout(() => {
+        setCopilotInsight(`L'Expert IA peut apporter une réponse détaillée à : "${newMsg.text}"`);
+      }, 1000);
+    }
+  };
 
-                {/* Gift Animation Layer */}
-                {activeGiftAnimation && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-bounce">
-                        <div className="text-9xl filter drop-shadow-[0_0_20px_rgba(255,215,0,0.8)] animate-pulse">
-                            {activeGiftAnimation.icon}
-                        </div>
-                    </div>
-                )}
+  // Send Question to dedicated Q&A
+  const handleAddQuestion = () => {
+    if (!newQuestionInput.trim()) return;
+    const newQ: LiveQuestion = {
+      id: `q-${Date.now()}`,
+      authorId: userProfile.id,
+      authorName: userProfile.name,
+      authorAvatar: userProfile.avatarUrl,
+      text: newQuestionInput.trim(),
+      timestamp: 'À l\'instant',
+      upvotes: 1,
+      userUpvoted: true,
+      status: 'open',
+      category: 'Général'
+    };
+    setQuestions(prev => [newQ, ...prev]);
+    setNewQuestionInput('');
+    addNotification("Question Posée 💬", "Votre question a été ajoutée à l'espace prioritaire du Live.", "info");
+  };
 
-                {/* Poll Overlay */}
-                {activePoll && (
-                    <div className="absolute top-20 left-4 z-30 bg-white text-slate-900 p-4 rounded-2xl shadow-2xl w-64 animate-scale-in">
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="font-bold text-sm">Sondage en cours</h3>
-                            <PieChart size={16} className="text-brand-600" />
-                        </div>
-                        <p className="text-xs mb-3 font-medium">{activePoll.question}</p>
-                        <div className="space-y-2">
-                            {activePoll.options.map(opt => (
-                                <div key={opt.id} className="relative h-8 bg-slate-100 rounded-lg overflow-hidden">
-                                    <div className="absolute top-0 left-0 bottom-0 bg-brand-200 transition-all duration-1000" style={{ width: `${(opt.votes / activePoll.totalVotes) * 100}%` }}></div>
-                                    <div className="absolute inset-0 flex justify-between items-center px-2 text-xs font-bold z-10">
-                                        <span>{opt.text}</span>
-                                        <span>{Math.round((opt.votes / activePoll.totalVotes) * 100)}%</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+  // Upvote Question
+  const handleUpvoteQuestion = (qId: string) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const userUpvoted = !q.userUpvoted;
+        return {
+          ...q,
+          upvotes: userUpvoted ? q.upvotes + 1 : q.upvotes - 1,
+          userUpvoted
+        };
+      }
+      return q;
+    }));
+  };
 
-                {/* Video Split */}
-                <div className="flex-1 flex relative">
-                    <div className={`relative ${aiAgent ? 'w-1/2 border-r border-white/10' : 'w-full'} h-full bg-slate-800`}>
-                        <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-80" />
-                        <div className="absolute bottom-4 left-4">
-                            <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10 text-sm font-bold flex items-center gap-2">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span> {liveData.hostName}
-                            </div>
-                        </div>
-                    </div>
-
-                    {aiAgent && (
-                        <div className="w-1/2 h-full relative bg-black">
-                            <Avatar3D 
-                                avatarId={aiAgent.id} 
-                                state={aiState === 'listening' ? 'idle' : aiState === 'thinking' ? 'thinking' : aiState === 'speaking' ? 'speaking' : 'idle'}
-                                className="w-full h-full"
-                            />
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                                {aiState === 'thinking' && <div className="bg-black/70 backdrop-blur-xl px-6 py-3 rounded-full border border-indigo-500/50 text-indigo-300 font-mono text-sm animate-pulse flex items-center gap-3"><Sparkles size={16} /> ANALYSE NEURALE...</div>}
-                            </div>
-                            <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2">
-                                {aiActionSuggestion && (
-                                    <div className="bg-indigo-600 text-white p-3 rounded-xl rounded-br-none text-xs font-bold max-w-[200px] shadow-lg animate-fade-up cursor-pointer hover:bg-indigo-500 transition-colors" onClick={() => { triggerAiAction('analyze'); setAiActionSuggestion(null); }}>
-                                        💡 {aiActionSuggestion}
-                                    </div>
-                                )}
-                                <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-indigo-500/30 text-sm font-bold flex items-center gap-2 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-                                    <Bot size={16} /> {aiAgent.name} (IA)
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Floating Reactions */}
-                <div className="absolute bottom-20 right-4 flex flex-col gap-2 z-30 pointer-events-none">
-                    <div className="animate-float-up text-4xl opacity-0" style={{ animationDelay: '0.2s' }}>❤️</div>
-                    <div className="animate-float-up text-3xl opacity-0" style={{ animationDelay: '0.5s' }}>🔥</div>
-                </div>
-
-                {/* Command Center */}
-                <div className="h-20 bg-gray-900 border-t border-white/10 flex items-center px-6 gap-4 z-30">
-                    <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-hide">
-                        <button onClick={() => triggerAiAction('greet')} className="flex flex-col items-center justify-center w-16 h-full gap-1 group"><div className="p-2 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/10 transition-colors"><Mic size={18} /></div><span className="text-[9px] font-bold text-gray-400 group-hover:text-white">Parler</span></button>
-                        <button onClick={() => triggerAiAction('summarize')} className="flex flex-col items-center justify-center w-16 h-full gap-1 group"><div className="p-2 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/10 transition-colors"><FileText size={18} /></div><span className="text-[9px] font-bold text-gray-400 group-hover:text-white">Résumer</span></button>
-                        <button onClick={startPoll} className="flex flex-col items-center justify-center w-16 h-full gap-1 group"><div className="p-2 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/10 transition-colors"><PieChart size={18} /></div><span className="text-[9px] font-bold text-gray-400 group-hover:text-white">Sondage</span></button>
-                    </div>
-                    <button onClick={() => setLikes(prev => prev + 1)} className="p-3 bg-gradient-to-tr from-pink-500 to-red-500 rounded-full shadow-lg hover:scale-110 transition-transform active:scale-95"><Heart fill="white" size={24} /></button>
-                </div>
-            </div>
-
-            {/* 2. INTERACTIVE SIDEBAR */}
-            <div className="w-full md:w-96 bg-black border-l border-white/10 flex flex-col h-1/2 md:h-full z-20 relative">
-                <div className="flex border-b border-white/10">
-                    <button className="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-white border-b-2 border-indigo-500 bg-white/5">Chat Direct</button>
-                    <button className="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300">Classement</button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-white/20">
-                    {messages.map((msg, i) => (
-                        <div key={i} className={`flex items-start gap-3 animate-fade-up ${msg.isAi ? 'bg-indigo-900/20 p-3 rounded-xl border border-indigo-500/20' : ''}`}>
-                            <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border ${msg.isAi ? 'bg-indigo-600 border-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>{msg.isAi ? <Bot size={16} /> : msg.user.charAt(0)}</div>
-                            <div><div className="flex items-center gap-2 mb-0.5"><span className={`text-xs font-bold ${msg.isAi ? 'text-indigo-300' : 'text-gray-400'}`}>{msg.user}</span>{msg.isHost && <span className="bg-red-500/20 text-red-400 text-[9px] px-1.5 rounded uppercase font-bold border border-red-500/30">Hôte</span>}</div><p className={`text-sm leading-relaxed ${msg.isAi ? 'text-indigo-100' : 'text-gray-200'}`}>{msg.text}</p></div>
-                        </div>
-                    ))}
-                    <div ref={messagesEndRef} />
-                </div>
-
-                <div className="p-4 bg-gray-900 border-t border-white/10 relative">
-                    {showGifts && (
-                        <div className="absolute bottom-full left-0 right-0 bg-gray-900 border-t border-white/10 p-4 grid grid-cols-5 gap-2 animate-fade-up">
-                            {LIVE_GIFTS.map(gift => (
-                                <button key={gift.id} onClick={() => handleSendGift(gift)} className="flex flex-col items-center gap-1 p-2 hover:bg-white/10 rounded-xl transition-colors">
-                                    <span className="text-2xl">{gift.icon}</span>
-                                    <span className="text-[10px] font-bold text-yellow-400">{gift.cost}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <div className="flex gap-2">
-                        <button onClick={() => setShowGifts(!showGifts)} className="p-3 bg-pink-600 rounded-full text-white hover:bg-pink-500"><Gift size={20} /></button>
-                        <div className="relative flex-1">
-                            <input value={inputMsg} onChange={(e) => setInputMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Envoyer un message..." className="w-full bg-black border border-gray-700 rounded-full pl-4 pr-12 py-3 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all placeholder-gray-600" />
-                            <button onClick={handleSendMessage} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 rounded-full hover:bg-indigo-500 text-white transition-colors"><Send size={14} /></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  // Bridges to Ecosystem
+  const handleTransformToParcours = () => {
+    addNotification(
+      "Parcours Projet Initié 🎯",
+      `La discussion du Live "${liveData.title}" a été convertie en Dossier Actif dans votre Hub d'Experts.`,
+      "success"
     );
+    if (onNavigateToTab) {
+      stopLocalMedia();
+      onClose();
+      onNavigateToTab('experts');
+    }
+  };
+
+  const handleJoinTribe = () => {
+    addNotification("Tribu Rejointe 🔥", `Vous faites désormais partie de la Tribu "${liveData.tribeName || 'Entrepreneurs Africa'}".`, "success");
+  };
+
+  const handleBookPrivateSession = () => {
+    setSelectedAgentForBooking(aiAgent || AGENTS[0]);
+    setShowBookingModal(true);
+  };
+
+  // Personal Note Handler
+  const handleAddPersonalNote = (text: string, category: 'reminder' | 'task' | 'project' | 'learning') => {
+    const newNote: LivePersonalNote = {
+      id: `pn-${Date.now()}`,
+      authorId: userProfile.id,
+      text,
+      timestamp: 'À l\'instant',
+      category
+    };
+    setPersonalNotes(prev => [newNote, ...prev]);
+    addNotification("Mémoire Diallo 🧠", "Note personnelle enregistrée dans votre carnet privé.", "success");
+  };
+
+  // Collective Decision Handler
+  const handleCreateDecision = (title: string, description: string) => {
+    const newDec: LiveDecision = {
+      id: `dec-${Date.now()}`,
+      title,
+      description,
+      proposedBy: userProfile.name,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'approved',
+      votesCount: 1
+    };
+    setCollectiveDecisions(prev => [...prev, newDec]);
+    addNotification("Décision Collective 📋", "La décision a été adoptée et ajoutée au compte-rendu.", "success");
+  };
+
+  // Toggle Agenda Item
+  const handleToggleAgendaItem = (id: string) => {
+    setAgendaItems(prev => prev.map(item => item.id === id ? { ...item, isCompleted: !item.isCompleted } : item));
+  };
+
+  // Live Commerce Order
+  const handleOrderProduct = (prod: LiveCommerceProduct) => {
+    addNotification("Commande Initiée 🛍️", `Fiche de commande pour "${prod.title}" transmise à ${prod.sellerName}.`, "success");
+  };
+
+  // Audio-Only Mode Toggle (Data Saver)
+  const handleToggleAudioOnly = () => {
+    setIsAudioOnlyMode(!isAudioOnlyMode);
+    if (!isAudioOnlyMode) {
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = false);
+      }
+      setIsVideoMuted(true);
+      addNotification("Mode Audio Seul 🎧", "Flux vidéo coupé pour économiser jusqu'à 85% de données mobiles.", "info");
+    } else {
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = true);
+      }
+      setIsVideoMuted(false);
+      addNotification("Vidéo Réactivée 📹", "Flux visuel HD rétabli.", "info");
+    }
+  };
+
+  // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard
+  const handleEndLive = () => {
+    stopLocalMedia();
+    setShowPostContinuityModal(true);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
+      
+      {/* 1. TOP HEADER BAR */}
+      <div className="h-16 bg-slate-900/90 backdrop-blur-xl border-b border-white/10 px-4 flex items-center justify-between z-30">
+        
+        {/* Left: Live Indicator, Title & Badges */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="bg-red-600 px-3 py-1 rounded-xl font-black text-xs flex items-center gap-2 animate-pulse shadow-lg shadow-red-600/40">
+            <span className="w-2 h-2 bg-white rounded-full"></span> LIVE
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-xs sm:max-w-md">
+                {liveData.title}
+              </h1>
+              <span className="px-2 py-0.5 bg-white/10 text-[10px] font-bold text-indigo-300 rounded-md hidden sm:inline capitalize">
+                {liveData.type || 'Public'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+              <span className="flex items-center gap-1"><Users size={11} /> {liveData.viewers.toLocaleString()} en direct</span>
+              <span>•</span>
+              <span className="flex items-center gap-1"><Shield size={11} className="text-emerald-400" /> Diallo OS Copilote</span>
+              <span>•</span>
+              <span className="flex items-center gap-1 font-mono text-emerald-400">
+                <Wifi size={11} /> {networkQuality.toUpperCase()} ({networkLatency}ms)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Stage Mode Selectors */}
+        <div className="hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-xl">
+          <button
+            onClick={() => setMainStageMode('camera')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'camera' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Video size={13} /> Vidéo
+          </button>
+          <button
+            onClick={handleToggleScreenShare}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'screen' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Layout size={13} /> Écran
+          </button>
+          <button
+            onClick={() => setMainStageMode('whiteboard')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'whiteboard' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <BarChart3 size={13} /> Tableau
+          </button>
+          <button
+            onClick={() => setMainStageMode('meeting')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'meeting' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <ListTodo size={13} /> Réunion & PV
+          </button>
+          <button
+            onClick={() => setMainStageMode('commerce')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'commerce' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <ShoppingBag size={13} /> Boutique
+          </button>
+          <button
+            onClick={() => setMainStageMode('masterclass')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'masterclass' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <GraduationCap size={13} /> Masterclass
+          </button>
+          <button
+            onClick={handleAssembleLiveCouncil}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'council' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Award size={13} /> Conseil
+          </button>
+        </div>
+
+        {/* Right: Quick Tools, Summon Expert, Subtitles & Close */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Audio Only Mode (Low Data) */}
+          <button
+            onClick={handleToggleAudioOnly}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-white/10 hover:text-white'}`}
+            title="Mode Audio Seul (Économie de bande passante 85%)"
+          >
+            <Headphones size={14} />
+            <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
+          </button>
+
+          {/* SOS Help Button */}
+          <button
+            onClick={() => setShowInstantHelpModal(true)}
+            className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+            title="Besoin d'aide immédiate ou modération"
+          >
+            <LifeBuoy size={14} />
+            <span className="hidden sm:inline">SOS Aide</span>
+          </button>
+
+          {/* Fact-Check Sources */}
+          <button
+            onClick={() => setShowFactCheckModal(true)}
+            className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/40 text-sky-300 border border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
+            title="Vérificateur de sources et déclarations"
+          >
+            <FileCheck size={14} />
+            <span className="hidden xl:inline">Fact-Check</span>
+          </button>
+
+          {/* Waiting Room Briefing */}
+          <button
+            onClick={() => setShowWaitingRoomModal(true)}
+            className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
+            title="Paramètres de scène & Salle d'attente"
+          >
+            <Sliders size={14} />
+          </button>
+
+          <button
+            onClick={() => setShowSummonExpertModal(true)}
+            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+          >
+            <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
+          </button>
+
+          <button
+            onClick={handleRequestCatchup}
+            className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
+          >
+            <Sparkles size={14} /> Résumé
+          </button>
+
+          <button
+            onClick={handleEndLive}
+            className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl border border-red-500/30 transition-colors"
+            title="Quitter ou terminer le Live"
+          >
+            <PhoneOff size={18} />
+          </button>
+        </div>
+
+      </div>
+
+      {/* PROACTIVE EXPERT RECOMMENDATION BANNER */}
+      {proactiveExpertSuggestion && (
+        <div className="bg-gradient-to-r from-amber-950/80 via-slate-900/90 to-indigo-950/80 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between z-20 backdrop-blur-md animate-fade-down">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-1.5 bg-amber-500/20 text-amber-400 rounded-lg flex-shrink-0">
+              <Sparkles size={14} />
+            </div>
+            <p className="text-xs font-medium text-amber-100 truncate">
+              {proactiveExpertSuggestion.message}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                handleSummonExpert(proactiveExpertSuggestion.agent);
+                setProactiveExpertSuggestion(null);
+              }}
+              className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg transition-colors flex items-center gap-1"
+            >
+              Inviter {proactiveExpertSuggestion.agent.name}
+            </button>
+            <button
+              onClick={() => setProactiveExpertSuggestion(null)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SENSITIVE DATA WARNING BANNER */}
+      {isSensitiveDataDetected && (
+        <div className="bg-rose-950/90 border-b border-rose-500/50 px-4 py-2 flex items-center justify-between z-20 backdrop-blur-md animate-pulse">
+          <div className="flex items-center gap-2 text-xs font-bold text-rose-200">
+            <AlertTriangle size={16} className="text-rose-400" />
+            <span>Vision IA : Un document confidentiel (coordonnées / pièces privées) a été détecté à l'écran.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsBlurOverlayActive(!isBlurOverlayActive)}
+              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg"
+            >
+              {isBlurOverlayActive ? "Retirer le flou" : "Flouter l'écran"}
+            </button>
+            <button
+              onClick={() => setIsSensitiveDataDetected(false)}
+              className="text-slate-400 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MAIN WORKSPACE (STAGE + SIDEBAR) */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        
+        {/* A. LEFT MAIN STAGE (70%) */}
+        <div className="flex-1 relative bg-slate-950 flex flex-col overflow-hidden">
+          
+          {/* Active Stage View Switcher */}
+          <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+            
+            {/* MODE 1: CAMERA & MULTI-SPEAKER STAGE */}
+            {mainStageMode === 'camera' && (
+              <div className="w-full h-full p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950">
+                
+                {/* Slot 1: Presenter / Host Stream */}
+                <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center group">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`}
+                  />
+                  {isVideoMuted && (
+                    <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />
+                  )}
+
+                  {/* Speaker Label & Audio Wave */}
+                  <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span className="text-xs font-bold text-white">{liveData.hostName} (Hôte)</span>
+                    <div className="w-12 h-2 bg-slate-800 rounded-full overflow-hidden ml-1">
+                      <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${audioVolume}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Host Quick Controls */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={handleTriggerVisionAnalysis}
+                      disabled={isVisionAnalyzing}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg shadow-md flex items-center gap-1"
+                    >
+                      <Eye size={12} /> {isVisionAnalyzing ? 'Analyse...' : 'Vision IA'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Slot 2: Co-Pilot AI Agent or Invited Guest */}
+                {aiAgent && (
+                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-2xl flex items-center justify-center">
+                    <Avatar3D
+                      avatarId={aiAgent.id}
+                      state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
+                      className="w-full h-full"
+                    />
+
+                    {/* AI Agent Label */}
+                    <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-indigo-500/40 flex items-center gap-2">
+                      <Bot size={14} className="text-indigo-400" />
+                      <span className="text-xs font-bold text-indigo-200">{aiAgent.name} (IA Vérifiée)</span>
+                      <span className="px-1.5 py-0.5 bg-indigo-500/30 text-[9px] font-bold rounded text-indigo-300">
+                        {aiAgent.specialty}
+                      </span>
+                    </div>
+
+                    {/* Thinking Glow Overlay */}
+                    {aiCopilotState === 'thinking' && (
+                      <div className="absolute top-4 left-4 bg-indigo-600/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-mono font-bold animate-pulse text-white flex items-center gap-1.5">
+                        <Sparkles size={12} /> DÉLIBÉRATION NEURALE...
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* MODE 2: SCREEN SHARE WITH PIP */}
+            {mainStageMode === 'screen' && (
+              <div className="w-full h-full relative bg-black p-2 flex items-center justify-center">
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain rounded-2xl"
+                />
+                
+                {/* PIP Speaker Thumbnail */}
+                <div className="absolute bottom-4 right-4 w-44 aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-1 left-1 bg-black/60 px-2 py-0.5 rounded text-[9px] font-bold text-white">
+                    {liveData.hostName}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODE 3: COLLABORATIVE WHITEBOARD */}
+            {mainStageMode === 'whiteboard' && (
+              <div className="w-full h-full">
+                <LiveWhiteboard
+                  onSaveToCampus={(summary) => {
+                    addNotification("Tableau Enregistré 🎓", "La synthèse a été ajoutée aux livrables Campus.", "success");
+                  }}
+                />
+              </div>
+            )}
+
+            {/* MODE 4: LIVE COUNCIL TABLE RONDE */}
+            {mainStageMode === 'council' && (
+              <div className="w-full h-full p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-950">
+                {stageParticipants.map(spk => (
+                  <div key={spk.id} className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 p-4 flex flex-col items-center justify-center gap-2 text-center shadow-xl">
+                    <img src={spk.avatar} className="w-16 h-16 rounded-2xl object-cover ring-2 ring-indigo-500/30" />
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center justify-center gap-1">
+                        {spk.name} {spk.isAi && <Bot size={12} className="text-indigo-400" />}
+                      </h4>
+                      <p className="text-[10px] text-slate-400">{spk.specialty || 'Intervenant'}</p>
+                    </div>
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold rounded-md flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Connecté
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* MODE 5: RÉUNION DE TRAVAIL & PROCÈS-VERBAL AUTOMATIQUE */}
+            {mainStageMode === 'meeting' && (
+              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
+                {/* Left (1 col): Video & Speaker */}
+                <div className="lg:col-span-1 space-y-3">
+                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
+                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
+                    <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded-lg text-[10px] font-bold text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span> {liveData.hostName}
+                    </div>
+                  </div>
+
+                  {/* PV Status Banner */}
+                  <div className="p-3 bg-indigo-950/60 border border-indigo-500/30 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
+                        <FileText size={14} className="text-indigo-400" /> Secrétaire IA Active
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-indigo-500/30 text-[9px] font-bold text-indigo-300 rounded">
+                        PV en direct
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-300">
+                      Transcription continue, indexation des décisions et attribution automatique des tâches aux participants.
+                    </p>
+                    <button
+                      onClick={() => {
+                        addNotification("PV Téléchargé 📄", "Le compte-rendu officiel avec feuille d'émargement a été généré.", "success");
+                      }}
+                      className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-md"
+                    >
+                      <Download size={12} /> Exporter le Procès-Verbal
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right (2 cols): Agenda & Decision Log */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Agenda Checklist */}
+                  <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                        <CheckSquare size={14} className="text-indigo-400" /> Ordre du Jour Structuré
+                      </h4>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {agendaItems.filter(a => a.isCompleted).length}/{agendaItems.length} validés
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {agendaItems.map(item => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleToggleAgendaItem(item.id)}
+                          className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${item.isCompleted ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' : 'bg-slate-950/40 border-white/5 text-slate-300 hover:bg-white/5'}`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={item.isCompleted}
+                              onChange={() => {}}
+                              className="w-4 h-4 rounded text-indigo-600 bg-slate-800 border-white/20 pointer-events-none"
+                            />
+                            <div>
+                              <p className={`text-xs font-bold ${item.isCompleted ? 'line-through opacity-70' : ''}`}>{item.title}</p>
+                              <span className="text-[10px] text-slate-400">Intervenant : {item.speaker} • {item.durationMin} min</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Registered Decisions */}
+                  <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                        <Award size={14} className="text-amber-400" /> Registre des Décisions Adoptées
+                      </h4>
+                      <button
+                        onClick={() => {
+                          const title = prompt("Titre de la décision :");
+                          if (title) handleCreateDecision(title, "Validé par consensus.");
+                        }}
+                        className="px-2 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 text-[10px] font-bold rounded-lg transition-colors"
+                      >
+                        + Ajouter Décision
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {collectiveDecisions.map(dec => (
+                        <div key={dec.id} className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-200">{dec.title}</span>
+                            <span className="text-[9px] font-mono text-amber-400">Adopté à {dec.timestamp}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-300">{dec.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODE 6: LIVE COMMERCE & VITRINE EN DIRECT */}
+            {mainStageMode === 'commerce' && (
+              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
+                {/* Presenter Stage */}
+                <div className="lg:col-span-1 space-y-3">
+                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
+                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
+                    <div className="absolute top-3 left-3 bg-red-600 px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow-md">
+                      <ShoppingBag size={12} /> SHOPPING DIRECT
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl space-y-1.5">
+                    <span className="text-xs font-bold text-emerald-300 flex items-center gap-1">
+                      <Shield size={13} /> Paiements & Livraisons Sécurisés
+                    </span>
+                    <p className="text-[10px] text-slate-300">
+                      Transactions avec séquestre financier et conformité transfrontalière gérées par les Experts Mok.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Product Catalog Cards */}
+                <div className="lg:col-span-2 space-y-3">
+                  <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                    <ShoppingBag size={14} className="text-emerald-400" /> Articles Présentés dans ce Live
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {commerceProducts.map(prod => (
+                      <div key={prod.id} className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg hover:border-emerald-500/50 transition-all">
+                        <img src={prod.imageUrl} className="h-32 w-full object-cover" />
+                        <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <span>{prod.sellerCountryFlag}</span> {prod.sellerName}
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded">
+                                En stock
+                              </span>
+                            </div>
+                            <h5 className="text-xs font-bold text-white line-clamp-1">{prod.title}</h5>
+                            <p className="text-[10px] text-slate-300 line-clamp-2 mt-0.5">{prod.description}</p>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                            <div>
+                              <span className="text-sm font-black text-emerald-400">{prod.price} {prod.currency}</span>
+                              <span className="text-[9px] text-slate-400 block">{(prod.price * 655.957).toLocaleString()} FCFA</span>
+                            </div>
+                            <button
+                              onClick={() => handleOrderProduct(prod)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-colors shadow-md flex items-center gap-1"
+                            >
+                              <ShoppingBag size={13} /> Commander
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODE 7: MASTERCLASS & CAMPUS D'APPRENTISSAGE */}
+            {mainStageMode === 'masterclass' && (
+              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
+                <div className="lg:col-span-1 space-y-3">
+                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
+                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
+                    <div className="absolute top-3 left-3 bg-purple-600 px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow-md">
+                      <GraduationCap size={12} /> MASTERCLASS OFFICIELLE
+                    </div>
+                  </div>
+
+                  {/* Attendance & Score */}
+                  <div className="p-4 bg-purple-950/40 border border-purple-500/30 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-200">Feuille d'Assiduité Campus</span>
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold">100% Présent</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-slate-300">
+                        <span>Compétences validées</span>
+                        <span className="font-mono font-bold text-purple-300">2 / 3</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-500 rounded-full w-2/3"></div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        addNotification("Certificat d'Assiduité 🎓", "Votre attestation de présence a été ajoutée à votre profil Campus.", "success");
+                      }}
+                      className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Award size={13} /> Valider pour mon Certificat
+                    </button>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Masterclass Objectives */}
+                  <div className="p-4 bg-slate-900 border border-white/10 rounded-2xl space-y-2">
+                    <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                      <BookOpen size={14} className="text-purple-400" /> Objectifs Pédagogiques de la Session
+                    </h4>
+                    <ul className="text-xs text-slate-300 space-y-1.5 list-disc pl-4">
+                      <li>Comprendre les ratios financiers indispensables pour lever des fonds.</li>
+                      <li>Savoir structurer une garantie de crédit bancaire dans l'espace UEMOA/CEMAC.</li>
+                      <li>Rédiger un pitch deck d'investissement conforme aux exigences institutionnelles.</li>
+                    </ul>
+                  </div>
+
+                  {/* Active Quiz Card */}
+                  <div className="p-4 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-indigo-400" /> Quiz Éclair de Compréhension
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-400">+50 Points Mok</span>
+                    </div>
+                    <p className="text-xs text-white font-medium">
+                      Quelle garantie est la plus liquide pour un prêt d'amorçage de 50 000 € ?
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={() => addNotification("Réponse Correcte ! 🎯", "+50 XP ajoutés à votre parcours Campus.", "success")}
+                        className="p-2.5 bg-slate-900 hover:bg-indigo-600 border border-white/10 hover:border-indigo-400 rounded-xl text-left text-xs text-slate-200 transition-all font-bold"
+                      >
+                        A. Nantissement de compte bloqué
+                      </button>
+                      <button
+                        onClick={() => addNotification("Indice 💡", "Pensez aux délais de réalisation des hypothèques.", "info")}
+                        className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-white/10 rounded-xl text-left text-xs text-slate-200 transition-all"
+                      >
+                        B. Hypothèque immobilière de rang 2
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* REAL-TIME BILINGUAL SUBTITLES BAR (DIALLO OS) */}
+          {subtitlesMode !== 'off' && (
+            <div className="h-16 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 px-6 flex items-center justify-between z-20">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-indigo-600/30 text-indigo-400 rounded-xl border border-indigo-500/30 flex-shrink-0">
+                  <Globe size={16} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
+                    <p className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
+                  </div>
+                  {subtitlesMode === 'bilingual' && currentSubtitle.translated && (
+                    <p className="text-[11px] text-indigo-300 truncate font-sans">
+                      🌍 {currentSubtitle.translated}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Subtitles Language Toggle */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <select
+                  value={selectedViewerLang}
+                  onChange={(e) => {
+                    setSelectedViewerLang(e.target.value);
+                    addNotification("Langue Modifiée 🌐", `Sous-titres synchronisés en ${e.target.value}.`, "info");
+                  }}
+                  className="bg-black/40 border border-white/10 rounded-xl px-2.5 py-1 text-[11px] font-bold text-white outline-none"
+                >
+                  <option value="Français">Français</option>
+                  <option value="Anglais">Anglais</option>
+                  <option value="Arabe">Arabe</option>
+                  <option value="Wolof">Wolof</option>
+                  <option value="Pulaar">Pulaar</option>
+                  <option value="Malinké">Malinké</option>
+                  <option value="Espagnol">Espagnol</option>
+                </select>
+
+                <button
+                  onClick={() => setSubtitlesMode(subtitlesMode === 'bilingual' ? 'original' : subtitlesMode === 'original' ? 'off' : 'bilingual')}
+                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-bold text-slate-300 uppercase"
+                >
+                  {subtitlesMode}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* BOTTOM CONTROLS DOCK */}
+          <div className="h-16 bg-slate-900 border-t border-white/10 px-6 flex items-center justify-between z-20">
+            
+            {/* Media Toggles */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleMic}
+                className={`p-3 rounded-2xl transition-all shadow-md ${isMicMuted ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
+                title={isMicMuted ? "Réactiver le micro" : "Couper le micro"}
+              >
+                {isMicMuted ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
+
+              <button
+                onClick={toggleVideo}
+                className={`p-3 rounded-2xl transition-all shadow-md ${isVideoMuted ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
+                title={isVideoMuted ? "Activer la caméra" : "Couper la caméra"}
+              >
+                {isVideoMuted ? <VideoOff size={18} /> : <Video size={18} />}
+              </button>
+
+              <button
+                onClick={handleToggleScreenShare}
+                className={`p-3 rounded-2xl transition-all shadow-md ${isScreenSharing ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                title="Partager mon écran"
+              >
+                <Layout size={18} />
+              </button>
+            </div>
+
+            {/* Center Transformation Bridges */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleTransformToParcours}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all"
+              >
+                <ListTodo size={14} /> Transformer en Parcours
+              </button>
+
+              <button
+                onClick={handleBookPrivateSession}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-white/10 flex items-center gap-1.5 transition-all"
+              >
+                <Lock size={14} /> Continuer en Privé
+              </button>
+
+              {liveData.tribeName && (
+                <button
+                  onClick={handleJoinTribe}
+                  className="px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
+                >
+                  <Flame size={14} /> Rejoindre la Tribu
+                </button>
+              )}
+            </div>
+
+            {/* Right: Likes & Gifts */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowGifts(!showGifts)}
+                className="p-3 bg-pink-600/20 hover:bg-pink-600 text-pink-400 hover:text-white rounded-2xl border border-pink-500/30 transition-all"
+                title="Envoyer un cadeau"
+              >
+                <Gift size={18} />
+              </button>
+
+              <button
+                onClick={() => setLikesCount(prev => prev + 1)}
+                className="p-3 bg-gradient-to-tr from-pink-500 to-red-500 rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform flex items-center gap-1"
+              >
+                <Heart size={18} fill="white" />
+                <span className="text-xs font-bold font-mono">{likesCount}</span>
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) */}
+        <div className="w-full md:w-96 bg-slate-900 border-l border-white/10 flex flex-col h-1/2 md:h-full z-20">
+          
+          {/* Sidebar Tabs */}
+          <div className="flex border-b border-white/10 bg-black/40 p-1 overflow-x-auto">
+            {[
+              { id: 'chat', label: 'Chat', icon: MessageSquare },
+              { id: 'qa', label: 'Q&A', icon: HelpCircle },
+              { id: 'notes', label: 'Mémoire', icon: BookOpen },
+              { id: 'decisions', label: 'Décisions', icon: Award },
+              { id: 'agenda', label: 'Agenda', icon: CheckSquare },
+              { id: 'products', label: 'Boutique', icon: ShoppingBag },
+              { id: 'polls', label: 'Sondage', icon: PieChart },
+              { id: 'docs', label: 'Docs', icon: FileText },
+              { id: 'assistant', label: 'IA Perso', icon: Bot }
+            ].map(t => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveSideTab(t.id as any)}
+                  className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors whitespace-nowrap ${activeSideTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  <Icon size={13} />
+                  <span>{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sidebar Body */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            
+            {/* 1. CHAT DIRECT */}
+            {activeSideTab === 'chat' && (
+              <div className="space-y-3">
+                {copilotInsight && (
+                  <div 
+                    onClick={() => {
+                      setMessages(prev => [...prev, { user: aiAgent?.name || "Directeur Diallo", text: copilotInsight, isAi: true }]);
+                      setCopilotInsight(null);
+                    }}
+                    className="p-3 bg-indigo-600/30 border border-indigo-500/40 rounded-2xl text-xs font-bold text-indigo-200 flex items-center justify-between cursor-pointer hover:bg-indigo-600/40 transition-colors animate-fade-down"
+                  >
+                    <span className="flex items-center gap-1.5"><Sparkles size={14} /> {copilotInsight}</span>
+                    <ArrowRight size={14} />
+                  </div>
+                )}
+
+                {messages.map((msg, i) => (
+                  <div 
+                    key={i} 
+                    className={`flex items-start gap-2.5 p-2 rounded-2xl transition-all ${msg.isAi ? 'bg-indigo-950/40 border border-indigo-500/20' : 'hover:bg-white/5'}`}
+                  >
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${msg.isAi ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                      {msg.isAi ? <Bot size={16} /> : msg.user.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={`text-xs font-extrabold truncate ${msg.isAi ? 'text-indigo-300' : 'text-slate-300'}`}>
+                          {msg.user}
+                        </span>
+                        {msg.isHost && (
+                          <span className="px-1.5 py-0.2 bg-red-600/30 text-red-300 text-[9px] font-black rounded uppercase">Hôte</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-200 leading-relaxed break-words">{msg.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 2. DEDICATED Q&A ZONE */}
+            {activeSideTab === 'qa' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Questions du public classées par votes
+                  </span>
+                  <span className="text-[10px] font-bold text-indigo-400">
+                    {questions.length} questions
+                  </span>
+                </div>
+
+                {questions.map(q => (
+                  <div 
+                    key={q.id}
+                    className={`p-3 rounded-2xl border transition-all space-y-2 ${q.status === 'answering' ? 'bg-indigo-600/20 border-indigo-500 shadow-md ring-1 ring-indigo-500/50' : 'bg-slate-950/40 border-white/5'}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <img src={q.authorAvatar} className="w-6 h-6 rounded-full object-cover" />
+                        <span className="text-xs font-bold text-slate-300">{q.authorName}</span>
+                      </div>
+                      {q.status === 'answering' && (
+                        <span className="px-2 py-0.5 bg-indigo-500 text-white text-[9px] font-black rounded-md animate-pulse">
+                          En cours de réponse
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs font-medium text-white leading-relaxed">{q.text}</p>
+
+                    <div className="flex items-center justify-between pt-1 text-xs">
+                      <button
+                        onClick={() => handleUpvoteQuestion(q.id)}
+                        className={`px-3 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-all ${q.userUpvoted ? 'bg-indigo-600 text-white' : 'bg-white/5 text-slate-400 hover:text-white'}`}
+                      >
+                        ▲ {q.upvotes} votes
+                      </button>
+
+                      {isHost && q.status !== 'answered' && (
+                        <button
+                          onClick={() => {
+                            setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, status: 'answered' } : item));
+                            addNotification("Question Répondue ✅", "La question a été marquée comme traitée.", "success");
+                          }}
+                          className="text-[10px] font-bold text-emerald-400 hover:underline"
+                        >
+                          Marquer répondue
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 3. MA MÉMOIRE PERSONNELLE (PRIVATE NOTES) */}
+            {activeSideTab === 'notes' && (
+              <div className="space-y-3">
+                <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl space-y-1">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                    <Lock size={13} /> Carnet Privé & Confidentiel
+                  </span>
+                  <p className="text-[10px] text-slate-300">
+                    Vos notes pendant le direct sont strictement privées et exportables vers votre espace Hub & Dossiers.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {personalNotes.map(n => (
+                    <div key={n.id} className="p-3 bg-slate-950/50 border border-white/5 rounded-2xl space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-[9px] font-bold rounded uppercase">
+                          {n.category}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">{n.timestamp}</span>
+                      </div>
+                      <p className="text-xs text-white leading-relaxed">{n.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 4. DÉCISIONS COLLECTIVES */}
+            {activeSideTab === 'decisions' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Décisions validées
+                  </span>
+                  <button
+                    onClick={() => {
+                      const title = prompt("Titre de la décision collective :");
+                      if (title) handleCreateDecision(title, "Enregistré en direct.");
+                    }}
+                    className="text-[10px] font-bold text-amber-400 hover:underline"
+                  >
+                    + Nouvelle décision
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {collectiveDecisions.map(d => (
+                    <div key={d.id} className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-2xl space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-200">{d.title}</span>
+                        <span className="text-[9px] font-mono text-amber-400">{d.timestamp}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300">{d.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 5. AGENDA / ORDRE DU JOUR */}
+            {activeSideTab === 'agenda' && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Progression de la session
+                </span>
+
+                <div className="space-y-2">
+                  {agendaItems.map(item => (
+                    <div 
+                      key={item.id} 
+                      onClick={() => handleToggleAgendaItem(item.id)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all ${item.isCompleted ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' : 'bg-slate-950/40 border-white/5 text-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={item.isCompleted} onChange={() => {}} className="pointer-events-none" />
+                        <span className={`text-xs font-bold ${item.isCompleted ? 'line-through' : ''}`}>{item.title}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 pl-5">{item.durationMin} min • {item.speaker}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 6. BOUTIQUE LIVE */}
+            {activeSideTab === 'products' && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Articles & Offres en direct
+                </span>
+
+                <div className="space-y-2">
+                  {commerceProducts.map(p => (
+                    <div key={p.id} className="p-2.5 bg-slate-950/50 border border-white/5 rounded-2xl flex items-center justify-between gap-2">
+                      <img src={p.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <h6 className="text-xs font-bold text-white truncate">{p.title}</h6>
+                        <span className="text-[11px] font-black text-emerald-400">{p.price} {p.currency}</span>
+                      </div>
+                      <button
+                        onClick={() => handleOrderProduct(p)}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg"
+                      >
+                        Acheter
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 7. POLLS & QUIZZES */}
+            {activeSideTab === 'polls' && (
+              <div className="space-y-4">
+                {activePoll ? (
+                  <div className="p-4 bg-slate-950/60 rounded-3xl border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-md">
+                        Sondage en Direct
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">{activePoll.totalVotes} votes</span>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-white leading-snug">{activePoll.question}</h4>
+
+                    <div className="space-y-2 pt-1">
+                      {activePoll.options.map(opt => {
+                        const pct = Math.round((opt.votes / activePoll.totalVotes) * 100) || 0;
+                        return (
+                          <button
+                            key={opt.id}
+                            disabled={hasVotedPoll}
+                            onClick={() => {
+                              setActivePoll(prev => prev ? {
+                                ...prev,
+                                totalVotes: prev.totalVotes + 1,
+                                options: prev.options.map(o => o.id === opt.id ? { ...o, votes: o.votes + 1 } : o)
+                              } : null);
+                              setHasVotedPoll(true);
+                              addNotification("Vote Enregistré 📊", "Votre vote a été pris en compte en direct.", "success");
+                            }}
+                            className="w-full relative h-10 bg-slate-900 hover:bg-slate-800 rounded-xl overflow-hidden border border-white/5 transition-all text-left group"
+                          >
+                            <div 
+                              className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-blue-600/40 to-indigo-600/40 transition-all duration-700" 
+                              style={{ width: `${pct}%` }} 
+                            />
+                            <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-bold z-10">
+                              <span className="text-white group-hover:text-indigo-200">{opt.text}</span>
+                              <span className="font-mono text-indigo-300">{pct}%</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-8 space-y-2">
+                    <PieChart size={32} className="mx-auto text-slate-500" />
+                    <p className="text-xs text-slate-400">Aucun sondage actif actuellement.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 8. SHARED DOCUMENTS */}
+            {activeSideTab === 'docs' && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Documents & Livrables de la session
+                </span>
+
+                {sharedDocs.map(doc => (
+                  <div 
+                    key={doc.id}
+                    className="p-3 bg-slate-950/40 rounded-2xl border border-white/5 flex items-center justify-between gap-3 hover:bg-white/5 transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl">
+                        <FileText size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-bold text-white truncate">{doc.name}</h5>
+                        <p className="text-[10px] text-slate-400">{doc.size} • Partagé par {doc.uploadedBy}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => addNotification("Téléchargement", `Fichier "${doc.name}" téléchargé.`, "info")}
+                      className="p-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition-colors"
+                      title="Télécharger"
+                    >
+                      <Download size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 9. PRIVATE PARTICIPANT ASSISTANT */}
+            {activeSideTab === 'assistant' && (
+              <div className="space-y-3">
+                <div className="p-3 bg-indigo-950/40 rounded-2xl border border-indigo-500/20 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-300">
+                    <Bot size={14} /> Assistant Privé du Participant
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Posez vos questions confidentielles sans interrompre le direct.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {assistantMessages.map((item, idx) => (
+                    <div key={idx} className="space-y-1.5 text-xs">
+                      <div className="bg-slate-800 p-2.5 rounded-xl rounded-br-none text-slate-200">
+                        {item.query}
+                      </div>
+                      <div className="bg-indigo-900/40 border border-indigo-500/30 p-2.5 rounded-xl rounded-bl-none text-indigo-100 leading-relaxed">
+                        {item.answer}
+                      </div>
+                    </div>
+                  ))}
+
+                  {isAssistantThinking && (
+                    <div className="text-[11px] text-indigo-400 flex items-center gap-1.5 animate-pulse">
+                      <Sparkles size={12} /> Diallo OS réfléchit...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Sidebar Footer Input Bar */}
+          <div className="p-3 bg-slate-950 border-t border-white/10">
+            {activeSideTab === 'chat' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Envoyer un message..."
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors"
+                >
+                  <Send size={14} />
+                </button>
+              </div>
+            )}
+
+            {activeSideTab === 'qa' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newQuestionInput}
+                  onChange={(e) => setNewQuestionInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddQuestion()}
+                  placeholder="Poser une question prioritaire..."
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                />
+                <button
+                  onClick={handleAddQuestion}
+                  className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors"
+                >
+                  <Send size={14} />
+                </button>
+              </div>
+            )}
+
+            {activeSideTab === 'notes' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="private-note-input"
+                  placeholder="Ajouter une note personnelle..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const input = e.currentTarget;
+                      if (input.value.trim()) {
+                        handleAddPersonalNote(input.value.trim(), 'reminder');
+                        input.value = '';
+                      }
+                    }
+                  }}
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('private-note-input') as HTMLInputElement;
+                    if (input && input.value.trim()) {
+                      handleAddPersonalNote(input.value.trim(), 'reminder');
+                      input.value = '';
+                    }
+                  }}
+                  className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            )}
+
+            {activeSideTab === 'assistant' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={assistantInput}
+                  onChange={(e) => setAssistantInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAskPrivateAssistant()}
+                  placeholder="Demander en aparté à l'IA..."
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                />
+                <button
+                  onClick={handleAskPrivateAssistant}
+                  disabled={isAssistantThinking}
+                  className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors disabled:opacity-40"
+                >
+                  <Send size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* FLOATING ACTION DOCK (LIVE → ACTION) */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+        <LiveSmartActionBar
+          liveStream={liveData}
+          onAddPersonalNote={(text) => handleAddPersonalNote(text, 'reminder')}
+          onCreateTask={(title) => {
+            setLiveActionItems(prev => [...prev, { id: `act-${Date.now()}`, title, category: 'finance', completed: false }]);
+            addNotification("Tâche Ajoutée 📌", `"${title}" a été ajoutée à vos actions.`, "success");
+          }}
+          onBookAppointment={() => {
+            setSelectedAgentForBooking(aiAgent || AGENTS[0]);
+            setShowBookingModal(true);
+          }}
+          onSummonExpert={(specialty) => {
+            const ag = AGENTS.find(a => a.specialty?.toLowerCase().includes(specialty.toLowerCase())) || AGENTS[0];
+            handleSummonExpert(ag);
+          }}
+          onFactCheckSource={() => setShowFactCheckModal(true)}
+          onRequestInstantHelp={() => setShowInstantHelpModal(true)}
+        />
+      </div>
+
+      {/* 3. SUMMON EXPERT MODAL DIALOG */}
+      {showSummonExpertModal && (
+        <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-xl space-y-4 shadow-2xl animate-scale-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap size={20} className="text-amber-400" />
+                <h3 className="text-sm font-extrabold text-white">Appeler un Expert sur la Scène</h3>
+              </div>
+              <button onClick={() => setShowSummonExpertModal(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Sélectionnez un expert spécialisé pour rejoindre instantanément votre Live en tant qu'intervenant.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+              {AGENTS.map(agent => (
+                <div
+                  key={agent.id}
+                  onClick={() => handleSummonExpert(agent)}
+                  className="p-3.5 bg-slate-950/60 hover:bg-indigo-600/20 border border-white/5 hover:border-indigo-500/50 rounded-2xl cursor-pointer transition-all flex items-center gap-3 group"
+                >
+                  <img src={agent.avatarUrl} className="w-11 h-11 rounded-xl object-cover ring-1 ring-white/10" />
+                  <div className="min-w-0">
+                    <h5 className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                      {agent.name}
+                    </h5>
+                    <p className="text-[10px] text-slate-400 truncate">{agent.specialty}</p>
+                    <span className="text-[9px] font-bold text-amber-400 flex items-center gap-1 mt-0.5">
+                      <Sparkles size={10} /> Expert IA Disponible
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. CATCHUP SUMMARY DIALOG ("Ce que vous avez manqué") */}
+      {showCatchupSummary && (
+        <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-scale-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                <Sparkles size={18} /> Ce que vous avez manqué
+              </div>
+              <button onClick={() => setShowCatchupSummary(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-white/5 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
+              {catchupDigest}
+            </div>
+
+            <button
+              onClick={() => setShowCatchupSummary(false)}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors"
+            >
+              Reprendre le Direct
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. WAITING ROOM BRIEFING MODAL */}
+      <LiveWaitingRoomModal
+        isOpen={showWaitingRoomModal}
+        onClose={() => setShowWaitingRoomModal(false)}
+        liveStream={liveData}
+        onJoinLive={() => {
+          setShowWaitingRoomModal(false);
+          addNotification("En Direct 🔴", "Vous avez rejoint la scène du Live.", "success");
+        }}
+      />
+
+      {/* 6. POST-CONTINUITY ACTION MODAL ("ET MAINTENANT ?") */}
+      <LivePostContinuityModal
+        isOpen={showPostContinuityModal}
+        onClose={() => {
+          setShowPostContinuityModal(false);
+          onClose();
+        }}
+        liveStream={liveData}
+        userProfile={userProfile}
+        onNavigateToTab={(tab) => {
+          setShowPostContinuityModal(false);
+          onClose();
+          if (onNavigateToTab) onNavigateToTab(tab);
+        }}
+        onOpenReplay={() => {
+          setShowPostContinuityModal(false);
+          setIsReplayModalOpen(true);
+        }}
+      />
+
+      {/* 7. FACT-CHECKING SOURCE VERIFICATION MODAL */}
+      <LiveSourceFactCheckModal
+        isOpen={showFactCheckModal}
+        onClose={() => setShowFactCheckModal(false)}
+        liveTitle={liveData.title}
+        currentTopic="Financement transfrontalier et droit des sociétés OHADA"
+      />
+
+      {/* 8. INSTANT HELP & EMERGENCY ASSISTANCE MODAL */}
+      <LiveInstantHelpModal
+        isOpen={showInstantHelpModal}
+        onClose={() => setShowInstantHelpModal(false)}
+        liveTitle={liveData.title}
+        onSummonAgent={(agent) => {
+          handleSummonExpert(agent);
+          setShowInstantHelpModal(false);
+        }}
+      />
+
+      {/* 9. EXPERT 1-ON-1 APPOINTMENT BOOKING MODAL */}
+      <LiveExpertBookingModal
+        isOpen={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        expert={selectedAgentForBooking}
+        liveContext={liveData.title}
+      />
+
+      {/* 10. REPLAY MODAL TRIGGER */}
+      <LiveReplayModal
+        isOpen={isReplayModalOpen}
+        onClose={() => {
+          setIsReplayModalOpen(false);
+          onClose();
+        }}
+        liveStream={liveData}
+        onNavigateToTab={onNavigateToTab}
+      />
+
+    </div>
+  );
 };

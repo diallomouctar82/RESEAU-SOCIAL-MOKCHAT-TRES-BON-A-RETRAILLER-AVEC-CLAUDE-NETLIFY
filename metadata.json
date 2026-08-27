@@ -1,10 +1,12 @@
 {
-  "name": "Copy of Copy of Copy of  Le Monde à Vous lives bien dev V5.4 def",
-  "description": "Plateforme universelle d'assistants experts. Une interface unifiée pour l'emploi, la santé, le droit et l'éducation, propulsée par l'intelligence numérique de pointe.",
+  "name": "Le Monde à Vous",
+  "description": "Plateforme intelligente globale réunissant assistants experts, réseau Mok, Marché Mondial (B2B, B2C, C2C, négociation intelligente et import-export), campus d'apprentissage certifiant et intégration multimodale avec Diallo OS.",
   "requestFramePermissions": [
     "camera",
     "microphone",
     "geolocation"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

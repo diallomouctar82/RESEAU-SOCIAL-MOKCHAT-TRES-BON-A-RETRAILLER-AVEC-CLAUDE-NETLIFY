@@ -22,6 +22,11 @@ import { Auth } from './components/Auth';
 import { Settings } from './components/Settings';
 import { LanguageCenter } from './components/LanguageCenter';
 import { CouncilRoom } from './components/CouncilRoom';
+import { ExpertsHub } from './components/ExpertsHub';
+import { GoogleDriveCenter } from './components/GoogleDriveCenter';
+import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
+import { GoogleChatCenter } from './components/GoogleChatCenter';
+import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, UserRole } from './types';
 
@@ -61,22 +66,22 @@ const AppContent = () => {
   }, []);
 
   // ACTIONS
-  const handleLogin = (email: string) => {
+  const handleLogin = (email: string, userDetails?: { name?: string; avatarUrl?: string }) => {
       // DÉTERMINATION DU RÔLE
       // Admin Principal : visionsmart224@gmail.com
       const isAdmin = email.trim().toLowerCase() === 'visionsmart224@gmail.com';
       const role: UserRole = isAdmin ? 'admin' : 'user';
       
-      const userName = isAdmin ? 'Administrateur Principal' : email.split('@')[0];
-      const countryCode = 'FR'; // Par défaut, ou déduit de l'IP dans un vrai backend
+      const userName = userDetails?.name || (isAdmin ? 'Administrateur Principal' : email.split('@')[0]);
+      const countryCode = 'FR';
 
       const newProfileData = {
           id: `usr-${Date.now()}`,
           email: email,
           role: role,
           name: userName,
+          avatarUrl: userDetails?.avatarUrl || userProfile.avatarUrl,
           citizenshipId: `LMAV-2025-${Math.floor(Math.random()*9000)+1000}-${countryCode}`,
-          // Pour l'admin, on peut donner des stats boostées
           level: isAdmin ? 99 : 1,
           xp: isAdmin ? 999999 : 0,
           credits: isAdmin ? 1000000 : 150
@@ -85,7 +90,7 @@ const AppContent = () => {
       // Mise à jour du state global
       updateUserProfile(newProfileData);
       
-      // Persistance locale (Session permanente tant que pas de logout)
+      // Persistance locale
       localStorage.setItem('lmav_session_v2', JSON.stringify({
           ...userProfile, 
           ...newProfileData
@@ -94,8 +99,8 @@ const AppContent = () => {
       setIsAuthenticated(true);
       
       if (isAdmin) {
-          addNotification("Mode Administrateur", "Bienvenue, Superviseur. Console système active.", "warning");
-          setActiveTab('home'); // Redirect to Home (Dashboard handles Admin View)
+          addNotification("Mode Administrateur", "Bienvenue, Superviseur. Console système et Google Workspace actifs.", "warning");
+          setActiveTab('home');
       } else {
           addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${userName}.`, "success");
       }
@@ -147,13 +152,33 @@ const AppContent = () => {
       
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} />}
 
+      {activeTab === 'google-maps' && <GoogleMapsExplorer />}
+
+      {activeTab === 'google-drive' && <GoogleDriveCenter />}
+
+      {activeTab === 'google-chat' && <GoogleChatCenter />}
+
+      {activeTab === 'google-meet' && <GoogleMeetCenter />}
+
       {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} />}
 
-      {activeTab === 'world' && <WorldHub onNavigateToAgent={handleNavigateToAgent} />}
+      {activeTab === 'world' && <WorldHub onNavigateToAgent={handleNavigateToAgent} onNavigate={setActiveTab} />}
 
       {activeTab === 'wallet' && <Wallet userProfile={userProfile} />}
 
-      {activeTab === 'career' && <CareerCenter userProfile={userProfile} onNavigateToInterview={() => setActiveTab('live')} />}
+      {activeTab === 'career' && (
+        <CareerCenter 
+          userProfile={userProfile} 
+          onNavigateToInterview={() => setActiveTab('live')} 
+          onNavigate={setActiveTab}
+          onOpenExpertChat={(agentId, prompt) => {
+            const targetAgent = AGENTS.find(a => a.id === agentId) || AGENTS[0];
+            setSelectedAgent(targetAgent);
+            setInitialChatMessage(prompt || '');
+            setActiveTab('chat');
+          }}
+        />
+      )}
       
       {activeTab === 'health' && <HealthCenter userProfile={userProfile} />}
 
@@ -165,59 +190,24 @@ const AppContent = () => {
 
       {activeTab === 'languages' && <LanguageCenter userProfile={userProfile} />}
 
-      {activeTab === 'admin-procedures' && <LegalCenter userProfile={userProfile} />}
+      {(activeTab === 'admin-procedures' || activeTab === 'demarches') && <LegalCenter userProfile={userProfile} />}
 
       {activeTab === 'council' && <CouncilRoom onClose={() => setActiveTab('home')} />}
 
-      {activeTab === 'chat' && (
-        <div className="flex flex-col h-full md:flex-row">
-           <div className="hidden lg:block w-80 border-r border-gray-200 bg-white overflow-y-auto">
-             <div className="p-4 sticky top-0 bg-white z-10 border-b border-gray-100">
-                <h3 className="font-bold text-gray-700 px-2">Équipe d'Experts</h3>
-             </div>
-             <div className="p-2 space-y-2">
-                {AGENTS.map((agent) => (
-                  <button
-                    key={agent.id}
-                    onClick={() => {
-                        setSelectedAgent(agent);
-                        setInitialChatMessage(undefined);
-                    }}
-                    className={`
-                      w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors
-                      ${selectedAgent.id === agent.id ? 'bg-brand-50 border border-brand-100' : 'hover:bg-gray-50 border border-transparent'}
-                    `}
-                  >
-                    <img src={agent.avatarUrl} className="w-10 h-10 rounded-full object-cover" />
-                    <div>
-                      <div className="font-semibold text-sm text-gray-900">{agent.name}</div>
-                      <div className="text-xs text-gray-500">{agent.title}</div>
-                    </div>
-                  </button>
-                ))}
-             </div>
-           </div>
+      {(activeTab === 'parcours' || activeTab === 'dossiers') && (
+        <ExpertsHub 
+          userProfile={userProfile} 
+          initialTab="dossiers"
+          onNavigate={setActiveTab}
+        />
+      )}
 
-           <div className="lg:hidden p-4 bg-white border-b flex items-center justify-between cursor-pointer" onClick={() => window.scrollTo(0,0)}>
-             <div className="flex items-center gap-3">
-               <img src={selectedAgent.avatarUrl} className="w-10 h-10 rounded-full" />
-               <div>
-                 <div className="font-bold text-gray-900">{selectedAgent.name}</div>
-                 <div className="text-xs text-gray-500">{selectedAgent.title}</div>
-               </div>
-             </div>
-             <div className="text-xs text-brand-600 font-medium">Changer</div>
-           </div>
-
-           <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-             <ChatInterface 
-                key={selectedAgent.id + (initialChatMessage || '')} 
-                agent={selectedAgent} 
-                initialMessage={initialChatMessage}
-                onStartCall={() => setActiveTab('live')}
-             />
-           </div>
-        </div>
+      {(activeTab === 'chat' || activeTab === 'experts') && (
+        <ExpertsHub 
+          userProfile={userProfile} 
+          initialTab="catalogue"
+          onNavigate={setActiveTab}
+        />
       )}
 
       {activeTab === 'campus' && (
@@ -254,6 +244,23 @@ const AppContent = () => {
                 addNotification("Achat Confirmé 🛍️", `Vous avez acheté "${item}". Votre solde est maintenant de ${(userProfile.credits - amount).toFixed(2)} Crédits.`, "info");
             }}
             onOpenMyShop={() => setActiveTab('my-shop')}
+            onOpenExpertChat={(agentId, initialPrompt) => {
+              const targetAgent = AGENTS.find(a => a.id === agentId) || AGENTS[0];
+              setSelectedAgent(targetAgent);
+              setInitialChatMessage(initialPrompt);
+              setActiveTab('chat');
+            }}
+            onWatchReel={(reelId) => {
+              setActiveTab('social');
+            }}
+            onOpenMokChatUser={(userId, userName) => {
+              addNotification("Mok Chat", `Conversation directe ouverte avec ${userName}`, "info");
+              setActiveTab('google-chat');
+            }}
+            onOpenLiveRoom={(sessionTitle, participantName) => {
+              addNotification("Salon Mondial Live B2B", `Session en direct "${sessionTitle}" connectée avec ${participantName}`, "info");
+              setActiveTab('google-meet');
+            }}
         />
       )}
 
@@ -268,6 +275,11 @@ const AppContent = () => {
             liveId={activeLiveId} 
             initialData={customLiveStream}
             onClose={() => { setActiveLiveId(null); setCustomLiveStream(undefined); }} 
+            onNavigateToTab={(tab) => {
+              setActiveLiveId(null);
+              setCustomLiveStream(undefined);
+              setActiveTab(tab);
+            }}
           />
       )}
       
