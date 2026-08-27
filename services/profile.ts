@@ -1,6 +1,7 @@
 
 import { isUuid, supabase } from './supabaseClient';
 import { UserProfile } from '../types';
+import type { Json } from './database.types';
 
 /**
  * Charge le profil applicatif (table `profiles` + compétences/badges)
@@ -27,7 +28,15 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
     }
 
     const allowedRoles = ['user', 'admin', 'expert', 'mentor', 'moderator', 'organization', 'super_admin'] as const;
-    const role = allowedRoles.includes(profile.role) ? profile.role : 'user';
+    type AllowedRole = typeof allowedRoles[number];
+    const role: AllowedRole = allowedRoles.includes(profile.role as AllowedRole)
+        ? profile.role as AllowedRole
+        : 'user';
+    const allowedStatuses = ['active', 'pending', 'suspended'] as const;
+    type AllowedStatus = typeof allowedStatuses[number];
+    const accountStatus: AllowedStatus = allowedStatuses.includes(profile.status as AllowedStatus)
+        ? profile.status as AllowedStatus
+        : 'active';
 
     return {
         id: profile.id,
@@ -41,7 +50,7 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
         phone: profile.phone || undefined,
         website: profile.website || undefined,
         role,
-        accountStatus: ['active', 'pending', 'suspended'].includes(profile.status) ? profile.status : 'active',
+        accountStatus,
         citizenshipId: profile.citizenship_id || '',
         level: Number(profile.level || 1),
         xp: Number(profile.xp || 0),
@@ -88,6 +97,6 @@ export const updateOwnProfile = async (userId: string, values: Record<string, un
     if (Object.keys(safeValues).length === 0) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || user.id !== userId) throw new Error('Session profile mismatch.');
-    const { error } = await supabase.rpc('update_my_profile', { p_changes: safeValues });
+    const { error } = await supabase.rpc('update_my_profile', { p_changes: safeValues as Json });
     if (error) throw error;
 };

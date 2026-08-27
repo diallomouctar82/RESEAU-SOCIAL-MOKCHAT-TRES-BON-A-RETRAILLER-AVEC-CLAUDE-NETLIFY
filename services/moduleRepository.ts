@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from './supabaseClient';
+import type { Json } from './database.types';
 
 export type ModuleNamespace =
   | 'dossiers'
@@ -84,7 +85,7 @@ const toRow = (record: ModuleRecord<object>) => ({
   module: record.module,
   record_type: record.recordType,
   status: record.status,
-  payload: record.payload,
+  payload: record.payload as Json,
   version: record.version,
   idempotency_key: record.idempotencyKey ?? null,
   updated_at: record.updatedAt,

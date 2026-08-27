@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from './supabaseClient';
+import type { Json } from './database.types';
 
 export type CommerceOrderStatus =
   | 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled';
@@ -41,7 +42,7 @@ export const commerceService = {
     if (!input.idempotencyKey.trim()) throw new Error('IDEMPOTENCY_KEY_REQUIRED');
     const { data, error } = await supabase.rpc('create_trade_rfq', {
       p_title: input.title,
-      p_specifications: input.specifications,
+      p_specifications: input.specifications as Json,
       p_currency: input.currency,
       p_budget: input.budget ?? null,
       p_deadline: input.deadline ?? null,
@@ -64,7 +65,7 @@ export const commerceService = {
       p_amount: input.amount,
       p_currency: input.currency,
       p_incoterm: input.incoterm ?? null,
-      p_proposal: input.proposal,
+      p_proposal: input.proposal as Json,
     });
     if (error) throw new Error(error.message || `RFQ_QUOTE_FAILED:${error.code}`);
     return data;
@@ -84,8 +85,8 @@ export const commerceService = {
     const { data, error } = await supabase.rpc('create_commerce_order', {
       p_seller_id: input.sellerId,
       p_currency: input.currency,
-      p_items: input.items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
-      p_metadata: { shop_id: input.shopId ?? null, shipping: input.shipping ?? {} },
+      p_items: input.items.map((item) => ({ product_id: item.productId, quantity: item.quantity })) as Json,
+      p_metadata: { shop_id: input.shopId ?? null, shipping: input.shipping ?? {} } as Json,
       p_idempotency_key: input.idempotencyKey,
     });
     if (error) throw new Error(error.message || `ORDER_CREATE_FAILED:${error.code}`);
@@ -98,7 +99,7 @@ export const commerceService = {
       p_order_id: id,
       p_expected_status: expectedStatus,
       p_next_status: nextStatus,
-      p_metadata: metadata,
+      p_metadata: metadata as Json,
     });
     if (error) throw new Error(error.message || `ORDER_TRANSITION_FAILED:${error.code}`);
     return data;

@@ -1,5 +1,3 @@
-// Generated from the isolated Supabase validation branch on 2026-08-28.
-// Entries intentionally excluded: non-started call/backup and chat-media additions.
 export type Json =
   | string
   | number
@@ -102,6 +100,35 @@ export type Database = {
             foreignKeyName: "abuse_reports_target_user_id_fkey"
             columns: ["target_user_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_api_rate_limits: {
+        Row: {
+          actor_id: string
+          request_count: number
+          updated_at: string
+          window_started_at: string
+        }
+        Insert: {
+          actor_id: string
+          request_count?: number
+          updated_at?: string
+          window_started_at?: string
+        }
+        Update: {
+          actor_id?: string
+          request_count?: number
+          updated_at?: string
+          window_started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_api_rate_limits_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -220,6 +247,92 @@ export type Database = {
           is_human?: boolean
           name?: string
           role?: string
+        }
+        Relationships: []
+      }
+      ai_generated_assets: {
+        Row: {
+          byte_size: number
+          created_at: string
+          id: string
+          mime_type: string
+          owner_id: string
+          storage_path: string
+        }
+        Insert: {
+          byte_size: number
+          created_at?: string
+          id?: string
+          mime_type: string
+          owner_id: string
+          storage_path: string
+        }
+        Update: {
+          byte_size?: number
+          created_at?: string
+          id?: string
+          mime_type?: string
+          owner_id?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
+      ai_operations: {
+        Row: {
+          created_at: string
+          model: string
+          operation_name: string
+          owner_id: string
+          status: string
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          model: string
+          operation_name: string
+          owner_id: string
+          status: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          model?: string
+          operation_name?: string
+          owner_id?: string
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_operations_storage_path_fkey"
+            columns: ["storage_path"]
+            isOneToOne: false
+            referencedRelation: "ai_generated_assets"
+            referencedColumns: ["storage_path"]
+          },
+        ]
+      }
+      api_usage_windows: {
+        Row: {
+          request_count: number
+          scope: string
+          user_id: string
+          window_started_at: string
+        }
+        Insert: {
+          request_count?: number
+          scope: string
+          user_id: string
+          window_started_at: string
+        }
+        Update: {
+          request_count?: number
+          scope?: string
+          user_id?: string
+          window_started_at?: string
         }
         Relationships: []
       }
@@ -576,6 +689,106 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commerce_audit_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          from_status: string | null
+          id: number
+          metadata: Json
+          to_status: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          from_status?: string | null
+          id?: never
+          metadata?: Json
+          to_status: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          from_status?: string | null
+          id?: never
+          metadata?: Json
+          to_status?: string
+        }
+        Relationships: []
+      }
+      commerce_escrows: {
+        Row: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          hold_transaction_id: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          seller_id: string
+          settlement_transaction_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          buyer_id: string
+          created_at?: string
+          currency: string
+          hold_transaction_id?: string | null
+          id?: string
+          idempotency_key: string
+          order_id: string
+          seller_id: string
+          settlement_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string
+          created_at?: string
+          currency?: string
+          hold_transaction_id?: string | null
+          id?: string
+          idempotency_key?: string
+          order_id?: string
+          seller_id?: string
+          settlement_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commerce_escrows_hold_transaction_id_fkey"
+            columns: ["hold_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commerce_escrows_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commerce_escrows_settlement_transaction_id_fkey"
+            columns: ["settlement_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_transactions"
             referencedColumns: ["id"]
           },
         ]
@@ -2330,6 +2543,156 @@ export type Database = {
           },
         ]
       }
+      module_records: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          idempotency_key: string | null
+          module: string
+          owner_id: string
+          payload: Json
+          record_type: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          module: string
+          owner_id: string
+          payload?: Json
+          record_type: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          module?: string
+          owner_id?: string
+          payload?: Json
+          record_type?: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      mok_trust_findings: {
+        Row: {
+          decided_at: string
+          decided_by: string
+          id: string
+          outcome: string
+          reason: string
+          report_id: string
+          severity: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          decided_at?: string
+          decided_by: string
+          id?: string
+          outcome: string
+          reason: string
+          report_id: string
+          severity: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          decided_at?: string
+          decided_by?: string
+          id?: string
+          outcome?: string
+          reason?: string
+          report_id?: string
+          severity?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mok_trust_findings_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mok_trust_findings_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "abuse_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mok_trust_findings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mok_trust_scores: {
+        Row: {
+          account_age_days: number
+          algorithm_version: string
+          calculated_at: string
+          components: Json
+          confidence: number
+          confirmed_findings_count: number
+          contributions_count: number
+          reactions_received_count: number
+          score: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          account_age_days: number
+          algorithm_version?: string
+          calculated_at?: string
+          components?: Json
+          confidence: number
+          confirmed_findings_count: number
+          contributions_count: number
+          reactions_received_count: number
+          score: number
+          status: string
+          user_id: string
+        }
+        Update: {
+          account_age_days?: number
+          algorithm_version?: string
+          calculated_at?: string
+          components?: Json
+          confidence?: number
+          confirmed_findings_count?: number
+          contributions_count?: number
+          reactions_received_count?: number
+          score?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mok_trust_scores_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -2422,6 +2785,8 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          idempotency_key: string | null
+          metadata: Json
           seller_id: string | null
           status: string
           total_amount: number
@@ -2432,6 +2797,8 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          idempotency_key?: string | null
+          metadata?: Json
           seller_id?: string | null
           status?: string
           total_amount?: number
@@ -2442,6 +2809,8 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          idempotency_key?: string | null
+          metadata?: Json
           seller_id?: string | null
           status?: string
           total_amount?: number
@@ -2787,6 +3156,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_notes: string | null
           avatar_url: string | null
           bio: string | null
           citizenship_id: string | null
@@ -2803,10 +3173,12 @@ export type Database = {
           level: number
           name: string
           next_level_xp: number
+          permissions: Json
           phone: string | null
           preferred_language: string
           privacy_settings: Json
           role: string
+          status: string
           title: string | null
           two_factor_enabled: boolean
           updated_at: string
@@ -2814,6 +3186,7 @@ export type Database = {
           xp: number
         }
         Insert: {
+          admin_notes?: string | null
           avatar_url?: string | null
           bio?: string | null
           citizenship_id?: string | null
@@ -2830,10 +3203,12 @@ export type Database = {
           level?: number
           name?: string
           next_level_xp?: number
+          permissions?: Json
           phone?: string | null
           preferred_language?: string
           privacy_settings?: Json
           role?: string
+          status?: string
           title?: string | null
           two_factor_enabled?: boolean
           updated_at?: string
@@ -2841,6 +3216,7 @@ export type Database = {
           xp?: number
         }
         Update: {
+          admin_notes?: string | null
           avatar_url?: string | null
           bio?: string | null
           citizenship_id?: string | null
@@ -2857,10 +3233,12 @@ export type Database = {
           level?: number
           name?: string
           next_level_xp?: number
+          permissions?: Json
           phone?: string | null
           preferred_language?: string
           privacy_settings?: Json
           role?: string
+          status?: string
           title?: string | null
           two_factor_enabled?: boolean
           updated_at?: string
@@ -2965,6 +3343,106 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_rfq_quotes: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          incoterm: string | null
+          proposal: Json
+          rfq_id: string
+          seller_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency: string
+          id?: string
+          incoterm?: string | null
+          proposal?: Json
+          rfq_id: string
+          seller_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          incoterm?: string | null
+          proposal?: Json
+          rfq_id?: string
+          seller_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_rfq_quotes_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "trade_rfqs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_rfqs: {
+        Row: {
+          awarded_quote_id: string | null
+          budget: number | null
+          buyer_id: string
+          created_at: string
+          currency: string
+          deadline: string | null
+          id: string
+          idempotency_key: string
+          specifications: Json
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          awarded_quote_id?: string | null
+          budget?: number | null
+          buyer_id: string
+          created_at?: string
+          currency: string
+          deadline?: string | null
+          id?: string
+          idempotency_key: string
+          specifications?: Json
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          awarded_quote_id?: string | null
+          budget?: number | null
+          buyer_id?: string
+          created_at?: string
+          currency?: string
+          deadline?: string | null
+          id?: string
+          idempotency_key?: string
+          specifications?: Json
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_rfqs_awarded_quote_id_fkey"
+            columns: ["awarded_quote_id"]
+            isOneToOne: false
+            referencedRelation: "trade_rfq_quotes"
             referencedColumns: ["id"]
           },
         ]
@@ -3100,9 +3578,14 @@ export type Database = {
         Args: { p_conversation_id: string; p_user_id: string }
         Returns: undefined
       }
+      admin_consume_rate_limit: {
+        Args: { p_actor_id: string; p_limit?: number }
+        Returns: boolean
+      }
       admin_set_user_role: {
         Args: { p_reason: string; p_role: string; p_user_id: string }
         Returns: {
+          admin_notes: string | null
           avatar_url: string | null
           bio: string | null
           citizenship_id: string | null
@@ -3119,10 +3602,12 @@ export type Database = {
           level: number
           name: string
           next_level_xp: number
+          permissions: Json
           phone: string | null
           preferred_language: string
           privacy_settings: Json
           role: string
+          status: string
           title: string | null
           two_factor_enabled: boolean
           updated_at: string
@@ -3163,6 +3648,7 @@ export type Database = {
       admin_update_user_profile: {
         Args: { p_changes: Json; p_reason: string; p_user_id: string }
         Returns: {
+          admin_notes: string | null
           avatar_url: string | null
           bio: string | null
           citizenship_id: string | null
@@ -3179,10 +3665,12 @@ export type Database = {
           level: number
           name: string
           next_level_xp: number
+          permissions: Json
           phone: string | null
           preferred_language: string
           privacy_settings: Json
           role: string
+          status: string
           title: string | null
           two_factor_enabled: boolean
           updated_at: string
@@ -3199,6 +3687,7 @@ export type Database = {
       award_xp_and_credits: {
         Args: { p_credits_delta: number; p_user_id: string; p_xp_delta: number }
         Returns: {
+          admin_notes: string | null
           avatar_url: string | null
           bio: string | null
           citizenship_id: string | null
@@ -3215,10 +3704,12 @@ export type Database = {
           level: number
           name: string
           next_level_xp: number
+          permissions: Json
           phone: string | null
           preferred_language: string
           privacy_settings: Json
           role: string
+          status: string
           title: string | null
           two_factor_enabled: boolean
           updated_at: string
@@ -3238,9 +3729,121 @@ export type Database = {
         Returns: boolean
       }
       can_write_dossier: { Args: { p_dossier_id: string }; Returns: boolean }
+      consume_api_quota: {
+        Args: {
+          p_limit: number
+          p_scope: string
+          p_user_id: string
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
+      create_commerce_escrow: {
+        Args: { p_idempotency_key: string; p_order_id: string }
+        Returns: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          hold_transaction_id: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          seller_id: string
+          settlement_transaction_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commerce_escrows"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_commerce_order: {
+        Args: {
+          p_currency: string
+          p_idempotency_key: string
+          p_items: Json
+          p_metadata: Json
+          p_seller_id: string
+        }
+        Returns: {
+          buyer_id: string
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          seller_id: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_conversation: {
         Args: { p_is_group?: boolean; p_member_ids: string[]; p_title?: string }
         Returns: string
+      }
+      create_trade_rfq: {
+        Args: {
+          p_budget: number
+          p_currency: string
+          p_deadline: string
+          p_idempotency_key: string
+          p_specifications: Json
+          p_title: string
+        }
+        Returns: {
+          awarded_quote_id: string | null
+          budget: number | null
+          buyer_id: string
+          created_at: string
+          currency: string
+          deadline: string | null
+          id: string
+          idempotency_key: string
+          specifications: Json
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "trade_rfqs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fund_commerce_escrow: {
+        Args: { p_escrow_id: string; p_idempotency_key: string }
+        Returns: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          hold_transaction_id: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          seller_id: string
+          settlement_transaction_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commerce_escrows"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       get_public_profiles: {
         Args: { p_user_ids: string[] }
@@ -3260,6 +3863,13 @@ export type Database = {
       get_wallet_balance: {
         Args: { p_currency?: string; p_user_id: string }
         Returns: number
+      }
+      get_wallet_balances: {
+        Args: never
+        Returns: {
+          balance: number
+          currency: string
+        }[]
       }
       insert_wallet_transaction: {
         Args: {
@@ -3291,9 +3901,74 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_live_host: { Args: { p_session_id: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
       mark_conversation_read: {
         Args: { p_conversation_id: string }
         Returns: string
+      }
+      record_mok_trust_finding: {
+        Args: {
+          p_outcome: string
+          p_reason: string
+          p_report_id: string
+          p_severity: string
+        }
+        Returns: {
+          decided_at: string
+          decided_by: string
+          id: string
+          outcome: string
+          reason: string
+          report_id: string
+          severity: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "mok_trust_findings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      refresh_my_mok_trust_score: {
+        Args: never
+        Returns: {
+          account_age_days: number
+          algorithm_version: string
+          calculated_at: string
+          components: Json
+          confidence: number
+          confirmed_findings_count: number
+          contributions_count: number
+          reactions_received_count: number
+          score: number
+          status: string
+          user_id: string
+        }[]
+      }
+      request_commerce_escrow_action: {
+        Args: { p_action: string; p_escrow_id: string }
+        Returns: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          hold_transaction_id: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          seller_id: string
+          settlement_transaction_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commerce_escrows"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       search_public_profiles: {
         Args: { p_limit?: number; p_query?: string }
@@ -3325,9 +4000,100 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      settle_commerce_escrow: {
+        Args: {
+          p_action: string
+          p_escrow_id: string
+          p_idempotency_key: string
+        }
+        Returns: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          hold_transaction_id: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          seller_id: string
+          settlement_transaction_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commerce_escrows"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      submit_trade_rfq_quote: {
+        Args: {
+          p_amount: number
+          p_currency: string
+          p_incoterm: string
+          p_proposal: Json
+          p_rfq_id: string
+        }
+        Returns: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          incoterm: string | null
+          proposal: Json
+          rfq_id: string
+          seller_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "trade_rfq_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      transfer_wallet_balance: {
+        Args: {
+          p_amount: number
+          p_currency: string
+          p_idempotency_key: string
+          p_recipient_id: string
+          p_reference: string
+        }
+        Returns: string
+      }
+      transition_commerce_order: {
+        Args: {
+          p_expected_status: string
+          p_metadata?: Json
+          p_next_status: string
+          p_order_id: string
+        }
+        Returns: {
+          buyer_id: string
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          seller_id: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_my_profile: {
         Args: { p_changes: Json }
         Returns: {
+          admin_notes: string | null
           avatar_url: string | null
           bio: string | null
           citizenship_id: string | null
@@ -3344,10 +4110,12 @@ export type Database = {
           level: number
           name: string
           next_level_xp: number
+          permissions: Json
           phone: string | null
           preferred_language: string
           privacy_settings: Json
           role: string
+          status: string
           title: string | null
           two_factor_enabled: boolean
           updated_at: string

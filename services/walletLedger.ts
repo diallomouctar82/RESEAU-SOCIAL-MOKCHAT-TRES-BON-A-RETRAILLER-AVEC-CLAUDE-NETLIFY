@@ -40,7 +40,9 @@ export const walletLedger = {
       amount: Number(row.amount),
       currency: row.currency,
       reference: row.reference ?? undefined,
-      metadata: row.metadata ?? {},
+      metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+        ? row.metadata as Record<string, unknown>
+        : {},
       createdAt: row.created_at,
     }));
   },
