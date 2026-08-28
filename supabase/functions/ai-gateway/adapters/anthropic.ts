@@ -37,11 +37,19 @@ async function messages(baseUrl: string, apiKey: string, body: Record<string, un
     return res.json();
 }
 
-function splitSystem(msgs: { role: string; content: string }[]) {
+function splitSystem(msgs: { role: string; content: string; imageBase64?: string; imageMimeType?: string }[]) {
     const systemParts = msgs.filter((m) => m.role === 'system').map((m) => m.content);
     const rest = msgs
         .filter((m) => m.role !== 'system')
-        .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }));
+        .map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.imageBase64
+                ? [
+                    { type: 'text', text: m.content },
+                    { type: 'image', source: { type: 'base64', media_type: m.imageMimeType || 'image/jpeg', data: m.imageBase64 } },
+                ]
+                : m.content,
+        }));
     return { system: systemParts.join('\n\n') || undefined, rest };
 }
 

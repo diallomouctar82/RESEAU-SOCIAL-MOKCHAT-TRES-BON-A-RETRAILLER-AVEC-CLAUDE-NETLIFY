@@ -8,7 +8,15 @@ export interface AdapterRequest {
     category: AiCategory;
     modelId: string;
     llm?: {
-        messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+        messages: {
+            role: 'system' | 'user' | 'assistant';
+            content: string;
+            // Vision/OCR : image jointe à ce message (un seul message avec image par
+            // requête suffit pour tous les usages actuels — caméra live, OCR de
+            // document, analyse de photo).
+            imageBase64?: string;
+            imageMimeType?: string;
+        }[];
         jsonMode?: boolean;
     };
     voice?: {

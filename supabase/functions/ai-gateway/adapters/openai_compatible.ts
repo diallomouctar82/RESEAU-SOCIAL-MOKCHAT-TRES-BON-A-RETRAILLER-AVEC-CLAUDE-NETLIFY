@@ -50,9 +50,24 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
         if (req.category !== 'llm' || !req.llm) {
             throw new AdapterError('Catégorie non supportée par cet adaptateur.', 'other');
         }
+        // Format vision OpenAI : le contenu d'un message devient un tableau de
+        // blocs {type:'text'|'image_url'} dès qu'une image lui est jointe ; les
+        // autres messages restent de simples chaînes (compatible avec tous les
+        // fournisseurs de ce cluster, y compris ceux qui ignorent les images).
+        const messages = req.llm.messages.map((m) =>
+            m.imageBase64
+                ? {
+                    role: m.role,
+                    content: [
+                        { type: 'text', text: m.content },
+                        { type: 'image_url', image_url: { url: `data:${m.imageMimeType || 'image/jpeg'};base64,${m.imageBase64}` } },
+                    ],
+                }
+                : { role: m.role, content: m.content }
+        );
         const body: Record<string, unknown> = {
             model: req.modelId,
-            messages: req.llm.messages,
+            messages,
         };
         if (req.llm.jsonMode) {
             body.response_format = { type: 'json_object' };
