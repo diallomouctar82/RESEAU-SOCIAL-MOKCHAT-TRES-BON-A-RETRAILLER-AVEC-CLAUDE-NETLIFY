@@ -32,7 +32,6 @@ import {
   Clock,
   Layers,
   Compass,
-  Palette,
   Lock,
   User,
   Shield,
@@ -336,16 +335,10 @@ export const Layout: React.FC<LayoutProps> = ({
               <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-extrabold">Tous Comptes</span>
             </button>
 
-            {/* Brand Color Lab (10 Palettes) Trigger */}
-            <button
-              onClick={() => setIsColorLabOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
-              title="Ouvrir le Laboratoire des 10 Palettes Chromatiques"
-            >
-              <Palette size={14} className="text-white" />
-              <span className="hidden md:inline">Nuancier</span>
-              <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.2 rounded font-extrabold">10</span>
-            </button>
+            {/* Brand Color Lab (10 palettes) : sélecteur masqué (Chantier 3 Phase 2 —
+                un thème unique et cohérent, palette-10, est désormais figé comme
+                référence). Le Color Lab et les 10 palettes restent dans le code
+                (ThemeContext/DesignTokens) pour rouvrir la question plus tard. */}
 
             {/* Bilingual Mode Trigger */}
             <button
@@ -480,9 +473,6 @@ export const Layout: React.FC<LayoutProps> = ({
                     )}
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
-                    </button>
-                    <button onClick={() => {setIsColorLabOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-900 rounded-xl text-xs flex items-center gap-2 font-bold">
-                      <Palette size={14} className="text-blue-600" /> Nuancier 10 Palettes
                     </button>
                     <button onClick={() => {setIsShowcaseModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Layers size={14} /> Galerie Design System
