@@ -26,7 +26,10 @@ async function generateContent(baseUrl: string, apiKey: string, modelId: string,
         clearTimeout(timeout);
     }
 
-    if (res.status === 401 || res.status === 403) throw new AdapterError('Clé API invalide ou refusée.', 'auth');
+    if (res.status === 401 || res.status === 403) {
+        const detail = (await res.text().catch(() => '')).slice(0, 300);
+        throw new AdapterError(`Clé API refusée (${res.status})${detail ? ` : ${detail}` : ''}`, 'auth');
+    }
     if (res.status === 429) throw new AdapterError('Quota ou limite de débit dépassé.', 'rate_limited');
     if (res.status >= 500) throw new AdapterError(`Erreur serveur du fournisseur (${res.status}).`, 'server_error');
     if (!res.ok) {
