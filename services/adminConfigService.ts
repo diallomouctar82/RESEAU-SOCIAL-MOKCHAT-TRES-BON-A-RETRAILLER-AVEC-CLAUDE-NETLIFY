@@ -66,7 +66,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
     assignedExpertId: '8',
-    notes: 'Chef de Projet & Coordinateur Stratégique.'
+    notes: 'Chef de Projet & Coordinateur Stratégique.',
+    isDemoSeed: true
   },
   {
     id: 'u-expert-jur',
@@ -82,7 +83,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&h=120&fit=crop',
     assignedExpertId: '1',
-    notes: 'Juriste Émérite & Droit International.'
+    notes: 'Juriste Émérite & Droit International.',
+    isDemoSeed: true
   },
   {
     id: 'u-expert-prof',
@@ -98,7 +100,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop',
     assignedExpertId: '3',
-    notes: 'Doyen Campus & Pédagogie d’Excellence.'
+    notes: 'Doyen Campus & Pédagogie d’Excellence.',
+    isDemoSeed: true
   },
   {
     id: 'u-citoyen-1',
@@ -113,7 +116,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access', 'create_dossiers', 'generate_letters'],
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=120&h=120&fit=crop',
-    notes: 'Dossier expatriation Canada en cours.'
+    notes: 'Dossier expatriation Canada en cours.',
+    isDemoSeed: true
   },
   {
     id: 'u-partner-1',
@@ -128,7 +132,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access', 'b2b_market', 'rfq_submit', 'trade_negotiate'],
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop',
-    notes: 'Fournisseur vérifié Marché Mondial B2B.'
+    notes: 'Fournisseur vérifié Marché Mondial B2B.',
+    isDemoSeed: true
   },
   {
     id: 'u-citoyen-2',
@@ -143,7 +148,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access', 'create_dossiers'],
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&h=120&fit=crop',
-    notes: 'Parcours Campus Master Data & IA.'
+    notes: 'Parcours Campus Master Data & IA.',
+    isDemoSeed: true
   },
   {
     id: 'u-citoyen-3',
@@ -158,7 +164,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access'],
     kycVerified: false,
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop',
-    notes: 'Compte suspendu pour tentative d’usurpation.'
+    notes: 'Compte suspendu pour tentative d’usurpation.',
+    isDemoSeed: true
   }
 ];
 

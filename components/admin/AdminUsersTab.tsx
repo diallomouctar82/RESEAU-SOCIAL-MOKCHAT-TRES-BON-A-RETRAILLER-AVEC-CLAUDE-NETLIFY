@@ -71,6 +71,11 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
   const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
   const [selectedKyc, setSelectedKyc] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'joined' | 'login' | 'credits' | 'name'>('joined');
+  // Les personas de démonstration fournies avec la plateforme (INITIAL_USERS
+  // dans adminConfigService.ts) restent mélangées aux vrais comptes tant que
+  // le sync Supabase ne les a pas recouvertes par email — masquées par
+  // défaut pour que cet écran reflète les comptes réels en priorité.
+  const [hideDemoSeed, setHideDemoSeed] = useState(true);
 
   // Cloud Sync & Diagnosis state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -163,8 +168,9 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
     const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus;
     const matchesOrigin = selectedOrigin === 'all' || (user.origin || 'local_session') === selectedOrigin;
     const matchesKyc = selectedKyc === 'all' || (selectedKyc === 'verified' ? user.kycVerified : !user.kycVerified);
+    const matchesDemoFilter = !hideDemoSeed || !user.isDemoSeed;
 
-    return matchesSearch && matchesRole && matchesStatus && matchesOrigin && matchesKyc;
+    return matchesSearch && matchesRole && matchesStatus && matchesOrigin && matchesKyc && matchesDemoFilter;
   }).sort((a, b) => {
     if (sortBy === 'joined') return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime();
     if (sortBy === 'login') return b.lastLogin.localeCompare(a.lastLogin);
@@ -182,6 +188,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
   const totalCredits = users.reduce((acc, u) => acc + (u.credits || 0), 0);
   const expertsCount = users.filter(u => u.role === 'expert').length;
   const cloudCount = users.filter(u => u.origin === 'supabase_cloud').length;
+  const demoSeedCount = users.filter(u => u.isDemoSeed).length;
 
   const handleSaveEdit = () => {
     if (!editingUser) return;
@@ -515,6 +522,16 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
               <option value="credits">🪙 Solde Crédits</option>
               <option value="name">🔤 Nom A-Z</option>
             </select>
+
+            {demoSeedCount > 0 && (
+              <button
+                onClick={() => setHideDemoSeed(prev => !prev)}
+                title="Les comptes de démonstration sont fournis avec la plateforme pour l'illustration — ce ne sont jamais de vrais membres."
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${hideDemoSeed ? 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100' : 'bg-amber-50 border-amber-300 text-amber-800'}`}
+              >
+                {hideDemoSeed ? `🎭 Comptes démo masqués (${demoSeedCount})` : `🎭 Comptes démo affichés (${demoSeedCount})`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -666,11 +683,21 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
-                          user.origin === 'supabase_cloud' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {user.origin === 'supabase_cloud' ? '☁️ Supabase' : '💻 Local'}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+                            user.origin === 'supabase_cloud' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {user.origin === 'supabase_cloud' ? '☁️ Supabase' : '💻 Local'}
+                          </span>
+                          {user.isDemoSeed && (
+                            <span
+                              title="Compte de démonstration fourni avec la plateforme — jamais un vrai membre."
+                              className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200"
+                            >
+                              🎭 Démo
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4 font-medium text-slate-700">

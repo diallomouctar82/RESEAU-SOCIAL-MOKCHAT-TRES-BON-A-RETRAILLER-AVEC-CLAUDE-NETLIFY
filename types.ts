@@ -4714,6 +4714,10 @@ export interface AdminUserRecord {
   assignedExpertId?: string;
   notes?: string;
   origin?: 'supabase_cloud' | 'local_session' | 'admin_created';
+  /** Persona de démonstration fournie avec la plateforme (jamais un vrai
+   * compte membre) — sert à la distinguer des comptes réels dans la
+   * console Super-Admin, jamais à restreindre un droit. */
+  isDemoSeed?: boolean;
   level?: number;
   xp?: number;
   isOnline?: boolean;
