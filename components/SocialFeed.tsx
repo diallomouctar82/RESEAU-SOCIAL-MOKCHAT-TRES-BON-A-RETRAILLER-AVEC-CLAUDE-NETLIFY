@@ -50,6 +50,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [reels, setReels] = useState<Reel[]>(REELS);
   const [lives, setLives] = useState<LiveStream[]>(ACTIVE_LIVES);
   const [members, setMembers] = useState<MemberProfile[]>(MOCK_MEMBERS);
+  const [friendships, setFriendships] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   // User Reactions & Bookmarks state
@@ -182,31 +183,46 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         if (supabaseService.isConfigured()) {
           const profiles = await supabaseService.searchProfiles();
           if (profiles && profiles.length > 0) {
-            const mappedMembers: MemberProfile[] = profiles.map(p => ({
-              id: p.id,
-              name: p.name,
-              avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-              title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
-              bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
-              location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
-              joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
-              isVerified: p.is_verified ?? true,
-              isFollowing: false,
-              followersCount: p.followers_count ?? 12,
-              followingCount: p.following_count ?? 8,
-              postsCount: 5,
-              storiesCount: 2,
-              reelsCount: 1,
-              livesCount: 0,
-              skills: p.skills?.map(s => s.name) || ['Coopération', 'Tech'],
-              privacySettings: p.privacy_settings || {
-                profileVisibility: 'public',
-                allowMessagesFrom: 'all',
-                showOnlineStatus: true,
-                allowTagging: true,
-                showActivityFeed: true
+            const rawFriendships = currentUser.id ? await supabaseService.getFriendshipsForUser(currentUser.id) : [];
+            setFriendships(rawFriendships);
+
+            const mappedMembers: MemberProfile[] = profiles.map(p => {
+              const rel = rawFriendships.find((f: any) => f.requester_id === p.id || f.addressee_id === p.id);
+              let friendshipStatus: MemberProfile['friendshipStatus'] = 'none';
+              if (rel) {
+                if (rel.status === 'accepted') friendshipStatus = 'friends';
+                else if (rel.requester_id === currentUser.id) friendshipStatus = 'pending_sent';
+                else friendshipStatus = 'pending_received';
               }
-            }));
+
+              return {
+                id: p.id,
+                name: p.name,
+                avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+                title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
+                bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
+                location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
+                joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
+                isVerified: p.is_verified ?? true,
+                isFollowing: friendshipStatus === 'friends',
+                friendshipStatus,
+                friendshipId: rel?.id,
+                followersCount: p.followers_count ?? 12,
+                followingCount: p.following_count ?? 8,
+                postsCount: 5,
+                storiesCount: 2,
+                reelsCount: 1,
+                livesCount: 0,
+                skills: p.skills?.map((s: any) => s.name) || ['Coopération', 'Tech'],
+                privacySettings: p.privacy_settings || {
+                  profileVisibility: 'public',
+                  allowMessagesFrom: 'all',
+                  showOnlineStatus: true,
+                  allowTagging: true,
+                  showActivityFeed: true
+                }
+              };
+            });
             // Merge with MOCK_MEMBERS
             const mergedMembers = [...mappedMembers];
             MOCK_MEMBERS.forEach(mockM => {
@@ -249,19 +265,70 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     return true; // 'for_you' & 'community' show all with high relevance
   });
 
-  // Toggle Follow on Member
-  const handleToggleFollow = (memberId: string) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id === memberId) {
-        const nextState = !m.isFollowing;
-        return {
-          ...m,
-          isFollowing: nextState,
-          followersCount: m.followersCount + (nextState ? 1 : -1)
-        };
+  // Demandes d'amis : envoi / annulation / acceptation / refus / suppression.
+  // Les membres de démonstration (MOCK_MEMBERS, ids 'u2'/'u3'/...) n'ont pas
+  // de ligne réelle dans `profiles` — leur clic reste local uniquement,
+  // exactement comme pour isRealPostId côté posts.
+  const isRealMemberId = (id: string) => UUID_RE.test(id);
+
+  const handleFriendAction = async (memberId: string, action: 'send' | 'cancel' | 'accept' | 'decline' | 'remove') => {
+    const member = members.find(m => m.id === memberId);
+    if (!member) return;
+    const canSync = supabaseService.isConfigured() && !!currentUser.id && isRealMemberId(memberId);
+
+    if (action === 'send') {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'pending_sent' } : m));
+      if (canSync) {
+        try {
+          await supabaseService.sendFriendRequest(currentUser.id!, memberId);
+          const refreshed = await supabaseService.getFriendshipsForUser(currentUser.id!);
+          setFriendships(refreshed);
+          const rel = refreshed.find((f: any) => f.requester_id === memberId || f.addressee_id === memberId);
+          setMembers(prev => prev.map(m => m.id === memberId ? {
+            ...m,
+            friendshipId: rel?.id,
+            friendshipStatus: rel?.status === 'accepted' ? 'friends' : 'pending_sent',
+            isFollowing: rel?.status === 'accepted'
+          } : m));
+        } catch (err) {
+          console.warn('Could not send friend request', err);
+          setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'none' } : m));
+        }
       }
-      return m;
-    }));
+      return;
+    }
+
+    // accept / decline / cancel / remove agissent tous sur une relation déjà
+    // existante (friendshipId) — pas d'action possible sans elle.
+    const friendshipId = member.friendshipId;
+    if (action === 'accept') {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'friends', isFollowing: true } : m));
+      if (canSync && friendshipId) {
+        try {
+          await supabaseService.acceptFriendRequest(friendshipId);
+        } catch (err) {
+          console.warn('Could not accept friend request', err);
+        }
+      }
+      return;
+    }
+
+    // cancel (demande envoyée par moi), decline (demande reçue) et remove
+    // (ami existant) suppriment tous la même ligne côté base.
+    setMembers(prev => prev.map(m => m.id === memberId ? {
+      ...m,
+      friendshipStatus: 'none',
+      friendshipId: undefined,
+      isFollowing: false,
+      followersCount: action === 'remove' ? Math.max(0, m.followersCount - 1) : m.followersCount
+    } : m));
+    if (canSync && friendshipId) {
+      try {
+        await supabaseService.removeFriendship(friendshipId);
+      } catch (err) {
+        console.warn('Could not remove friendship', err);
+      }
+    }
   };
 
   // Reactions Handler
@@ -1256,12 +1323,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           {/* RIGHT COLUMN: DISCOVER MEMBERS, ACTIVE TRIBES & LIVES (Col span 1) */}
           <div className="space-y-6">
             
-            {/* 1. Discover Community Members to Follow */}
+            {/* 1. Discover Community Members / Friend Requests */}
             <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <Users size={18} className="text-indigo-600" />
-                  Membres à Suivre
+                  Suggestions d'Amis
                 </h3>
                 <span className="text-[10px] font-bold text-indigo-600 uppercase">Communauté Mooc</span>
               </div>
@@ -1269,7 +1336,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               <div className="space-y-3">
                 {members.filter(m => m.id !== 'u1').slice(0, 4).map(member => (
                   <div key={member.id} className="flex items-center justify-between gap-3 p-2 hover:bg-slate-50 rounded-2xl transition-all">
-                    <div 
+                    <div
                       className="flex items-center gap-2.5 min-w-0 cursor-pointer"
                       onClick={() => setSelectedMemberForProfile(member)}
                     >
@@ -1283,12 +1350,34 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleToggleFollow(member.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${member.isFollowing ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                    >
-                      {member.isFollowing ? 'Abonné' : '+ Suivre'}
-                    </button>
+                    {member.friendshipStatus === 'pending_received' ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => handleFriendAction(member.id, 'accept')}
+                          title="Accepter la demande"
+                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleFriendAction(member.id, 'decline')}
+                          title="Refuser la demande"
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleFriendAction(
+                          member.id,
+                          member.friendshipStatus === 'friends' ? 'remove' : member.friendshipStatus === 'pending_sent' ? 'cancel' : 'send'
+                        )}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${member.friendshipStatus === 'friends' || member.friendshipStatus === 'pending_sent' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                      >
+                        {member.friendshipStatus === 'friends' ? 'Amis' : member.friendshipStatus === 'pending_sent' ? 'Demande envoyée' : '+ Ajouter'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1823,7 +1912,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           stories={stories}
           reels={reels}
           lives={lives}
-          onToggleFollow={handleToggleFollow}
+          onFriendAction={handleFriendAction}
           onStartChatWithMember={(m) => {
             if (onOpenDirectChat) onOpenDirectChat(undefined, m);
           }}

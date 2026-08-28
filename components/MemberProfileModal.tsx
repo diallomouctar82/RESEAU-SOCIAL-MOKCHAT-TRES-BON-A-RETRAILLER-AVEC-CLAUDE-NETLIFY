@@ -11,7 +11,7 @@ interface MemberProfileModalProps {
   stories: Story[];
   reels: Reel[];
   lives: LiveStream[];
-  onToggleFollow: (memberId: string) => void;
+  onFriendAction: (memberId: string, action: 'send' | 'cancel' | 'accept' | 'decline' | 'remove') => void;
   onStartChatWithMember: (member: MemberProfile) => void;
   onUpdatePrivacySettings?: (newSettings: MemberProfile['privacySettings']) => void;
 }
@@ -25,7 +25,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   stories,
   reels,
   lives,
-  onToggleFollow,
+  onFriendAction,
   onStartChatWithMember,
   onUpdatePrivacySettings
 }) => {
@@ -122,21 +122,45 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             <div className="flex items-center gap-2 pt-2 sm:pt-0">
               {!isMe ? (
                 <>
-                  <button
-                    onClick={() => onToggleFollow(member.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${member.isFollowing ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white'}`}
-                  >
-                    {member.isFollowing ? (
-                      <>
-                        <UserCheck size={16} /> Abonné(e)
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={16} /> S'abonner
-                      </>
-                    )}
-                  </button>
-                  
+                  {member.friendshipStatus === 'pending_received' ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onFriendAction(member.id, 'accept')}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        <UserCheck size={16} /> Accepter
+                      </button>
+                      <button
+                        onClick={() => onFriendAction(member.id, 'decline')}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                      >
+                        Refuser
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => onFriendAction(
+                        member.id,
+                        member.friendshipStatus === 'friends' ? 'remove' : member.friendshipStatus === 'pending_sent' ? 'cancel' : 'send'
+                      )}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${member.friendshipStatus === 'friends' || member.friendshipStatus === 'pending_sent' ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white'}`}
+                    >
+                      {member.friendshipStatus === 'friends' ? (
+                        <>
+                          <UserCheck size={16} /> Amis
+                        </>
+                      ) : member.friendshipStatus === 'pending_sent' ? (
+                        <>
+                          <UserCheck size={16} /> Demande envoyée
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={16} /> Ajouter en ami
+                        </>
+                      )}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => { onClose(); onStartChatWithMember(member); }}
                     className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200 transition-all flex items-center gap-2"

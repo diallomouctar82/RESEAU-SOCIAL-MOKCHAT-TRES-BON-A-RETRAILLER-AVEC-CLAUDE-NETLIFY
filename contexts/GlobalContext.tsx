@@ -21,6 +21,21 @@ interface GlobalContextType {
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Convertit une ligne réelle de `notifications` (déclenchées par exemple par
+// le trigger de demande d'ami) vers le type local — même table que ce que
+// AdminDashboard/etc. pourraient produire plus tard, jamais lue nulle part
+// avant ce branchement.
+const mapSupabaseNotification = (rn: any): Notification => ({
+    id: rn.id,
+    title: rn.title,
+    message: rn.message,
+    type: (['success', 'info', 'warning', 'alert'] as const).includes(rn.type) ? rn.type : 'info',
+    timestamp: new Date(rn.created_at),
+    read: rn.read
+});
+
 // Helper to convert Supabase DB Profile into App UserProfile
 const mapSupabaseToUserProfile = (db: SupabaseUserProfile, current: UserProfile): UserProfile => {
     return {
@@ -71,6 +86,19 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const [transactions, setTransactions] = useState<WalletTransaction[]>(MOCK_TRANSACTIONS);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(supabaseService.isConfigured());
 
+    // Notifications réelles (ex. déclenchées par le trigger de demande d'ami
+    // en base) — fusionnées avec les notifications locales existantes plutôt
+    // que de les remplacer, pour ne pas perdre le message de bienvenue local.
+    const loadRealNotifications = async (userId: string) => {
+        const real = await supabaseService.getNotifications(userId);
+        if (real.length === 0) return;
+        const mapped = real.map(mapSupabaseNotification);
+        setNotifications(prev => {
+            const localOnly = prev.filter(n => !UUID_RE.test(n.id));
+            return [...mapped, ...localOnly].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        });
+    };
+
     // Sync profile with Supabase on mount and auth state change
     useEffect(() => {
         const checkCloudProfile = async () => {
@@ -88,6 +116,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                             return merged;
                         });
                     }
+                    await loadRealNotifications(currentUser.id);
                 }
             }
         };
@@ -104,6 +133,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                         return merged;
                     });
                 }
+                await loadRealNotifications(session.user.id);
             }
         });
 
@@ -126,6 +156,9 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const markNotificationRead = (id: string) => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        if (UUID_RE.test(id)) {
+            supabaseService.markNotificationRead(id).catch(err => console.warn('Could not sync notification read state', err));
+        }
     };
 
     const updateUserProfile = async (updates: Partial<UserProfile>) => {

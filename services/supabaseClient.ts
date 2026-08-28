@@ -355,6 +355,82 @@ export const supabaseService = {
         if (error) throw error;
     },
 
+    // --- Demandes d'amis (friendships) -----------------------------------
+    /**
+     * Toutes les relations (en attente ou acceptées) impliquant cet
+     * utilisateur, avec le profil de l'AUTRE partie déjà résolu (peu importe
+     * qu'il soit requester ou addressee) pour simplifier l'affichage côté
+     * client.
+     */
+    async getFriendshipsForUser(userId: string): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase
+            .from('friendships')
+            .select(`
+                id, status, requester_id, addressee_id, created_at,
+                requester:profiles!friendships_requester_id_fkey(id, name, avatar_url, title),
+                addressee:profiles!friendships_addressee_id_fkey(id, name, avatar_url, title)
+            `)
+            .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+        if (error || !data) return [];
+        return data;
+    },
+    /**
+     * Envoie une demande. Si une demande inverse est déjà en attente (l'autre
+     * personne m'avait déjà demandé), l'accepte directement au lieu de créer
+     * une seconde ligne — deux demandes croisées doivent aboutir à une amitié,
+     * pas à un doublon bloqué par l'index unique sur la paire.
+     */
+    async sendFriendRequest(requesterId: string, addresseeId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { data: existingReverse } = await supabase
+            .from('friendships')
+            .select('id, status')
+            .eq('requester_id', addresseeId)
+            .eq('addressee_id', requesterId)
+            .maybeSingle();
+
+        if (existingReverse) {
+            if (existingReverse.status === 'pending') {
+                const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', existingReverse.id);
+                if (error) throw error;
+            }
+            return;
+        }
+
+        const { error } = await supabase.from('friendships').insert({ requester_id: requesterId, addressee_id: addresseeId, status: 'pending' });
+        if (error) throw error;
+    },
+    async acceptFriendRequest(friendshipId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+        if (error) throw error;
+    },
+    /** Refuser une demande reçue, annuler une demande envoyée, ou retirer un ami : dans les trois cas, on retire la ligne. */
+    async removeFriendship(friendshipId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('friendships').delete().eq('id', friendshipId);
+        if (error) throw error;
+    },
+
+    // --- Notifications réelles --------------------------------------------
+    async getNotifications(userId: string): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        if (error || !data) return [];
+        return data;
+    },
+    async markNotificationRead(notificationId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('notifications').update({ read: true }).eq('id', notificationId);
+        if (error) throw error;
+    },
+
     // --- Console Super Admin --------------------------------------------
     async fetchAdminProfiles(): Promise<SupabaseUserProfile[]> {
         if (!isSupabaseConfigured) return [];

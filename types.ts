@@ -812,6 +812,8 @@ export interface MemberProfile {
     joinedDate: string;
     isVerified?: boolean;
     isFollowing?: boolean;
+    friendshipId?: string;
+    friendshipStatus?: 'none' | 'pending_sent' | 'pending_received' | 'friends';
     followersCount: number;
     followingCount: number;
     postsCount: number;
