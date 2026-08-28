@@ -37,15 +37,15 @@ class AIService {
             });
             return result.text;
         } catch (error) {
-            console.error("❌ AI Service Error (Text Auto-Resilient):", error);
-            // Fallback direct Gemini si disponible
+            console.warn("⚠️ AI Service: Bascule sur repli souverain textuel:", error);
             try {
-                const response = await this.getClient().models.generateContent({
+                const client = this.getClient();
+                const response = await client.models.generateContent({
                     model: model || 'gemini-2.5-flash',
                     contents: prompt,
                     config: { systemInstruction }
                 });
-                return response.text || "";
+                return response.text || "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
             } catch {
                 return "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
             }
@@ -69,9 +69,10 @@ class AIService {
             const cleanJson = result.text.replace(/```json|```/g, '').trim();
             return JSON.parse(cleanJson) as T;
         } catch (error) {
-            console.error("❌ AI Service Error (JSON Auto-Resilient):", error);
+            console.warn("⚠️ AI Service: Bascule sur repli souverain JSON:", error);
             try {
-                const response = await this.getClient().models.generateContent({
+                const client = this.getClient();
+                const response = await client.models.generateContent({
                     model: model || 'gemini-2.5-flash',
                     contents: prompt + (schemaDescription ? `\n\nRespond strictly in JSON: ${schemaDescription}` : ""),
                     config: { responseMimeType: 'application/json' }

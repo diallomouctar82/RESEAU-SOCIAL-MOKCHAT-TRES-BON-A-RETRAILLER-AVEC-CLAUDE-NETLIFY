@@ -836,6 +836,124 @@ export const MOCK_EXAM_BLUEPRINTS: MockExamBlueprint[] = [
                         correctIndex: 0,
                         explanation: 'La suite converge vers le point fixe vérifiant L = 0.5*L + 3 <=> 0.5*L = 3 <=> L = 6.',
                         difficulty: 'medium'
+                    },
+                    {
+                        id: 'fr-q2',
+                        question: 'Quelle est la dérivée de la fonction f(x) = x * exp(-x) ?',
+                        options: [
+                            'f\'(x) = (1 - x) * exp(-x)',
+                            'f\'(x) = exp(-x)',
+                            'f\'(x) = -x * exp(-x)',
+                            'f\'(x) = (1 + x) * exp(-x)'
+                        ],
+                        correctIndex: 0,
+                        explanation: 'En appliquant la formule (u*v)\' = u\'v + uv\', on obtient 1*exp(-x) + x*(-exp(-x)) = (1 - x)*exp(-x).',
+                        difficulty: 'medium'
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        id: 'exam-bac-sn-maths',
+        examName: 'Baccalauréat Sénégalais Blanc — Mathématiques Séries S1/S2',
+        countryCode: 'SN',
+        subjectName: 'Mathématiques Générales',
+        levelName: 'Terminale S1 / S2',
+        durationMinutes: 240,
+        totalPoints: 20,
+        passingScore: 10,
+        instructions: [
+            'Épreuve conforme aux standards de l’Office du Baccalauréat du Sénégal.',
+            'Rigueur mathématique et clarté de la rédaction exigées.'
+        ],
+        sections: [
+            {
+                id: 'sn-sec-1-complexes',
+                title: 'Exercice 1 : Nombres Complexes & Transformations du Plan (5 points)',
+                points: 5,
+                questions: [
+                    {
+                        id: 'sn-q1',
+                        question: 'Soit le nombre complexe z = 1 + i*sqrt(3). Quelle est sa forme exponentielle ?',
+                        options: [
+                            '2 * exp(i * pi/3)',
+                            '2 * exp(i * pi/6)',
+                            'sqrt(2) * exp(i * pi/3)',
+                            '4 * exp(i * pi/4)'
+                        ],
+                        correctIndex: 0,
+                        explanation: '|z| = sqrt(1 + 3) = 2. cos(theta) = 1/2 et sin(theta) = sqrt(3)/2, donc theta = pi/3.',
+                        difficulty: 'medium'
+                    }
+                ]
+            },
+            {
+                id: 'sn-sec-2-integrales',
+                title: 'Exercice 2 : Intégration par parties & Équations Différentielles (7 points)',
+                points: 7,
+                questions: [
+                    {
+                        id: 'sn-q2',
+                        question: 'Quelle est la solution générale de l’équation différentielle y\' - 2y = 0 ?',
+                        options: [
+                            'y(x) = C * exp(2x) avec C constante réelle',
+                            'y(x) = C * exp(-2x)',
+                            'y(x) = 2x + C',
+                            'y(x) = exp(x²/2) + C'
+                        ],
+                        correctIndex: 0,
+                        explanation: 'Les solutions de y\' - ay = 0 sont de la forme y(x) = C * exp(ax), ici a = 2.',
+                        difficulty: 'easy'
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        id: 'exam-alpha-calc-utile',
+        examName: 'Évaluation Fondamentale — Lecture, Écriture & Calcul Commercial Utile',
+        countryCode: 'GN',
+        subjectName: 'Fondamentaux Pratiques',
+        levelName: 'Alphabétisation Adultes',
+        durationMinutes: 45,
+        totalPoints: 20,
+        passingScore: 10,
+        instructions: [
+            'Test pratique adapté à la vie quotidienne et aux transactions de marché.',
+            'Questions orales et écrites simples.'
+        ],
+        sections: [
+            {
+                id: 'alpha-sec-1-monnaie',
+                title: 'Module 1 : Calcul Monétaire et Rendu de Monnaie (10 points)',
+                points: 10,
+                questions: [
+                    {
+                        id: 'alpha-q1',
+                        question: 'Un client achète 3 sacs de riz à 25 000 GNF l’unité et vous donne un billet de 100 000 GNF. Combien devez-vous lui rendre ?',
+                        options: [
+                            '25 000 GNF (Total = 75 000 GNF, 100 000 - 75 000 = 25 000)',
+                            '15 000 GNF',
+                            '35 000 GNF',
+                            '20 000 GNF'
+                        ],
+                        correctIndex: 0,
+                        explanation: '3 x 25 000 = 75 000 GNF. 100 000 - 75 000 = 25 000 GNF de monnaie à rendre.',
+                        difficulty: 'easy'
+                    },
+                    {
+                        id: 'alpha-q2',
+                        question: 'Sur un panneau de pharmacie, vous lisez "OUVERT DE 08H00 À 20H00". Combien d’heures la pharmacie reste-t-elle ouverte dans la journée ?',
+                        options: [
+                            '12 heures (20 - 8 = 12)',
+                            '10 heures',
+                            '14 heures',
+                            '8 heures'
+                        ],
+                        correctIndex: 0,
+                        explanation: 'De 8h du matin à 20h du soir, il y a exactement 20 - 8 = 12 heures.',
+                        difficulty: 'easy'
                     }
                 ]
             }

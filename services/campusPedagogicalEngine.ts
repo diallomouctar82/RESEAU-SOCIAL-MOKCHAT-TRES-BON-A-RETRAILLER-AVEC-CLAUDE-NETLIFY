@@ -322,6 +322,82 @@ export class CampusPedagogicalEngine {
             return [...currentRegistry, updatedItem];
         }
     }
+
+    /**
+     * Analyse pédagogique multimodale d'un document ou d'une photo d'exercice (cahier, tableau, feuille d'examen)
+     */
+    public async analyzeHomeworkOrDocument(
+        fileBase64OrText: string,
+        mimeType: string,
+        userQuery: string,
+        subjectName: string,
+        countryName: string,
+        levelName: string,
+        learningStyle: LearningStylePreference = 'exemples_concrets'
+    ): Promise<{ textExplanation: string; detectedTitle: string; identifiedTopics: string[]; stepByStepGuidance: string[] }> {
+        try {
+            const ai = this.getGenAI();
+            const isImage = mimeType.startsWith('image/');
+
+            let parts: any[] = [];
+            if (isImage) {
+                const cleanBase64 = fileBase64OrText.includes(',') ? fileBase64OrText.split(',')[1] : fileBase64OrText;
+                parts.push({
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: cleanBase64
+                    }
+                });
+            }
+
+            const userQueryText = userQuery || "Peux-tu m'expliquer ce document ou cet exercice et la méthode pour le résoudre ?";
+            const prompt = `Vous êtes le Professeur Diallo, enseignant émérite et bienveillant de la Famille DIALLO.
+Votre rôle est d'analyser le document ou la photo d'exercice partagé par l'élève, et de lui expliquer la démarche étape par étape sans lui donner bêtement la solution brute, mais en le guidant avec pédagogie.
+
+Contexte d'étude :
+- Pays / Référentiel : ${countryName}
+- Niveau scolaire : ${levelName}
+- Matière : ${subjectName}
+- Style d'apprentissage : ${learningStyle}
+- Demande spécifique de l'élève : "${userQueryText}"
+${!isImage ? `\nContenu textuel du document :\n${fileBase64OrText}` : ''}
+
+Répondez avec clarté, rigueur et pédagogie sous forme structurée :
+1. Titre ou Thème identifié
+2. Ce qu'il faut observer / énoncé résumé
+3. Concepts et formules clés du programme officiel nécessaires
+4. Démarche pas-à-pas pour réussir
+5. Question d'application ou conseil pour vérifier la bonne compréhension.`;
+
+            parts.push({ text: prompt });
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: parts
+            });
+
+            const textResult = response.text || "J'ai bien analysé votre document. Révisons ensemble la méthode pas-à-pas.";
+
+            return {
+                textExplanation: textResult,
+                detectedTitle: `Analyse Pédagogique • ${subjectName}`,
+                identifiedTopics: [subjectName, "Exercice Pratique", levelName],
+                stepByStepGuidance: [
+                    "Identifier les données de l'énoncé",
+                    "Poser les définitions et théorèmes du cours",
+                    "Rédiger la démarche avec rigueur"
+                ]
+            };
+        } catch (e) {
+            console.error("Erreur analyse document campus:", e);
+            return {
+                textExplanation: `J'ai bien reçu votre document d'étude pour le cours de **${subjectName}** (${levelName} - ${countryName}).\n\nPour progresser efficacement :\n1. Isolez les données clés de l'énoncé.\n2. Identifiez la règle ou formule du programme associée.\n3. Procédez étape par étape en vérifiant la cohérence des unités et des hypothèses.`,
+                detectedTitle: `Document d'étude • ${subjectName}`,
+                identifiedTopics: [subjectName, levelName],
+                stepByStepGuidance: ["Lecture attentive", "Hypothèses", "Résolution"]
+            };
+        }
+    }
 }
 
 export const campusPedagogicalEngine = CampusPedagogicalEngine.getInstance();

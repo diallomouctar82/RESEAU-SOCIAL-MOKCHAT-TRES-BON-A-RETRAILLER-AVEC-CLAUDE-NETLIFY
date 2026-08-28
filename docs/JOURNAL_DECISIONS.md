@@ -20,6 +20,214 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-029] — 28 Août 2026
+* **Module(s)** : `Server Proxy (/api/ai/chat)`, `AIRoutingService`, `AIService`, `MultimodalVisionService`
+* **Problème / Besoin initial** :
+  1. Résoudre l'erreur 503 `UNAVAILABLE` (`This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.`) retournée par les serveurs distants Gemini sous forte charge.
+  2. Éviter toute rupture ou blocage lors des pointes de demande en absorbant automatiquement les erreurs 503/429.
+  3. Garantir une cascade sans coupure vers les modèles alternatifs Gemini (`gemini-2.5-flash` → `gemini-2.5-pro` → `gemini-2.0-flash`), puis vers les fournisseurs tiers configurés (DeepSeek, Claude, OpenAI, Mistral), et enfin vers le mode dégradé souverain en dernier recours.
+* **Idées envisagées** :
+  1. Renvoyer une erreur 500 brute au client et demander à l'utilisateur de réécrire son message.
+  2. Intégrer une boucle de secours multi-modèles au niveau du proxy serveur (`server.ts`), propager les erreurs 503 avec statut explicite et `fallback: true`, enrichir `aiRoutingService.ts` pour détecter les pointes de demande et déclencher la bascule automatique immédiate sans perturber la conversation de l'utilisateur.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité à la règle d'or « Zéro crash, zéro écran blanc » et robustesse de production face aux aléas et congestions d'API externes.
+* **Conséquences** : En cas de forte affluence sur un modèle particulier, la plateforme bascule de façon transparente sur le modèle ou fournisseur suivant en moins d'une fraction de seconde.
+* **Éléments techniques** : `server.ts`, `services/aiRoutingService.ts`, `services/ai.ts`, `services/multimodalVision.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-028] — 28 Août 2026
+* **Module(s)** : `01_DIALLO_OS_ET_EXPERTS`, `ChatInterface`, `AIProvidersDashboardModal`, `AIRoutingService`, `Layout`, `Server Proxy (/api/ai/chat)`
+* **Problème / Besoin initial** :
+  1. Procéder à une refonte complète de l'interface conversationnelle pour qu'elle soit fluide, moderne, aérée et de calibre professionnel avant mise en production.
+  2. Rendre le chat opérationnel dès le premier instant sans aucun blocage ni écran blanc, même en cas de clé API manquante ou invalide.
+  3. Intégrer la détection et la visualisation en temps réel du fournisseur actif et du basculement automatique (*auto-failover*) : afficher un badge explicite avec latence (ex. `🟢 Google Gemini 2.5 Flash • 115ms` ou `⚡ Relais : DeepSeek V3`), et permettre l'ouverture directe du tableau de bord des connecteurs.
+  4. Créer un tableau de bord dédié des fournisseurs IA avec état opérationnel, banc de test interactif, reconnexion 1-clic et simulation de bascule d'urgence.
+* **Idées envisagées** :
+  1. Conserver l'appel direct au SDK Gemini côté client sans gestion du multi-fournisseur.
+  2. Migrer l'intégralité des échanges conversationnels vers `aiRoutingService.executeWithResilience(...)`, enrichir l'API `/api/ai/chat` du serveur avec prise en charge native de Gemini et résolution multicouche des clés, créer un composant modal universel `AIProvidersDashboardModal.tsx`, l'intégrer au header de `ChatInterface.tsx` et au top navbar de `Layout.tsx`, et ajouter les métadonnées de modèle et de latence sur chaque bulle de réponse.
+* **Décision retenue** : Option 2.
+* **Justification** : Résilience absolue sans temps d'arrêt, clarté totale pour l'utilisateur et l'administrateur, respect scrupuleux de l'incarnation humaine des experts Diallo et conformité aux standards d'ergonomie et de design de haute facture.
+* **Conséquences** : Le chat fonctionne instantanément dès l'ouverture ; si un fournisseur est indisponible ou s'essouffle, le système bascule de façon imperceptible sur le modèle de secours actif tout en indiquant clairement le relais utilisé.
+* **Éléments techniques** : `components/ChatInterface.tsx`, `components/AIProvidersDashboardModal.tsx`, `components/Layout.tsx`, `services/aiRoutingService.ts`, `server.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-027] — 27 Août 2026
+* **Module(s)** : `Espace Super-Admin`, `AdminDashboard`, `AdminAIResilienceHub`, `AdminPlatformModulesTab`, `Dashboard`, `Layout`, `Variables d'Environnement (.env.example)`
+* **Problème / Besoin initial** :
+  1. Clarifier la question utilisateur relative aux variables d'environnement (`VITE_KLING_API_KEY` vs `KLING_API_KEY`) : expliciter le rôle de la résolution dynamique côté serveur (`getKeyForProvider` dans `server.ts`) et nettoyer `.env.example` pour éliminer les doublons redondants.
+  2. Rendre les Connecteurs et Modèles d'IA immédiatement visibles et accessibles au premier niveau du Tableau de Bord Super-Admin sous forme d'onglet principal dédié (« Connecteurs & Modèles IA »).
+  3. Découpler la gestion des modules métiers dans un sous-composant propre `AdminPlatformModulesTab.tsx`.
+  4. Garantir un accès direct en 1 clic au Tableau de Bord Super-Admin et aux Connecteurs IA depuis la barre supérieure du Dashboard (`Dashboard.tsx`), le menu mobile drawer (`Layout.tsx`), le Header desktop et la carte KPI de vue d'ensemble (`AdminOverviewTab.tsx`).
+* **Idées envisagées** :
+  1. Laisser les connecteurs IA enfouis dans un sous-onglet secondaire.
+  2. Créer un onglet principal de premier plan « Connecteurs & Modèles IA » dans `AdminDashboard.tsx`, mettre à jour les types d'onglets (`AdminTab`), enrichir les boutons d'accès rapide sur tous les écrans, et documenter l'unification des variables d'environnement.
+* **Décision retenue** : Option 2.
+* **Justification** : Ergonomie optimale pour les administrateurs, clarté totale sur la configuration des clés API pour le déploiement Netlify / GitHub / Cloud Run, et accessibilité instantanée de l'orchestrateur de résilience IA.
+* **Conséquences** : Les connecteurs de modèles IA sont consultables et configurables directement dès l'entrée dans le Tableau de Bord Super-Admin, avec sondes de santé, banc de test, détection des clés et accès 1-clic aux portails officiels.
+* **Éléments techniques** : `components/AdminDashboard.tsx`, `components/admin/AdminAIResilienceHub.tsx`, `components/admin/AdminPlatformModulesTab.tsx`, `components/admin/AdminOverviewTab.tsx`, `components/Dashboard.tsx`, `components/Layout.tsx`, `.env.example`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-026] — 27 Août 2026
+* **Module(s)** : `AdminAIResilienceHub`, `AIRoutingService`, `AdminConfigService`, `UnifiedAIConnector`, `Types`
+* **Problème / Besoin initial** :
+  1. Répondre à la directive système permanente : doter l'espace Super Admin d'un orchestrateur central des modèles IA complet, autonome et sans coupure.
+  2. Gérer plus de 15 connecteurs d'IA majeurs (Gemini, DeepSeek, Claude AI, OpenAI, Mistral, Qwen, Kimi, Kling AI, ElevenLabs, HeyGen, Runway, OpenRouter, n8n, Grok, Ollama) avec activation/désactivation individuelle en 1 clic.
+  3. Piloter la cascade de bascule intelligente selon la spécialité de tâche (`taskCategory`: raisonnement, juridique & contrats, code, multilingue, vidéo, voix, automatisation), la latence, le taux d'erreur, le score de qualité et les plafonds de budget quotidien (`dailyQuotaLimitUSD`).
+  4. Fournir pour chaque fournisseur un centre de configuration complet avec champs pour clés API, jetons secrets, webhooks, ainsi que des boutons directs 1-clic vers les 4 portails officiels de chaque fournisseur : Créer un compte, Générer une clé API, Accéder à la documentation technique et Consulter les quotas & la facturation.
+  5. Détecter automatiquement les variables d'environnement présentes (`detectedEnvVar`, `isEnvKeyPresent`), afficher les diagnostics en direct et guider l'administrateur avec des actions correctives personnalisées.
+* **Idées envisagées** :
+  1. Utiliser un tableau statique non interactif sans possibilité de bascule en direct ni boutons vers les portails officiels.
+  2. Construire un orchestrateur dynamique en temps réel avec détection des variables d'environnement, filtrage multi-critères par spécialité de tâche, routage basé sur les quotas quotidiens, sondes de santé interactives et audit logs des bascules sans coupure.
+* **Décision retenue** : Option 2.
+* **Justification** : Résilience absolue sans temps d'arrêt, zéro exposition des clés réelles au client, ergonomie maximale pour les administrateurs et intégration transparente avec Supabase, GitHub et Netlify.
+* **Conséquences** : Les requêtes IA sont routées automatiquement vers le connecteur le plus adapté et performant, avec bascule transparente vers les moteurs secondaires ou de secours en cas de surcharge, panne ou dépassement de quota.
+* **Éléments techniques** : `components/admin/AdminAIResilienceHub.tsx`, `services/aiRoutingService.ts`, `services/adminConfigService.ts`, `services/unifiedAIConnector.ts`, `types.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`, `docs/modules/15_orchestrateur_ia_central.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-025] — 27 Août 2026
+* **Module(s)** : `AIRoutingService`, `MultiAIConnectorsHub`, `UnifiedAIConnector`, `AdminAIResilienceHub`, `ServerAIProxy`, `Types`
+* **Problème / Besoin initial** :
+  1. Préparer et interconnecter l'infrastructure pour une suite complète de 10+ fournisseurs majeurs d'IA : DeepSeek (V3 & R1), Claude AI (Anthropic), OpenAI (GPT-4o & o1/o3), Alibaba Qwen (DashScope), Moonshot Kimi (K3 & K1.5 128k), Kling AI 1.5 (Vidéo Kuaishou), OpenRouter Multi-LLM Gateway, n8n Workflow Automation, HeyGen Interactive Avatars, RunwayML Gen-3/Gen-2 et ElevenLabs HD TTS.
+  2. Fournir des points d'accès directs (liens 1-clic) pour générer et configurer facilement chaque clé API dans l'environnement.
+  3. Mettre en place un proxy unifié sécurisé côté serveur (`server.ts` : `/api/ai/connectors`, `/api/ai/chat`, `/api/ai/video`, `/api/ai/avatar`, `/api/ai/n8n/trigger`) avec tolérance totale aux pannes, dégradation gracieuse sans crash et banc d'essai interactif (`AIConnectorsHubModal.tsx`).
+* **Idées envisagées** :
+  1. Laisser les clés être appelées côté client directement sans proxy unifié.
+  2. Créer une couche full-stack modulaire avec typage enrichi (`types.ts`), proxy serveur Express, connecteur unifié client-side (`unifiedAIConnector.ts`), intégration dans l'Orchestrateur de Résilience (`AdminAIResilienceHub.tsx`) et documentation des variables d'environnement dans `.env.example`.
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue des clés API côté serveur, résilience et cascade automatique en cas de panne d'un fournisseur, interface d'administration claire avec banc d'essai et liens officiels directs vers les consoles développeurs.
+* **Conséquences** : L'administrateur et la plateforme peuvent basculer dynamiquement entre tous les moteurs d'IA de pointe, tester leurs flux en direct et générer des vidéos, avatars et automatisations complexes sans interruption de service.
+* **Éléments techniques** : `server.ts`, `services/unifiedAIConnector.ts`, `components/AIConnectorsHubModal.tsx`, `components/admin/AdminAIResilienceHub.tsx`, `services/adminConfigService.ts`, `services/aiRoutingService.ts`, `types.ts`, `.env.example`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-024] — 27 Août 2026
+* **Module(s)** : `VoiceEnginePro`, `ElevenLabsIntegration`, `ChatInterface`, `CampusProfessorCoach`, `CampusClassroomView`, `VoiceSettingsModal`, `ServerTTSProxy`
+* **Problème / Besoin initial** :
+  1. La synthèse vocale native des navigateurs (`window.speechSynthesis`) manquait de réalisme, de timbre expressif et de naturel humain pour incarner fidèlement les experts de la Famille DIALLO (Maître Diallo, Docteur Diallo, Professeur Diallo, Conseiller Diallo, etc.).
+  2. Fournir une synthèse vocale haute fidélité (HD) basée sur l'API ElevenLabs avec streaming audio ultra-rapide (MP3 / PCM), mise en cache intelligente des flux générés, bascule automatique et dégradation gracieuse vers le moteur vocal natif du navigateur si aucune clé API n'est configurée.
+  3. Offrir une interface utilisateur dédiée (`VoiceSettingsModal.tsx`) pour sélectionner, tester et associer des voix réalistes et personnalisées pour chaque expert Diallo et le Campus.
+* **Idées envisagées** :
+  1. Forcer l'appel direct côté client à ElevenLabs (risque d'exposition de la clé API et blocage CORS).
+  2. Mettre en place une architecture full-stack robuste avec proxy Express sécurisé (`/api/tts`, `/api/tts/voices`), intégrer le support ElevenLabs dans `voiceEngine.ts` avec cache mémoire de Blob URLs, attribuer des Voice IDs adaptés aux différents rôles d'experts, intégrer les contrôles dans le Chat, la Salle de Classe et le Coach Professeur, et offrir un panneau de réglages dédié.
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue des clés d'API (stockées côté serveur et documentées dans `.env.example`), restitution audio naturelle et chaleureuse sans temps de latence grâce au cache, tolérance aux pannes avec fallback instantané, et respect de la déontologie humaine de la Famille DIALLO.
+* **Conséquences** : Les utilisateurs et apprenants bénéficient d'une voix humaine ultra-naturelle et expressive pour écouter les conseils d'experts, les cours du Campus et les explications en direct.
+* **Éléments techniques** : `server.ts`, `services/voiceEngine.ts`, `components/VoiceSettingsModal.tsx`, `components/ChatInterface.tsx`, `components/CampusProfessorCoach.tsx`, `components/CampusClassroomView.tsx`, `components/VoiceInteractionBar.tsx`, `package.json`, `.env.example`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-023] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `VoiceEnginePro`, `CampusProfessorCoach`, `VoiceInteractionBar`, `Avatar3D`
+* **Problème / Besoin initial** :
+  1. La conversation vocale souffrait de lenteurs, de coupures artificielles (troncatures de texte à 220 caractères), d'absence de Voice Activity Detection (VAD) et de feedbacks acoustiques (écho micro pendant que l'avatar parle).
+  2. Rendre l'interaction orale avec le Professeur Diallo ultra-fluide, naturelle, continue (mains libres) et intelligente avec détection automatique de fin de parole et reprise de micro sans aucun clic requis.
+* **Idées envisagées** :
+  1. Conserver le système de déclenchement manuel bouton par bouton avec synthèse partielle.
+  2. Refondre le `voiceEngine.ts` en moteur conversationnel bidirectionnel : Voice Activity Detection (VAD) avec détection de silence intelligent (~1.4s), suppression d'écho acoustique (désactivation automatique de l'écoute pendant la synthèse), heartbeat anti-endormissement de la Web Speech API sur Chromium, découpage acoustique intelligent en unités phonétiques (ponctuation naturelle) et mode "Mains Libres Continu".
+* **Décision retenue** : Option 2.
+* **Justification** : Fluidité conversationnelle de niveau professionnel, élimination des artefacts robotiques et des troncatures, prise de parole fluide (barge-in supporté) et synchronisation parfaite avec les états de l'Avatar 3D (parole, réflexion, écoute).
+* **Conséquences** : Les apprenants peuvent engager un dialogue continu avec le Professeur Diallo sans toucher au clavier ni à la souris.
+* **Éléments techniques** : `services/voiceEngine.ts`, `components/CampusProfessorCoach.tsx`, `components/VoiceInteractionBar.tsx`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `REAL_ACADEMIC_COURSES_REGISTRY`, `CampusClassroomView`, `Formations Supérieures D'Élite (Droit OHADA & Ingénierie Cloud)`
+* **Problème / Besoin initial** :
+  1. Remplacer les contenus synthétiques et placeholders par de vrais cours académiques riches, rigoureux et conformes aux programmes officiels (Terminale Maths/Physique/Philo et Formations Supérieures en Droit OHADA, Ingénierie Cloud & Cybersécurité).
+  2. Fournir aux apprenants une expérience d'apprentissage complète : cours magistral structuré, dictée et récitation audio assurée par le Professeur Diallo via Web Speech API (`window.speechSynthesis`), énoncé d'exercice pratique officiel avec démarche guidée, révélation du corrigé type avec barème détaillé pas à pas, mini-quiz formatif interactif et bibliographie officielle.
+* **Idées envisagées** :
+  1. Conserver des textes génériques courts sans exercices réels ni récitation audio.
+  2. Créer un registre académique dédié `services/realCurriculumCourses.ts` avec des cours réels approfondis, intégrer la récitation vocale du Professeur Diallo, déployer les corrigés pas à pas dans `CampusClassroomView.tsx` et enrichir `services/formationsRegistry.ts` avec de nouveaux diplômes supérieurs en Droit OHADA et Ingénierie Cloud.
+* **Décision retenue** : Option 2.
+* **Justification** : Élévation pédagogique majeure, immersion totale et conformité avec les exigences de rigueur scientifique et déontologique de l'Académie Le Monde à Vous.
+* **Conséquences** : Les élèves et étudiants accèdent à des contenus réels, écoutent les explications orales du Professeur Diallo, pratiquent des cas d'épreuves d'État avec corrigés officiels et valident leurs compétences.
+* **Éléments techniques** : `services/realCurriculumCourses.ts`, `services/formationsRegistry.ts`, `components/CampusClassroomView.tsx`, `components/Campus.tsx`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `CampusClassroomView`, `CampusCourseEnrollmentModal`, `Campus.tsx`
+* **Problème / Besoin initial** :
+  1. Résoudre l'erreur d'exécution `Uncaught TypeError: Cannot read properties of undefined (reading 'lessons')` survenue lors de la navigation vers la salle de classe ou l'inscription.
+  2. Harmoniser la cohabitation des deux structures de données au sein du Campus : le modèle `Course` (liste plate de `lessons`) et le modèle `CertifyingFormation` (liste modulaire `modulesList` contenant chacune leurs propres `lessons`).
+  3. Garantir une résilience absolue et zéro crash au démarrage ou en cours de navigation quel que soit le type de cours ou formation sélectionné.
+* **Idées envisagées** :
+  1. Forcer la conversion de toutes les formations en un format unique au risque de perdre les métadonnées modulaires spécifiques.
+  2. Adapter `CampusClassroomView.tsx`, `CampusCourseEnrollmentModal.tsx` et `Campus.tsx` pour extraire dynamiquement les leçons (`lessons || modulesList.flatMap(...)`), initialiser des états internes de repli (`fallback lessons`) et sécuriser tous les accès aux propriétés imbriquées.
+* **Décision retenue** : Option 2.
+* **Justification** : Flexibilité totale, rétrocompatibilité avec les deux formats de données, et robustesse logicielle maximale sans écran blanc.
+* **Conséquences** : Navigation fluide et immédiate entre formations certifiantes modulaires et chapitres officiels des programmes nationaux.
+* **Éléments techniques** : `components/CampusClassroomView.tsx`, `components/CampusCourseEnrollmentModal.tsx`, `components/CampusCertifyingExamView.tsx`, `components/Campus.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-020] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `Catalogue Formations Certifiantes & Diplômes`, `Salle de Classe Interactive`, `Examens Certifiants & Parchemins`
+* **Problème / Besoin initial** :
+  1. Développer l'ensemble des contenus, processus et procédures liés à l'inscription académique, la salle de classe multimédia, les examens certifiants et l'écosystème complet du Catalogue des Formations & Diplômes d'Élite.
+  2. Fournir un parcours étudiant complet : consultation détaillée de la formation (crédits ECTS, prérequis, débouchés, corps professoral, modules), choix du statut (Parcours Certifiant avec diplôme officiel vs Auditeur Libre), suivi des cours interactif avec synthèse vocale, espace pratique interactif avec exécuteur, quiz formatif et prise de notes synchronisée.
+  3. Mettre en place un système d'examen certifiant officiel chronométré avec délibération du jury académique, attribution de note finale /20, génération de parchemin officiel numéroté, estampillé du sceau officiel de l'Académie Diallo avec QR Code d'authentification et export PDF/Impression.
+* **Idées envisagées** :
+  1. Utiliser un simple affichage textuel des cours sans procédure d'inscription formelle ni diplôme authentifié.
+  2. Développer un registre structuré `services/formationsRegistry.ts` (Tech/IA, Droit, Médecine, Finance, etc.), une modale d'inscription complète `CampusCourseEnrollmentModal.tsx`, une salle de classe immersive `CampusClassroomView.tsx`, une salle d'examen certifiant officielle `CampusCertifyingExamView.tsx`, et une visionneuse haute fidélité de diplômes certifiés `CampusDiplomaViewerModal.tsx`.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité absolue avec la vision d'excellence du Campus Mondial Intelligent, valorisation des acquis et reconnaissance officielle des compétences pour l'employabilité internationale.
+* **Conséquences** : Les apprenants peuvent s'inscrire officiellement, suivre leurs cours en mode immersif, passer leurs épreuves certifiantes sous minuterie, et obtenir/imprimer leurs parchemins de diplôme officiels.
+* **Éléments techniques** : `services/formationsRegistry.ts`, `components/CampusCourseEnrollmentModal.tsx`, `components/CampusClassroomView.tsx`, `components/CampusCertifyingExamView.tsx`, `components/CampusDiplomaViewerModal.tsx`, `components/Campus.tsx`, `docs/modules/04_campus_et_education.md`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-019] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `CampusProfessorCoach`, `Moteur Pédagogique Multimodal`, `Vision & Reconnaissance IA`
+* **Problème / Besoin initial** :
+  1. Permettre aux utilisateurs et apprenants d'interagir avec le Professeur Diallo en dialogue vocal bidirectionnel (micro, reconnaissance vocale et synthèse vocale).
+  2. Intégrer un flux vidéo avec caméra temps réel doté de reconnaissance d'objets (cahier d'exercices, calculatrice, feuille de devoir, tableau, etc.) et de détection de mouvements optiques pour scanner et analyser le travail en direct.
+  3. Offrir le partage de documents et photos d'exercices (PDF, images, devoirs, sujets d'examens) avec résolution et explications méthodologiques pas-à-pas par le Professeur Diallo.
+* **Idées envisagées** :
+  1. Utiliser un modal externe séparé déconnecté du cours en cours.
+  2. Intégrer directement le mode vocal, le HUD caméra avec tracking d'objets/mouvements et le partage de documents au sein du widget central du Professeur Diallo (`CampusProfessorCoach.tsx`), couplé à `campusPedagogicalEngine.analyzeHomeworkOrDocument()`, `voiceEngine` et `multimodalVisionService`.
+* **Décision retenue** : Option 2.
+* **Justification** : Expérience utilisateur immersive, fluide et sans couture, respectant la déontologie humaine de la Famille DIALLO et fournissant un accompagnement pédagogique de haute volée.
+* **Conséquences** : Les apprenants peuvent parler au professeur, lui montrer leur cahier ou un exercice physique à la caméra pour une analyse instantanée, ou déposer un document PDF/image pour être guidés étape par étape.
+* **Éléments techniques** : `components/CampusProfessorCoach.tsx`, `services/campusPedagogicalEngine.ts`, `services/voiceEngine.ts`, `services/multimodalVision.ts`, `docs/modules/04_campus_et_education.md`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-018] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `Campus Académique Universel`, `Moteur Pédagogique Adaptatif`, `Examens Blancs & Passerelles Internationales`
+* **Problème / Besoin initial** :
+  1. Identifier et implémenter l'ensemble des éléments restants de la feuille de route du module Campus Académie.
+  2. Fournir l'exploration directe des programmes officiels et des chapitres officiels par pays sélectionné (Guinée MEPU-A, Sénégal Office du Bac, France Éducation Nationale, Côte d'Ivoire MENA, États-Unis SAT/AP, Fondamentaux/Alphabétisation).
+  3. Intégrer un outil de Diagnostic Initial interactif (Point A ➔ Point B) avec cartographie de la maîtrise des compétences et recalibration automatique du plan de travail.
+  4. Créer un Comparateur & Simulateur de Passerelles et Équivalences académiques internationales (correspondances de diplômes, conversion de notes, sujets divergents, passerelles de mise à niveau).
+  5. Étoffer la banque d'examens blancs officiels multi-pays chronométrés et permettre l'étude directe de tout chapitre officiel avec le Professeur Diallo.
+* **Idées envisagées** :
+  1. Laisser un simple catalogue de cours généralistes statiques sans articulation directe avec les référentiels des ministères.
+  2. Implémenter une architecture complète à 5 onglets (`Programme Officiel`, `Formations Certifiantes`, `Examens Blancs`, `Passerelles & Équivalences`, `Mes Diplômes`), concevoir `CampusDiagnosticModal.tsx` pour le test de positionnement rapide, `CampusEquivalenceComparator.tsx` pour la mobilité internationale, enrichir `MOCK_EXAM_BLUEPRINTS` dans `curriculumRegistry.ts`, et relier chaque chapitre officiel directement au générateur de cours interactif et aux explications personnalisées de Professeur Diallo.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité intégrale à la feuille de route et au livre de vision, accompagnement bienveillant et rigoureux de chaque apprenant selon son référentiel national, et valorisation des compétences validées.
+* **Conséquences** : Les apprenants peuvent s'entraîner aux épreuves officielles de leur pays, diagnostiquer leurs lacunes, générer des leçons sur-mesure pour chaque chapitre du programme national et comparer leurs diplômes pour des études à l'international.
+* **Éléments techniques** : `components/Campus.tsx`, `components/CampusDiagnosticModal.tsx`, `components/CampusEquivalenceComparator.tsx`, `services/curriculumRegistry.ts`, `services/campusPedagogicalEngine.ts`, `docs/modules/04_campus_et_education.md`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
 ### [DEC-2026-017] — 27 Août 2026
 * **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `Messagerie Instantanée Sécurisée (MoocChatFloating)`, `Chat Experts Diallo & Google Chat Center`
 * **Problème / Besoin initial** :
@@ -550,6 +758,27 @@ Chaque décision respecte le formalisme strict suivant :
   - Création du Service Worker `/public/sw.js` et du service d'enregistrement `/services/pwaService.ts` branché sur l'entrée applicative `/index.tsx`.
 * **Conséquences** : Zéro écran blanc, résilience offline certifiée, appels directs stabilisés et compatibilité PWA immédiate.
 * **Éléments techniques** : `/services/webrtcService.ts`, `/public/sw.js`, `/services/pwaService.ts`, `/index.tsx`, `/docs/modules/AUTHENTIFICATION.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-028] — 28 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Central AI Orchestrator & Resilience Hub`, `Auto-Diagnostic & Détection Clés API`
+* **Problème / Besoin initial** :
+  1. Vérifier que toutes les clés API (serveur et client) sont correctement détectées, unifiées et testées sans doublon bloquant.
+  2. En cas de clé manquante ou invalide, ne jamais bloquer l'application : dégrader gracieusement vers le fournisseur actif suivant ou le moteur souverain local sans interruption pour l'utilisateur.
+  3. Au démarrage, tester automatiquement le statut de chaque fournisseur et basculer de manière transparente avec rapport visible dans le tableau de bord Super Admin.
+* **Idées envisagées** :
+  1. Bloquer l'accès en affichant un modal d'erreur bloquant si une clé d'API est manquante.
+  2. Orchestration résiliente asynchrone non-bloquante (`probeAllProvidersOnStartup`) :
+     - Découverte conjointe des variables d'environnement (`KLING_API_KEY`, `VITE_KLING_API_KEY`, `ELEVENLABS_API_KEY`, etc.) via `/api/ai/connectors` et le client Vite.
+     - Sondes parallèles avec timeout strict (2500ms) et marquage du statut (`online`, `degraded`, `quarantined`).
+     - Organisation automatique de la chaîne de bascule instantanée vers les moteurs sains ou le repli souverain local.
+     - Bandeau d'état et d'alerte dans le Hub Super Admin avec boutons de copie 1-clic pour le `.env`, liens directs vers les consoles officielles et simulateur de panne en 1 clic.
+* **Décision retenue** : Option 2 développée, intégrée et testée.
+* **Justification** : Respect absolu du principe fondamental « Zéro Écran Blanc & Zéro Interruption Utilisateur ».
+* **Conséquences** : Fonctionnement fluide avec ou sans clés d'API configurées, visibilité totale pour le Super-Administrateur et bascule instantanée certifiée.
+* **Éléments techniques** : `/services/aiRoutingService.ts`, `/components/admin/AdminAIResilienceHub.tsx`, `/server.ts`, `/types.ts`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---

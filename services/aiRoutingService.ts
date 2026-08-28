@@ -10,6 +10,21 @@ import { GoogleGenAI } from '@google/genai';
 
 const FAILOVER_LOGS_STORAGE_KEY = 'lmav_ai_failover_logs_v1';
 const ROUTING_POLICY_STORAGE_KEY = 'lmav_ai_routing_policy_v1';
+const STARTUP_REPORT_STORAGE_KEY = 'lmav_ai_startup_report_v1';
+
+export interface StartupDiagnosticReport {
+  timestamp: string;
+  totalProviders: number;
+  onlineCount: number;
+  degradedCount: number;
+  quarantinedCount: number;
+  missingKeysCount: number;
+  activePrimaryProvider: string;
+  failoverChainSummary: { id: string; name: string; status: string; isEnvKeyPresent: boolean }[];
+  missingKeyProviders: { id: string; name: string; envKey: string; correctiveAction: string; portalUrl: string }[];
+  statusMessage: string;
+  isProbing: boolean;
+}
 
 export const DEFAULT_ROUTING_POLICY: AIRoutingPolicyConfig = {
   strategy: 'auto_resilient_quality',
@@ -30,6 +45,11 @@ export const DEFAULT_ROUTING_POLICY: AIRoutingPolicyConfig = {
     'prov-qwen',
     'prov-kimi',
     'prov-openrouter',
+    'prov-kling',
+    'prov-runway',
+    'prov-heygene',
+    'prov-n8n',
+    'prov-elevenlabs',
     'prov-huggingface',
     'prov-replicate',
     'prov-ollama'
@@ -42,9 +62,19 @@ class AIRoutingService {
   private policy: AIRoutingPolicyConfig = DEFAULT_ROUTING_POLICY;
   private isCheckingHealth: boolean = false;
   private lastHealthCheckTime: number = 0;
+  private startupReport: StartupDiagnosticReport | null = null;
+  private hasRunStartupProbe: boolean = false;
 
   private constructor() {
     this.loadState();
+    // Lancement asynchrone non-bloquant de la sonde globale de démarrage
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        this.probeAllProvidersOnStartup().catch(err => {
+          console.warn('[AIRoutingService] Sonde de démarrage en mode dégradé:', err);
+        });
+      }, 800);
+    }
   }
 
   public static getInstance(): AIRoutingService {
@@ -65,6 +95,10 @@ class AIRoutingService {
         if (savedLogs) {
           this.failoverLogs = JSON.parse(savedLogs);
         }
+        const savedReport = localStorage.getItem(STARTUP_REPORT_STORAGE_KEY);
+        if (savedReport) {
+          this.startupReport = JSON.parse(savedReport);
+        }
       }
     } catch (e) {
       console.warn("Could not load AI routing state from storage, using defaults");
@@ -76,6 +110,9 @@ class AIRoutingService {
       if (typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem(ROUTING_POLICY_STORAGE_KEY, JSON.stringify(this.policy));
         localStorage.setItem(FAILOVER_LOGS_STORAGE_KEY, JSON.stringify(this.failoverLogs.slice(0, 100)));
+        if (this.startupReport) {
+          localStorage.setItem(STARTUP_REPORT_STORAGE_KEY, JSON.stringify(this.startupReport));
+        }
       }
     } catch (e) {
       console.warn("Could not save AI routing state to storage");
@@ -101,6 +138,106 @@ class AIRoutingService {
     this.saveState();
   }
 
+  private listeners: Set<() => void> = new Set();
+  private lastExecutionInfo: {
+    providerUsedName: string;
+    modelUsed: string;
+    latencyMs: number;
+    wasFailover: boolean;
+    failoverReason?: string;
+    timestamp: string;
+  } | null = null;
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach(fn => {
+      try {
+        fn();
+      } catch (e) {
+        console.warn('Listener error in aiRoutingService:', e);
+      }
+    });
+  }
+
+  public getLastExecutionInfo() {
+    return this.lastExecutionInfo;
+  }
+
+  public getActiveEngineInfo(): {
+    id: string;
+    name: string;
+    status: 'online' | 'degraded' | 'quarantined' | 'offline';
+    latencyMs: number;
+    tier: string;
+    isEnvKeyPresent: boolean;
+    totalAvailable: number;
+    onlineCount: number;
+  } {
+    const allProviders = adminConfigService.getAIProviders();
+    const ranked = this.getRankedProviders();
+    const primary = ranked[0] || allProviders[0];
+    const onlineCount = allProviders.filter(p => p.isEnabled && p.status === 'online').length;
+
+    return {
+      id: primary?.id || 'sovereign-core',
+      name: primary?.name || 'Moteur Souverain LMAV',
+      status: (primary?.status as any) || 'online',
+      latencyMs: primary?.latencyMs || 120,
+      tier: primary?.tier || 'primary',
+      isEnvKeyPresent: primary?.isEnvKeyPresent ?? true,
+      totalAvailable: allProviders.length,
+      onlineCount
+    };
+  }
+
+  /**
+   * Forcer un fournisseur comme Moteur Actif Principal
+   */
+  public setActivePrimaryProvider(providerId: string): boolean {
+    const providers = adminConfigService.getAIProviders();
+    const target = providers.find(p => p.id === providerId);
+    if (!target) return false;
+
+    providers.forEach(p => {
+      if (p.id === providerId) {
+        adminConfigService.updateAIProvider(p.id, {
+          isDefault: true,
+          isEnabled: true,
+          status: p.status === 'quarantined' ? 'online' : p.status,
+          consecutiveErrors: 0
+        });
+      } else if (p.isDefault) {
+        adminConfigService.updateAIProvider(p.id, { isDefault: false });
+      }
+    });
+
+    this.saveState();
+    this.notifyListeners();
+    return true;
+  }
+
+  /**
+   * Reconnecter / Réactiver un fournisseur dégradé ou en quarantaine
+   */
+  public async reconnectProvider(providerId: string): Promise<{ success: boolean; latencyMs: number; message: string }> {
+    adminConfigService.updateAIProvider(providerId, {
+      status: 'online',
+      consecutiveErrors: 0,
+      lastErrorMessage: undefined,
+      lastHealthCheck: new Date().toISOString()
+    });
+
+    const testRes = await this.testProviderHealth(providerId);
+    this.notifyListeners();
+    return testRes;
+  }
+
   public logFailoverEvent(event: Omit<AIFailoverEvent, 'id' | 'timestamp'>): AIFailoverEvent {
     const fullEvent: AIFailoverEvent = {
       ...event,
@@ -116,9 +253,164 @@ class AIRoutingService {
   }
 
   /**
-   * Trie et filtre la liste des fournisseurs d'IA selon la stratégie et les seuils de qualité/coût
+   * Sonde automatique de démarrage : teste tous les connecteurs, synchronise les clés et organise la bascule
    */
-  public getRankedProviders(): AIProviderConfig[] {
+  public async probeAllProvidersOnStartup(): Promise<StartupDiagnosticReport> {
+    if (this.isCheckingHealth) {
+      return this.startupReport || this.generateInitialEmptyReport();
+    }
+
+    this.isCheckingHealth = true;
+    const startTime = Date.now();
+    console.info("🚀 [AIRoutingService] Démarrage de la sonde multi-moteurs IA...");
+
+    // 1. Découverte des connecteurs configurés côté serveur
+    let serverConnectors: Record<string, { isConfigured: boolean; envKey: string; maskedKey: string | null }> = {};
+    try {
+      const res = await fetch('/api/ai/connectors', { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.connectors)) {
+          data.connectors.forEach((c: any) => {
+            serverConnectors[c.id] = {
+              isConfigured: !!c.isConfigured,
+              envKey: c.envKey || c.apiKeyEnvVar,
+              maskedKey: c.maskedKey || null
+            };
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[AIRoutingService] Détection serveur connecteurs non disponible, inspection locale:", e);
+    }
+
+    const currentProviders = adminConfigService.getAIProviders();
+    const probeResults: Record<string, { success: boolean; latencyMs: number; message: string }> = {};
+    const missingKeys: { id: string; name: string; envKey: string; correctiveAction: string; portalUrl: string }[] = [];
+
+    // 2. Vérification et sondes en parallèle avec délai strict
+    await Promise.allSettled(
+      currentProviders.map(async (provider) => {
+        const serverInfo = serverConnectors[provider.provider] || serverConnectors[provider.id];
+        
+        // Détection de la clé
+        const envVarName = provider.detectedEnvVar || serverInfo?.envKey || `${provider.provider.toUpperCase()}_API_KEY`;
+        const hasKey = 
+          (serverInfo && serverInfo.isConfigured) || 
+          (provider.apiKey && !provider.apiKey.includes('****') && provider.apiKey.length > 5) ||
+          (typeof import.meta !== 'undefined' && import.meta.env && ((import.meta.env as any)[`VITE_${envVarName}`] || (import.meta.env as any)[envVarName])) ||
+          (provider.provider === 'gemini'); // Gemini dispose généralement de la clé système
+
+        if (!hasKey) {
+          // Fournisseur sans clé : marquer comme dégradé toléré sans casser l'app
+          adminConfigService.updateAIProvider(provider.id, {
+            isEnvKeyPresent: false,
+            status: provider.status === 'quarantined' ? 'quarantined' : 'degraded',
+            lastErrorMessage: `Clé ${envVarName} non configurée dans l'environnement. Bascule automatique active.`
+          });
+
+          missingKeys.push({
+            id: provider.id,
+            name: provider.name,
+            envKey: envVarName,
+            correctiveAction: provider.correctiveAction || `Définissez ${envVarName} dans votre fichier .env pour activer ce moteur.`,
+            portalUrl: provider.portalUrl || 'https://lemondeavous.com'
+          });
+
+          probeResults[provider.id] = {
+            success: false,
+            latencyMs: 0,
+            message: `Clé manquante (${envVarName}). Auto-bascule assurée.`
+          };
+          return;
+        }
+
+        // Si la clé est présente et le fournisseur activé, exécuter une sonde rapide
+        if (provider.isEnabled && provider.status !== 'quarantined') {
+          try {
+            const probeRes = await this.testProviderHealth(provider.id);
+            probeResults[provider.id] = probeRes;
+          } catch (probeErr: any) {
+            probeResults[provider.id] = {
+              success: false,
+              latencyMs: 0,
+              message: probeErr.message || "Échec de sonde au démarrage"
+            };
+          }
+        } else {
+          probeResults[provider.id] = {
+            success: false,
+            latencyMs: 0,
+            message: provider.status === 'quarantined' ? 'Fournisseur en quarantaine' : 'Désactivé'
+          };
+        }
+      })
+    );
+
+    // 3. Re-lecture de l'état actualisé
+    const updatedProviders = adminConfigService.getAIProviders();
+    const onlineProviders = updatedProviders.filter(p => p.isEnabled && p.status === 'online');
+    const degradedProviders = updatedProviders.filter(p => p.isEnabled && p.status === 'degraded');
+    const quarantinedProviders = updatedProviders.filter(p => p.status === 'quarantined');
+
+    // 4. Organisation de la chaîne de bascule instantanée
+    const primaryCandidate = onlineProviders.find(p => p.isDefault) || onlineProviders[0] || updatedProviders[0];
+
+    // Résumé visuel de la chaîne de secours
+    const rankedChain = this.getRankedProviders();
+    const failoverChainSummary = rankedChain.map(p => ({
+      id: p.id,
+      name: p.name,
+      status: p.status,
+      isEnvKeyPresent: p.isEnvKeyPresent ?? false
+    }));
+
+    const report: StartupDiagnosticReport = {
+      timestamp: new Date().toISOString(),
+      totalProviders: updatedProviders.length,
+      onlineCount: onlineProviders.length,
+      degradedCount: degradedProviders.length,
+      quarantinedCount: quarantinedProviders.length,
+      missingKeysCount: missingKeys.length,
+      activePrimaryProvider: primaryCandidate?.name || 'Moteur Souverain Local',
+      failoverChainSummary,
+      missingKeyProviders: missingKeys,
+      statusMessage: onlineProviders.length > 0
+        ? `Auto-résilience active : ${onlineProviders.length} connecteur(s) IA opérationnels. Cascade de secours transparente sans interruption utilisateur.`
+        : `Mode Souverain Local Actif : repli autonome sans interruption en attente de configuration des clés distantes.`,
+      isProbing: false
+    };
+
+    this.startupReport = report;
+    this.hasRunStartupProbe = true;
+    this.isCheckingHealth = false;
+    this.lastHealthCheckTime = Date.now();
+    this.saveState();
+
+    console.info(`✅ [AIRoutingService] Diagnostic terminé en ${Date.now() - startTime}ms : ${onlineProviders.length}/${updatedProviders.length} moteurs prêts.`);
+    return report;
+  }
+
+  private generateInitialEmptyReport(): StartupDiagnosticReport {
+    return {
+      timestamp: new Date().toISOString(),
+      totalProviders: 17,
+      onlineCount: 1,
+      degradedCount: 0,
+      quarantinedCount: 0,
+      missingKeysCount: 0,
+      activePrimaryProvider: 'Google Gemini Core',
+      failoverChainSummary: [],
+      missingKeyProviders: [],
+      statusMessage: 'Initialisation des connecteurs IA en cours...',
+      isProbing: true
+    };
+  }
+
+  /**
+   * Trie et filtre la liste des fournisseurs d'IA selon la stratégie, spécialité de tâche et les seuils de qualité/coût/budget
+   */
+  public getRankedProviders(taskCategory?: string): AIProviderConfig[] {
     const allProviders = adminConfigService.getAIProviders();
     
     // Filtre 1: Doit être activé
@@ -135,32 +427,45 @@ class AIRoutingService {
       if (p.qualityScore < minScore) {
         return false;
       }
+      // Si le budget quotidien est dépassé et le routage budgétaire est actif
+      if (this.policy.enableBudgetThresholdRouting && p.dailyQuotaLimitUSD && p.currentDailySpendUSD) {
+        if (p.currentDailySpendUSD >= p.dailyQuotaLimitUSD) {
+          return false;
+        }
+      }
       return true;
     });
 
-    // Tri selon la stratégie active
-    switch (this.policy.strategy) {
-      case 'lowest_latency':
-        return candidates.sort((a, b) => (a.latencyMs || 9999) - (b.latencyMs || 9999));
-      
-      case 'lowest_cost':
-        return candidates.sort((a, b) => (a.costPer1kInputTokens || 0) - (b.costPer1kInputTokens || 0));
-      
-      case 'strict_priority':
-        return candidates.sort((a, b) => a.priority - b.priority);
+    // Tri selon la stratégie active et la spécialité de tâche
+    return candidates.sort((a, b) => {
+      // Bonus de spécialité de tâche
+      if (taskCategory) {
+        const aMatches = a.taskSpecialty === taskCategory;
+        const bMatches = b.taskSpecialty === taskCategory;
+        if (aMatches && !bMatches) return -1;
+        if (!aMatches && bMatches) return 1;
+      }
 
-      case 'auto_resilient_quality':
-      default:
-        // Tri combiné : Moteur par défaut d'abord, puis par score de qualité (pondéré), puis par priorité
-        return candidates.sort((a, b) => {
+      switch (this.policy.strategy) {
+        case 'lowest_latency':
+          return (a.latencyMs || 9999) - (b.latencyMs || 9999);
+        
+        case 'lowest_cost':
+          return (a.costPer1kInputTokens || 0) - (b.costPer1kInputTokens || 0);
+        
+        case 'strict_priority':
+          return a.priority - b.priority;
+
+        case 'auto_resilient_quality':
+        default:
           if (a.isDefault && !b.isDefault) return -1;
           if (!a.isDefault && b.isDefault) return 1;
           if (b.qualityScore !== a.qualityScore) {
             return b.qualityScore - a.qualityScore;
           }
           return a.priority - b.priority;
-        });
-    }
+      }
+    });
   }
 
   /**
@@ -251,13 +556,24 @@ class AIRoutingService {
         }
 
         const wasFailover = i > 0;
+        const finalLatency = Math.round(performance.now() - startTime);
+
+        this.lastExecutionInfo = {
+          providerUsedName: provider.name,
+          modelUsed: model,
+          latencyMs: finalLatency,
+          wasFailover: wasFailover,
+          failoverReason: wasFailover ? `Bascule automatique après indisponibilité de ${rankedProviders[0].name}` : undefined,
+          timestamp: new Date().toISOString()
+        };
+        this.notifyListeners();
 
         return {
           text: responseText,
           data: parsedData,
           providerUsed: provider,
           modelUsed: model,
-          latencyMs: Math.round(performance.now() - startTime),
+          latencyMs: finalLatency,
           wasFailover: wasFailover,
           failoverAttemptsCount: attemptsCount,
           failoverReason: wasFailover ? `Bascule automatique après échec de ${rankedProviders[0].name}` : undefined
@@ -349,22 +665,81 @@ class AIRoutingService {
     systemInstruction?: string,
     isJson?: boolean
   ): Promise<string> {
+    // 0. Si nous sommes dans le navigateur, tenter d'abord le proxy serveur sécurisé
+    if (typeof window !== 'undefined') {
+      try {
+        const proxyRes = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: provider.provider,
+            model: model,
+            messages: [{ role: 'user', content: prompt }],
+            systemPrompt: systemInstruction,
+            temperature: provider.temperature,
+            max_tokens: provider.maxTokens
+          })
+        });
+
+        if (proxyRes.ok) {
+          const proxyData = await proxyRes.json();
+          if (proxyData.text) {
+            return proxyData.text;
+          }
+        } else {
+          const errData = await proxyRes.json().catch(() => null);
+          const errMessage = errData?.error || errData?.details || `Erreur Proxy ${provider.name} [${proxyRes.status}]`;
+          throw new Error(errMessage);
+        }
+      } catch (proxyErr: any) {
+        // Si le proxy a retourné une erreur de surcharge/clé/service explicite, la propager pour basculer vers le prochain fournisseur
+        if (proxyErr?.message && !proxyErr.message.includes('Failed to fetch')) {
+          throw proxyErr;
+        }
+        // Sinon (panne réseau navigateur pure), continuer vers l'appel direct
+      }
+    }
+
     // 1. Fournisseur Google Gemini
     if (provider.provider === 'gemini') {
       const apiKey = provider.apiKey || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined);
       if (!apiKey || apiKey.includes('****')) {
-        throw new Error("Clé API Gemini non configurée ou invalide");
+        throw new Error("Clé API Gemini non configurée ou protégée côté serveur");
       }
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: model || 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: isJson ? 'application/json' : undefined
+
+      const modelsToTry = [
+        model || 'gemini-2.5-flash',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash'
+      ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+
+      let lastGenErr: any = null;
+      for (const targetModel of modelsToTry) {
+        try {
+          const response = await ai.models.generateContent({
+            model: targetModel,
+            contents: prompt,
+            config: {
+              systemInstruction: systemInstruction,
+              responseMimeType: isJson ? 'application/json' : undefined
+            }
+          });
+          if (response.text) {
+            return response.text;
+          }
+        } catch (gErr: any) {
+          lastGenErr = gErr;
+          const errMsg = String(gErr?.message || gErr || '');
+          if (errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE') || errMsg.includes('429')) {
+            console.warn(`[Client AI Routing] Modèle ${targetModel} en forte demande (503), bascule vers le suivant...`);
+            continue;
+          }
+          break;
         }
-      });
-      return response.text || "";
+      }
+      throw lastGenErr || new Error("Indisponibilité temporaire du modèle Gemini");
     }
 
     // 2. Fournisseurs compatibles API OpenAI (OpenAI, DeepSeek, Kimi, Qwen, Mistral, Grok, OpenRouter, Ollama, Custom)

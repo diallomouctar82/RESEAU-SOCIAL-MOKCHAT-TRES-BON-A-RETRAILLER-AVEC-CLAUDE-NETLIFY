@@ -4724,26 +4724,69 @@ export type SupportedAIProviderType =
   | 'deepseek' 
   | 'kimi' 
   | 'qwen' 
+  | 'kling'
+  | 'openrouter' 
+  | 'n8n'
+  | 'heygene'
+  | 'runway'
+  | 'elevenlabs'
   | 'mistral' 
   | 'grok' 
-  | 'openrouter' 
   | 'replicate' 
   | 'huggingface' 
   | 'ollama' 
   | 'custom';
 
+export type AIConnectorCategory = 'llm_reasoning' | 'video_generation' | 'avatar_speech' | 'workflow_automation' | 'multimodal';
+
+export interface ExternalAIConnectorMetadata {
+  id: string;
+  provider: SupportedAIProviderType;
+  displayName: string;
+  category: AIConnectorCategory;
+  description: string;
+  officialPortalUrl: string;
+  apiKeyEnvVar: string;
+  defaultModel: string;
+  supportedModels: string[];
+  isConfigured: boolean;
+  capabilities: ('chat' | 'code' | 'reasoning' | 'vision' | 'text_to_video' | 'image_to_video' | 'talking_avatar' | 'voice_synthesis' | 'workflow_webhook')[];
+  iconName: string;
+  badgeColor: string;
+}
+
 export type AIProviderTier = 'primary' | 'secondary' | 'tertiary' | 'fallback' | 'quarantined';
 export type AIProviderStatus = 'online' | 'degraded' | 'offline' | 'quarantined' | 'testing';
+
+export interface AIPortalLinks {
+  signupUrl: string;
+  apiKeyUrl: string;
+  docsUrl: string;
+  billingUrl: string;
+}
+
+export type AITaskCategory = 'general' | 'coding' | 'reasoning' | 'legal_contract' | 'multilingual' | 'video_generation' | 'voice_speech' | 'workflow_automation';
 
 export interface AIProviderConfig {
   id: string;
   name: string;
   provider: SupportedAIProviderType;
+  category?: AIConnectorCategory;
+  portalUrl?: string;
+  portalLinks?: AIPortalLinks;
+  detectedEnvVar?: string;
+  isEnvKeyPresent?: boolean;
+  correctiveAction?: string;
+  taskSpecialty?: AITaskCategory;
+  dailyQuotaLimitUSD?: number;
+  currentDailySpendUSD?: number;
   isEnabled: boolean;
   isDefault: boolean;
   priority: number; // 1 = top priority, 2, 3, etc.
   tier: AIProviderTier;
   apiKey: string;
+  apiSecret?: string;
+  webhookUrl?: string;
   defaultModel: string;
   availableModels: string[];
   temperature: number;

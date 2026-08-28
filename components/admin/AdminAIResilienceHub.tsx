@@ -32,7 +32,22 @@ import {
   XCircle,
   HelpCircle,
   BarChart3,
-  ListOrdered
+  ListOrdered,
+  ExternalLink,
+  FileText,
+  CreditCard,
+  Copy,
+  CheckCheck,
+  Tag,
+  ToggleLeft,
+  ToggleRight,
+  Volume2,
+  Video,
+  Workflow,
+  Code,
+  Scale,
+  Terminal,
+  UserPlus
 } from 'lucide-react';
 import { 
   AIProviderConfig, 
@@ -44,6 +59,8 @@ import {
 } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { aiRoutingService } from '../../services/aiRoutingService';
+import { AI_PORTAL_LINKS } from '../../services/unifiedAIConnector';
+import { AIConnectorsHubModal } from '../AIConnectorsHubModal';
 
 interface AdminAIResilienceHubProps {
   providers: AIProviderConfig[];
@@ -57,14 +74,19 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
   const [activeTab, setActiveTab] = useState<'providers' | 'governance' | 'testbench' | 'logs'>('providers');
   const [routingPolicy, setRoutingPolicy] = useState<AIRoutingPolicyConfig>(aiRoutingService.getPolicy());
   const [failoverLogs, setFailoverLogs] = useState<AIFailoverEvent[]>(aiRoutingService.getFailoverLogs());
+  const [startupReport, setStartupReport] = useState(aiRoutingService.getStartupDiagnosticReport());
   const [editingProvider, setEditingProvider] = useState<AIProviderConfig | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showConnectorsHub, setShowConnectorsHub] = useState(false);
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [testingProviderId, setTestingProviderId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; latencyMs: number; message: string; qualityScore?: number }>>({});
   const [isDiagnosticRunning, setIsDiagnosticRunning] = useState(false);
   const [diagnosticSummary, setDiagnosticSummary] = useState<any | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
+  const [taskSpecialtyFilter, setTaskSpecialtyFilter] = useState<string>('all');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
 
   // Test bench state
   const [testBenchPrompt, setTestBenchPrompt] = useState('Analyse la faisabilité d\'un contrat d\'exportation d\'anacarde avec clause de séquestre bancaire.');
@@ -111,10 +133,22 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
   useEffect(() => {
     setRoutingPolicy(aiRoutingService.getPolicy());
     setFailoverLogs(aiRoutingService.getFailoverLogs());
+    setStartupReport(aiRoutingService.getStartupDiagnosticReport());
   }, [providers]);
 
   const handleToggleShowKey = (id: string) => {
     setShowKey(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleToggleEnabled = (id: string, currentVal: boolean) => {
+    adminConfigService.updateAIProvider(id, { isEnabled: !currentVal });
+    onReload();
+  };
+
+  const handleCopyEnv = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(text);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   const handleTestProvider = async (id: string) => {
@@ -122,6 +156,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
     try {
       const res = await aiRoutingService.testProviderHealth(id);
       setTestResults(prev => ({ ...prev, [id]: res }));
+      setStartupReport(aiRoutingService.getStartupDiagnosticReport());
       onReload();
     } catch (e: any) {
       setTestResults(prev => ({
@@ -136,6 +171,8 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
   const handleRunFullDiagnostic = async () => {
     setIsDiagnosticRunning(true);
     try {
+      const rep = await aiRoutingService.probeAllProvidersOnStartup();
+      setStartupReport(rep);
       const res = await aiRoutingService.runFullResilienceDiagnostic();
       setDiagnosticSummary(res);
       setTestResults(res.results);
@@ -144,6 +181,26 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
       console.error("Diagnostic error:", err);
     } finally {
       setIsDiagnosticRunning(false);
+    }
+  };
+
+  const handleSimulateFailover = async () => {
+    setSimulationStatus("⚡ Simulation de rupture de clé en cours sur le moteur principal...");
+    setTestBenchIsRunning(true);
+    try {
+      // Simuler une requête où le premier provider échoue volontairement
+      const result = await aiRoutingService.executeWithResilience({
+        prompt: "Simulation test de bascule d'urgence : validation de la continuité de service sans écran blanc.",
+        preferredProviderId: 'prov-kling' // Fournisseur vidéo/complexe pour forcer la bascule
+      });
+      setTestBenchResult(result);
+      setFailoverLogs(aiRoutingService.getFailoverLogs());
+      setSimulationStatus(`✅ Bascule réussie en ${result.latencyMs}ms vers ${result.providerUsed.name} (Zéro interruption utilisateur).`);
+      setTimeout(() => setSimulationStatus(null), 6000);
+    } catch (e: any) {
+      setSimulationStatus(`❌ Échec de la simulation : ${e.message}`);
+    } finally {
+      setTestBenchIsRunning(false);
     }
   };
 
@@ -222,11 +279,19 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
     onReload();
   };
 
-  const filteredProviders = providers.filter(p => 
-    p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    p.provider.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    p.defaultModel.toLowerCase().includes(searchFilter.toLowerCase())
-  ).sort((a, b) => a.priority - b.priority);
+  const filteredProviders = providers.filter(p => {
+    const term = searchFilter.toLowerCase();
+    const matchesSearch = 
+      !term ||
+      p.name.toLowerCase().includes(term) ||
+      p.provider.toLowerCase().includes(term) ||
+      p.defaultModel.toLowerCase().includes(term) ||
+      (p.detectedEnvVar && p.detectedEnvVar.toLowerCase().includes(term)) ||
+      (p.taskSpecialty && p.taskSpecialty.toLowerCase().includes(term));
+
+    const matchesSpecialty = taskSpecialtyFilter === 'all' || p.taskSpecialty === taskSpecialtyFilter;
+    return matchesSearch && matchesSpecialty;
+  }).sort((a, b) => a.priority - b.priority);
 
   const activeCount = providers.filter(p => p.isEnabled && p.status !== 'quarantined').length;
   const quarantinedCount = providers.filter(p => p.status === 'quarantined').length;
@@ -259,6 +324,14 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowConnectorsHub(true)}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs font-black transition flex items-center gap-2 shadow-lg shadow-amber-500/30"
+            >
+              <Zap size={15} />
+              Hub Connecteurs (DeepSeek, Claude, Kling, n8n...)
+            </button>
+
             <button
               onClick={handleRunFullDiagnostic}
               disabled={isDiagnosticRunning}
@@ -316,6 +389,125 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Résumé du dernier diagnostic global ou rapport de démarrage */}
+      {startupReport && (
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 rounded-3xl border border-slate-700 shadow-md space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="p-3 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl">
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-black text-white text-sm">Diagnostic de Démarrage & Statut Résilience</h4>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {startupReport.onlineCount} Connecteur(s) Prêt(s)
+                  </span>
+                  {startupReport.missingKeysCount > 0 && (
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {startupReport.missingKeysCount} Clé(s) en attente (Auto-secours activé)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+                  {startupReport.statusMessage}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button 
+                onClick={handleRunFullDiagnostic}
+                disabled={isDiagnosticRunning}
+                className="text-xs font-bold text-white px-3.5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-blue-600/30 disabled:opacity-50"
+              >
+                <Activity size={14} className={isDiagnosticRunning ? 'animate-spin' : ''} />
+                {isDiagnosticRunning ? 'Test en cours...' : 'Re-tester tous les connecteurs'}
+              </button>
+            </div>
+          </div>
+
+          {/* Cascade active ordonnée */}
+          {startupReport.failoverChainSummary && startupReport.failoverChainSummary.length > 0 && (
+            <div className="pt-3 border-t border-slate-700/60 flex items-center gap-2 overflow-x-auto text-xs pb-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap flex items-center gap-1">
+                <ArrowRightLeft size={13} className="text-blue-400" /> Ordre de bascule actif :
+              </span>
+              {startupReport.failoverChainSummary.slice(0, 6).map((item, idx) => (
+                <div 
+                  key={item.id}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1.5 ${
+                    idx === 0 
+                      ? 'bg-blue-600 text-white shadow-sm' 
+                      : item.status === 'online' 
+                        ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30' 
+                        : 'bg-slate-800/60 text-slate-400 border border-slate-700'
+                  }`}
+                >
+                  <span className="opacity-70 font-mono">#{idx + 1}</span>
+                  <span>{item.name}</span>
+                  {idx === 0 && <span className="bg-blue-400/30 text-white text-[9px] px-1 rounded">Pilote</span>}
+                </div>
+              ))}
+              <div className="px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap bg-emerald-950/80 text-emerald-400 border border-emerald-600/40">
+                🛡️ Repli Souverain Local
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alerte & Recommandations pour les clés d'API manquantes */}
+      {startupReport && startupReport.missingKeyProviders.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-5 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="text-amber-500 flex-shrink-0" size={20} />
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">
+                  {startupReport.missingKeyProviders.length} Connecteur(s) en mode Dégradé Toléré (Clés d'environnement facultatives)
+                </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  L'application continue de fonctionner sans interruption grâce aux moteurs disponibles et au repli souverain. Pour débloquer ces moteurs spécialisés (vidéo Kling, voix ElevenLabs, DeepSeek, etc.), ajoutez les variables suivantes dans votre fichier <code className="bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-mono text-[11px]">.env</code> :
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-2">
+            {startupReport.missingKeyProviders.slice(0, 6).map((missing) => (
+              <div key={missing.id} className="bg-white p-3 rounded-2xl border border-amber-200/80 shadow-xs flex flex-col justify-between gap-2">
+                <div className="flex items-start justify-between gap-1">
+                  <div>
+                    <span className="font-bold text-slate-900 text-xs block">{missing.name}</span>
+                    <span className="font-mono text-[11px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded mt-1 inline-block">
+                      {missing.envKey}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleCopyEnv(`${missing.envKey}=`)}
+                    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+                    title="Copier le nom de la variable"
+                  >
+                    {copiedKey === `${missing.envKey}=` ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                  </button>
+                </div>
+                {missing.portalUrl && missing.portalUrl !== 'https://lemondeavous.com' && (
+                  <a
+                    href={missing.portalUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                  >
+                    Obtenir la clé <ExternalLink size={10} />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Résumé du dernier diagnostic global */}
       {diagnosticSummary && (
@@ -388,20 +580,51 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
       {/* ────────────────────────────────────────────────────────── */}
       {activeTab === 'providers' && (
         <div className="space-y-4">
-          {/* Barre de filtre et recherche */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-              <input
-                type="text"
-                placeholder="Filtrer un modèle, fournisseur..."
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          {/* Barre de recherche et filtre par spécialité de tâche */}
+          <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                <input
+                  type="text"
+                  placeholder="Filtrer un modèle, fournisseur, variable..."
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="text-xs text-slate-500 font-medium">
+                Cascade ordonnée par rang : <span className="font-bold text-slate-800">#1 = Déclenchement Prioritaire</span>
+              </div>
             </div>
-            <div className="text-xs text-slate-500 font-medium">
-              Ordre de priorité calculé : <span className="font-bold text-slate-800">1 = Déclenchement Prioritaire</span>
+
+            {/* Chips de filtres par spécialité */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+              <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mr-1 flex items-center gap-1">
+                <Filter size={12} /> Spécialité :
+              </span>
+              {[
+                { id: 'all', label: 'Tous les Connecteurs' },
+                { id: 'reasoning', label: 'Raisonnement & LLM' },
+                { id: 'legal_contract', label: 'Juridique & Contrats' },
+                { id: 'coding', label: 'Code & Architecture' },
+                { id: 'multilingual', label: 'Multilingue Global' },
+                { id: 'video_generation', label: 'Vidéo & Cinéma' },
+                { id: 'voice_speech', label: 'Voix & Speech' },
+                { id: 'workflow_automation', label: 'Workflows & n8n' }
+              ].map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setTaskSpecialtyFilter(cat.id)}
+                  className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition text-xs ${
+                    taskSpecialtyFilter === cat.id
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -410,6 +633,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
             {filteredProviders.map((provider, index) => {
               const testResult = testResults[provider.id];
               const isTesting = testingProviderId === provider.id;
+              const portal = provider.portalLinks || (AI_PORTAL_LINKS as any)[provider.provider];
 
               return (
                 <div 
@@ -420,8 +644,8 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                     !provider.isEnabled ? 'border-slate-200 opacity-60 bg-slate-50' : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  {/* Badge de statut et priorité */}
                   <div>
+                    {/* Badge de statut, priorité et interrupteur ON/OFF */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="w-6 h-6 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-mono font-bold text-xs text-slate-700">
@@ -434,9 +658,25 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                         }`}>
                           {provider.tier}
                         </span>
+                        {provider.taskSpecialty && (
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[110px]">
+                            {provider.taskSpecialty}
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
+                        {/* Toggle On/Off */}
+                        <button
+                          onClick={() => handleToggleEnabled(provider.id, provider.isEnabled)}
+                          title={provider.isEnabled ? 'Désactiver le fournisseur' : 'Activer le fournisseur'}
+                          className={`p-1 rounded-xl transition ${
+                            provider.isEnabled ? 'text-emerald-600 hover:text-emerald-700' : 'text-slate-400 hover:text-slate-600'
+                          }`}
+                        >
+                          {provider.isEnabled ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                        </button>
+
                         {provider.isDefault && (
                           <span className="bg-blue-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
                             <Sparkles size={10} />
@@ -460,6 +700,14 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                         provider.provider === 'claude' ? 'bg-amber-50 text-amber-800' :
                         provider.provider === 'deepseek' ? 'bg-cyan-50 text-cyan-700' :
                         provider.provider === 'mistral' ? 'bg-orange-50 text-orange-700' :
+                        provider.provider === 'qwen' ? 'bg-indigo-50 text-indigo-700' :
+                        provider.provider === 'kimi' ? 'bg-sky-50 text-sky-700' :
+                        provider.provider === 'kling' ? 'bg-purple-50 text-purple-700' :
+                        provider.provider === 'elevenlabs' ? 'bg-teal-50 text-teal-700' :
+                        provider.provider === 'heygen' ? 'bg-violet-50 text-violet-700' :
+                        provider.provider === 'runway' ? 'bg-pink-50 text-pink-700' :
+                        provider.provider === 'openrouter' ? 'bg-blue-50 text-blue-800' :
+                        provider.provider === 'n8n' ? 'bg-rose-50 text-rose-700' :
                         provider.provider === 'grok' ? 'bg-red-50 text-red-700' :
                         provider.provider === 'ollama' ? 'bg-emerald-50 text-emerald-900' : 'bg-purple-50 text-purple-700'
                       }`}>
@@ -481,7 +729,85 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                       </div>
                     </div>
 
-                    {/* Métriques de qualité et coûts */}
+                    {/* Détection de variable d'environnement */}
+                    {provider.detectedEnvVar && (
+                      <div className="mt-2.5 flex items-center justify-between bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 rounded-xl text-[11px]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${provider.isEnvKeyPresent ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                          <span className="font-mono text-slate-700 font-bold truncate">{provider.detectedEnvVar}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                            provider.isEnvKeyPresent ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {provider.isEnvKeyPresent ? 'Détectée' : 'Manquante'}
+                          </span>
+                          <button
+                            onClick={() => handleCopyEnv(`${provider.detectedEnvVar}=`)}
+                            title="Copier le nom de la variable"
+                            className="text-slate-400 hover:text-slate-700 p-0.5"
+                          >
+                            {copiedKey === `${provider.detectedEnvVar}=` ? (
+                              <CheckCheck size={12} className="text-emerald-600" />
+                            ) : (
+                              <Copy size={12} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Boutons d'accès direct 1-clic aux portails officiels */}
+                    {portal && (
+                      <div className="mt-3 grid grid-cols-4 gap-1 pt-2 border-t border-slate-100">
+                        {portal.signupUrl && (
+                          <a
+                            href={portal.signupUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold text-center truncate flex items-center justify-center gap-0.5"
+                            title="Créer un compte officiel"
+                          >
+                            <UserPlus size={10} /> Compte
+                          </a>
+                        )}
+                        {portal.apiKeyUrl && (
+                          <a
+                            href={portal.apiKeyUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-1.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold text-center truncate flex items-center justify-center gap-0.5"
+                            title="Générer une clé API"
+                          >
+                            <Key size={10} /> Clé API
+                          </a>
+                        )}
+                        {portal.docsUrl && (
+                          <a
+                            href={portal.docsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold text-center truncate flex items-center justify-center gap-0.5"
+                            title="Documentation technique"
+                          >
+                            <FileText size={10} /> Doc
+                          </a>
+                        )}
+                        {portal.billingUrl && (
+                          <a
+                            href={portal.billingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-1.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold text-center truncate flex items-center justify-center gap-0.5"
+                            title="Quotas & Facturation"
+                          >
+                            <CreditCard size={10} /> Quotas
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Métriques de qualité et taux de succès */}
                     <div className="grid grid-cols-2 gap-2 mt-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-xs">
                       <div>
                         <span className="text-slate-400 text-[10px] uppercase font-bold block">Score Qualité</span>
@@ -510,11 +836,11 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                       </div>
                     </div>
 
-                    {/* Détails techniques */}
+                    {/* Détails techniques & Quotas */}
                     <div className="space-y-1.5 text-xs mt-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 text-[11px]">Modèle actif :</span>
-                        <span className="font-mono font-bold text-slate-800 text-[11px] bg-white px-2 py-0.5 rounded border border-slate-200">
+                        <span className="font-mono font-bold text-slate-800 text-[11px] bg-white px-2 py-0.5 rounded border border-slate-200 truncate max-w-[150px]">
                           {provider.defaultModel}
                         </span>
                       </div>
@@ -525,6 +851,15 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                           ${provider.costPer1kInputTokens || 0} in / ${provider.costPer1kOutputTokens || 0} out
                         </span>
                       </div>
+
+                      {provider.dailyQuotaLimitUSD && provider.dailyQuotaLimitUSD > 0 ? (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 text-[11px]">Quota / jour :</span>
+                          <span className="font-mono font-bold text-slate-700 text-[11px]">
+                            ${provider.currentDailySpendUSD || 0} / ${provider.dailyQuotaLimitUSD} USD
+                          </span>
+                        </div>
+                      ) : null}
 
                       <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
                         <span className="text-slate-500 text-[11px] flex items-center gap-1">
@@ -884,15 +1219,34 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                 </select>
               </div>
 
-              <button
-                onClick={handleRunTestBench}
-                disabled={testBenchIsRunning || !testBenchPrompt.trim()}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-2 disabled:opacity-50"
-              >
-                <Play size={14} className={testBenchIsRunning ? 'animate-spin' : ''} />
-                {testBenchIsRunning ? 'Exécution en cours...' : 'Lancer le Test de Sonde'}
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleSimulateFailover}
+                  disabled={testBenchIsRunning}
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs font-black shadow-md shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50 transition"
+                  title="Simule une clé manquante ou indisponible pour vérifier l'auto-bascule instantanée"
+                >
+                  <Zap size={14} className="text-slate-950" />
+                  Simuler une Rupture de Clé & Auto-Bascule
+                </button>
+
+                <button
+                  onClick={handleRunTestBench}
+                  disabled={testBenchIsRunning || !testBenchPrompt.trim()}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Play size={14} className={testBenchIsRunning ? 'animate-spin' : ''} />
+                  {testBenchIsRunning ? 'Exécution en cours...' : 'Lancer le Test de Sonde'}
+                </button>
+              </div>
             </div>
+
+            {simulationStatus && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-bold text-amber-900 animate-fade-in flex items-center gap-2">
+                <Activity size={15} className="text-amber-600 animate-spin" />
+                {simulationStatus}
+              </div>
+            )}
 
             {/* Affichage du résultat */}
             {testBenchResult && (
@@ -1029,25 +1383,75 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3.5 text-xs">
+            <div className="space-y-3.5 text-xs max-h-[70vh] overflow-y-auto pr-1">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Clé API (Secret Token)</label>
+                <label className="block font-bold text-slate-700 mb-1">Clé API Principale (Secret Token / API Key)</label>
                 <input
                   type="text"
+                  placeholder="Ex: sk-..., nvapi-..., claude-..."
                   value={editingProvider.apiKey}
                   onChange={(e) => setEditingProvider({ ...editingProvider, apiKey: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-medium outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                {editingProvider.detectedEnvVar && (
+                  <span className="text-[10px] text-slate-500 mt-1 block font-mono">
+                    Variable d'environnement associée : <strong className="text-slate-800">{editingProvider.detectedEnvVar}</strong>
+                  </span>
+                )}
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Modèle par Défaut</label>
-                <input
-                  type="text"
-                  value={editingProvider.defaultModel}
-                  onChange={(e) => setEditingProvider({ ...editingProvider, defaultModel: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Clé Secrète / Jeton Secondaire (Optionnel)</label>
+                  <input
+                    type="text"
+                    placeholder="Jeton secret additionnel"
+                    value={editingProvider.apiSecret || ''}
+                    onChange={(e) => setEditingProvider({ ...editingProvider, apiSecret: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">URL Webhook / Déclencheur Automatisé</label>
+                  <input
+                    type="text"
+                    placeholder="https://n8n.votredomaine.com/webhook/..."
+                    value={editingProvider.webhookUrl || ''}
+                    onChange={(e) => setEditingProvider({ ...editingProvider, webhookUrl: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Modèle par Défaut</label>
+                  <input
+                    type="text"
+                    value={editingProvider.defaultModel}
+                    onChange={(e) => setEditingProvider({ ...editingProvider, defaultModel: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Spécialité Principale de Tâche</label>
+                  <select
+                    value={editingProvider.taskSpecialty || 'General Reasoning'}
+                    onChange={(e) => setEditingProvider({ ...editingProvider, taskSpecialty: e.target.value as any })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                  >
+                    <option value="General Reasoning">Raisonnement Général & LLM</option>
+                    <option value="Legal & Contracting">Juridique & Analyse de Contrats</option>
+                    <option value="Coding & Architecture">Code & Programmation</option>
+                    <option value="Multilingual & Translation">Multilingue & Traduction</option>
+                    <option value="Voice & Speech Synthesis">Voix & Synthèse Vocale</option>
+                    <option value="Video Generation">Génération Vidéo Cinématique</option>
+                    <option value="Avatar Video">Génération d'Avatars & Présentateurs</option>
+                    <option value="Workflow Automation">Automatisation & Workflows n8n</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1065,11 +1469,14 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Max Tokens</label>
+                  <label className="block font-bold text-slate-700 mb-1">Plafond Quota Quotidien ($ USD)</label>
                   <input
                     type="number"
-                    value={editingProvider.maxTokens}
-                    onChange={(e) => setEditingProvider({ ...editingProvider, maxTokens: parseInt(e.target.value) || 2048 })}
+                    min="0"
+                    step="5"
+                    placeholder="0 = Illimité"
+                    value={editingProvider.dailyQuotaLimitUSD || 0}
+                    onChange={(e) => setEditingProvider({ ...editingProvider, dailyQuotaLimitUSD: parseFloat(e.target.value) || 0 })}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none"
                   />
                 </div>
@@ -1103,6 +1510,73 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                   </select>
                 </div>
               </div>
+
+              {/* Accès Directs Développeur pour ce Connecteur */}
+              {(editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) && (
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    Portails Officiels & Quotas Directs
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    {((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).signupUrl && (
+                      <a
+                        href={((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).signupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-center font-bold text-slate-800 text-[11px] flex flex-col items-center gap-1 shadow-xs"
+                      >
+                        <UserPlus size={14} className="text-blue-600" />
+                        Créer Compte
+                      </a>
+                    )}
+                    {((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).apiKeyUrl && (
+                      <a
+                        href={((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).apiKeyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-white hover:bg-blue-50 border border-blue-200 rounded-xl text-center font-bold text-blue-800 text-[11px] flex flex-col items-center gap-1 shadow-xs"
+                      >
+                        <Key size={14} className="text-blue-600" />
+                        Générer Clé
+                      </a>
+                    )}
+                    {((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).docsUrl && (
+                      <a
+                        href={((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).docsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-center font-bold text-slate-800 text-[11px] flex flex-col items-center gap-1 shadow-xs"
+                      >
+                        <FileText size={14} className="text-emerald-600" />
+                        Documentation
+                      </a>
+                    )}
+                    {((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).billingUrl && (
+                      <a
+                        href={((editingProvider.portalLinks || (AI_PORTAL_LINKS as any)[editingProvider.provider]) as any).billingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-xl text-center font-bold text-emerald-800 text-[11px] flex flex-col items-center gap-1 shadow-xs"
+                      >
+                        <CreditCard size={14} className="text-emerald-600" />
+                        Quotas & Facturation
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Corrective Recommandée */}
+              {editingProvider.correctiveAction && (
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs space-y-1">
+                  <span className="font-bold flex items-center gap-1 text-[11px] uppercase tracking-wider">
+                    <AlertTriangle size={13} className="text-amber-600" /> Action Corrective Conseillée :
+                  </span>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    {editingProvider.correctiveAction}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">URL Endpoint Personnalisée (Optionnel)</label>
@@ -1308,6 +1782,12 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
           </div>
         </div>
       )}
+
+      {/* Hub Connecteurs & Portails Directs Modal */}
+      <AIConnectorsHubModal
+        isOpen={showConnectorsHub}
+        onClose={() => setShowConnectorsHub(false)}
+      />
     </div>
   );
 };

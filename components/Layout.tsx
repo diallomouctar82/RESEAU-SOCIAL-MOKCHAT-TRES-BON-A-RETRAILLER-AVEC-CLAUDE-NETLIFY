@@ -55,6 +55,8 @@ import { UnifiedSettingsModal } from './settings/UnifiedSettingsModal';
 import { BrandColorLabModal } from './settings/BrandColorLabModal';
 import { ComponentShowcaseModal } from './ui/ComponentShowcaseModal';
 import { FocusAndPresentationControls } from './ui/FocusAndPresentationControls';
+import { AIProvidersDashboardModal } from './AIProvidersDashboardModal';
+import { aiRoutingService } from '../services/aiRoutingService';
 import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
 import { voiceEngine } from '../services/voiceEngine';
@@ -107,8 +109,17 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isColorLabOpen, setIsColorLabOpen] = useState(false);
   const [isShowcaseModalOpen, setIsShowcaseModalOpen] = useState(false);
+  const [isAIProvidersModalOpen, setIsAIProvidersModalOpen] = useState(false);
+  const [aiEngineInfo, setAiEngineInfo] = useState(aiRoutingService.getActiveEngineInfo());
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
+
+  useEffect(() => {
+    const unsub = aiRoutingService.subscribe(() => {
+      setAiEngineInfo(aiRoutingService.getActiveEngineInfo());
+    });
+    return unsub;
+  }, []);
 
   // Favorites state
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -306,6 +317,18 @@ export const Layout: React.FC<LayoutProps> = ({
                 onTogglePresentationMode={() => setIsPresentationMode(!isPresentationMode)}
               />
             </div>
+
+            {/* AI Providers Resilience & Connectors Hub Trigger */}
+            <button
+              onClick={() => setIsAIProvidersModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-slate-900 hover:bg-slate-850 text-emerald-400 border border-emerald-500/40 transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+              title="Tableau de bord des Connecteurs IA & Résilience (Test de latence, bascule automatique & reconnexion)"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="hidden sm:inline text-slate-300">IA :</span>
+              <span className="text-white max-w-[110px] truncate">{aiEngineInfo.name.split(' ')[0]}</span>
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono font-extrabold">{aiEngineInfo.latencyMs}ms</span>
+            </button>
 
             {/* Super-Admin Dashboard Trigger */}
             <button
@@ -908,7 +931,10 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
               
               <div className="mt-3 pt-3 border-t border-slate-100 shrink-0 flex gap-2">
-                <button onClick={() => {onTabChange('settings'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-2">
+                <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
+                  <Shield size={14} /> Super-Admin (IA & Comptes)
+                </button>
+                <button onClick={() => {onTabChange('settings'); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
                   <Settings size={14} /> Paramètres
                 </button>
                 {onLogout && (
@@ -1036,6 +1062,12 @@ export const Layout: React.FC<LayoutProps> = ({
         <ComponentShowcaseModal
           isOpen={isShowcaseModalOpen}
           onClose={() => setIsShowcaseModalOpen(false)}
+        />
+
+        {/* AI Providers & Resilience Dashboard Modal */}
+        <AIProvidersDashboardModal
+          isOpen={isAIProvidersModalOpen}
+          onClose={() => setIsAIProvidersModalOpen(false)}
         />
 
         {/* Floating Mooc Chat */}

@@ -150,20 +150,20 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
         </div>
 
         <div 
-          onClick={() => onNavigateTab('ai-modules')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group"
+          onClick={() => onNavigateTab('ai-connectors')}
+          className="bg-white p-5 rounded-2xl border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 transition cursor-pointer group"
         >
           <div className="flex justify-between items-start mb-3">
             <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition">
               <BrainCircuit size={22} />
             </div>
             <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
-              Gemini 2.5 Core
+              Auto-Résilience Active
             </span>
           </div>
-          <div className="text-3xl font-black text-slate-900">5 Fournisseurs</div>
+          <div className="text-3xl font-black text-slate-900">15 Connecteurs IA</div>
           <div className="text-xs font-bold text-slate-500 mt-1 flex items-center justify-between">
-            <span>Passerelle IA & Modèles</span>
+            <span>Orchestrateur & Modèles</span>
             <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 text-indigo-600 transition" />
           </div>
         </div>
