@@ -68,7 +68,11 @@ Deno.serve(async (req: Request) => {
     const newSessionExpireTime = new Date(now + 60_000).toISOString(); // 1 min pour démarrer la session
     const expireTime = new Date(now + 30 * 60_000).toISOString(); // 30 min de session max
 
-    const mintRes = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+    // v1beta rejette liveConnectConstraints ("Unknown name ... Cannot find
+    // field.") : ce champ n'existe que sur v1alpha, seule version où les
+    // jetons éphémères Live API sont exposés pour l'instant (fonctionnalité
+    // expérimentale, Gemini Developer API uniquement — pas Vertex AI).
+    const mintRes = await fetch('https://generativelanguage.googleapis.com/v1alpha/auth_tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey as string },
         body: JSON.stringify({
