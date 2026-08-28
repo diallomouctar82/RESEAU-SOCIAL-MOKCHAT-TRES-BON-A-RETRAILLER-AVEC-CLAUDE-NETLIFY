@@ -102,9 +102,14 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
                 content?: string;
                 tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
             } }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
         const message = data.choices?.[0]?.message;
         const content = message?.content ?? '';
+        const usage = {
+            inputTokens: data.usage?.prompt_tokens,
+            outputTokens: data.usage?.completion_tokens,
+        };
 
         const rawCalls = message?.tool_calls ?? [];
         if (rawCalls.length) {
@@ -121,15 +126,15 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
                     }
                     return { id: c.id ?? `call_${Date.now()}_${i}`, name: c.function!.name!, args };
                 });
-            if (toolCalls.length) return { text: content, toolCalls, raw: data };
+            if (toolCalls.length) return { text: content, toolCalls, usage, raw: data };
         }
 
         if (!content) {
             throw new AdapterError('Réponse vide du fournisseur.', 'other');
         }
         return req.llm.jsonMode
-            ? { json: JSON.parse(content), raw: data }
-            : { text: content, raw: data };
+            ? { json: JSON.parse(content), usage, raw: data }
+            : { text: content, usage, raw: data };
     },
 
     async testConnection(apiKey: string, baseUrl: string | null): Promise<{ ok: boolean; message: string }> {
@@ -143,9 +148,14 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
             return { ok: true, message: 'Connexion réussie.' };
         } catch (err) {
             if (err instanceof AdapterError) {
-                // Une erreur "modèle inconnu" (400) confirme quand même que la clé est acceptée
-                // par le fournisseur — on ne peut pas connaître un vrai model_id sans config admin.
-                if (err.errorClass === 'other') {
+                // Une erreur portant sur le MODÈLE confirme que la clé est
+                // acceptée : on ne peut pas connaître un vrai model_id sans
+                // configuration admin. En revanche, toute autre erreur 400
+                // (organisation manquante, permission refusée, compte non
+                // provisionné) est un vrai défaut : la signaler plutôt que
+                // d'afficher un succès, qui laisserait le fournisseur au vert
+                // dans la console alors que chaque appel échouera.
+                if (err.errorClass === 'other' && /model/i.test(err.message)) {
                     return { ok: true, message: 'Clé acceptée par le fournisseur (modèle de test non résolu, normal).' };
                 }
                 return { ok: false, message: err.message };

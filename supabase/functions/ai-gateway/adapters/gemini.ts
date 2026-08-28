@@ -90,6 +90,12 @@ export const geminiAdapter: ProviderAdapter = {
 
         const data = await generateContent(baseUrl || DEFAULT_BASE_URL, apiKey, req.modelId, body) as {
             candidates?: { content?: { parts?: { text?: string; functionCall?: { name?: string; args?: Record<string, unknown> } }[] } }[];
+            usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+        };
+
+        const usage = {
+            inputTokens: data.usageMetadata?.promptTokenCount,
+            outputTokens: data.usageMetadata?.candidatesTokenCount,
         };
 
         const parts = data.candidates?.[0]?.content?.parts ?? [];
@@ -104,10 +110,10 @@ export const geminiAdapter: ProviderAdapter = {
 
         // Un tour qui ne contient que des appels d'outils est légitime : le
         // modèle attend leur résultat avant de pouvoir répondre.
-        if (toolCalls.length) return { text, toolCalls, raw: data };
+        if (toolCalls.length) return { text, toolCalls, usage, raw: data };
 
         if (!text) throw new AdapterError('Réponse vide du fournisseur.', 'other');
-        return req.llm.jsonMode ? { json: JSON.parse(text), raw: data } : { text, raw: data };
+        return req.llm.jsonMode ? { json: JSON.parse(text), usage, raw: data } : { text, usage, raw: data };
     },
 
     async testConnection(apiKey: string, baseUrl: string | null): Promise<{ ok: boolean; message: string }> {

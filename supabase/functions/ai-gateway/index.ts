@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: candidates, error: candidatesError } = await service
         .from('ai_providers')
-        .select('id, adapter_kind, base_url, adapter_config, priority, ai_provider_credentials!inner(is_enabled)')
+        .select('id, adapter_kind, base_url, adapter_config, priority, cost_tier, ai_provider_credentials!inner(is_enabled)')
         .eq('category', body.category)
         .eq('status', 'active')
         .eq('ai_provider_credentials.is_enabled', true)
@@ -97,12 +97,38 @@ Deno.serve(async (req: Request) => {
 
     if (candidatesError) return json({ error: `Erreur catalogue : ${candidatesError.message}` }, 500);
 
-    const ordered = body.providerId
+    // Identifiant de requête : relie entre elles toutes les décisions prises
+    // pour un même appel (fournisseur retenu, écartés, échecs successifs).
+    // C'est lui qui rend l'audit lisible dans ai_call_log.
+    const requestId = crypto.randomUUID();
+
+    // ── Gouvernance des coûts : quota gratuit d'abord ───────────────────────
+    // À priorité égale, un fournisseur en offre gratuite passe avant un payant.
+    // L'ordre de priorité reste maître à l'intérieur de chaque palier, et se
+    // règle depuis la console sans redéploiement.
+    const ordered = (body.providerId
         ? (candidates ?? []).filter((c) => c.id === body.providerId)
-        : (candidates ?? []);
+        : (candidates ?? [])
+    ).slice().sort((a, b) => {
+        const tierA = a.cost_tier === 'free' ? 0 : 1;
+        const tierB = b.cost_tier === 'free' ? 0 : 1;
+        return tierA !== tierB ? tierA - tierB : (a.priority ?? 100) - (b.priority ?? 100);
+    });
 
     if (ordered.length === 0) {
         return json({ error: 'Aucun fournisseur actif et configuré pour cette catégorie.' }, 503);
+    }
+
+    // ── Plafonds de dépense ─────────────────────────────────────────────────
+    // Vérifiés AVANT tout appel réseau : au plafond, plus rien ne part.
+    const budgetVerdict = await checkBudget(service);
+    if (budgetVerdict.blocked) {
+        await logCall(service, {
+            requestId, category: body.category, providerId: null, modelId: null,
+            attemptNumber: 0, status: 'blocked', decision: 'blocked_budget',
+            decisionReason: budgetVerdict.reason, latencyMs: 0, requestedBy,
+        });
+        return json({ error: budgetVerdict.reason, budgetExceeded: true }, 402);
     }
 
     // ── Outils autorisés pour cet expert ─────────────────────────────────────
@@ -205,6 +231,9 @@ Deno.serve(async (req: Request) => {
             );
 
             let result = await callProvider(adapterRequest);
+            // Consommation cumulée sur l'ensemble du tour (boucle d'outils incluse).
+            let totalInput = result.usage?.inputTokens ?? 0;
+            let totalOutput = result.usage?.outputTokens ?? 0;
             let pendingAction: { toolId: string; label: string; args: Record<string, unknown> } | null = null;
             // L'action confirmée a déjà été exécutée avant la boucle : elle
             // compte parmi les outils utilisés pour ce tour.
@@ -258,11 +287,23 @@ Deno.serve(async (req: Request) => {
 
                 adapterRequest.llm!.messages = history;
                 result = await callProvider(adapterRequest);
+                totalInput += result.usage?.inputTokens ?? 0;
+                totalOutput += result.usage?.outputTokens ?? 0;
             }
 
+            // Le coût agrège TOUS les allers-retours du tour (boucle d'outils
+            // comprise) : une réponse ayant nécessité trois appels au modèle est
+            // facturée trois fois, et le budget doit le refléter.
+            const costUsd = await computeCost(service, provider.id, modelId, {
+                inputTokens: totalInput, outputTokens: totalOutput,
+            });
+
             await logCall(service, {
-                category: body.category, providerId: provider.id, modelId, attemptNumber,
-                status: 'success', latencyMs: Date.now() - startedAt, requestedBy,
+                requestId, category: body.category, providerId: provider.id, modelId, attemptNumber,
+                status: 'success', decision: 'selected',
+                decisionReason: `Retenu (${provider.cost_tier === 'free' ? 'palier gratuit' : 'palier payant'}, priorité ${provider.priority}).`,
+                latencyMs: Date.now() - startedAt, requestedBy,
+                inputTokens: totalInput, outputTokens: totalOutput, costUsd,
             });
 
             return json({
@@ -278,9 +319,16 @@ Deno.serve(async (req: Request) => {
         } catch (err) {
             const adapterErr = err instanceof AdapterError ? err : new AdapterError(String(err), 'other');
             attempts.push({ providerId: provider.id, errorClass: adapterErr.errorClass, message: adapterErr.message });
+            const resteDesCandidats = i < ordered.length - 1;
             await logCall(service, {
-                category: body.category, providerId: provider.id, modelId: body.modelId ?? null,
+                requestId, category: body.category, providerId: provider.id, modelId: body.modelId ?? null,
                 attemptNumber, status: 'error', errorClass: adapterErr.errorClass,
+                decision: resteDesCandidats ? 'failover' : 'exhausted',
+                decisionReason: adapterErr.errorClass === 'rate_limited'
+                    // Cas typique d'un quota gratuit épuisé : la bascule vers le
+                    // fournisseur suivant est exactement le comportement voulu.
+                    ? `Quota ou limite de débit atteint sur ${provider.id}${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`
+                    : `Échec (${adapterErr.errorClass})${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`,
                 errorMessage: adapterErr.message, latencyMs: Date.now() - startedAt, requestedBy,
             });
             // Bascule automatique : on continue sur le fournisseur suivant, quelle que soit la cause.
@@ -333,23 +381,115 @@ async function testProvider(service: ReturnType<typeof createServiceRoleClient>,
     return outcome;
 }
 
+/**
+ * Montant lisible : arrondir un plafond de quelques millièmes à deux décimales
+ * afficherait « 0.00 $ sur 0.00 $ », message incompréhensible pour la personne
+ * qui vient d'être bloquée.
+ */
+function money(n: number): string {
+    if (n === 0) return '0 $';
+    if (n < 0.01) return `${n.toFixed(6)} $`;
+    return `${n.toFixed(2)} $`;
+}
+
+/**
+ * Vérifie les plafonds de dépense avant tout appel réseau.
+ * Un plafond non renseigné (null) signifie « pas de limite ». L'interrupteur
+ * `enforced` permet de suspendre entièrement le contrôle sans effacer les
+ * montants configurés.
+ */
+async function checkBudget(
+    service: ReturnType<typeof createServiceRoleClient>,
+): Promise<{ blocked: boolean; reason: string; spentToday: number; spentMonth: number }> {
+    const { data: budget } = await service
+        .from('ai_budget')
+        .select('daily_cap_usd, monthly_cap_usd, enforced')
+        .eq('id', 'global')
+        .maybeSingle();
+
+    const { data: spend } = await service.rpc('get_ai_spend');
+    const row = Array.isArray(spend) ? spend[0] : spend;
+    const spentToday = Number(row?.spent_today ?? 0);
+    const spentMonth = Number(row?.spent_month ?? 0);
+
+    if (!budget?.enforced) return { blocked: false, reason: '', spentToday, spentMonth };
+
+    const daily = budget.daily_cap_usd == null ? null : Number(budget.daily_cap_usd);
+    const monthly = budget.monthly_cap_usd == null ? null : Number(budget.monthly_cap_usd);
+
+    if (daily != null && spentToday >= daily) {
+        return {
+            blocked: true,
+            reason: `Plafond journalier atteint (${money(spentToday)} sur ${money(daily)}). Les appels IA sont suspendus jusqu'à demain, ou jusqu'à ce qu'un administrateur relève le plafond.`,
+            spentToday, spentMonth,
+        };
+    }
+    if (monthly != null && spentMonth >= monthly) {
+        return {
+            blocked: true,
+            reason: `Plafond mensuel atteint (${money(spentMonth)} sur ${money(monthly)}). Les appels IA sont suspendus jusqu'au mois prochain, ou jusqu'à ce qu'un administrateur relève le plafond.`,
+            spentToday, spentMonth,
+        };
+    }
+    return { blocked: false, reason: '', spentToday, spentMonth };
+}
+
+/**
+ * Coût d'un appel, à partir des tarifs du modèle et de la consommation
+ * rapportée par le fournisseur. Un tarif à zéro (offre gratuite, ou grille non
+ * renseignée) donne un coût nul : la console signale les modèles sans tarif,
+ * car ils resteraient invisibles pour le budget.
+ */
+async function computeCost(
+    service: ReturnType<typeof createServiceRoleClient>,
+    providerId: string,
+    modelId: string,
+    usage?: { inputTokens?: number; outputTokens?: number },
+): Promise<number> {
+    const { data: model } = await service
+        .from('ai_models')
+        .select('input_cost_per_million, output_cost_per_million, cost_per_call')
+        .eq('provider_id', providerId)
+        .eq('model_id', modelId)
+        .maybeSingle();
+    if (!model) return 0;
+
+    const perCall = Number(model.cost_per_call ?? 0);
+    const inTok = usage?.inputTokens ?? 0;
+    const outTok = usage?.outputTokens ?? 0;
+    const tokenCost =
+        (inTok / 1_000_000) * Number(model.input_cost_per_million ?? 0) +
+        (outTok / 1_000_000) * Number(model.output_cost_per_million ?? 0);
+
+    return perCall + tokenCost;
+}
+
 async function logCall(
     service: ReturnType<typeof createServiceRoleClient>,
     entry: {
-        category: string; providerId: string; modelId: string | null; attemptNumber: number;
-        status: 'success' | 'error'; errorClass?: string; errorMessage?: string;
+        requestId: string; category: string; providerId: string | null; modelId: string | null;
+        attemptNumber: number; status: 'success' | 'error' | 'skipped' | 'blocked';
+        decision?: string; decisionReason?: string;
+        errorClass?: string; errorMessage?: string;
         latencyMs: number; requestedBy: string;
+        inputTokens?: number; outputTokens?: number; costUsd?: number;
     },
 ) {
     await service.from('ai_call_log').insert({
+        request_id: entry.requestId,
         category: entry.category,
         provider_id: entry.providerId,
         model_id: entry.modelId,
         attempt_number: entry.attemptNumber,
         status: entry.status,
+        decision: entry.decision ?? null,
+        decision_reason: entry.decisionReason ?? null,
         error_class: entry.errorClass ?? null,
         error_message: entry.errorMessage ?? null,
         latency_ms: entry.latencyMs,
         requested_by: entry.requestedBy,
+        input_tokens: entry.inputTokens ?? null,
+        output_tokens: entry.outputTokens ?? null,
+        cost_usd: entry.costUsd ?? 0,
     });
 }

@@ -70,6 +70,10 @@ export interface AdapterResult {
     // Le modèle demande l'exécution d'outils avant de pouvoir répondre.
     // La boucle d'outils de index.ts les exécute puis relance l'adaptateur.
     toolCalls?: ToolCall[];
+    // Consommation réelle rapportée par le fournisseur, base du calcul de coût.
+    // Absente si le fournisseur ne la communique pas : la dépense est alors
+    // comptée à zéro, ce qui est signalé dans la console d'administration.
+    usage?: { inputTokens?: number; outputTokens?: number };
 }
 
 // Erreur typée levée par un adaptateur : la boucle de bascule de index.ts l'utilise
