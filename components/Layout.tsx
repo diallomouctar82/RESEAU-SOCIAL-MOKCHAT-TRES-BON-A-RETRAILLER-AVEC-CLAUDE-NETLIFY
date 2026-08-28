@@ -886,8 +886,9 @@ export const Layout: React.FC<LayoutProps> = ({
               </button>
 
               {/* Outils rapides — desktop-only jusqu'ici (Notifications,
-                  Scanner, Bilingue n'avaient aucun déclencheur mobile). */}
-              <div className="grid grid-cols-3 gap-2 mb-3">
+                  Scanner, Bilingue, Guide-moi n'avaient aucun déclencheur
+                  mobile). */}
+              <div className="grid grid-cols-4 gap-2 mb-3">
                 <button
                   onClick={() => { setIsNotifOpen(true); setIsMobileMenuExpanded(false); }}
                   className="relative flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
@@ -922,6 +923,13 @@ export const Layout: React.FC<LayoutProps> = ({
                 >
                   <Languages size={16} />
                   <span className="text-[9px] font-bold">Bilingue</span>
+                </button>
+                <button
+                  onClick={() => { setIsGuidedModeOpen(true); setIsMobileMenuExpanded(false); }}
+                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Compass size={16} />
+                  <span className="text-[9px] font-bold">Guide-moi</span>
                 </button>
               </div>
 
