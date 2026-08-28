@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
     X, 
     Volume2, 
@@ -39,23 +39,6 @@ export const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
         return voiceEngine.getPreferredEngine();
     });
     const [isPlayingPreview, setIsPlayingPreview] = useState<string | null>(null);
-    const [serverElevenLabsConfigured, setServerElevenLabsConfigured] = useState<boolean>(true);
-
-    useEffect(() => {
-        if (isOpen) {
-            // Interroger le statut ElevenLabs côté serveur
-            fetch('/api/tts/voices')
-                .then(res => res.json())
-                .then(data => {
-                    if (data && typeof data.isConfigured === 'boolean') {
-                        setServerElevenLabsConfigured(data.isConfigured);
-                    }
-                })
-                .catch(() => {
-                    // Fallback silencieux
-                });
-        }
-    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -129,9 +112,9 @@ export const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
                                 <Sliders size={14} className="text-blue-400" />
                                 Mode de Rendu Vocal
                             </span>
-                            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${serverElevenLabsConfigured ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
-                                <span className={`w-2 h-2 rounded-full ${serverElevenLabsConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                                {serverElevenLabsConfigured ? 'API ElevenLabs Connectée' : 'Mode Dégradé (Web Speech)'}
+                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700">
+                                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                                Via le registre IA central (Super Admin)
                             </span>
                         </div>
 

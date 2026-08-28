@@ -1,6 +1,10 @@
-import { aiRoutingService } from "./aiRoutingService";
 import { generateText as gatewayGenerateText, generateJSON as gatewayGenerateJSON, analyzeImage as gatewayAnalyzeImage } from "./aiGateway";
 
+// Compatibilité : garde la même interface publique qu'avant (nom des méthodes,
+// paramètres, type de retour) pour ne rien casser chez les composants qui
+// l'utilisent déjà (AIPostAssistantModal, HealthCenter). Route désormais
+// directement vers le registre IA central (services/aiGateway.ts) — seul
+// chemin officiel, plus de routeur parallèle intermédiaire.
 class AIService {
     private static instance: AIService;
 
@@ -14,67 +18,36 @@ class AIService {
     }
 
     /**
-     * Génère une réponse textuelle avec routage multi-fournisseur auto-résilient
+     * Génère une réponse textuelle via l'orchestrateur central.
      */
     async generateText(model: string, prompt: string, systemInstruction?: string): Promise<string> {
         try {
-            const result = await aiRoutingService.executeWithResilience({
-                prompt,
-                systemInstruction,
-                preferredModel: model
-            });
-            return result.text;
+            const text = await gatewayGenerateText(prompt, { systemInstruction, modelId: model });
+            return text || "Aucune réponse n'a pu être générée. Réessayez dans un instant.";
         } catch (error) {
-            console.warn("⚠️ AI Service: Bascule sur repli souverain textuel:", error);
-            try {
-                const text = await gatewayGenerateText(prompt, { systemInstruction, modelId: model });
-                return text || "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
-            } catch {
-                return "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
-            }
+            console.error("Erreur AI Service (texte) :", error);
+            return "Aucune réponse n'a pu être générée. Réessayez dans un instant.";
         }
     }
 
     /**
-     * Génère une réponse structurée en JSON avec auto-réparation et bascule automatique
+     * Génère une réponse structurée en JSON via l'orchestrateur central.
      */
     async generateJson<T>(model: string, prompt: string, schemaDescription?: string): Promise<T> {
-        try {
-            const fullPrompt = prompt + (schemaDescription ? `\n\nRespond strictly in valid JSON following this schema: ${schemaDescription}` : "");
-            const result = await aiRoutingService.executeWithResilience<T>({
-                prompt: fullPrompt,
-                isJson: true,
-                preferredModel: model
-            });
-            if (result.data) {
-                return result.data;
-            }
-            const cleanJson = result.text.replace(/```json|```/g, '').trim();
-            return JSON.parse(cleanJson) as T;
-        } catch (error) {
-            console.warn("⚠️ AI Service: Bascule sur repli souverain JSON:", error);
-            try {
-                const fullPrompt = prompt + (schemaDescription ? `\n\nRespond strictly in JSON: ${schemaDescription}` : "");
-                return await gatewayGenerateJSON<T>(fullPrompt, { modelId: model });
-            } catch {
-                return {
-                    status: "success",
-                    message: "Données traitées par le moteur de secours souverain."
-                } as unknown as T;
-            }
-        }
+        const fullPrompt = prompt + (schemaDescription ? `\n\nRespond strictly in valid JSON following this schema: ${schemaDescription}` : "");
+        return gatewayGenerateJSON<T>(fullPrompt, { modelId: model });
     }
 
     /**
-     * Analyse multimodale (Vision/Audio + Texte)
+     * Analyse multimodale (vision) via l'orchestrateur central.
      */
     async analyzeMedia(model: string, prompt: string, mimeType: string, base64Data: string): Promise<string> {
         try {
             const response = await gatewayAnalyzeImage(base64Data, mimeType, prompt, { modelId: model });
             return response || "";
         } catch (error) {
-            console.error("❌ AI Service Error (Media):", error);
-            return "Analyse visuelle effectuée avec succès par le module de perception LMAV.";
+            console.error("Erreur AI Service (média) :", error);
+            return "L'analyse de ce média a échoué. Réessayez dans un instant.";
         }
     }
 }

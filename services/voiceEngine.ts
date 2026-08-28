@@ -2,6 +2,8 @@
 // 🎙️ VOICE ENGINE PRO + ELEVENLABS HD — SYNTHÈSE VOCALE HAUTE FIDÉLITÉ
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { generateSpeech } from './aiGateway';
+
 export interface VoiceEngineListener {
     onTranscript?: (transcript: string, isFinal: boolean) => void;
     onError?: (error: string) => void;
@@ -487,16 +489,19 @@ export class VoiceEngine {
     }
 
     /**
-     * 🚀 Appel ElevenLabs TTS via proxy backend sécurisé ou cache local
+     * 🚀 Synthèse vocale via l'orchestrateur IA central (Super Admin → Connecteurs
+     * IA, catégorie "voix" — ElevenLabs ou tout autre fournisseur vocal actif,
+     * avec bascule automatique). Remplace l'ancien proxy /api/tts (backend Express
+     * jamais exécuté en production sur cet hébergement statique).
      */
     private async speakWithElevenLabs(
-        text: string, 
-        voiceId: string, 
-        options?: { 
-            stability?: number; 
-            similarity_boost?: number; 
-            onStart?: () => void; 
-            onEnd?: () => void; 
+        text: string,
+        voiceId: string,
+        options?: {
+            stability?: number;
+            similarity_boost?: number;
+            onStart?: () => void;
+            onEnd?: () => void;
         }
     ): Promise<boolean> {
         const cacheKey = `${voiceId}_${text.slice(0, 80)}_${text.length}`;
@@ -504,30 +509,16 @@ export class VoiceEngine {
         let audioBlobUrl = this.audioCache.get(cacheKey);
 
         if (!audioBlobUrl) {
-            // Requête vers le proxy backend
-            const response = await fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text,
-                    voiceId,
-                    modelId: 'eleven_multilingual_v2',
-                    stability: options?.stability ?? 0.5,
-                    similarity_boost: options?.similarity_boost ?? 0.8
-                })
-            });
-
-            if (!response.ok) {
+            let audioBase64: string;
+            try {
+                audioBase64 = await generateSpeech(text, { voiceId });
+            } catch (e) {
+                console.warn("Synthèse vocale via l'orchestrateur indisponible:", e);
                 return false;
             }
+            if (!audioBase64) return false;
 
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('audio')) {
-                return false;
-            }
-
-            const blob = await response.blob();
-            audioBlobUrl = URL.createObjectURL(blob);
+            audioBlobUrl = `data:audio/mpeg;base64,${audioBase64}`;
             this.audioCache.set(cacheKey, audioBlobUrl);
         }
 
