@@ -287,7 +287,10 @@ export const supabaseService = {
     // --- Fil social (SocialFeed) ---------------------------------------
     async getPosts(): Promise<any[]> {
         if (!isSupabaseConfigured) return [];
-        const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase
+            .from('posts')
+            .select('*, author:profiles!posts_author_id_fkey(name, avatar_url, title)')
+            .order('created_at', { ascending: false });
         if (error || !data) return [];
         return data;
     },
@@ -297,9 +300,58 @@ export const supabaseService = {
         if (error || !data) return [];
         return data;
     },
-    async createPost(post: Record<string, unknown>): Promise<void> {
+    async createPost(post: Record<string, unknown>): Promise<{ id: string; created_at: string } | null> {
+        if (!isSupabaseConfigured) return null;
+        // Pas d'`id` dans `post` : la colonne a `default gen_random_uuid()`,
+        // laisser Postgres le générer plutôt que forcer un id local
+        // (`post-${Date.now()}`) dans une colonne `uuid` — ce qui échouait
+        // systématiquement ("invalid input syntax for type uuid").
+        const { data, error } = await supabase.from('posts').insert(post).select('id, created_at').single();
+        if (error) throw error;
+        return data;
+    },
+
+    // --- Commentaires & réactions (fil social) --------------------------
+    async getCommentsForPosts(postIds: string[]): Promise<any[]> {
+        if (!isSupabaseConfigured || postIds.length === 0) return [];
+        const { data, error } = await supabase
+            .from('comments')
+            .select('*, author:profiles!comments_author_id_fkey(name, avatar_url)')
+            .in('post_id', postIds)
+            .order('created_at', { ascending: true });
+        if (error || !data) return [];
+        return data;
+    },
+    async createComment(comment: { post_id: string; author_id: string; content: string; parent_comment_id?: string }): Promise<any | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase
+            .from('comments')
+            .insert(comment)
+            .select('*, author:profiles!comments_author_id_fkey(name, avatar_url)')
+            .single();
+        if (error) throw error;
+        return data;
+    },
+    async getReactionsForPosts(postIds: string[]): Promise<{ post_id: string; user_id: string; type: string }[]> {
+        if (!isSupabaseConfigured || postIds.length === 0) return [];
+        const { data, error } = await supabase.from('post_reactions').select('post_id, user_id, type').in('post_id', postIds);
+        if (error || !data) return [];
+        return data;
+    },
+    async setReaction(postId: string, userId: string, type: string): Promise<void> {
         if (!isSupabaseConfigured) return;
-        const { error } = await supabase.from('posts').insert(post);
+        // Une réaction par utilisateur et par post (contrainte UNIQUE post_id+
+        // user_id) ; aucune politique RLS UPDATE sur post_reactions (design
+        // volontaire : on ajoute/retire, jamais de modification en place) —
+        // donc on retire l'éventuelle réaction existante puis on ajoute la
+        // nouvelle, plutôt qu'un upsert qui échouerait sur le conflit.
+        await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', userId);
+        const { error } = await supabase.from('post_reactions').insert({ post_id: postId, user_id: userId, type });
+        if (error) throw error;
+    },
+    async removeReaction(postId: string, userId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', userId);
         if (error) throw error;
     },
 

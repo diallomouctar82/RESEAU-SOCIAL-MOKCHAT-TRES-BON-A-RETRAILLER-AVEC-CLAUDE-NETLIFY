@@ -750,6 +750,9 @@ export interface Tribe {
 
 export interface Comment {
     id: string;
+    authorId?: string;
+    postId?: string;
+    parentCommentId?: string;
     authorName: string;
     authorAvatar: string;
     content: string;

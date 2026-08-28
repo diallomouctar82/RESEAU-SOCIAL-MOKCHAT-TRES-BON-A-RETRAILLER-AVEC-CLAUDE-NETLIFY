@@ -30,6 +30,14 @@ interface SocialFeedProps {
   onOpenDirectChat?: (conversationId?: string, member?: MemberProfile) => void;
 }
 
+// Les posts de démonstration codés en dur (INITIAL_POSTS) restent mélangés au
+// fil réel pour la présentation ; leurs ids ('post-1', 'post-2'...) n'existent
+// pas dans la table `posts` réelle (clé uuid), donc commenter/réagir dessus ne
+// doit jamais tenter d'écrire en base — seuls les vrais posts (id uuid généré
+// par Postgres) ont des commentaires/réactions synchronisés avec Supabase.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRealPostId = (id: string) => UUID_RE.test(id);
+
 export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat }) => {
   const { userProfile: currentUser, isSupabaseConnected } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
@@ -95,25 +103,62 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         if (supabaseService.isConfigured()) {
           const remotePosts = await supabaseService.getPosts();
           if (remotePosts && remotePosts.length > 0) {
-            fetched = remotePosts.map(rp => ({
-              id: rp.id,
-              authorId: rp.author_id,
-              authorName: rp.author_name,
-              authorAvatar: rp.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-              authorTitle: rp.author_role || 'Membre Communauté',
-              content: rp.content,
-              imageUrl: rp.image_url,
-              videoUrl: rp.video_url,
-              document: rp.document,
-              category: rp.category || 'Général',
-              tags: rp.tags || [],
-              visibility: rp.visibility || 'public',
-              timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              likes: rp.likes_count || 0,
-              comments: rp.comments_count || 0,
-              reactions: rp.reactions || { like: rp.likes_count || 0 },
-              commentsList: []
-            }));
+            const postIds = remotePosts.map(rp => rp.id);
+            const [remoteComments, remoteReactions] = await Promise.all([
+              supabaseService.getCommentsForPosts(postIds),
+              supabaseService.getReactionsForPosts(postIds)
+            ]);
+
+            const mapComment = (rc: any): Comment => ({
+              id: rc.id,
+              authorId: rc.author_id,
+              postId: rc.post_id,
+              parentCommentId: rc.parent_comment_id || undefined,
+              authorName: rc.author?.name || 'Membre',
+              authorAvatar: rc.author?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+              content: rc.content,
+              timestamp: new Date(rc.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              likes: rc.likes_count || 0,
+              replies: []
+            });
+
+            const initialReactions: { [postId: string]: PostReactionType } = {};
+
+            fetched = remotePosts.map(rp => {
+              const postComments = remoteComments.filter(rc => rc.post_id === rp.id).map(mapComment);
+              const topLevelComments = postComments.filter(c => !c.parentCommentId);
+              topLevelComments.forEach(c => {
+                c.replies = postComments.filter(rc => rc.parentCommentId === c.id);
+              });
+
+              const postReactions = remoteReactions.filter(rr => rr.post_id === rp.id);
+              const reactionCounts = postReactions.reduce((acc, rr) => {
+                acc[rr.type as PostReactionType] = (acc[rr.type as PostReactionType] || 0) + 1;
+                return acc;
+              }, {} as Record<PostReactionType, number>);
+              const mine = postReactions.find(rr => rr.user_id === currentUser.id);
+              if (mine) initialReactions[rp.id] = mine.type as PostReactionType;
+
+              return {
+                id: rp.id,
+                authorId: rp.author_id,
+                authorName: rp.author?.name || 'Membre',
+                authorAvatar: rp.author?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+                authorTitle: rp.author?.title || 'Membre Communauté',
+                content: rp.content,
+                imageUrl: rp.image_url,
+                category: rp.category || 'Général',
+                tags: rp.tags || [],
+                visibility: rp.visibility || 'public',
+                timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                likes: postReactions.length,
+                comments: postComments.length,
+                reactions: reactionCounts,
+                commentsList: topLevelComments
+              };
+            });
+
+            setUserReactions(prev => ({ ...prev, ...initialReactions }));
           }
         }
 
@@ -220,9 +265,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   };
 
   // Reactions Handler
-  const handleReaction = (postId: string, reactionType: PostReactionType) => {
+  const handleReaction = async (postId: string, reactionType: PostReactionType) => {
     const currentReaction = userReactions[postId];
     const newReactionsMap = { ...userReactions };
+    const isRemoving = currentReaction === reactionType;
 
     const postIndex = posts.findIndex(p => p.id === postId);
     if (postIndex === -1) return;
@@ -257,6 +303,18 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     newPosts[postIndex] = updatedPost;
     setPosts(newPosts);
     cloudService.savePost(updatedPost);
+
+    if (supabaseService.isConfigured() && currentUser.id && isRealPostId(postId)) {
+      try {
+        if (isRemoving) {
+          await supabaseService.removeReaction(postId, currentUser.id);
+        } else {
+          await supabaseService.setReaction(postId, currentUser.id, reactionType);
+        }
+      } catch (err) {
+        console.warn('Could not sync reaction to Supabase', err);
+      }
+    }
   };
 
   // Toggle Bookmark
@@ -269,7 +327,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   };
 
   // Comments & Replies
-  const handleAddComment = (postId: string) => {
+  const handleAddComment = async (postId: string) => {
     if (!commentInput.trim()) return;
 
     const postIndex = posts.findIndex(p => p.id === postId);
@@ -277,24 +335,43 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
     const post = posts[postIndex];
     const currentComments = post.commentsList || [];
+    const commentContent = commentInput.trim();
+    const canSyncToSupabase = supabaseService.isConfigured() && !!currentUser.id && isRealPostId(postId);
 
     if (replyingToCommentId) {
       // Add nested reply
+      const parentCommentId = replyingToCommentId;
+      const newReply: Comment = {
+        id: `reply-${Date.now()}`,
+        parentCommentId,
+        postId,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorAvatar: currentUser.avatarUrl,
+        content: commentContent,
+        timestamp: 'À l\'instant',
+        likes: 0
+      };
+
+      if (canSyncToSupabase) {
+        try {
+          const inserted = await supabaseService.createComment({
+            post_id: postId,
+            author_id: currentUser.id!,
+            content: commentContent,
+            parent_comment_id: parentCommentId
+          });
+          if (inserted) newReply.id = inserted.id;
+        } catch (err) {
+          console.warn('Could not sync reply to Supabase', err);
+        }
+      }
+
       const updatedList = currentComments.map(c => {
-        if (c.id === replyingToCommentId) {
+        if (c.id === parentCommentId) {
           return {
             ...c,
-            replies: [
-              ...(c.replies || []),
-              {
-                id: `reply-${Date.now()}`,
-                authorName: currentUser.name,
-                authorAvatar: currentUser.avatarUrl,
-                content: commentInput.trim(),
-                timestamp: 'À l\'instant',
-                likes: 0
-              }
-            ]
+            replies: [...(c.replies || []), newReply]
           };
         }
         return c;
@@ -315,13 +392,28 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       // Add top-level comment
       const newCmt: Comment = {
         id: `cmt-${Date.now()}`,
+        postId,
+        authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatarUrl,
-        content: commentInput.trim(),
+        content: commentContent,
         timestamp: 'À l\'instant',
         likes: 0,
         replies: []
       };
+
+      if (canSyncToSupabase) {
+        try {
+          const inserted = await supabaseService.createComment({
+            post_id: postId,
+            author_id: currentUser.id!,
+            content: commentContent
+          });
+          if (inserted) newCmt.id = inserted.id;
+        } catch (err) {
+          console.warn('Could not sync comment to Supabase', err);
+        }
+      }
 
       const updatedPost: Post = {
         ...post,
@@ -410,33 +502,30 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       commentsList: []
     };
 
-    const updatedPosts = [newPost, ...posts];
-    setPosts(updatedPosts);
-
-    // Save to Supabase if connected
-    if (supabaseService.isConfigured()) {
+    // Save to Supabase if connected — vidéo/document restent local-only pour
+    // l'instant (pas de colonnes dédiées ni de vrai stockage de fichiers,
+    // cf. Chantier 2 : aucun appel supabase.storage n'existe dans le dépôt).
+    // Texte, image (en data URL), catégorie et tags sont de vraies colonnes.
+    if (supabaseService.isConfigured() && currentUser.id) {
       try {
-        await supabaseService.createPost({
-          id: newPost.id,
-          author_id: currentUser.id || 'u1',
-          author_name: currentUser.name,
-          author_role: currentUser.title || 'Citoyen',
-          author_avatar: currentUser.avatarUrl,
+        const inserted = await supabaseService.createPost({
+          author_id: currentUser.id,
           content: newPost.content,
           image_url: newPost.imageUrl,
-          video_url: newPost.videoUrl,
-          document: newPost.document,
           category: newPost.category,
           tags: newPost.tags || [],
-          visibility: newPost.visibility,
-          likes_count: 0,
-          comments_count: 0,
-          reactions: { like: 0 }
+          visibility: newPost.visibility
         });
+        if (inserted) {
+          newPost.id = inserted.id;
+        }
       } catch (err) {
         console.warn('Could not save post to Supabase', err);
       }
     }
+
+    const updatedPosts = [newPost, ...posts];
+    setPosts(updatedPosts);
     await cloudService.savePost(newPost);
 
     // Reset Composer
