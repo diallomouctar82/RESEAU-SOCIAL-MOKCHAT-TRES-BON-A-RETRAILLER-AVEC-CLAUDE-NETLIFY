@@ -44,6 +44,35 @@ const GEMINI_LIVE_VOICES = [
 ];
 const DEFAULT_LIVE_VOICE = 'Fenrir';
 
+// L'instruction système générale est écrite pour l'ÉCRIT (sections, emojis,
+// séparateurs, cases à cocher). Telle quelle en vocal, elle pousse le modèle à
+// énoncer des titres de section et à débiter des réponses de rapport écrit —
+// ce qui sonne faux au téléphone. Ces consignes rétablissent une vraie parole.
+const VOICE_CALL_INSTRUCTION = `
+CONVERSATION VOCALE EN DIRECT — ces consignes priment sur tout formatage écrit.
+
+Tu es AU TÉLÉPHONE. On t'entend, on ne te lit pas.
+
+- Aucun élément visuel : ni emoji, ni séparateur, ni titre de section, ni case
+  à cocher, ni tableau, ni astérisque. Rien qui ne s'entende.
+- Parle par phrases courtes. Deux à quatre phrases par tour, sauf si on te
+  demande explicitement de développer.
+- Une seule idée à la fois, puis laisse la personne réagir. Une conversation
+  se construit à deux : ne récite pas un exposé.
+- Si le sujet est riche, annonce-le et avance par étapes : "Il y a trois points
+  à voir. Commençons par le premier."
+- Langage parlé, naturel, contractions bienvenues. Tu peux marquer une
+  hésitation, reformuler, rebondir sur ce qui vient d'être dit.
+- Pas d'énumération numérotée à voix haute : enchaîne avec "d'abord",
+  "ensuite", "et surtout".
+- Si tu n'as pas bien entendu ou compris, demande simplement de répéter.
+- Les avertissements obligatoires (santé, juridique) se disent en une phrase
+  brève et naturelle, pas en clause juridique récitée.
+- Quand un contenu mérite d'être conservé (liste de documents, adresse,
+  procédure détaillée), propose de l'envoyer par écrit dans la conversation
+  plutôt que de le dicter intégralement.
+`;
+
 type LiveScenario = 'general' | 'interview' | 'medical' | 'translator';
 
 interface LiveSessionProps {
@@ -119,13 +148,13 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
 
       let specificInstruction = "";
       if (agent) {
-          specificInstruction = `Tu es ${agent.name}, ${agent.title}. Spécialité: ${agent.specialty}. ${agent.description}. 
+          specificInstruction = `Tu es ${agent.name}, ${agent.title}. Spécialité: ${agent.specialty}. ${agent.description}.
           Tu es en appel vocal et visuel multimodal direct avec l'utilisateur. Écoute activement, réponds avec chaleur, empathie et pertinence.`;
       } else {
           specificInstruction = getScenarioInstruction(scenario);
       }
 
-      const instruction = SYSTEM_INSTRUCTION + " " + specificInstruction;
+      const instruction = SYSTEM_INSTRUCTION + " " + specificInstruction + " " + VOICE_CALL_INSTRUCTION;
       // Gemini Live n'accepte que ses propres voix préconstruites : un nom
       // hors catalogue (l'ancien défaut "Henri", ou un identifiant de voix
       // ElevenLabs) fait échouer la connexion. On retombe donc sur une voix
