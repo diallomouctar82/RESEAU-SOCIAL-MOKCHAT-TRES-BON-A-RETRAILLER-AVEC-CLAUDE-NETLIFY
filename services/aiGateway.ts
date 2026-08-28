@@ -28,9 +28,25 @@ const toMessages = (prompt: string | AiMessage[], systemInstruction?: string): A
     return systemInstruction ? [{ role: 'system', content: systemInstruction }, ...base] : base;
 };
 
+/**
+ * `error.message` de supabase-js pour un échec HTTP (FunctionsHttpError) est
+ * toujours le texte générique "Edge Function returned a non-2xx status code"
+ * — le vrai message (`{error: "..."}`) renvoyé par la fonction est dans le
+ * corps de la réponse, accessible via `error.context` (l'objet Response).
+ * Sans cette lecture, l'utilisateur ne voit jamais que ce vrai message.
+ */
+async function readFunctionErrorMessage(error: any): Promise<string | undefined> {
+    try {
+        const body = await error?.context?.json?.();
+        return body?.error;
+    } catch {
+        return undefined;
+    }
+}
+
 async function invokeGateway(body: Record<string, unknown>): Promise<any> {
     const { data, error } = await supabase.functions.invoke('ai-gateway', { body });
-    if (error) throw new Error(error.message || "Échec de l'appel à l'orchestrateur IA.");
+    if (error) throw new Error((await readFunctionErrorMessage(error)) || error.message || "Échec de l'appel à l'orchestrateur IA.");
     if (data?.error) throw new Error(data.error as string);
     return data;
 }
@@ -181,7 +197,7 @@ export const transcribeAudio = async (
  */
 export const mintLiveToken = async (model?: string): Promise<string> => {
     const { data, error } = await supabase.functions.invoke('mint-live-token', { body: { model } });
-    if (error) throw new Error(error.message || "Impossible de préparer l'appel vocal.");
+    if (error) throw new Error((await readFunctionErrorMessage(error)) || error.message || "Impossible de préparer l'appel vocal.");
     if (data?.error) throw new Error(data.error as string);
     if (!data?.token) throw new Error("Jeton d'appel introuvable dans la réponse du serveur.");
     return data.token as string;
