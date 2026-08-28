@@ -39,10 +39,8 @@ export const LegalCenter: React.FC<LegalCenterProps> = ({ userProfile }) => {
         setScanResult(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
             const prompt = `Agis comme Maître Diallo. Analyse cette image de document officiel.
-            
+
             Réponds en JSON strict :
             {
                 "documentType": "Nom du document",
@@ -52,18 +50,8 @@ export const LegalCenter: React.FC<LegalCenterProps> = ({ userProfile }) => {
                 "deadline": "Date limite si trouvée ou 'Aucune'"
             }`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview', // High intelligence for legal OCR
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: 'image/jpeg', data: scannedImage.split(',')[1] } },
-                        { text: prompt }
-                    ]
-                },
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text || '{}');
+            const resultText = await analyzeImage(scannedImage.split(',')[1], 'image/jpeg', prompt, { jsonMode: true });
+            const result = JSON.parse(resultText || '{}');
             setScanResult(result);
         } catch (e) {
             console.error(e);
@@ -79,22 +67,18 @@ export const LegalCenter: React.FC<LegalCenterProps> = ({ userProfile }) => {
         setGeneratedLetter('');
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Agis comme Maître Diallo. Rédige un courrier officiel et juridique pour ce sujet : "${writerSubject}".
-            
+
             Profil :
             Nom : ${userProfile.name}
             ID : ${userProfile.citizenshipId}
-            
+
             Le courrier doit être formel, poli, et citer les articles de loi si pertinent (invente des références réalistes pour l'exemple).
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-            });
+            const resText = await generateText(prompt);
 
-            setGeneratedLetter(response.text || "Erreur de génération.");
+            setGeneratedLetter(resText || "Erreur de génération.");
         } catch (e) {
             console.error(e);
         } finally {
