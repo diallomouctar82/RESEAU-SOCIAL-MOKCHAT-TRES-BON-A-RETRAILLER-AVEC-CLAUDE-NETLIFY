@@ -91,17 +91,22 @@ export const anthropicAdapter: ProviderAdapter = {
         }
         const data = await messages(baseUrl || DEFAULT_BASE_URL, apiKey, payload) as {
             content?: { type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }[];
+            usage?: { input_tokens?: number; output_tokens?: number };
         };
         const blocks = data.content ?? [];
         const text = blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+        const usage = {
+            inputTokens: data.usage?.input_tokens,
+            outputTokens: data.usage?.output_tokens,
+        };
 
         const toolCalls = blocks
             .filter((b) => b.type === 'tool_use' && b.name)
             .map((b, i) => ({ id: b.id ?? `toolu_${Date.now()}_${i}`, name: b.name!, args: b.input ?? {} }));
-        if (toolCalls.length) return { text, toolCalls, raw: data };
+        if (toolCalls.length) return { text, toolCalls, usage, raw: data };
 
         if (!text) throw new AdapterError('Réponse vide du fournisseur.', 'other');
-        return req.llm.jsonMode ? { json: JSON.parse(text), raw: data } : { text, raw: data };
+        return req.llm.jsonMode ? { json: JSON.parse(text), usage, raw: data } : { text, usage, raw: data };
     },
 
     async testConnection(apiKey: string, baseUrl: string | null): Promise<{ ok: boolean; message: string }> {
@@ -114,7 +119,14 @@ export const anthropicAdapter: ProviderAdapter = {
             return { ok: true, message: 'Connexion réussie.' };
         } catch (err) {
             if (err instanceof AdapterError) {
-                if (err.errorClass === 'other') {
+                // On ne peut pas deviner un vrai model_id sans configuration
+                // admin : une erreur portant sur le MODÈLE prouve donc que la
+                // clé a été acceptée. Toute autre erreur 400 (identifiant
+                // d'espace de travail manquant, permission refusée...) est un
+                // vrai défaut de configuration : la signaler au lieu d'afficher
+                // un succès trompeur, qui laisserait croire le fournisseur
+                // opérationnel alors que chaque appel échouera.
+                if (err.errorClass === 'other' && /model/i.test(err.message)) {
                     return { ok: true, message: 'Clé acceptée par le fournisseur (modèle de test non résolu, normal).' };
                 }
                 return { ok: false, message: err.message };

@@ -264,3 +264,106 @@ export const setToolEnabled = async (toolId: string, enabled: boolean): Promise<
     });
     if (error) throw new Error(error.message);
 };
+
+// ── Gouvernance des coûts ────────────────────────────────────────────────────
+// Plafonds journalier et mensuel, palier tarifaire des fournisseurs, tarifs par
+// modèle et journal d'audit des décisions de routage. Tout se règle depuis la
+// console : l'orchestrateur relit ces valeurs à chaque appel, sans redéploiement.
+
+export interface AiBudget {
+    dailyCapUsd: number | null;
+    monthlyCapUsd: number | null;
+    /** À false, les plafonds sont conservés mais n'arrêtent plus les appels. */
+    enforced: boolean;
+    spentToday: number;
+    spentMonth: number;
+}
+
+export const getBudget = async (): Promise<AiBudget> => {
+    const [{ data: budget, error: be }, { data: spend, error: se }] = await Promise.all([
+        supabase.from('ai_budget').select('daily_cap_usd, monthly_cap_usd, enforced').eq('id', 'global').maybeSingle(),
+        supabase.rpc('get_ai_spend'),
+    ]);
+    if (be) throw new Error(be.message);
+    if (se) throw new Error(se.message);
+    const row = Array.isArray(spend) ? spend[0] : spend;
+    return {
+        dailyCapUsd: budget?.daily_cap_usd == null ? null : Number(budget.daily_cap_usd),
+        monthlyCapUsd: budget?.monthly_cap_usd == null ? null : Number(budget.monthly_cap_usd),
+        enforced: budget?.enforced ?? true,
+        spentToday: Number(row?.spent_today ?? 0),
+        spentMonth: Number(row?.spent_month ?? 0),
+    };
+};
+
+export const setBudget = async (
+    dailyCapUsd: number | null,
+    monthlyCapUsd: number | null,
+    enforced: boolean,
+): Promise<void> => {
+    const { error } = await supabase.rpc('set_ai_budget', {
+        p_daily_cap: dailyCapUsd,
+        p_monthly_cap: monthlyCapUsd,
+        p_enforced: enforced,
+    });
+    if (error) throw new Error(error.message);
+};
+
+/** 'free' fait passer le fournisseur avant les payants, à priorité égale. */
+export const setProviderCostTier = async (providerId: string, tier: 'free' | 'paid'): Promise<void> => {
+    const { error } = await supabase.rpc('set_provider_cost_tier', { p_provider_id: providerId, p_tier: tier });
+    if (error) throw new Error(error.message);
+};
+
+export const setModelCosts = async (
+    providerId: string, modelId: string, inputPerMillion: number, outputPerMillion: number,
+): Promise<void> => {
+    const { error } = await supabase.rpc('set_model_costs', {
+        p_provider_id: providerId, p_model_id: modelId,
+        p_input: inputPerMillion, p_output: outputPerMillion,
+    });
+    if (error) throw new Error(error.message);
+};
+
+export interface RoutingDecision {
+    createdAt: string;
+    requestId: string | null;
+    category: string | null;
+    providerId: string | null;
+    modelId: string | null;
+    attemptNumber: number;
+    status: 'success' | 'error' | 'skipped' | 'blocked';
+    decision: string | null;
+    decisionReason: string | null;
+    errorMessage: string | null;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    costUsd: number;
+}
+
+/** Journal d'audit : chaque décision de routage, la plus récente en premier. */
+export const listRoutingDecisions = async (limit = 100): Promise<RoutingDecision[]> => {
+    const { data, error } = await supabase
+        .from('ai_call_log')
+        .select('created_at, request_id, category, provider_id, model_id, attempt_number, status, decision, decision_reason, error_message, latency_ms, input_tokens, output_tokens, cost_usd')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+        createdAt: r.created_at as string,
+        requestId: r.request_id as string | null,
+        category: r.category as string | null,
+        providerId: r.provider_id as string | null,
+        modelId: r.model_id as string | null,
+        attemptNumber: Number(r.attempt_number ?? 0),
+        status: r.status as RoutingDecision['status'],
+        decision: r.decision as string | null,
+        decisionReason: r.decision_reason as string | null,
+        errorMessage: r.error_message as string | null,
+        latencyMs: r.latency_ms == null ? null : Number(r.latency_ms),
+        inputTokens: r.input_tokens == null ? null : Number(r.input_tokens),
+        outputTokens: r.output_tokens == null ? null : Number(r.output_tokens),
+        costUsd: Number(r.cost_usd ?? 0),
+    }));
+};
