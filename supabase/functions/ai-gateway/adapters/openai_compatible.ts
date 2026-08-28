@@ -40,7 +40,15 @@ async function chatCompletions(baseUrl: string, apiKey: string, body: Record<str
         );
     }
     if (res.status === 429) {
-        throw new AdapterError('Quota ou limite de débit dépassé.', 'rate_limited');
+        // « Crédit épuisé » et « trop de requêtes par minute » donnent tous deux
+        // un 429 mais appellent des actions opposées : recharger le compte, ou
+        // simplement ralentir. Sans le message du fournisseur, impossible de
+        // savoir lequel — et l'administrateur cherche au mauvais endroit.
+        const detail = (await res.text().catch(() => '')).slice(0, 300);
+        throw new AdapterError(
+            `Quota ou limite de débit dépassé${detail ? ` : ${detail}` : ''}`,
+            'rate_limited',
+        );
     }
     if (res.status >= 500) {
         throw new AdapterError(`Erreur serveur du fournisseur (${res.status}).`, 'server_error');

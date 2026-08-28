@@ -184,9 +184,34 @@ export const testProviderConnection = async (providerId: string): Promise<{ ok: 
         body: { mode: 'test', providerId },
     });
     if (error) {
+        // Un test qui échoue renvoie un code HTTP non-2xx : supabase-js réduit
+        // alors l'erreur au message générique « Edge Function returned a
+        // non-2xx status code », et la vraie raison — celle qui dit quoi
+        // corriger — reste dans le corps de la réponse. Sans cette lecture,
+        // l'administrateur ne voit jamais que ce texte inutile.
+        try {
+            const body = await (error as { context?: { json?: () => Promise<{ message?: string }> } })
+                .context?.json?.();
+            if (body?.message) return { ok: false, message: body.message };
+        } catch {
+            // Corps illisible : on retombe sur le message générique ci-dessous.
+        }
         return { ok: false, message: error.message || 'Échec du test de connexion.' };
     }
     return data as { ok: boolean; message: string };
+};
+
+/**
+ * Renseigne l'identifiant d'espace de travail Anthropic. Une clé « liée à une
+ * identité » l'exige dans l'en-tête anthropic-workspace-id, sans quoi chaque
+ * appel échoue en 400 — quelle que soit la validité de la clé.
+ */
+export const setAnthropicWorkspaceId = async (providerId: string, workspaceId: string): Promise<void> => {
+    const { error } = await supabase.rpc('set_provider_adapter_config', {
+        p_provider_id: providerId,
+        p_config: workspaceId.trim() ? { workspaceId: workspaceId.trim() } : {},
+    });
+    if (error) throw new Error(error.message);
 };
 
 /**
