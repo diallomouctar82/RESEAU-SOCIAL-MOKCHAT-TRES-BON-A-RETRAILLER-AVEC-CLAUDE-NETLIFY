@@ -82,11 +82,14 @@ Deno.serve(async (req: Request) => {
         }),
     });
 
-    if (mintRes.status === 401 || mintRes.status === 403) {
-        return json({ error: 'Clé Gemini invalide ou refusée par Google.' }, 502);
-    }
     if (!mintRes.ok) {
         const text = await mintRes.text().catch(() => '');
+        // Diagnostic serveur uniquement (jamais la clé) : la vraie raison du refus
+        // Google n'atteignait pas les logs jusqu'ici, rendant le débogage impossible.
+        console.error(`mint-live-token: Google a refusé la génération du jeton (${mintRes.status})`, text.slice(0, 500));
+        if (mintRes.status === 401 || mintRes.status === 403) {
+            return json({ error: 'Clé Gemini invalide ou refusée par Google.' }, 502);
+        }
         return json({ error: `Échec de génération du jeton Gemini Live (${mintRes.status}) : ${text.slice(0, 300)}` }, 502);
     }
 
