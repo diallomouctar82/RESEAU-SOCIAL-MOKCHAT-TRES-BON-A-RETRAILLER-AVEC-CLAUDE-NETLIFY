@@ -134,6 +134,35 @@ Deno.serve(async (req: Request) => {
         }
     }
 
+    // ── Action confirmée : exécution déterministe, AVANT toute génération ────
+    // On n'attend pas que le modèle veuille bien ré-émettre son appel d'outil :
+    // il peut très bien répondre par une phrase au lieu de le refaire, et
+    // l'accord de la personne resterait alors sans effet. L'action validée est
+    // donc exécutée ici, une seule fois, hors de la boucle de bascule entre
+    // fournisseurs (l'exécuter dedans risquerait une double écriture si le
+    // premier fournisseur échouait après coup). Son résultat est ensuite injecté
+    // dans la conversation pour que le modèle rédige la réponse finale.
+    const confirmedMessages: AdapterMessage[] = [];
+    if (body.category === 'llm' && body.confirmedAction) {
+        const { toolId, args } = body.confirmedAction;
+        const tool = toolsById.get(toolId);
+        const executor = resolveToolExecutor(toolId);
+
+        if (!tool) {
+            return json({ error: `L'outil « ${toolId} » n'est pas autorisé pour cet expert.` }, 403);
+        }
+        if (!executor) {
+            return json({ error: `L'outil « ${toolId} » n'a pas d'implémentation disponible.` }, 400);
+        }
+
+        const outcome = await executor(args ?? {}, { userClient, service, userId: requestedBy, agentId: body.agentId });
+        const callId = `confirmed_${Date.now()}`;
+        confirmedMessages.push(
+            { role: 'assistant', content: '', toolCalls: [{ id: callId, name: toolId, args: args ?? {} }] },
+            { role: 'tool', content: outcome.content, toolCallId: callId, toolName: toolId },
+        );
+    }
+
     const attempts: { providerId: string; errorClass: string; message: string }[] = [];
 
     for (let i = 0; i < ordered.length; i++) {
@@ -154,7 +183,16 @@ Deno.serve(async (req: Request) => {
             const adapterRequest: AdapterRequest = {
                 category: body.category,
                 modelId,
-                ...(body.category === 'llm' ? { llm: { ...(body.request as AdapterRequest['llm'])!, tools: toolDeclarations } } : {}),
+                ...(body.category === 'llm' ? {
+                    llm: {
+                        ...(body.request as AdapterRequest['llm'])!,
+                        // Le résultat de l'action confirmée fait partie de la
+                        // conversation : le modèle sait ce qui vient d'être fait
+                        // et rédige sa réponse en conséquence.
+                        messages: [...(body.request as AdapterRequest['llm'])!.messages, ...confirmedMessages],
+                        tools: toolDeclarations,
+                    },
+                } : {}),
                 ...(body.category === 'voice' ? { voice: body.request as AdapterRequest['voice'] } : {}),
                 ...(body.category === 'image_video' ? { imageVideo: body.request as AdapterRequest['imageVideo'] } : {}),
             };
@@ -168,7 +206,9 @@ Deno.serve(async (req: Request) => {
 
             let result = await callProvider(adapterRequest);
             let pendingAction: { toolId: string; label: string; args: Record<string, unknown> } | null = null;
-            const toolsUsed: string[] = [];
+            // L'action confirmée a déjà été exécutée avant la boucle : elle
+            // compte parmi les outils utilisés pour ce tour.
+            const toolsUsed: string[] = body.confirmedAction ? [body.confirmedAction.toolId] : [];
 
             // ── Boucle d'outils ──────────────────────────────────────────────
             // Tant que le modèle demande des outils, on les exécute et on le
@@ -190,12 +230,14 @@ Deno.serve(async (req: Request) => {
                     }
 
                     // GARDE-FOU — CONFIRMATION OBLIGATOIRE.
-                    // Une action non confirmée n'est jamais exécutée : on
-                    // interrompt le tour et on renvoie la demande au client.
-                    // L'exécuteur n'est même pas atteint.
-                    const dejaConfirmee = body.confirmedAction
-                        && body.confirmedAction.toolId === call.name;
-                    if (tool.requires_confirmation && !dejaConfirmee) {
+                    // Toute action soumise à confirmation est suspendue ici :
+                    // on interrompt le tour et on renvoie la demande au client.
+                    // L'exécuteur n'est même pas atteint. Une action DÉJÀ
+                    // confirmée n'arrive jamais dans cette boucle : elle a été
+                    // exécutée en amont, de façon déterministe — d'où l'absence
+                    // d'exception ici, qui éviterait aussi toute double écriture
+                    // si le modèle redemandait le même outil.
+                    if (tool.requires_confirmation) {
                         pendingAction = { toolId: call.name, label: describeAction(call.name, call.args), args: call.args };
                         suspended = true;
                         break;
@@ -207,11 +249,7 @@ Deno.serve(async (req: Request) => {
                         continue;
                     }
 
-                    // Une action confirmée s'exécute avec les arguments validés
-                    // par la personne, jamais avec ceux que le modèle
-                    // reproposerait au tour suivant.
-                    const args = dejaConfirmee ? body.confirmedAction!.args : call.args;
-                    const outcome = await executor(args, { userClient, service, userId: requestedBy, agentId: body.agentId });
+                    const outcome = await executor(call.args, { userClient, service, userId: requestedBy, agentId: body.agentId });
                     toolsUsed.push(call.name);
                     history.push({ role: 'tool', content: outcome.content, toolCallId: call.id, toolName: call.name });
                 }
