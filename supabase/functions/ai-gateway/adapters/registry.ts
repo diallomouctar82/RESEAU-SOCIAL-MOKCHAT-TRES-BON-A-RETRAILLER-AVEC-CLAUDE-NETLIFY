@@ -3,6 +3,15 @@ import { openaiCompatibleAdapter } from './openai_compatible.ts';
 import { anthropicAdapter } from './anthropic.ts';
 import { geminiAdapter } from './gemini.ts';
 import { elevenlabsAdapter } from './elevenlabs.ts';
+import { replicateAdapter } from './replicate.ts';
+import { whisperAdapter, deepgramAdapter, assemblyaiAdapter } from './voice_stt_providers.ts';
+import { cartesiaAdapter, playhtAdapter, azureSpeechAdapter, googleTtsAdapter } from './voice_tts_providers.ts';
+import { pollyAdapter } from './polly.ts';
+import { ideogramAdapter, recraftAdapter } from './sync_image.ts';
+import {
+    fluxAdapter, leonardoAdapter, runwayAdapter, heygenAdapter, lumaAdapter, klingAdapter, pikaAdapter,
+} from './image_video_providers.ts';
+import { veoAdapter } from './veo.ts';
 import { unimplementedAdapter } from './unimplemented.ts';
 
 // Clé = ai_providers.adapter_kind. Plusieurs fournisseurs (OpenAI, DeepSeek, Qwen...)
@@ -12,7 +21,26 @@ export const ADAPTERS: Record<string, ProviderAdapter> = {
     openai_compatible: openaiCompatibleAdapter,
     anthropic: anthropicAdapter,
     gemini: geminiAdapter,
+    replicate: replicateAdapter,
     elevenlabs: elevenlabsAdapter,
+    whisper: whisperAdapter,
+    deepgram: deepgramAdapter,
+    assemblyai: assemblyaiAdapter,
+    cartesia: cartesiaAdapter,
+    playht: playhtAdapter,
+    azure_speech: azureSpeechAdapter,
+    google_tts: googleTtsAdapter,
+    polly: pollyAdapter,
+    ideogram: ideogramAdapter,
+    recraft: recraftAdapter,
+    flux: fluxAdapter,
+    leonardo: leonardoAdapter,
+    runway: runwayAdapter,
+    heygen: heygenAdapter,
+    luma: lumaAdapter,
+    kling: klingAdapter,
+    pika: pikaAdapter,
+    veo: veoAdapter,
     unimplemented: unimplementedAdapter,
 };
 

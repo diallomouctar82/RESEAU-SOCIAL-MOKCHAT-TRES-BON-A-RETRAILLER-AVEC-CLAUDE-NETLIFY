@@ -14,8 +14,8 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 export const elevenlabsAdapter: ProviderAdapter = {
     async call(req: AdapterRequest, apiKey: string, baseUrl: string | null): Promise<AdapterResult> {
-        if (req.category !== 'voice' || !req.voice) {
-            throw new AdapterError('Catégorie non supportée par cet adaptateur.', 'other');
+        if (req.category !== 'voice' || !req.voice?.text) {
+            throw new AdapterError('Texte requis pour la synthèse vocale.', 'other');
         }
         const base = baseUrl || DEFAULT_BASE_URL;
         const voiceId = req.voice.voiceId || DEFAULT_VOICE_ID;

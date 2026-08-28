@@ -39,9 +39,6 @@ Deno.serve(async (req: Request) => {
     const { data: authData } = await userClient.auth.getUser();
     if (!authData?.user) return json({ error: 'Authentification requise.' }, 401);
 
-    const { data: isAdmin, error: adminCheckError } = await userClient.rpc('is_admin');
-    if (adminCheckError || !isAdmin) return json({ error: 'Accès réservé aux administrateurs.' }, 403);
-
     let body: GatewayBody;
     try {
         body = await req.json();
@@ -52,7 +49,14 @@ Deno.serve(async (req: Request) => {
     const service = createServiceRoleClient();
     const requestedBy = authData.user.id;
 
+    // Le test de connexion et la gestion des clés restent réservés aux admins
+    // (voir aussi les RPC set_ai_provider_*, admin-only côté base). La
+    // génération elle-même (mode 'call' ci-dessous) est ouverte à tout
+    // utilisateur authentifié : c'est ce qui permet à un fournisseur activé
+    // par l'admin de devenir immédiatement utilisable par toute l'application.
     if (body.mode === 'test') {
+        const { data: isAdmin, error: adminCheckError } = await userClient.rpc('is_admin');
+        if (adminCheckError || !isAdmin) return json({ error: 'Accès réservé aux administrateurs.' }, 403);
         if (!body.providerId) return json({ error: 'providerId requis en mode test.' }, 400);
         const result = await testProvider(service, body.providerId);
         return json(result, result.ok ? 200 : 400);
