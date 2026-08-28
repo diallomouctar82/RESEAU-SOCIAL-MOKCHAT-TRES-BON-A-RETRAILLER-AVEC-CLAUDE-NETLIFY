@@ -8,8 +8,8 @@
 // - Suivi de la maîtrise des compétences et répétition espacée
 // - Génération d'évaluations adaptatives et examens blancs par pays
 
-import { GoogleGenAI } from '@google/genai';
-import { 
+import { generateText, generateJSON, analyzeImage } from './aiGateway';
+import {
     StudentPedagogicalProfile, 
     LearningStylePreference, 
     PedagogyPace, 
@@ -30,10 +30,6 @@ export class CampusPedagogicalEngine {
             CampusPedagogicalEngine.instance = new CampusPedagogicalEngine();
         }
         return CampusPedagogicalEngine.instance;
-    }
-
-    private getGenAI(): GoogleGenAI {
-        return new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
     }
 
     /**
@@ -137,7 +133,6 @@ export class CampusPedagogicalEngine {
         userContextNote?: string
     ): Promise<string> {
         try {
-            const ai = this.getGenAI();
             const prompt = `
                 Tu es Professeur Diallo, Recteur Pédagogique et Enseignant Émérite de la Famille DIALLO.
                 Tu ne te présentes JAMAIS comme une IA ou un robot.
@@ -161,12 +156,9 @@ export class CampusPedagogicalEngine {
                 Format : Markdown clair, aéré, élégant.
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const response = await generateText(prompt);
 
-            return response.text || "Explication temporairement indisponible.";
+            return response || "Explication temporairement indisponible.";
         } catch (error) {
             console.error("Erreur CampusPedagogicalEngine.explainConceptAdapted:", error);
             return `### Explication par Professeur Diallo\n\nPour maîtriser **${conceptTitle}** en ${subjectName} (${countryName}) :\n\n1. **Définition Fondamentale** : Repartir de la propriété de base et identifier les hypothèses de départ.\n2. **Exemple Pratique** : Appliquer la formule sur un cas simple sans calculatrice.\n3. **Astuce d'Examen** : Vérifier systématiquement les conditions d'existence.\n\n*Quelle est la première étape qui vous pose difficulté ?*`;
@@ -183,7 +175,6 @@ export class CampusPedagogicalEngine {
         mode: 'analogie_simple' | 'decoupage_etapes' | 'exemple_terrain' | 'langage_facile_sans_jargon'
     ): Promise<string> {
         try {
-            const ai = this.getGenAI();
             const prompt = `
                 Tu es Professeur Diallo, Enseignant d'élite de la Famille DIALLO.
                 L'étudiant n'a pas compris la première explication sur "${conceptTitle}" (${subjectName}).
@@ -202,12 +193,9 @@ export class CampusPedagogicalEngine {
                 Ton ton est chaleureux, patient et ultra-encourageant.
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const response = await generateText(prompt);
 
-            return response.text || "Je reformule pour vous...";
+            return response || "Je reformule pour vous...";
         } catch (error) {
             return `Pas d'inquiétude ! Reprenons ensemble depuis le début : imaginez que ${conceptTitle} fonctionne exactement comme un mécanisme simple du quotidien...`;
         }
@@ -222,7 +210,6 @@ export class CampusPedagogicalEngine {
         subjectName: string
     ): Promise<{ questions: any[]; instructions: string }> {
         try {
-            const ai = this.getGenAI();
             const prompt = `
                 Génère un test de diagnostic initial officiel pour un étudiant en ${levelCode} (${countryCode}) en ${subjectName}.
                 5 Questions ciblées pour identifier les forces et lacunes réelles (du niveau basique au niveau examen).
@@ -244,13 +231,7 @@ export class CampusPedagogicalEngine {
                 }
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const parsed = JSON.parse(response.text || '{}');
+            const parsed = await generateJSON<any>(prompt);
             return {
                 instructions: parsed.instructions || "Répondez sans aide extérieure pour calibrer votre parcours optimal.",
                 questions: parsed.questions || []
@@ -336,19 +317,10 @@ export class CampusPedagogicalEngine {
         learningStyle: LearningStylePreference = 'exemples_concrets'
     ): Promise<{ textExplanation: string; detectedTitle: string; identifiedTopics: string[]; stepByStepGuidance: string[] }> {
         try {
-            const ai = this.getGenAI();
             const isImage = mimeType.startsWith('image/');
-
-            let parts: any[] = [];
-            if (isImage) {
-                const cleanBase64 = fileBase64OrText.includes(',') ? fileBase64OrText.split(',')[1] : fileBase64OrText;
-                parts.push({
-                    inlineData: {
-                        mimeType: mimeType,
-                        data: cleanBase64
-                    }
-                });
-            }
+            const cleanBase64 = isImage
+                ? (fileBase64OrText.includes(',') ? fileBase64OrText.split(',')[1] : fileBase64OrText)
+                : '';
 
             const userQueryText = userQuery || "Peux-tu m'expliquer ce document ou cet exercice et la méthode pour le résoudre ?";
             const prompt = `Vous êtes le Professeur Diallo, enseignant émérite et bienveillant de la Famille DIALLO.

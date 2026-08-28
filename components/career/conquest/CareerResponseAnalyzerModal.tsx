@@ -41,9 +41,7 @@ export const CareerResponseAnalyzerModal: React.FC<CareerResponseAnalyzerModalPr
     setIsAnalyzing(true);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
+      {
         const prompt = `Tu es l'Analyste Stratégique de Carrière de la Famille Diallo (Le Monde à Vous).
 Contexte de l'opportunité : ${opportunity.title} chez ${opportunity.entity} (Univers : ${opportunity.universe}).
 Type de réponse sélectionné : ${responseType}.
@@ -63,13 +61,7 @@ Génère une analyse en JSON strict :
   }
 }`;
 
-        const res = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [{ parts: [{ text: prompt }] }],
-          config: { responseMimeType: 'application/json' }
-        });
-
-        const parsed = JSON.parse(res.text || '{}');
+        const parsed = await generateJSON<any>(prompt);
         const finalAnalysis: ConquestResponseAnalysis = {
           id: `resp-${Date.now()}`,
           opportunityId: opportunity.id,
@@ -85,7 +77,10 @@ Génère une analyse en JSON strict :
 
         setAnalysisResult(finalAnalysis);
         onRecordAnalysis(finalAnalysis);
-      } else {
+      }
+    } catch (e) {
+      console.error(e);
+      {
         // Fallback
         const fallbackAnalysis: ConquestResponseAnalysis = {
           id: `resp-${Date.now()}`,
@@ -113,8 +108,6 @@ Génère une analyse en JSON strict :
         setAnalysisResult(fallbackAnalysis);
         onRecordAnalysis(fallbackAnalysis);
       }
-    } catch (e) {
-      console.error(e);
     } finally {
       setIsAnalyzing(false);
     }

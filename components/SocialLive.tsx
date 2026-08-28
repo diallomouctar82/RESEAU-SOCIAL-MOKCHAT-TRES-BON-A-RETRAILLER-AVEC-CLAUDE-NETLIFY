@@ -505,17 +505,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setCatchupDigest("Génération du résumé des 20 premières minutes par Diallo OS...");
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{
-          role: 'user',
-          parts: [{
-            text: `Résume en 3 puces percutantes ce qui s'est dit au début du Live "${liveData.title}". Mets en avant les points clés pour un spectateur qui arrive en retard.`
-          }]
-        }]
-      });
-      setCatchupDigest(response.text || "1. Présentation des différents types de subventions.\n2. Explication des critères bancaires.\n3. Analyse des garanties diaspora.");
+      const response = await generateText(
+        `Résume en 3 puces percutantes ce qui s'est dit au début du Live "${liveData.title}". Mets en avant les points clés pour un spectateur qui arrive en retard.`
+      );
+      setCatchupDigest(response || "1. Présentation des différents types de subventions.\n2. Explication des critères bancaires.\n3. Analyse des garanties diaspora.");
     } catch (e) {
       setCatchupDigest("• Cadrage initial du besoin de financement (amorçage vs croissance)\n• Rôle de l'Expert Projet Diallo dans la constitution du dossier\n• 2 questions clés du public déjà traitées sur l'imposition transfrontalière.");
     }
@@ -529,20 +522,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setIsAssistantThinking(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{
-          role: 'user',
-          parts: [{
-            text: `Tu es l'assistant privé et discret d'un spectateur du Live "${liveData.title}".
+      const response = await generateText(
+        `Tu es l'assistant privé et discret d'un spectateur du Live "${liveData.title}".
             L'utilisateur te demande en aparté : "${query}".
             Réponds de façon ultra-concise, pédagogique et bienveillante en 2-3 phrases max.`
-          }]
-        }]
-      });
+      );
 
-      const answer = response.text || "C'est une démarche clé qui facilite la validation auprès des autorités compétentes.";
+      const answer = response || "C'est une démarche clé qui facilite la validation auprès des autorités compétentes.";
       setAssistantMessages(prev => [...prev, { query, answer }]);
     } catch (e) {
       setAssistantMessages(prev => [...prev, { query, answer: "Explication synthétique : ce terme désigne la conformité légale obligatoire." }]);

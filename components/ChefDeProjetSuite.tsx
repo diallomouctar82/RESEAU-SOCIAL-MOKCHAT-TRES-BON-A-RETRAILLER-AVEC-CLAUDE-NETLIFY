@@ -213,7 +213,6 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
     const handleGenerateBriefing = async () => {
         setIsGeneratingBriefing(true);
         try {
-            const ai = getAIClient();
             const prompt = `En tant que Directeur Diallo, Chef de Projet IA :
             Prépare une Fiche de Briefing Stratégique pour l'audition devant le comité de sélection du bailleur (${outreachRecipient}) pour le projet "${projectTitle}".
             Inclus :
@@ -222,12 +221,9 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
             3. Les 4 Questions Stratégiques à Poser au Bailleur
             4. Cadre de Négociation & Lignes Rouges.`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            setMeetingBriefing(res.text || 'Briefing prêt.');
+            setMeetingBriefing(resText || 'Briefing prêt.');
             onNotification("Briefing Réunion Prêt", "L'argumentaire d'audition a été formalisé.", "success");
         } catch (e: any) {
             onNotification("Erreur IA", e.message || "Erreur de génération", "warning");
@@ -240,7 +236,6 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
     const handleGenerateFinalReport = async () => {
         setIsGeneratingFinalReport(true);
         try {
-            const ai = getAIClient();
             const prompt = `En tant que Directeur Diallo, Chef de Projet IA :
             Génère le Rapport Final d'Évaluation et Clôture de Projet pour :
             - Titre : ${projectTitle}
@@ -250,12 +245,9 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
             - Retours d'Expérience (Leçons apprises et pérennité)
             - Attestation de Clôture et Archivage.`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            setFinalReportContent(res.text || 'Rapport final compilé.');
+            setFinalReportContent(resText || 'Rapport final compilé.');
             onNotification("Rapport Final Compilé", "Le bilan narratif et financier est archivé.", "success");
         } catch (e: any) {
             onNotification("Erreur IA", e.message || "Erreur de génération", "warning");

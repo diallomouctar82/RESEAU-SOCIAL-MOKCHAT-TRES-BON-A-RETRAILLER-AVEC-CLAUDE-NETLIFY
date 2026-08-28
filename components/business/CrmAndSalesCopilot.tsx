@@ -5,7 +5,7 @@ import {
   HelpCircle, ChevronRight, AlertTriangle, Building2, Globe
 } from 'lucide-react';
 import { CrmLeadClient, CrmFollowUp, CustomerSupportTicket } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../../services/aiGateway';
 
 interface CrmAndSalesCopilotProps {
   clients: CrmLeadClient[];
@@ -57,20 +57,16 @@ export const CrmAndSalesCopilot: React.FC<CrmAndSalesCopilotProps> = ({
     setGeneratedMessage('');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Tu es l'Agent Commercial IA de l'entreprise exportatrice d'Amadou Diallo.
+      const text = await generateText(`Tu es l'Agent Commercial IA de l'entreprise exportatrice d'Amadou Diallo.
         Rédige un message de relance B2B chaleureux, professionnel et persuasif pour :
         - Client : ${followUp.clientName}
         - Contexte : ${followUp.context}
         - Type de relance : ${followUp.type}
         - Canal prévu : ${followUp.channel}
 
-        Le message doit être poli, valoriser notre certification Mok Trust et encourager une réponse rapide sans être agressif. Max 60 mots.`
-      });
+        Le message doit être poli, valoriser notre certification Mok Trust et encourager une réponse rapide sans être agressif. Max 60 mots.`);
 
-      setGeneratedMessage(response.text || followUp.aiSuggestedMessage || '');
+      setGeneratedMessage(text || followUp.aiSuggestedMessage || '');
     } catch (e) {
       console.error(e);
       setGeneratedMessage(followUp.aiSuggestedMessage || 'Bonjour, je reviens vers vous concernant notre offre commerciale.');
