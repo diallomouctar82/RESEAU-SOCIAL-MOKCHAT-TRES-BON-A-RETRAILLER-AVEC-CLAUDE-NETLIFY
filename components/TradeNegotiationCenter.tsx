@@ -19,7 +19,7 @@ import {
   Layers
 } from 'lucide-react';
 import { TradeDealNegotiation } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { CommercialDossierManager } from './CommercialDossierManager';
 
 interface TradeNegotiationCenterProps {
@@ -66,7 +66,7 @@ export const TradeNegotiationCenter: React.FC<TradeNegotiationCenterProps> = ({
     if (!selectedDeal) return;
     setIsAiSuggesting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es l'Expert Négociation Commerciale Internationale Diallo.
 Dossier en cours : "${selectedDeal.dealTitle}".
 Prix initial vendeur : ${selectedDeal.initialPrice} ${selectedDeal.currency}/unité.

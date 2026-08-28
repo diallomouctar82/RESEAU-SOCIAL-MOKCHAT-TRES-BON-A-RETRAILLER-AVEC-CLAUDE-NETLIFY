@@ -34,11 +34,12 @@ import {
     ShoppingBag, 
     CheckCircle2,
     SlidersHorizontal,
-    Layers
+    Layers,
+    ExternalLink
 } from 'lucide-react';
 import { COUNTRIES, AGENTS, DEFAULT_DOSSIERS } from '../constants';
 import { MobilityProject, SimulationResult, Country, StoredDocument, DocCategory, DossierParcours, DossierCategory, ActiveMemoryItem } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { cloudService } from '../services/cloud';
 import { dossierService } from '../services/dossierService';
 import { memoryService } from '../services/memory';
@@ -47,6 +48,19 @@ import { ParcoursDiagnosticHero } from './ParcoursDiagnosticHero';
 import { ParcoursDetailView } from './ParcoursDetailView';
 import { UnifiedCouncilRoom } from './UnifiedCouncilRoom';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useModuleRecords } from '../hooks/useModuleRecords';
+import { LIFE_OFFICIAL_SOURCES, MOBILITY_DISCLAIMER } from '../services/lifeSources';
+import { ModuleSyncStatus } from './life/ModuleSyncStatus';
+
+interface MobilitySimulationRecord {
+    originCode: string;
+    destinationCode: string;
+    projectType: MobilityProject['type'];
+    projectDetails: string;
+    result: SimulationResult;
+    sourceUrl: string;
+    createdAt: string;
+}
 
 interface WorldHubProps {
     onNavigateToAgent: (agentId: string, initialMessage?: string) => void;
@@ -54,7 +68,7 @@ interface WorldHubProps {
 }
 
 export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigate }) => {
-    const { addNotification } = useGlobal();
+    const { addNotification, userProfile } = useGlobal();
 
     // 4 Global Modes: 'parcours' (default), 'mobility', 'safe', 'memory'
     const [viewMode, setViewMode] = useState<'parcours' | 'mobility' | 'safe' | 'memory'>('parcours');
@@ -75,6 +89,9 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
     const [projectDetails, setProjectDetails] = useState('');
     const [isSimulating, setIsSimulating] = useState(false);
     const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
+    const [simulationError, setSimulationError] = useState<string | null>(null);
+    const simulationHydratedRef = useRef(false);
+    const mobilityStore = useModuleRecords<MobilitySimulationRecord>('mobility', 'visa_simulation', userProfile.id);
 
     // --- SAFE STATE ---
     const [isLocked, setIsLocked] = useState(true);
@@ -97,6 +114,18 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
         loadSafeDocs();
         loadMemories();
     }, []);
+
+    useEffect(() => {
+        if (simulationHydratedRef.current || mobilityStore.isLoading) return;
+        simulationHydratedRef.current = true;
+        const latest = mobilityStore.records[0]?.payload;
+        if (!latest) return;
+        setSelectedOrigin(COUNTRIES.find((country) => country.code === latest.originCode) ?? null);
+        setSelectedDestination(COUNTRIES.find((country) => country.code === latest.destinationCode) ?? null);
+        setProjectType(latest.projectType);
+        setProjectDetails(latest.projectDetails);
+        setSimulationResult(latest.result);
+    }, [mobilityStore.isLoading, mobilityStore.records]);
 
     const loadParcours = async () => {
         const loaded = await dossierService.getAllDossiers();
@@ -161,9 +190,10 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
         if (!selectedOrigin || !selectedDestination || !projectDetails) return;
         setIsSimulating(true);
         setSimulationResult(null);
+        setSimulationError(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             
             const prompt = `Agis comme Maître Diallo (Expert Juridique International) et Guide Diallo (Expert Voyage).
             
@@ -173,10 +203,11 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
             - Type : ${projectType}
             - Détails : ${projectDetails}
 
+            Il s'agit d'une orientation préparatoire, pas d'une décision consulaire. N'affirme aucun droit au visa, n'invente aucun tarif, délai ou règle. Marque toute estimation comme à vérifier sur le portail officiel ou auprès du consulat.
             Génère une réponse JSON stricte avec ces champs :
             {
                 "feasibilityScore": number (0-100),
-                "visaType": "Nom du visa probable",
+                "visaType": "Piste de catégorie de visa à vérifier",
                 "estimatedCost": "Estimation budget (Devise locale)",
                 "processingTime": "Estimation temps",
                 "requirements": ["condition 1", "condition 2"],
@@ -190,12 +221,25 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                 config: { responseMimeType: 'application/json' }
             });
 
-            const result = JSON.parse(response.text || '{}');
+            const result = JSON.parse(response.text || '{}') as SimulationResult;
+            if (!Number.isFinite(result.feasibilityScore) || !result.visaType || !Array.isArray(result.requirements) || !result.advice) {
+                throw new Error('INVALID_MOBILITY_SIMULATION');
+            }
             setSimulationResult(result);
+            await mobilityStore.save({
+                originCode: selectedOrigin.code,
+                destinationCode: selectedDestination.code,
+                projectType,
+                projectDetails: projectDetails.trim(),
+                result,
+                sourceUrl: LIFE_OFFICIAL_SOURCES.mobility.url,
+                createdAt: new Date().toISOString(),
+            });
 
         } catch (e) {
             console.error(e);
-            addNotification("Erreur Simulation", "Veuillez réessayer l'analyse.", "alert");
+            setSimulationError("La simulation n'a pas pu être produite. Vérifiez directement les exigences auprès du consulat ou du portail officiel.");
+            addNotification("Erreur Simulation", "Aucun résultat non vérifié n'a été enregistré.", "alert");
         } finally {
             setIsSimulating(false);
         }
@@ -543,6 +587,15 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                 <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
                                    <Navigation className="text-indigo-600" /> Paramètres du Projet de Mobilité
                                 </h2>
+                                <div className="mb-5">
+                                    <ModuleSyncStatus
+                                        phase={mobilityStore.syncPhase}
+                                        isLoading={mobilityStore.isLoading}
+                                        error={mobilityStore.error}
+                                        hasQueuedChanges={mobilityStore.hasQueuedChanges}
+                                        onRetry={() => void mobilityStore.retrySync()}
+                                    />
+                                </div>
                                 
                                 <div className="space-y-5">
                                     <div>
@@ -610,6 +663,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                 {isSimulating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                                 {isSimulating ? 'Simulation multimodale en cours...' : 'Lancer la Simulation de Mobilité'}
                             </button>
+                            {simulationError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{simulationError}</p>}
                         </div>
 
                         {/* Right Panel: Simulation Results */}
@@ -633,7 +687,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                         </div>
 
                                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Voie d'Immigration / Visa Suggéré</div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Piste de visa à confirmer</div>
                                             <div className="font-bold text-indigo-700 text-base">{simulationResult.visaType}</div>
                                         </div>
 
@@ -662,6 +716,13 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
 
                                         <div className="bg-indigo-50/80 p-3.5 rounded-2xl border border-indigo-100 text-xs text-indigo-900 italic">
                                             "{simulationResult.advice}"
+                                        </div>
+                                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-950">
+                                            <p className="font-bold">{MOBILITY_DISCLAIMER}</p>
+                                            <a href={LIFE_OFFICIAL_SOURCES.mobility.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-bold underline">
+                                                {LIFE_OFFICIAL_SOURCES.mobility.label} <ExternalLink size={12} />
+                                            </a>
+                                            <p className="mt-1">{LIFE_OFFICIAL_SOURCES.mobility.scope}</p>
                                         </div>
                                     </div>
 

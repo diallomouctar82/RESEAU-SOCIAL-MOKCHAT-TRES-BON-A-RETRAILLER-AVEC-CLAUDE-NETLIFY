@@ -14,7 +14,7 @@ import {
   OpportunityComparisonItem,
   MultiExpertCareerCouncil,
   CareerAIBilan,
-  CareerEvolutionTimelineItem,
+  CareerEvolutionTimelineStep,
   CareerPaceMode
 } from '../types';
 
@@ -973,82 +973,75 @@ export const INITIAL_CAREER_AI_BILAN: CareerAIBilan = {
 // 14. VISUALISATION CHRONOLOGIQUE « MON ÉVOLUTION »
 // ==========================================
 
-export const INITIAL_EVOLUTION_TIMELINE: CareerEvolutionTimelineItem[] = [
+export const INITIAL_EVOLUTION_TIMELINE: CareerEvolutionTimelineStep[] = [
   {
     id: 'evo_1',
-    period: 'avant',
-    label: 'Situation Initiale',
+    status: 'completed',
+    timeframe: 'Il y a 12 mois',
+    category: 'Situation Initiale',
     title: 'Pratique Commerciale Intuitive & Non Structurée',
     description: 'Ventes opportunistes sans méthode de prospection prédictive, pas de jumeau pro ni d\'objectif à 18 mois.',
-    dateOrHorizon: 'Il y a 12 mois',
-    badge: 'Passé',
-    isPassed: true,
-    isCurrent: false
+    keyMilestones: ['Prise de conscience du besoin de structurer la trajectoire professionnelle.'],
+    achievementBadge: 'Passé'
   },
   {
     id: 'evo_2',
-    period: 'point_depart',
-    label: 'Point de Départ',
+    status: 'completed',
+    timeframe: 'Il y a 6 mois',
+    category: 'Point de Départ',
     title: 'Diagnostic Point A & Définition du Point B',
     description: 'Cartographie lucide des compétences, identification des lacunes et choix de la Direction Commerciale Export.',
-    dateOrHorizon: 'Il y a 6 mois',
-    badge: 'Fondation Validée',
-    isPassed: true,
-    isCurrent: false
+    keyMilestones: ['Diagnostic Point A terminé et objectif Point B confirmé.'],
+    achievementBadge: 'Fondation Validée'
   },
   {
     id: 'evo_3',
-    period: 'competences_acquises',
-    label: 'Compétences Acquises',
+    status: 'completed',
+    timeframe: 'Il y a 3 mois',
+    category: 'Compétences Acquises',
     title: 'Socle Vente B2B, Négociation & RevOps IA',
     description: 'Validation de preuves réelles de closing et entraînement continu aux méthodes modernes.',
-    dateOrHorizon: 'Il y a 3 mois',
-    badge: 'Preuves Auditées',
-    isPassed: true,
-    isCurrent: false
+    keyMilestones: ['Preuves de vente B2B et de négociation consolidées.'],
+    achievementBadge: 'Preuves Auditées'
   },
   {
     id: 'evo_4',
-    period: 'opportunites',
-    label: 'Opportunités Détectées',
+    status: 'completed',
+    timeframe: 'Mois Dernier',
+    category: 'Opportunités Détectées',
     title: 'Activation du Radar & Capital Relationnel',
     description: 'Détection de 3 opportunités majeures et mise en relation avec 4 facilitateurs C-Level.',
-    dateOrHorizon: 'Mois Dernier',
-    badge: 'Réseau Connecté',
-    isPassed: true,
-    isCurrent: false
+    keyMilestones: ['Trois opportunités qualifiées et quatre facilitateurs activés.'],
+    achievementBadge: 'Réseau Connecté'
   },
   {
     id: 'evo_5',
-    period: 'aujourdhui',
-    label: 'Aujourd\'hui',
+    status: 'current',
+    timeframe: 'Temps Présent (27 Août 2026)',
+    category: 'Aujourd\'hui',
     title: 'Carrefour Décisionnel & Levée du Verrou Anglais C1',
     description: 'Score de préparation à 74%, choix d\'une trajectoire internationale et arbitrage des offres.',
-    dateOrHorizon: 'Temps Présent (27 Août 2026)',
-    badge: 'Momentum Clé',
-    isPassed: false,
-    isCurrent: true
+    keyMilestones: ['Arbitrer les offres et finaliser le niveau d\'anglais C1.'],
+    achievementBadge: 'Momentum Clé'
   },
   {
     id: 'evo_6',
-    period: 'prochaine_etape',
-    label: 'Prochaine Étape (30-60 jours)',
+    status: 'upcoming',
+    timeframe: 'Automne 2026',
+    category: 'Prochaine Étape (30-60 jours)',
     title: 'Validation Certification C1 & Mandat Export',
     description: 'Validation de l\'anglais des affaires sur Campus et closing du premier mandat transfrontalier.',
-    dateOrHorizon: 'Automne 2026',
-    badge: 'Objectif J+60',
-    isPassed: false,
-    isCurrent: false
+    keyMilestones: ['Valider le niveau C1 et conclure un premier mandat export.'],
+    achievementBadge: 'Objectif J+60'
   },
   {
     id: 'evo_7',
-    period: 'point_b',
-    label: 'Point B Cible',
+    status: 'upcoming',
+    timeframe: 'Horizon 12 - 18 mois',
+    category: 'Point B Cible',
     title: 'Directeur Commercial International & Développement Export',
     description: 'Poste exécutif confirmé, équipe internationale managée, atteinte pleine de l\'accomplissement professionnel.',
-    dateOrHorizon: 'Horizon 12 - 18 mois',
-    badge: 'Point B Visé',
-    isPassed: false,
-    isCurrent: false
+    keyMilestones: ['Prendre la direction d\'une équipe commerciale internationale.'],
+    achievementBadge: 'Point B Visé'
   }
 ];

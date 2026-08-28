@@ -19,7 +19,7 @@ import {
   Download,
   Share2
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { CommercialDossier, LiveInspectionSession } from '../types';
 
 interface TradeLiveInspectionModalProps {
@@ -93,7 +93,7 @@ export const TradeLiveInspectionModal: React.FC<TradeLiveInspectionModalProps> =
   const handleGenerateAISummary = async () => {
     setIsGeneratingSummary(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es l'Inspecteur Qualité & Greffier Numérique de Diallo OS.
 Rédige un compte-rendu officiel d'inspection en direct pour le dossier commercial suivant :
 - Dossier : ${dossier.codeRef} (${dossier.productTitle})

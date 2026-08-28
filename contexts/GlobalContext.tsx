@@ -1,14 +1,19 @@
-
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { UserProfile, Notification, UserShop, WalletTransaction } from '../types';
-import { USER_PROFILE, MOCK_TRANSACTIONS } from '../constants';
-import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient';
+import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { Notification, UserProfile, UserShop, WalletTransaction } from '../types';
+import { MOCK_TRANSACTIONS } from '../constants';
+import { completeOAuthCallback, hasOAuthCallbackCode, onAuthStateChange, signOut, type Session } from '../services/auth';
+import { fetchUserProfile, updateOwnProfile } from '../services/profile';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 
 interface GlobalContextType {
     userProfile: UserProfile;
     notifications: Notification[];
     transactions: WalletTransaction[];
     isSupabaseConnected: boolean;
+    isAuthenticated: boolean;
+    isAuthChecking: boolean;
+    authError: string | null;
+    refreshProfile: () => Promise<void>;
     updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
     addNotification: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'alert') => void;
     markNotificationRead: (id: string) => void;
@@ -16,200 +21,215 @@ interface GlobalContextType {
     updateUserCredits: (amount: number) => void;
     updateUserXp: (amount: number) => void;
     addTransaction: (transaction: WalletTransaction) => void;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
-// Helper to convert Supabase DB Profile into App UserProfile
-const mapSupabaseToUserProfile = (db: SupabaseUserProfile, current: UserProfile): UserProfile => {
-    return {
-        ...current,
-        id: db.id || current.id,
-        email: db.email || current.email,
-        name: db.name || current.name,
-        title: db.title || current.title,
-        bio: db.bio || current.bio,
-        role: db.role === 'super_admin' || db.role === 'admin' ? 'admin' : 'user',
-        country: db.country || current.country,
-        city: db.city || current.city,
-        citizenshipId: db.citizenship_id || current.citizenshipId,
-        phone: db.phone || current.phone,
-        website: db.website || current.website,
-        level: db.level ?? current.level,
-        xp: db.xp ?? current.xp,
-        credits: db.credits ?? current.credits,
-        avatarUrl: db.avatar_url || current.avatarUrl,
-        isVerified: db.is_verified ?? current.isVerified,
-        followersCount: db.followers_count ?? current.followersCount,
-        followingCount: db.following_count ?? current.followingCount,
-        skills: db.skills && Array.isArray(db.skills) ? db.skills : current.skills,
-        badges: db.badges && Array.isArray(db.badges) ? db.badges : current.badges,
-        interests: db.interests && Array.isArray(db.interests) ? db.interests : current.interests,
-    };
+// État neutre, jamais présenté comme un compte connecté. L'identité affichée
+// provient exclusivement de profiles après validation de la session Supabase.
+const EMPTY_USER_PROFILE: UserProfile = {
+    id: '',
+    email: '',
+    name: '',
+    role: 'user',
+    accountStatus: 'active',
+    citizenshipId: '',
+    level: 1,
+    xp: 0,
+    nextLevelXp: 500,
+    credits: 0,
+    avatarUrl: '',
+    preferredLanguage: 'fr',
+    twoFactorEnabled: false,
+    skills: [],
+    badges: [],
+    interests: []
 };
 
+const toOwnProfilePayload = (profile: UserProfile, updates: Partial<UserProfile>) => ({
+    name: updates.name ?? profile.name,
+    title: updates.title ?? profile.title,
+    bio: updates.bio ?? profile.bio,
+    country: updates.country ?? profile.country,
+    city: updates.city ?? profile.city,
+    phone: updates.phone ?? profile.phone,
+    website: updates.website ?? profile.website,
+    avatar_url: updates.avatarUrl ?? profile.avatarUrl,
+    preferred_language: updates.preferredLanguage ?? profile.preferredLanguage,
+    interests: updates.interests ?? profile.interests
+});
+
 export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-        try {
-            const stored = localStorage.getItem('lmav_session_v2');
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                if (parsed && parsed.email) {
-                    return { ...USER_PROFILE, ...parsed };
-                }
-            }
-        } catch {
-            // Ignore parse errors
-        }
-        return USER_PROFILE;
-    });
+    const [userProfile, setUserProfile] = useState<UserProfile>(EMPTY_USER_PROFILE);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isAuthChecking, setIsAuthChecking] = useState(true);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const currentSessionRef = useRef<Session | null>(null);
+    const loadedSessionKeyRef = useRef<string | null | undefined>(undefined);
+    const authRequestRef = useRef(0);
 
     const [notifications, setNotifications] = useState<Notification[]>([
-        { id: '1', title: 'Système Prêt', message: 'Bienvenue sur la version optimisée de Le Monde à Vous.', type: 'success', timestamp: new Date(), read: false }
+        { id: '1', title: 'Système Prêt', message: 'Bienvenue sur Le Monde à Vous.', type: 'success', timestamp: new Date(), read: false }
     ]);
     const [transactions, setTransactions] = useState<WalletTransaction[]>(MOCK_TRANSACTIONS);
-    const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(supabaseService.isConfigured());
 
-    // Sync profile with Supabase on mount and auth state change
+    const loadSessionProfile = async (session: Session | null, force = false) => {
+        const sessionKey = session?.access_token || null;
+        if (!force && loadedSessionKeyRef.current === sessionKey) return;
+        loadedSessionKeyRef.current = sessionKey;
+        const requestId = ++authRequestRef.current;
+        currentSessionRef.current = session;
+        setAuthError(null);
+
+        if (!session?.user) {
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setIsAuthChecking(false);
+            return;
+        }
+
+        let profile: UserProfile | null;
+        try {
+            profile = await fetchUserProfile(session.user.id);
+        } catch {
+            if (requestId !== authRequestRef.current) return;
+            loadedSessionKeyRef.current = undefined;
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setAuthError('Impossible de charger votre profil. Réessayez dans quelques instants.');
+            setIsAuthChecking(false);
+            return;
+        }
+        if (requestId !== authRequestRef.current) return;
+        if (!profile) {
+            loadedSessionKeyRef.current = undefined;
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setAuthError('Votre identité est valide, mais votre profil applicatif est introuvable. Contactez un administrateur.');
+            setIsAuthChecking(false);
+            return;
+        }
+
+        if (profile.accountStatus !== 'active') {
+            currentSessionRef.current = null;
+            loadedSessionKeyRef.current = null;
+            setUserProfile(EMPTY_USER_PROFILE);
+            setIsAuthenticated(false);
+            setAuthError(profile.accountStatus === 'suspended'
+                ? 'Ce compte est suspendu. Contactez un administrateur.'
+                : 'Ce compte est en attente d’activation par un administrateur.');
+            setIsAuthChecking(false);
+            await signOut().catch(() => undefined);
+            return;
+        }
+
+        setUserProfile(profile);
+        setIsAuthenticated(true);
+        setIsAuthChecking(false);
+    };
+
     useEffect(() => {
-        const checkCloudProfile = async () => {
-            const isConfig = supabaseService.isConfigured();
-            setIsSupabaseConnected(isConfig);
-
-            if (isConfig) {
-                const currentUser = await supabaseService.getCurrentUser();
-                if (currentUser) {
-                    const dbProfile = await supabaseService.getProfile(currentUser.id);
-                    if (dbProfile) {
-                        setUserProfile(prev => {
-                            const merged = mapSupabaseToUserProfile(dbProfile, prev);
-                            localStorage.setItem('lmav_session_v2', JSON.stringify(merged));
-                            return merged;
-                        });
-                    }
-                }
-            }
-        };
-
-        checkCloudProfile();
-
-        const { unsubscribe } = supabaseService.onAuthStateChange(async (event, session) => {
-            if (session?.user) {
-                const dbProfile = await supabaseService.getProfile(session.user.id);
-                if (dbProfile) {
-                    setUserProfile(prev => {
-                        const merged = mapSupabaseToUserProfile(dbProfile, prev);
-                        localStorage.setItem('lmav_session_v2', JSON.stringify(merged));
-                        return merged;
-                    });
-                }
-            }
+        let active = true;
+        const callbackPending = hasOAuthCallbackCode();
+        // Supabase émet INITIAL_SESSION : un getSession() parallèle ferait
+        // une seconde synchronisation inutile du même profil.
+        const unsubscribe = onAuthStateChange((event, session) => {
+            // Pendant un retour OAuth, l'ancienne INITIAL_SESSION ne doit pas
+            // masquer l'écran de chargement avant l'échange du nouveau code.
+            if (callbackPending && event === 'INITIAL_SESSION') return;
+            if (active) void loadSessionProfile(session).catch(() => {
+                if (!active) return;
+                loadedSessionKeyRef.current = undefined;
+                setAuthError('Impossible de vérifier la nouvelle session.');
+                setIsAuthChecking(false);
+            });
         });
-
+        if (callbackPending) {
+            void completeOAuthCallback()
+                .then((session) => {
+                    if (active) return loadSessionProfile(session);
+                })
+                .catch((error: unknown) => {
+                    if (!active) return;
+                    loadedSessionKeyRef.current = undefined;
+                    setUserProfile(EMPTY_USER_PROFILE);
+                    setIsAuthenticated(false);
+                    setAuthError(error instanceof Error
+                        ? `Connexion Google impossible : ${error.message}`
+                        : 'Connexion Google impossible. Relancez la connexion.');
+                    setIsAuthChecking(false);
+                });
+        }
         return () => {
+            active = false;
+            authRequestRef.current += 1;
             unsubscribe();
         };
     }, []);
 
     const addNotification = (title: string, message: string, type: 'success' | 'info' | 'warning' | 'alert') => {
         const newNotif: Notification = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             title,
             message,
             type,
             timestamp: new Date(),
             read: false
         };
-        setNotifications(prev => [newNotif, ...prev]);
+        setNotifications((previous) => [newNotif, ...previous]);
     };
 
     const markNotificationRead = (id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setNotifications((previous) => previous.map((notification) => notification.id === id ? { ...notification, read: true } : notification));
+    };
+
+    const refreshProfile = async () => {
+        await loadSessionProfile(currentSessionRef.current, true);
     };
 
     const updateUserProfile = async (updates: Partial<UserProfile>) => {
-        setUserProfile(prev => {
-            const updated = { ...prev, ...updates };
-            try {
-                localStorage.setItem('lmav_session_v2', JSON.stringify(updated));
-            } catch (err) {
-                console.warn('Could not save to localStorage', err);
-            }
-            return updated;
-        });
+        const session = currentSessionRef.current;
+        if (!session?.user || session.user.id !== userProfile.id) throw new Error('Session requise pour modifier le profil.');
 
-        // Sync to Supabase if connected
-        if (supabaseService.isConfigured() && (updates.id || userProfile.id)) {
-            const targetId = updates.id || userProfile.id;
-            try {
-                await supabaseService.upsertProfile({
-                    id: targetId,
-                    email: updates.email || userProfile.email,
-                    name: updates.name || userProfile.name,
-                    title: updates.title || userProfile.title,
-                    bio: updates.bio || userProfile.bio,
-                    role: (updates.role || userProfile.role) === 'admin' ? 'admin' : 'citizen',
-                    country: updates.country || userProfile.country,
-                    city: updates.city || userProfile.city,
-                    phone: updates.phone || userProfile.phone,
-                    website: updates.website || userProfile.website,
-                    avatar_url: updates.avatarUrl || userProfile.avatarUrl,
-                    citizenship_id: updates.citizenshipId || userProfile.citizenshipId,
-                    level: updates.level ?? userProfile.level,
-                    xp: updates.xp ?? userProfile.xp,
-                    credits: updates.credits ?? userProfile.credits,
-                    skills: updates.skills || userProfile.skills,
-                    badges: updates.badges || userProfile.badges,
-                    interests: updates.interests || userProfile.interests,
-                });
-            } catch (err) {
-                console.warn('Error syncing profile to Supabase', err);
-            }
-        }
+        await updateOwnProfile(session.user.id, toOwnProfilePayload(userProfile, updates));
+        setUserProfile((previous) => ({
+            ...previous,
+            ...updates,
+            id: previous.id,
+            email: previous.email,
+            role: previous.role,
+            accountStatus: previous.accountStatus
+        }));
     };
 
-    const updateUserShop = (shop: UserShop) => {
-        updateUserProfile({ shop });
-    };
+    const updateUserShop = (shop: UserShop) => setUserProfile((previous) => ({ ...previous, shop }));
 
     const updateUserCredits = (amount: number) => {
-        setUserProfile(prev => {
-            const newCredits = prev.credits + amount;
-            const updated = { ...prev, credits: newCredits };
-            localStorage.setItem('lmav_session_v2', JSON.stringify(updated));
-            return updated;
-        });
+        setUserProfile((previous) => ({ ...previous, credits: previous.credits + amount }));
     };
 
     const addTransaction = (transaction: WalletTransaction) => {
-        setTransactions(prev => [transaction, ...prev]);
-        if (transaction.currency === 'Credits' || transaction.currency === 'Ⓒ') {
-             updateUserCredits(transaction.amount);
-        }
+        setTransactions((previous) => [transaction, ...previous]);
+        if (transaction.currency === 'Credits' || transaction.currency === 'Ⓒ') updateUserCredits(transaction.amount);
     };
 
     const updateUserXp = (amount: number) => {
-        setUserProfile(prev => {
-            const newXp = prev.xp + amount;
-            let newLevel = prev.level;
-            let nextXp = prev.nextLevelXp;
-            
-            if (newXp >= prev.nextLevelXp) {
-                newLevel += 1;
-                nextXp = prev.nextLevelXp + (newLevel * 500);
-                addNotification("Niveau Supérieur ! 🌟", `Félicitations, vous êtes passé niveau ${newLevel} !`, "success");
-            }
-            const updated = { ...prev, xp: newXp, level: newLevel, nextLevelXp: nextXp };
-            localStorage.setItem('lmav_session_v2', JSON.stringify(updated));
-            return updated;
+        setUserProfile((previous) => {
+            const xp = previous.xp + amount;
+            if (xp < previous.nextLevelXp) return { ...previous, xp };
+            const level = previous.level + 1;
+            addNotification('Niveau supérieur ! 🌟', `Félicitations, vous êtes passé niveau ${level} !`, 'success');
+            return { ...previous, xp, level, nextLevelXp: previous.nextLevelXp + level * 500 };
         });
     };
 
-    const logout = () => {
-        localStorage.removeItem('lmav_session_v2');
-        supabaseService.signOut();
-        setUserProfile(USER_PROFILE);
+    const logout = async () => {
+        await signOut();
+        currentSessionRef.current = null;
+        loadedSessionKeyRef.current = null;
+        setUserProfile(EMPTY_USER_PROFILE);
+        setIsAuthenticated(false);
     };
 
     return (
@@ -217,7 +237,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             userProfile,
             notifications,
             transactions,
-            isSupabaseConnected,
+            isSupabaseConnected: isSupabaseConfigured,
+            isAuthenticated,
+            isAuthChecking,
+            authError,
+            refreshProfile,
             updateUserProfile,
             addNotification,
             markNotificationRead,
@@ -234,8 +258,6 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
 export const useGlobal = () => {
     const context = useContext(GlobalContext);
-    if (context === undefined) {
-        throw new Error('useGlobal must be used within a GlobalProvider');
-    }
+    if (!context) throw new Error('useGlobal must be used within a GlobalProvider');
     return context;
 };

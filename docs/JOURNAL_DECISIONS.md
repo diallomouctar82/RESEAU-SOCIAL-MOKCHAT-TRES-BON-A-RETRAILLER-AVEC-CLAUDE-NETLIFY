@@ -4,6 +4,28 @@
 
 ---
 
+### [DEC-2026-023] — 27 Août 2026
+* **Module(s)** : Types transversaux, Carrière, Administration.
+* **Problème / Besoin initial** : 22 diagnostics TypeScript empêchaient la compilation isolée de la couche services : types existants non importés dans les constantes, contrats Admin obsolètes, niveaux de priorité divergents et modèles Radar/frise absents ou incompatibles avec l'interface.
+* **Décision retenue** : importer explicitement les types de constantes, conserver les valeurs métier canoniques (`client_supplier`, `prioritaire`), aligner les résultats Admin sur les objets réellement produits et consommés, et utiliser une seule structure `CareerEvolutionTimelineStep` entre moteur et interface.
+* **Conséquences** : la frise Carrière reçoit désormais toujours `status`, `timeframe`, `keyMilestones` et `achievementBadge`; le Radar persiste un feedback typé; les opérations Admin ne changent pas de comportement. Aucun chantier de sauvegarde réelle, WebRTC, Live ou PWA n'est ouvert par ce correctif.
+* **Éléments techniques** : `constants.ts`, `types.ts`, `services/adminConfigService.ts`, `services/careerContinuityEngine.ts`, `services/careerRadarEngine.ts`, `services/careerStrategicEngine.ts`, `components/CareerCenter.tsx`, `components/career/continuity/CareerContinuityControlHub.tsx`.
+* **Preuves** : compilation `types.ts + services/*.ts` et sous-ensembles Dossier/Carrière réussie; build Vite réussi; tests Node 46/46 et Vitest 9/9.
+* **Statut** : `Développé` et `Testé localement`.
+
+---
+
+### [DEC-2026-021] — 28 Août 2026
+* **Module(s)** : Auth, profils, Supabase, MokChat/Réseau.
+* **Constat** : le dépôt ne reproduisait pas les 58 tables actives, le client lançait deux synchronisations de profil et des policies corrélaient des alias avec eux-mêmes. Une policy exposait aussi les lignes complètes de `profiles` à tout compte authentifié.
+* **Décision** : conserver les noms actifs (`posts`, `comments`, `conversation_participants`), versionner un snapshot suivi de migrations additives, isoler les prédicats RLS dans des helpers paramétrés, et séparer strictement hydratation et édition du profil.
+* **Sécurité** : `handle_new_user` attribue toujours `user`; l'annuaire passe par une projection RPC sans email/rôle/crédits; les mutations sensibles sont auditables et réservées au serveur. Les identifiants mock non UUID ne sont jamais envoyés à PostgREST.
+* **Preuve** : contrôle statique des migrations vert. Les logs Auth prouvent le flux Google principal. L'apply PostgreSQL et pgTAP restent explicitement non validés jusqu'au rapport de branche isolée.
+* **Éléments techniques** : `services/auth.ts`, `services/profile.ts`, `services/supabaseClient.ts`, `contexts/GlobalContext.tsx`, `supabase/migrations/*`, `supabase/tests/core_rls_test.sql`.
+* **Statut** : implémenté en source, validation distante en attente.
+
+---
+
 ## 📋 FORMAT D'UNE ENTRÉE DE DÉCISION
 Chaque décision respecte le formalisme strict suivant :
 - **ID & Date** : Identifiant unique `DEC-YYYY-NNN` et date de validation.
@@ -20,6 +42,41 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : Google Drive, Chat, Meet.
+* **Problème / Besoin initial** : les appels REST et jetons fournisseur étaient manipulés directement par les centres frontend, les scopes étaient trop larges et Meet fabriquait un faux lien après erreur.
+* **Décision retenue** : consentement GIS incrémental par capacité, jeton éphémère en mémoire avec expiration, REST via une fonction Netlify authentifiée/quotée/allowlistée, et échec explicite sans résultat fictif.
+* **Conséquences** : un consentement Drive ne débloque pas Chat/Meet. Le code est prêt mais l'E2E reste bloqué par les variables Netlify et la configuration Google Cloud.
+* **Éléments techniques** : `services/googleWorkspaceLink.ts`, `services/googleWorkspace.ts`, `netlify/functions/google-workspace-proxy.ts`, centres Google et `tests/google-workspace.test.mjs`.
+* **Preuves** : tests ciblés 3/3; build Vite réussi.
+* **Statut** : `Développé`, `Testé localement`, `Configuration Google/Netlify requise`.
+
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : Wallet, Commerce, Trade/RFQ.
+* **Problème / Besoin initial** : le Wallet gonflait le solde en état React et la création de commande faisait confiance aux prix du navigateur; RFQ et cotations affichaient des succès locaux.
+* **Décision retenue** : conserver les tables live `wallet_transactions`, `shops`, `products`, `orders`, `order_items`; rendre le ledger immuable; agréger les soldes et transférer par RPC atomiques; calculer prix/stock serveur; séparer les états `orders` des états escrow; persister RFQ/cotations et auditer les transitions.
+* **Conséquences** : aucun faux paiement, change, Mobile Money ou succès cloud. L'interface échoue explicitement si Supabase est absent. Le séquestre est une logique interne, pas un prestataire réglementé.
+* **Éléments techniques** : `components/Wallet.tsx`, `components/Shop.tsx`, `components/TradeRFQHub.tsx`, `services/walletLedger.ts`, `services/commerceService.ts`, migration `20260827213100_wallet_commerce.sql`.
+* **Preuves** : tests ciblés 3/3; build Vite réussi.
+* **Statut** : `Développé`, `Testé localement`, `Migration et E2E Supabase requis`.
+
+### [DEC-2026-014] — 27 Août 2026
+* **Module(s)** : Dossiers de vie, Carrière, Campus, Langues, Studio collaboratif.
+* **Problème / Besoin initial** : les états métier structurants reposaient sur `localStorage` ou IndexedDB sans autorité cloud commune.
+* **Décision retenue** : un dépôt typé Supabase-first (`moduleRepository`) persiste des `module_records` protégés par RLS et versionnés. IndexedDB ne contient que les mutations en attente et se vide après synchronisation.
+* **Conséquences** : états `idle/syncing/offline/error` explicites, idempotence, reprise réseau et suppression des jeux de données fictifs chargés comme s'ils étaient réels. Les attestations Campus restent explicitement non vérifiées faute d'autorité éducative.
+* **Éléments techniques** : `services/moduleRepository.ts`, `services/dossierService.ts`, `services/campusRepository.ts`, `services/careerRadarEngine.ts`, `components/CareerCenter.tsx`, `components/LanguageCenter.tsx`, `components/StudioCollaboration.tsx`, migration `20260827216000_module_records.sql`.
+* **Preuves** : tests ciblés 3/3; build Vite réussi.
+* **Statut** : `Développé`, `Testé localement`, `Migration Supabase requise`.
+
+### [DEC-2026-013] — 27 Août 2026
+* **Module(s)** : Experts Diallo, Conseil, Carrière, Campus, Langues, Vie, Commerce et Studio (appels IA partagés).
+* **Problème / Besoin initial** : des composants appelaient directement le SDK fournisseur depuis le navigateur, avec configuration fragile et sorties multimédia inline non durables.
+* **Décision retenue** : une façade frontend unique appelle la fonction Netlify `/api/ai`. La fonction vérifie le JWT Supabase, applique quota, allowlists, limites et timeouts, conserve les secrets dans `Netlify.env`, persiste les médias privés et lie chaque opération vidéo à son propriétaire. Aucun fallback fictif n'est produit.
+* **Conséquences** : la source est compatible avec un déploiement sécurisé, mais l'IA reste explicitement indisponible jusqu'à configuration des secrets Netlify et application de la migration Supabase. Les URL signées sont renouvelables sans exposer le service role.
+* **Éléments techniques** : `services/aiProxy.ts`, `services/ai.ts`, `services/aiRoutingService.ts`, `netlify/functions/ai-proxy.ts`, `supabase/migrations/20260827214000_ai_proxy_assets.sql`, `tests/ai-proxy-boundaries.test.mjs`.
+* **Preuves** : build Vite réussi; tests ciblés 3/3; scan frontend sans SDK/secret Gemini direct.
+* **Statut** : `Développé`, `Testé localement`, `Configuration externe requise`.
 ### [DEC-2026-017] — 27 Août 2026
 * **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `Messagerie Instantanée Sécurisée (MoocChatFloating)`, `Chat Experts Diallo & Google Chat Center`
 * **Problème / Besoin initial** :
@@ -28,11 +85,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Maintenir un système d'envoi textuel standard avec pièces jointes basées sur des URLs éphémères.
   2. Intégrer des boutons d'accès rapide dédiés (Photo, Vidéo, Document, Vocal, Texte), convertir l'intégralité des médias capturés ou uploadés en flux Base64 Data URLs persistants avec synchronisation Supabase Realtime, supporter l'envoi de pièces jointes multiples sans perte, et garantir la relecture illimitée des vidéos et vocaux dans le flux de messages.
-* **Décision retenue** : Option 2.
-* **Justification** : Conformité à la feuille de route, garantie d'interopérabilité sur tous les appareils (desktop, mobile, PWA), zéro perte de données et expérience de communication collaborative d'excellence.
-* **Conséquences** : Les utilisateurs et experts communiquent en temps réel avec partage fluide d'images, de vidéos HD, de fichiers et de messages vocaux avec waveform interactive.
+* **Décision retenue** : intégrer les sélecteurs et aperçus média du commit fusionné tout en conservant les contrats Supabase déjà finalisés pour le texte, les groupes, la présence, les réactions et l'épinglage.
+* **Justification** : préserver l'apport d'interface sans confondre une Data URL Base64 ou une URL blob avec un objet durable, partageable et contrôlé par RLS dans Supabase Storage.
+* **Conséquences** : les contrôles média restent des prototypes. La persistance des pièces jointes, la relecture multi-utilisateurs, les messages vocaux durables et le chiffrement de bout en bout ne sont pas validés.
 * **Éléments techniques** : `components/MoocChatFloating.tsx`, `components/chat/ChatMessageItem.tsx`, `components/ChatInterface.tsx`, `services/supabaseClient.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Interface fusionnée`; chantier « pièces jointes durables » toujours non terminé, recette E2E requise.
 
 ---
 
@@ -44,11 +101,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Utiliser un simple lecteur vidéo basique sans persistance robuste.
   2. Convertir les fichiers vidéos sélectionnés en Data URL Base64 pérenne (ou URL hébergée), enrichir le lecteur vidéo du post avec des contrôles complets, `playsInline`, `preload="auto"`, réinitialisation au terme de la lecture (`onEnded`), intégrer `AdminDashboard` dans le routage de `App.tsx` et ajouter des points d'accès directs dorés dans le Header desktop, le menu déroulant de l'avatar profil, la sidebar de navigation et le sélecteur du Dashboard d'accueil.
-* **Décision retenue** : Option 2.
-* **Justification** : Conformité aux principes de persistance locale et cloud, garantie de relecture illimitée des vidéos par les propriétaires et le public, et visibilité immédiate du Tableau de Bord Super-Admin pour la gouvernance complète de la plateforme.
-* **Conséquences** : Les vidéos publiées sont lisibles et rejouables instantanément à tout moment ; l'administrateur accède au tableau de bord complet en un clic depuis n'importe quel écran.
+* **Décision retenue** : conserver les points d'accès directs vers la console serveur sécurisée pour `admin` et `super_admin`; conserver le lecteur/Data URL vidéo comme apport d'interface, sans le qualifier de stockage cloud durable.
+* **Justification** : la console d'administration a des preuves locales et une API serveur auditée; la Data URL ne fournit ni upload Supabase Storage, ni politique RLS, ni garantie de relecture publique durable.
+* **Conséquences** : l'accès à la console est intégré. La persistance vidéo réelle reste non validée et ne clôt pas le point « pièces jointes durables ».
 * **Éléments techniques** : `components/SocialFeed.tsx`, `App.tsx`, `components/Layout.tsx`, `components/Dashboard.tsx`, `components/navigation/NavigationItems.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Console intégrée et testée localement`; persistance vidéo durable non terminée.
 
 ---
 
@@ -61,11 +118,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Corriger les défauts de manière isolée sans traçabilité formelle.
   2. Établir une matrice officielle `docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md` conforme aux normes IEEE 1044 / PSP, corriger chirurgicalement chaque cause racine dans les composants et services (`Layout.tsx`, `voiceEngine.ts`, `pwaService.ts`, `MoocChatFloating.tsx`, `supabaseClient.ts`, etc.), et valider par build complet `compile_applet`.
-* **Décision retenue** : Option 2.
-* **Justification** : Rigueur documentaire, traçabilité opposable, conformité avec les règles permanentes d'ingénierie et garantie de longévité de la plateforme.
-* **Conséquences** : 22/22 défauts résolus et testés, zéro régression, accessibilité WCAG AA renforcée, raccourcis clavier unifiés (`Escape`, `Ctrl+K`), et clôture audio automatique lors des transitions de navigation.
+* **Décision retenue** : intégrer le registre de défauts et les corrections source du commit, puis conserver pour chaque point son niveau de preuve réel.
+* **Justification** : un registre améliore la traçabilité, mais son existence et un build ne prouvent ni la fermeture de tous les défauts, ni une conformité WCAG, ni une absence globale de régression.
+* **Conséquences** : les raccourcis et gardes d'exécution sont conservés; chaque défaut reste ouvert tant que son critère de validation spécifique n'a pas été exécuté et consigné.
 * **Éléments techniques** : `docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md`, `components/Layout.tsx`, `services/voiceEngine.ts`, `services/pwaService.ts`, `components/MoocChatFloating.tsx`, `docs/JOURNAL_DECISIONS.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Registre et correctifs source fusionnés`; validation exhaustive non revendiquée.
 
 ---
 
@@ -78,11 +135,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Forcer la suppression de tous les champs optionnels côté client.
   2. Rendre `SupabaseService.upsertProfile` auto-adaptatif : détection automatique de l'erreur `PGRST204`, extraction de la colonne manquante pour réessai immédiat, repli sur un payload minimal en cas d'échec secondaire, et unification de `services/profile.ts` pour passer par ce service résilient.
-* **Décision retenue** : Option 2.
-* **Justification** : Conformité avec les règles cardinales de résilience « Zéro Écran Blanc », compatibilité ascendante/descendante avec toutes les versions de tables Supabase, et persistance locale systématique sans perte de données.
-* **Conséquences** : Zéro crash lors des synchronisations de profil, tolérance totale aux variations de schéma distant et mise à jour transparente pour l'utilisateur.
+* **Décision retenue** : cette stratégie de retrait dynamique de colonnes et d'upsert client est remplacée par la réconciliation Auth/profil : trigger unique pour la création et RPC à champs autorisés pour l'édition.
+* **Justification** : réessayer un payload amoindri depuis le navigateur masque les divergences de migration et réintroduit les doubles synchronisations observées dans les logs.
+* **Conséquences** : aucun upsert de profil à la connexion et aucun rôle/champ sensible modifiable directement par le client; les migrations restent la source de vérité du schéma.
 * **Éléments techniques** : `services/supabaseClient.ts`, `services/profile.ts`, `docs/JOURNAL_DECISIONS.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Remplacé` par DEC-2026-021 Auth/profils.
 
 ---
 
@@ -95,11 +152,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Masquer les fonctionnalités avancées de Live et n'afficher qu'un composant statique.
   2. Procéder à un audit approfondi du cycle de vie de montage de `SocialLive.tsx`, `LiveCreationModal.tsx`, `LiveSmartActionBar.tsx`, `LiveWaitingRoomModal.tsx`, corriger les imports orphelins d'icônes (`GraduationCap`, `LifeBuoy`, `FileCheck`, `AlertTriangle`, `Plus`, `Play`, `Pause`, `RotateCcw`, `VolumeX`, `CheckCircle`), standardiser les interfaces de props de `LiveSmartActionBarProps`, ajouter des gardes d'exécution sécurisés (`if (navigator?.mediaDevices?.getUserMedia)` et accesseurs optionnels) pour garantir zéro crash au montage, et valider la compilation globale.
-* **Décision retenue** : Option 2.
-* **Justification** : Conformité absolue avec la charte de stabilité « Zéro Écran Blanc », respect de la dégradation gracieuse en environnement contraint et fonctionnement fluide immédiat pour tous les utilisateurs.
-* **Conséquences** : Le démarrage ou la participation à un Live s'exécute instantanément, sans aucun écran blanc, avec toutes les capacités interactives (multidiffusion, sous-titres bilingues, copilote IA, actions, tableau blanc, replay).
+* **Décision retenue** : intégrer les gardes caméra/micro, les imports corrigés et les écrans d'attente du commit sans les assimiler à une infrastructure de diffusion.
+* **Justification** : la dégradation gracieuse empêche certains crashes locaux, mais ne démontre ni capture publiée, ni ingestion, ni multidiffusion, ni lecture distante.
+* **Conséquences** : l'interface Live est plus défensive. Le streaming réel reste dans la catégorie « Non commencé » jusqu'à une architecture serveur et une recette E2E.
 * **Éléments techniques** : `components/SocialLive.tsx`, `components/LiveCreationModal.tsx`, `components/LiveSmartActionBar.tsx`, `components/LiveWaitingRoomModal.tsx`, `docs/ETAT_ACTUEL.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Prototype source fusionné`; streaming Live réel non commencé.
 
 ---
 
@@ -114,11 +171,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Utiliser un simple dump/restore brut de `localStorage` risquant d'écraser les comptes et les profils créés ultérieurement.
   2. Implémenter une architecture de versioning souveraine et de fusion intelligente (`intelligentRestore` dans `adminConfigService.ts`) avec préservation granulaire des entités vivantes, vérification de compatibilité de schéma (`verifyDatabaseCompatibility`), registre formel des versions stables (`getStableVersions`), création automatique de snapshot de sécurité pré-restauration, mécanisme d'annulation en 1 clic (`undoLastRestore`), planificateur automatisé (`BackupScheduleConfig`) avec élagage automatique, comparateur différentiel (`compareVersions`), et interface Super-Admin modulaire (`AdminWorkflowsAndBackupTab.tsx`).
-* **Décision retenue** : Option 2.
-* **Justification** : Sécurité absolue des données des citoyens et utilisateurs, continuité d'exploitation sans perte d'information, traçabilité des montées de version et conformité stricte aux exigences de souveraineté et de déploiement universel (GitHub, Netlify, Cloud Run, Supabase).
-* **Conséquences** : Les opérations de maintenance et de retour de version peuvent être menées en toute confiance par le Super-Admin en un clic sans risque de réinitialisation destructrice ni d'écran blanc.
+* **Décision retenue** : conserver cette architecture comme cible, sans assimiler les écrans, types et exports JSON locaux à une sauvegarde ou restauration d'exploitation.
+* **Justification** : une preuve réelle exige des sauvegardes Supabase Auth/PostgreSQL/Storage et Netlify, une restauration sur environnement isolé, des contrôles d'intégrité et un journal serveur.
+* **Conséquences** : aucune restauration, planification, rétention ou garantie de conservation des comptes n'est activée par le code actuel.
 * **Éléments techniques** : `types.ts` (`PlatformReleaseVersion`, `BackupSnapshotRecord`, `BackupScheduleConfig`, `RestoreOperationResult`, `VersionComparisonResult`), `services/adminConfigService.ts`, `components/admin/AdminWorkflowsAndBackupTab.tsx`, `docs/HISTORIQUE_VERSIONS.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Cible documentée`; sauvegarde et restauration réelles non commencées.
 
 ---
 
@@ -131,11 +188,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Faire un simple rechargement manuel de la table `profiles` sans écouteur temps réel ni mécanisme d'auto-réparation.
   2. Mettre en place un système complet de synchronisation bi-directionnelle et temps réel avec Supabase (`subscribeToProfilesRealtime`), enrichir `adminConfigService` avec `registerOrSyncUser`, `syncWithSupabase` et `reconcileAndRepairAllAccounts`, connecter les cycles de vie d'authentification (`Auth.tsx`, `App.tsx`, `onAuthStateChange`), et concevoir une interface de gestion d'utilisateurs ultra-complète (`AdminUsersTab.tsx`) avec indicateur d'état cloud en direct, bouton de synchronisation forcée, bouton de diagnostic/réparation, filtrage multicritère (rôle, statut, origine, KYC, tri), modales d'édition complète des privilèges RBAC, modal d'historique d'audit et modal d'ajustement de crédits.
-* **Décision retenue** : Option 2.
-* **Justification** : Zéro compte invisible ou perdu, visibilité instantanée dès l'inscription ou la connexion, protection absolue du Super-Admin (`visionsmart224@gmail.com`), intégrité des données garantie même en cas de coupure réseau (dégradation gracieuse Local-First) et conformité totale avec les directives d'infrastructure.
-* **Conséquences** : Tout utilisateur créé ou connecté via Supabase ou session locale est réconcilié, indexé et visible en temps réel par le Super-Admin avec traçabilité intégrale.
+* **Décision retenue** : remplacer la synchronisation locale/bi-directionnelle et toute promotion par email par la Function `/api/admin/users`, le trigger Auth unique et les RPC auditées décrites dans DEC-2026-021.
+* **Justification** : les faux comptes locaux, promotions codées en dur et mutations directes de profils ne respectent pas l'autorisation serveur.
+* **Conséquences** : l'annuaire cloud est chargé depuis Supabase Auth; aucune initialisation administrateur pour tous, aucun compte local réconcilié comme identité réelle et aucune promotion par adresse.
 * **Éléments techniques** : `types.ts`, `services/supabaseClient.ts`, `services/adminConfigService.ts`, `components/admin/AdminUsersTab.tsx`, `components/Auth.tsx`, `App.tsx`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Remplacé` par la finalisation Auth/Administration auditée.
 
 ---
 
@@ -148,11 +205,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. S'appuyer uniquement sur le SDK Gemini avec un simple try/catch renvoyant une chaîne statique en cas d'erreur.
   2. Bâtir un moteur d'orchestration et de résilience complet (`services/aiRoutingService.ts`), transformer `services/ai.ts` en une façade transparente compatible avec l'ensemble des modules existants, étendre les types (`AIProviderConfig`, `AIRoutingPolicyConfig`, `AIFailoverEvent`, `AIExecutionResult`), enrichir `adminConfigService` avec toutes les opérations de contrôle (réordonnancement, quarantaine, réadmission, test de sonde, ajout custom), et créer un hub de contrôle d'administration haut de gamme (`components/admin/AdminAIResilienceHub.tsx`) doté de 4 sous-vues : Cartes de contrôle des nœuds, Gouvernance & Seuils, Banc d'essai interactif de simulation de bascule en direct, et Journal d'audit des bascules.
-* **Décision retenue** : Option 2.
-* **Justification** : Zéro dépendance bloquante à un fournisseur d'IA unique, continuité absolue de service pour l'ensemble des 14 modules de la plateforme même en cas de panne mondiale d'un fournisseur ou de restriction de quota (429/500/timeout), et supervision souveraine en direct par le Super-Admin.
-* **Conséquences** : Zéro écran blanc, dégradation gracieuse souveraine garantie, persistance des configurations, auditabilité totale des requêtes et compatibilité intégrale avec Supabase, GitHub et Netlify.
+* **Décision retenue** : conserver la politique de routage publique, mais exécuter tous les fournisseurs via `/api/ai`; aucune clé, URL privée ou en-tête fournisseur n'est saisi ou stocké dans le navigateur.
+* **Justification** : la continuité absolue et les métriques multi-fournisseurs ne sont pas démontrées; seul le proxy authentifié, borné et fail-closed possède des preuves locales.
+* **Conséquences** : l'UI présente uniquement des statuts non sensibles; aucune bascule automatique ou disponibilité fournisseur n'est revendiquée sans télémétrie serveur.
 * **Éléments techniques** : `types.ts`, `services/aiRoutingService.ts`, `services/ai.ts`, `services/adminConfigService.ts`, `components/admin/AdminAIResilienceHub.tsx`, `components/admin/AdminAIAndModulesTab.tsx`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Remplacé en partie` par DEC-2026-013; configuration et E2E fournisseur requis.
 
 ---
 
@@ -164,11 +221,11 @@ Chaque décision respecte le formalisme strict suivant :
 * **Idées envisagées** :
   1. Utiliser un simple flag local dans le state React pour l'admin et cacher le bouton chat sur mobile.
   2. Créer une suite administrative complète et modulaire (`components/AdminDashboard.tsx`, `components/admin/*`, `services/adminConfigService.ts`) connectée à Supabase avec dégradation gracieuse locale, et refondre le positionnement responsive du Mooc Chat (`bottom-24 right-4 md:bottom-6 md:right-6`), du smart dock mobile (`pointer-events-none` sur le wrapper / `pointer-events-auto` sur le dock avec gestion de safe-area iOS/Android `pb-[max(0.75rem,env(safe-area-inset-bottom))]` et `pb-36` sur le viewport principal), ainsi que l'ajustement du scroll horizontal sur les onglets et boîtes de dialogue.
-* **Décision retenue** : Option 2.
-* **Justification** : Sécurité absolue, absence totale de mot de passe dans le code, conformité Supabase Cloud, flexibilité totale sur mobile avec accès immédiat au Mooc Chat sans aucun masquage par le dock.
-* **Conséquences** : Navigation mobile fluide, zéro collision de z-index, accès super-admin protégé et 100% opérationnel pour `visionsmart224@gmail.com`.
+* **Décision retenue** : conserver les améliorations responsive, mais supprimer l'attribution automatique de privilèges par email et faire autoriser la console par le rôle/les permissions serveur.
+* **Justification** : une adresse codée en dur n'est pas un mécanisme RBAC et avait été identifiée comme risque live.
+* **Conséquences** : accès direct pour `admin` et `super_admin`; les opérations privilégiées restent refusées sans autorisation serveur.
 * **Éléments techniques** : `components/AdminDashboard.tsx`, `components/admin/`, `services/adminConfigService.ts`, `components/Layout.tsx`, `components/MoocChatFloating.tsx`, `components/DialloOS.tsx`, `components/settings/BrandColorLabModal.tsx`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Responsive conservé`; mécanisme admin historique remplacé par DEC-2026-021.
 
 ---
 
@@ -514,7 +571,7 @@ Chaque décision respecte le formalisme strict suivant :
      - **Galerie & Vitrine du Design System** (`ComponentShowcaseModal.tsx`) : Documentation interactive de l'ensemble des composants et tokens.
 * **Décision retenue** : Option 2 développée et intégrée dans la navigation principale et le `Layout`.
 * **Justification** : « Le Monde à Vous doit réduire la fracture numérique, pas l'augmenter. Une décision importante à la fois. »
-* **Conséquences** : Accessibilité totale WCAG AA, réduction radicale de la charge cognitive et amélioration substantielle de la vitesse d'action de l'utilisateur.
+* **Conséquences** : Socle d’accessibilité cognitive, réduction de la charge et amélioration substantielle de la vitesse d'action. Cette décision produit ne constitue pas, à elle seule, une certification WCAG exhaustive.
 * **Éléments techniques** : `components/accessibility/GuidedModeModal.tsx`, `components/scanner/UniversalScannerModal.tsx`, `components/translation/BilingualConversationModal.tsx`, `components/ui/ActionableAISuggestion.tsx`, `components/ui/KnowledgeCard.tsx`, `components/ui/AISynthesisCard.tsx`, `components/ui/SmartConfirmModal.tsx`, `components/ui/FocusAndPresentationControls.tsx`, `components/settings/UnifiedSettingsModal.tsx`, `components/ui/ComponentShowcaseModal.tsx`, `components/Layout.tsx`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
@@ -533,11 +590,11 @@ Chaque décision respecte le formalisme strict suivant :
      - **Moteur de Restauration Intelligente** : fusion et conservation des collections utilisateurs sans écrasement ni remise à zéro, création systématique d'un instantané automatique `auto_pre_restore` pour retour arrière instantané (Rollback).
      - **Planificateur Automatisé** : configuration de la fréquence (horaire, quotidienne, hebdomadaire), quotas de rétention, synchronisation Cloud Supabase et déclenchement manuel immédiat.
      - **Tableau de Bord Super Admin** : onglet dédié enrichi avec comparateur de versions, filtres d'instantanés, import/export JSON et panneau de rollback d'urgence.
-* **Décision retenue** : Option 2 validée, testée et compilée avec succès.
-* **Justification** : « Garantit la pérennité absolue des données et la souveraineté totale du Super-Administrateur sur l'évolution du système. »
-* **Conséquences** : Zéro régression, build de production vert, résilience totale face aux pannes ou clés manquantes, conservation garantie de toutes les données utilisateurs lors des restaurations.
+* **Décision retenue** : conserver l'interface et les contrats comme maquette de cible, sans exposer les opérations locales comme sauvegarde cloud.
+* **Justification** : un build de l'interface ne garantit ni export complet de Supabase/Auth/Storage, ni restauration atomique, ni conservation des utilisateurs.
+* **Conséquences** : les actions de sauvegarde/restauration réelles restent désactivées jusqu'à une implémentation serveur, un stockage de sauvegarde et un test de restauration isolé.
 * **Éléments techniques** : `/services/supabaseClient.ts`, `/services/adminConfigService.ts`, `/components/admin/AdminWorkflowsAndBackupTab.tsx`, `/components/AdminDashboard.tsx`, `/contexts/GlobalContext.tsx`, `/types.ts`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Maquette locale`; exploitation sauvegarde/restauration non commencée.
 
 ### [DEC-2026-021] — 27 Août 2026
 * **Module(s)** : `WebRTC P2P Souverain`, `Service Worker PWA Offline`, `Synchronisation Citoyenne Multi-Utilisateurs`
@@ -545,13 +602,78 @@ Chaque décision respecte le formalisme strict suivant :
   1. Finaliser l'infrastructure d'appels vidéo et vocaux P2P avec une configuration STUN/TURN haute disponibilité pour traverser les pare-feux sans blocage.
   2. Mettre en place un Service Worker PWA complet avec politique de cache offline et initialisation résiliente au démarrage.
   3. Fournir un rapport d'exécution exhaustif avec preuves de bon fonctionnement et validation de build sans régression.
-* **Décision retenue** :
-  - Création du module `/services/webrtcService.ts` avec négociation d'offres/réponses SDP et pool de serveurs STUN mondiaux (Google & Cloudflare).
-  - Création du Service Worker `/public/sw.js` et du service d'enregistrement `/services/pwaService.ts` branché sur l'entrée applicative `/index.tsx`.
-* **Conséquences** : Zéro écran blanc, résilience offline certifiée, appels directs stabilisés et compatibilité PWA immédiate.
+* **Décision retenue** : conserver `/services/webrtcService.ts`, `/public/sw.js` et `/services/pwaService.ts` comme prototypes fusionnés, sans les qualifier de livraison opérationnelle.
+* **Conséquences** : aucun TURN géré, flux distant, recette multi-pairs, manifest installable, stratégie complète de cache ou file de synchronisation hors ligne n'est prouvé. Les points WebRTC/PWA restent « Non commencé » au sens du rapport.
 * **Éléments techniques** : `/services/webrtcService.ts`, `/public/sw.js`, `/services/pwaService.ts`, `/index.tsx`, `/docs/modules/AUTHENTIFICATION.md`.
-* **Statut** : `Développé`, `Testé` & `Validé`.
+* **Statut** : `Prototype source fusionné`; WebRTC réel et PWA hors ligne non validés.
 
 ---
 
 
+### [DEC-2026-021-A11Y] — 27 Août 2026
+* **Module(s)** : `Layout`, `Navigation`, `Accessibilité`, `Responsive`
+* **Problème / Besoin initial** : Le shell comportait des commandes visuelles sans nom accessible, des zones cliquables non clavier, un tiroir mobile fermé dont les contrôles restaient focusables, des animations non interrompables et des dialogues sans confinement/restauration du focus.
+* **Décision retenue** : Consolider le socle transverse avant d’étendre l’audit aux écrans métier : primitives de focus globales, lien d’évitement, navigation annoncée, ARIA explicite, cibles tactiles de 44 px, grille étroite adaptative, hook commun de dialogue et tests automatisés axe/clavier.
+* **Justification** : Ces primitives couvrent les parcours d’entrée communs à tous les modules et empêchent la réapparition des défauts les plus bloquants.
+* **Conséquences** : Navigation clavier cohérente, modales centrales utilisables sans souris, tiroir mobile correctement retiré de l’ordre de tabulation et mouvements réduits selon la préférence système. Le contraste dynamique doit rester contrôlé dans un vrai navigateur ; la documentation ne revendique plus une conformité WCAG totale sans preuve exhaustive.
+* **Éléments techniques** : `App.tsx`, `components/Layout.tsx`, `components/accessibility/GuidedModeModal.tsx`, `components/accessibility/useDialogAccessibility.ts`, `components/navigation/UniversalSearchModal.tsx`, `styles/accessibility.css`, `tests/accessibility/*`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Auth`, `Administration`
+* **Problème / Besoin initial** : La session et le profil étaient synchronisés par plusieurs chemins, la console riche n'était pas atteignable, l'annuaire admin reposait sur des comptes fictifs et le navigateur disposait de mutations directes de profils/rôles ainsi que de champs de saisie de secrets.
+* **Décision retenue** :
+  1. `GlobalContext` devient l'unique propriétaire de la session et du profil ; le trigger Auth est l'unique créateur de `profiles`.
+  2. Le vocabulaire RBAC canonique est `user/admin/expert/mentor/moderator/organization/super_admin`.
+  3. Toutes les opérations administratives privilégiées passent par la Function TypeScript `/api/admin/users`, qui vérifie le JWT et les permissions côté serveur, utilise `service_role` uniquement dans Netlify, protège le dernier super-administrateur et écrit dans `audit_logs`.
+  4. Les colonnes `status`, `permissions` et `admin_notes` ainsi que le quota partagé sont livrés par une migration complémentaire, sans redéfinir les migrations cœur Auth.
+  5. Les secrets fournisseurs sont exclus du contrat navigateur ; l'UI reçoit seulement le nom de variable et un booléen de présence.
+* **Conséquences** : suppression des faux succès locaux, des IDs non UUID, des suppressions profil-only et des promotions par adresse codée en dur. La console conserve ses onglets riches mais distingue les données cloud vérifiées des préférences locales existantes.
+* **Validation** : 8 tests unitaires du contrat admin réussis et build Vite réussi. Typecheck global toujours bloqué par des erreurs historiques hors périmètre ; migrations et E2E live non exécutés.
+* **Statut** : `Implémenté localement — déploiement/migrations/E2E requis`.
+
+---
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : `MokTrust`, `Réseau MOK`, `Modération`, `Supabase`
+* **Problème / Besoin initial** : Les onglets MokTrust affichaient un score fixe
+  de 98,6 %, des avis d'achat et des vérifications KYC/KYB simulés, sans calcul ni
+  preuve serveur.
+* **Décision retenue** : Limiter MokTrust à un indice communautaire démontrable.
+  PostgreSQL calcule et persiste un score borné à partir de l'ancienneté, des
+  contributions et des réactions reçues, avec un niveau de confiance séparé et
+  une version d'algorithme. Un signalement n'est jamais une preuve : seule une
+  décision modérateur documentée « fondée » peut ajuster le score.
+* **Conséquences** : Les faux avis/transactions/verdicts sont retirés du parcours
+  actif. La console expose la décomposition, l'horodatage, les états hors ligne et
+  la limite explicite : aucune certification d'identité, d'entreprise, de paiement
+  ou de livraison. Les tables sont sous RLS et ne sont pas modifiables directement
+  par le client.
+* **Éléments techniques** : `services/mokTrust.ts`,
+  `components/MokTrustReputationHub.tsx`, `components/Shop.tsx`,
+  `supabase/migrations/20260827217000_mok_trust_server_score.sql`,
+  `tests/partial/moktrust-contract.test.mjs`, `tests/unit/mokTrust.test.ts`.
+* **Statut** : `Développé et testé localement`; migration non appliquée et recette
+  multi-comptes/modération encore requise sur l'environnement Supabase cible.
+
+---
+
+# 2026-08-27 — Clôture des points partiels « Vie » de l'audit
+
+- **Décision** : utiliser le dépôt partagé `module_records` pour Santé, Habitat, Droit/Démarches et Mobilité, sans créer de schéma parallèle.
+- **Déontologie** : aucune estimation d'aide, règle de visa, référence juridique ou conclusion médicale n'est présentée comme officielle sans vérification. Les URLs officielles sont HTTPS et configurables par environnement.
+- **Données retirées** : annonces logement, procédures administratives et position GPS de démonstration qui pouvaient être confondues avec des données réelles.
+- **Validation** : tests contractuels ciblés et build Vite de production.
+
+---
+
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : `Diallo OS`, `Experts Diallo`, `Conseil multi-experts`.
+* **Problème / Besoin initial** : Les échanges et résultats IA restaient dans l’état React ou dans des mémoires locales, les JSON fournisseur étaient consommés sans validation et plusieurs réponses vides déclenchaient des succès fictifs.
+* **Décision retenue** : Réutiliser les tables propriétaires `agent_chat_sessions/messages` pour chaque conversation Expert et étendre `module_records` au namespace `experts` pour les délibérations, commandes d’orchestration, brouillons et bilans. Chaque sortie structurée est validée avant navigation ou affichage; les écritures utilisent un UUID idempotent et l’interface distingue synchronisé, en attente et erreur.
+* **Conséquences** : Les conseils peuvent être restaurés, une panne de persistance n’est plus masquée par une réponse factice, et aucun résultat pédagogique n’est présenté comme certification ou document signé. Les tables restent protégées par RLS propriétaire et ne sont plus accordées à `anon`.
+* **Validation** : migration et types versionnés, 12 tests locaux réussis, build Vite réussi. La migration, le fournisseur réel et le parcours E2E ne sont pas déclarés validés tant qu’ils ne sont pas testés sur une branche Supabase/Netlify.
+* **Statut** : `Implémenté localement — migration et recette E2E requises`.
+
+---

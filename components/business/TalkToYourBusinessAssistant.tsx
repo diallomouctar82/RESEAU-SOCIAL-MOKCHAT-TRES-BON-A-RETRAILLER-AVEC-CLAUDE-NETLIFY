@@ -4,7 +4,7 @@ import {
   ShoppingCart, Package, Users, DollarSign, RefreshCw, CheckCircle2 
 } from 'lucide-react';
 import { StockItem, BusinessOrder, CrmLeadClient, CrmFollowUp, ProductProfitability } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../services/aiProxy';
 
 interface TalkToYourBusinessAssistantProps {
   orders: BusinessOrder[];
@@ -78,7 +78,7 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
       const ordersSummary = orders.map(o => `Commande ${o.orderNumber}: ${o.buyerName}, total ${o.totalAmount} ${o.currency}, étape: ${o.stage}, paiement: ${o.paymentStatus}`).join(' | ');
       const followUpSummary = followUps.map(f => `Relance ${f.clientName}: ${f.context}, priorité ${f.priority}`).join(' | ');
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `Tu es Diallo OS, le Copilote d'Exploitation Commerciale de l'utilisateur sur la plateforme mondiale 'Le Monde à Vous'.

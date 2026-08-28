@@ -5,7 +5,7 @@ import {
   HelpCircle, ChevronRight, AlertTriangle, Building2, Globe
 } from 'lucide-react';
 import { CrmLeadClient, CrmFollowUp, CustomerSupportTicket } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../services/aiProxy';
 
 interface CrmAndSalesCopilotProps {
   clients: CrmLeadClient[];
@@ -57,7 +57,7 @@ export const CrmAndSalesCopilot: React.FC<CrmAndSalesCopilotProps> = ({
     setGeneratedMessage('');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `Tu es l'Agent Commercial IA de l'entreprise exportatrice d'Amadou Diallo.

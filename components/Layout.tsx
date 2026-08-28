@@ -109,6 +109,13 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isShowcaseModalOpen, setIsShowcaseModalOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [isTickerPaused, setIsTickerPaused] = useState(false);
+  const mainContentRef = useRef<HTMLElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+  const notificationButtonRef = useRef<HTMLButtonElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const previousTabRef = useRef(activeTab);
 
   // Favorites state
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -135,6 +142,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const t = (key: string) => TRANSLATIONS[currentLang]?.[key] || key;
+  const activeNavItem = MAIN_NAV_ITEMS.find((item) => item.id === activeTab);
 
   // Save favorites
   const toggleFavorite = (tabId: string, e?: React.MouseEvent) => {
@@ -158,6 +166,46 @@ export const Layout: React.FC<LayoutProps> = ({
       });
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (previousTabRef.current === activeTab) return;
+    previousTabRef.current = activeTab;
+    const frame = window.requestAnimationFrame(() => mainContentRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!isLanguageMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!languageMenuRef.current?.contains(event.target as Node)) setIsLanguageMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsLanguageMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isLanguageMenuOpen]);
+
+  useEffect(() => {
+    if (!isNotifOpen && !isProfileMenuOpen) return;
+    const closePopover = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (isNotifOpen) {
+        setIsNotifOpen(false);
+        notificationButtonRef.current?.focus();
+      }
+      if (isProfileMenuOpen) {
+        setIsProfileMenuOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', closePopover);
+    return () => document.removeEventListener('keydown', closePopover);
+  }, [isNotifOpen, isProfileMenuOpen]);
 
   // Grouped Navigation
   const categoryOrder: Array<NavItemDef['category']> = [
@@ -204,13 +252,17 @@ export const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="h-screen flex flex-col bg-[#f0f2f5] overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>
+      <a className="skip-link" href="#main-content">Aller au contenu principal</a>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        Espace affiché : {activeNavItem?.label || activeTab}
+      </div>
       
       {/* ─── DESKTOP HEADER ─── */}
       <header className="hidden md:block bg-white/90 backdrop-blur-md border-b border-gray-200 z-20 sticky top-0">
         <div className="max-w-[1920px] mx-auto px-6 py-2.5 flex items-center justify-between gap-4">
           
           {/* Logo & Platform Name */}
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => onTabChange('home')}>
+          <button type="button" className="flex items-center gap-3 cursor-pointer group rounded-xl text-left" onClick={() => onTabChange('home')} aria-label="Le Monde à Vous — revenir à l’accueil">
             <div className="bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 p-2 rounded-xl shadow-md group-hover:shadow-brand-500/30 transition-all duration-300 transform group-hover:scale-105">
               <Globe className="text-white" size={20} />
             </div>
@@ -225,13 +277,15 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
               <p className="text-[10px] text-slate-400 font-medium">Plateforme Universelle d’Accomplissement</p>
             </div>
-          </div>
+          </button>
           
           {/* Central Universal Search Bar / Command Palette Trigger */}
           <div className="flex-1 max-w-xl flex items-center gap-2">
             <button 
               onClick={() => setIsSearchModalOpen(true)}
               className="flex-1 bg-slate-100/90 hover:bg-white hover:ring-2 ring-brand-200 text-slate-500 hover:text-brand-700 flex items-center justify-between px-4 py-2 rounded-full border border-slate-200/60 hover:border-brand-300 transition-all group shadow-inner"
+              aria-label="Ouvrir la recherche universelle"
+              aria-keyshortcuts="Control+K Meta+K"
             >
               <div className="flex items-center gap-2.5">
                 <Search size={16} className="text-slate-400 group-hover:text-brand-600 transition" />
@@ -360,38 +414,54 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
 
             {/* Credits Counter */}
-            <div 
+            <button
+              type="button"
               onClick={() => onTabChange('wallet')}
               className="hidden xl:flex items-center gap-1.5 bg-yellow-50 hover:bg-yellow-100 cursor-pointer px-3 py-1.5 rounded-full border border-yellow-200 text-xs font-bold text-yellow-700 transition"
               title="Ouvrir Finance & Wallet"
             >
               <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] text-white font-black">Ⓒ</div>
               {userProfile.credits.toLocaleString()}
-            </div>
+            </button>
 
             {/* Language Selector */}
-            <div className="relative group">
-              <button className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors shadow-xs">
-                <span className="text-base">{SUPPORTED_LANGUAGES.find(l => l.code === currentLang)?.flag}</span>
+            <div className="relative" ref={languageMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsLanguageMenuOpen((open) => !open)}
+                className="a11y-touch-target rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors shadow-xs"
+                aria-label={`Langue de l’interface : ${SUPPORTED_LANGUAGES.find(l => l.code === currentLang)?.name}. Changer de langue`}
+                aria-haspopup="menu"
+                aria-expanded={isLanguageMenuOpen}
+                aria-controls="language-menu"
+              >
+                <span className="text-base" aria-hidden="true">{SUPPORTED_LANGUAGES.find(l => l.code === currentLang)?.flag}</span>
               </button>
-              <div className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hidden group-hover:block w-36 animate-fade-up p-1.5 z-30">
+              {isLanguageMenuOpen && <div id="language-menu" role="menu" aria-label="Choisir la langue" className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-44 animate-fade-up p-1.5 z-30">
                 {SUPPORTED_LANGUAGES.map(lang => (
                   <button 
                     key={lang.code}
-                    onClick={() => setCurrentLang(lang.code)}
-                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl flex items-center gap-2 text-xs font-medium transition-colors"
+                    onClick={() => { setCurrentLang(lang.code); setIsLanguageMenuOpen(false); }}
+                    role="menuitemradio"
+                    aria-checked={currentLang === lang.code}
+                    className="a11y-touch-target w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl flex items-center gap-2 text-xs font-medium transition-colors"
                   >
-                    <span>{lang.flag}</span> {lang.name}
+                    <span aria-hidden="true">{lang.flag}</span> {lang.name}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
 
             {/* Notifications */}
             <div className="relative">
               <button 
+                ref={notificationButtonRef}
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 text-slate-600 transition-colors relative shadow-xs"
+                className="a11y-touch-target rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 text-slate-600 transition-colors relative shadow-xs"
+                aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} non lues` : ''}`}
+                aria-haspopup="true"
+                aria-expanded={isNotifOpen}
+                aria-controls="notification-panel"
               >
                 <Bell size={16} />
                 {unreadCount > 0 && (
@@ -400,8 +470,8 @@ export const Layout: React.FC<LayoutProps> = ({
               </button>
               {isNotifOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsNotifOpen(false)}></div>
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-20 overflow-hidden animate-fade-up">
+                  <button type="button" className="fixed inset-0 z-10 border-0 bg-transparent p-0" onClick={() => setIsNotifOpen(false)} aria-label="Fermer les notifications"></button>
+                  <div id="notification-panel" role="region" aria-label="Notifications" className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl border border-gray-100 z-20 overflow-hidden animate-fade-up">
                     <div className="p-3.5 border-b border-gray-50 flex justify-between items-center bg-slate-50/70">
                       <span className="font-bold text-xs text-slate-800">Notifications</span>
                       <span className="text-[10px] bg-slate-200/80 px-2 py-0.5 rounded-full text-slate-600 font-bold">{unreadCount} nouvelles</span>
@@ -411,10 +481,12 @@ export const Layout: React.FC<LayoutProps> = ({
                         <div className="p-8 text-center text-gray-400 text-xs">Rien à signaler</div>
                       ) : (
                         notifications.map(notif => (
-                          <div 
+                          <button
+                            type="button"
                             key={notif.id} 
-                            className={`p-3 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.read ? 'bg-blue-50/30' : ''}`}
+                            className={`w-full p-3 text-left hover:bg-slate-50 transition-colors cursor-pointer ${!notif.read ? 'bg-blue-50/30' : ''}`}
                             onClick={() => onMarkRead(notif.id)}
+                            aria-label={`${notif.read ? '' : 'Non lue. '}${notif.title}. ${notif.message}`}
                           >
                             <div className="flex gap-2.5">
                               <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
@@ -423,7 +495,7 @@ export const Layout: React.FC<LayoutProps> = ({
                                 <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{notif.message}</p>
                               </div>
                             </div>
-                          </div>
+                          </button>
                         ))
                       )}
                     </div>
@@ -435,20 +507,27 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* User Profile Avatar & Menu */}
             <div className="relative">
               <button 
+                ref={profileButtonRef}
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-sm hover:ring-2 hover:ring-brand-300 transition-all"
+                className="a11y-touch-target rounded-full overflow-hidden border-2 border-white shadow-sm hover:ring-2 hover:ring-brand-300 transition-all"
+                aria-label={`Menu du profil de ${userProfile.name}`}
+                aria-haspopup="true"
+                aria-expanded={isProfileMenuOpen}
+                aria-controls="profile-menu"
               >
-                <img src={userProfile.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                <img src={userProfile.avatarUrl} alt="" className="w-full h-full object-cover" />
               </button>
               {isProfileMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsProfileMenuOpen(false)}></div>
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden animate-fade-up p-2">
+                  <button type="button" className="fixed inset-0 z-10 border-0 bg-transparent p-0" onClick={() => setIsProfileMenuOpen(false)} aria-label="Fermer le menu du profil"></button>
+                  <div id="profile-menu" role="region" aria-label="Menu du profil" className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden animate-fade-up p-2">
                     <div className="p-2 border-b border-gray-50 mb-1.5">
                       <p className="text-xs font-bold text-slate-900 truncate">{userProfile.name}</p>
                       <p className="text-[10px] text-gray-500 truncate">{userProfile.email}</p>
-                      {userProfile.role === 'admin' && (
-                        <span className="text-[9px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold mt-1 inline-block">ADMIN PRINCIPAL</span>
+                      {['admin', 'super_admin'].includes(userProfile.role) && (
+                        <span className="text-[9px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold mt-1 inline-block">
+                          {userProfile.role === 'super_admin' ? 'SUPER-ADMIN' : 'ADMINISTRATEUR'}
+                        </span>
                       )}
                     </div>
                     
@@ -459,6 +538,11 @@ export const Layout: React.FC<LayoutProps> = ({
                     <button onClick={() => {onTabChange('profile'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <User size={14} /> Mon Profil
                     </button>
+                    {['admin', 'super_admin'].includes(userProfile.role) && (
+                      <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-red-50 rounded-xl text-xs flex items-center gap-2 text-red-700 font-bold">
+                        <Shield size={14} /> Console d’administration
+                      </button>
+                    )}
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>
@@ -482,9 +566,12 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
         
         {/* News Ticker */}
-        <div className="bg-slate-900 text-white text-[10px] font-bold py-1 overflow-hidden whitespace-nowrap flex items-center border-t border-slate-800">
-          <span className="bg-red-600 px-2 py-0.2 ml-4 mr-3 rounded text-[8px] uppercase tracking-wider animate-pulse flex-shrink-0">Direct</span>
-          <div className="inline-block animate-[slide-across_35s_linear_infinite] w-full opacity-80">
+        <div className="bg-slate-900 text-white text-[10px] font-bold py-1 overflow-hidden whitespace-nowrap flex items-center border-t border-slate-800" role="region" aria-label="Actualités en continu">
+          <span className="bg-red-600 px-2 py-0.5 ml-4 mr-2 rounded text-[8px] uppercase tracking-wider motion-safe:animate-pulse flex-shrink-0">Direct</span>
+          <button type="button" onClick={() => setIsTickerPaused((paused) => !paused)} className="mr-3 rounded border border-white/30 px-2 py-0.5 text-[9px] hover:bg-white/10" aria-pressed={isTickerPaused}>
+            {isTickerPaused ? 'Reprendre' : 'Pause'}
+          </button>
+          <div className={`inline-block w-full opacity-80 motion-reduce:animate-none ${isTickerPaused ? '' : 'motion-safe:animate-[slide-across_35s_linear_infinite]'}`} aria-live="off">
             {NEWS_ITEMS.map((item, i) => (
               <span key={i} className="mr-14">{item}</span>
             ))}
@@ -494,18 +581,19 @@ export const Layout: React.FC<LayoutProps> = ({
 
       {/* ─── MOBILE HEADER ─── */}
       <header className="md:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-2.5 flex justify-between items-center sticky top-0 z-30">
-        <div className="flex items-center gap-2" onClick={() => onTabChange('home')}>
+        <button type="button" className="flex items-center gap-2 rounded-lg" onClick={() => onTabChange('home')} aria-label="Revenir à l’accueil">
           <div className="bg-gradient-to-tr from-brand-600 to-purple-600 p-1.5 rounded-lg">
             <Globe className="text-white" size={16} />
           </div>
           <span className="font-bold text-slate-900 text-sm tracking-tight">Le Monde à Vous</span>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2">
           {/* Quick Search trigger */}
           <button 
             onClick={() => setIsSearchModalOpen(true)}
-            className="p-1.5 rounded-full bg-slate-100 text-slate-600"
+            className="a11y-touch-target rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
+            aria-label="Ouvrir la recherche universelle"
           >
             <Search size={16} />
           </button>
@@ -514,8 +602,8 @@ export const Layout: React.FC<LayoutProps> = ({
             {userProfile.credits} Ⓒ
           </div>
 
-          <button onClick={() => onTabChange('profile')} className="w-7 h-7 rounded-full overflow-hidden border border-gray-200">
-            <img src={userProfile.avatarUrl} className="w-full h-full object-cover" />
+          <button onClick={() => onTabChange('profile')} className="a11y-touch-target rounded-full overflow-hidden border border-gray-200" aria-label={`Ouvrir le profil de ${userProfile.name}`}>
+            <img src={userProfile.avatarUrl} alt="" className="w-full h-full object-cover" />
           </button>
         </div>
       </header>
@@ -531,6 +619,7 @@ export const Layout: React.FC<LayoutProps> = ({
             borderColor: currentPalette.colors.sidebarBorder,
             color: currentPalette.colors.sidebarText
           }}
+          aria-label="Navigation principale"
         >
           
           {/* Collapse Toggle & Quick Goal Button */}
@@ -561,6 +650,8 @@ export const Layout: React.FC<LayoutProps> = ({
               className="p-1.5 rounded-lg hover:bg-white/10 opacity-70 hover:opacity-100 transition-colors"
               style={{ color: currentPalette.colors.sidebarText }}
               title={isSidebarCollapsed ? "Déployer le menu" : "Réduire le menu"}
+              aria-label={isSidebarCollapsed ? "Déployer le menu principal" : "Réduire le menu principal"}
+              aria-expanded={!isSidebarCollapsed}
             >
               {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
             </button>
@@ -609,6 +700,7 @@ export const Layout: React.FC<LayoutProps> = ({
                           } : {
                             color: currentPalette.colors.sidebarText,
                           }}
+                          aria-current={isActive ? 'page' : undefined}
                         >
                           <Icon 
                             size={16} 
@@ -649,6 +741,7 @@ export const Layout: React.FC<LayoutProps> = ({
                           color: currentPalette.colors.sidebarText,
                           borderColor: currentPalette.colors.sidebarBorder
                         }}
+                        aria-current={activeTab === tabId ? 'page' : undefined}
                       >
                         {found.shortLabel || found.label}
                       </button>
@@ -699,6 +792,7 @@ export const Layout: React.FC<LayoutProps> = ({
                                 color: currentPalette.colors.sidebarText,
                                 fontWeight: 500,
                               }}
+                              aria-current={isActive ? 'page' : undefined}
                             >
                               <Icon 
                                 size={16} 
@@ -734,8 +828,10 @@ export const Layout: React.FC<LayoutProps> = ({
                                 className={`p-1 rounded-md transition ${
                                   isFav 
                                     ? 'opacity-100' 
-                                    : 'opacity-0 group-hover:opacity-100'
+                                    : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
                                 }`}
+                                aria-label={isFav ? `Retirer ${item.label} des favoris` : `Ajouter ${item.label} aux favoris`}
+                                aria-pressed={isFav}
                                 style={{ color: currentPalette.colors.sidebarHighlight }}
                               >
                                 <Star size={13} className={isFav ? "fill-current" : ""} />
@@ -797,7 +893,7 @@ export const Layout: React.FC<LayoutProps> = ({
               }}
             >
               <div className="relative shrink-0">
-                <img src={userProfile.avatarUrl} className="w-7 h-7 rounded-full border border-white/20 object-cover" />
+                <img src={userProfile.avatarUrl} alt="" className="w-7 h-7 rounded-full border border-white/20 object-cover" />
               </div>
               {!isSidebarCollapsed && (
                 <div className="overflow-hidden flex-1">
@@ -814,7 +910,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </aside>
 
         {/* ─── MAIN CONTENT VIEWPORT ─── */}
-        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-36 md:pb-0">
+        <main id="main-content" ref={mainContentRef} tabIndex={-1} aria-label={activeNavItem?.label || 'Contenu principal'} className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-36 md:pb-0 focus:outline-none">
           <div className="max-w-[1700px] mx-auto h-full flex flex-col">
             {activeTab !== 'home' && (() => {
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
@@ -845,22 +941,27 @@ export const Layout: React.FC<LayoutProps> = ({
           
           {/* Expanded Menu Drawer */}
           <div 
+            id="mobile-nav-drawer"
+            role="navigation"
+            aria-label="Tous les espaces"
+            aria-hidden={!isMobileMenuExpanded}
             className={`bg-white/95 backdrop-blur-2xl border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden pointer-events-auto ${
               isMobileMenuExpanded ? 'h-auto max-h-[85vh] opacity-100 shadow-[0_-10px_40px_rgba(0,0,0,0.25)]' : 'h-0 opacity-0'
             }`}
           >
-            <div className="p-4 pb-28 flex flex-col h-full">
+            {isMobileMenuExpanded && <div className="p-4 pb-28 flex flex-col h-full">
               <div className="flex justify-between items-center mb-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-black text-slate-900">Espaces & Piliers de Vie</h2>
                   <button
                     onClick={() => { setIsGoalModalOpen(true); setIsMobileMenuExpanded(false); }}
                     className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold border border-indigo-200"
+                    aria-label="Définir ou changer mon cap"
                   >
                     Mon Cap
                   </button>
                 </div>
-                <button onClick={() => setIsMobileMenuExpanded(false)} className="p-1.5 bg-slate-100 rounded-full text-slate-500">
+                <button onClick={() => setIsMobileMenuExpanded(false)} className="a11y-touch-target bg-slate-100 rounded-full text-slate-500 flex items-center justify-center" aria-label="Fermer le menu des espaces">
                   <ChevronDown size={18} />
                 </button>
               </div>
@@ -883,7 +984,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   return (
                     <div key={`mob-cat-${category}`}>
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{category}</h3>
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid grid-cols-3 min-[420px]:grid-cols-4 gap-2">
                         {items.map((item) => {
                           const Icon = item.icon;
                           const isActive = activeTab === item.id;
@@ -893,6 +994,7 @@ export const Layout: React.FC<LayoutProps> = ({
                               onClick={() => { onTabChange(item.id); setIsMobileMenuExpanded(false); }}
                               className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all active:scale-95
                                 ${isActive ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200 shadow-xs' : 'text-slate-700 hover:bg-slate-50'}`}
+                              aria-current={isActive ? 'page' : undefined}
                             >
                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
                                 <Icon size={18} />
@@ -912,22 +1014,24 @@ export const Layout: React.FC<LayoutProps> = ({
                   <Settings size={14} /> Paramètres
                 </button>
                 {onLogout && (
-                  <button onClick={onLogout} className="px-3 py-2 border border-red-200 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1">
+                  <button onClick={onLogout} className="a11y-touch-target px-3 py-2 border border-red-200 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1" aria-label="Se déconnecter">
                     <LogOut size={14} />
                   </button>
                 )}
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* Bottom Dock Bar (5 Essential Actions) */}
           <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5]/90 to-transparent pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
+            <nav className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16" aria-label="Navigation mobile principale">
               
               {/* 1. Home */}
               <button 
                 onClick={() => {onTabChange('home'); setIsMobileMenuExpanded(false);}} 
                 className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
+                aria-label="Accueil"
+                aria-current={activeTab === 'home' ? 'page' : undefined}
               >
                 <LayoutGrid size={22} className={activeTab === 'home' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -936,6 +1040,8 @@ export const Layout: React.FC<LayoutProps> = ({
               <button 
                 onClick={() => {onTabChange('parcours'); setIsMobileMenuExpanded(false);}} 
                 className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
+                aria-label="Mon parcours"
+                aria-current={activeTab === 'parcours' || activeTab === 'dossiers' ? 'page' : undefined}
               >
                 <FolderKanban size={22} className={activeTab === 'parcours' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -944,6 +1050,7 @@ export const Layout: React.FC<LayoutProps> = ({
               <button 
                 onClick={() => setIsDialloOSOpen(true)}
                 className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
+                aria-label="Ouvrir Diallo OS"
               >
                 <Sparkles size={22} className="animate-pulse" />
               </button>
@@ -952,6 +1059,8 @@ export const Layout: React.FC<LayoutProps> = ({
               <button 
                 onClick={() => {onTabChange('social'); setIsMobileMenuExpanded(false);}} 
                 className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
+                aria-label="Réseau Mok"
+                aria-current={activeTab === 'social' ? 'page' : undefined}
               >
                 <Users size={22} className={activeTab === 'social' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -960,10 +1069,13 @@ export const Layout: React.FC<LayoutProps> = ({
               <button 
                 onClick={() => setIsMobileMenuExpanded(!isMobileMenuExpanded)} 
                 className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
+                aria-label={isMobileMenuExpanded ? 'Fermer le menu des espaces' : 'Ouvrir le menu des espaces'}
+                aria-expanded={isMobileMenuExpanded}
+                aria-controls="mobile-nav-drawer"
               >
                 {isMobileMenuExpanded ? <ChevronDown size={22} /> : <Menu size={22} />}
               </button>
-            </div>
+            </nav>
           </div>
         </div>
         
@@ -973,6 +1085,7 @@ export const Layout: React.FC<LayoutProps> = ({
           onClose={() => { setIsDialloOSOpen(false); setDialloInitialPrompt(undefined); }}
           onNavigate={onTabChange}
           userProfile={userProfile}
+          initialPrompt={dialloInitialPrompt}
         />
 
         <UniversalSearchModal

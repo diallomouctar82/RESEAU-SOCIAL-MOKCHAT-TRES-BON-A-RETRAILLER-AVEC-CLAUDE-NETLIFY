@@ -1,5 +1,21 @@
 
 import { Agent, Course, Post, Product, UserProfile, Country, JobOffer, HousingListing, LiveStream, Story, LegalProcedure, Currency, WalletTransaction, Tribe, LeaderboardUser, Quest, Language, VocabularyCard, LanguageLesson, StoredDocument, SecurityLog, DeviceSession, LiveGift, ChatConversation, Reel, DossierParcours, ActiveMemoryItem, CompetencyRecord, BuyRequestRFQ, FreightForwarderProfile, TradeCompanyProfile, ImportExportProject, TradeDealNegotiation, CommercialDossier, SupplierScorecard, ClientRelationshipCard, VirtualTradeFairBooth, TradeSector, TradeCorridor, FairEvent, B2BMeetingRequest, SourcingMission, SmartTender, PartnershipItem, InvestorFundingProfile, InvestorPitchDossier, CommercialMissionTrip, CommercialWatchdogAlert, RelationshipNetworkNode, ProspectionCampaign, ProspectionProspect, LocalCommercialRepresentative, DataRoomFile, PhysicalTradeFair, BusinessClubCommunity, ExportOpportunityAnalysis, StockItem, Warehouse, StockMovement, SupplierItem, SupplierOrder, BusinessOrder, ReturnRequest, CrmLeadClient, CrmFollowUp, CustomerSupportTicket, ProductProfitability, CountrySalesAnalytics, BusinessGoal, BusinessTeamMember, BusinessAuditEntry } from './types';
+import type {
+  BusinessMatch,
+  CompanyKybProfile,
+  CounterfeitReport,
+  InternalRiskSignal,
+  KycDocument,
+  MemberProfile,
+  MokTrustBadge,
+  MultidimensionalReputation,
+  ProductCompliancePolicy,
+  ReelChallenge,
+  SecurityAuditLog,
+  SecuritySession,
+  TradeDisputeCase,
+  VerifiedTransactionReview
+} from './types';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🌍 INSTRUCTIONS SYSTÈME - PROJET "LE MONDE À VOUS"
@@ -3179,7 +3195,7 @@ export const MOCK_BUSINESS_MATCHES: BusinessMatch[] = [
             { label: 'Modalités de Paiement Sécurisé', isMatch: true, explanation: 'Fournisseur accepte séquestre TrustTrade Escrow avec jalonnement 30/70.' },
             { label: 'Langue de Négociation', isMatch: true, explanation: 'Représentant commercial francophone dédié chez le fournisseur.' }
         ],
-        matchType: 'supplier',
+        matchType: 'client_supplier',
         status: 'suggested',
         dateSuggested: 'Aujourd\'hui 08:30'
     },
@@ -5607,7 +5623,5 @@ export const MOCK_BUSINESS_AUDIT: BusinessAuditEntry[] = [
     details: 'Contrôle qualité et certificat d\'humidité validés'
   }
 ];
-
-
 
 

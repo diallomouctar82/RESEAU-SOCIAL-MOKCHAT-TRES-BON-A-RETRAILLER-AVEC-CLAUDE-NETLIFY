@@ -49,8 +49,8 @@ import {
   MasterResumeProfile,
   ConquestWarRoomDossier
 } from '../types';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { decodeAudioData, base64ToUint8Array } from '../services/audioUtils';
+import { AIProxyClient, Modality } from '../services/aiProxy';
+import { moduleRepository, type SyncPhase } from '../services/moduleRepository';
 import { Avatar3D } from './Avatar3D';
 
 // Career Accomplishment Sub-components
@@ -156,7 +156,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
   const [masterDossier, setMasterDossier] = useState<CareerMasterDossier>(() => {
     return {
       ...INITIAL_MASTER_DOSSIER,
-      pointASummary: INITIAL_POINT_A.situationSummary,
+      pointASummary: `${INITIAL_POINT_A.currentTitle} — ${INITIAL_POINT_A.currentSituation}, ${INITIAL_POINT_A.location}`,
       pointBSummary: INITIAL_MISSION_PLAN.userGoal.title,
       overallProgressPercentage: 74
     };
@@ -287,24 +287,36 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
 
 
   // --- CONQUEST & MASTER RESUME STATE (Carrière 3/7) ---
-  const [masterResume, setMasterResume] = useState<MasterResumeProfile>(() => {
-    const saved = localStorage.getItem('lmav_master_resume');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {
+  const [masterResume, setMasterResume] = useState<MasterResumeProfile>(() => ({
       ...INITIAL_MASTER_RESUME,
       fullName: userProfile.name || INITIAL_MASTER_RESUME.fullName,
       email: userProfile.email || INITIAL_MASTER_RESUME.email
-    };
-  });
+  }));
+  const [masterResumeRecordId, setMasterResumeRecordId] = useState<string>();
+  const [careerSyncPhase, setCareerSyncPhase] = useState<SyncPhase>(moduleRepository.getSyncPhase());
+
+  useEffect(() => moduleRepository.subscribe(setCareerSyncPhase), []);
+  useEffect(() => {
+    let active = true;
+    void moduleRepository.list<MasterResumeProfile>('career', 'master_resume')
+      .then(([record]) => {
+        if (!active || !record) return;
+        setMasterResume(record.payload);
+        setMasterResumeRecordId(record.id);
+      })
+      .catch((error) => console.warn('CV maître cloud indisponible', error));
+    return () => { active = false; };
+  }, []);
 
   const [activeConquestDossier, setActiveConquestDossier] = useState<ConquestWarRoomDossier | null>(null);
   const [conquestDossiersCache, setConquestDossiersCache] = useState<Record<string, ConquestWarRoomDossier>>({});
 
   const handleUpdateMasterResume = (updated: MasterResumeProfile) => {
     setMasterResume(updated);
-    localStorage.setItem('lmav_master_resume', JSON.stringify(updated));
+    void moduleRepository.upsert('career', 'master_resume', updated, {
+      id: masterResumeRecordId,
+      idempotencyKey: 'master-resume:singleton',
+    }).then((record) => setMasterResumeRecordId(record.id));
   };
 
   const handleOpenConquestWarRoom = (opportunity: RadarOpportunityItem) => {
@@ -566,8 +578,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setScanLog(["🚀 Initialisation du protocole Hunter v2.0..."]);
     
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+      const ai = new AIProxyClient();
       
       let typeLabel = '';
       let intent = '';
@@ -604,34 +615,9 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
       setOpportunities(newOpps);
 
     } catch (e: any) {
-      console.warn("Hunter Fallback Mode", e);
-      const mockOpps: Opportunity[] = [
-        { 
-          id: `opp-fb-1`, 
-          title: `Mission ${searchQuery}`, 
-          entity: 'Réseau International LMAV', 
-          location: 'France / Remote', 
-          description: 'Opportunité qualifiée correspondant à votre objectif d\'accomplissement.', 
-          status: 'detected', 
-          matchScore: 92, 
-          trustScore: 95, 
-          type: searchType, 
-          tags: ['Prioritaire', 'Validé'] 
-        },
-        { 
-          id: `opp-fb-2`, 
-          title: `Mandat Commercial & Partenariat`, 
-          entity: 'Consortium Global Partners', 
-          location: 'International', 
-          description: 'Projet d\'envergure recherchant un profil expert avec garanties Mok Trust.', 
-          status: 'detected', 
-          matchScore: 88, 
-          trustScore: 90, 
-          type: searchType, 
-          tags: ['B2B', 'Export'] 
-        }
-      ];
-      setOpportunities(mockOpps);
+      console.warn("Hunter sécurisé indisponible", e);
+      setScanLog(["Service de recherche non configuré ou momentanément indisponible. Aucune opportunité fictive n’a été ajoutée."]);
+      setOpportunities([]);
     } finally {
       setIsSearching(false);
     }
@@ -644,8 +630,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setGeneratedContent(null);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+      const ai = new AIProxyClient();
       const prompt = `Rédige un document professionnel percutant et élégant pour "${opp.title}" chez "${opp.entity}".
       Type : ${type} (mail de candidature / devis commercial / relance persuasive / dossier de présentation).
       Profil expéditeur : ${userProfile.name}, ${userProfile.title || 'Expert'}.
@@ -662,7 +647,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
       }
     } catch (e) {
       console.error(e);
-      setGeneratedContent(`Madame, Monsieur,\n\nFaisant suite à notre opportunité d'échange concernant ${opp.title} au sein de ${opp.entity}, je vous transmets par la présente notre dossier de proposition...\n\nBien cordialement,\n${userProfile.name}`);
+      setGeneratedContent("Le service de rédaction sécurisé est indisponible. Aucun document n’a été généré.");
     } finally {
       setIsGeneratingAction(false);
     }
@@ -679,8 +664,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setIsThinking(true);
     setAvatarState('thinking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+      const ai = new AIProxyClient();
       const prompt = `Tu es recruteur ou décideur chez ${selectedOpp.entity}. Poste ou Sujet : ${selectedOpp.title}.
       Pose une question précise et percutante au candidat. Sois direct et concis.`;
       
@@ -700,8 +684,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setIsThinking(true);
     setAvatarState('thinking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+      const ai = new AIProxyClient();
       const prompt = `Question : "${currentQuestion}". Réponse : "${userAnswer}".
       Donne une critique constructive (note /10 + 1 point fort + 1 axe d'amélioration).`;
       const res = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
@@ -717,28 +700,18 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
   const speak = async (text: string) => {
     setAvatarState('speaking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (!apiKey) {
-        setAvatarState('idle');
-        return;
-      }
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
         config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } } },
       });
-      const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64) {
-        if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-        const ctx = audioContextRef.current;
-        if (ctx.state === 'suspended') await ctx.resume();
-        const buffer = await decodeAudioData(base64ToUint8Array(base64), ctx, 24000, 1);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.onended = () => setAvatarState('idle');
-        source.start();
+      const audioUrl = response.candidates?.[0]?.content?.parts?.[0]?.fileData?.fileUri;
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => setAvatarState('idle');
+        audio.onerror = () => setAvatarState('idle');
+        await audio.play();
       } else {
         setAvatarState('idle');
       }
@@ -770,6 +743,13 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
               <p className="text-slate-400 text-sm md:text-base mt-2 max-w-2xl leading-relaxed">
                 De votre situation actuelle jusqu'à l'atteinte réelle de votre objectif : GPS intelligent, Jumeau Pro, Conseil d'Experts et Coach 3D.
               </p>
+              {careerSyncPhase !== 'idle' && (
+                <p className={`mt-2 text-xs font-semibold ${careerSyncPhase === 'error' ? 'text-amber-300' : 'text-blue-300'}`} role="status">
+                  {careerSyncPhase === 'syncing' ? 'Synchronisation du dossier carrière…'
+                    : careerSyncPhase === 'offline' ? 'Hors ligne — modifications placées dans la file d’attente.'
+                      : 'Synchronisation cloud indisponible — modification conservée dans la file d’attente.'}
+                </p>
+              )}
             </div>
             
             {/* Top Navigation Tabs & Master CV */}
@@ -942,7 +922,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
                 council={strategicCouncil}
                 decisionMatrix={decisionMatrix as any}
                 bilan={aiBilan}
-                timelineSteps={timelineSteps as any}
+                timelineSteps={timelineSteps}
                 userName={userProfile.name}
                 userRole={userProfile.title || 'Professionnel Élite'}
                 onOpenCampus={(subjectTitle) => {

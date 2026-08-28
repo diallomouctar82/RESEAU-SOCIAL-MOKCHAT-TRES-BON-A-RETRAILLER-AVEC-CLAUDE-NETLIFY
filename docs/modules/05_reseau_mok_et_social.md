@@ -1,56 +1,153 @@
-# 🤝 MODULE 05 — RÉSEAU MOK & SOCIAL LIVE
-> **Réseau de Confiance Décentralisé, Mok Trust, Feed Communautaire, Reels & Live Streaming B2B/B2C**
+# Module 05 — Réseau Mok, MokChat et confiance
 
----
+> État du code source au 27 août 2026. Ce document distingue les fonctions
+> implémentées des validations qui exigent encore l’application des migrations et
+> une recette sur l’environnement Supabase cible.
 
-## 🎯 1. VISION & OBJECTIF
-- **Vision** : Restaurer la confiance dans les interactions humaines et commerciales grâce à un réseau social éthique, centré sur l'entraide, le partage de compétences et la réputation vérifiée.
-- **Objectif** : Permettre aux membres d'échanger des contenus instructifs (Reels/Stories), de diffuser des sessions interactives en direct (Social Live) et de nouer des partenariats fiables évalués par le score Mok Trust.
+## Objectif
 
----
+Le module fournit deux parcours authentifiés :
 
-## 👥 2. UTILISATEURS CONCERNÉS & PARCOURS
-- **Publics** : Citoyens du réseau, créateurs de contenus, experts, commerçants diffusant des démonstrations en direct.
-- **Parcours Type** :
-  1. Consultation du fil d'actualités et visionnage de Reels éducatifs ou de produits.
-  2. Participation à un Live Stream avec possibilité d'interagir par chat, d'envoyer des dons/cadeaux ou d'acheter en un clic un article présenté.
-  3. Évaluation réciproque de confiance sur le Mok Trust Center.
+1. MokChat pour les conversations texte directes et de groupe ;
+2. Réseau Mok pour le fil, les commentaires, les réactions, les stories et les
+   reels publiés comme posts vidéo.
 
----
+Les identités tierces sont toujours lues par les RPC publiques minimales. Le
+client ne lit jamais directement les colonnes privées de `profiles`.
 
-## ⚙️ 3. COMPOSANTS & ARCHITECTURE TECHNIQUE
-- **Fichiers Clés** :
-  - `components/SocialFeed.tsx` : Fil d'actualité relié à Supabase (`community_posts`), annuaire des membres avec recherche plein texte, modal de publication avec identité certifiée de l'auteur.
-  - `components/MemberProfileModal.tsx` : Consultation exhaustive du profil citoyen (bio, compétences, réputation, coordonnées et déclenchement de message privé).
-  - `components/MoocChatFloating.tsx` : Messagerie privée directe persistée et connectée en temps réel à Supabase (`chat_conversations`, `chat_messages`) avec fallback local gracieux et orchestration complète des échanges.
-  - `components/chat/ChatMessageItem.tsx` : Rendu riche des bulles de messages (textes, photos, vidéos, documents téléchargeables, messages vocaux avec lecteur waveform HD, réactions emoji, citations et accusés de lecture).
-  - `components/chat/ChatCallModal.tsx` : Modal immersive d'appels vocaux et vidéo avec flux média réels, partage d'écran, mute, plein écran et signalisation WebRTC.
-  - `components/chat/ChatMemberInfoModal.tsx` : Fiche détaillée de l'interlocuteur, badges de vérification KYC, empreinte de chiffrement SHA256-AES et contrôle de confidentialité.
-  - `components/chat/ChatReportModal.tsx` : Modal de signalement d'abus et fraude reliée directement au centre de modération Super-Admin (`adminConfigService`).
-  - `components/Settings.tsx` & `Profile.tsx` : Gestion et affichage du passeport citoyen, bio, localisation, téléphone et portfolio.
-  - `components/SocialLive.tsx` & `LiveCreationModal.tsx` : Espace Live Intelligent haute résilience (zéro écran blanc), streaming vidéo/audio réel avec bascule gracieuse, sélection de Copilotes IA Diallo OS, sous-titres bilingues, protection des données sensibles (vision IA), dock d'actions intelligentes (`LiveSmartActionBar`), salle d'attente technique (`LiveWaitingRoomModal`), tableau blanc collaboratif (`LiveWhiteboard`) et synthèse post-live téléchargeable (`LivePostContinuityModal`).
-  - `components/SmartReelViewer.tsx` & `ReelsCreator.tsx` : Lecteur et créateur de courtes vidéos.
-  - `components/MokTrustCenter.tsx` & `MokTrustReputationHub.tsx` : Console de réputation et d'intégrité.
-- **Modèles de Données & Tables Supabase (`types.ts`, `docs/supabase_schema.sql`)** :
-  - Tables : `profiles`, `community_posts`, `post_comments`, `chat_conversations`, `chat_messages`, `chat_call_logs`.
-  - Types : `UserProfile`, `ChatConversation`, `ChatMessage`, `ActiveCallSession`, `Post`, `LiveStream`, `Story`, `Reel`, `LiveGift`, `LeaderboardUser`.
+## Contrat Supabase canonique
 
----
+Le code réutilise exclusivement les noms déjà présents dans le projet :
 
-## 🛡️ 4. RÈGLES MÉTIER & SÉCURITÉ
-- **Identité Réelle & Transparence** : Aucune publication anonyme ou factice ; chaque post et message est signé avec le nom, l'avatar, le titre et l'identifiant citoyen unique de l'utilisateur connecté.
-- **Modération & Détection des Fraudes** : Mok Trust pénalise les comportements malveillants ou les fausses annonces. Tout message abusif peut être immédiatement signalé via `ChatReportModal` et transmis dans la console de modération Super-Admin (`adminConfigService.addUserReport`).
-- **Sécurité des Échanges & Chiffrement** : RLS (Row Level Security) protège les messages privés et les conversations. Les flux d'appels bénéficient d'une signalisation chiffrée.
-- **Gestion des Dons & Achats en Direct** : Débit instantané et sécurisé via le solde de Crédits ou le Wallet.
+| Domaine | Tables / RPC |
+|---|---|
+| Conversations | `conversations`, `conversation_participants`, `messages`, `message_reactions` |
+| Annuaire et présence | `search_public_profiles`, `get_public_profiles`, `user_presence`, `set_user_presence` |
+| Réseau | `posts`, `comments`, `post_reactions`, `stories` |
+| Confiance | `user_blocks`, `abuse_reports`, `mok_trust_findings`, `mok_trust_scores` |
+| Calcul MokTrust | `record_mok_trust_finding`, `refresh_my_mok_trust_score` |
+| Création de conversation | `create_conversation`, `mark_conversation_read` |
+| Médias sociaux | bucket privé `social-media`, chemin `<user_uuid>/<content_uuid>/<file>` |
 
----
+Les anciennes colonnes `participant1_id` / `participant2_id` et les tables
+concurrentes `social_posts`, `post_comments` ou `conversation_members` ne sont
+plus utilisées.
 
-## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** :
-  - Système complet d'identité unique et profils personnalisables synchronisés Supabase / Local.
-  - Fil d'actualité persistant avec identité réelle de l'auteur, réactions et commentaires.
-  - Annuaire des membres avec moteur de recherche en temps réel et fiches profils.
-  - Messagerie privée souveraine moderne en temps réel (Supabase Realtime + WebRTC Audio/Vidéo + Partage d'écran + Médias + Lecteur Vocal Waveform HD + Modération Super-Admin).
-  - Feed social, Stories, Lecteur de Reels avec produits liés.
-  - **Espace Live Intelligent 100% Opérationnel** : Création instantanée et programmation sans écran blanc, streaming WebRTC/Hardware résilient, sous-titrage bilingue en temps réel, copilotes IA Diallo OS, tableau blanc interactif, intégration des actions d'apprentissage/projet et compte-rendu post-session.
-- **Évolutions Prévues** : Cercles d'entraide régionaux et tribus thématiques privées.
+## MokChat — fonctions implémentées
+
+- garde UUID avant toute écriture cloud ; aucun identifiant de mock ne peut être
+  envoyé à PostgreSQL ;
+- liste des conversations à partir de `conversation_participants` ;
+- historique borné et paginé par `created_at`, trié côté serveur ;
+- envoi texte optimiste avec états `pending`, `sending`, `sent`, `failed` et
+  nouvelle tentative ;
+- idempotence par UUID `client_message_id` et conflit
+  `(sender_id, client_message_id)` ;
+- conversations directes et groupes créés par la RPC `create_conversation` ;
+- réactions persistées, épinglage, suppression logique et marquage de lecture ;
+- annuaire par `search_public_profiles`, profils des participants par
+  `get_public_profiles` ;
+- présence initiale depuis `user_presence`, heartbeat, état absent/visible et
+  mise à jour Realtime ;
+- blocage/déblocage par `user_blocks` et signalement par `abuse_reports` ;
+- cache local par utilisateur uniquement comme vue de secours hors ligne, jamais
+  comme source cloud ni comme file d’écriture.
+
+Fichiers principaux : `services/mokChat.ts`,
+`components/MoocChatFloating.tsx`, `components/chat/ChatMessageItem.tsx`,
+`components/chat/ChatReportModal.tsx`.
+
+## Réseau Mok — fonctions implémentées
+
+- pagination du fil `posts` et chargement groupé des commentaires/réactions ;
+- création de posts, commentaires et réponses ;
+- réaction unique par couple `(post_id, user_id)` avec upsert atomique ;
+- auteurs chargés par `get_public_profiles`, sans email, rôle, crédits,
+  téléphone ou paramètres privés ;
+- stories expirant après 24 heures ;
+- reels persistés comme posts vidéo et reconstruits depuis le fil cloud ;
+- upload social avec liste MIME, limites de taille, nom de fichier généré,
+  `upsert: false`, URL signée limitée à 24 heures et suppression de l’objet si
+  l’écriture métier échoue ;
+- révocation des URL `blob:` de prévisualisation ;
+- mises à jour Realtime pour `posts`, `comments`, `post_reactions` et `stories` ;
+- états explicites de chargement, vide, erreur, session absente et hors ligne ;
+- signalement accessible avec catégorie/description et blocage facultatif de
+  l’auteur, persistés côté backend.
+
+Le chemin authentifié du fil ne fusionne plus `INITIAL_POSTS`, `MOCK_MEMBERS`,
+`STORIES`, `REELS` ou `USER_PROFILE` avec les résultats Supabase.
+
+Fichiers principaux : `services/socialNetwork.ts`,
+`services/mediaStorage.ts`, `services/socialMediaPolicy.ts`,
+`components/SocialFeed.tsx`, `components/MemberProfileModal.tsx`.
+
+## MokTrust — calcul serveur implémenté
+
+- score calculé dans PostgreSQL et persisté dans `mok_trust_scores` ;
+- formule bornée et versionnée `community-v1`, fondée sur ancienneté,
+  contributions et réactions reçues ;
+- niveau de confiance distinct de la note ; en dessous du seuil, l’interface
+  affiche « données insuffisantes » et masque le verdict numérique ;
+- un blocage ou un signalement ouvert ne produit aucune pénalité ;
+- seule une décision modérateur documentée et déclarée « fondée » par
+  `record_mok_trust_finding` alimente l’ajustement de modération ;
+- RLS : lecture du score et des décisions limitée au profil concerné ou à la
+  modération, aucune écriture directe depuis le navigateur ;
+- états chargement, erreur et hors ligne explicites, sans cache présenté comme
+  une donnée serveur ;
+- retrait du chemin actif qui affichait 98,6 %, de faux avis et de faux achats
+  certifiés.
+
+Cet indice est strictement communautaire. Il ne constitue ni KYC/KYB, ni
+certification commerciale, ni garantie de paiement, livraison ou qualité.
+
+Fichiers principaux : `services/mokTrust.ts`,
+`components/MokTrustReputationHub.tsx`, `components/Shop.tsx`,
+`supabase/migrations/20260827217000_mok_trust_server_score.sql`.
+
+## Sécurité et limites de confiance
+
+- La confidentialité dépend de la migration RLS versionnée : le client ne
+  contourne jamais les policies et n’embarque aucune clé privilégiée.
+- Les médias `social-media` sont privés et servis par URL signée ; une valeur de
+  bucket arbitraire issue d’une ligne n’est pas suivie.
+- Les labels KYC, empreintes de chiffrement et profils « vérifiés » non étayés ont
+  été retirés des parcours modifiés.
+- Un signalement enregistré n’est présenté que comme « en attente d’examen » ;
+  l’interface ne prétend plus qu’un administrateur a déjà agi.
+
+## Vérifications reproductibles
+
+```bash
+node --test tests/partial/mokchat-contract.test.mjs
+node --test tests/partial/social-network-contract.test.mjs
+node --test tests/partial/moktrust-contract.test.mjs
+npx vitest run tests/unit/mokTrust.test.ts
+npm run build
+```
+
+Résultat local du 27 août 2026 : 5/5 tests MokChat, 5/5 tests Réseau, 6/6 tests
+MokTrust et build Vite réussis. Le contrôle TypeScript ciblé ne signale aucune
+erreur dans les fichiers MokTrust. Le typecheck global du dépôt demeure non vert
+à cause de modules hors de ce lot ; aucune validation E2E, application de
+migration ni écriture de production n’a été effectuée.
+
+## Hors périmètre de ce jalon
+
+Conformément à la priorité « points partiels uniquement », ce lot ne termine ni
+les pièces jointes durables MokChat, ni les appels WebRTC, ni le streaming live.
+Les onglets Lives/Tribus historiques ne
+constituent pas une preuve d’infrastructure live. Les abonnements et favoris ne
+sont pas présentés comme synchronisés tant qu’un contrat backend n’existe pas.
+
+## Recette encore requise
+
+1. appliquer les migrations canoniques sur un environnement de test ;
+2. vérifier deux comptes authentifiés : annuaire, conversation directe, groupe,
+   RLS, réactions, blocage et signalement ;
+3. vérifier posts public/network/private avec deux comptes ;
+4. vérifier upload, lecture signée et expiration d’une story/reel ;
+5. confirmer Realtime après ajout des tables à `supabase_realtime`.
+6. appliquer la migration MokTrust sur un environnement de test puis vérifier un
+   profil neuf, un profil établi et une décision modérateur fondée/dismissed.

@@ -12,7 +12,7 @@ import {
     GoogleDriveFile,
     getAccessToken
 } from '../services/googleWorkspace';
-import { subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
+import { hasWorkspaceCapabilities, subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 
 export const GoogleDriveCenter: React.FC = () => {
@@ -41,7 +41,7 @@ export const GoogleDriveCenter: React.FC = () => {
 
     useEffect(() => {
         const unsubscribe = subscribeToWorkspaceToken((t) => {
-            setToken(t);
+            setToken(t && hasWorkspaceCapabilities(['drive']) ? t : null);
         });
         return () => unsubscribe();
     }, []);
@@ -202,7 +202,7 @@ export const GoogleDriveCenter: React.FC = () => {
             </div>
 
             {/* Google Workspace Banner */}
-            <GoogleWorkspaceBanner onAuthenticated={() => fetchFiles(currentFolderId)} />
+            <GoogleWorkspaceBanner capabilities={['drive']} onAuthenticated={() => fetchFiles(currentFolderId)} />
 
             {uploadSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fade-up">

@@ -28,7 +28,7 @@ import {
   Users,
   Camera
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { MarketIntent, TradeDimension } from '../types';
 import { TradeCommercialOrchestratorModal } from './TradeCommercialOrchestratorModal';
 import { TradeCouncilMeetingModal } from './TradeCouncilMeetingModal';
@@ -149,7 +149,7 @@ export const MarketIntentGuide: React.FC<MarketIntentGuideProps> = ({
 
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es l'Expert Commerce International et Assistant Sourcing Diallo de la plateforme "LE MONDE À VOUS".
 L'utilisateur formule un besoin commercial libre : "${naturalQuery}".
 

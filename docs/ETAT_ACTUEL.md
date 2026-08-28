@@ -1,31 +1,45 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
+> **Réconciliation TypeScript ciblée — 27 août 2026** : les contrats de données des constantes, du Radar/continuum Carrière, de la frise d'évolution et des résultats d'administration ont été réalignés sur leurs consommateurs réels. La compilation isolée `types.ts + services/*.ts`, les sous-ensembles Dossier/Carrière, le build Vite et les 55 tests locaux sont verts. Cette preuve ne constitue ni un typecheck exhaustif de tous les composants, ni une validation E2E cloud.
+
+> **Mise à jour modules Vie — 27 août 2026** : Santé, Habitat, Droit/Démarches et Mobilité disposent d'une persistance `module_records`, d'états de synchronisation explicites, de sources officielles configurables et d'avertissements médicaux/juridiques/consulaires. Les jeux de données de démonstration qui se présentaient comme réels ont été retirés des écrans concernés.
+
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
 > *Date de Mise à Jour : 27 Août 2026*  
-> *Version Courante : v6.4.0 (Production Ready — SUPER-ADMIN DASHBOARD & PERSISTENT VIDEO MEDIA)*
+> *Version Courante : v6.4.0 (fusion source — validation cloud/E2E requise)*
+
+---
+
+## Correctif vérifié — Auth, profils et administration cloud (27 août 2026)
+
+- La session et le profil ont désormais une source unique dans `GlobalContext`; le profil n'est plus créé/upserté depuis le navigateur et les sessions `pending`/`suspended` sont refusées.
+- La console riche est atteignable depuis l'application pour `admin` et `super_admin`. Son annuaire, ses compteurs d'identité et son audit proviennent de Supabase Auth via `/api/admin/users`, sans `MOCK_USERS_DB`.
+- Les créations utilisent l'invitation Supabase Auth et un UUID serveur. Rôles, permissions, suspension/réactivation et suppression Auth+profil sont autorisés côté serveur et audités.
+- Les secrets privilégiés restent dans `Netlify.env`; l'interface n'affiche qu'un booléen configuré/non configuré et ne saisit ni ne stocke de clé fournisseur.
+- Preuves locales : `node --test tests/admin-api.test.mjs` = 8/8 ; `npm run build` = réussi. Le typecheck global reste rouge sur des anomalies historiques hors de ce lot : aucun statut « TypeScript strict vert » n'est revendiqué.
+- Déploiement non effectué : les migrations et variables Netlify doivent être appliquées dans l'ordre documenté avant validation E2E OAuth/admin.
 
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
-**Le Monde à Vous** a franchi le jalon officiel **SUPER-ADMIN DASHBOARD & PERSISTENT VIDEO MEDIA (v6.4.0)**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance et un espace Super-Administrateur souverain doté de capacités de supervision de tous les comptes, rôles, modération, sauvegardes, restauration intelligente et gestion des versions.
+> **Rectificatif d'audit du 27 août 2026** : les affirmations historiques « Production Ready » ci-dessous décrivent une cible produit et non une preuve E2E. Pour les modules IA/Studio, le code source utilise désormais une passerelle Netlify authentifiée et un stockage Supabase privé. Dossiers, CV/Radar Carrière, progression Campus/Langues et collaboration Studio utilisent une persistance Supabase partagée sous RLS avec file IndexedDB hors ligne. Wallet lit un ledger immuable et ne modifie plus de solde local; Commerce crée commandes, RFQ, cotations et séquestres par RPC avec prix serveur, idempotence et audit. Google Drive/Chat/Meet passent par un proxy authentifié, avec consentements incrémentaux et sans faux lien Meet. Aucun paiement/change/Mobile Money externe n'est revendiqué. La production reste **configuration requise** tant que les secrets Netlify/Google ne sont pas définis et les migrations appliquées. Builds locaux : réussis. Tests ciblés IA 3/3, persistance 3/3, Wallet/Commerce 3/3, Google 3/3. E2E cloud/fournisseur : bloqué par la configuration externe manquante.
+
+La fusion **v6.4.0** ajoute notamment des points d'accès visibles à la console d'administration et plusieurs prototypes média/PWA/WebRTC. Seules les capacités reliées aux migrations, services sécurisés et tests ciblés sont classées comme finalisation des points partiels. Les ajouts correspondant aux chantiers initialement « Non commencé » restent explicitement non validés.
 
 La version **v6.4.0** consacre :
-- **Relecture Vidéo Pérenne & Fiabilisée** : Conversion des médias vidéos en Data URL Base64 persistantes au lieu d'URLs blob éphémères, permettant une relecture instantanée et illimitée par les propriétaires et tous les membres de la communauté.
-- **Accès Immédiat & Universel au Tableau de Bord Super-Admin** : Intégration du composant `AdminDashboard` dans le routage `App.tsx` et ajout de boutons d'accès directs dorés dans le Header desktop, le menu déroulant profil de l'avatar, la barre latérale (Sidebar) et le Dashboard d'accueil.
-- **Gestion Complète de Tous les Comptes & RBAC** : Vue exhaustive de tous les utilisateurs réels et synchronisés, attribution granulaire des rôles, ajustement audité des soldes Ⓒ, modération en direct, et sauvegardes souveraines.
-- **Gestionnaire des Versions Stables** : Suivi rigoureux des versions majeures (v6.4.0, v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec numéro, date, changelog officiel, points clés, statut, empreinte cryptographique SHA256 et comparateur différentiel.
-- **Restauration Intelligente & Continuité des Données** : Restauration en 1 clic sans remise à zéro, garantissant la préservation de tous les comptes, profils, messages, soldes Ⓒ, paramètres, droits RBAC et journaux d'audit.
-- **Unification & Résilience Supabase / Netlify / GitHub** : Tolérance aux pannes de schéma (`PGRST204`), éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
+- **Console d'administration atteignable** : `admin` et `super_admin` disposent de points d'accès directs vers la console riche; les opérations privilégiées passent par l'API serveur auditée.
+- **Finalisation des points partiels** : Auth/profils, IA, dossiers métier, Wallet/Commerce, Google Workspace, MokTrust et modules Vie disposent de contrats source et de tests ciblés documentés, avec migrations/configuration/E2E encore requis selon le module.
+- **Ajouts de fusion à qualifier** : les Data URL média ne remplacent pas un upload durable Supabase Storage; les fichiers PWA/WebRTC et les écrans Live ne prouvent ni synchronisation hors ligne, ni TURN/flux distant, ni infrastructure de diffusion.
+- **Qualité de preuve** : les builds et tests ciblés sont conservés; aucune restauration réelle, conformité globale, observabilité, diffusion Live ou couverture WCAG exhaustive n'est déclarée terminée.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ STATUT GLOBAL : CHROMATIC REFINEMENT v6.1 (14/14 Modules & 10 Palettes Actives) │
-│ QUALITÉ & RÉSILIENCE : 22/22 Défauts Résolus & Validés (Norme IEEE 1044 / PSP) │
-│ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Épuré + Color Lab Réactif   │
-│ DESIGN SYSTEM : V1.0.0 Figé, Documenté (26 chapitres), Zéro AI-Slop             │
-│ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + Transversal Workspace │
-│ ACCESSIBILITÉ : 100% WCAG AA, Clarté Cognitive, Restitution Vocale & Scanner   │
-│ COHÉRENCE ARCHITECTURALE : 100% (Builds verts, Types stricts)                  │
-│ MÉMOIRE VIVANTE & HANDOFF : Suite documentaire complète et interconnectée      │
+│ STATUT GLOBAL : finalisation source des points partiels ; recette cloud requise │
+│ QUALITÉ : builds et tests ciblés verts ; typecheck global non revendiqué        │
+│ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Color Lab Réactif           │
+│ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + console admin          │
+│ ACCESSIBILITÉ : socle clavier/ARIA/responsive audité ; contrôle continu requis  │
+│ NON COMMENCÉS : prototypes fusionnés non assimilés à une livraison validée      │
+│ HANDOFF : migrations, variables et E2E listés explicitement par module          │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -33,11 +47,19 @@ La version **v6.4.0** consacre :
 
 ## 🟢 1. CE QUI FONCTIONNE PLEINEMENT (MODULES OPÉRATIONNELS)
 
+### 1.0. Socle responsive et accessibilité transverse (27 août 2026)
+- Navigation principale utilisable au clavier avec lien d’évitement, focus visible global, annonce des changements d’espace et `aria-current`.
+- Dock et tiroir mobiles adaptés aux écrans étroits (3 colonnes sous 420 px, zones tactiles de 44 px, contrôles absents de la tabulation quand le tiroir est fermé).
+- Recherche universelle et mode guidé exposés comme dialogues nommés, avec confinement/restauration du focus, fermeture par Échap, libellés de champs et états vocaux annoncés.
+- Animations neutralisées lorsque `prefers-reduced-motion: reduce` est actif ; bandeau d’actualités doté d’une commande Pause/Reprendre.
+- Preuves automatisées : 6 tests de sémantique/clavier responsive, dont audits axe sans violation sur les deux dialogues centraux. Le contraste visuel dynamique reste à surveiller à chaque nouvelle palette ou écran ; aucune affirmation « 100 % WCAG » n’est faite sans audit navigateur exhaustif.
+
 ### 1.1. Diallo OS, Experts & Conseil Collégial
 - Dialogue interactif avec chaque expert Diallo (Directeur, Maître, Conseiller, Professeur, Dr, Monsieur, Guide, Analyste).
 - Salle de Conseil Réuni (`CouncilRoom.tsx` / `UnifiedCouncilRoom.tsx`) réunissant les spécialistes pour résoudre un cas transversal.
-- Orchestrateur central (`services/orchestratorService.ts`) avec extraction d'intentions et ventilation automatique vers les modules idoines.
+- Orchestrateur central (`components/DialloOS.tsx` + `services/expertPersistence.ts`) avec validation des destinations autorisées et ventilation vers les modules idoines.
 - HUD Multimodal & Support vocal temps réel (`voiceEngine.ts`).
+- Persistance source-only ajoutée le 27 août 2026 : historique Expert dans `agent_chat_sessions/messages`, résultats Conseil/Diallo OS/brouillons/évaluations dans `module_records(module='experts')`, RLS propriétaire et idempotence UUID. Migration non appliquée en production; 12 tests de contrat et build local réussis.
 
 ### 1.2. Marché Mondial & Business Operating System
 - Catalogue universel tridimensionnel (B2B, B2C, C2C) avec filtrage par pays d'origine, devises et certifications.
@@ -119,24 +141,16 @@ La version **v6.4.0** consacre :
 - **Passerelles & Équivalences Mondiales** : Moteur de comparaison académique pour la mobilité internationale.
 - **Centre des Langues** : 40+ langues avec répétition espacée et prononciation audio.
 
-### 1.5. Réseau MOK, Messagerie Sécurisée & Espace Live Intelligent 100% Opérationnel
-- **Messagerie Instantanée Sécurisée (`MoocChatFloating.tsx` & `ChatMessageItem.tsx`)** :
-  - Communication 1-à-1 et salons de groupe avec présence en temps réel et chiffrement de bout en bout.
-  - Envoi instantané d'images et photos (`accept="image/*"`) avec aperçu et affichage plein écran (Lightbox HD).
-  - Envoi et lecture pérenne de vidéos (`accept="video/*"`) avec contrôles, streaming fluide et relecture infinie.
-  - Enregistreur de messages vocaux HD avec forme d'onde dynamique interactive (`voiceEngine`).
-  - Partage de documents et pièces jointes (`.pdf`, `.doc`, `.zip`, `.xlsx`) avec téléchargement direct.
-  - Citations/réponses aux messages, réactions emoji en un clic, épinglage et modération directe.
-  - Appels audio et vidéo chiffrés WebRTC avec signalement temps réel via Supabase.
-- **Réseau Social de Confiance (`SocialFeed.tsx`)** :
-  - Publications de posts enrichis (texte, images HD, vidéos avec relecture continue), likes, commentaires, partages et direct live.
-  - Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.
-  - Découverte de Tribus et visionneuse de Smart Reels.
-- **Espace Live Intelligent Haute Résilience (100% Opérationnel — Zéro Écran Blanc)** :
-  - Lancement instantané (« Démarrer le live maintenant ») et programmation de sessions bilingues avec sélection de Copilote IA Diallo OS.
-  - Détection automatique et gestion gracieuse des flux WebRTC/Microphone/Caméra et partage d'écran.
-  - Barre d'actions intelligente (`LiveSmartActionBar`), prise de notes personnelles dans la mémoire privée, création de tâches, demandes de SOS expert, vérification de sources (fact-checking) et rendez-vous 1-à-1.
-  - Tableau blanc interactif (`LiveWhiteboard`), compte-rendu téléchargeable post-live et salle d'attente technique.
+### 1.5. Réseau MOK, Confiance & Social Live
+- MokTrust : indice communautaire calculé et persisté côté PostgreSQL, avec
+  confiance statistique, formule versionnée et RLS. Les simples signalements ou
+  blocages ne pénalisent pas ; seules les décisions modérateur explicitement
+  fondées sont prises en compte. Ce n'est pas une certification KYC/KYB ou
+  transactionnelle. Migration versionnée, recette Supabase cible encore requise.
+- Fil d'actualité social, publication de Stories et visionneuse de Smart Reels.
+- Messagerie texte, groupes, présence, réactions et épinglage sont reliés aux contrats Supabase du lot partiel; les états d'erreur restent visibles.
+- La fusion ajoute des sélecteurs média, lecteurs, gardes caméra/micro et prototypes WebRTC/PWA. Les médias Base64/blob ne sont pas considérés comme pièces jointes durables et aucun chiffrement de bout en bout n'est revendiqué.
+- Les appels audio/vidéo réels et le streaming Live restent dans la catégorie « Non commencé » tant que SDP/ICE/TURN, flux distant, stockage média et diffusion/lecture n'ont pas été prouvés en E2E.
 
 ### 1.6. Services Vie Quotidienne & Google Workspace
 - **Juridique** : Générateur de procédures administratives, titres de séjour et Coffre-fort numérique sécurisé.
@@ -158,12 +172,12 @@ La version **v6.4.0** consacre :
 
 **Migration complète Firebase → Supabase effectuée.** Authentification Google OAuth unifiée (Supabase Auth, permissions minimales), profil applicatif séparé (`profiles`) avec RLS, et persistance réelle pour : Identity, Social (posts/commentaires/réactions/stories), Messagerie (dont chat Expert IA), Dossiers de vie, Carrière (Radar + CV Maître), Éducation/Campus (cours/inscriptions/certificats), Commerce minimal (boutique/commandes), Finance (solde dérivé), Notifications, Fichiers (Storage), Live (intégral), catalogue Agents. Détail complet : `docs/SUPABASE_ARCHITECTURE.md` et `docs/AUTHENTICATION.md`.
 
-Volontairement laissés hors périmètre (0% de persistance prouvée dans le code, écrans de démo uniquement) : Trade/Commerce Mondial (RFQ, CommercialDossier, salons, MokTrust), Tribus/Cercles riches.
+Volontairement laissés hors périmètre (0% de persistance prouvée dans le code, écrans de démo uniquement) : Trade/Commerce Mondial (RFQ, CommercialDossier, salons hors indice communautaire MokTrust), Tribus/Cercles riches.
 
-**Prérequis restant côté utilisateur** : configurer le Client ID/Secret Google OAuth dans Supabase Dashboard (voir `docs/AUTHENTICATION.md §4`) pour que la connexion Google soit pleinement fonctionnelle en production.
+**Correctif d'audit du 28 août 2026** : les journaux Auth prouvent que Google OAuth fonctionne déjà sur `moknet.net`; il ne faut plus le présenter comme non configuré. Le client a été réconcilié autour d'un seul listener de session et d'un profil créé uniquement par trigger. La chaîne de migrations complète et les tests RLS sont versionnés, mais leur application sur branche isolée et l'exécution pgTAP restent les preuves nécessaires avant de déclarer la réconciliation base terminée. Les affirmations historiques « 100 % » de ce document décrivent l'ambition produit et ne remplacent pas ces preuves techniques.
 
 ## 🔴 2. PROCHAINES PRIORITÉS IMMÉDIATES (ROADMAP)
-1. Compléter la configuration OAuth Google côté Supabase Dashboard (prérequis externe).
+1. Valider les migrations/RLS sur une branche Supabase sans données, puis régénérer les types.
 2. **Système Global de Motivation & Engagement** (Prompt dédié à venir).
 3. **Campus 3.0 : Cours Collectifs en Direct & Co-apprentissage** (Prompt dédié à venir).
 4. Normaliser Trade/Commerce Mondial et Tribus dans Supabase si/quand ces modules deviennent prioritaires (actuellement hors périmètre, voir §1.7).

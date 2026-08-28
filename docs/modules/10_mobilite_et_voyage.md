@@ -35,5 +35,6 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Terminé** : Fiches pays complètes, simulateur d'exigences de visas, cartographie d'ambassades.
+- **Clôture du point partiel d'audit (août 2026)** : les simulations de mobilité sont persistées dans `module_records`, restaurées à la réouverture et présentées uniquement comme des pistes à confirmer. Une source officielle/intergouvernementale HTTPS configurable et un avertissement consulaire sont affichés avec chaque résultat.
 - **Partiel / En cours** : Intégration d'un comparateur de vols éco-responsables.
 - **Évolutions Prévues** : Suivi en temps réel des créneaux de rendez-vous de visas consulaires (VFS/TLS).

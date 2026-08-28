@@ -24,16 +24,22 @@ import {
     CheckCircle2,
     ChevronDown,
     ChevronUp,
-    Compass
+    Compass,
+    AlertTriangle
 } from 'lucide-react';
 import { Agent, Message } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { useGlobal } from '../contexts/GlobalContext';
 import { memoryService } from '../services/memory';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
 import { VoiceInteractionBar } from './VoiceInteractionBar';
 import { voiceEngine } from '../services/voiceEngine';
+import {
+  loadExpertMessages,
+  newExpertRecordId,
+  persistExpertMessage,
+} from '../services/expertPersistence';
 
 interface ChatInterfaceProps {
   agent: Agent;
@@ -44,6 +50,9 @@ interface ChatInterfaceProps {
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMessage, onStartCall }) => {
   const { userProfile } = useGlobal();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [historyState, setHistoryState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isContextActive, setIsContextActive] = useState(true); // Toggle RAG
@@ -56,27 +65,33 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const initialMessageSentRef = useRef(new Set<string>());
 
   const currentAvatarUrl = agent.avatarUrl;
 
-  // Initialisation de la conversation
+  const loadHistory = useCallback(async () => {
+    setHistoryState('loading');
+    setSyncError(null);
+    setPendingMessage(null);
+    setMessages([]);
+    try {
+      const history = await loadExpertMessages(agent.id);
+      setMessages(history.length > 0 ? history : [{
+        id: 'welcome',
+        role: 'model',
+        text: `Bonjour ${userProfile.name.split(' ')[0]} ! Je suis ${agent.name}, ${agent.title}. Comment puis-je vous aider ?`,
+        timestamp: new Date(),
+      }]);
+      setHistoryState('ready');
+    } catch (error) {
+      setHistoryState('error');
+      setSyncError(error instanceof Error ? error.message : 'Impossible de charger l’historique sécurisé.');
+    }
+  }, [agent.id, agent.name, agent.title, userProfile.name]);
+
   useEffect(() => {
-    const loadHistory = async () => {
-        if (messages.length === 0) {
-             if (initialMessage) {
-                handleSendMessage(initialMessage);
-            } else {
-                setMessages([{
-                    id: 'welcome',
-                    role: 'model',
-                    text: `Bonjour ${userProfile.name.split(' ')[0]} ! Je suis ${agent.name}, ${agent.title}. J'ai accès à votre dossier. Comment puis-je vous aider ?`,
-                    timestamp: new Date()
-                }]);
-            }
-        }
-    };
-    loadHistory();
-  }, [agent.id, initialMessage]);
+    void loadHistory();
+  }, [loadHistory]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -109,7 +124,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
     if (!messageText && !activeImage) return;
 
     const newUserMsg: Message = {
-      id: Date.now().toString(),
+      id: newExpertRecordId(),
       role: 'user',
       text: messageText,
       timestamp: new Date(),
@@ -120,9 +135,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
     setInput('');
     setSelectedImage(null);
     setIsLoading(true);
+    setSyncError(null);
+    setPendingMessage(null);
 
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        await persistExpertMessage(agent.id, newUserMsg);
+        const ai = new AIProxyClient();
         
         // 1. Récupération du Contexte (RAG)
         let contextInjection = "";
@@ -131,7 +149,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
         }
 
         // 2. Construction de l'historique pour l'API
-        const historyParts = messages.map(m => ({
+        const historyParts = messages.filter((message) => message.id !== 'welcome').map(m => ({
             role: m.role,
             parts: [{ text: m.text }] 
         }));
@@ -159,15 +177,22 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
             }
         });
 
-        const responseText = response.text || "Désolé, je n'ai pas pu générer de réponse.";
+        const responseText = response.text.trim();
+        if (!responseText) throw new Error('Le service IA a renvoyé une réponse vide.');
 
         const newAiMsg: Message = {
-            id: (Date.now() + 1).toString(),
+            id: newExpertRecordId(),
             role: 'model',
             text: responseText,
             timestamp: new Date()
         };
         setMessages(prev => [...prev, newAiMsg]);
+        try {
+          await persistExpertMessage(agent.id, newAiMsg);
+        } catch (persistenceError) {
+          setPendingMessage(newAiMsg);
+          setSyncError(persistenceError instanceof Error ? persistenceError.message : 'La réponse reste à synchroniser.');
+        }
 
         // Auto-Lecture Vocale si activée
         if (autoReadResponse) {
@@ -179,14 +204,31 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
 
     } catch (error) {
         console.error("Chat Error", error);
-        setMessages(prev => [...prev, {
-            id: (Date.now() + 1).toString(),
-            role: 'model',
-            text: "Désolé, une erreur est survenue lors du traitement. Veuillez réessayer.",
-            timestamp: new Date()
-        }]);
+        setSyncError(error instanceof Error ? error.message : 'Le message n’a pas pu être traité.');
     } finally {
         setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (historyState !== 'ready' || !initialMessage?.trim()) return;
+    const key = `${agent.id}:${initialMessage.trim()}`;
+    if (initialMessageSentRef.current.has(key)) return;
+    initialMessageSentRef.current.add(key);
+    void handleSendMessage(initialMessage);
+  }, [agent.id, historyState, initialMessage]);
+
+  const retryPendingMessage = async () => {
+    if (!pendingMessage) return;
+    setIsLoading(true);
+    try {
+      await persistExpertMessage(agent.id, pendingMessage);
+      setPendingMessage(null);
+      setSyncError(null);
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : 'La synchronisation a de nouveau échoué.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -348,8 +390,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
             
             {/* Message History */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth">
+                {historyState === 'loading' && (
+                    <div role="status" className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-500">
+                        <Loader2 size={15} className="animate-spin" /> Chargement de l’historique sécurisé…
+                    </div>
+                )}
+                {syncError && (
+                    <div role="alert" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        <span className="flex items-start gap-2"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> {syncError}</span>
+                        <button
+                            type="button"
+                            onClick={pendingMessage ? retryPendingMessage : loadHistory}
+                            className="self-start sm:self-auto rounded-xl bg-amber-900 px-3 py-1.5 font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                            {pendingMessage ? 'Réessayer la synchronisation' : 'Recharger'}
+                        </button>
+                    </div>
+                )}
                 {messages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-up group`}>
+                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-up group`}>
                         <div className={`flex gap-3.5 max-w-[92%] sm:max-w-[80%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                             
                             {/* Avatar */}

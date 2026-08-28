@@ -10,9 +10,6 @@ import {
   Layers, 
   Sliders, 
   SlidersHorizontal,
-  Key, 
-  Eye, 
-  EyeOff, 
   RefreshCw, 
   Check, 
   AlertTriangle, 
@@ -43,27 +40,30 @@ import {
   AIExecutionResult 
 } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
+import type { ServerProviderConfiguration } from '../../services/adminApi';
 import { aiRoutingService } from '../../services/aiRoutingService';
 
 interface AdminAIResilienceHubProps {
   providers: AIProviderConfig[];
+  serverProviders: ServerProviderConfiguration[];
   onReload: () => void;
+  onRefreshServer: () => Promise<void>;
 }
 
 export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
   providers,
-  onReload
+  serverProviders,
+  onReload,
+  onRefreshServer
 }) => {
   const [activeTab, setActiveTab] = useState<'providers' | 'governance' | 'testbench' | 'logs'>('providers');
   const [routingPolicy, setRoutingPolicy] = useState<AIRoutingPolicyConfig>(aiRoutingService.getPolicy());
   const [failoverLogs, setFailoverLogs] = useState<AIFailoverEvent[]>(aiRoutingService.getFailoverLogs());
   const [editingProvider, setEditingProvider] = useState<AIProviderConfig | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
-  const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [testingProviderId, setTestingProviderId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; latencyMs: number; message: string; qualityScore?: number }>>({});
-  const [isDiagnosticRunning, setIsDiagnosticRunning] = useState(false);
-  const [diagnosticSummary, setDiagnosticSummary] = useState<any | null>(null);
+  const [isServerRefreshing, setIsServerRefreshing] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
   // Test bench state
@@ -77,15 +77,12 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
   const [newProviderForm, setNewProviderForm] = useState<{
     name: string;
     provider: SupportedAIProviderType;
-    apiKey: string;
     defaultModel: string;
     availableModels: string;
     temperature: number;
     maxTokens: number;
-    endpointUrl: string;
     priority: number;
     tier: AIProviderTier;
-    qualityScore: number;
     minQualityThreshold: number;
     maxLatencyThresholdMs: number;
     costPer1kInputTokens: number;
@@ -93,15 +90,12 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
   }>({
     name: '',
     provider: 'openai',
-    apiKey: '',
     defaultModel: 'gpt-4o',
     availableModels: 'gpt-4o, gpt-4o-mini',
     temperature: 0.7,
     maxTokens: 4096,
-    endpointUrl: '',
     priority: providers.length + 1,
     tier: 'tertiary',
-    qualityScore: 90,
     minQualityThreshold: 65,
     maxLatencyThresholdMs: 2500,
     costPer1kInputTokens: 0.002,
@@ -112,10 +106,6 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
     setRoutingPolicy(aiRoutingService.getPolicy());
     setFailoverLogs(aiRoutingService.getFailoverLogs());
   }, [providers]);
-
-  const handleToggleShowKey = (id: string) => {
-    setShowKey(prev => ({ ...prev, [id]: !prev[id] }));
-  };
 
   const handleTestProvider = async (id: string) => {
     setTestingProviderId(id);
@@ -133,17 +123,12 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
     }
   };
 
-  const handleRunFullDiagnostic = async () => {
-    setIsDiagnosticRunning(true);
+  const handleRefreshServerConfiguration = async () => {
+    setIsServerRefreshing(true);
     try {
-      const res = await aiRoutingService.runFullResilienceDiagnostic();
-      setDiagnosticSummary(res);
-      setTestResults(res.results);
-      onReload();
-    } catch (err) {
-      console.error("Diagnostic error:", err);
+      await onRefreshServer();
     } finally {
-      setIsDiagnosticRunning(false);
+      setIsServerRefreshing(false);
     }
   };
 
@@ -204,14 +189,12 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
       isDefault: false,
       priority: newProviderForm.priority,
       tier: newProviderForm.tier,
-      apiKey: newProviderForm.apiKey,
       defaultModel: newProviderForm.defaultModel,
       availableModels: modelsArr.length > 0 ? modelsArr : [newProviderForm.defaultModel],
       temperature: newProviderForm.temperature,
       maxTokens: newProviderForm.maxTokens,
-      endpointUrl: newProviderForm.endpointUrl || undefined,
-      status: 'online',
-      qualityScore: newProviderForm.qualityScore,
+      status: 'unknown',
+      qualityScore: 0,
       minQualityThreshold: newProviderForm.minQualityThreshold,
       maxLatencyThresholdMs: newProviderForm.maxLatencyThresholdMs,
       costPer1kInputTokens: newProviderForm.costPer1kInputTokens,
@@ -228,9 +211,12 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
     p.defaultModel.toLowerCase().includes(searchFilter.toLowerCase())
   ).sort((a, b) => a.priority - b.priority);
 
-  const activeCount = providers.filter(p => p.isEnabled && p.status !== 'quarantined').length;
-  const quarantinedCount = providers.filter(p => p.status === 'quarantined').length;
+  const configuredCount = serverProviders.filter(provider => provider.configured).length;
+  const unconfiguredCount = serverProviders.length - configuredCount;
   const defaultProvider = providers.find(p => p.isDefault) || providers[0];
+  const editingServerProvider = editingProvider
+    ? serverProviders.find(provider => provider.provider === editingProvider.provider)
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -244,28 +230,28 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
             <div className="flex items-center gap-2.5">
               <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck size={14} className="text-emerald-400" />
-                Orchestrateur Souverain & Auto-Résilience
+                Configuration IA côté serveur
               </span>
               <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
-                Bascule Zéro-Interruption Active
+                Secrets isolés dans Netlify
               </span>
             </div>
             <h1 className="text-2xl font-black text-white mt-2 tracking-tight">
               Gestionnaire Central Multi-Fournisseurs d'IA
             </h1>
             <p className="text-xs text-slate-300 max-w-2xl mt-1 leading-relaxed">
-              Supervision unifiée de Gemini, OpenAI, Claude, DeepSeek, Mistral, Grok, Qwen, Kimi, OpenRouter, Replicate, Hugging Face et nœuds souverains locaux avec cascade automatique en cas d'indisponibilité.
+              Le navigateur ne reçoit jamais les clés ni les endpoints privés. L’état configuré ci-dessous est vérifié par la Function d’administration à partir des variables Netlify.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={handleRunFullDiagnostic}
-              disabled={isDiagnosticRunning}
+              onClick={() => void handleRefreshServerConfiguration()}
+              disabled={isServerRefreshing}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
             >
-              <Activity size={15} className={isDiagnosticRunning ? 'animate-spin' : ''} />
-              {isDiagnosticRunning ? 'Test de Sonde Global...' : 'Sonde Globale de Résilience'}
+              <Activity size={15} className={isServerRefreshing ? 'animate-spin' : ''} />
+              {isServerRefreshing ? 'Actualisation...' : 'Actualiser l’état serveur'}
             </button>
 
             <button
@@ -273,7 +259,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-600/30"
             >
               <Plus size={15} />
-              Connecter un Fournisseur
+              Ajouter au catalogue public
             </button>
           </div>
         </div>
@@ -281,7 +267,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
         {/* Métriques clés en bandeau */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
           <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Moteur Pilote Actif</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Pilote de la politique</span>
             <div className="text-sm font-black text-white mt-1 truncate flex items-center gap-1.5">
               <Sparkles size={14} className="text-blue-400 flex-shrink-0" />
               {defaultProvider ? defaultProvider.name : 'Aucun'}
@@ -290,19 +276,19 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
           </div>
 
           <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Nœuds Connectés</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Secrets configurés</span>
             <div className="text-xl font-black text-emerald-400 mt-1">
-              {activeCount} <span className="text-xs text-slate-400 font-normal">/ {providers.length} opérationnels</span>
+              {configuredCount} <span className="text-xs text-slate-400 font-normal">/ {serverProviders.length} variables présentes</span>
             </div>
-            <span className="text-[10px] text-slate-400 mt-0.5 block">{providers.filter(p => p.isEnabled).length} actifs dans la chaîne</span>
+            <span className="text-[10px] text-slate-400 mt-0.5 block">Valeurs jamais renvoyées au navigateur</span>
           </div>
 
           <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Quarantaine Sécurisée</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">À configurer</span>
             <div className="text-xl font-black text-amber-400 mt-1">
-              {quarantinedCount} <span className="text-xs text-slate-400 font-normal">fournisseur(s) exclus</span>
+              {unconfiguredCount} <span className="text-xs text-slate-400 font-normal">variable(s) absente(s)</span>
             </div>
-            <span className="text-[10px] text-slate-400 mt-0.5 block">Seuil échecs : {routingPolicy.maxConsecutiveErrorsBeforeQuarantine} consécutifs</span>
+            <span className="text-[10px] text-slate-400 mt-0.5 block">Configurer dans Netlify → Environment variables</span>
           </div>
 
           <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
@@ -316,29 +302,6 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Résumé du dernier diagnostic global */}
-      {diagnosticSummary && (
-        <div className="bg-white p-5 rounded-3xl border border-blue-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-50 text-blue-700 rounded-2xl">
-              <Activity size={24} />
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-900 text-sm">Rapport de Sonde Multi-Moteurs Exécuté</h4>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {diagnosticSummary.onlineCount} moteurs en ligne sur {diagnosticSummary.totalProviders} testés. Latence moyenne : <span className="font-bold text-blue-600 font-mono">{diagnosticSummary.averageLatencyMs}ms</span>.
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={() => setDiagnosticSummary(null)} 
-            className="text-xs font-bold text-slate-400 hover:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-xl"
-          >
-            Fermer le rapport
-          </button>
-        </div>
-      )}
 
       {/* 2. Navigation des Sous-Onglets */}
       <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-fit flex-wrap gap-1">
@@ -410,13 +373,14 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
             {filteredProviders.map((provider, index) => {
               const testResult = testResults[provider.id];
               const isTesting = testingProviderId === provider.id;
+              const serverProvider = serverProviders.find(item => item.provider === provider.provider);
+              const isConfigured = serverProvider?.configured === true;
 
               return (
                 <div 
                   key={provider.id}
                   className={`bg-white rounded-3xl border transition shadow-sm p-5 space-y-4 relative flex flex-col justify-between ${
                     provider.isDefault ? 'border-blue-600 ring-2 ring-blue-500/20' : 
-                    provider.status === 'quarantined' ? 'border-red-300 bg-red-50/20' :
                     !provider.isEnabled ? 'border-slate-200 opacity-60 bg-slate-50' : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -443,12 +407,9 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                             Pilote
                           </span>
                         )}
-                        {provider.status === 'quarantined' && (
-                          <span className="bg-red-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                            <ShieldAlert size={10} />
-                            Quarantaine
-                          </span>
-                        )}
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${isConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                          {isConfigured ? 'Configuré serveur' : 'Non configuré'}
+                        </span>
                       </div>
                     </div>
 
@@ -468,45 +429,22 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                       <div className="min-w-0">
                         <h3 className="font-bold text-slate-900 text-sm truncate">{provider.name}</h3>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`w-2 h-2 rounded-full ${
-                            provider.status === 'online' ? 'bg-emerald-500' :
-                            provider.status === 'degraded' ? 'bg-amber-400' :
-                            provider.status === 'quarantined' ? 'bg-red-500' : 'bg-slate-400'
-                          }`}></span>
-                          <span className="text-[11px] font-mono text-slate-500 uppercase">{provider.status}</span>
-                          {provider.latencyMs && (
-                            <span className="text-[10px] font-mono font-bold text-slate-400">({provider.latencyMs}ms)</span>
-                          )}
+                          <span className={`w-2 h-2 rounded-full ${isConfigured ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                          <span className="text-[11px] font-mono text-slate-500 uppercase">{isConfigured ? 'configured' : 'not_configured'}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Métriques de qualité et coûts */}
+                    {/* État serveur vérifié, sans télémétrie simulée */}
                     <div className="grid grid-cols-2 gap-2 mt-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-xs">
                       <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Score Qualité</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${
-                                provider.qualityScore >= 90 ? 'bg-emerald-500' :
-                                provider.qualityScore >= 75 ? 'bg-blue-500' : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${provider.qualityScore}%` }}
-                            />
-                          </div>
-                          <span className="font-mono font-bold text-slate-800 text-[11px]">{provider.qualityScore}%</span>
-                        </div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Variable Netlify</span>
+                        <span className="mt-1 block truncate font-mono text-[10px] font-bold text-slate-700">{serverProvider?.envVar || 'NON_DÉFINIE'}</span>
                       </div>
 
                       <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Taux de Succès</span>
-                        <div className="font-mono font-bold text-slate-800 text-[11px] mt-0.5">
-                          {provider.totalCalls > 0 
-                            ? `${Math.round((provider.successCalls / provider.totalCalls) * 100)}%` 
-                            : '100%'}
-                          <span className="text-[10px] text-slate-400 font-normal ml-1">({provider.successCalls}/{provider.totalCalls})</span>
-                        </div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Télémétrie</span>
+                        <span className="mt-1 block text-[11px] font-bold text-slate-600">Non disponible</span>
                       </div>
                     </div>
 
@@ -526,21 +464,9 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                         </span>
                       </div>
 
-                      <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
-                        <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                          <Key size={11} /> Clé :
-                        </span>
-                        <div className="flex items-center gap-1 font-mono text-[11px]">
-                          <span className="text-slate-600">
-                            {showKey[provider.id] ? (provider.apiKey || 'Aucune') : '••••••••••••••••'}
-                          </span>
-                          <button 
-                            onClick={() => handleToggleShowKey(provider.id)} 
-                            className="text-slate-400 hover:text-slate-700 ml-1"
-                          >
-                            {showKey[provider.id] ? <EyeOff size={12} /> : <Eye size={12} />}
-                          </button>
-                        </div>
+                      <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-3">
+                        <span className="text-slate-500 text-[11px]">Secret :</span>
+                        <span className="text-right text-[10px] font-bold text-slate-600">Géré exclusivement dans Netlify</span>
                       </div>
                     </div>
 
@@ -581,7 +507,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleTestProvider(provider.id)}
-                        disabled={isTesting}
+                        disabled={isTesting || !isConfigured}
                         className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1"
                         title="Tester la sonde de santé"
                       >
@@ -1022,7 +948,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                   <Sliders className="text-blue-600" size={18} />
                   Configuration : {editingProvider.name}
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Paramètres d'inférence, clé API et seuils de qualité</p>
+                <p className="text-xs text-slate-500 mt-0.5">Préférences publiques d'inférence. Les secrets restent exclusivement côté serveur.</p>
               </div>
               <button onClick={() => setEditingProvider(null)} className="text-slate-400 hover:text-slate-700">
                 ✕
@@ -1030,14 +956,9 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
             </div>
 
             <div className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Clé API (Secret Token)</label>
-                <input
-                  type="text"
-                  value={editingProvider.apiKey}
-                  onChange={(e) => setEditingProvider({ ...editingProvider, apiKey: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-medium outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className={`rounded-xl border p-3 ${editingServerProvider?.configured ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                <p className="font-bold text-slate-800">Secret serveur : {editingServerProvider?.configured ? 'configuré' : 'non configuré'}</p>
+                <p className="mt-1 text-[11px] text-slate-600">Variable attendue : <span className="font-mono font-bold">{editingServerProvider?.envVar || 'Aucune variable serveur déclarée'}</span>. Modifiez-la dans Netlify, jamais dans ce navigateur.</p>
               </div>
 
               <div>
@@ -1104,17 +1025,6 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">URL Endpoint Personnalisée (Optionnel)</label>
-                <input
-                  type="text"
-                  placeholder="https://api.votre-serveur.com/v1/chat/completions"
-                  value={editingProvider.endpointUrl || ''}
-                  onChange={(e) => setEditingProvider({ ...editingProvider, endpointUrl: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono outline-none"
-                />
-              </div>
-
               <div className="flex items-center gap-4 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
                   <input
@@ -1171,9 +1081,9 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Plus className="text-emerald-600" size={18} />
-                  Connecter un Nouveau Fournisseur d'IA
+                  Ajouter un fournisseur au catalogue public
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Compatible OpenAI, Claude, DeepSeek, Qwen, Kimi, Grok, Replicate, Ollama, etc.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Cette fiche ne stocke qu’un nom, des modèles et une politique. Le secret doit être ajouté dans Netlify.</p>
               </div>
               <button onClick={() => setShowNewModal(false)} className="text-slate-400 hover:text-slate-700">
                 ✕
@@ -1217,15 +1127,8 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Clé API (Secret Key / Bearer Token)</label>
-                <input
-                  type="text"
-                  placeholder="sk-..."
-                  value={newProviderForm.apiKey}
-                  onChange={(e) => setNewProviderForm({ ...newProviderForm, apiKey: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-medium outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-[11px] text-blue-900">
+                <strong>Aucun secret n’est demandé ici.</strong> Après ajout, configurez la variable indiquée dans Netlify → Site configuration → Environment variables.
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1252,30 +1155,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">URL Endpoint API (si personnalisé ou relai)</label>
-                <input
-                  type="text"
-                  placeholder="https://api.votre-relais.com/v1/chat/completions"
-                  value={newProviderForm.endpointUrl}
-                  onChange={(e) => setNewProviderForm({ ...newProviderForm, endpointUrl: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono outline-none"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Score Qualité Initial (0-100)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={newProviderForm.qualityScore}
-                    onChange={(e) => setNewProviderForm({ ...newProviderForm, qualityScore: parseInt(e.target.value) || 85 })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none"
-                  />
-                </div>
-
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Rang dans la chaîne</label>
                   <input
@@ -1302,7 +1182,7 @@ export const AdminAIResilienceHub: React.FC<AdminAIResilienceHubProps> = ({
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 disabled:opacity-50"
               >
                 <Check size={14} />
-                Connecter et Intégrer à la Chaîne
+                Ajouter la préférence publique
               </button>
             </div>
           </div>

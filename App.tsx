@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/Layout';
@@ -28,18 +28,14 @@ import { GoogleDriveCenter } from './components/GoogleDriveCenter';
 import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
-import { AdminDashboard } from './components/AdminDashboard';
+import { AdminRoute } from './components/AdminRoute';
 import { AGENTS } from './constants';
 import { Agent, LiveStream } from './types';
-import { getSession, onAuthStateChange, signOut } from './services/auth';
-import { fetchUserProfile } from './services/profile';
+import './styles/accessibility.css';
 
 // Composant interne qui consomme le contexte
 const AppContent = () => {
-  const { userProfile, notifications, updateUserProfile, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
-  
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthChecking, setIsAuthChecking] = useState(true); 
+  const { userProfile, notifications, isAuthenticated, isAuthChecking, authError, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
   
   const [activeTab, setActiveTab] = useState('home'); 
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
@@ -49,62 +45,13 @@ const AppContent = () => {
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
 
-  // GESTION DE SESSION RÉSILIENTE (Supabase Cloud + Local-First Fallback)
-  useEffect(() => {
-      let isMounted = true;
-
-      const applySession = async (userId: string | undefined, isInitial: boolean) => {
-          if (!userId) {
-              if (isMounted) {
-                  setIsAuthenticated(false);
-                  if (isInitial) setIsAuthChecking(false);
-              }
-              return;
-          }
-
-          try {
-              const profile = await fetchUserProfile(userId);
-              if (!isMounted) return;
-              if (profile) {
-                  updateUserProfile(profile);
-                  setIsAuthenticated(true);
-                  if (!isInitial) {
-                      addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${profile.name.split(' ')[0] || 'Citoyen'}.`, "success");
-                  }
-              } else {
-                  setIsAuthenticated(true);
-              }
-          } catch (err) {
-              console.warn('Erreur résolution profil session:', err);
-              if (isMounted) setIsAuthenticated(true);
-          } finally {
-              if (isMounted && isInitial) {
-                  setIsAuthChecking(false);
-              }
-          }
-      };
-
-      getSession().then((session) => applySession(session?.user?.id, true));
-
-      const unsubscribe = onAuthStateChange((session) => {
-          applySession(session?.user?.id, false);
-      });
-
-      return () => {
-          isMounted = false;
-          unsubscribe();
-      };
-  }, []);
-
   // ACTIONS
   const handleLogout = async () => {
       try {
-          await signOut();
+          await logout();
       } catch (e) {
           console.error('Erreur déconnexion Supabase:', e);
       }
-      logout();
-      setIsAuthenticated(false);
       setActiveTab('home');
   };
 
@@ -128,11 +75,11 @@ const AppContent = () => {
 
   // Écran de chargement discret pendant la vérification de session
   if (isAuthChecking) {
-      return <div className="h-screen bg-slate-50 flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>;
+      return <div className="h-screen bg-slate-50 flex items-center justify-center" role="status" aria-live="polite"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true"></div><span className="sr-only">Vérification de votre session…</span></div>;
   }
 
   if (!isAuthenticated) {
-      return <Auth />;
+      return <Auth externalError={authError} />;
   }
 
   return (
@@ -146,6 +93,10 @@ const AppContent = () => {
     >
       
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} />}
+
+      {activeTab === 'admin' && (
+        <AdminRoute role={userProfile.role} onExit={() => setActiveTab('home')} />
+      )}
 
       {activeTab === 'google-maps' && <GoogleMapsExplorer />}
 
@@ -182,8 +133,6 @@ const AppContent = () => {
       {activeTab === 'legal' && <LegalCenter userProfile={userProfile} />}
 
       {activeTab === 'settings' && <Settings />}
-
-      {(activeTab === 'admin' || activeTab === 'super-admin' || activeTab === 'admin-dashboard') && <AdminDashboard />}
 
       {activeTab === 'languages' && <LanguageCenter userProfile={userProfile} />}
 

@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from './aiProxy';
 import { 
     DetectedObject, 
     MotionDetectionResult, 
@@ -232,7 +232,7 @@ export class MultimodalVisionService {
         this.lastAnalysisTime = Date.now();
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new AIProxyClient();
             const enrolledPersons = this.getEnrolledPersons();
             const enrolledNames = enrolledPersons.map(p => `${p.name} (${p.role}${p.isAuthorized ? ' - Autorisé' : ' - Non autorisé'})`).join(', ');
 

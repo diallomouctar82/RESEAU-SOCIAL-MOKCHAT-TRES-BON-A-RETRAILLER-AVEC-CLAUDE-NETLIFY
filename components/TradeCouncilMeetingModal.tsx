@@ -4,7 +4,7 @@ import {
   X, CheckCircle2, ShieldCheck, AlertTriangle, ArrowRight, RefreshCw, 
   MessageSquare, Download
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 
 interface TradeCouncilMeetingModalProps {
   isOpen: boolean;
@@ -40,7 +40,7 @@ export const TradeCouncilMeetingModal: React.FC<TradeCouncilMeetingModalProps> =
   const handleRunCouncil = async () => {
     setIsDeliberating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es le Secrétaire Général du Conseil Commercial International de Diallo OS pour la plateforme 'Le Monde à Vous'.
       L'utilisateur soumet l'opération commerciale suivante :
       "${topic}"

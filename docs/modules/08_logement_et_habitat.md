@@ -36,5 +36,6 @@
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Terminé** : Moteur de recherche d'annonces, simulateur de budget locatif, guides de droits locataires.
+- **Clôture du point partiel d'audit (août 2026)** : les fausses annonces et estimations d'aides ont été retirées. Les recherches, analyses anti-arnaque et lettres locataires sont persistées dans `module_records`; les aides renvoient vers une source officielle HTTPS configurable et aucune donnée financière absente n'est inventée.
 - **Partiel / En cours** : Générateur d'état des lieux numérique contradictoire avec photos horodatées.
 - **Évolutions Prévues** : Dépôt direct de dossier locataire certifié (*Garantie LMAV*).

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserShop, Product, ShopAIConfig, UserProfile } from '../types';
 import { Store, ShoppingBag, Bot, Settings, Plus, Sparkles, BarChart, Save, Trash2, Send, Wand2, ImageIcon, Loader2, LayoutDashboard } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { TradeBusinessOperatingSystem } from './TradeBusinessOperatingSystem';
 
 interface MyShopProps {
@@ -33,7 +33,7 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
   const generateShopInfo = async () => {
       setIsGeneratingShopInfo(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           const response = await ai.models.generateContent({
               model: 'gemini-2.5-flash',
               contents: `Génère un nom de boutique et une courte description (1 phrase) pour un entrepreneur numérique qui vend des services ou produits digitaux.
@@ -75,7 +75,7 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
     if (!newProduct.title) return;
     setIsGeneratingDesc(true);
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new AIProxyClient();
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: `Rédige une description produit vendeuse, courte et attractive pour : "${newProduct.title}". 
@@ -94,7 +94,7 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
       if (!newProduct.title) return;
       setIsGeneratingImage(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           const response = await ai.models.generateContent({
               model: 'gemini-3-pro-image-preview',
               contents: { parts: [{ text: `A professional, high quality product photo of: ${newProduct.title}. ${newProduct.category} style. Minimalist background.` }] },
@@ -105,8 +105,8 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
 
           let imageUrl = null;
           for (const part of response.candidates[0].content.parts) {
-              if (part.inlineData) {
-                  imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+              if (part.fileData?.fileUri) {
+                  imageUrl = part.fileData.fileUri;
                   break;
               }
           }
@@ -156,7 +156,7 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
       setIsSimLoading(true);
 
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new AIProxyClient();
           const systemPrompt = `Tu es ${shop.aiConfig.agentName}, vendeur pour "${shop.name}".
           Personnalité : ${shop.aiConfig.personality}. Stratégie : ${shop.aiConfig.salesStrategy}.
           Catalogue : ${shop.products.map(p => `${p.title} (${p.price}€)`).join(', ')}.

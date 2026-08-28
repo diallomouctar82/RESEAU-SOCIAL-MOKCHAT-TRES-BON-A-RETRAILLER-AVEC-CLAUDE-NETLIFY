@@ -115,7 +115,7 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
         headline: debrief.nextActionLabel,
         detailedReason: `Engagement pris lors de l'échange du ${debrief.date} : ${debrief.summary}`,
         recommendedDeadline: debrief.nextActionDueDate,
-        urgencyLevel: 'haute'
+        urgencyLevel: 'prioritaire'
       }
     };
 

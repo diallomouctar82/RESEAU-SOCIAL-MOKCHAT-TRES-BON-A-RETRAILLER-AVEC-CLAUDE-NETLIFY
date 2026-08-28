@@ -3,7 +3,7 @@ import {
   Pen, Square, Circle, Type, StickyNote, Eraser, Trash2, Download, 
   Sparkles, Undo, ArrowRight, Palette, Check, RefreshCw
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { LiveWhiteboardStroke } from '../types';
 
 interface LiveWhiteboardProps {
@@ -190,7 +190,7 @@ export const LiveWhiteboard: React.FC<LiveWhiteboardProps> = ({ onSaveToCampus }
     setIsAnalyzing(true);
     try {
       const noteTexts = notes.map(n => n.text).join(' | ');
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [{

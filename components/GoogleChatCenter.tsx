@@ -13,7 +13,7 @@ import {
     GoogleChatMessage,
     getAccessToken
 } from '../services/googleWorkspace';
-import { subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
+import { hasWorkspaceCapabilities, subscribeToWorkspaceToken } from '../services/googleWorkspaceLink';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 
 export const GoogleChatCenter: React.FC = () => {
@@ -39,7 +39,7 @@ export const GoogleChatCenter: React.FC = () => {
 
     useEffect(() => {
         const unsubscribe = subscribeToWorkspaceToken((t) => {
-            setToken(t);
+            setToken(t && hasWorkspaceCapabilities(['chat']) ? t : null);
         });
         return () => unsubscribe();
     }, []);
@@ -167,7 +167,7 @@ export const GoogleChatCenter: React.FC = () => {
             </div>
 
             {/* Google Workspace Banner */}
-            <GoogleWorkspaceBanner onAuthenticated={fetchSpaces} />
+            <GoogleWorkspaceBanner capabilities={['chat']} onAuthenticated={fetchSpaces} />
 
             {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">

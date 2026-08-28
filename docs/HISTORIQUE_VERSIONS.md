@@ -18,10 +18,23 @@
 | **v6.1** | 27 Août 2026 | **Socle Cloud Supabase Lazy-Init & Persistance Résiliente** | Auth, Supabase Client, Local-First, Zero White Screen | AI Coding Agent | Stable |
 | **v6.2** | 27 Août 2026 | **Architecture IA Auto-Résiliente (12 Fournisseurs) & Color Lab** | Super-Admin AI Hub, Failover, Auto-Quarantine, Color Lab | AI Coding Agent | Stable |
 | **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | **Courante (Active)** |
+| **v6.3.1** | 27 Août 2026 | **Socle Responsive & Accessibilité vérifiable** | Layout, Recherche, Mode guidé | Équipe Accessibilité | Validé, non déployé |
+| **v6.3.2** | 27 Août 2026 | **Réconciliation des contrats TypeScript ciblés** | Types, Carrière, Administration | Équipe Qualité | Validé, non déployé |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
+
+### [Version 6.3.2] — 27 Août 2026 (Contrats TypeScript ciblés)
+- **Objectif** : supprimer les diagnostics de la couche services sans masquer les erreurs ni élargir les fonctions non commencées.
+- **Réalisations** : imports de types transversaux explicites, variantes Stock/Business Match cohérentes, résultats Admin alignés sur leurs consommateurs, feedback Radar typé et frise Carrière unifiée avec le modèle réellement rendu.
+- **Preuves** : compilation isolée de `types.ts + services/*.ts` et des sous-ensembles Dossier/Carrière; build Vite; 46 tests Node et 9 tests Vitest réussis.
+- **Limite** : ce jalon ne revendique ni typecheck exhaustif des composants, ni E2E cloud, ni sauvegarde backend réelle.
+
+### [Version 6.3.1] — 27 Août 2026 (Responsive & accessibilité transverse)
+- **Objectif** : rendre le shell central, la recherche universelle et le mode guidé utilisables au clavier, aux lecteurs d’écran et sur écrans mobiles étroits, avec preuves reproductibles.
+- **Réalisations** : lien d’évitement, focus de route, noms/états ARIA, dialogues avec focus confiné et restauré, commande Échap, tiroir mobile hors tabulation lorsqu’il est fermé, grille 3/4 colonnes, cibles tactiles 44 px, pause du ticker et prise en compte de `prefers-reduced-motion`.
+- **Preuves** : build Vite vert ; 6 tests Vitest/Testing Library verts ; audits axe sans violation sur `GuidedModeModal` et `UniversalSearchModal` (contraste jsdom exclu et maintenu comme contrôle navigateur).
 
 ### [Version 6.3] — 27 Août 2026 (Sauvegarde, Versioning, Restauration Intelligente & Realtime RBAC)
 - **Objectif** : Mettre en place un système complet de sauvegarde, gestion des versions, comparaison et restauration intelligente sans perte de données dans l'espace Super Admin, avec synchronisation Realtime bidirectionnelle et diagnostic automatique des comptes.

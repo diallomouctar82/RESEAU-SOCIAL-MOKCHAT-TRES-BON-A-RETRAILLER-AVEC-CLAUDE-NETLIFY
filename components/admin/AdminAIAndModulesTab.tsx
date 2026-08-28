@@ -9,18 +9,23 @@ import {
 } from 'lucide-react';
 import { AIProviderConfig, PlatformModuleConfig } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
+import type { ServerProviderConfiguration } from '../../services/adminApi';
 import { AdminAIResilienceHub } from './AdminAIResilienceHub';
 
 interface AdminAIAndModulesTabProps {
   aiProviders: AIProviderConfig[];
+  serverProviders: ServerProviderConfiguration[];
   modules: PlatformModuleConfig[];
   onReload: () => void;
+  onRefreshServer: () => Promise<void>;
 }
 
 export const AdminAIAndModulesTab: React.FC<AdminAIAndModulesTabProps> = ({
   aiProviders,
+  serverProviders,
   modules,
-  onReload
+  onReload,
+  onRefreshServer
 }) => {
   const [subTab, setSubTab] = useState<'providers' | 'modules'>('providers');
   const [filterModuleCategory, setFilterModuleCategory] = useState<string>('all');
@@ -81,7 +86,9 @@ export const AdminAIAndModulesTab: React.FC<AdminAIAndModulesTabProps> = ({
       {subTab === 'providers' && (
         <AdminAIResilienceHub 
           providers={aiProviders}
+          serverProviders={serverProviders}
           onReload={onReload}
+          onRefreshServer={onRefreshServer}
         />
       )}
 

@@ -6,9 +6,9 @@ import {
   Maximize2, Minimize2, Eye
 } from 'lucide-react';
 import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSession } from '../types';
-import { MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE } from '../constants';
+import { USER_PROFILE } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
-import { adminConfigService } from '../services/adminConfigService';
+import { isUuid, mokChatService, newClientMessageId, type SendMessageInput } from '../services/mokChat';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { ChatReportModal } from './chat/ChatReportModal';
@@ -21,8 +21,23 @@ interface MoocChatFloatingProps {
   onOpenMemberProfile?: (member: MemberProfile) => void;
 }
 
-const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
-const STORAGE_KEY_BLOCKED_USERS = 'lmav_chat_blocked_users';
+const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache_v3';
+const createMediaPreview = (file: Blob): string => URL.createObjectURL(file);
+const revokeMediaPreview = (url?: string | null): void => {
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+};
+
+interface PendingAttachment {
+  file: File;
+  name: string;
+  size: string;
+  type: 'image' | 'video' | 'audio' | 'document';
+  previewUrl: string;
+}
+
+interface RetryPayload {
+  input: SendMessageInput;
+}
 
 export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   currentUser = USER_PROFILE,
@@ -31,13 +46,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   onOpenMemberProfile
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [conversations, setConversations] = useState<ChatConversation[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CONVERSATIONS);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return MOCK_CHATS;
-  });
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [members, setMembers] = useState<MemberProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [nextMessageCursor, setNextMessageCursor] = useState<string | null>(null);
+  const [showGroupCreator, setShowGroupCreator] = useState(false);
+  const [groupTitle, setGroupTitle] = useState('');
+  const [groupMemberIds, setGroupMemberIds] = useState<string[]>([]);
 
   const [currentChatId, setCurrentChatId] = useState<string | null>(activeConversationId || null);
   const [activeTab, setActiveTab] = useState<'all' | 'direct' | 'groups' | 'members'>('all');
@@ -48,7 +64,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   // Message input state
   const [inputText, setInputText] = useState('');
-  const [attachedFiles, setAttachedFiles] = useState<{ name: string; size: string; type: string; url: string }[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   
   // Voice Recording state
@@ -74,91 +90,129 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTargetMessage, setReportTargetMessage] = useState<ChatMessage | null>(null);
   const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
-  const [blockedUserIds, setBlockedUserIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BLOCKED_USERS);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   // Online presences mapped by user id
   const [onlinePresences, setOnlinePresences] = useState<Record<string, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const videoInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimeoutRef = useRef<any>(null);
+  const retryPayloadsRef = useRef<Map<string, RetryPayload>>(new Map());
+  const previewUrlsRef = useRef<Set<string>>(new Set());
+  const discardRecordingRef = useRef(false);
+
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach(revokeMediaPreview);
+    previewUrlsRef.current.clear();
+    audioPlayerRef.current?.pause();
+  }, []);
 
   // Synchronize localStorage cache
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_CONVERSATIONS, JSON.stringify(conversations));
+      if (currentUser.id) localStorage.setItem(`${STORAGE_KEY_CONVERSATIONS}:${currentUser.id}`, JSON.stringify(conversations));
     } catch {}
-  }, [conversations]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_BLOCKED_USERS, JSON.stringify(blockedUserIds));
-    } catch {}
-  }, [blockedUserIds]);
+  }, [conversations, currentUser.id]);
 
   // Open modal if external activeConversationId changed
   useEffect(() => {
-    if (activeConversationId) {
+    if (activeConversationId && isUuid(activeConversationId)) {
       setCurrentChatId(activeConversationId);
       setIsOpen(true);
+    } else if (activeConversationId) {
+      setLoadError('Cette conversation n’est plus valide. Ouvrez-la depuis votre liste synchronisée.');
     }
   }, [activeConversationId]);
 
-  // Load Real Supabase Conversations & Messages
+  // Chargement réel : le cache n'est qu'une vue hors-ligne, jamais une source mockée.
   useEffect(() => {
-    const loadSupabaseData = async () => {
-      if (!currentUser?.id) return;
-      try {
-        const remoteConvs = await supabaseService.getConversations(currentUser.id);
-        if (remoteConvs && remoteConvs.length > 0) {
-          // Merge with current state
-          setConversations(prev => {
-            const map = new Map<string, ChatConversation>();
-            prev.forEach(c => map.set(c.id, c));
-            remoteConvs.forEach((rc: any) => {
-              const otherId = rc.participant_one_id === currentUser.id ? rc.participant_two_id : rc.participant_one_id;
-              const existing = map.get(rc.id);
-              if (existing) {
-                map.set(rc.id, {
-                  ...existing,
-                  lastMessage: rc.last_message || existing.lastMessage,
-                  lastMessageTime: rc.last_message_time ? new Date(rc.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : existing.lastMessageTime
-                });
-              }
-            });
-            return Array.from(map.values());
-          });
+    if (!isUuid(currentUser?.id)) {
+      setConversations([]);
+      setMembers([]);
+      setLoadError('Une session Supabase authentifiée est requise pour utiliser MokChat.');
+      return;
+    }
+    let active = true;
+    try {
+      const cached = localStorage.getItem(`${STORAGE_KEY_CONVERSATIONS}:${currentUser.id}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setConversations(parsed.filter((conversation): conversation is ChatConversation =>
+            isUuid(conversation?.id) && isUuid(conversation?.participantId)
+          ));
         }
-      } catch (err) {
-        console.warn("Supabase fetch conversations fallback to local cache");
+      }
+    } catch {}
+
+    const load = async () => {
+      if (!supabaseService.isConfigured()) {
+        setLoadError('Connexion réseau requise pour synchroniser MokChat.');
+        return;
+      }
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const remoteConversations = await mokChatService.listConversations(currentUser.id);
+        if (!active) return;
+        setConversations(remoteConversations);
+
+        // Les fonctions annexes (annuaire, présence, blocage) sont chargées
+        // indépendamment : leur indisponibilité ne doit jamais casser le texte.
+        const [membersResult, blockedResult] = await Promise.allSettled([
+          mokChatService.searchMembers('', currentUser.id),
+          mokChatService.listBlockedUserIds(currentUser.id),
+        ]);
+        if (!active) return;
+        if (membersResult.status === 'fulfilled') setMembers(membersResult.value);
+        if (blockedResult.status === 'fulfilled') {
+          const blocked = blockedResult.value;
+          setBlockedUserIds(Array.from(blocked));
+          setConversations(previous => previous.map(conversation => ({
+            ...conversation,
+            isBlocked: !conversation.isGroup && blocked.has(conversation.participantId),
+          })));
+        }
+      } catch (error) {
+        if (active) setLoadError(error instanceof Error ? error.message : 'MokChat est temporairement indisponible.');
+      } finally {
+        if (active) setIsLoading(false);
       }
     };
-
-    loadSupabaseData();
+    void load();
+    return () => { active = false; };
   }, [currentUser?.id]);
 
-  // Subscribe to Realtime Presence
+  // Recherche serveur de l'annuaire, sans réintroduire les membres fictifs.
   useEffect(() => {
-    if (!currentUser?.id) return;
-    const unsubPresence = supabaseService.subscribeToPresence(
-      { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatar },
-      (state) => {
-        const presencesMap: Record<string, boolean> = {};
-        Object.keys(state).forEach(key => {
-          presencesMap[key] = true;
-        });
-        setOnlinePresences(presencesMap);
+    if (!isUuid(currentUser?.id) || activeTab !== 'members' || !supabaseService.isConfigured()) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        setMembers(await mokChatService.searchMembers(searchQuery, currentUser.id));
+        setLoadError(null);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : 'Recherche indisponible.');
       }
-    );
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, searchQuery, currentUser?.id]);
+
+  // Présence persistée et Realtime.
+  useEffect(() => {
+    if (!isUuid(currentUser?.id) || !supabaseService.isConfigured()) return;
+    const syncPresence = (status: 'online' | 'away' | 'offline') => {
+      void mokChatService.setPresence(currentUser.id, status).catch(() => undefined);
+    };
+    syncPresence(document.visibilityState === 'visible' ? 'online' : 'away');
+    const heartbeat = window.setInterval(() => {
+      syncPresence(document.visibilityState === 'visible' ? 'online' : 'away');
+    }, 45_000);
+    const handleVisibility = () => syncPresence(document.visibilityState === 'visible' ? 'online' : 'away');
+    document.addEventListener('visibilitychange', handleVisibility);
+    const unsubPresence = mokChatService.subscribeToPresence((userId, status) => {
+      setOnlinePresences(prev => ({ ...prev, [userId]: status === 'online' }));
+    });
 
     // Subscribe to Call Signals
     const unsubCalls = supabaseService.subscribeToCallSignals(currentUser.id, (signal) => {
@@ -172,7 +226,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           initiatorAvatar: signal.callerAvatar,
           receiverId: currentUser.id,
           receiverName: currentUser.name,
-          receiverAvatar: currentUser.avatar,
+          receiverAvatar: currentUser.avatarUrl,
           status: 'ringing',
           durationSeconds: 0
         });
@@ -187,84 +241,50 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     });
 
     return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      syncPresence('offline');
       unsubPresence();
       unsubCalls();
     };
-  }, [currentUser?.id, currentUser?.name, currentUser?.avatar]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.avatarUrl]);
 
-  // Subscribe to active conversation Realtime updates
+  // Historique paginé + mise à jour Realtime de la conversation active.
   useEffect(() => {
-    if (!currentChatId) return;
-
-    const unsubChat = supabaseService.subscribeToChat(currentChatId, {
-      onMessage: (newMsg) => {
-        // Convert supabase record to ChatMessage
-        const incoming: ChatMessage = {
-          id: newMsg.id || `msg-${Date.now()}`,
-          conversationId: currentChatId,
-          senderId: newMsg.sender_id,
-          senderName: newMsg.sender_name,
-          senderAvatar: newMsg.sender_avatar,
-          senderRole: newMsg.sender_role,
-          text: newMsg.text,
-          mediaType: newMsg.media_type || (newMsg.voice_url ? 'audio' : 'text'),
-          mediaUrl: newMsg.media_url || newMsg.voice_url,
-          fileName: newMsg.file_name,
-          fileSize: newMsg.file_size,
-          audioDuration: newMsg.voice_duration,
-          timestamp: newMsg.created_at ? new Date(newMsg.created_at) : new Date(),
-          isRead: newMsg.sender_id === currentUser.id,
-          status: 'read',
-          reactions: newMsg.reactions || {},
-          replyTo: newMsg.reply_to
-        };
-
-        setConversations(prev => prev.map(c => {
-          if (c.id === currentChatId) {
-            // Avoid duplicate
-            if (c.messages.some(m => m.id === incoming.id)) return c;
-            return {
-              ...c,
-              lastMessage: incoming.text || (incoming.mediaType === 'audio' ? '🎙️ Message vocal' : '📎 Document'),
-              lastMessageTime: 'À l\'instant',
-              messages: [...c.messages, incoming]
-            };
-          }
-          return c;
+    if (!isUuid(currentChatId) || !supabaseService.isConfigured()) return;
+    let active = true;
+    let refreshTimer: number | undefined;
+    const refresh = async () => {
+      try {
+        const page = await mokChatService.loadMessages(currentChatId);
+        if (!active) return;
+        setNextMessageCursor(page.nextCursor);
+        setConversations(prev => prev.map(conversation => {
+          if (conversation.id !== currentChatId) return conversation;
+          const unsynced = conversation.messages.filter(message => ['pending', 'sending', 'failed'].includes(message.status || ''));
+          const remoteClientIds = new Set(page.messages.map(message => message.clientId).filter(Boolean));
+          return { ...conversation, unreadCount: 0, messages: [...page.messages, ...unsynced.filter(message => !remoteClientIds.has(message.clientId))] };
         }));
-      },
-      onUpdate: (updatedMsg) => {
-        setConversations(prev => prev.map(c => {
-          if (c.id === currentChatId) {
-            return {
-              ...c,
-              messages: c.messages.map(m => m.id === updatedMsg.id ? {
-                ...m,
-                text: updatedMsg.text ?? m.text,
-                reactions: updatedMsg.reactions ?? m.reactions,
-                isPinned: updatedMsg.is_pinned ?? m.isPinned,
-                isEdited: updatedMsg.is_edited ?? m.isEdited
-              } : m)
-            };
-          }
-          return c;
-        }));
-      },
-      onDelete: (deletedMsgId) => {
-        setConversations(prev => prev.map(c => {
-          if (c.id === currentChatId) {
-            return {
-              ...c,
-              messages: c.messages.filter(m => m.id !== deletedMsgId)
-            };
-          }
-          return c;
-        }));
+        await mokChatService.markConversationRead(currentChatId);
+      } catch (error) {
+        if (active) setLoadError(error instanceof Error ? error.message : 'Historique indisponible.');
       }
+    };
+    void refresh();
+    const scheduleRefresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void refresh(), 120);
+    };
+    const unsubscribe = mokChatService.subscribeToConversation(currentChatId, {
+      onInsert: scheduleRefresh,
+      onUpdate: scheduleRefresh,
+      onDelete: scheduleRefresh,
+      onReaction: scheduleRefresh,
     });
-
     return () => {
-      unsubChat();
+      active = false;
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      unsubscribe();
     };
   }, [currentChatId, currentUser.id]);
 
@@ -279,11 +299,22 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const totalUnread = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
   const activeChat = conversations.find(c => c.id === currentChatId);
 
+  const handleLoadOlderMessages = async () => {
+    if (!currentChatId || !nextMessageCursor) return;
+    try {
+      const page = await mokChatService.loadMessages(currentChatId, nextMessageCursor);
+      setNextMessageCursor(page.nextCursor);
+      setConversations(prev => prev.map(conversation => conversation.id === currentChatId ? {
+        ...conversation,
+        messages: [...page.messages, ...conversation.messages.filter(existing => !page.messages.some(older => older.id === existing.id))],
+      } : conversation));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Impossible de charger les messages précédents.');
+    }
+  };
+
   // Filter conversations
   const filteredConversations = conversations.filter(c => {
-    const isBlocked = blockedUserIds.includes(c.participantId);
-    if (isBlocked && activeTab !== 'members') return false;
-
     const matchesSearch = c.participantName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
@@ -293,7 +324,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   });
 
   // Filter members directory
-  const filteredMembers = MOCK_MEMBERS.filter(m => 
+  const filteredMembers = members.filter(m =>
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.skills?.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -315,14 +346,15 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === 'string') {
-            setRecordedAudioUrl(reader.result);
-          }
-        };
-        reader.readAsDataURL(audioBlob);
+        if (discardRecordingRef.current) {
+          discardRecordingRef.current = false;
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        const audioUrl = createMediaPreview(audioBlob);
+        previewUrlsRef.current.add(audioUrl);
         setRecordedAudioBlob(audioBlob);
+        setRecordedAudioUrl(audioUrl);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -349,10 +381,15 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   const cancelVoiceRecording = () => {
     if (mediaRecorderRef.current && isRecordingVoice) {
+      discardRecordingRef.current = true;
       mediaRecorderRef.current.stop();
       setIsRecordingVoice(false);
       clearInterval(recordingTimerRef.current);
       setRecordedAudioBlob(null);
+      if (recordedAudioUrl) {
+        revokeMediaPreview(recordedAudioUrl);
+        previewUrlsRef.current.delete(recordedAudioUrl);
+      }
       setRecordedAudioUrl(null);
     }
   };
@@ -394,194 +431,147 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    const file = files.item(0);
+    if (!file) return;
+    const isImg = file.type.startsWith('image/');
+    const isVid = file.type.startsWith('video/');
+    const isAud = file.type.startsWith('audio/');
 
-    Array.from(files).forEach(file => {
-      const isImg = file.type.startsWith('image/');
-      const isVid = file.type.startsWith('video/');
-      const isAud = file.type.startsWith('audio/');
-      
-      const fileType = isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'document';
-      const sizeStr = file.size > 1024 * 1024 
-        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
-        : `${(file.size / 1024).toFixed(0)} KB`;
+    const fileType = isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'document';
+    const previewUrl = createMediaPreview(file);
+    previewUrlsRef.current.add(previewUrl);
+    const sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setAttachedFiles(prev => [...prev, {
-            name: file.name,
-            size: sizeStr,
-            type: fileType,
-            url: reader.result as string
-          }]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Reset input so re-selecting same file works
+    setAttachedFiles(prev => [...prev, {
+      name: file.name,
+      size: sizeStr,
+      type: fileType,
+      file,
+      previewUrl,
+    }]);
     e.target.value = '';
+  };
+
+  const updateOptimisticMessage = (temporaryId: string, updates: Partial<ChatMessage>, conversationId = currentChatId) => {
+    setConversations(prev => prev.map(conversation => conversation.id === conversationId ? {
+      ...conversation,
+      messages: conversation.messages.map(message => message.id === temporaryId ? { ...message, ...updates } : message),
+    } : conversation));
+  };
+
+  const transmitMessage = async (temporaryId: string, payload: RetryPayload) => {
+    updateOptimisticMessage(temporaryId, { status: 'sending' }, payload.input.conversationId);
+    try {
+      const saved = await mokChatService.sendMessage(payload.input);
+      setConversations(prev => prev.map(conversation => conversation.id === payload.input.conversationId ? {
+        ...conversation,
+        messages: conversation.messages.map(message => message.id === temporaryId ? {
+          ...message,
+          ...saved,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatarUrl,
+          senderRole: currentUser.role,
+          status: 'sent',
+        } : message),
+      } : conversation));
+      const previousUrl = conversations.flatMap(conversation => conversation.messages).find(message => message.id === temporaryId)?.mediaUrl;
+      if (previousUrl?.startsWith('blob:')) {
+        revokeMediaPreview(previousUrl);
+        previewUrlsRef.current.delete(previousUrl);
+      }
+      retryPayloadsRef.current.delete(temporaryId);
+      setLoadError(null);
+    } catch (error) {
+      retryPayloadsRef.current.set(temporaryId, payload);
+      updateOptimisticMessage(temporaryId, { status: 'failed' }, payload.input.conversationId);
+      setLoadError(error instanceof Error ? error.message : 'Échec de l’envoi. Réessayez.');
+    }
   };
 
   // --- Send Message ---
   const handleSendMessage = async () => {
-    if (!currentChatId || (!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob)) return;
+    if (!currentChatId) return;
+    if (activeChat?.isBlocked || blockedUserIds.includes(activeChat?.participantId || '')) {
+      setLoadError('Débloquez ce membre avant d’envoyer un message.');
+      return;
+    }
+    if (!inputText.trim()) {
+      if (attachedFiles.length > 0 || recordedAudioBlob) {
+        setLoadError('Les pièces jointes et messages vocaux ne sont pas activés dans ce lot. Ajoutez du texte pour envoyer le message.');
+      }
+      return;
+    }
 
+    const clientId = newClientMessageId();
+    const messageId = `pending-${clientId}`;
     const now = new Date();
-    const currentReplyTo = replyingTo;
-    const filesToSend = [...attachedFiles];
-    const textToSend = inputText.trim();
-    const currentAudioBlob = recordedAudioBlob;
-    const currentAudioUrl = recordedAudioUrl;
-    const currentAudioDuration = recordingDuration || 5;
 
-    // Reset inputs immediately for responsive UX
+    const newMessage: ChatMessage = {
+      id: messageId,
+      clientId,
+      conversationId: currentChatId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatarUrl,
+      senderRole: currentUser.role || 'citizen',
+      text: inputText.trim() || undefined,
+      mediaType: 'text',
+      timestamp: now,
+      isRead: true,
+      status: 'pending',
+      replyTo: replyingTo ? {
+        id: replyingTo.id,
+        text: replyingTo.text,
+        senderName: replyingTo.senderName,
+        mediaType: replyingTo.mediaType
+      } : undefined
+    };
+
+    // Optimistic Update
+    setConversations(prev => prev.map(c => {
+      if (c.id === currentChatId) {
+        return {
+          ...c,
+          lastMessage: newMessage.text || 'Nouveau message',
+          lastMessageTime: 'À l\'instant',
+          messages: [...c.messages, newMessage]
+        };
+      }
+      return c;
+    }));
+
+    const payload: RetryPayload = {
+      input: {
+        conversationId: currentChatId,
+        senderId: currentUser.id,
+        clientId,
+        content: newMessage.text,
+        replyToId: replyingTo?.id,
+      },
+    };
+    retryPayloadsRef.current.set(messageId, payload);
+
+    // Les aperçus locaux ne sont jamais persistés ni envoyés dans ce lot.
+    attachedFiles.forEach(file => {
+      revokeMediaPreview(file.previewUrl);
+      previewUrlsRef.current.delete(file.previewUrl);
+    });
+    if (recordedAudioUrl) {
+      revokeMediaPreview(recordedAudioUrl);
+      previewUrlsRef.current.delete(recordedAudioUrl);
+    }
     setInputText('');
     setAttachedFiles([]);
     setRecordedAudioBlob(null);
     setRecordedAudioUrl(null);
     setReplyingTo(null);
 
-    const newMessagesList: ChatMessage[] = [];
+    await transmitMessage(messageId, payload);
+  };
 
-    if (currentAudioBlob && currentAudioUrl) {
-      // Audio Voice message
-      const audioMsgId = `msg-${Date.now()}`;
-      const audioMsg: ChatMessage = {
-        id: audioMsgId,
-        conversationId: currentChatId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
-        senderRole: currentUser.role || 'citizen',
-        text: textToSend || undefined,
-        mediaType: 'audio',
-        mediaUrl: currentAudioUrl,
-        audioDuration: currentAudioDuration,
-        timestamp: now,
-        isRead: true,
-        status: 'sent',
-        replyTo: currentReplyTo ? {
-          id: currentReplyTo.id,
-          text: currentReplyTo.text,
-          senderName: currentReplyTo.senderName,
-          mediaType: currentReplyTo.mediaType
-        } : undefined
-      };
-      newMessagesList.push(audioMsg);
-    } else if (filesToSend.length > 0) {
-      // Primary attached file (with optional text)
-      const primaryFile = filesToSend[0];
-      const primaryMsgId = `msg-${Date.now()}`;
-      const primaryMsg: ChatMessage = {
-        id: primaryMsgId,
-        conversationId: currentChatId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
-        senderRole: currentUser.role || 'citizen',
-        text: textToSend || undefined,
-        mediaType: primaryFile.type as any,
-        mediaUrl: primaryFile.url,
-        fileName: primaryFile.name,
-        fileSize: primaryFile.size,
-        timestamp: now,
-        isRead: true,
-        status: 'sent',
-        replyTo: currentReplyTo ? {
-          id: currentReplyTo.id,
-          text: currentReplyTo.text,
-          senderName: currentReplyTo.senderName,
-          mediaType: currentReplyTo.mediaType
-        } : undefined
-      };
-      newMessagesList.push(primaryMsg);
-
-      // Additional files as sequential messages
-      for (let i = 1; i < filesToSend.length; i++) {
-        const extraFile = filesToSend[i];
-        const extraMsgId = `msg-${Date.now()}-${i}`;
-        const extraMsg: ChatMessage = {
-          id: extraMsgId,
-          conversationId: currentChatId,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          senderAvatar: currentUser.avatar,
-          senderRole: currentUser.role || 'citizen',
-          text: undefined,
-          mediaType: extraFile.type as any,
-          mediaUrl: extraFile.url,
-          fileName: extraFile.name,
-          fileSize: extraFile.size,
-          timestamp: new Date(Date.now() + i * 50),
-          isRead: true,
-          status: 'sent'
-        };
-        newMessagesList.push(extraMsg);
-      }
-    } else if (textToSend) {
-      // Standard text message
-      const textMsgId = `msg-${Date.now()}`;
-      const textMsg: ChatMessage = {
-        id: textMsgId,
-        conversationId: currentChatId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
-        senderRole: currentUser.role || 'citizen',
-        text: textToSend,
-        mediaType: 'text',
-        timestamp: now,
-        isRead: true,
-        status: 'sent',
-        replyTo: currentReplyTo ? {
-          id: currentReplyTo.id,
-          text: currentReplyTo.text,
-          senderName: currentReplyTo.senderName,
-          mediaType: currentReplyTo.mediaType
-        } : undefined
-      };
-      newMessagesList.push(textMsg);
-    }
-
-    if (newMessagesList.length === 0) return;
-
-    // Optimistic UI Update
-    const lastMsg = newMessagesList[newMessagesList.length - 1];
-    setConversations(prev => prev.map(c => {
-      if (c.id === currentChatId) {
-        return {
-          ...c,
-          lastMessage: lastMsg.text || (lastMsg.mediaType === 'audio' ? '🎙️ Message vocal' : lastMsg.mediaType === 'image' ? '📷 Photo' : lastMsg.mediaType === 'video' ? '🎥 Vidéo' : '📎 Fichier partagé'),
-          lastMessageTime: 'À l\'instant',
-          messages: [...c.messages, ...newMessagesList]
-        };
-      }
-      return c;
-    }));
-
-    // Send each message to Supabase
-    for (const msg of newMessagesList) {
-      supabaseService.sendMessage({
-        id: msg.id,
-        conversation_id: currentChatId,
-        sender_id: currentUser.id,
-        sender_name: currentUser.name,
-        sender_avatar: currentUser.avatar,
-        sender_role: currentUser.role || 'citizen',
-        text: msg.text,
-        media_type: msg.mediaType,
-        media_url: msg.mediaUrl,
-        file_name: msg.fileName,
-        file_size: msg.fileSize,
-        voice_url: msg.mediaType === 'audio' ? msg.mediaUrl : undefined,
-        voice_duration: msg.audioDuration,
-        status: 'sent',
-        reply_to: msg.replyTo
-      }).catch((err) => {
-        console.warn('Erreur envoi message Supabase (sauvegardé en local):', err);
-      });
-    }
+  const handleRetryMessage = (messageId: string) => {
+    const payload = retryPayloadsRef.current.get(messageId);
+    if (payload) void transmitMessage(messageId, payload);
   };
 
   // --- Reactions Handler ---
@@ -603,8 +593,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
               reactions[emoji] = [...users, currentUser.id];
             }
 
-            // Sync with Supabase
-            supabaseService.updateChatMessage(messageId, { reactions }).catch(() => {});
+            void mokChatService.toggleReaction(messageId, currentUser.id, emoji, userIdx === -1).catch((error) => {
+              setLoadError(error instanceof Error ? error.message : 'Réaction non synchronisée.');
+            });
 
             return { ...m, reactions };
           }
@@ -627,7 +618,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       type,
       initiatorId: currentUser.id,
       initiatorName: currentUser.name,
-      initiatorAvatar: currentUser.avatar,
+      initiatorAvatar: currentUser.avatarUrl,
       receiverId: activeChat.participantId,
       receiverName: activeChat.participantName,
       receiverAvatar: activeChat.participantAvatar,
@@ -646,7 +637,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       callType: type,
       callerId: currentUser.id,
       callerName: currentUser.name,
-      callerAvatar: currentUser.avatar
+      callerAvatar: currentUser.avatarUrl
     });
 
     // Auto-connect after 2.5s for seamless interactive experience
@@ -656,51 +647,94 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   };
 
   // --- Block / Unblock User ---
-  const handleToggleBlockUser = (userId: string) => {
-    if (blockedUserIds.includes(userId)) {
-      setBlockedUserIds(prev => prev.filter(id => id !== userId));
-    } else {
-      setBlockedUserIds(prev => [...prev, userId]);
-      // Close current chat if blocked
-      if (activeChat?.participantId === userId) {
-        setCurrentChatId(null);
+  const handleToggleBlockUser = async (userId: string) => {
+    const shouldBlock = !blockedUserIds.includes(userId);
+    const previous = blockedUserIds;
+    setBlockedUserIds(prev => shouldBlock ? [...prev, userId] : prev.filter(id => id !== userId));
+    setConversations(prev => prev.map(conversation => conversation.participantId === userId ? { ...conversation, isBlocked: shouldBlock } : conversation));
+    try {
+      await mokChatService.setBlocked(currentUser.id, userId, shouldBlock);
+      if (shouldBlock) {
+        setMembers(prev => prev.filter(member => member.id !== userId));
+      } else {
+        setMembers(await mokChatService.searchMembers(searchQuery, currentUser.id));
       }
+    } catch (error) {
+      setBlockedUserIds(previous);
+      setConversations(prev => prev.map(conversation => conversation.participantId === userId ? { ...conversation, isBlocked: !shouldBlock } : conversation));
+      setLoadError(error instanceof Error ? error.message : 'Blocage non synchronisé.');
     }
   };
 
   // --- Start Chat with a Directory Member ---
-  const handleStartDirectChat = (member: MemberProfile) => {
+  const handleStartDirectChat = async (member: MemberProfile) => {
     const existing = conversations.find(c => c.participantId === member.id);
     if (existing) {
       setCurrentChatId(existing.id);
       setActiveTab('all');
     } else {
-      const newConv: ChatConversation = {
-        id: `chat-${member.id}`,
-        participantId: member.id,
-        participantName: member.name,
-        participantAvatar: member.avatar,
-        participantTitle: member.title,
-        participantCountry: member.country,
-        lastMessage: 'Conversation sécurisée initialisée',
-        lastMessageTime: 'À l\'instant',
+      setIsLoading(true);
+      try {
+        const conversationId = await mokChatService.createConversation(currentUser.id, [member.id]);
+        const newConversation: ChatConversation = {
+          id: conversationId,
+          participantId: member.id,
+          participantName: member.name,
+          participantAvatar: member.avatarUrl,
+          participantTitle: member.title,
+          participantCountry: member.country,
+          lastMessage: 'Nouvelle conversation',
+          lastMessageTime: new Date().toISOString(),
+          unreadCount: 0,
+          isOnline: Boolean(member.isOnline),
+          messages: [],
+        };
+        setConversations(prev => prev.some(conversation => conversation.id === conversationId) ? prev : [newConversation, ...prev]);
+        setCurrentChatId(conversationId);
+        setActiveTab('all');
+        setLoadError(null);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : 'Impossible de créer la conversation.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!groupTitle.trim() || groupMemberIds.length < 2) {
+      setLoadError('Donnez un nom au groupe et sélectionnez au moins deux membres.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const conversationId = await mokChatService.createConversation(currentUser.id, groupMemberIds, groupTitle);
+      const selectedMembers = members.filter(member => groupMemberIds.includes(member.id));
+      const conversation: ChatConversation = {
+        id: conversationId,
+        participantId: selectedMembers[0]?.id || currentUser.id,
+        participantName: groupTitle.trim(),
+        participantAvatar: selectedMembers[0]?.avatarUrl || currentUser.avatarUrl,
+        participantTitle: `${selectedMembers.length + 1} membres`,
+        isGroup: true,
+        groupMembersCount: selectedMembers.length + 1,
+        groupMembers: selectedMembers.map(member => ({ id: member.id, name: member.name, avatar: member.avatarUrl })),
+        lastMessage: 'Groupe créé',
+        lastMessageTime: new Date().toISOString(),
         unreadCount: 0,
-        isOnline: true,
-        messages: [
-          {
-            id: `msg-welcome-${Date.now()}`,
-            senderId: member.id,
-            senderName: member.name,
-            senderAvatar: member.avatar,
-            text: `Bonjour ${currentUser.name} ! Ravi d'échanger avec vous sur le réseau d'élite Le Monde à Vous. Comment puis-je vous aider ?`,
-            timestamp: new Date(),
-            isRead: true
-          }
-        ]
+        isOnline: false,
+        messages: [],
       };
-      setConversations(prev => [newConv, ...prev]);
-      setCurrentChatId(newConv.id);
-      setActiveTab('all');
+      setConversations(prev => [conversation, ...prev]);
+      setCurrentChatId(conversationId);
+      setShowGroupCreator(false);
+      setGroupMemberIds([]);
+      setGroupTitle('');
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Impossible de créer le groupe.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -772,7 +806,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       <Shield size={12} className="text-blue-400" />
                     </div>
                     <div className="text-[10px] text-slate-300 truncate">
-                      {activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'En ligne' : (activeChat.participantTitle || 'Membre vérifié')}
+                      {activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'En ligne' : (activeChat.participantTitle || 'Membre Mok')}
                     </div>
                   </div>
                 </div>
@@ -818,7 +852,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         Realtime
                       </span>
                     </h3>
-                    <p className="text-[10px] text-slate-400">Échanges chiffrés de bout-en-bout</p>
+                    <p className="text-[10px] text-slate-400">Accès privé contrôlé par votre session</p>
                   </div>
                 </div>
 
@@ -875,16 +909,75 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       onClick={() => setActiveTab('members')}
                       className={`flex-1 py-1.5 rounded-lg transition-all ${activeTab === 'members' ? 'bg-white text-indigo-700 shadow-xs' : 'hover:text-slate-900'}`}
                     >
-                      Annuaire ({MOCK_MEMBERS.length})
+                      Annuaire ({members.length})
                     </button>
                   </div>
+
+                  {loadError && (
+                    <div role="alert" className="flex items-start justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                      <span>{loadError}</span>
+                      <button type="button" aria-label="Fermer l’alerte" onClick={() => setLoadError(null)}><X size={13} /></button>
+                    </div>
+                  )}
+
+                  {activeTab === 'groups' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowGroupCreator(value => !value)}
+                      className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                    >
+                      {showGroupCreator ? 'Fermer la création' : 'Créer un groupe'}
+                    </button>
+                  )}
+
+                  {activeTab === 'groups' && showGroupCreator && (
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
+                      <label className="block text-[11px] font-bold text-slate-700">
+                        Nom du groupe
+                        <input
+                          value={groupTitle}
+                          onChange={(event) => setGroupTitle(event.target.value)}
+                          maxLength={80}
+                          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </label>
+                      <fieldset className="max-h-28 overflow-y-auto" aria-label="Membres du groupe">
+                        {members.map(member => (
+                          <label key={member.id} className="flex items-center gap-2 py-1 text-[11px] text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={groupMemberIds.includes(member.id)}
+                              onChange={() => setGroupMemberIds(prev => prev.includes(member.id) ? prev.filter(id => id !== member.id) : [...prev, member.id])}
+                            />
+                            <span>{member.name}</span>
+                          </label>
+                        ))}
+                      </fieldset>
+                      <button
+                        type="button"
+                        disabled={isLoading || !groupTitle.trim() || groupMemberIds.length < 2}
+                        onClick={() => void handleCreateGroup()}
+                        className="w-full rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                      >
+                        Créer avec {groupMemberIds.length} membres
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* List Items */}
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                   {activeTab === 'members' ? (
                     /* Member Directory List */
-                    filteredMembers.map(member => (
+                    isLoading ? (
+                      <div role="status" className="p-8 text-center text-xs text-slate-500">Chargement de l’annuaire…</div>
+                    ) : filteredMembers.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 space-y-2">
+                        <Users size={32} className="mx-auto text-slate-300" />
+                        <p className="text-xs font-bold">Aucun membre visible</p>
+                        <p className="text-[11px] text-slate-400">Essayez une autre recherche ou vérifiez votre connexion.</p>
+                      </div>
+                    ) : filteredMembers.map(member => (
                       <div
                         key={member.id}
                         onClick={() => handleStartDirectChat(member)}
@@ -892,7 +985,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="relative">
-                            <img src={member.avatar} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200" />
+                            <img src={member.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200" />
                             {member.isOnline && (
                               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
                             )}
@@ -900,7 +993,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                           <div className="min-w-0">
                             <div className="font-extrabold text-xs text-slate-900 truncate flex items-center gap-1.5">
                               <span>{member.name}</span>
-                              <Shield size={12} className="text-blue-600" />
+                              {member.isVerified && <Shield size={12} className="text-blue-600" aria-label="Profil vérifié" />}
                             </div>
                             <div className="text-[10px] text-slate-500 truncate">{member.title}</div>
                             <div className="text-[9px] text-indigo-600 font-semibold">{member.country}</div>
@@ -933,7 +1026,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="relative">
-                              <img src={conv.participantAvatar} className="w-11 h-11 rounded-full object-cover ring-2 ring-slate-100" />
+                              <img src={conv.participantAvatar} alt="" className="w-11 h-11 rounded-full object-cover ring-2 ring-slate-100" />
                               {(conv.isOnline || onlinePresences[conv.participantId]) && (
                                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></span>
                               )}
@@ -948,7 +1041,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                                 </span>
                               </div>
                               <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                {conv.lastMessage}
+                                {conv.isBlocked ? 'Membre bloqué — ouvrez les informations pour débloquer' : conv.lastMessage}
                               </p>
                             </div>
                           </div>
@@ -971,11 +1064,21 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 
                 {/* Messages Stream */}
                 <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2">
+
+                  {nextMessageCursor && (
+                    <button
+                      type="button"
+                      onClick={() => void handleLoadOlderMessages()}
+                      className="mx-auto block rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                    >
+                      Charger les messages précédents
+                    </button>
+                  )}
                   
-                  {/* Encryption Notice Banner */}
+                  {/* Access control notice */}
                   <div className="py-2 px-3 bg-indigo-50/70 border border-indigo-100/80 rounded-2xl text-center text-[10px] text-indigo-900 font-medium flex items-center justify-center gap-1.5 shadow-2xs">
                     <Shield size={13} className="text-indigo-600 flex-shrink-0" />
-                    <span>Les messages et appels sont chiffrés de bout-en-bout. Personne d'autre ne peut les lire.</span>
+                    <span>Conversation privée protégée par authentification et règles d’accès Supabase.</span>
                   </div>
 
                   {activeChat.messages.map(msg => (
@@ -992,12 +1095,24 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         setShowReportModal(true);
                       }}
                       onDelete={(msgId) => {
-                        setConversations(prev => prev.map(c => c.id === currentChatId ? {
-                          ...c,
-                          messages: c.messages.filter(m => m.id !== msgId)
-                        } : c));
-                        supabaseService.deleteChatMessage(msgId).catch(() => {});
+                        void mokChatService.deleteMessage(msgId).then(() => {
+                          setConversations(prev => prev.map(c => c.id === currentChatId ? {
+                            ...c,
+                            messages: c.messages.filter(m => m.id !== msgId)
+                          } : c));
+                        }).catch((error) => setLoadError(error instanceof Error ? error.message : 'Suppression impossible.'));
                       }}
+                      onPin={(msgId) => {
+                        const target = activeChat.messages.find(message => message.id === msgId);
+                        if (!target) return;
+                        const nextPinned = !target.isPinned;
+                        updateOptimisticMessage(msgId, { isPinned: nextPinned }, activeChat.id);
+                        void mokChatService.setPinned(msgId, nextPinned).catch((error) => {
+                          updateOptimisticMessage(msgId, { isPinned: target.isPinned }, activeChat.id);
+                          setLoadError(error instanceof Error ? error.message : 'Épinglage impossible.');
+                        });
+                      }}
+                      onRetry={handleRetryMessage}
                       playingAudioId={playingAudioId}
                       onToggleAudio={togglePlayAudio}
                       audioProgress={audioProgress}
@@ -1029,7 +1144,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         <FileText size={14} className="text-indigo-600" />
                         <span className="font-bold text-slate-800 truncate max-w-[120px]">{file.name}</span>
                         <button 
-                          onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                          onClick={() => {
+                            revokeMediaPreview(file.previewUrl);
+                            previewUrlsRef.current.delete(file.previewUrl);
+                            setAttachedFiles(prev => prev.filter((_, i) => i !== idx));
+                          }}
                           className="text-slate-400 hover:text-rose-600"
                         >
                           <X size={13} />
@@ -1071,7 +1190,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       <span>Message vocal prêt ({recordingDuration}s)</span>
                     </div>
                     <button
-                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); }}
+                      onClick={() => {
+                        revokeMediaPreview(recordedAudioUrl);
+                        previewUrlsRef.current.delete(recordedAudioUrl);
+                        setRecordedAudioBlob(null);
+                        setRecordedAudioUrl(null);
+                      }}
                       className="p-1 hover:bg-indigo-100 text-slate-500 rounded-full"
                     >
                       <X size={14} />
@@ -1080,58 +1204,21 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 )}
 
                 {/* Input Bar */}
-                <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-1.5 sm:gap-2">
+                <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
                   
-                  {/* Image Attachment Button */}
-                  <button
-                    type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors"
-                    title="Envoyer une photo / image"
-                  >
-                    <Image size={18} />
-                  </button>
-                  <input
-                    ref={imageInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-
-                  {/* Video Attachment Button */}
-                  <button
-                    type="button"
-                    onClick={() => videoInputRef.current?.click()}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors"
-                    title="Envoyer une vidéo"
-                  >
-                    <Video size={18} />
-                  </button>
-                  <input
-                    ref={videoInputRef}
-                    type="file"
-                    multiple
-                    accept="video/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-
-                  {/* Document & File Attachment Button */}
+                  {/* File Attachment Button */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors"
-                    title="Ajouter un document ou fichier (.pdf, .doc, .zip)"
+                    className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-2xl transition-colors"
+                    title="Ajouter un fichier, une photo ou une vidéo"
                   >
                     <Paperclip size={18} />
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    multiple
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.xls,.xlsx,.ppt,.pptx"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -1149,7 +1236,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     }}
                     placeholder={isRecordingVoice ? 'Enregistrement en cours...' : 'Écrivez un message sécurisé...'}
                     disabled={isRecordingVoice}
-                    className="flex-1 px-3.5 py-2.5 bg-slate-100 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 min-w-0"
+                    className="flex-1 px-4 py-2.5 bg-slate-100 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
                   />
 
                   {/* Voice Record Button or Send Button */}
@@ -1226,7 +1313,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         <ChatMemberInfoModal
           isOpen={showMemberInfo}
           onClose={() => setShowMemberInfo(false)}
-          conversation={activeChat}
+          conversation={{ ...activeChat, isBlocked: blockedUserIds.includes(activeChat.participantId) }}
           onStartCall={(type) => {
             setShowMemberInfo(false);
             handleStartCall(type);
@@ -1241,7 +1328,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
             setShowReportModal(true);
           }}
           onViewFullProfile={onOpenMemberProfile ? () => {
-            const mem = MOCK_MEMBERS.find(m => m.id === activeChat.participantId);
+            const mem = members.find(m => m.id === activeChat.participantId);
             if (mem && onOpenMemberProfile) onOpenMemberProfile(mem);
           } : undefined}
         />
@@ -1258,7 +1345,6 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           targetMessage={reportTargetMessage}
           conversation={activeChat}
           currentUserId={currentUser.id}
-          currentUserName={currentUser.name}
           onBlockUser={(uid) => handleToggleBlockUser(uid)}
         />
       )}

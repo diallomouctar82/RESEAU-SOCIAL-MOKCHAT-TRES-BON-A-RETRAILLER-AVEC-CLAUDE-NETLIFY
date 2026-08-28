@@ -1,5 +1,12 @@
 
-import { createClient, type Session, type User, type RealtimeChannel } from '@supabase/supabase-js';
+import {
+    createClient,
+    type AuthChangeEvent,
+    type Session,
+    type SupabaseClient,
+    type User,
+} from '@supabase/supabase-js';
+import type { Database } from './database.types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -19,11 +26,37 @@ if (!isSupabaseConfigured) {
     );
 }
 
-// createClient() avec fallback résilient pour empêcher tout écran blanc
-export const supabase = createClient(
-    supabaseUrl && supabaseUrl.startsWith('http') ? supabaseUrl : 'https://placeholder.supabase.co',
-    supabaseAnonKey || 'placeholder-anon-key'
-);
+let supabaseClient: SupabaseClient<Database> | null = null;
+
+/** Lazy singleton: importing a module never opens a network connection. */
+export const getSupabaseClient = (): SupabaseClient<Database> => {
+    if (!supabaseClient) {
+        supabaseClient = createClient<Database>(
+            supabaseUrl && supabaseUrl.startsWith('http') ? supabaseUrl : 'https://placeholder.supabase.co',
+            supabaseAnonKey || 'placeholder-anon-key',
+            {
+                auth: {
+                    flowType: 'pkce',
+                    // Le callback PKCE est échangé explicitement par
+                    // completeOAuthCallback(), ce qui évite une course entre
+                    // l'auto-détection et le listener de session React.
+                    detectSessionInUrl: false,
+                    persistSession: true,
+                    autoRefreshToken: true,
+                },
+            },
+        );
+    }
+    return supabaseClient;
+};
+
+// Compatibility export for the focused domain services. createClient itself
+// performs no request; network access still starts only when a service queries.
+export const supabase = getSupabaseClient();
+
+export const isUuid = (value: unknown): value is string =>
+    typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 export interface SupabaseUserProfile {
     id: string;
@@ -31,7 +64,7 @@ export interface SupabaseUserProfile {
     name: string;
     title?: string;
     bio?: string;
-    role: 'citizen' | 'admin' | 'super_admin' | 'expert';
+    role: 'user' | 'admin' | 'super_admin' | 'expert' | 'mentor' | 'moderator' | 'organization';
     country?: string;
     city?: string;
     citizenship_id?: string;
@@ -47,7 +80,40 @@ export interface SupabaseUserProfile {
     skills?: any[];
     badges?: any[];
     interests?: string[];
+    privacy_settings?: Record<string, unknown>;
+    created_at?: string;
 }
+
+export type PublicSupabaseProfile = Pick<
+    SupabaseUserProfile,
+    'id' | 'name' | 'title' | 'avatar_url' | 'country' | 'city' | 'is_verified' | 'followers_count' | 'following_count'
+>;
+
+export interface EditableProfileChanges {
+    name?: string;
+    title?: string;
+    bio?: string;
+    country?: string;
+    city?: string;
+    phone?: string;
+    website?: string;
+    avatar_url?: string;
+    preferred_language?: string;
+    interests?: string[];
+    privacy_settings?: Record<string, unknown>;
+}
+
+const toEditableProfileChanges = (profile: Partial<SupabaseUserProfile>): EditableProfileChanges => ({
+    ...(profile.name !== undefined ? { name: profile.name } : {}),
+    ...(profile.title !== undefined ? { title: profile.title } : {}),
+    ...(profile.bio !== undefined ? { bio: profile.bio } : {}),
+    ...(profile.country !== undefined ? { country: profile.country } : {}),
+    ...(profile.city !== undefined ? { city: profile.city } : {}),
+    ...(profile.phone !== undefined ? { phone: profile.phone } : {}),
+    ...(profile.website !== undefined ? { website: profile.website } : {}),
+    ...(profile.avatar_url !== undefined ? { avatar_url: profile.avatar_url } : {}),
+    ...(profile.interests !== undefined ? { interests: profile.interests } : {}),
+});
 
 export class SupabaseService {
     public isConfigured(): boolean {
@@ -57,7 +123,7 @@ export class SupabaseService {
     public async getCurrentUser(): Promise<User | null> {
         if (!this.isConfigured()) return null;
         try {
-            const { data: { user }, error } = await supabase.auth.getUser();
+            const { data: { user }, error } = await getSupabaseClient().auth.getUser();
             if (error || !user) return null;
             return user;
         } catch (err) {
@@ -67,10 +133,9 @@ export class SupabaseService {
     }
 
     public async getProfile(userId: string): Promise<SupabaseUserProfile | null> {
-        if (!this.isConfigured() || !userId) return null;
+        if (!this.isConfigured() || !isUuid(userId)) return null;
         try {
-            const { data, error } = await supabase
-                .from('profiles')
+            const { data, error } = await getSupabaseClient().from('profiles')
                 .select('*')
                 .eq('id', userId)
                 .single();
@@ -83,89 +148,47 @@ export class SupabaseService {
         }
     }
 
-    public async upsertProfile(profile: Partial<SupabaseUserProfile>): Promise<any> {
-        if (!this.isConfigured() || !profile.id) return null;
+    public async updateMyProfile(changes: EditableProfileChanges): Promise<SupabaseUserProfile | null> {
+        if (!this.isConfigured()) return null;
         try {
-            const payload: any = {
-                ...profile,
-                updated_at: new Date().toISOString()
-            };
-
-            const { data, error } = await supabase
-                .from('profiles')
-                .upsert(payload)
-                .select()
-                .single();
+            // The generated types represent the currently deployed schema. This
+            // RPC is delivered by the versioned reconciliation migration.
+            const { data, error } = await (getSupabaseClient() as any)
+                .rpc('update_my_profile', { p_changes: changes });
 
             if (error) {
-                // Si la base Supabase n'a pas encore exécuté la migration pour certaines colonnes (badges, skills, city, etc.)
-                if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('column')) {
-                    console.warn('Colonne manquante dans profiles Supabase, tentative avec payload de base:', error.message);
-                    
-                    // Extraire le nom de colonne si présent
-                    const match = error.message?.match(/Could not find the '([^']+)' column/);
-                    const missingCol = match ? match[1] : null;
-                    
-                    const safePayload: any = { ...payload };
-                    if (missingCol) {
-                        delete safePayload[missingCol];
-                    } else {
-                        // Supprimer les colonnes optionnelles étendues pour garantir l'upsert
-                        delete safePayload.badges;
-                        delete safePayload.skills;
-                        delete safePayload.city;
-                        delete safePayload.interests;
-                        delete safePayload.privacy_settings;
-                        delete safePayload.permissions;
-                        delete safePayload.metadata;
-                    }
-
-                    const retry = await supabase
-                        .from('profiles')
-                        .upsert(safePayload)
-                        .select()
-                        .single();
-
-                    if (retry.error) {
-                        console.warn('Erreur seconde tentative upsertProfile Supabase:', retry.error);
-                        // Troisième tentative ultra-minimale (champs essentiels PostgreSQL)
-                        const minimalPayload = {
-                            id: profile.id,
-                            email: profile.email,
-                            name: profile.name,
-                            role: profile.role || 'citizen',
-                            updated_at: new Date().toISOString()
-                        };
-                        const minimalRetry = await supabase
-                            .from('profiles')
-                            .upsert(minimalPayload)
-                            .select()
-                            .single();
-                        return minimalRetry.data || null;
-                    }
-                    return retry.data;
-                }
-
-                console.warn('Erreur upsertProfile Supabase:', error);
+                console.warn('Erreur updateMyProfile Supabase:', error);
                 return null;
             }
-            return data;
+            return data as SupabaseUserProfile;
         } catch (err) {
-            console.warn('Exception upsertProfile Supabase:', err);
+            console.warn('Exception updateMyProfile Supabase:', err);
             return null;
         }
     }
 
-    public async searchProfiles(query?: string): Promise<SupabaseUserProfile[]> {
+    /**
+     * Compatibility adapter for legacy callers. It intentionally is not an
+     * upsert: Auth owns profile creation and only the current UUID user may
+     * update the public, editable fields through the allow-listed RPC.
+     */
+    public async upsertProfile(profile: Partial<SupabaseUserProfile> & { id?: string }): Promise<SupabaseUserProfile | null> {
+        if (!this.isConfigured() || !isUuid(profile.id)) return null;
+        const currentUser = await this.getCurrentUser();
+        if (!currentUser || currentUser.id !== profile.id) return null;
+        return this.updateMyProfile(toEditableProfileChanges(profile));
+    }
+
+    public async searchProfiles(query?: string): Promise<PublicSupabaseProfile[]> {
         if (!this.isConfigured()) return [];
         try {
-            let req = supabase.from('profiles').select('*').limit(50);
-            if (query && query.trim()) {
-                req = req.or(`name.ilike.%${query}%,email.ilike.%${query}%,title.ilike.%${query}%`);
-            }
-            const { data, error } = await req;
+            const { data, error } = await (getSupabaseClient() as any)
+                .rpc('search_public_profiles', {
+                    p_query: query?.trim() || '',
+                    p_limit: 50,
+                });
             if (error || !data) return [];
-            return data as SupabaseUserProfile[];
+            return data as PublicSupabaseProfile[];
         } catch (err) {
             console.warn('Erreur searchProfiles Supabase:', err);
             return [];
@@ -175,8 +198,7 @@ export class SupabaseService {
     public async fetchAdminProfiles(): Promise<any[]> {
         if (!this.isConfigured()) return [];
         try {
-            const { data, error } = await supabase
-                .from('profiles')
+            const { data, error } = await getSupabaseClient().from('profiles')
                 .select('*')
                 .order('created_at', { ascending: false });
 
@@ -188,20 +210,38 @@ export class SupabaseService {
         }
     }
 
-    public async updateAdminUserProfile(id: string, updates: any): Promise<any> {
-        if (!this.isConfigured() || !id) return null;
+    public async updateAdminUserProfile(
+        idOrProfile: string | ({ id: string; role?: string } & Record<string, unknown>),
+        requestedUpdates: Record<string, unknown> = {},
+    ): Promise<SupabaseUserProfile | null> {
+        const id = typeof idOrProfile === 'string' ? idOrProfile : idOrProfile.id;
+        const updates = typeof idOrProfile === 'string' ? requestedUpdates : { ...idOrProfile };
+        delete updates.id;
+        if (!this.isConfigured() || !isUuid(id)) return null;
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .update({ ...updates, updated_at: new Date().toISOString() })
-                .eq('id', id)
-                .select();
+            let latest: SupabaseUserProfile | null = null;
+            const role = typeof updates.role === 'string' ? updates.role : undefined;
+            delete updates.role;
 
-            if (error) {
-                console.warn('Erreur updateAdminUserProfile:', error);
-                return null;
+            if (Object.keys(updates).length > 0) {
+                const { data, error } = await (getSupabaseClient() as any).rpc('admin_update_user_profile', {
+                    p_user_id: id,
+                    p_changes: updates,
+                    p_reason: 'Mise à jour depuis la console d’administration',
+                });
+                if (error) throw error;
+                latest = data as SupabaseUserProfile;
             }
-            return data;
+            if (role) {
+                const { data, error } = await (getSupabaseClient() as any).rpc('admin_set_user_role', {
+                    p_user_id: id,
+                    p_role: role,
+                    p_reason: 'Changement depuis la console d’administration',
+                });
+                if (error) throw error;
+                latest = data as SupabaseUserProfile;
+            }
+            return latest;
         } catch (err) {
             console.warn('Exception updateAdminUserProfile:', err);
             return null;
@@ -209,26 +249,17 @@ export class SupabaseService {
     }
 
     public async deleteAdminUserProfile(id: string): Promise<boolean> {
-        if (!this.isConfigured() || !id) return false;
-        try {
-            const { error } = await supabase
-                .from('profiles')
-                .delete()
-                .eq('id', id);
-
-            return !error;
-        } catch (err) {
-            console.warn('Erreur deleteAdminUserProfile:', err);
-            return false;
-        }
+        if (!this.isConfigured() || !isUuid(id)) return false;
+        console.warn('La suppression d’un compte Auth requiert la fonction serveur Admin dédiée; aucune ligne profile n’a été supprimée.');
+        return false;
     }
 
-    public onAuthStateChange(callback: (event: string, session: Session | null) => void): { unsubscribe: () => void } {
+    public onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void): { unsubscribe: () => void } {
         if (!this.isConfigured()) {
             return { unsubscribe: () => {} };
         }
         try {
-            const { data } = supabase.auth.onAuthStateChange((event, session) => {
+            const { data } = getSupabaseClient().auth.onAuthStateChange((event, session) => {
                 callback(event, session);
             });
             return {
@@ -245,113 +276,16 @@ export class SupabaseService {
     public async signOut(): Promise<void> {
         if (!this.isConfigured()) return;
         try {
-            await supabase.auth.signOut();
+            await getSupabaseClient().auth.signOut();
         } catch (err) {
             console.warn('Erreur signOut Supabase:', err);
-        }
-    }
-
-    public async getPosts(): Promise<any[]> {
-        if (!this.isConfigured()) return [];
-        try {
-            const { data, error } = await supabase
-                .from('posts')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (error || !data) return [];
-            return data;
-        } catch (err) {
-            console.warn('Erreur getPosts Supabase:', err);
-            return [];
-        }
-    }
-
-    public async createPost(post: any): Promise<any> {
-        if (!this.isConfigured()) return null;
-        try {
-            const { data, error } = await supabase
-                .from('posts')
-                .insert([{
-                    ...post,
-                    created_at: new Date().toISOString()
-                }])
-                .select()
-                .single();
-
-            if (error) return null;
-            return data;
-        } catch (err) {
-            console.warn('Erreur createPost Supabase:', err);
-            return null;
-        }
-    }
-
-    public async getConversations(userId: string): Promise<any[]> {
-        if (!this.isConfigured() || !userId) return [];
-        try {
-            const { data, error } = await supabase
-                .from('conversations')
-                .select('*')
-                .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
-                .order('updated_at', { ascending: false });
-
-            if (error || !data) return [];
-            return data;
-        } catch (err) {
-            console.warn('Erreur getConversations Supabase:', err);
-            return [];
-        }
-    }
-
-    public subscribeToPresence(
-        userInfo: { id: string; name: string; avatarUrl?: string; avatar?: string },
-        onSync: (state: Record<string, any>) => void
-    ): () => void {
-        if (!this.isConfigured() || !userInfo?.id) {
-            return () => {};
-        }
-        try {
-            const channel: RealtimeChannel = supabase.channel('online-users', {
-                config: {
-                    presence: {
-                        key: userInfo.id,
-                    },
-                },
-            });
-
-            channel
-                .on('presence', { event: 'sync' }, () => {
-                    const presenceState = channel.presenceState();
-                    onSync(presenceState);
-                })
-                .subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
-                        await channel.track({
-                            id: userInfo.id,
-                            name: userInfo.name,
-                            avatar: userInfo.avatarUrl || userInfo.avatar,
-                            onlineAt: new Date().toISOString()
-                        });
-                    }
-                });
-
-            return () => {
-                channel.untrack().catch(() => {});
-                supabase.removeChannel(channel).catch(() => {});
-            };
-        } catch (err) {
-            console.warn('Erreur subscribeToPresence Supabase:', err);
-            return () => {};
         }
     }
 
     public subscribeToCallSignals(userId: string, onSignal: (signal: any) => void): () => void {
         if (!this.isConfigured() || !userId) return () => {};
         try {
-            const channel = supabase
-                .channel(`calls-${userId}`)
+            const channel = getSupabaseClient().channel(`calls-${userId}`)
                 .on('broadcast', { event: 'call_signal' }, (payload) => {
                     if (payload && payload.payload) {
                         onSignal(payload.payload);
@@ -360,7 +294,7 @@ export class SupabaseService {
                 .subscribe();
 
             return () => {
-                supabase.removeChannel(channel).catch(() => {});
+                getSupabaseClient().removeChannel(channel).catch(() => {});
             };
         } catch (err) {
             console.warn('Erreur subscribeToCallSignals:', err);
@@ -371,7 +305,7 @@ export class SupabaseService {
     public async sendCallSignal(targetUserId: string, signal: any): Promise<void> {
         if (!this.isConfigured() || !targetUserId) return;
         try {
-            const channel = supabase.channel(`calls-${targetUserId}`);
+            const channel = getSupabaseClient().channel(`calls-${targetUserId}`);
             await channel.subscribe();
             await channel.send({
                 type: 'broadcast',
@@ -383,118 +317,6 @@ export class SupabaseService {
         }
     }
 
-    public subscribeToChat(
-        chatId: string,
-        handlers: {
-            onMessage?: (msg: any) => void;
-            onUpdate?: (msg: any) => void;
-            onDelete?: (id: string) => void;
-        }
-    ): () => void {
-        if (!this.isConfigured() || !chatId) return () => {};
-        try {
-            const channel = supabase
-                .channel(`chat-${chatId}`)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'INSERT',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${chatId}`
-                    },
-                    (payload) => {
-                        handlers.onMessage?.(payload.new);
-                    }
-                )
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'UPDATE',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${chatId}`
-                    },
-                    (payload) => {
-                        handlers.onUpdate?.(payload.new);
-                    }
-                )
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'DELETE',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${chatId}`
-                    },
-                    (payload) => {
-                        handlers.onDelete?.(payload.old?.id);
-                    }
-                )
-                .subscribe();
-
-            return () => {
-                supabase.removeChannel(channel).catch(() => {});
-            };
-        } catch (err) {
-            console.warn('Erreur subscribeToChat Supabase:', err);
-            return () => {};
-        }
-    }
-
-    public async sendMessage(msg: any): Promise<any> {
-        if (!this.isConfigured()) return null;
-        try {
-            const { data, error } = await supabase
-                .from('messages')
-                .insert([{
-                    ...msg,
-                    created_at: new Date().toISOString()
-                }])
-                .select()
-                .single();
-
-            if (error) return null;
-            return data;
-        } catch (err) {
-            console.warn('Erreur sendMessage Supabase:', err);
-            return null;
-        }
-    }
-
-    public async updateChatMessage(msgId: string, updates: any): Promise<any> {
-        if (!this.isConfigured() || !msgId) return null;
-        try {
-            const { data, error } = await supabase
-                .from('messages')
-                .update(updates)
-                .eq('id', msgId)
-                .select()
-                .single();
-
-            if (error) return null;
-            return data;
-        } catch (err) {
-            console.warn('Erreur updateChatMessage Supabase:', err);
-            return null;
-        }
-    }
-
-    public async deleteChatMessage(msgId: string): Promise<boolean> {
-        if (!this.isConfigured() || !msgId) return false;
-        try {
-            const { error } = await supabase
-                .from('messages')
-                .delete()
-                .eq('id', msgId);
-
-            return !error;
-        } catch (err) {
-            console.warn('Erreur deleteChatMessage Supabase:', err);
-            return false;
-        }
-    }
-
     public subscribeToProfilesRealtime(handlers: {
         onInsert?: (profile: any) => void;
         onUpdate?: (profile: any) => void;
@@ -502,8 +324,7 @@ export class SupabaseService {
     }): () => void {
         if (!this.isConfigured()) return () => {};
         try {
-            const channel = supabase
-                .channel('realtime-profiles-sync')
+            const channel = getSupabaseClient().channel('realtime-profiles-sync')
                 .on(
                     'postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'profiles' },
@@ -522,7 +343,7 @@ export class SupabaseService {
                 .subscribe();
 
             return () => {
-                supabase.removeChannel(channel).catch(() => {});
+                getSupabaseClient().removeChannel(channel).catch(() => {});
             };
         } catch (err) {
             console.warn('Erreur subscribeToProfilesRealtime:', err);
@@ -533,8 +354,9 @@ export class SupabaseService {
     public async savePlatformSettings(settings: any): Promise<any> {
         if (!this.isConfigured()) return null;
         try {
-            const { data, error } = await supabase
-                .from('system_settings')
+            // `system_settings` is supplied by the Admin migration and is not
+            // part of the live types generated before that migration.
+            const { data, error } = await (getSupabaseClient() as any).from('system_settings')
                 .upsert({
                     id: 'platform_config',
                     settings,
@@ -552,4 +374,3 @@ export class SupabaseService {
 
 export const supabaseService = new SupabaseService();
 export type { Session, User };
-

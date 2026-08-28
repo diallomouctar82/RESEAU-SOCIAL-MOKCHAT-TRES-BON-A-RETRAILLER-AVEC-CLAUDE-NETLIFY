@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { Video, Sparkles, AlertCircle, Play, Download } from 'lucide-react';
 
 export const VideoGenerator: React.FC = () => {
@@ -9,18 +9,6 @@ export const VideoGenerator: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [error, setError] = useState<string | null>(null);
 
-  const checkApiKey = async () => {
-    // Basic check wrapper as per instructions
-    if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if(!hasKey) {
-            await window.aistudio.openSelectKey();
-        }
-        return true;
-    }
-    return true; // Fallback if not in the specific testing environment
-  };
-
   const generateVideo = async () => {
     if (!prompt) return;
     setIsGenerating(true);
@@ -28,9 +16,7 @@ export const VideoGenerator: React.FC = () => {
     setError(null);
 
     try {
-      await checkApiKey();
-      // Re-init with fresh key context if needed
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       
       let operation = await ai.models.generateVideos({
         model: 'veo-3.1-fast-generate-preview',
@@ -49,12 +35,7 @@ export const VideoGenerator: React.FC = () => {
       }
 
       if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-        const uri = operation.response.generatedVideos[0].video.uri;
-        // Fetch logic for browser display
-        const fetchRes = await fetch(`${uri}&key=${process.env.API_KEY}`);
-        const blob = await fetchRes.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        setVideoUri(objectUrl);
+        setVideoUri(operation.response.generatedVideos[0].video.uri);
       } else {
         throw new Error("No video generated");
       }

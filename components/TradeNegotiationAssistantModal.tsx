@@ -17,7 +17,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { CommercialDossier, StructuredOffer } from '../types';
 
 interface TradeNegotiationAssistantModalProps {
@@ -67,7 +67,7 @@ export const TradeNegotiationAssistantModal: React.FC<TradeNegotiationAssistantM
   const handleRunAiAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Tu es l'Analyste Stratégique en Négociation Internationale de Diallo OS.
 Analyse ce dossier commercial :
 - Produit : ${dossier.productTitle} (${dossier.dimension})
@@ -134,7 +134,7 @@ Formule une analyse structurée en JSON valide avec ces clés :
     if (!rawTextToTranslate.trim()) return;
     setIsTranslating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new AIProxyClient();
       const prompt = `Traduis ce texte commercial en ${targetLang === 'zh' ? 'Chinois Mandarin professionnel (avec Pinyin entre parenthèses)' : targetLang === 'en' ? 'Anglais Commercial International' : targetLang === 'ar' ? 'Arabe des Affaires' : 'Français'}. 
 Règle stricte : conserve les chiffres, codes Incoterms (CIF, FOB, EXW), montants en monnaies et termes techniques sans altération.
 

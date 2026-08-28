@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Compass, 
   ArrowRight, 
@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   RotateCcw
 } from 'lucide-react';
-import { UserProfile } from '../../types';
+import { useDialogAccessibility } from './useDialogAccessibility';
 
 export interface GuidedStep {
   stepNumber: number;
@@ -32,7 +32,6 @@ export interface GuidedStep {
 interface GuidedModeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  userProfile: UserProfile;
   onNavigate: (tab: string, context?: any) => void;
 }
 
@@ -90,20 +89,22 @@ const COMMON_GOALS = [
 export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
   isOpen,
   onClose,
-  userProfile,
   onNavigate
 }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedGoal, setSelectedGoal] = useState<typeof COMMON_GOALS[0] | null>(null);
   const [userCustomInput, setUserCustomInput] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voiceAssistance, setVoiceAssistance] = useState(true);
+  const [voiceAssistance, setVoiceAssistance] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogAccessibility(isOpen, dialogRef, onClose);
 
   // Voice Speech synthesis
-  const speakText = (text: string) => {
-    if (!voiceAssistance || !('speechSynthesis' in window)) return;
+  const speakText = (text: string, force = false) => {
+    if ((!voiceAssistance && !force) || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fr-FR';
@@ -125,7 +126,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
   const toggleListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("La reconnaissance vocale n'est pas prise en charge sur ce navigateur.");
+      setVoiceError("La reconnaissance vocale n'est pas prise en charge sur ce navigateur.");
       return;
     }
 
@@ -142,7 +143,10 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
 
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => setIsListening(false);
-      recognition.onerror = () => setIsListening(false);
+      recognition.onerror = () => {
+        setIsListening(false);
+        setVoiceError("La dictée n’a pas pu démarrer. Vous pouvez saisir les informations au clavier.");
+      };
 
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
@@ -171,6 +175,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
     } catch (e) {
       console.error(e);
       setIsListening(false);
+      setVoiceError("La dictée n’a pas pu démarrer. Vous pouvez saisir les informations au clavier.");
     }
   };
 
@@ -200,26 +205,29 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in"
+    <div
+      ref={dialogRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="guided-mode-title"
+      aria-describedby="guided-mode-description"
     >
-      <div className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-3xl rounded-2xl sm:rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[96dvh] sm:max-h-[90vh]">
         
         {/* Top Guided Bar */}
-        <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md">
+        <div className="bg-slate-900 text-white p-4 sm:p-6 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-blue-600 items-center justify-center text-white font-black shadow-md" aria-hidden="true">
               <Compass size={22} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-widest font-black text-blue-300">Mode Guidé • Clarté Absolue</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] sm:text-[11px] uppercase tracking-widest font-black text-blue-300">Mode Guidé • Clarté Absolue</span>
                 <span className="bg-white/10 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Étape {currentStep} sur 4</span>
               </div>
-              <h2 id="guided-mode-title" className="text-xl font-bold text-white tracking-tight">
+              <h2 id="guided-mode-title" className="mt-1 text-base sm:text-xl font-bold text-white tracking-tight leading-tight">
                 {currentStep === 1 && "Étape 1 — Dis-moi ce que tu veux faire"}
                 {currentStep === 2 && "Étape 2 — Voici ce dont nous avons besoin"}
                 {currentStep === 3 && "Étape 3 — Faisons-le ensemble"}
@@ -228,7 +236,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {/* Audio Voice Guide Toggle */}
             <button
               onClick={() => {
@@ -241,12 +249,14 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                     currentStep === 1 ? "Étape 1 : Choisissez ce que vous souhaitez accomplir." :
                     currentStep === 2 ? `Étape 2 : Voici les éléments requis.` :
                     currentStep === 3 ? "Étape 3 : Remplissons ensemble les informations." :
-                    "Étape 4 : Tout est prêt pour continuer."
+                    "Étape 4 : Tout est prêt pour continuer.",
+                    true,
                   );
                 }
               }}
               aria-label={voiceAssistance ? "Désactiver l'assistance vocale" : "Activer l'assistance vocale"}
-              className={`p-2.5 rounded-xl border transition-all ${
+              aria-pressed={voiceAssistance}
+              className={`a11y-touch-target p-2.5 rounded-xl border transition-all ${
                 voiceAssistance 
                   ? 'bg-blue-600/20 text-blue-300 border-blue-500/30 hover:bg-blue-600/30' 
                   : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
@@ -257,7 +267,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2.5 rounded-xl bg-white/10 text-slate-300 hover:text-white hover:bg-white/20 transition-colors"
+              className="a11y-touch-target p-2.5 rounded-xl bg-white/10 text-slate-300 hover:text-white hover:bg-white/20 transition-colors"
               aria-label="Fermer le mode guidé"
             >
               <X size={18} />
@@ -266,30 +276,34 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
         </div>
 
         {/* Step Progress Indicator */}
-        <div className="w-full bg-slate-100 h-1.5 flex">
+        <div className="w-full bg-slate-100 h-1.5 flex" role="progressbar" aria-label="Progression du mode guidé" aria-valuemin={1} aria-valuemax={4} aria-valuenow={currentStep}>
           {[1, 2, 3, 4].map(s => (
             <div 
               key={s} 
               className={`flex-1 h-full transition-all duration-300 ${
                 s <= currentStep ? 'bg-blue-600' : 'bg-slate-200'
-              }`} 
+              }`}
+              aria-hidden="true"
             />
           ))}
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6">
+        <div className="p-4 sm:p-8 overflow-y-auto flex-1 space-y-6" id="guided-mode-description">
+          <p className="sr-only" aria-live="polite">Étape {currentStep} sur 4.</p>
+          {voiceError && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="alert">{voiceError}</p>}
           
           {/* STEP 1: SELECT GOAL */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200/80 rounded-2xl p-4 flex items-center justify-between gap-4">
+              <div className="bg-blue-50 border border-blue-200/80 rounded-2xl p-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <p className="text-sm font-medium text-blue-950">
                   <span className="font-bold">Astuce :</span> Vous pouvez cliquer sur une option ou simplement parler avec le micro.
                 </p>
                 <button
                   onClick={toggleListening}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                  aria-pressed={isListening}
+                  className={`a11y-touch-target px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                     isListening 
                       ? 'bg-rose-600 text-white animate-pulse' 
                       : 'bg-white text-slate-800 border border-slate-200 shadow-xs hover:bg-slate-50'
@@ -311,7 +325,8 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                         setSelectedGoal(goal);
                         goToStep(2, goal);
                       }}
-                      className={`p-5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:scale-[1.01] ${
+                      aria-pressed={isSelected}
+                      className={`min-h-[9rem] p-4 sm:p-5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:scale-[1.01] ${
                         isSelected 
                           ? 'border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/20' 
                           : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
@@ -381,10 +396,11 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                 </h3>
                 {selectedGoal.stepsReq.map((req, i) => (
                   <div key={i} className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700">
+                    <label htmlFor={`guided-answer-${i}`} className="block text-xs font-bold text-slate-700">
                       {i + 1}. {req}
                     </label>
                     <input
+                      id={`guided-answer-${i}`}
                       type="text"
                       placeholder={`Exemple pour ${req.toLowerCase()}...`}
                       value={answers[`req_${i}`] || ''}
@@ -424,19 +440,19 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="p-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div>
+        <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="flex">
             {currentStep > 1 ? (
               <button
                 onClick={() => goToStep((currentStep - 1) as any)}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-100 flex items-center gap-1.5 transition-all"
+                className="a11y-touch-target w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-100 flex items-center justify-center gap-1.5 transition-all"
               >
                 <ArrowLeft size={16} /> Précédent
               </button>
             ) : (
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-slate-500 font-bold text-xs hover:text-slate-800"
+                className="a11y-touch-target w-full sm:w-auto px-4 py-2 rounded-xl text-slate-500 font-bold text-xs hover:text-slate-800"
               >
                 Annuler
               </button>
@@ -447,7 +463,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
             {currentStep === 2 && (
               <button
                 onClick={() => goToStep(3)}
-                className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
+                className="a11y-touch-target w-full justify-center bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
               >
                 <span>Faisons-le ensemble</span>
                 <ArrowRight size={16} />
@@ -457,7 +473,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
             {currentStep === 3 && (
               <button
                 onClick={() => goToStep(4)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all"
+                className="a11y-touch-target w-full justify-center bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all"
               >
                 <span>Valider mes informations</span>
                 <ArrowRight size={16} />
@@ -470,7 +486,7 @@ export const GuidedModeModal: React.FC<GuidedModeModalProps> = ({
                   onClose();
                   onNavigate(selectedGoal.targetTab, { guidedAnswers: answers });
                 }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-all"
+                className="a11y-touch-target w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white px-5 sm:px-8 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-all"
               >
                 <span>Ouvrir {selectedGoal.title}</span>
                 <ArrowRight size={18} />

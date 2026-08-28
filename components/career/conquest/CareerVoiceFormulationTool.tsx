@@ -14,7 +14,7 @@ import {
   TrendingUp,
   Volume2
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../../services/aiProxy';
 
 interface CareerVoiceFormulationToolProps {
   onApplyFormulation?: (text: string) => void;
@@ -80,9 +80,9 @@ export const CareerVoiceFormulationTool: React.FC<CareerVoiceFormulationToolProp
     setIsTransforming(true);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
+      const apiKey = true;
       if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new AIProxyClient();
 
         const toneInstructions: Record<FormulationTone, string> = {
           percutant: 'Style exécutif, percutant, orienté résultats et chiffres, crédible au niveau C-Level.',

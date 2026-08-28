@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ShoppingBag, 
   Star, 
@@ -37,7 +37,6 @@ import {
 import { 
   PRODUCTS, 
   AGENTS, 
-  MOCK_RFQS, 
   MOCK_FREIGHT_FORWARDERS, 
   MOCK_TRADE_COMPANIES, 
   MOCK_IMPORT_EXPORT_PROJECTS, 
@@ -65,12 +64,12 @@ import { TradeTendersHub } from './TradeTendersHub';
 import { TradePartnershipsHub } from './TradePartnershipsHub';
 import { TradeCommercialMissionHub } from './TradeCommercialMissionHub';
 import { TradeWatchdogHub } from './TradeWatchdogHub';
-import { MokTrustCenter } from './MokTrustCenter';
 import { TradeDisputeResolutionCenter } from './TradeDisputeResolutionCenter';
 import { MokTrustReputationHub } from './MokTrustReputationHub';
 import { MokTrustReportModal } from './MokTrustReportModal';
 import { TradeBusinessOperatingSystem } from './TradeBusinessOperatingSystem';
 import { TradeBusinessIntelligenceHub } from './TradeBusinessIntelligenceHub';
+import { commerceService } from '../services/commerceService';
 
 interface ShopProps {
   userCredits?: number;
@@ -114,9 +113,52 @@ export const Shop: React.FC<ShopProps> = ({
 
   // Dynamic Data Lists (can receive creations during session)
   const [allProducts, setAllProducts] = useState<Product[]>([...PRODUCTS, ...(userShop?.products || [])]);
-  const [rfqList, setRfqList] = useState<BuyRequestRFQ[]>(MOCK_RFQS);
+  const [rfqList, setRfqList] = useState<BuyRequestRFQ[]>([]);
+  const [rfqLoadError, setRfqLoadError] = useState<string | null>(null);
   const [dealList, setDealList] = useState<TradeDealNegotiation[]>(MOCK_DEAL_NEGOTIATIONS);
   const [projectList, setProjectList] = useState<ImportExportProject[]>(MOCK_IMPORT_EXPORT_PROJECTS);
+
+  useEffect(() => {
+    let active = true;
+    commerceService.listRfqs().then((rows: any[]) => {
+      if (!active) return;
+      setRfqList(rows.map((row) => {
+        const specs = (row.specifications ?? {}) as Record<string, any>;
+        const quotesCount = Array.isArray(row.trade_rfq_quotes) ? row.trade_rfq_quotes.length : 0;
+        const quantity = Number(specs.quantityRequested ?? 1);
+        return {
+          id: row.id,
+          title: row.title,
+          category: String(specs.category ?? 'Général'),
+          dimension: (['B2B', 'B2C', 'C2C'].includes(specs.dimension) ? specs.dimension : 'B2B') as TradeDimension,
+          description: String(specs.description ?? ''),
+          quantityRequested: quantity,
+          unit: String(specs.unit ?? 'unités'),
+          targetPricePerUnit: row.budget == null ? undefined : Number(row.budget) / Math.max(quantity, 1),
+          currency: row.currency,
+          targetDestinationCountry: String(specs.targetDestinationCountry ?? 'Non précisé'),
+          targetDestinationCity: specs.targetDestinationCity ? String(specs.targetDestinationCity) : undefined,
+          deadlineDate: row.deadline ? new Date(row.deadline).toLocaleDateString('fr-FR') : 'Non précisée',
+          buyerId: row.buyer_id,
+          buyerName: 'Acheteur MokChat',
+          buyerCountry: 'Non communiqué',
+          buyerFlag: '🌍',
+          buyerVerified: false,
+          specifications: Array.isArray(specs.criteria) ? specs.criteria.map(String) : [],
+          certificationsRequired: [],
+          createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+          status: quotesCount > 0 ? 'quotes_received' : 'open',
+          quotesCount,
+          quotes: [],
+        } satisfies BuyRequestRFQ;
+      }));
+      setRfqLoadError(null);
+    }).catch((error) => {
+      console.error(error);
+      if (active) setRfqLoadError('Marché RFQ indisponible : aucune donnée fictive n’est affichée.');
+    });
+    return () => { active = false; };
+  }, []);
 
   // Filter logic
   const filteredProducts = allProducts.filter(p => {
@@ -296,9 +338,9 @@ export const Shop: React.FC<ShopProps> = ({
             { id: 'partnerships', label: 'Partenariats & Investisseurs', icon: Handshake },
             { id: 'missions', label: 'Missions Commerciales', icon: Plane },
             { id: 'watchdog', label: 'Veille & Alertes', icon: Bell, badge: 'Auto' },
-            { id: 'trust', label: 'Mok Trust & Vérifications', icon: ShieldCheck, badge: 'Sécurité' },
+            { id: 'trust', label: 'MokTrust communautaire', icon: ShieldCheck, badge: 'Serveur' },
             { id: 'disputes', label: 'Litiges & Médiation', icon: Scale, badge: 'Escrow' },
-            { id: 'reputation', label: 'Avis Vérifiés & Score', icon: Star, badge: '98.6%' },
+            { id: 'reputation', label: 'Méthode & indice', icon: Star },
             { id: 'catalog', label: 'Catalogue & Produits', icon: ShoppingBag, count: allProducts.length },
             { id: 'rfq', label: 'RFQ Fournisseurs', icon: Building2, count: rfqList.length },
             { id: 'import_export', label: 'Parcours Import/Export', icon: Truck, badge: 'Roadmap' },
@@ -702,11 +744,13 @@ export const Shop: React.FC<ShopProps> = ({
 
         {/* VIEW 3: RFQ & APPELS D'OFFRES */}
         {activeSection === 'rfq' && (
+          <>
+          {rfqLoadError && <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-950/30 p-3 text-xs text-amber-200">{rfqLoadError}</div>}
           <TradeRFQHub
             rfqs={rfqList}
             onCreateRFQ={(newRfq) => {
               const fullRfq: BuyRequestRFQ = {
-                id: `rfq-${Date.now()}`,
+                id: newRfq.id || `rfq-${Date.now()}`,
                 title: newRfq.title || 'Besoin',
                 category: newRfq.category || 'Général',
                 dimension: newRfq.dimension || 'B2B',
@@ -718,11 +762,11 @@ export const Shop: React.FC<ShopProps> = ({
                 targetDestinationCountry: newRfq.targetDestinationCountry || 'Guinée',
                 targetDestinationCity: newRfq.targetDestinationCity,
                 deadlineDate: newRfq.deadlineDate || '30/05/2026',
-                buyerId: 'u1',
-                buyerName: 'Amadou Diallo',
-                buyerCountry: 'Guinée',
-                buyerFlag: '🇬🇳',
-                buyerVerified: true,
+                buyerId: 'session-authentifiée',
+                buyerName: 'Moi (session authentifiée)',
+                buyerCountry: 'Non communiqué',
+                buyerFlag: '🌍',
+                buyerVerified: false,
                 specifications: newRfq.specifications || [],
                 certificationsRequired: newRfq.certificationsRequired || [],
                 createdAt: 'À l\'instant',
@@ -745,6 +789,7 @@ export const Shop: React.FC<ShopProps> = ({
               if (onOpenMokChatUser) onOpenMokChatUser(buyerId, buyerName);
             }}
           />
+          </>
         )}
 
         {/* VIEW 4: IMPORT / EXPORT ROADMAP & LANDED COST */}
@@ -855,17 +900,10 @@ export const Shop: React.FC<ShopProps> = ({
           </div>
         )}
 
-        {/* VIEW 13: MOK TRUST & VÉRIFICATION IDENTITY */}
+        {/* VIEW 13: MOKTRUST COMMUNAUTAIRE CALCULÉ CÔTÉ SERVEUR */}
         {activeSection === 'trust' && (
           <div className="animate-fade-in">
-            <MokTrustCenter
-              onOpenExpertChat={onOpenExpertChat}
-              onOpenDisputeCenter={() => setActiveSection('disputes')}
-              onOpenReportModal={(listingId, productTitle) => {
-                setReportProductContext({ id: listingId, title: productTitle });
-                setIsReportModalOpen(true);
-              }}
-            />
+            <MokTrustReputationHub onOpenExpertChat={onOpenExpertChat} />
           </div>
         )}
 
@@ -879,7 +917,7 @@ export const Shop: React.FC<ShopProps> = ({
           </div>
         )}
 
-        {/* VIEW 15: RÉPUTATION MULTIDIMENSIONNELLE & AVIS D'ACHAT */}
+        {/* VIEW 15: MÊME INDICE, ACCÈS DEPUIS L'ANCIEN ONGLET RÉPUTATION */}
         {activeSection === 'reputation' && (
           <div className="animate-fade-in">
             <MokTrustReputationHub

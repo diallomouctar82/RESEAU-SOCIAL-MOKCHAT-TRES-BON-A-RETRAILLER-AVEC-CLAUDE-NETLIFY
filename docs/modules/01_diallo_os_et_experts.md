@@ -25,7 +25,7 @@
   - `components/ChatInterface.tsx` : Espace de discussion interactif unifié.
   - `components/CouncilRoom.tsx` & `UnifiedCouncilRoom.tsx` : Salon de délibération collégiale.
   - `components/DialloOS.tsx` : Console système et coordination.
-  - `services/orchestratorService.ts` : Moteur de routage et découpage d'intentions.
+  - `services/expertPersistence.ts` : validation des sorties structurées, sessions/messages Expert et résultats Conseil/Diallo OS.
   - `services/voiceEngine.ts` : Synthèse et reconnaissance vocale.
 - **Modèles de Données (`types.ts`)** :
   - `Agent`, `AgentRole`, `DossierParcours`, `DossierStep`, `DossierTask`, `DialloOrchestrationResult`.
@@ -40,6 +40,12 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : 8 Experts modélisés, Salle de conseil opérationnelle, Orchestrateur fonctionnel, Synthèse vocale multilingue.
-- **Partiel / En cours** : Intégration d'un historique de délibération persistant sous Cloud Firestore.
+- **Code prêt et testé localement** : 8 Experts modélisés, Salle de conseil et orchestrateur reliés à une façade IA unique authentifiée (`/api/ai`). Aucun SDK ni secret fournisseur n'est embarqué dans le bundle Vite.
+- **Dossiers de vie** : création, étapes, tâches et livrables sont persistés dans `module_records` sous RLS; IndexedDB ne sert qu'à la file de mutations hors ligne.
+- **Sessions Expert** : `ChatInterface` restaure la session propriétaire puis écrit les messages utilisateur et modèle dans `agent_chat_sessions` / `agent_chat_messages`. Les UUID clients servent de clés d'idempotence; une réponse non enregistrée est signalée et peut être rejouée.
+- **Conseil et orchestration** : les deux salles de Conseil et `DialloOS` valident les JSON IA avant usage et conservent leurs résultats dans `module_records` avec le namespace `experts`. Les états distinguent une synchronisation Supabase d'une mutation placée dans la file hors ligne.
+- **Bureau et évaluations** : les brouillons et bilans pédagogiques sont persistés comme résultats Expert. Ils ne sont plus présentés comme PDF signés ou certification officielle sans preuve externe.
+- **Persistance média** : les sorties image, audio et vidéo sont stockées dans le bucket Supabase privé `studio-generated`; les URL temporaires sont renouvelables après contrôle du propriétaire. Les opérations vidéo sont rattachées à l'utilisateur côté serveur.
+- **Configuration externe requise** : `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` et `SUPABASE_SERVICE_ROLE_KEY` doivent être définies dans Netlify, puis la migration `20260827214000_ai_proxy_assets.sql` appliquée. Tant que ce n'est pas fait, le service échoue explicitement avec `PROVIDER_NOT_CONFIGURED`; aucun faux conseil n'est généré.
+- **Non prouvé en production** : migration `20260827218000_expert_ai_persistence.sql` appliquée, qualité des réponses fournisseur, quotas réels et parcours E2E Netlify/Supabase. Les preuves locales sont 12 tests de contrat réussis et un build Vite réussi; le typecheck global reste bloqué par des erreurs historiques hors de ce module.
 - **Évolutions Prévues** : Avatars 3D photo-réalistes animés en temps réel lors des sessions vocales.

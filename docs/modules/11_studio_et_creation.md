@@ -39,14 +39,16 @@
 ---
 
 ## 🛡️ 4. RÈGLES MÉTIER & SÉCURITÉ
-- **Résilience & Mode Dégradé** : Persistance immédiate local-first avec compatibilité cloud Supabase, tolérance totale aux clés manquantes.
+- **Passerelle serveur obligatoire** : aucune clé IA n'est lue ou conservée par le navigateur. Les appels passent par `/api/ai`, avec session Supabase, allowlist de modèles/options, quota, taille maximale et délais bornés.
+- **Actifs privés durables** : toute sortie binaire est retirée de la réponse inline, convertie si nécessaire (PCM vers WAV), enregistrée dans Supabase Storage et associée à son propriétaire. Une URL signée expirée est renouvelée uniquement après vérification serveur.
+- **Échec explicite** : sans secrets Netlify ou migration Supabase, la génération est indisponible et l'interface ne fabrique aucun résultat de remplacement.
 - **Respect du Droit d'Auteur** : Attribution claire de l'auteur original et des co-auteurs sur chaque article et projet co-créé.
 - **Contrôle d'Accès** : Niveaux de visibilité flexibles (Public, Membres uniquement, Privé sur invitation).
 
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : Générateur d'images/vidéos/vision/avatar, Onglet dédié Co-Création & Collaboration, Co-projets d'articles et de campagnes avec éditeur et tâches, Cercles de discussion thématiques, Bibliothèque partagée de ressources et boîte à idées communautaires.
-- **En cours** : Synchronisation temps réel via les canaux Supabase Realtime (`postgres_changes` / `presence`).
+- **Code prêt, configuration requise** : génération image/vidéo/vision/avatar sécurisée et stockage privé implémentés. Le build Vite et les tests de frontières passent localement.
+- **Co-création synchronisée** : projets, cercles, ressources et idées utilisent `module_records` sous RLS; IndexedDB sert uniquement de file d'attente hors ligne avec état explicite.
+- **Bloqué E2E** : aucun secret IA ni `SUPABASE_SERVICE_ROLE_KEY` n'est actuellement configuré sur le site Netlify audité; il est donc interdit d'annoncer la génération fonctionnelle en production.
 - **Évolutions Prévues** : Curseur collaboratif multi-utilisateurs et doublage multilingue direct.
-

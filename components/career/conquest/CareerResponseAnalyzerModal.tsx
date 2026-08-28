@@ -15,7 +15,7 @@ import {
   Award,
   Layers
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../../../services/aiProxy';
 import { ConquestResponseAnalysis, RadarOpportunityItem } from '../../../types';
 
 interface CareerResponseAnalyzerModalProps {
@@ -41,9 +41,9 @@ export const CareerResponseAnalyzerModal: React.FC<CareerResponseAnalyzerModalPr
     setIsAnalyzing(true);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
+      const apiKey = true;
       if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new AIProxyClient();
         const prompt = `Tu es l'Analyste Stratégique de Carrière de la Famille Diallo (Le Monde à Vous).
 Contexte de l'opportunité : ${opportunity.title} chez ${opportunity.entity} (Univers : ${opportunity.universe}).
 Type de réponse sélectionné : ${responseType}.

@@ -91,7 +91,11 @@ export const CareerRadarOpportunities: React.FC<CareerRadarOpportunitiesProps> =
 
   // Load initial data
   useEffect(() => {
-    refreshData();
+    let active = true;
+    void careerRadarEngine.ready().then(() => {
+      if (active) refreshData();
+    });
+    return () => { active = false; };
   }, []);
 
   const refreshData = () => {

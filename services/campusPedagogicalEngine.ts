@@ -8,7 +8,7 @@
 // - Suivi de la maîtrise des compétences et répétition espacée
 // - Génération d'évaluations adaptatives et examens blancs par pays
 
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from './aiProxy';
 import { 
     StudentPedagogicalProfile, 
     LearningStylePreference, 
@@ -32,8 +32,8 @@ export class CampusPedagogicalEngine {
         return CampusPedagogicalEngine.instance;
     }
 
-    private getGenAI(): GoogleGenAI {
-        return new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    private getGenAI(): AIProxyClient {
+        return new AIProxyClient();
     }
 
     /**

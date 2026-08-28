@@ -26,7 +26,7 @@ import {
     ExternalLink,
     Check
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { AIProxyClient } from '../services/aiProxy';
 import { DossierParcours } from '../types';
 
 interface ChefDeProjetSuiteProps {
@@ -139,7 +139,7 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
     const totalBudget = budgetLines.reduce((acc, curr) => acc + curr.amount, 0);
 
     const getAIClient = () => {
-        return new GoogleGenAI();
+        return new AIProxyClient();
     };
 
     // Génération IA Phase 2: Structuration
