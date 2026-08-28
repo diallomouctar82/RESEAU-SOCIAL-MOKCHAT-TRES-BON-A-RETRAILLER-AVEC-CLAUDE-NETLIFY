@@ -29,6 +29,7 @@ import { GoogleDriveCenter } from './components/GoogleDriveCenter';
 import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
+import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream } from './types';
 import { getSession, onAuthStateChange, signOut } from './services/auth';
@@ -197,6 +198,10 @@ const AppContent = () => {
       {activeTab === 'legal' && <LegalCenter userProfile={userProfile} />}
 
       {activeTab === 'settings' && <Settings />}
+
+      {activeTab === 'admin' && (userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+          <AdminDashboard />
+      )}
 
       {activeTab === 'languages' && <LanguageCenter userProfile={userProfile} />}
 

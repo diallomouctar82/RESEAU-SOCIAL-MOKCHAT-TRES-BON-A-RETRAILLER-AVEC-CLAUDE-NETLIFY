@@ -426,6 +426,11 @@ export const Layout: React.FC<LayoutProps> = ({
                     <button onClick={() => {onTabChange('profile'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <User size={14} /> Mon Profil
                     </button>
+                    {(userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+                      <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-700 rounded-xl text-xs flex items-center gap-2 font-bold">
+                        <Shield size={14} /> Console d'Administration
+                      </button>
+                    )}
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>

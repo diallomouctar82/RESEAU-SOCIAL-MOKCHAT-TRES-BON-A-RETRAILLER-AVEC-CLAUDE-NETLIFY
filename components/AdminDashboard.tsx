@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, CreditCard, BrainCircuit, Settings, Activity, TrendingUp, AlertTriangle, Shield, Globe, Key, Server, Database, Search, MoreVertical, CheckCircle, XCircle, Clock, Mail, MapPin, HardDrive, Cloud, RefreshCw, Wifi } from 'lucide-react';
 import { AGENTS } from '../constants';
 import { cloudService } from '../services/cloud';
+import { AiOrchestrator } from './admin/AiOrchestrator';
 
 // Mock Users Data (unchanged)
 const MOCK_USERS_DB = [
@@ -20,15 +21,6 @@ export const AdminDashboard: React.FC = () => {
   const [storageStats, setStorageStats] = useState<{used: number, quota: number, percent: number} | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Fake DeepSeek Config State
-  const [dsConfig, setDsConfig] = useState({
-      apiKey: 'sk-**************************',
-      endpointChat: 'https://api.deepseek.com/chat/completions',
-      endpointMod: 'https://api.deepseek.com/moderations',
-      freeMinutes: 20,
-      sensitivity: 0.8
-  });
-
   useEffect(() => {
       loadStorageStats();
   }, []);
@@ -204,7 +196,14 @@ export const AdminDashboard: React.FC = () => {
           </div>
       )}
 
-      {/* ... Other tabs (users, ai-config) would remain similar to previous implementation ... */}
+      {/* IA & API TAB — Orchestrateur central des modèles IA */}
+      {activeTab === 'ai-config' && (
+          <div className="animate-fade-up">
+              <AiOrchestrator />
+          </div>
+      )}
+
+      {/* ... Users tab would remain similar to previous implementation ... */}
     </div>
   );
 };
