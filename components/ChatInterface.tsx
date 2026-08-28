@@ -26,19 +26,35 @@ import {
     Activity,
     AlertTriangle,
     Copy,
-    Check
+    Check,
+    ShieldCheck
 } from 'lucide-react';
 import { Agent, Message } from '../types';
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { useGlobal } from '../contexts/GlobalContext';
 import { memoryService } from '../services/memory';
-import { generateText } from '../services/aiGateway';
+import { generateTextDetailed } from '../services/aiGateway';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
 import { VoiceSettingsModal } from './VoiceSettingsModal';
 import { voiceEngine } from '../services/voiceEngine';
 
 interface ExtendedMessage extends Message {
     isError?: boolean;
+    /** Outils utilisés pour produire cette réponse (recherche web, dossier...). */
+    toolsUsed?: string[];
+}
+
+/**
+ * Action en attente d'accord. On conserve le prompt et l'instruction du tour
+ * afin de pouvoir relancer l'orchestrateur à l'identique une fois la personne
+ * d'accord — c'est ce second appel, et lui seul, qui déclenche l'écriture.
+ */
+interface PendingActionState {
+    toolId: string;
+    label: string;
+    args: Record<string, unknown>;
+    prompt: string;
+    systemInstruction: string;
 }
 
 interface ChatInterfaceProps {
@@ -52,6 +68,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingActionState | null>(null);
   const [isContextActive, setIsContextActive] = useState(true); // Toggle RAG
   const [showCameraHUD, setShowCameraHUD] = useState<boolean>(false);
   const [autoReadResponse, setAutoReadResponse] = useState<boolean>(false);
@@ -169,24 +186,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
             ? `[CONTEXTE UTILISATEUR & DOSSIER]:\n${contextInjection}\n\n[MESSAGE DE L'UTILISATEUR]:\n${messageText}`
             : messageText;
 
-        const systemInstruction = SYSTEM_INSTRUCTION + 
+        const systemInstruction = SYSTEM_INSTRUCTION +
           `\n\nTu es ${agent.name}, ${agent.title}. Spécialité : ${agent.specialty}. ${agent.description}. ` +
-          `Tu t'exprimes toujours en tant qu'humain d'élite de la Famille Diallo, avec rigueur, bienveillance et des solutions concrètes. ` +
-          `Ne dis JAMAIS que tu es une intelligence artificielle ou un robot.`;
+          `Tu t'exprimes avec rigueur, bienveillance et des solutions concrètes, en incarnant pleinement ce personnage de la Famille Diallo.`;
 
         // 3. Exécution via le registre IA central (Super Admin → Connecteurs IA) :
         // sélection automatique du fournisseur actif + bascule en cas d'échec,
         // seul chemin officiel pour tout appel IA de l'application.
-        const responseText = await generateText(augmentedPrompt, { systemInstruction });
+        // `agentId` détermine les outils auxquels CET expert a droit (recherche
+        // web, dossier de la personne, actions) selon la matrice d'autorisations
+        // réglée par l'administrateur — aucun outil n'est codé en dur ici.
+        const { text: responseText, toolsUsed, pendingAction: action } = await generateTextDetailed(
+            augmentedPrompt,
+            { systemInstruction, agentId: agent.id },
+        );
 
         const newAiMsg: ExtendedMessage = {
             id: (Date.now() + 1).toString(),
             role: 'model',
-            text: responseText || "Je n'ai pas pu formuler de réponse cette fois-ci. Reformulez votre question ou réessayez dans un instant.",
-            timestamp: new Date()
+            text: responseText || (action
+                ? "Je peux m'en occuper — confirmez-moi simplement l'action ci-dessous."
+                : "Je n'ai pas pu formuler de réponse cette fois-ci. Reformulez votre question ou réessayez dans un instant."),
+            timestamp: new Date(),
+            toolsUsed,
         };
 
         setMessages(prev => [...prev, newAiMsg]);
+
+        // Une action attend l'accord explicite de la personne : rien n'a encore
+        // été écrit côté serveur, et rien ne le sera tant qu'elle n'aura pas
+        // confirmé (voir handleConfirmAction).
+        if (action) setPendingAction({ ...action, prompt: augmentedPrompt, systemInstruction });
 
         // Auto-Lecture Vocale si activée
         if (autoReadResponse) {
@@ -212,6 +242,52 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
     } finally {
         setIsLoading(false);
     }
+  };
+
+  /**
+   * Accord donné : on relance l'orchestrateur avec `confirmedAction`. C'est ce
+   * second appel qui autorise l'écriture — refuser revient simplement à ne rien
+   * renvoyer, aucune donnée n'ayant été modifiée entre-temps.
+   */
+  const handleConfirmAction = async () => {
+    if (!pendingAction || isLoading) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    setIsLoading(true);
+    try {
+        const { text, toolsUsed } = await generateTextDetailed(action.prompt, {
+            systemInstruction: action.systemInstruction,
+            agentId: agent.id,
+            confirmedAction: { toolId: action.toolId, args: action.args },
+        });
+        setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            role: 'model',
+            text: text || "C'est fait.",
+            timestamp: new Date(),
+            toolsUsed,
+        }]);
+    } catch (error: any) {
+        setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            role: 'model',
+            text: "L'action n'a pas pu être réalisée. Rien n'a été modifié.",
+            timestamp: new Date(),
+            isError: true,
+        }]);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleRefuseAction = () => {
+    setPendingAction(null);
+    setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'model',
+        text: "Entendu, je n'ai rien créé. Dites-moi comment vous préférez procéder.",
+        timestamp: new Date(),
+    }]);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,6 +584,41 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
                     </button>
                 ))}
             </div>
+
+            {/* Demande d'accord avant toute écriture dans l'application.
+                Tant que la personne n'a pas confirmé, rien n'a été modifié :
+                l'orchestrateur a suspendu son tour côté serveur. */}
+            {pendingAction && (
+                <div className="px-3 sm:px-4 pt-3 bg-slate-900 border-t border-slate-800">
+                    <div className="max-w-4xl mx-auto p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/40">
+                        <div className="flex items-start gap-3">
+                            <ShieldCheck size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-amber-200">Confirmation requise</p>
+                                <p className="text-sm text-slate-200 mt-1">{pendingAction.label}</p>
+                                <p className="text-[11px] text-slate-400 mt-1">
+                                    Rien n'a encore été enregistré. Cette action ne sera effectuée qu'avec votre accord.
+                                </p>
+                                <div className="flex items-center gap-2 mt-3">
+                                    <button
+                                        onClick={handleConfirmAction}
+                                        disabled={isLoading}
+                                        className="px-4 py-1.5 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold hover:bg-emerald-400 transition disabled:opacity-50"
+                                    >
+                                        Confirmer
+                                    </button>
+                                    <button
+                                        onClick={handleRefuseAction}
+                                        className="px-4 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold hover:text-white transition"
+                                    >
+                                        Annuler
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Input Bar with Multi-Capabilities */}
             <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800">

@@ -51,19 +51,74 @@ async function invokeGateway(body: Record<string, unknown>): Promise<any> {
     return data;
 }
 
+/**
+ * Action que l'expert souhaite exécuter dans l'application et qui ATTEND
+ * l'accord explicite de la personne. Rien n'a encore été écrit : l'orchestrateur
+ * a interrompu son tour et ne reprendra que si `confirmedAction` lui est
+ * renvoyé. Refuser revient simplement à ne pas rappeler la fonction.
+ */
+export interface PendingAction {
+    toolId: string;
+    /** Résumé lisible de ce qui sera fait, rédigé côté serveur. */
+    label: string;
+    args: Record<string, unknown>;
+}
+
+export interface TextResult {
+    text: string;
+    /** Outils réellement utilisés pour produire cette réponse (traçabilité). */
+    toolsUsed?: string[];
+    /** Présent si l'expert demande l'autorisation d'agir. */
+    pendingAction?: PendingAction;
+}
+
+interface TextOptions {
+    systemInstruction?: string;
+    providerId?: string;
+    modelId?: string;
+    /**
+     * Expert à l'origine de l'appel. C'est lui qui détermine les outils
+     * disponibles (recherche web, dossier de la personne, actions), selon les
+     * autorisations définies par l'administrateur dans Super Admin. Omettre cet
+     * identifiant revient à appeler le modèle sans aucun outil.
+     */
+    agentId?: string;
+    /** Action validée par la personne : seul moyen de déclencher une écriture. */
+    confirmedAction?: { toolId: string; args: Record<string, unknown> };
+}
+
 /** Génération de texte simple. Remplace `ai.models.generateContent({contents: prompt})`. */
 export const generateText = async (
     prompt: string | AiMessage[],
-    options?: { systemInstruction?: string; providerId?: string; modelId?: string }
+    options?: TextOptions
 ): Promise<string> => {
+    const { text } = await generateTextDetailed(prompt, options);
+    return text;
+};
+
+/**
+ * Variante renvoyant le détail : outils utilisés et éventuelle action en
+ * attente de confirmation. À utiliser dès qu'une interface veut afficher les
+ * sources consultées ou demander l'accord avant d'agir.
+ */
+export const generateTextDetailed = async (
+    prompt: string | AiMessage[],
+    options?: TextOptions
+): Promise<TextResult> => {
     const data = await invokeGateway({
         mode: 'call',
         category: 'llm',
         providerId: options?.providerId,
         modelId: options?.modelId,
+        agentId: options?.agentId,
+        confirmedAction: options?.confirmedAction,
         request: { messages: toMessages(prompt, options?.systemInstruction) },
     });
-    return data?.result?.text ?? '';
+    return {
+        text: data?.result?.text ?? '',
+        toolsUsed: data?.toolsUsed,
+        pendingAction: data?.pendingAction,
+    };
 };
 
 /**

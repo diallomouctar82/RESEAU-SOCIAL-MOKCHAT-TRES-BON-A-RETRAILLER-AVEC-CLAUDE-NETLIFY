@@ -54,8 +54,24 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
         // blocs {type:'text'|'image_url'} dès qu'une image lui est jointe ; les
         // autres messages restent de simples chaînes (compatible avec tous les
         // fournisseurs de ce cluster, y compris ceux qui ignorent les images).
-        const messages = req.llm.messages.map((m) =>
-            m.imageBase64
+        const messages = req.llm.messages.map((m) => {
+            // Résultat d'outil : rôle dédié, rattaché par tool_call_id.
+            if (m.role === 'tool') {
+                return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+            }
+            // Tour d'assistant ayant demandé des outils : on rejoue les tool_calls.
+            if (m.role === 'assistant' && m.toolCalls?.length) {
+                return {
+                    role: 'assistant',
+                    content: m.content || null,
+                    tool_calls: m.toolCalls.map((tc) => ({
+                        id: tc.id,
+                        type: 'function',
+                        function: { name: tc.name, arguments: JSON.stringify(tc.args) },
+                    })),
+                };
+            }
+            return m.imageBase64
                 ? {
                     role: m.role,
                     content: [
@@ -63,19 +79,51 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
                         { type: 'image_url', image_url: { url: `data:${m.imageMimeType || 'image/jpeg'};base64,${m.imageBase64}` } },
                     ],
                 }
-                : { role: m.role, content: m.content }
-        );
+                : { role: m.role, content: m.content };
+        });
         const body: Record<string, unknown> = {
             model: req.modelId,
             messages,
         };
-        if (req.llm.jsonMode) {
+        // jsonMode et outils sont incompatibles : imposer un objet JSON en
+        // sortie empêcherait le modèle d'émettre un appel d'outil.
+        if (req.llm.jsonMode && !req.llm.tools?.length) {
             body.response_format = { type: 'json_object' };
         }
+        if (req.llm.tools?.length) {
+            body.tools = req.llm.tools.map((t) => ({
+                type: 'function',
+                function: { name: t.name, description: t.description, parameters: t.parametersSchema },
+            }));
+            body.tool_choice = 'auto';
+        }
         const data = await chatCompletions(baseUrl, apiKey, body) as {
-            choices?: { message?: { content?: string } }[];
+            choices?: { message?: {
+                content?: string;
+                tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
+            } }[];
         };
-        const content = data.choices?.[0]?.message?.content ?? '';
+        const message = data.choices?.[0]?.message;
+        const content = message?.content ?? '';
+
+        const rawCalls = message?.tool_calls ?? [];
+        if (rawCalls.length) {
+            const toolCalls = rawCalls
+                .filter((c) => c.function?.name)
+                .map((c, i) => {
+                    let args: Record<string, unknown> = {};
+                    try {
+                        args = c.function?.arguments ? JSON.parse(c.function.arguments) : {};
+                    } catch {
+                        // Arguments malformés : on transmet un objet vide plutôt que
+                        // de faire échouer tout le tour ; l'exécuteur signalera le
+                        // paramètre manquant au modèle.
+                    }
+                    return { id: c.id ?? `call_${Date.now()}_${i}`, name: c.function!.name!, args };
+                });
+            if (toolCalls.length) return { text: content, toolCalls, raw: data };
+        }
+
         if (!content) {
             throw new AdapterError('Réponse vide du fournisseur.', 'other');
         }
