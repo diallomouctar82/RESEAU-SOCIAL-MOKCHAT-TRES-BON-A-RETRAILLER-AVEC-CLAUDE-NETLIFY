@@ -40,6 +40,7 @@ import {
   RadarOpportunityItem
 } from '../../../types';
 import { INITIAL_LIVE_DOSSIERS, INITIAL_BRIEFING_DATA, generatePlanBForDossier } from '../../../services/careerContinuityEngine';
+import { StatusBadge, StatusVariant } from '../../ui/StatusBadge';
 import { CareerLiveDossierModal } from './CareerLiveDossierModal';
 import { CareerWhatShouldIDoNowModal } from './CareerWhatShouldIDoNowModal';
 import { CareerBriefingTomorrowModal } from './CareerBriefingTomorrowModal';
@@ -181,26 +182,27 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
     }
   };
 
-  const getStatusDisplay = (dossier: CareerLiveDossier) => {
+  const getStatusDisplay = (dossier: CareerLiveDossier): { variant: StatusVariant | null; label: string; color?: string } => {
     if (dossier.isStalled) {
-      return { label: `Bloqué (${dossier.daysSinceLastContact}j)`, color: 'bg-red-50 text-red-800 border-red-200' };
+      return { variant: 'danger', label: `Bloqué (${dossier.daysSinceLastContact}j)` };
     }
     if (dossier.status === 'rendez_vous') {
-      return { label: 'Rendez-vous Fixé 📅', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
+      // Scheduling marker, not a validated/pending/danger status — kept as a bespoke pill.
+      return { variant: null, label: 'Rendez-vous Fixé 📅', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
     }
     if (dossier.status === 'a_relancer') {
-      return { label: 'À Relancer (J+8)', color: 'bg-amber-50 text-amber-800 border-amber-200' };
+      return { variant: 'action_required', label: 'À Relancer (J+8)' };
     }
     if (dossier.status === 'urgent') {
-      return { label: 'Urgent (<48h)', color: 'bg-red-50 text-red-800 border-red-200' };
+      return { variant: 'danger', label: 'Urgent (<48h)' };
     }
     if (dossier.status === 'en_attente') {
-      return { label: 'En attente retour', color: 'bg-slate-100 text-slate-700 border-slate-200' };
+      return { variant: 'pending', label: 'En attente retour' };
     }
     if (dossier.status === 'reussi') {
-      return { label: 'Résultat Certifié 🎉', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+      return { variant: 'success', label: 'Résultat Certifié 🎉' };
     }
-    return { label: 'En cours', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    return { variant: 'in_progress', label: 'En cours' };
   };
 
   return (
@@ -409,9 +411,13 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
                     </div>
                   </div>
 
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border shrink-0 ${statusBadge.color}`}>
-                    {statusBadge.label}
-                  </span>
+                  {statusBadge.variant ? (
+                    <StatusBadge status={statusBadge.variant} label={statusBadge.label} size="sm" className="shrink-0" />
+                  ) : (
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border shrink-0 ${statusBadge.color}`}>
+                      {statusBadge.label}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">

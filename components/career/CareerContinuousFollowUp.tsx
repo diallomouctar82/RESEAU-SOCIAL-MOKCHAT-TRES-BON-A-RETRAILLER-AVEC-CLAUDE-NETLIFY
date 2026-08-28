@@ -14,9 +14,8 @@ import {
   Trash2, 
   ArrowRight, 
   Award, 
-  TrendingUp, 
-  ShieldCheck, 
-  BellRing, 
+  TrendingUp,
+  BellRing,
   RotateCcw,
   ChevronRight,
   ExternalLink,
@@ -26,6 +25,7 @@ import {
 } from 'lucide-react';
 import { CareerMissionPlan, CareerSmartReminder, CareerActionItem, RadarOpportunityItem } from '../../types';
 import { CareerResponseAnalyzerModal } from './conquest/CareerResponseAnalyzerModal';
+import { StatusBadge } from '../ui/StatusBadge';
 
 interface OpportunityItem {
   id: string;
@@ -428,9 +428,7 @@ export const CareerContinuousFollowUp: React.FC<CareerContinuousFollowUpProps> =
                     <span className="text-xs text-slate-500">{exp.company} • {exp.duration}</span>
                   </div>
                   {exp.verified && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <ShieldCheck size={12} /> Vérifié
-                    </span>
+                    <StatusBadge status="verified" label="Vérifié" size="sm" />
                   )}
                 </div>
                 <div className="space-y-1 pt-1">
