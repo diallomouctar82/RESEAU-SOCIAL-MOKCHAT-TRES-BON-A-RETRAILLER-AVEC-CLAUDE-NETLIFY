@@ -171,12 +171,15 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
               for(let i=0; i<inputData.length; i+=step) sum += inputData[i] * inputData[i];
               setVolume(Math.min(100, Math.round(Math.sqrt(sum / (inputData.length / step)) * 300)));
 
+              // createPcmBlob() renvoie DÉJÀ un Blob complet {data, mimeType}.
+              // L'ancien code le ré-encapsulait dans {mimeType, data: pcmBlob}
+              // puis dans un tableau, alors que sendRealtimeInput attend un
+              // objet {audio} | {media} : ni `audio` ni `media` n'étaient donc
+              // définis et PLUS AUCUN son du micro n'était transmis à Gemini
+              // (le vumètre bougeait quand même : il est calculé localement).
               const pcmBlob = createPcmBlob(inputData);
               sessionPromise.then(session => {
-                 session.sendRealtimeInput([{
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: pcmBlob
-                 }]);
+                 session.sendRealtimeInput({ audio: pcmBlob });
               }).catch(e => console.warn('Send audio error', e));
             };
 
@@ -184,13 +187,20 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
             processor.connect(inputCtx.destination);
           },
           onmessage: async (msg: any) => {
+            try {
              const serverContent = msg.serverContent;
              if (serverContent?.modelTurn?.parts) {
                 for (const part of serverContent.modelTurn.parts) {
                     if (part.inlineData?.data) {
                         const audioBytes = base64ToUint8Array(part.inlineData.data);
                         if (outputContextRef.current) {
-                            const audioBuffer = await decodeAudioData(outputContextRef.current, audioBytes, 24000);
+                            // Signature : decodeAudioData(data, ctx, sampleRate, numChannels).
+                            // Les deux premiers arguments étaient inversés et le
+                            // 4e manquait : `ctx.createBuffer` était appelé sur un
+                            // Uint8Array et levait une exception à CHAQUE segment
+                            // audio — avalée silencieusement par ce callback async.
+                            // C'est pourquoi l'expert restait muet.
+                            const audioBuffer = await decodeAudioData(audioBytes, outputContextRef.current, 24000, 1);
                             playAudioChunk(audioBuffer);
                         }
                     }
@@ -199,6 +209,12 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
              if (serverContent?.interrupted) {
                  stopAllPlayback();
              }
+            } catch (err) {
+              // Sans ce catch, toute erreur de décodage/lecture disparaissait
+              // sans trace (rejet de promesse non géré) : la session semblait
+              // active mais restait silencieuse.
+              console.error('Erreur de lecture du flux audio Live', err);
+            }
           },
           onerror: (err: any) => {
              console.error('Live session error', err);
