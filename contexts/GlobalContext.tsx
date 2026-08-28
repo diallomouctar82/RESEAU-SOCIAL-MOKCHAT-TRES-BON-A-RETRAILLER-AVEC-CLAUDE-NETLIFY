@@ -143,24 +143,26 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (supabaseService.isConfigured() && (updates.id || userProfile.id)) {
             const targetId = updates.id || userProfile.id;
             try {
+                // Ne jamais envoyer skills/badges (pas des colonnes de `profiles`,
+                // ce sont les tables séparées profile_skills/profile_badges — les
+                // inclure fait échouer TOUTE la requête avec un 400, y compris
+                // pour un simple changement de bio) ni role/credits/xp/level (un
+                // trigger BDD les protège déjà contre l'auto-modification ; les
+                // envoyer quand même n'a pas de sens depuis ce chemin d'édition
+                // de profil utilisateur). Voir Chantier 1 pour la suite (décision
+                // produit skills/badges, privacy_settings).
                 await supabaseService.upsertProfile({
                     id: targetId,
                     email: updates.email || userProfile.email,
                     name: updates.name || userProfile.name,
                     title: updates.title || userProfile.title,
                     bio: updates.bio || userProfile.bio,
-                    role: (updates.role || userProfile.role) === 'admin' ? 'admin' : 'citizen',
                     country: updates.country || userProfile.country,
                     city: updates.city || userProfile.city,
                     phone: updates.phone || userProfile.phone,
                     website: updates.website || userProfile.website,
                     avatar_url: updates.avatarUrl || userProfile.avatarUrl,
                     citizenship_id: updates.citizenshipId || userProfile.citizenshipId,
-                    level: updates.level ?? userProfile.level,
-                    xp: updates.xp ?? userProfile.xp,
-                    credits: updates.credits ?? userProfile.credits,
-                    skills: updates.skills || userProfile.skills,
-                    badges: updates.badges || userProfile.badges,
                     interests: updates.interests || userProfile.interests,
                 });
             } catch (err) {
