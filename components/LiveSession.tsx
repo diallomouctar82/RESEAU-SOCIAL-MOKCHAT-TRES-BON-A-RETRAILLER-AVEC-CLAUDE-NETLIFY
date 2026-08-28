@@ -25,6 +25,28 @@ import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../services/
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { Agent, MultimodalVisionAnalysis } from '../types';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
+import { supabase } from '../services/supabaseClient';
+
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+
+// Jeton éphémère Gemini Live émis côté serveur à partir de la clé configurée
+// dans l'orchestrateur (Super Admin → Connecteurs & Modèles IA → Gemini) —
+// jamais une clé permanente exposée dans le bundle client.
+const mintLiveToken = async (): Promise<string> => {
+    const { data, error } = await supabase.functions.invoke('mint-live-token', {
+        body: { model: LIVE_MODEL },
+    });
+    if (error) {
+        throw new Error(error.message || "Impossible de préparer l'appel vocal.");
+    }
+    if (data?.error) {
+        throw new Error(data.error as string);
+    }
+    if (!data?.token) {
+        throw new Error('Jeton d\'appel introuvable dans la réponse du serveur.');
+    }
+    return data.token as string;
+};
 
 type LiveScenario = 'general' | 'interview' | 'medical' | 'translator';
 
@@ -76,8 +98,9 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     setErrorMsg(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
+      const liveToken = await mintLiveToken();
+      const ai = new GoogleGenAI({ apiKey: liveToken });
+
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const inputCtx = new AudioContextClass({ sampleRate: 16000 });
       const outputCtx = new AudioContextClass({ sampleRate: 24000 });
@@ -102,8 +125,14 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       const instruction = SYSTEM_INSTRUCTION + " " + specificInstruction;
       const voiceName = agent?.metaProfile?.voiceId || 'Henri';
 
+      // IMPORTANT : ai.live.connect() renvoie une Promise qui rejette si la
+      // connexion échoue (clé invalide, modèle indisponible, réseau...). Elle
+      // doit être attendue (voir `await sessionPromise` plus bas) pour que ce
+      // try/catch l'intercepte — sinon l'échec devient une rejection de
+      // promesse non gérée : aucun feedback à l'écran, "rien ne se passe"
+      // pour l'utilisateur alors que la connexion a bien échoué.
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -174,10 +203,15 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
         }
       });
 
+      // Sans ce await, un échec de connexion (clé invalide, modèle
+      // indisponible...) ne remontait jamais jusqu'ici : c'était le bug
+      // "je clique sur Démarrer l'Appel et rien ne se passe".
+      await sessionPromise;
+
     } catch (e: any) {
       console.error('Live connect failed', e);
       setStatus('error');
-      setErrorMsg(e.message || 'Impossible de démarrer la session');
+      setErrorMsg(e?.message || 'Impossible de démarrer la session.');
       stopSession();
     }
   };
