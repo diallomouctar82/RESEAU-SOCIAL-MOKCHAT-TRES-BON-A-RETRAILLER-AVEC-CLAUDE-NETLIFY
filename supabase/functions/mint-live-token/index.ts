@@ -25,6 +25,57 @@ function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
 
+interface GeminiModel {
+    name?: string;
+    supportedGenerationMethods?: string[];
+}
+
+// Modèles Live découverts, mis en cache le temps de vie de l'instance (les
+// instances Edge sont recyclées souvent : pas de risque de cache périmé long).
+let cachedLiveModels: string[] | null = null;
+
+async function listLiveModels(apiKey: string): Promise<string[]> {
+    if (cachedLiveModels) return cachedLiveModels;
+
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', {
+        headers: { 'x-goog-api-key': apiKey },
+    });
+    if (!res.ok) {
+        console.error(`mint-live-token: ListModels a échoué (${res.status})`, (await res.text().catch(() => '')).slice(0, 300));
+        return [];
+    }
+
+    const data = await res.json() as { models?: GeminiModel[] };
+    const live = (data.models ?? [])
+        // `bidiGenerateContent` = capacité Live API (WebSocket bidirectionnel).
+        .filter((m) => m.supportedGenerationMethods?.includes('bidiGenerateContent'))
+        .map((m) => (m.name ?? '').replace(/^models\//, ''))
+        .filter(Boolean);
+
+    console.log(`mint-live-token: ${live.length} modèle(s) Live disponible(s) :`, live.join(', '));
+    cachedLiveModels = live;
+    return live;
+}
+
+/**
+ * Choisit le modèle Live à utiliser : celui demandé s'il est réellement
+ * disponible, sinon le meilleur candidat (audio natif en priorité — voix plus
+ * naturelle et latence plus faible), sinon n'importe quel modèle Live.
+ */
+async function resolveLiveModel(apiKey: string, requested?: string): Promise<string | null> {
+    const available = await listLiveModels(apiKey);
+    if (available.length === 0) return requested ?? null;
+
+    if (requested && available.includes(requested)) return requested;
+
+    const nativeAudio = available.filter((m) => m.includes('native-audio'));
+    const chosen = nativeAudio[0] ?? available[0];
+    if (requested && requested !== chosen) {
+        console.log(`mint-live-token: modèle demandé "${requested}" indisponible, bascule sur "${chosen}".`);
+    }
+    return chosen;
+}
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
     if (req.method !== 'POST') return json({ error: 'Méthode non supportée.' }, 405);
@@ -62,7 +113,18 @@ Deno.serve(async (req: Request) => {
     try {
         body = await req.json();
     } catch { /* corps optionnel */ }
-    const model = body.model || 'gemini-2.5-flash-native-audio-preview-09-2025';
+
+    // Le nom des modèles Live est en préversion et change tous les quelques
+    // mois (…-09-2025, …-12-2025, gemini-3.1-flash-live-preview…). Le coder en
+    // dur garantit une panne à la prochaine rotation : on demande donc à
+    // Google la liste réelle des modèles capables de `bidiGenerateContent`
+    // et on choisit le meilleur disponible pour CETTE clé.
+    const model = await resolveLiveModel(apiKey as string, body.model);
+    if (!model) {
+        return json({
+            error: "Aucun modèle Gemini Live n'est disponible pour cette clé API. Vérifiez que l'API Live (bidiGenerateContent) est activée sur le projet Google associé à la clé.",
+        }, 502);
+    }
 
     const now = Date.now();
     const newSessionExpireTime = new Date(now + 60_000).toISOString(); // 1 min pour démarrer la session

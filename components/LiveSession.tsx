@@ -27,7 +27,22 @@ import { Agent, MultimodalVisionAnalysis } from '../types';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
 import { mintLiveToken } from '../services/aiGateway';
 
+// Modèle souhaité par défaut. Le serveur (mint-live-token) vérifie qu'il est
+// réellement disponible pour la clé configurée et bascule automatiquement sur
+// un autre modèle Live si Google l'a renommé/retiré — ce nom n'est donc qu'une
+// préférence, jamais un point de rupture.
 const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+
+// Voix préconstruites acceptées par Gemini Live (les voix ElevenLabs et tout
+// autre nom sont refusés par l'API).
+const GEMINI_LIVE_VOICES = [
+  'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede',
+  'Callirrhoe', 'Autonoe', 'Enceladus', 'Iapetus', 'Umbriel', 'Algieba',
+  'Despina', 'Erinome', 'Algenib', 'Rasalgethi', 'Laomedeia', 'Achernar',
+  'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima', 'Achird', 'Zubenelgenubi',
+  'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
+];
+const DEFAULT_LIVE_VOICE = 'Fenrir';
 
 type LiveScenario = 'general' | 'interview' | 'medical' | 'translator';
 
@@ -79,8 +94,15 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     setErrorMsg(null);
 
     try {
-      const liveToken = await mintLiveToken(LIVE_MODEL);
-      const ai = new GoogleGenAI({ apiKey: liveToken });
+      // Le serveur renvoie le modèle Live réellement retenu (les noms de
+      // modèles en préversion changent régulièrement) : on se connecte avec
+      // celui-là, sinon le jeton — lié au modèle — serait refusé.
+      const { token: liveToken, model: liveModel } = await mintLiveToken(LIVE_MODEL);
+
+      // httpOptions v1alpha est OBLIGATOIRE avec un jeton éphémère : ces jetons
+      // ne sont émis que sur v1alpha, et le client doit se connecter sur la
+      // même version, sinon la connexion est rejetée.
+      const ai = new GoogleGenAI({ apiKey: liveToken, httpOptions: { apiVersion: 'v1alpha' } });
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const inputCtx = new AudioContextClass({ sampleRate: 16000 });
@@ -104,7 +126,14 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       }
 
       const instruction = SYSTEM_INSTRUCTION + " " + specificInstruction;
-      const voiceName = agent?.metaProfile?.voiceId || 'Henri';
+      // Gemini Live n'accepte que ses propres voix préconstruites : un nom
+      // hors catalogue (l'ancien défaut "Henri", ou un identifiant de voix
+      // ElevenLabs) fait échouer la connexion. On retombe donc sur une voix
+      // valide plutôt que d'envoyer un nom refusé.
+      const requestedVoice = agent?.metaProfile?.voiceId;
+      const voiceName = requestedVoice && GEMINI_LIVE_VOICES.includes(requestedVoice)
+        ? requestedVoice
+        : DEFAULT_LIVE_VOICE;
 
       // IMPORTANT : ai.live.connect() renvoie une Promise qui rejette si la
       // connexion échoue (clé invalide, modèle indisponible, réseau...). Elle
@@ -113,7 +142,7 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       // promesse non gérée : aucun feedback à l'écran, "rien ne se passe"
       // pour l'utilisateur alors que la connexion a bien échoué.
       const sessionPromise = ai.live.connect({
-        model: LIVE_MODEL,
+        model: liveModel,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
