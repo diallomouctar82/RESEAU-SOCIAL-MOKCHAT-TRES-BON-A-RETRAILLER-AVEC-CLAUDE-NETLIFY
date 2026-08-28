@@ -66,7 +66,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: candidates, error: candidatesError } = await service
         .from('ai_providers')
-        .select('id, adapter_kind, base_url, priority, ai_provider_credentials!inner(is_enabled)')
+        .select('id, adapter_kind, base_url, adapter_config, priority, ai_provider_credentials!inner(is_enabled)')
         .eq('category', body.category)
         .eq('status', 'active')
         .eq('ai_provider_credentials.is_enabled', true)
@@ -107,7 +107,12 @@ Deno.serve(async (req: Request) => {
                 ...(body.category === 'image_video' ? { imageVideo: body.request as AdapterRequest['imageVideo'] } : {}),
             };
 
-            const result = await adapter.call(adapterRequest, apiKey as string, provider.base_url);
+            const result = await adapter.call(
+                adapterRequest,
+                apiKey as string,
+                provider.base_url,
+                provider.adapter_config as Record<string, unknown> | undefined,
+            );
 
             await logCall(service, {
                 category: body.category, providerId: provider.id, modelId, attemptNumber,
@@ -143,7 +148,7 @@ async function defaultModelId(service: ReturnType<typeof createServiceRoleClient
 async function testProvider(service: ReturnType<typeof createServiceRoleClient>, providerId: string) {
     const { data: provider, error: providerError } = await service
         .from('ai_providers')
-        .select('id, adapter_kind, base_url')
+        .select('id, adapter_kind, base_url, adapter_config')
         .eq('id', providerId)
         .maybeSingle();
     if (providerError || !provider) return { ok: false, message: 'Fournisseur inconnu.' };
@@ -155,7 +160,11 @@ async function testProvider(service: ReturnType<typeof createServiceRoleClient>,
     if (secretError || !apiKey) return { ok: false, message: 'Aucune clé configurée pour ce fournisseur.' };
 
     const adapter = resolveAdapter(provider.adapter_kind);
-    const outcome = await adapter.testConnection(apiKey as string, provider.base_url);
+    const outcome = await adapter.testConnection(
+        apiKey as string,
+        provider.base_url,
+        provider.adapter_config as Record<string, unknown> | undefined,
+    );
 
     await service
         .from('ai_provider_credentials')

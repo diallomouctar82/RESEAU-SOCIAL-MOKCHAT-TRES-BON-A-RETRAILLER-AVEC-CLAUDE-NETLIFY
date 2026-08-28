@@ -10,6 +10,12 @@ export interface AiProviderModel {
     isDefault: boolean;
 }
 
+export interface MissingField {
+    key: string;
+    label: string;
+    hint: string;
+}
+
 export interface AiProviderRow {
     id: string;
     category: AiCategory;
@@ -19,12 +25,18 @@ export interface AiProviderRow {
     status: 'not_implemented' | 'active';
     apiKeyUrl: string | null;
     billingUrl: string | null;
+    docsUrl: string | null;
     models: AiProviderModel[];
     isEnabled: boolean;
     keyHint: string | null;
     lastTestedAt: string | null;
     lastTestStatus: 'success' | 'failure' | null;
     lastTestMessage: string | null;
+    // Auto-découverte (adapterKind === 'generic_http') — absent pour les fournisseurs codés en dur.
+    discoveryStatus: 'manual' | 'pending' | 'analyzing' | 'ready' | 'needs_info' | 'failed';
+    discoveryConfidence: number | null;
+    discoverySummary: string | null;
+    missingFields: MissingField[];
 }
 
 /**
@@ -61,6 +73,11 @@ export const listProviders = async (): Promise<AiProviderRow[]> => {
             status: p.status,
             apiKeyUrl: p.api_key_url ?? null,
             billingUrl: p.billing_url ?? null,
+            docsUrl: p.docs_url ?? null,
+            discoveryStatus: p.discovery_status ?? 'manual',
+            discoveryConfidence: p.discovery_confidence ?? null,
+            discoverySummary: p.discovery_summary ?? null,
+            missingFields: (p.missing_fields as MissingField[] | null) ?? [],
             models: (models || [])
                 .filter((m) => m.provider_id === p.id)
                 .map((m) => ({ id: m.id, modelId: m.model_id, label: m.label, isDefault: m.is_default })),
@@ -85,6 +102,67 @@ export const setProviderEnabled = async (providerId: string, enabled: boolean): 
 
 export const setProviderPriority = async (providerId: string, priority: number): Promise<void> => {
     const { error } = await supabase.rpc('set_ai_provider_priority', { p_provider_id: providerId, p_priority: priority });
+    if (error) throw error;
+};
+
+export interface DiscoveryResult {
+    providerId: string;
+    displayName: string;
+    category: AiCategory;
+    discoveryStatus: 'ready' | 'needs_info';
+    confidence: number | null;
+    notes: string | null;
+    docsUrl: string | null;
+    signupUrl: string | null;
+    apiKeyUrl: string | null;
+    billingUrl: string | null;
+    missingFields: MissingField[];
+}
+
+/**
+ * Assistant de découverte automatique : l'admin colle une URL, cette fonction
+ * explore le site du fournisseur et enregistre directement une fiche exploitable
+ * (liens + configuration d'appel générique) — aucun code à écrire. Voir la
+ * fonction Edge discover-provider.
+ */
+export const discoverProvider = async (url: string): Promise<DiscoveryResult> => {
+    const { data, error } = await supabase.functions.invoke('discover-provider', { body: { url } });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as DiscoveryResult;
+};
+
+/**
+ * Complète manuellement les champs que la découverte automatique n'a pas pu
+ * déterminer (adapter_config partiel) puis marque le fournisseur prêt/actif.
+ */
+export const completeDiscoveredProvider = async (
+    providerId: string,
+    adapterConfigPatch: Record<string, unknown>,
+): Promise<void> => {
+    const { data: row, error: fetchError } = await supabase
+        .from('ai_providers')
+        .select('category, display_name, source_url, docs_url, api_key_url, billing_url, base_url, adapter_config, discovery_confidence, discovery_summary')
+        .eq('id', providerId)
+        .single();
+    if (fetchError || !row) throw fetchError || new Error('Fournisseur introuvable.');
+
+    const mergedConfig = { ...(row.adapter_config as Record<string, unknown>), ...adapterConfigPatch };
+    const { error } = await supabase.rpc('upsert_discovered_provider', {
+        p_id: providerId,
+        p_category: row.category,
+        p_display_name: row.display_name,
+        p_source_url: row.source_url,
+        p_docs_url: row.docs_url,
+        p_api_key_url: row.api_key_url,
+        p_billing_url: row.billing_url,
+        p_base_url: (adapterConfigPatch.base_url as string | undefined) ?? row.base_url,
+        p_discovery_status: 'ready',
+        p_discovery_confidence: row.discovery_confidence,
+        p_discovery_summary: row.discovery_summary,
+        p_adapter_config: mergedConfig,
+        p_missing_fields: [],
+    });
     if (error) throw error;
 };
 
