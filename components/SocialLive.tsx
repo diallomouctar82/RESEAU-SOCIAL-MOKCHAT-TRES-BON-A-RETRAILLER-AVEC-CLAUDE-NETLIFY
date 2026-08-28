@@ -10,7 +10,7 @@ import {
   Compass, Copy, EyeOff, Headphones, GraduationCap, LifeBuoy, FileCheck,
   AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 import { 
   LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc, 
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
@@ -417,17 +417,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const handleTriggerVisionAnalysis = async () => {
     setIsVisionAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es Diallo OS en analyse Vision IA pendant le Live "${liveData.title}".
       L'intervenant présente un document / schéma / objet à la caméra.
       Décris précisément ce que tu observes, les points clés administratifs ou techniques, et le conseil immédiat pour la salle.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }]
-      });
+      const response = await generateText(prompt);
 
-      const resultText = response.text || "Document analysé : Modèle de pacte d'associés conforme aux normes OHADA.";
+      const resultText = response || "Document analysé : Modèle de pacte d'associés conforme aux normes OHADA.";
       setVisionAnalysisResult(resultText);
       setMessages(prev => [...prev, {
         user: "Vision IA Diallo",

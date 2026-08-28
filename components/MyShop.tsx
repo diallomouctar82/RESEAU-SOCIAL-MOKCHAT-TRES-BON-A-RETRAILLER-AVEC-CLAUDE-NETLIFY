@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserShop, Product, ShopAIConfig, UserProfile } from '../types';
 import { Store, ShoppingBag, Bot, Settings, Plus, Sparkles, BarChart, Save, Trash2, Send, Wand2, ImageIcon, Loader2, LayoutDashboard } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON, generateImage } from '../services/aiGateway';
 import { TradeBusinessOperatingSystem } from './TradeBusinessOperatingSystem';
 
 interface MyShopProps {
@@ -33,16 +33,11 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
   const generateShopInfo = async () => {
       setIsGeneratingShopInfo(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: `Génère un nom de boutique et une courte description (1 phrase) pour un entrepreneur numérique qui vend des services ou produits digitaux.
+          const result = await generateJSON<{ name?: string; description?: string }>(
+              `Génère un nom de boutique et une courte description (1 phrase) pour un entrepreneur numérique qui vend des services ou produits digitaux.
               Réponds en JSON uniquement : { "name": "...", "description": "..." }`
-          });
-          const text = response.text || '{}';
-          const jsonStr = text.replace(/```json|```/g, '').trim();
-          const result = JSON.parse(jsonStr);
-          
+          );
+
           if(result.name) setCreationForm({ name: result.name, description: result.description || '' });
       } catch (e) {
           console.error(e);
@@ -75,14 +70,12 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
     if (!newProduct.title) return;
     setIsGeneratingDesc(true);
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Rédige une description produit vendeuse, courte et attractive pour : "${newProduct.title}". 
+        const response = await generateText(
+            `Rédige une description produit vendeuse, courte et attractive pour : "${newProduct.title}".
             Catégorie: ${newProduct.category}.
             Ton: Enthousiaste et professionnel. Max 50 mots.`
-        });
-        setNewProduct({...newProduct, description: response.text || ''});
+        );
+        setNewProduct({...newProduct, description: response || ''});
     } catch (e) {
         console.error(e);
     } finally {
@@ -94,22 +87,10 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
       if (!newProduct.title) return;
       setIsGeneratingImage(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-pro-image-preview',
-              contents: { parts: [{ text: `A professional, high quality product photo of: ${newProduct.title}. ${newProduct.category} style. Minimalist background.` }] },
-              config: {
-                  imageConfig: { aspectRatio: "1:1", imageSize: "1K" }
-              }
-          });
-
-          let imageUrl = null;
-          for (const part of response.candidates[0].content.parts) {
-              if (part.inlineData) {
-                  imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-                  break;
-              }
-          }
+          const imageUrl = await generateImage(
+              `A professional, high quality product photo of: ${newProduct.title}. ${newProduct.category} style. Minimalist background.`,
+              { params: { aspectRatio: '1:1' } }
+          );
           if (imageUrl) {
               setNewProduct({ ...newProduct, imageUrl });
           }
@@ -156,18 +137,14 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
       setIsSimLoading(true);
 
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           const systemPrompt = `Tu es ${shop.aiConfig.agentName}, vendeur pour "${shop.name}".
           Personnalité : ${shop.aiConfig.personality}. Stratégie : ${shop.aiConfig.salesStrategy}.
           Catalogue : ${shop.products.map(p => `${p.title} (${p.price}€)`).join(', ')}.
           Réponds pour vendre.`;
 
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-pro-preview',
-              contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\nClient: " + userMsg }] }]
-          });
+          const response = await generateText("Client: " + userMsg, { systemInstruction: systemPrompt });
 
-          setSimChat(prev => [...prev, { role: 'model', text: response.text || "..." }]);
+          setSimChat(prev => [...prev, { role: 'model', text: response || "..." }]);
       } catch (e) { console.error(e); } finally { setIsSimLoading(false); }
   };
 

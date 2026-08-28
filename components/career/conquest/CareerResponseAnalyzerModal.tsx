@@ -15,7 +15,7 @@ import {
   Award,
   Layers
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../../../services/aiGateway';
 import { ConquestResponseAnalysis, RadarOpportunityItem } from '../../../types';
 
 interface CareerResponseAnalyzerModalProps {

@@ -3,7 +3,7 @@ import {
   Camera, Upload, FileText, CheckCircle2, AlertTriangle, Sparkles, 
   X, RefreshCw, DollarSign, Building2, Calendar, ShieldCheck, ArrowRight 
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 
 interface TradeDocumentOcrModalProps {
   isOpen: boolean;
@@ -51,7 +51,6 @@ export const TradeDocumentOcrModal: React.FC<TradeDocumentOcrModalProps> = ({
     setIsProcessing(true);
     try {
       // If we have actual file base64 or fallback simulation with Gemini
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es l'OCR IA Commercial International de Diallo OS.
       Analyse cette facture commerciale / facture pro forma / document douanier international.
       Extrais avec précision les données :
@@ -82,14 +81,7 @@ export const TradeDocumentOcrModal: React.FC<TradeDocumentOcrModalProps> = ({
         "confidenceScore": 98.4
       }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-
-      const text = response.text || '{}';
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      const parsed = await generateJSON<any>(prompt);
       setExtractedData(parsed);
     } catch (err) {
       console.warn('OCR Fallback:', err);

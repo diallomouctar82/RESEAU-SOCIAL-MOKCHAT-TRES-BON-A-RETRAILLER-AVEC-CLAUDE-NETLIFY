@@ -60,7 +60,7 @@ import {
     MockExamBlueprint,
     MockExamReport
 } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON } from '../services/aiGateway';
 import { cloudService } from '../services/cloud';
 import { useGlobal } from '../contexts/GlobalContext';
 import { campusPedagogicalEngine } from '../services/campusPedagogicalEngine';
@@ -228,9 +228,8 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       if (!selectedCourse) return;
       setIsGeneratingContent(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           let prompt = "";
-          
+
           if (type === 'theory') {
               prompt = `
                 Tu es Professeur Diallo, Enseignant Émérite à ${selectedCourse.institution || "l'Académie Mondiale Le Monde à Vous"}.
@@ -265,12 +264,9 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
               `;
           }
 
-          const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: prompt
-          });
+          const responseText = await generateText(prompt);
 
-          const content = response.text || "Contenu indisponible.";
+          const content = responseText || "Contenu indisponible.";
           
           if (type === 'theory') {
               setLessonContent(content);
@@ -318,14 +314,13 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       setRevisionChat(prev => [...prev, {role: 'user', text: userMsg}]);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const prompt = `Tu es Professeur Diallo, tuteur bienveillant pour le cours "${selectedCourse.title}" (${studentProfile.selectedCountryName} - ${studentProfile.selectedLevelName}). 
+          const prompt = `Tu es Professeur Diallo, tuteur bienveillant pour le cours "${selectedCourse.title}" (${studentProfile.selectedCountryName} - ${studentProfile.selectedLevelName}).
           L'étudiant te dit : "${userMsg}".
           Réponds de manière ultra-pédagogique, sans jargon superflu. Si l'étudiant a une incompréhension, propose-lui un mini-exercice ou une analogie concrète.
           `;
-          
-          const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-          setRevisionChat(prev => [...prev, {role: 'model', text: response.text || "Je n'ai pas compris."}]);
+
+          const responseText = await generateText(prompt);
+          setRevisionChat(prev => [...prev, {role: 'model', text: responseText || "Je n'ai pas compris."}]);
       } catch (e) { console.error(e); }
   };
 
@@ -339,10 +334,9 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       }]);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           const prompt = `Génère une fiche de révision dense pour : "${selectedCourse.title}" (${studentProfile.selectedCountryName} - ${studentProfile.selectedLevelName}). Concepts clés, Propriétés, Pièges d'examen classiques. Markdown.`;
-          const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-          setRevisionNote(response.text || "");
+          const responseText = await generateText(prompt);
+          setRevisionNote(responseText || "");
       } catch (e) { console.error(e); } finally { setIsGeneratingRevision(false); }
   };
 
@@ -352,21 +346,14 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
       setIsExamSubmitting(true);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           const prompt = `
             Génère un examen final SÉRIEUX et CONFORME aux épreuves officielles pour le cours "${selectedCourse.title}" (${selectedCourse.level}, ${studentProfile.selectedCountryName}).
             10 Questions à Choix Multiples (QCM) de niveau examen officiel.
             Réponds en JSON strict :
             [ { "question": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0, "explanation": "..." } ]
           `;
-          
-          const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: prompt,
-              config: { responseMimeType: 'application/json' }
-          });
-          
-          const questions = JSON.parse(response.text || '[]') as QuizQuestion[];
+
+          const questions = (await generateJSON<QuizQuestion[]>(prompt)) || [];
           
           const newSession: ExamSession = {
               id: Date.now().toString(),

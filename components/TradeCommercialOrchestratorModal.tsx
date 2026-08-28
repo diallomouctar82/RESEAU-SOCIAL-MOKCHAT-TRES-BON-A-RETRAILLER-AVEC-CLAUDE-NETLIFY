@@ -4,7 +4,7 @@ import {
   Calendar, ShieldCheck, FileText, Users, Bot, Layers, AlertTriangle, 
   Compass, ChevronRight, Play, RefreshCw 
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 
 interface TradeCommercialOrchestratorModalProps {
   isOpen: boolean;
@@ -48,7 +48,6 @@ export const TradeCommercialOrchestratorModal: React.FC<TradeCommercialOrchestra
   const handleGenerateRoadmap = async () => {
     setIsGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es l'Orchestrateur Commercial Suprême de Diallo OS pour la plateforme 'Le Monde à Vous'.
       L'utilisateur exprime l'intention commerciale suivante :
       "${objectivePrompt}"
@@ -144,14 +143,7 @@ export const TradeCommercialOrchestratorModal: React.FC<TradeCommercialOrchestra
         ]
       }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-
-      const text = response.text || '{}';
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      const parsed = await generateJSON<any>(prompt);
       setGeneratedPlan(parsed);
     } catch (e) {
       console.error(e);

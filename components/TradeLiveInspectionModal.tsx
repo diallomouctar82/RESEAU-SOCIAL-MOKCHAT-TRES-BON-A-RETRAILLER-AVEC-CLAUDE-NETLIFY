@@ -19,7 +19,7 @@ import {
   Download,
   Share2
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 import { CommercialDossier, LiveInspectionSession } from '../types';
 
 interface TradeLiveInspectionModalProps {
@@ -93,7 +93,6 @@ export const TradeLiveInspectionModal: React.FC<TradeLiveInspectionModalProps> =
   const handleGenerateAISummary = async () => {
     setIsGeneratingSummary(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es l'Inspecteur Qualité & Greffier Numérique de Diallo OS.
 Rédige un compte-rendu officiel d'inspection en direct pour le dossier commercial suivant :
 - Dossier : ${dossier.codeRef} (${dossier.productTitle})
@@ -104,11 +103,8 @@ Rédige un compte-rendu officiel d'inspection en direct pour le dossier commerci
 
 Rédige un procès-verbal d'inspection clair, structuré avec mention de conformité, réserves éventuelles et feu vert de mise en conteneur.`;
 
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      setSummaryReport(res.text || 'Compte-rendu d\'inspection validé.');
+      const text = await generateText(prompt);
+      setSummaryReport(text || 'Compte-rendu d\'inspection validé.');
     } catch (e) {
       console.error(e);
       setSummaryReport(

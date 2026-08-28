@@ -26,7 +26,7 @@ import {
     ExternalLink,
     Check
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 import { DossierParcours } from '../types';
 
 interface ChefDeProjetSuiteProps {
@@ -138,15 +138,10 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
     // Calculs budgétaires
     const totalBudget = budgetLines.reduce((acc, curr) => acc + curr.amount, 0);
 
-    const getAIClient = () => {
-        return new GoogleGenAI();
-    };
-
     // Génération IA Phase 2: Structuration
     const handleGenerateTheoryOfChange = async () => {
         setIsGeneratingTheory(true);
         try {
-            const ai = getAIClient();
             const prompt = `En tant que Directeur Diallo, Chef de Projet IA et Expert en Ingénierie de Développement International :
             Rédige la Structuration Méthodique Complète (Théorie du Changement, Objectifs Spécifiques, Activités, Indicateurs SMART, Matrice de Risques) pour le projet suivant :
             - Titre : ${projectTitle}
@@ -155,12 +150,9 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
             - Solution : ${proposedSolution}
             Formatte avec une structure claire, professionnelle, digne d'un dossier de bailleur international (BAD, AFD, UE).`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            setTheoryOfChange(res.text || 'Génération terminée.');
+            setTheoryOfChange(resText || 'Génération terminée.');
             onNotification("Phase 2 Structurée", "La théorie du changement et le cadre logique ont été rédigés.", "success");
         } catch (e: any) {
             onNotification("Erreur IA", e.message || "Erreur de génération", "warning");
@@ -173,7 +165,6 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
     const handleGenerateTechnicalDoc = async () => {
         setIsGeneratingTechnical(true);
         try {
-            const ai = getAIClient();
             const prompt = `En tant que Directeur Diallo, Chef de Projet IA :
             Rédige le Document de Projet & Note Technique Complète pour :
             - Titre : ${projectTitle}
@@ -183,12 +174,9 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
             - Gouvernance et Durabilité Économique
             - Impact Social et Environnemental (Emploi des femmes, réduction des pertes).`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            setTechnicalNote(res.text || 'Dossier technique rédigé.');
+            setTechnicalNote(resText || 'Dossier technique rédigé.');
             onNotification("Dossier Technique Prêt", "Le document de projet a été compilé avec succès.", "success");
         } catch (e: any) {
             onNotification("Erreur IA", e.message || "Erreur de génération", "warning");
@@ -201,7 +189,6 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
     const handleGenerateOutreachEmail = async () => {
         setIsGeneratingEmail(true);
         try {
-            const ai = getAIClient();
             const prompt = `En tant que Directeur Diallo, Chef de Projet IA :
             Rédige une lettre officielle / email de saisine et manifestation d'intérêt institutionnelle destinée à :
             Destinataire : ${outreachRecipient}
@@ -210,12 +197,9 @@ export const ChefDeProjetSuite: React.FC<ChefDeProjetSuiteProps> = ({
             Ton : ${outreachTone}
             Inclus : Objet protocolaire, salutations d'usage, pitch d'impact chiffré, alignement avec leurs critères d'éligibilité, demande formelle d'entretien avec les pièces jointes proposées.`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            setGeneratedEmail(res.text || 'Courrier rédigé.');
+            setGeneratedEmail(resText || 'Courrier rédigé.');
             setOutreachConfirmed(false);
             onNotification("Courrier Rédigé", "Le modèle d'email protocolaire a été formulé. Veuillez valider avant envoi.", "info");
         } catch (e: any) {

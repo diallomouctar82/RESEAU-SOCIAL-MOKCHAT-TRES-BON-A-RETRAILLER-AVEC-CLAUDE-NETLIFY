@@ -28,7 +28,7 @@ import {
   Users,
   Camera
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 import { MarketIntent, TradeDimension } from '../types';
 import { TradeCommercialOrchestratorModal } from './TradeCommercialOrchestratorModal';
 import { TradeCouncilMeetingModal } from './TradeCouncilMeetingModal';
@@ -149,7 +149,6 @@ export const MarketIntentGuide: React.FC<MarketIntentGuideProps> = ({
 
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es l'Expert Commerce International et Assistant Sourcing Diallo de la plateforme "LE MONDE À VOUS".
 L'utilisateur formule un besoin commercial libre : "${naturalQuery}".
 
@@ -169,14 +168,7 @@ Analyse ce besoin et réponds UNIQUEMENT en JSON avec la structure exacte suivan
   ]
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-
-      const text = response.text || '{}';
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      const parsed = await generateJSON(prompt);
       setAnalysisResult(parsed);
     } catch (err) {
       console.warn('AI analysis fallback:', err);

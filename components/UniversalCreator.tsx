@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, Image as ImageIcon, RotateCcw, Zap, Send, Wand2, ArrowRight, Instagram, Video, Type, Check, RefreshCw, Sparkles, Loader2, Maximize2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { analyzeImage as analyzeImageWithAi } from '../services/aiGateway';
 import { Post, ReelDraft } from '../types';
 
 interface UniversalCreatorProps {
@@ -90,17 +90,12 @@ export const UniversalCreator: React.FC<UniversalCreatorProps> = ({ onClose, onP
 
     const analyzeImage = async (base64Image: string) => {
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } },
-                        { text: "Décris cette image en 3 mots-clés pour l'analyse contextuelle." }
-                    ]
-                }
-            });
-            setAnalysis(response.text || null);
+            const text = await analyzeImageWithAi(
+                base64Image.split(',')[1],
+                'image/jpeg',
+                "Décris cette image en 3 mots-clés pour l'analyse contextuelle."
+            );
+            setAnalysis(text || null);
         } catch (e) {
             console.error("Analysis failed", e);
         }
@@ -111,25 +106,20 @@ export const UniversalCreator: React.FC<UniversalCreatorProps> = ({ onClose, onP
         setIsGeneratingCaption(true);
         
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Tu es un expert des réseaux sociaux. Regarde cette image et écris une légende parfaite pour un post ${mode}.
             Style: ${vibe === 'fun' ? 'Drôle et engageant' : vibe === 'pro' ? 'Professionnel et inspirant' : 'Poétique et artistique'}.
             Ajoute 3-5 hashtags pertinents.
             Réponds uniquement avec le texte de la légende.`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: 'image/jpeg', data: mediaSrc.split(',')[1] } },
-                        { text: prompt }
-                    ]
-                }
-            });
-            
-            if (response.text) {
-                setCaption(response.text);
-                setAiSuggestions(prev => [...prev, response.text!]);
+            const text = await analyzeImageWithAi(
+                mediaSrc.split(',')[1],
+                'image/jpeg',
+                prompt
+            );
+
+            if (text) {
+                setCaption(text);
+                setAiSuggestions(prev => [...prev, text]);
             }
         } catch (e) {
             console.error(e);

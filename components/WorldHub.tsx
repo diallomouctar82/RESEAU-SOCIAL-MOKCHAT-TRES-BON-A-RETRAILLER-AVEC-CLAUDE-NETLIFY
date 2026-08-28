@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { COUNTRIES, AGENTS, DEFAULT_DOSSIERS } from '../constants';
 import { MobilityProject, SimulationResult, Country, StoredDocument, DocCategory, DossierParcours, DossierCategory, ActiveMemoryItem } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 import { cloudService } from '../services/cloud';
 import { dossierService } from '../services/dossierService';
 import { memoryService } from '../services/memory';

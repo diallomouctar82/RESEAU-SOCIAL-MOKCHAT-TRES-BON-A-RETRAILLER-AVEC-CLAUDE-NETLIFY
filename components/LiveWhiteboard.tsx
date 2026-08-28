@@ -3,7 +3,7 @@ import {
   Pen, Square, Circle, Type, StickyNote, Eraser, Trash2, Download, 
   Sparkles, Undo, ArrowRight, Palette, Check, RefreshCw
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 import { LiveWhiteboardStroke } from '../types';
 
 interface LiveWhiteboardProps {
@@ -190,23 +190,15 @@ export const LiveWhiteboard: React.FC<LiveWhiteboardProps> = ({ onSaveToCampus }
     setIsAnalyzing(true);
     try {
       const noteTexts = notes.map(n => n.text).join(' | ');
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{
-          role: 'user',
-          parts: [{
-            text: `Tu es Diallo OS, copilote intelligent d'un Live collaboratif et tableau blanc interactif.
+      const prompt = `Tu es Diallo OS, copilote intelligent d'un Live collaboratif et tableau blanc interactif.
             Voici les notes et concepts clés annotés sur le tableau : "${noteTexts}".
             Génère une synthèse structurée et claire de ce tableau blanc en 3 sections :
             1. 📌 Schéma & Idée Principale
             2. 📋 Actions & Jalons Opérationnels
-            3. 🎓 Ressource Pédagogique Recommandée pour Campus.`
-          }]
-        }]
-      });
+            3. 🎓 Ressource Pédagogique Recommandée pour Campus.`;
+      const response = await generateText(prompt);
 
-      const summaryText = response.text || "Synthèse du tableau blanc générée avec succès.";
+      const summaryText = response || "Synthèse du tableau blanc générée avec succès.";
       setAiSummary(summaryText);
       if (onSaveToCampus) {
         onSaveToCampus(summaryText);

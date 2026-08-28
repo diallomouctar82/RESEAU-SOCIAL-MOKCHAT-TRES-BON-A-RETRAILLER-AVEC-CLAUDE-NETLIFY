@@ -19,7 +19,7 @@ import {
   Layers
 } from 'lucide-react';
 import { TradeDealNegotiation } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 import { CommercialDossierManager } from './CommercialDossierManager';
 
 interface TradeNegotiationCenterProps {
@@ -66,7 +66,6 @@ export const TradeNegotiationCenter: React.FC<TradeNegotiationCenterProps> = ({
     if (!selectedDeal) return;
     setIsAiSuggesting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es l'Expert Négociation Commerciale Internationale Diallo.
 Dossier en cours : "${selectedDeal.dealTitle}".
 Prix initial vendeur : ${selectedDeal.initialPrice} ${selectedDeal.currency}/unité.
@@ -79,11 +78,8 @@ Donne une recommandation tactique percutante en 3 points :
 2. Leviers de négociation non monétaires (délais de paiement, acompte, emballage offert)
 3. Clause juridique protectrice à insérer dans le contrat`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      setAiSuggestion(response.text || 'Négociation conseillée basée sur le volume.');
+      const text = await generateText(prompt);
+      setAiSuggestion(text || 'Négociation conseillée basée sur le volume.');
     } catch (e) {
       console.error(e);
       setAiSuggestion("Proposez 4.45€/kg en augmentant l'acompte initial à 40% et en demandant l'inclusion des sacs étanches.");
