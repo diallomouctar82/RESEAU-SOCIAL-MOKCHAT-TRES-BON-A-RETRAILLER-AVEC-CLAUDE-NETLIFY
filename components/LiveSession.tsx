@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity } from '@google/genai';
 import { 
     Mic, 
     MicOff, 
@@ -88,6 +88,10 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
   const [scenario, setScenario] = useState<LiveScenario>('general');
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   const [liveVisionInsight, setLiveVisionInsight] = useState<string | null>(null);
+  // Distingue "l'IA parle" de "à vous" — sans cet état, l'UI restait sur un
+  // seul indicateur "En direct" tout du long, ce qui ne rend visible ni la
+  // prise de parole ni les coupures, même quand le flux audio est correct.
+  const [isModelSpeaking, setIsModelSpeaking] = useState(false);
   
   // Audio Refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -143,7 +147,13 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       if (inputCtx.state === 'suspended') await inputCtx.resume();
       if (outputCtx.state === 'suspended') await outputCtx.resume();
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // La suppression d'écho évite que la voix de l'IA, restituée par les
+      // haut-parleurs, ne fuite dans le micro et ne soit prise par Gemini
+      // pour une interruption de l'utilisateur — cause de coupures parasites
+      // en duplex intégral (le micro reste ouvert pendant que l'IA parle).
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       streamRef.current = stream;
 
       let specificInstruction = "";
@@ -178,6 +188,22 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } },
           },
           systemInstruction: instruction,
+          // Sans ce bloc, Gemini Live applique sa sensibilité VAD par défaut
+          // (LOW/LOW) : elle attend plus longtemps avant de considérer que
+          // l'utilisateur a fini de parler ou qu'il a coupé la parole du
+          // modèle. HIGH sur les deux bords réduit le délai perçu de fin de
+          // parole et rend l'interruption plus réactive ; le padding et le
+          // silence sont resserrés pour la même raison, sans tomber assez bas
+          // pour couper une respiration ou une courte pause au milieu d'une
+          // phrase.
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
+              prefixPaddingMs: 100,
+              silenceDurationMs: 500,
+            },
+          },
         },
         callbacks: {
           onopen: () => {
@@ -238,6 +264,13 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
              if (serverContent?.interrupted) {
                  stopAllPlayback();
              }
+             // Clôt l'indicateur "IA parle" dès la fin du tour plutôt que
+             // d'attendre la prochaine interruption ou la fin du dernier
+             // buffer programmé — l'utilisateur voit immédiatement que c'est
+             // à son tour de parler.
+             if (serverContent?.turnComplete) {
+                 setIsModelSpeaking(false);
+             }
             } catch (err) {
               // Sans ce catch, toute erreur de décodage/lecture disparaissait
               // sans trace (rejet de promesse non géré) : la session semblait
@@ -288,9 +321,15 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     source.start(startTime);
     nextStartTimeRef.current = startTime + buffer.duration;
 
+    setIsModelSpeaking(true);
     sourcesRef.current.add(source);
     source.onended = () => {
         sourcesRef.current.delete(source);
+        // Le dernier buffer programmé vient de finir de jouer et rien
+        // d'autre n'est en file : l'IA a fini de parler (sauf coupure déjà
+        // gérée par stopAllPlayback, ou nouveau segment déjà repartir sur ce
+        // tour, auquel cas sourcesRef n'est pas vide).
+        if (sourcesRef.current.size === 0) setIsModelSpeaking(false);
     };
   };
 
@@ -300,6 +339,7 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     }
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
+    setIsModelSpeaking(false);
   };
 
   // Libère micro/audio sans toucher au statut affiché — utilisé sur un échec
@@ -333,6 +373,7 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       outputContextRef.current = null;
     }
     setVolume(0);
+    setIsModelSpeaking(false);
   };
 
   const stopSession = () => {
@@ -431,15 +472,16 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
         {/* Visualizer Circle */}
         <div className="relative my-2">
           <div className={`w-36 h-36 rounded-full border-4 flex items-center justify-center transition-all duration-300 ${
-            status === 'connected' ? 'border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.4)] bg-blue-950/30' : 
+            status === 'connected' && isModelSpeaking ? 'border-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.5)] bg-cyan-950/30' :
+            status === 'connected' ? 'border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.4)] bg-blue-950/30' :
             status === 'error' ? 'border-red-500 bg-red-900/20' : 'border-slate-800 bg-slate-900/60'
           }`}>
              {status === 'connecting' ? (
                 <Activity className="animate-spin text-blue-400" size={42} />
              ) : status === 'connected' ? (
-                <div 
+                <div
                   className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 transition-transform duration-75 shadow-lg flex items-center justify-center text-white"
-                  style={{ transform: `scale(${1 + volume / 80})` }}
+                  style={{ transform: `scale(${1 + (isModelSpeaking ? 40 : volume) / 80})` }}
                 >
                   <Activity size={28} className="animate-pulse" />
                 </div>
@@ -452,10 +494,10 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
         </div>
 
         {/* Status Text */}
-        <div className={`text-xs font-bold tracking-wider uppercase ${status === 'error' ? 'text-red-400' : 'text-blue-400'}`}>
+        <div className={`text-xs font-bold tracking-wider uppercase ${status === 'error' ? 'text-red-400' : isModelSpeaking ? 'text-cyan-300' : 'text-blue-400'}`}>
           {status === 'disconnected' && 'Prêt pour la session'}
           {status === 'connecting' && 'Connexion sécurisée en cours...'}
-          {status === 'connected' && `En direct • Latence ultra-faible (${volume}% audio)`}
+          {status === 'connected' && (isModelSpeaking ? "L'expert parle..." : 'À vous • en écoute')}
           {status === 'error' && (errorMsg || 'Erreur de connexion')}
         </div>
 
