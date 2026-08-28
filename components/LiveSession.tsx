@@ -175,10 +175,14 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
              console.error('Live session error', err);
              setStatus('error');
              setErrorMsg('La connexion en direct a rencontré un problème.');
-             stopSession();
+             cleanupResources();
+             setIsActive(false);
           },
           onclose: () => {
-             setStatus('disconnected');
+             // Ne pas écraser un message d'erreur déjà affiché : onclose peut
+             // se déclencher juste après onerror (fermeture du socket suite à
+             // l'échec), auquel cas le statut doit rester "error".
+             setStatus(prev => prev === 'error' ? prev : 'disconnected');
              setIsActive(false);
           }
         }
@@ -193,7 +197,8 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       console.error('Live connect failed', e);
       setStatus('error');
       setErrorMsg(e?.message || 'Impossible de démarrer la session.');
-      stopSession();
+      cleanupResources();
+      setIsActive(false);
     }
   };
 
@@ -223,9 +228,14 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     nextStartTimeRef.current = 0;
   };
 
-  const stopSession = () => {
-    setIsActive(false);
-    setStatus('disconnected');
+  // Libère micro/audio sans toucher au statut affiché — utilisé sur un échec
+  // de connexion pour NE PAS écraser le message d'erreur qu'on vient de
+  // poser (stopSession(), lui, remet toujours le statut à "disconnected" :
+  // l'appeler depuis un catch effaçait silencieusement l'erreur et
+  // ramenait l'écran à "Prêt pour la session" sans rien afficher — c'était
+  // la cause du "je clique et rien ne se passe" une fois l'appel réellement
+  // tenté).
+  const cleanupResources = () => {
     stopAllPlayback();
 
     if (streamRef.current) {
@@ -249,6 +259,12 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       outputContextRef.current = null;
     }
     setVolume(0);
+  };
+
+  const stopSession = () => {
+    setIsActive(false);
+    setStatus('disconnected');
+    cleanupResources();
   };
 
   const handleHangUp = () => {
