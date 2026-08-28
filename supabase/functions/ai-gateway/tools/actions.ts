@@ -30,9 +30,11 @@ export async function executeCreateDossier(
             // La colonne s'appelle `objective` dans le schéma (pas `description`).
             objective: typeof args.description === 'string' ? args.description : null,
             category: typeof args.categorie === 'string' ? args.categorie : null,
-            // Trace l'expert qui a ouvert le dossier : utile pour le suivi et
-            // pour réattribuer la conversation au bon interlocuteur.
-            lead_agent_id: ctx.agentId ?? null,
+            // `lead_agent_id` est volontairement laissé vide : la colonne porte
+            // une clé étrangère vers la table `agents`, actuellement vide (les
+            // experts sont définis côté application, dans constants.ts). Y
+            // écrire l'identifiant de l'expert ferait échouer l'insertion.
+            // À réactiver le jour où les experts seront synchronisés en base.
             status: 'active',
         })
         .select('id, title')
