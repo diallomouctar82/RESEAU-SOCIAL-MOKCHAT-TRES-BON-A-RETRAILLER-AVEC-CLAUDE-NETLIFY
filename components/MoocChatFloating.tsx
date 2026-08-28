@@ -154,18 +154,26 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setIsLoading(true);
       setLoadError(null);
       try {
-        const [remoteConversations, remoteMembers, blocked] = await Promise.all([
-          mokChatService.listConversations(currentUser.id),
+        const remoteConversations = await mokChatService.listConversations(currentUser.id);
+        if (!active) return;
+        setConversations(remoteConversations);
+
+        // Les fonctions annexes (annuaire, présence, blocage) sont chargées
+        // indépendamment : leur indisponibilité ne doit jamais casser le texte.
+        const [membersResult, blockedResult] = await Promise.allSettled([
           mokChatService.searchMembers('', currentUser.id),
           mokChatService.listBlockedUserIds(currentUser.id),
         ]);
         if (!active) return;
-        setConversations(remoteConversations.map(conversation => ({
-          ...conversation,
-          isBlocked: !conversation.isGroup && blocked.has(conversation.participantId),
-        })));
-        setMembers(remoteMembers);
-        setBlockedUserIds(Array.from(blocked));
+        if (membersResult.status === 'fulfilled') setMembers(membersResult.value);
+        if (blockedResult.status === 'fulfilled') {
+          const blocked = blockedResult.value;
+          setBlockedUserIds(Array.from(blocked));
+          setConversations(previous => previous.map(conversation => ({
+            ...conversation,
+            isBlocked: !conversation.isGroup && blocked.has(conversation.participantId),
+          })));
+        }
       } catch (error) {
         if (active) setLoadError(error instanceof Error ? error.message : 'MokChat est temporairement indisponible.');
       } finally {

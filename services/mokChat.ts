@@ -136,19 +136,14 @@ export class MokChatService {
         }
 
         const participantIds = Array.from(new Set((participantRows || []).map((row: any) => row.user_id)));
-        const [{ data: profiles, error: profileError }, { data: presenceRows, error: presenceError }] = participantIds.length
-            ? await Promise.all([
-                this.client.rpc('get_public_profiles', { p_user_ids: participantIds }),
-                this.client.from('user_presence').select('user_id,status,last_seen_at').in('user_id', participantIds),
-            ])
-            : [{ data: [], error: null }, { data: [], error: null }];
-        const participantDetailsError = profileError || presenceError;
-        if (participantDetailsError) {
-            throw new ChatServiceError('Les participants n’ont pas pu être chargés.', { cause: participantDetailsError, retryable: isRetryable(participantDetailsError) });
+        const { data: profiles, error: profileError } = participantIds.length
+            ? await this.client.rpc('get_public_profiles', { p_user_ids: participantIds })
+            : { data: [], error: null };
+        if (profileError) {
+            throw new ChatServiceError('Les participants n’ont pas pu être chargés.', { cause: profileError, retryable: isRetryable(profileError) });
         }
 
         const profileById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
-        const presenceById = new Map((presenceRows || []).map((presence: any) => [presence.user_id, presence.status]));
         const latestByConversation = new Map<string, any>();
         for (const row of messageRows || []) {
             if (!latestByConversation.has(row.conversation_id)) latestByConversation.set(row.conversation_id, row);
@@ -182,7 +177,7 @@ export class MokChatService {
                 lastMessage: latest?.content || (latest?.message_type && latest.message_type !== 'text' ? 'Média partagé' : 'Nouvelle conversation'),
                 lastMessageTime: latest?.created_at || conversation.updated_at || conversation.created_at,
                 unreadCount,
-                isOnline: !conversation.is_group && presenceById.get(other?.user_id) === 'online',
+                isOnline: false,
                 messages: [],
             };
         });
@@ -207,22 +202,13 @@ export class MokChatService {
 
         const pageRows = (rows || []).slice(0, boundedLimit);
         const senderIds = Array.from(new Set(pageRows.map((row: any) => row.sender_id)));
-        const messageIds = pageRows.map((row: any) => row.id);
-        const [{ data: profiles, error: profilesError }, { data: reactions, error: reactionsError }] = await Promise.all([
-            senderIds.length ? this.client.rpc('get_public_profiles', { p_user_ids: senderIds }) : Promise.resolve({ data: [], error: null }),
-            messageIds.length ? this.client.from('message_reactions').select('message_id,user_id,reaction').in('message_id', messageIds) : Promise.resolve({ data: [], error: null }),
-        ]);
-        const relatedError = profilesError || reactionsError;
-        if (relatedError) {
-            throw new ChatServiceError('Les auteurs ou réactions des messages n’ont pas pu être chargés.', { cause: relatedError, retryable: isRetryable(relatedError) });
+        const { data: profiles, error: profilesError } = senderIds.length
+            ? await this.client.rpc('get_public_profiles', { p_user_ids: senderIds })
+            : { data: [], error: null };
+        if (profilesError) {
+            throw new ChatServiceError('Les auteurs des messages n’ont pas pu être chargés.', { cause: profilesError, retryable: isRetryable(profilesError) });
         }
         const profileById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
-        const reactionsByMessage = new Map<string, Record<string, string[]>>();
-        for (const reaction of reactions || []) {
-            const grouped = reactionsByMessage.get(reaction.message_id) || {};
-            grouped[reaction.reaction] = [...(grouped[reaction.reaction] || []), reaction.user_id];
-            reactionsByMessage.set(reaction.message_id, grouped);
-        }
 
         const mapped = await Promise.all(pageRows.map(async (row: any) => {
             const profile: any = profileById.get(row.sender_id) || {};
@@ -242,7 +228,7 @@ export class MokChatService {
                 timestamp: row.created_at,
                 isRead: true,
                 status: row.status || 'sent',
-                reactions: reactionsByMessage.get(row.id) || {},
+                reactions: {},
                 replyTo: row.reply_to_id ? { id: row.reply_to_id } : undefined,
                 isEdited: Boolean(row.edited_at),
                 isPinned: Boolean(row.is_pinned),
@@ -365,9 +351,6 @@ export class MokChatService {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, ({ new: row }) => handlers.onInsert?.(row))
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, ({ new: row }) => handlers.onUpdate?.(row))
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, ({ old: row }) => handlers.onDelete?.(row))
-            .subscribe());
-        channels.push(this.client.channel(`mokchat-reactions-${conversationId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, ({ new: row, old }) => handlers.onReaction?.(row || old))
             .subscribe());
         return () => { channels.forEach((channel) => this.client.removeChannel(channel).catch(() => undefined)); };
     }

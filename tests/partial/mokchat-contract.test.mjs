@@ -58,3 +58,23 @@ test('l’envoi texte est idempotent et n’active pas les pièces jointes durab
   assert.doesNotMatch(`${service}\n${component}`, /chat-media|mediaStorage\.upload/);
   assert.doesNotMatch(component, /MOCK_MEMBERS|MOCK_CHATS/);
 });
+
+test('le chemin conversations/texte ne dépend ni de la présence ni des réactions', async () => {
+  const service = await readSource('services/mokChat.ts');
+  const listBody = service.slice(service.indexOf('async listConversations'), service.indexOf('async loadMessages'));
+  const historyBody = service.slice(service.indexOf('async loadMessages'), service.indexOf('async createConversation'));
+  const realtimeBody = service.slice(service.indexOf('subscribeToConversation'), service.indexOf('async setBlocked'));
+  assert.doesNotMatch(listBody, /user_presence/);
+  assert.doesNotMatch(historyBody, /message_reactions/);
+  assert.doesNotMatch(realtimeBody, /message_reactions/);
+});
+
+test('la migration texte aligne le schéma, l’idempotence, les RPC et la RLS', async () => {
+  const sql = await readSource('supabase/migrations/20260828131000_finalize_mokchat_conversations_text.sql');
+  assert.match(sql, /add column if not exists client_message_id uuid/i);
+  assert.match(sql, /create unique index if not exists uq_message_client_id/i);
+  assert.match(sql, /create or replace function public\.create_conversation/i);
+  assert.match(sql, /create or replace function public\.mark_conversation_read/i);
+  assert.match(sql, /create policy messages_insert_if_participant/i);
+  assert.match(sql, /alter publication supabase_realtime add table public\.messages/i);
+});

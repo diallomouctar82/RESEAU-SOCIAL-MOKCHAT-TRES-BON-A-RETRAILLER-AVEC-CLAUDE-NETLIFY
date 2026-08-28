@@ -9,6 +9,7 @@ import {
   validateCreatePayload,
   validatePatchPayload
 } from '../netlify/functions/_shared/admin-contract.ts';
+import { readFile } from 'node:fs/promises';
 
 test('legacy roles are normalized to the production RBAC vocabulary', () => {
   assert.equal(normalizeRole('citizen'), 'user');
@@ -83,4 +84,13 @@ test('super admin may manage all target roles', () => {
     canManageTarget({ actor: { role: 'super_admin', permissions: [] }, targetRole: 'admin', requestedRole: 'super_admin', action: 'role' }),
     true
   );
+});
+
+test('la migration Admin fournit audit, permissions et quota serveur', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260828130000_finalize_admin_users_rbac.sql', import.meta.url), 'utf8');
+  assert.match(sql, /create table if not exists public\.audit_logs/i);
+  assert.match(sql, /add column if not exists permissions/i);
+  assert.match(sql, /create or replace function public\.admin_consume_rate_limit/i);
+  assert.match(sql, /grant execute on function public\.admin_consume_rate_limit\(uuid, integer\) to service_role/i);
+  assert.doesNotMatch(sql, /grant execute[\s\S]*to authenticated/i);
 });
