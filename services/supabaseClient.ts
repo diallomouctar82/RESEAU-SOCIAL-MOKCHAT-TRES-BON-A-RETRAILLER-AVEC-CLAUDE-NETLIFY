@@ -142,6 +142,33 @@ export const supabaseService = {
         const { error } = await supabase.from('profiles').update(profile).eq('id', profile.id);
         if (error) throw error;
     },
+    /**
+     * Écoute Realtime des changements sur `profiles` (utilisé par la console
+     * Super Admin pour refléter en direct les nouveaux comptes / mises à
+     * jour). Ne fait rien si Supabase n'est pas configuré ; renvoie un
+     * unsubscribe no-op dans ce cas.
+     */
+    subscribeToProfilesRealtime(handlers: {
+        onInsert?: (profile: SupabaseUserProfile) => void;
+        onUpdate?: (profile: SupabaseUserProfile) => void;
+        onDelete?: (deletedId: string) => void;
+    }) {
+        if (!isSupabaseConfigured) return { unsubscribe: () => {} };
+        const channel = supabase
+            .channel('admin-profiles-realtime')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
+                handlers.onInsert?.(payload.new as SupabaseUserProfile);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+                handlers.onUpdate?.(payload.new as SupabaseUserProfile);
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, (payload) => {
+                const deletedId = (payload.old as { id?: string })?.id;
+                if (deletedId) handlers.onDelete?.(deletedId);
+            })
+            .subscribe();
+        return { unsubscribe: () => { supabase.removeChannel(channel); } };
+    },
     onAuthStateChange(callback: (event: string, session: import('@supabase/supabase-js').Session | null) => void) {
         const { data } = supabase.auth.onAuthStateChange((event, session) => callback(event, session));
         return { unsubscribe: () => data.subscription.unsubscribe() };
