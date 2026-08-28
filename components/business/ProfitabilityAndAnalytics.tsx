@@ -5,7 +5,7 @@ import {
   HelpCircle, Lightbulb, ChevronRight, Layers, FileText
 } from 'lucide-react';
 import { ProductProfitability, CountrySalesAnalytics, BusinessGoal } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../../services/aiGateway';
 
 interface ProfitabilityAndAnalyticsProps {
   profitabilityList: ProductProfitability[];
@@ -35,29 +35,23 @@ export const ProfitabilityAndAnalytics: React.FC<ProfitabilityAndAnalyticsProps>
   const handleRunAiDiagnostic = async () => {
     setIsDiagnosing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Tu es le Directeur Stratégique et Data Analyst de Diallo OS pour le Marché Mondial.
+      const parsed = await generateJSON<{ hypotheses: string[]; recommendations: string[] }>(
+        `Tu es le Directeur Stratégique et Data Analyst de Diallo OS pour le Marché Mondial.
         Analyse les performances de vente globales :
         - Ventes globales : ${totalGrossRevenue} EUR
         - Marge moyenne : ${averageMarginPct}%
         - Marchés clés : Guinée, Sénégal, Côte d'Ivoire, France, Chine.
-        
+
         Fournis un diagnostic stratégique complet :
         1. 3 Hypothèses fondamentales sur les points de friction / freins aux ventes (ex: délais maritimes, palier tarifaire conteneur, conversion devis)
         2. 3 Recommandations actionnables concrètes et immédiates pour débloquer +25% de croissance.
-        
+
         Réponds sous forme JSON :
         {
           "hypotheses": ["...", "...", "..."],
           "recommendations": ["...", "...", "..."]
         }`
-      });
-
-      const text = response.text || '{}';
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      );
 
       if (parsed.hypotheses && parsed.recommendations) {
         setDiagnosticResult(parsed);

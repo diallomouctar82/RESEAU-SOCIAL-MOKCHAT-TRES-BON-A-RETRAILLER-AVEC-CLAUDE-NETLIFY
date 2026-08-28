@@ -1,9 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Video, Sparkles, Wand2, Music, Type, Share2, Download, X, Play, Pause, ChevronRight, Upload, Mic, RefreshCw, Languages, TrendingUp, Layers, CheckCircle, Camera, Circle, StopCircle, Zap, Timer, RotateCcw, Sticker, Scissors, Palette, Move, Send, FileText, AlignCenter, Volume2, AudioWaveform, Film, ZapOff } from 'lucide-react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { generateText, generateJSON, generateImage, generateSpeech } from '../services/aiGateway';
 import { ReelDraft } from '../types';
-import { decodeAudioData, base64ToUint8Array } from '../services/audioUtils';
 
 interface ReelsCreatorProps {
     onClose: () => void;
@@ -192,16 +191,12 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
         if (!scriptTopic.trim()) return;
         setIsGeneratingScript(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Écris un script court (30-45 secondes) et percutant pour une vidéo verticale (Reel/TikTok) sur le sujet : "${scriptTopic}".
             Style : Dynamique, engageant, direct. Pas d'intro inutile.
             Format : Texte brut uniquement, prêt à être lu.`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
-            setTeleprompterText(response.text || "Erreur de génération.");
+            const response = await generateText(prompt);
+            setTeleprompterText(response || "Erreur de génération.");
         } catch (e) {
             console.error(e);
         } finally {
@@ -215,7 +210,6 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
         if (!directorPrompt) return;
         setIsProcessing(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             // Simulation of Veo call
             await new Promise(resolve => setTimeout(resolve, 2000));
             setVideoSrc("https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4"); 
@@ -231,19 +225,16 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
         if (!directorPrompt) return;
         setIsProcessing(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-image-preview',
-                contents: { parts: [{ text: `A high quality, isolated sticker of ${directorPrompt}, white outline, transparent background style` }] },
-                config: { imageConfig: { aspectRatio: '1:1', imageSize: '1K' } }
-            });
+            const imageUrl = await generateImage(
+                `A high quality, isolated sticker of ${directorPrompt}, white outline, transparent background style`,
+                { params: { aspectRatio: '1:1' } }
+            );
 
-            const imgData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-            if (imgData) {
+            if (imageUrl) {
                 const newSticker: OverlayElement = {
                     id: Date.now().toString(),
                     type: 'sticker',
-                    content: `data:image/png;base64,${imgData}`,
+                    content: imageUrl,
                     x: 50,
                     y: 50,
                     scale: 1
@@ -271,17 +262,9 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
         if (!voiceText) return;
         setIsGeneratingVoice(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash-preview-tts",
-                contents: [{ parts: [{ text: voiceText }] }],
-                config: {
-                    responseModalities: [Modality.AUDIO],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } },
-                },
-            });
-
-            const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+            // Note : la voix générée dépend désormais du fournisseur vocal actif
+            // (ElevenLabs par défaut) et non plus de la voix Gemini "Fenrir".
+            const base64Audio = await generateSpeech(voiceText);
             if (base64Audio) {
                 setTracks(prev => [...prev, {
                     id: `voice-${Date.now()}`,
@@ -291,20 +274,11 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                     start: 0,
                     duration: 50
                 }]);
-                
+
                 // Play for preview
-                if (!audioContextRef.current) {
-                    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-                    audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
-                }
-                const ctx = audioContextRef.current;
-                if (ctx.state === 'suspended') await ctx.resume();
-                const audioBuffer = await decodeAudioData(base64ToUint8Array(base64Audio), ctx, 24000, 1);
-                const source = ctx.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(ctx.destination);
-                source.start();
-                
+                const audio = new Audio(`data:audio/mpeg;base64,${base64Audio}`);
+                audio.play().catch(() => {});
+
                 setVoiceText('');
             }
         } catch (e) {
@@ -317,7 +291,6 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
     const handleAutoMontage = async () => {
         setIsProcessing(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Agis comme un monteur vidéo professionnel. J'ai un rush vidéo brut de 100% de durée.
             Je veux un montage de style : ${montageStyle} (Dynamic: coupes rapides, Vlog: naturel, Cinematic: lent et fluide).
             
@@ -332,14 +305,8 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
             ]
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
+            const editPlan = await generateJSON<any[]>(prompt);
 
-            const editPlan = JSON.parse(response.text || '[]');
-            
             // Transform JSON into Tracks
             const newTracks: TimelineTrack[] = [];
             
@@ -382,17 +349,10 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
         setStage('publish');
         setIsProcessing(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Analyse le concept d'un Reel. Génère une légende virale, des hashtags, un score et des suggestions d'amélioration.
             Réponds en JSON : { "caption": "...", "hashtags": ["..."], "score": 85, "suggestions": ["..."] }`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text || '{}');
+            const result = await generateJSON<any>(prompt);
             setCaption(result.caption);
             setHashtags(result.hashtags);
             setViralScore(result.score);
@@ -994,13 +954,11 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                                             if (!guidedTopic) return;
                                             setIsGeneratingScript(true);
                                             try {
-                                                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                                                const res = await ai.models.generateContent({
-                                                    model: 'gemini-2.5-flash',
-                                                    contents: `Crée un script court percutant de 30 secondes pour un Reel d'impact sur : "${guidedTopic}".
+                                                const res = await generateText(
+                                                    `Crée un script court percutant de 30 secondes pour un Reel d'impact sur : "${guidedTopic}".
                                                     Structure : 1. Accroche directe (3s), 2. Le point clé actionnable (20s), 3. Appel à l'action claire (7s).`
-                                                });
-                                                setGuidedAiDraft(res.text || '');
+                                                );
+                                                setGuidedAiDraft(res || '');
                                             } catch (err) {
                                                 setGuidedAiDraft(`Accroche : Saviez-vous que 80% des démarches échouent par manque de méthode claire ?\n\nConseil : Pour réussir, appliquez la règle des 3 étapes simples dès aujourd'hui.\n\nAction : Cliquez sur le bouton ci-dessous pour démarrer.`);
                                             } finally {

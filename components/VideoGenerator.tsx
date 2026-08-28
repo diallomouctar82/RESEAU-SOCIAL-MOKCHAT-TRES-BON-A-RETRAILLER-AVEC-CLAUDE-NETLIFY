@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { generateVideo as generateVideoWithAi } from '../services/aiGateway';
 import { Video, Sparkles, AlertCircle, Play, Download } from 'lucide-react';
 
 export const VideoGenerator: React.FC = () => {
@@ -29,32 +29,17 @@ export const VideoGenerator: React.FC = () => {
 
     try {
       await checkApiKey();
-      // Re-init with fresh key context if needed
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      let operation = await ai.models.generateVideos({
-        model: 'veo-3.1-fast-generate-preview',
-        prompt: prompt,
-        config: {
+
+      const uri = await generateVideoWithAi(prompt, {
+        params: {
           numberOfVideos: 1,
           resolution: '720p',
           aspectRatio: aspectRatio,
         }
       });
 
-      // Poll for completion
-      while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 5s poll
-        operation = await ai.operations.getVideosOperation({ operation: operation });
-      }
-
-      if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-        const uri = operation.response.generatedVideos[0].video.uri;
-        // Fetch logic for browser display
-        const fetchRes = await fetch(`${uri}&key=${process.env.API_KEY}`);
-        const blob = await fetchRes.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        setVideoUri(objectUrl);
+      if (uri) {
+        setVideoUri(uri);
       } else {
         throw new Error("No video generated");
       }

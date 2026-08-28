@@ -54,7 +54,7 @@ import { LiveSession } from './LiveSession';
 import { ExpertsCatalogue } from './ExpertsCatalogue';
 import { ChefDeProjetSuite } from './ChefDeProjetSuite';
 import { UnifiedCouncilRoom } from './UnifiedCouncilRoom';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON } from '../services/aiGateway';
 import { useGlobal } from '../contexts/GlobalContext';
 
 interface ExpertsHubProps {
@@ -231,7 +231,6 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         if (!docTitle.trim()) return;
         setIsGeneratingDoc(true);
         try {
-            const ai = new GoogleGenAI();
             const prompt = `En tant qu'expert professionnel de haut niveau de la famille Diallo, rédige un document officiel formel, rigoureux, complet et prêt à l'emploi.
             Type de document : ${docType}
             Titre : ${docTitle}
@@ -239,12 +238,9 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
             Contexte et éléments spécifiques fournis par l'usager : ${docContextInput}
             Rédige avec toutes les mentions d'usage, clauses légales/techniques, structure soignée et présentation impeccable.`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            const content = res.text || 'Document généré avec succès.';
+            const content = resText || 'Document généré avec succès.';
             setGeneratedDocContent(content);
 
             // Enregistrer comme livrable si un dossier est actif
@@ -269,17 +265,13 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         setExamEvaluation(null);
         setExamUserAnswer('');
         try {
-            const ai = new GoogleGenAI();
             const prompt = `Tu es Professeur Diallo, Doyen de l'Éducation.
             Génère une question d'évaluation approfondie et concrète de niveau : ${academicLevel} sur le sujet : "${examSubject}".
             La question doit évaluer la maîtrise conceptuelle et pratique de l'apprenant (mise en situation, calcul ou cas pratique).`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const resText = await generateText(prompt);
 
-            setExamQuestion(res.text || 'Question prête.');
+            setExamQuestion(resText || 'Question prête.');
         } catch (e: any) {
             addNotification("Erreur", "Impossible de générer la question.", "warning");
         } finally {
@@ -291,7 +283,6 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         if (!examUserAnswer.trim() || !examQuestion) return;
         setIsEvaluatingExam(true);
         try {
-            const ai = new GoogleGenAI();
             const prompt = `Tu es Professeur Diallo. Évalue la réponse de l'étudiant avec bienveillance et rigueur.
             Niveau : ${academicLevel}
             Question : ${examQuestion}
@@ -304,13 +295,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
               "feedback": "Commentaire pédagogique détaillé, points forts et axes d'amélioration précis."
             }`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const parsed = JSON.parse(res.text || '{}');
+            const parsed = (await generateJSON<any>(prompt)) || {};
             setExamEvaluation(parsed);
 
             // Mémoriser le résultat dans la mémoire active

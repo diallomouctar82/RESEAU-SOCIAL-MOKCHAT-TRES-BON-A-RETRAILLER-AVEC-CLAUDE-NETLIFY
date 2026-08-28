@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Agent, DossierParcours } from '../types';
 import { AGENTS } from '../constants';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 
 interface UnifiedCouncilRoomProps {
     onAttachStrategyToDossier?: (strategy: { title: string; content: string }) => void;
@@ -71,9 +71,8 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
 
         try {
             const activeAgents = AGENTS.filter(a => selectedAgentIds.includes(a.id));
-            const ai = new GoogleGenAI();
 
-            const prompt = `Tu es le Coordinateur Suprême "Diallo OS". 
+            const prompt = `Tu es le Coordinateur Suprême "Diallo OS".
             Organise une délibération collégiale entre les experts suivants :
             ${activeAgents.map(a => `- ${a.name} (${a.title} - Spécialité : ${a.specialty})`).join('\n')}
 
@@ -107,14 +106,8 @@ export const UnifiedCouncilRoom: React.FC<UnifiedCouncilRoomProps> = ({
               }
             }`;
 
-            const res = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
+            const parsed = await generateJSON<any>(prompt);
 
-            const parsed = JSON.parse(res.text || '{}');
-            
             // Format dialogue with agent profiles
             if (parsed.dialogue && Array.isArray(parsed.dialogue)) {
                 const formattedDialogue = parsed.dialogue.map((d: any) => {

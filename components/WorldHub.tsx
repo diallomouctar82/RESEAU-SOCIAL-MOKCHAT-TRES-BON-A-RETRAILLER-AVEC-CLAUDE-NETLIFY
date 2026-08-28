@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { COUNTRIES, AGENTS, DEFAULT_DOSSIERS } from '../constants';
 import { MobilityProject, SimulationResult, Country, StoredDocument, DocCategory, DossierParcours, DossierCategory, ActiveMemoryItem } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 import { cloudService } from '../services/cloud';
 import { dossierService } from '../services/dossierService';
 import { memoryService } from '../services/memory';
@@ -163,8 +163,6 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
         setSimulationResult(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
             const prompt = `Agis comme Maître Diallo (Expert Juridique International) et Guide Diallo (Expert Voyage).
             
             Analyse ce projet de mobilité :
@@ -184,13 +182,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                 "agentContactId": "ID de l'agent à contacter (2 pour juridique, 7 pour voyage, 3 pour emploi, 4 pour études)"
             }`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text || '{}');
+            const result = await generateJSON<SimulationResult>(prompt);
             setSimulationResult(result);
 
         } catch (e) {

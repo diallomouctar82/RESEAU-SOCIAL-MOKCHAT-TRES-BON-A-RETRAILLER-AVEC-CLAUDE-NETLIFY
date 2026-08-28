@@ -22,7 +22,7 @@ import {
   BadgeAlert
 } from 'lucide-react';
 import { BuyRequestRFQ, TradeQuote } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 
 interface TradeRFQHubProps {
   rfqs: BuyRequestRFQ[];
@@ -78,18 +78,14 @@ export const TradeRFQHub: React.FC<TradeRFQHubProps> = ({
     if (!rfqTitle) return;
     setIsAiDrafting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Rédige un cahier des charges / appel d'offres (RFQ) international professionnel pour l'achat suivant :
 Produit recherché : "${rfqTitle}". Catégorie : ${rfqCategory}.
 Génère une description détaillée avec critères de qualité, spécifications techniques recommandées, normes requises et Incoterm souhaité.
 Réponds en texte clair et concis (environ 80-100 mots).`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      if (response.text) {
-        setRfqDesc(response.text);
+      const text = await generateText(prompt);
+      if (text) {
+        setRfqDesc(text);
       }
     } catch (e) {
       console.error(e);

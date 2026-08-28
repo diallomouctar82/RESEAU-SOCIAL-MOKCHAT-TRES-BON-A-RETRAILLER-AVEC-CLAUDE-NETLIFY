@@ -1,6 +1,6 @@
 import { DossierParcours, DossierStep, DossierTask, DossierDocument, DossierDeliverable, DossierCategory } from '../types';
 import { DEFAULT_DOSSIERS } from '../constants';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from './aiGateway';
 import { memoryService } from './memory';
 
 class DossierService {
@@ -246,7 +246,6 @@ class DossierService {
      */
     async generateNextActionRecommendation(dossier: DossierParcours): Promise<string> {
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `
             Tu es l'Orchestrateur Central de la plateforme 'Le Monde à Vous'.
             Analyse ce dossier en cours :
@@ -262,12 +261,9 @@ class DossierService {
             Fournis une recommandation d'action immédiate, concrète et opérationnelle (1 ou 2 phrases percutantes).
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt
-            });
+            const response = await generateText(prompt);
 
-            return response.text?.trim() || dossier.nextAction;
+            return response?.trim() || dossier.nextAction;
         } catch (e) {
             return dossier.nextAction;
         }

@@ -5,7 +5,7 @@ import {
   Sparkles, History, Filter, FileText, ChevronRight, Layers, Sliders
 } from 'lucide-react';
 import { StockItem, Warehouse, StockMovement, SupplierItem } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../../services/aiGateway';
 
 interface CentralStockWarehouseManagerProps {
   stockList: StockItem[];
@@ -117,10 +117,7 @@ export const CentralStockWarehouseManager: React.FC<CentralStockWarehouseManager
     if (!aiAddInput.trim()) return;
     setIsAiProcessing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Tu es le moteur de classification et de création de fiches produits pour la plateforme mondiale de commerce Diallo OS.
+      const text = await generateText(`Tu es le moteur de classification et de création de fiches produits pour la plateforme mondiale de commerce Diallo OS.
         L'utilisateur décrit un produit ou lot à ajouter : "${aiAddInput}".
         
         Génère une structure JSON valide avec :
@@ -136,11 +133,9 @@ export const CentralStockWarehouseManager: React.FC<CentralStockWarehouseManager
         - leadTimeDays: Délai moyen de réappro fournisseur en jours
         - tierPrices: Tableau de 3 paliers de prix [{minQuantity: 1, maxQuantity: 49, unitPrice: ..., label: "Détail/Petits lots"}, {minQuantity: 50, maxQuantity: 499, unitPrice: ..., label: "Grossiste"}, {minQuantity: 500, unitPrice: ..., label: "Conteneur FCL"}]
 
-        Réponds UNIQUEMENT avec l'objet JSON.`
-      });
+        Réponds UNIQUEMENT avec l'objet JSON.`);
 
-      const text = response.text || '{}';
-      const cleanJson = text.replace(/```json|```/g, '').trim();
+      const cleanJson = (text || '{}').replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
 
       if (parsed.title && parsed.sku) {

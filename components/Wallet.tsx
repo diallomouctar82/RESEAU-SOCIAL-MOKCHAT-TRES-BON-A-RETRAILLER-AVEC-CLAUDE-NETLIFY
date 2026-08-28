@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { CreditCard, RefreshCw, Send, History, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, DollarSign, Globe, Lock, CheckCircle, Smartphone, Sparkles, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { CURRENCIES } from '../constants';
 import { Currency, UserProfile } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../services/aiGateway';
 import { useGlobal } from '../contexts/GlobalContext';
 
 interface WalletProps {
@@ -86,19 +86,15 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
     const getFinancialAdvice = async () => {
         setIsThinking(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Agis comme un conseiller financier personnel.
             Profil : ${userProfile.name}.
             Solde actuel : 1250.00 €.
             Historique récent : ${transactions.slice(0, 3).map(t => `${t.description} (${t.amount})`).join(', ')}.
-            
+
             Donne 3 conseils courts pour optimiser le budget.`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-            });
-            setCoachAdvice(response.text || "Conseil non disponible.");
+            const text = await generateText(prompt);
+            setCoachAdvice(text || "Conseil non disponible.");
         } catch (e) {
             console.error(e);
         } finally {

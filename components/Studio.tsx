@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { generateImage, generateVideo, analyzeImage } from '../services/aiGateway';
 import { Video, Image as ImageIcon, Eye, Sparkles, AlertCircle, Download, MonitorPlay, X, Upload, User, Play, Users, Share2 } from 'lucide-react';
 import { StudioTab, GeneratedMedia } from '../types';
 import { Avatar3D } from './Avatar3D';
@@ -53,69 +53,44 @@ export const Studio: React.FC = () => {
 
     try {
       await checkApiKey();
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       if (activeTab === 'image') {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-image-preview',
-            contents: { parts: [{ text: prompt }] },
-            config: {
-                imageConfig: {
-                    aspectRatio: aspectRatio,
-                    imageSize: imageSize
-                }
-            }
+        const imageUrl = await generateImage(prompt, {
+            params: { aspectRatio, imageSize }
         });
-        
-        let imageUrl = null;
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-                imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-                break;
-            }
-        }
         if (imageUrl) setResult(imageUrl);
         else throw new Error("Aucune image générée.");
 
       } else if (activeTab === 'video') {
-        let operation = await ai.models.generateVideos({
-            model: 'veo-3.1-fast-generate-preview',
-            prompt: prompt,
-            config: {
+        const videoUrl = await generateVideo(prompt, {
+            params: {
               numberOfVideos: 1,
               resolution: '720p',
-              aspectRatio: aspectRatio === '1:1' ? '16:9' : aspectRatio as '16:9' | '9:16', // Veo doesn't support 1:1
+              aspectRatio: aspectRatio === '1:1' ? '16:9' : aspectRatio, // Veo doesn't support 1:1
             }
         });
 
-        while (!operation.done) {
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            operation = await ai.operations.getVideosOperation({ operation: operation });
-        }
-
-        if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-            const uri = operation.response.generatedVideos[0].video.uri;
-            const fetchRes = await fetch(`${uri}&key=${process.env.API_KEY}`);
-            const blob = await fetchRes.blob();
-            setResult(URL.createObjectURL(blob));
+        if (videoUrl) {
+            setResult(videoUrl);
         } else {
             throw new Error("Aucune vidéo générée.");
         }
 
       } else if (activeTab === 'vision') {
          // Video Understanding / Image Analysis
-         const parts: any[] = [];
          if (visionImage) {
-            parts.push({ inlineData: { mimeType: 'image/jpeg', data: visionImage.split(',')[1] } });
+            const mimeMatch = /^data:(.*?);base64,/.exec(visionImage);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+            const response = await analyzeImage(
+                visionImage.split(',')[1],
+                mimeType,
+                prompt || "Décris cette image en détail."
+            );
+            setResult(response || "Pas de réponse.");
+         } else {
+            throw new Error("Veuillez importer une image à analyser.");
          }
-         parts.push({ text: prompt || "Décris cette image en détail." });
 
-         const response = await ai.models.generateContent({
-             model: 'gemini-3-pro-preview',
-             contents: { parts },
-         });
-         setResult(response.text || "Pas de réponse.");
-         
       } else if (activeTab === 'avatar') {
           // Simulation of Avatar Video Generation
           await new Promise(resolve => setTimeout(resolve, 2000));

@@ -29,7 +29,7 @@ import {
 import { AGENTS } from '../constants';
 import { DossierCategory, DossierParcours, DossierStep } from '../types';
 import { dossierService } from '../services/dossierService';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON } from '../services/aiGateway';
 
 interface ParcoursCreatorModalProps {
     isOpen: boolean;
@@ -207,20 +207,15 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
         setGenerationStepStatus("Analyse multimodale du document par Diallo OS...");
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
             // Read file as base64 if image
             let prompt = `Analyse ce document officiel/technique.
             Extraits les éléments clés pour définir le "Point A" d'un utilisateur (situation actuelle, diplôme, identité, date, contraintes, blocages constatés) et suggère le "Point B" (objectif concret à atteindre).
             Nom du fichier : ${file.name}
             Type : ${file.type}`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt
-            });
+            const response = await generateText(prompt);
 
-            const text = response.text || "Document analysé avec succès. Prêt pour la génération du parcours.";
+            const text = response || "Document analysé avec succès. Prêt pour la génération du parcours.";
             setOcrExtractedData(text);
             setPromptText(`Dossier basé sur le document : ${file.name}.\n${text.slice(0, 300)}...`);
         } catch (err) {
@@ -241,8 +236,6 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
         const inputGoal = customPrompt || (creationMode === 'voice' ? voiceTranscript : promptText);
         
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
             const systemPrompt = `Tu es Diallo OS, le cerveau orchestrateur de la plateforme "LE MONDE À VOUS".
             Tu dois structurer un Parcours de Vie universel selon la philosophie absolue :
             POINT A (Situation de départ) ➔ PARCOURS (Étapes progressives ordonnées avec livrables) ➔ POINT B (Objectif final atteint) ➔ RÉSULTAT (Attestation/Livrable final) ➔ CONTINUITÉ (Étape future).
@@ -333,13 +326,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                 "nextImmediateAction": "Phrase très précise indiquant la toute première action à effectuer"
             }`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: systemPrompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const parsed = JSON.parse(response.text || '{}');
+            const parsed = await generateJSON<any>(systemPrompt);
 
             // Format into concrete DossierParcours
             const newDossier: DossierParcours = {

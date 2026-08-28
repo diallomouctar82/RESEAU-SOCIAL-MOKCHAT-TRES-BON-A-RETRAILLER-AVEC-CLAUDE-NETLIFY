@@ -1,5 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
-import { 
+import { analyzeImage } from './aiGateway';
+import {
     DetectedObject, 
     MotionDetectionResult, 
     OcrBlock, 
@@ -232,7 +232,6 @@ export class MultimodalVisionService {
         this.lastAnalysisTime = Date.now();
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const enrolledPersons = this.getEnrolledPersons();
             const enrolledNames = enrolledPersons.map(p => `${p.name} (${p.role}${p.isAuthorized ? ' - Autorisé' : ' - Non autorisé'})`).join(', ');
 
@@ -297,36 +296,16 @@ RÈGLES CRUCIALES POUR LES BOÎTES ENCADRANTES (Bounding Boxes) :
 `;
 
             let rawText = '{}';
-            const visionModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
             let lastVisionErr: any = null;
 
-            for (const vModel of visionModels) {
-                try {
-                    const response = await ai.models.generateContent({
-                        model: vModel,
-                        contents: {
-                            parts: [
-                                { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-                                { text: prompt }
-                            ]
-                        },
-                        config: {
-                            responseMimeType: 'application/json'
-                        }
-                    });
-                    if (response.text) {
-                        rawText = response.text;
-                        break;
-                    }
-                } catch (vErr: any) {
-                    lastVisionErr = vErr;
-                    const errStr = String(vErr?.message || vErr || '');
-                    if (errStr.includes('503') || errStr.includes('high demand') || errStr.includes('UNAVAILABLE') || errStr.includes('429')) {
-                        console.warn(`[Vision HUD] Modèle ${vModel} en forte demande (503), bascule vers ${vModel === 'gemini-2.5-flash' ? 'gemini-2.5-pro' : 'gemini-2.0-flash'}...`);
-                        continue;
-                    }
-                    break;
+            try {
+                const response = await analyzeImage(base64Data, 'image/jpeg', prompt, { jsonMode: true });
+                if (response) {
+                    rawText = response;
                 }
+            } catch (vErr: any) {
+                lastVisionErr = vErr;
+                console.warn('[Vision HUD] Échec de la passerelle IA, bascule sur le mode dégradé souverain:', vErr?.message || vErr);
             }
 
             if (!rawText || rawText === '{}') {

@@ -49,8 +49,7 @@ import {
   MasterResumeProfile,
   ConquestWarRoomDossier
 } from '../types';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { decodeAudioData, base64ToUint8Array } from '../services/audioUtils';
+import { generateText, generateJSON, generateSpeech } from '../services/aiGateway';
 import { Avatar3D } from './Avatar3D';
 
 // Career Accomplishment Sub-components
@@ -566,9 +565,6 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setScanLog(["🚀 Initialisation du protocole Hunter v2.0..."]);
     
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
-      
       let typeLabel = '';
       let intent = '';
       switch(searchType) {
@@ -587,13 +583,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
       Format JSON strict :
       [{ "title": "...", "entity": "...", "location": "...", "description": "...", "matchScore": 85, "trustScore": 95, "tags": ["tag1"], "type": "${searchType}" }]`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{ role: 'user', parts: [{ text: searchPrompt }] }],
-        config: { responseMimeType: 'application/json' }
-      });
-
-      const rawOpps = JSON.parse(response.text || '[]');
+      const rawOpps = (await generateJSON<any[]>(searchPrompt)) || [];
       const newOpps: Opportunity[] = rawOpps.map((o: any, i: number) => ({
         id: `opp-${Date.now()}-${i}`,
         ...o,
@@ -644,19 +634,14 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setGeneratedContent(null);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
       const prompt = `Rédige un document professionnel percutant et élégant pour "${opp.title}" chez "${opp.entity}".
       Type : ${type} (mail de candidature / devis commercial / relance persuasive / dossier de présentation).
       Profil expéditeur : ${userProfile.name}, ${userProfile.title || 'Expert'}.
       Ton : Professionnel, axé sur les résultats, chaleureux et persuasif.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }]
-      });
+      const responseText = await generateText(prompt);
 
-      setGeneratedContent(response.text || "Document généré avec succès.");
+      setGeneratedContent(responseText || "Document généré avec succès.");
       if (opp.status === 'detected' && type !== 'relance') {
         updateOpportunityStatus(opp.id, 'contacted'); 
       }
@@ -679,13 +664,11 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setIsThinking(true);
     setAvatarState('thinking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
       const prompt = `Tu es recruteur ou décideur chez ${selectedOpp.entity}. Poste ou Sujet : ${selectedOpp.title}.
       Pose une question précise et percutante au candidat. Sois direct et concis.`;
-      
-      const res = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-      const question = res.text || "Bonjour. Présentez-vous et expliquez ce qui fait votre valeur ajoutée.";
+
+      const resText = await generateText(prompt);
+      const question = resText || "Bonjour. Présentez-vous et expliquez ce qui fait votre valeur ajoutée.";
       setCurrentQuestion(question);
       setIsThinking(false);
       speak(question);
@@ -700,12 +683,10 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     setIsThinking(true);
     setAvatarState('thinking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey || '' });
       const prompt = `Question : "${currentQuestion}". Réponse : "${userAnswer}".
       Donne une critique constructive (note /10 + 1 point fort + 1 axe d'amélioration).`;
-      const res = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-      setFeedback(res.text || "Réponse bien reçue et analysée.");
+      const resText = await generateText(prompt);
+      setFeedback(resText || "Réponse bien reçue et analysée.");
     } catch(e) { 
       console.error(e); 
     } finally { 
@@ -717,33 +698,17 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
   const speak = async (text: string) => {
     setAvatarState('speaking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (!apiKey) {
-        setAvatarState('idle');
-        return;
-      }
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
-        config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } } },
-      });
-      const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const base64 = await generateSpeech(text, { voiceId: 'Fenrir' });
       if (base64) {
-        if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-        const ctx = audioContextRef.current;
-        if (ctx.state === 'suspended') await ctx.resume();
-        const buffer = await decodeAudioData(base64ToUint8Array(base64), ctx, 24000, 1);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.onended = () => setAvatarState('idle');
-        source.start();
+        const audio = new Audio('data:audio/mp3;base64,' + base64);
+        audio.onended = () => setAvatarState('idle');
+        audio.onerror = () => setAvatarState('idle');
+        await audio.play();
       } else {
         setAvatarState('idle');
       }
-    } catch (e) { 
-      console.error(e); 
+    } catch (e) {
+      console.error(e);
       setAvatarState('idle');
     }
   };

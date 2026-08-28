@@ -14,7 +14,7 @@ import {
   TrendingUp,
   Volume2
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../../../services/aiGateway';
 
 interface CareerVoiceFormulationToolProps {
   onApplyFormulation?: (text: string) => void;
@@ -80,19 +80,15 @@ export const CareerVoiceFormulationTool: React.FC<CareerVoiceFormulationToolProp
     setIsTransforming(true);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
+      const toneInstructions: Record<FormulationTone, string> = {
+        percutant: 'Style exécutif, percutant, orienté résultats et chiffres, crédible au niveau C-Level.',
+        court: 'Style ultra concis, sans fioritures (2 phrases maximum), droit au but.',
+        naturel: 'Style fluide, chaleureux, professionnel sans être rigide ni ampoulé.',
+        anglais: 'Traduction en anglais professionnel d\'élite (Global Business English).',
+        authentique: 'Ton personnel, sincère, incarné, mettant en valeur la motivation profonde.'
+      };
 
-        const toneInstructions: Record<FormulationTone, string> = {
-          percutant: 'Style exécutif, percutant, orienté résultats et chiffres, crédible au niveau C-Level.',
-          court: 'Style ultra concis, sans fioritures (2 phrases maximum), droit au but.',
-          naturel: 'Style fluide, chaleureux, professionnel sans être rigide ni ampoulé.',
-          anglais: 'Traduction en anglais professionnel d\'élite (Global Business English).',
-          authentique: 'Ton personnel, sincère, incarné, mettant en valeur la motivation profonde.'
-        };
-
-        const prompt = `Tu es le Copilote de Formulation Vocale et Écrite de la Famille Diallo (Le Monde à Vous).
+      const prompt = `Tu es le Copilote de Formulation Vocale et Écrite de la Famille Diallo (Le Monde à Vous).
 Idée brute formulée spontanément par l'utilisateur :
 "${rawInput}"
 
@@ -102,12 +98,11 @@ Consigne de ton : ${toneInstructions[toneToUse]}.
 Transforme cette idée brute en un texte professionnel impeccable prêt à être envoyé ou prononcé.
 Ne mets pas de texte d'introduction ni de conclusion, renvoie UNIQUEMENT le texte reformulé.`;
 
-        const res = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [{ parts: [{ text: prompt }] }]
-        });
+      const res = await generateText(prompt);
+      const trimmed = res?.trim();
 
-        setPolishedResult(res.text?.trim() || '');
+      if (trimmed) {
+        setPolishedResult(trimmed);
       } else {
         // Fallback intelligent
         if (toneToUse === 'court') {

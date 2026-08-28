@@ -20,8 +20,7 @@ import {
   Target
 } from 'lucide-react';
 import { Avatar3D } from '../Avatar3D';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { decodeAudioData, base64ToUint8Array } from '../../services/audioUtils';
+import { generateText, generateJSON, generateSpeech } from '../../services/aiGateway';
 import { Coach3DSimulationSession } from '../../types';
 import { MOCK_COACH_SESSIONS } from './careerDefaults';
 
@@ -117,34 +116,12 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
   const speakText = async (text: string) => {
     setAvatarState('speaking');
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (!apiKey) {
-        setAvatarState('idle');
-        return;
-      }
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text }] }],
-        config: { 
-          responseModalities: [Modality.AUDIO], 
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } } 
-        },
-      });
-
-      const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const base64 = await generateSpeech(text, { voiceId: 'Fenrir' });
       if (base64) {
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        const ctx = audioContextRef.current;
-        if (ctx.state === 'suspended') await ctx.resume();
-        const buffer = await decodeAudioData(base64ToUint8Array(base64), ctx, 24000, 1);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.onended = () => setAvatarState('idle');
-        source.start();
+        const audio = new Audio(`data:audio/mpeg;base64,${base64}`);
+        audio.onended = () => setAvatarState('idle');
+        audio.onerror = () => setAvatarState('idle');
+        await audio.play();
       } else {
         setAvatarState('idle');
       }
@@ -206,10 +183,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
     const persona = getPersonaDetails(selectedMode);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
-        const prompt = `Tu es le Coach 3D interactif de Le Monde à Vous.
+      const prompt = `Tu es le Coach 3D interactif de Le Monde à Vous.
         Rôle: ${persona.persona}.
         Mode: ${persona.title}.
         Difficulté: ${difficulty}.
@@ -218,18 +192,10 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
 
         Pose la première question percutante et réaliste de la simulation. Sois concis, direct et immersif (maximum 2 phrases).`;
 
-        const res = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }]
-        });
-
-        const q = res.text?.trim() || `Bonjour ${userName}, présentez-vous et expliquez pourquoi votre proposition est la plus pertinente.`;
-        setCurrentQuestion(q);
-        speakText(q);
-      } else {
-        const fallbackQ = `Bonjour ${userName}. Présentez-vous brièvement et expliquez en quoi votre profil répond parfaitement à notre besoin.`;
-        setCurrentQuestion(fallbackQ);
-      }
+      const res = await generateText(prompt);
+      const q = res?.trim() || `Bonjour ${userName}, présentez-vous et expliquez pourquoi votre proposition est la plus pertinente.`;
+      setCurrentQuestion(q);
+      speakText(q);
     } catch (e) {
       console.error(e);
       setCurrentQuestion(`Bonjour ${userName}. Quelle est votre plus grande réussite professionnelle récente ?`);
@@ -252,10 +218,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
     const persona = getPersonaDetails(selectedMode);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
-        const prompt = `Tu es un examinateur expert et coach professionnel d'élite.
+      const prompt = `Tu es un examinateur expert et coach professionnel d'élite.
         Contexte: ${persona.title} (${persona.persona}).
         Question posée: "${currentQuestion}"
         Réponse de l'utilisateur: "${userAnswer}"
@@ -270,54 +233,46 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
           "nextQuestion": "La prochaine question difficile pour continuer la simulation..."
         }`;
 
-        const res = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: { responseMimeType: 'application/json' }
-        });
+      const evalData = await generateJSON<any>(prompt);
+      const score = evalData.score || 8.0;
 
-        const evalData = JSON.parse(res.text || '{}');
-        const score = evalData.score || 8.0;
+      setLastEvaluation({
+        score: score,
+        feedback: evalData.feedback || 'Bonne réponse dans l\'ensemble.',
+        strengths: evalData.strengths || ['Clarté du propos'],
+        improvements: evalData.improvements || ['Ajouter des chiffres concrets'],
+        idealPhrasing: evalData.idealPhrasing || 'Une réponse plus percutante aurait inclus un exemple mesuré.'
+      });
 
-        setLastEvaluation({
-          score: score,
-          feedback: evalData.feedback || 'Bonne réponse dans l\'ensemble.',
-          strengths: evalData.strengths || ['Clarté du propos'],
-          improvements: evalData.improvements || ['Ajouter des chiffres concrets'],
-          idealPhrasing: evalData.idealPhrasing || 'Une réponse plus percutante aurait inclus un exemple mesuré.'
-        });
+      if (onRecordSessionScore) {
+        onRecordSessionScore(score, persona.title);
+      }
 
-        if (onRecordSessionScore) {
-          onRecordSessionScore(score, persona.title);
-        }
+      // Add to history
+      const newSessionRecord: Coach3DSimulationSession = {
+        id: `sim-${Date.now()}`,
+        type: selectedMode,
+        roleplayPersona: persona.persona,
+        contextTitle: persona.title,
+        difficulty: difficulty,
+        turnCount: turnCount,
+        performanceScore: score,
+        strengths: evalData.strengths || ['Assurance'],
+        improvements: evalData.improvements || ['Précision'],
+        idealPhrasingSuggested: evalData.idealPhrasing || '',
+        date: 'À l\'instant'
+      };
 
-        // Add to history
-        const newSessionRecord: Coach3DSimulationSession = {
-          id: `sim-${Date.now()}`,
-          type: selectedMode,
-          roleplayPersona: persona.persona,
-          contextTitle: persona.title,
-          difficulty: difficulty,
-          turnCount: turnCount,
-          performanceScore: score,
-          strengths: evalData.strengths || ['Assurance'],
-          improvements: evalData.improvements || ['Précision'],
-          idealPhrasingSuggested: evalData.idealPhrasing || '',
-          date: 'À l\'instant'
-        };
+      setSessionHistory(prev => [newSessionRecord, ...prev.slice(0, 4)]);
 
-        setSessionHistory(prev => [newSessionRecord, ...prev.slice(0, 4)]);
-
-        // Next Question
-        if (evalData.nextQuestion) {
-          setTimeout(() => {
-            setCurrentQuestion(evalData.nextQuestion);
-            setUserAnswer('');
-            setTurnCount(prev => prev + 1);
-            speakText(evalData.nextQuestion);
-          }, 3500);
-        }
-
+      // Next Question
+      if (evalData.nextQuestion) {
+        setTimeout(() => {
+          setCurrentQuestion(evalData.nextQuestion);
+          setUserAnswer('');
+          setTurnCount(prev => prev + 1);
+          speakText(evalData.nextQuestion);
+        }, 3500);
       }
     } catch (e) {
       console.error(e);

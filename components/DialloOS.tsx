@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from '../services/aiGateway';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
 
@@ -62,8 +62,6 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         setActiveAction(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
             // SYSTEM PROMPT FOR OS CONTROL
             const systemPrompt = `Tu es Diallo OS, le système d'exploitation intelligent de l'application 'Le Monde à Vous'.
             L'utilisateur est : ${userProfile.name}, Niveau ${userProfile.level}.
@@ -96,18 +94,9 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             Réponse JSON: { "type": "NAVIGATE", "target": "world", "explanation": "Activation du simulateur de mobilité vers le Canada.", "payload": { "country": "Canada", "intent": "work" } }
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: {
-                    parts: [
-                        { text: systemPrompt },
-                        { text: `Commande utilisateur : "${command}"` }
-                    ]
-                },
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text || '{}') as AIAction;
+            const result = (await generateJSON<AIAction>(`Commande utilisateur : "${command}"`, {
+                systemInstruction: systemPrompt
+            })) || ({} as AIAction);
             
             setAiResponse(result.explanation);
             setActiveAction(result);

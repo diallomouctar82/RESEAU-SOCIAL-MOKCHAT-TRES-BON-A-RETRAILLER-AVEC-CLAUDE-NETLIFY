@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AGENTS, USER_PROFILE } from '../constants';
 import { Agent, CouncilStep } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON } from '../services/aiGateway';
 import { Users, Sparkles, Send, CheckCircle, FileText, Play, RotateCcw, BrainCircuit, MessageSquare, Briefcase, Globe, Scale, HeartPulse, Home } from 'lucide-react';
 import { Avatar3D } from './Avatar3D';
 
@@ -29,8 +29,6 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
         setIsProcessing(true);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
             // 1. SELECT AGENTS & INITIAL PLAN
             const setupPrompt = `
                 L'utilisateur a un projet complexe : "${topic}".
@@ -53,14 +51,9 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                 }
             `;
 
-            const setupResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: setupPrompt,
-                config: { responseMimeType: 'application/json' }
-            });
+            const setupData = (await generateJSON<any>(setupPrompt)) || {};
 
-            const setupData = JSON.parse(setupResponse.text || '{}');
-            
+
             const selected = AGENTS.filter(a => setupData.selectedAgentIds.includes(a.id));
             setActiveAgents(selected);
             setMasterPlan(setupData.initialSteps.map((s: any, i: number) => ({ ...s, id: `step-${i}`, status: 'pending' })));
@@ -85,7 +78,6 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
             setCurrentSpeakerId(agent.id);
             
             try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                 const context = `
                     Projet: "${topic}".
                     Tu es ${agent.name} (${agent.title}).
@@ -101,12 +93,9 @@ export const CouncilRoom: React.FC<CouncilRoomProps> = ({ onClose }) => {
                     Si tu produis un document, utilise la syntaxe [[FILE:type:titre:desc]].
                 `;
 
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: context
-                });
+                const responseText = await generateText(context);
 
-                const text = response.text || "J'analyse la situation.";
+                const text = responseText || "J'analyse la situation.";
                 setChatHistory(prev => [...prev, { agentId: agent.id, text }]);
                 
                 // Parse for documents or updates (Simplified logic)

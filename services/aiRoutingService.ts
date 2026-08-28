@@ -6,7 +6,7 @@ import {
   SupportedAIProviderType 
 } from '../types';
 import { adminConfigService } from './adminConfigService';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON } from './aiGateway';
 
 const FAILOVER_LOGS_STORAGE_KEY = 'lmav_ai_failover_logs_v1';
 const ROUTING_POLICY_STORAGE_KEY = 'lmav_ai_routing_policy_v1';
@@ -700,46 +700,17 @@ class AIRoutingService {
       }
     }
 
-    // 1. Fournisseur Google Gemini
+    // 1. Fournisseur Google Gemini — passe désormais par le registre global (services/aiGateway.ts)
     if (provider.provider === 'gemini') {
-      const apiKey = provider.apiKey || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined);
-      if (!apiKey || apiKey.includes('****')) {
-        throw new Error("Clé API Gemini non configurée ou protégée côté serveur");
+      if (isJson) {
+        const json = await generateJSON<any>(prompt, { systemInstruction, modelId: model });
+        return typeof json === 'string' ? json : JSON.stringify(json);
       }
-      const ai = new GoogleGenAI({ apiKey });
-
-      const modelsToTry = [
-        model || 'gemini-2.5-flash',
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'gemini-2.0-flash'
-      ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
-
-      let lastGenErr: any = null;
-      for (const targetModel of modelsToTry) {
-        try {
-          const response = await ai.models.generateContent({
-            model: targetModel,
-            contents: prompt,
-            config: {
-              systemInstruction: systemInstruction,
-              responseMimeType: isJson ? 'application/json' : undefined
-            }
-          });
-          if (response.text) {
-            return response.text;
-          }
-        } catch (gErr: any) {
-          lastGenErr = gErr;
-          const errMsg = String(gErr?.message || gErr || '');
-          if (errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE') || errMsg.includes('429')) {
-            console.warn(`[Client AI Routing] Modèle ${targetModel} en forte demande (503), bascule vers le suivant...`);
-            continue;
-          }
-          break;
-        }
+      const text = await generateText(prompt, { systemInstruction, modelId: model });
+      if (!text) {
+        throw new Error("Indisponibilité temporaire du modèle Gemini");
       }
-      throw lastGenErr || new Error("Indisponibilité temporaire du modèle Gemini");
+      return text;
     }
 
     // 2. Fournisseurs compatibles API OpenAI (OpenAI, DeepSeek, Kimi, Qwen, Mistral, Grok, OpenRouter, Ollama, Custom)

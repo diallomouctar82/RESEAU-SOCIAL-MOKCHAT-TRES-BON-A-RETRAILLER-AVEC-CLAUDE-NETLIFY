@@ -4,7 +4,7 @@ import {
   ShoppingCart, Package, Users, DollarSign, RefreshCw, CheckCircle2 
 } from 'lucide-react';
 import { StockItem, BusinessOrder, CrmLeadClient, CrmFollowUp, ProductProfitability } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from '../../services/aiGateway';
 
 interface TalkToYourBusinessAssistantProps {
   orders: BusinessOrder[];
@@ -78,25 +78,21 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
       const ordersSummary = orders.map(o => `Commande ${o.orderNumber}: ${o.buyerName}, total ${o.totalAmount} ${o.currency}, étape: ${o.stage}, paiement: ${o.paymentStatus}`).join(' | ');
       const followUpSummary = followUps.map(f => `Relance ${f.clientName}: ${f.context}, priorité ${f.priority}`).join(' | ');
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Tu es Diallo OS, le Copilote d'Exploitation Commerciale de l'utilisateur sur la plateforme mondiale 'Le Monde à Vous'.
-        
+      const responseText = await generateText(
+        `Tu es Diallo OS, le Copilote d'Exploitation Commerciale de l'utilisateur sur la plateforme mondiale 'Le Monde à Vous'.
+
         DONNÉES EN TEMPS RÉEL DU BUSINESS :
         - Stocks actuels : ${stockSummary}
         - Commandes en cours : ${ordersSummary}
         - Relances clients CRM : ${followUpSummary}
-        
+
         QUESTION DE L'UTILISATEUR : "${queryText}"
-        
+
         Consignes de réponse :
         - Réponds de manière précise, concise, chiffrée, bienveillante et professionnelle.
         - Donne des conseils opérationnels concrets.
         - Maximum 80 mots.`
-      });
-
-      const responseText = response.text || "Voici l'état actuel de votre activité commerciale.";
+      ) || "Voici l'état actuel de votre activité commerciale.";
 
       // Determine contextual quick action buttons
       let quickActions: ChatMessage['quickActions'] = [];

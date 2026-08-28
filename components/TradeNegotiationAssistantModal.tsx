@@ -17,7 +17,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON, generateText } from '../services/aiGateway';
 import { CommercialDossier, StructuredOffer } from '../types';
 
 interface TradeNegotiationAssistantModalProps {
@@ -67,7 +67,6 @@ export const TradeNegotiationAssistantModal: React.FC<TradeNegotiationAssistantM
   const handleRunAiAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Tu es l'Analyste Stratégique en Négociation Internationale de Diallo OS.
 Analyse ce dossier commercial :
 - Produit : ${dossier.productTitle} (${dossier.dimension})
@@ -88,14 +87,7 @@ Formule une analyse structurée en JSON valide avec ces clés :
   "suggestedMessage": (message poli, ferme et bilingue prêt à envoyer)
 }`;
 
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-
-      const text = res.text || '';
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = await generateJSON<any>(prompt);
       setAiAnalysis(parsed);
       if (parsed.targetPrice) {
         setNewUnitPrice(parsed.targetPrice);
@@ -134,8 +126,7 @@ Formule une analyse structurée en JSON valide avec ces clés :
     if (!rawTextToTranslate.trim()) return;
     setIsTranslating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Traduis ce texte commercial en ${targetLang === 'zh' ? 'Chinois Mandarin professionnel (avec Pinyin entre parenthèses)' : targetLang === 'en' ? 'Anglais Commercial International' : targetLang === 'ar' ? 'Arabe des Affaires' : 'Français'}. 
+      const prompt = `Traduis ce texte commercial en ${targetLang === 'zh' ? 'Chinois Mandarin professionnel (avec Pinyin entre parenthèses)' : targetLang === 'en' ? 'Anglais Commercial International' : targetLang === 'ar' ? 'Arabe des Affaires' : 'Français'}.
 Règle stricte : conserve les chiffres, codes Incoterms (CIF, FOB, EXW), montants en monnaies et termes techniques sans altération.
 
 Texte à traduire :
@@ -143,11 +134,8 @@ Texte à traduire :
 ${rawTextToTranslate}
 """`;
 
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      setTranslatedResult(res.text || '');
+      const text = await generateText(prompt);
+      setTranslatedResult(text || '');
     } catch (e) {
       console.error(e);
       setTranslatedResult("尊敬的供应商，我们希望确认此订单。请查看我们的最新还盘条款并提供形式发票。");

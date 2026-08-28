@@ -8,7 +8,7 @@ import {
   OpportunityUniverse, 
   OpportunityTemporalReadiness 
 } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateJSON } from './aiGateway';
 
 // ══════════════════════════════════════════════════════════════════════════
 // 📚 BASE RÉFÉRENTIELLE D'OPPORTUNITÉS MULTI-SOURCES RÉELLES ET STRUCTURÉES
@@ -713,13 +713,6 @@ export class CareerRadarEngine {
     const { naturalQuery, universe, pointA, pointB } = params;
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (!apiKey) {
-        return this.generateFallbackMatches(naturalQuery, universe, pointA, pointB);
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-
       const prompt = `Tu es le Radar Intelligent d'Opportunités de la plateforme "Le Monde à Vous".
 Ta mission est d'analyser l'intention naturelle de l'utilisateur et de générer 4 opportunités concrètes, hautement ciblées, explicables et réalistes.
 
@@ -786,14 +779,8 @@ FORMAT DE RÉPONSE OBLIGATOIRE EN JSON STRICT (SANS MARKDOWN NI BLABLA) :
   }
 ]`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: 'application/json' }
-      });
-
-      const parsed: any[] = JSON.parse(response.text || '[]');
-      const results: RadarOpportunityItem[] = parsed.map((item, idx) => ({
+      const parsed: any[] = await generateJSON<any[]>(prompt);
+      const results: RadarOpportunityItem[] = (parsed || []).map((item, idx) => ({
         id: `opp-gen-${Date.now()}-${idx}`,
         universe,
         vaultStatus: 'decouverte',

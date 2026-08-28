@@ -1,8 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
 import { aiRoutingService } from "./aiRoutingService";
+import { generateText as gatewayGenerateText, generateJSON as gatewayGenerateJSON, analyzeImage as gatewayAnalyzeImage } from "./aiGateway";
 
 class AIService {
-    private client: GoogleGenAI | null = null;
     private static instance: AIService;
 
     private constructor() {}
@@ -12,17 +11,6 @@ class AIService {
             AIService.instance = new AIService();
         }
         return AIService.instance;
-    }
-
-    private getClient(): GoogleGenAI {
-        if (!this.client) {
-            const apiKey = typeof process !== 'undefined' ? process.env?.API_KEY : undefined;
-            if (!apiKey) {
-                throw new Error("Clé API Gemini manquante (GEMINI_API_KEY non configurée).");
-            }
-            this.client = new GoogleGenAI({ apiKey });
-        }
-        return this.client;
     }
 
     /**
@@ -39,13 +27,8 @@ class AIService {
         } catch (error) {
             console.warn("⚠️ AI Service: Bascule sur repli souverain textuel:", error);
             try {
-                const client = this.getClient();
-                const response = await client.models.generateContent({
-                    model: model || 'gemini-2.5-flash',
-                    contents: prompt,
-                    config: { systemInstruction }
-                });
-                return response.text || "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
+                const text = await gatewayGenerateText(prompt, { systemInstruction, modelId: model });
+                return text || "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
             } catch {
                 return "Le service d'analyse souveraine est actif. Votre demande est enregistrée avec succès.";
             }
@@ -71,14 +54,8 @@ class AIService {
         } catch (error) {
             console.warn("⚠️ AI Service: Bascule sur repli souverain JSON:", error);
             try {
-                const client = this.getClient();
-                const response = await client.models.generateContent({
-                    model: model || 'gemini-2.5-flash',
-                    contents: prompt + (schemaDescription ? `\n\nRespond strictly in JSON: ${schemaDescription}` : ""),
-                    config: { responseMimeType: 'application/json' }
-                });
-                const cleanJson = (response.text || "{}").replace(/```json|```/g, '').trim();
-                return JSON.parse(cleanJson) as T;
+                const fullPrompt = prompt + (schemaDescription ? `\n\nRespond strictly in JSON: ${schemaDescription}` : "");
+                return await gatewayGenerateJSON<T>(fullPrompt, { modelId: model });
             } catch {
                 return {
                     status: "success",
@@ -93,16 +70,8 @@ class AIService {
      */
     async analyzeMedia(model: string, prompt: string, mimeType: string, base64Data: string): Promise<string> {
         try {
-            const response = await this.getClient().models.generateContent({
-                model: model || 'gemini-2.5-flash',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: mimeType, data: base64Data } },
-                        { text: prompt }
-                    ]
-                }
-            });
-            return response.text || "";
+            const response = await gatewayAnalyzeImage(base64Data, mimeType, prompt, { modelId: model });
+            return response || "";
         } catch (error) {
             console.error("❌ AI Service Error (Media):", error);
             return "Analyse visuelle effectuée avec succès par le module de perception LMAV.";
