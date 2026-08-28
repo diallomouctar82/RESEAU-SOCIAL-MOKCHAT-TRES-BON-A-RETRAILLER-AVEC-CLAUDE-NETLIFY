@@ -25,28 +25,9 @@ import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../services/
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { Agent, MultimodalVisionAnalysis } from '../types';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
-import { supabase } from '../services/supabaseClient';
+import { mintLiveToken } from '../services/aiGateway';
 
 const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
-
-// Jeton éphémère Gemini Live émis côté serveur à partir de la clé configurée
-// dans l'orchestrateur (Super Admin → Connecteurs & Modèles IA → Gemini) —
-// jamais une clé permanente exposée dans le bundle client.
-const mintLiveToken = async (): Promise<string> => {
-    const { data, error } = await supabase.functions.invoke('mint-live-token', {
-        body: { model: LIVE_MODEL },
-    });
-    if (error) {
-        throw new Error(error.message || "Impossible de préparer l'appel vocal.");
-    }
-    if (data?.error) {
-        throw new Error(data.error as string);
-    }
-    if (!data?.token) {
-        throw new Error('Jeton d\'appel introuvable dans la réponse du serveur.');
-    }
-    return data.token as string;
-};
 
 type LiveScenario = 'general' | 'interview' | 'medical' | 'translator';
 
@@ -98,7 +79,7 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
     setErrorMsg(null);
 
     try {
-      const liveToken = await mintLiveToken();
+      const liveToken = await mintLiveToken(LIVE_MODEL);
       const ai = new GoogleGenAI({ apiKey: liveToken });
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;

@@ -44,7 +44,12 @@ export const geminiAdapter: ProviderAdapter = {
         const systemParts = req.llm.messages.filter((m) => m.role === 'system').map((m) => m.content);
         const contents = req.llm.messages
             .filter((m) => m.role !== 'system')
-            .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+            .map((m) => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: m.imageBase64
+                    ? [{ text: m.content }, { inlineData: { mimeType: m.imageMimeType || 'image/jpeg', data: m.imageBase64 } }]
+                    : [{ text: m.content }],
+            }));
 
         const body: Record<string, unknown> = { contents };
         if (systemParts.length) {
