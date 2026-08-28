@@ -5,9 +5,26 @@ import { AdapterError, AdapterRequest, AdapterResult, ProviderAdapter } from './
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com';
 
-async function messages(baseUrl: string, apiKey: string, body: Record<string, unknown>) {
+/**
+ * Une clé Anthropic « liée à une identité » (identity-linked) impose d'indiquer
+ * l'espace de travail auquel la requête se rattache, sans quoi l'API répond 400
+ * « anthropic-workspace-id is required ». L'identifiant se règle depuis la
+ * console (ai_providers.adapter_config.workspaceId) — aucun code à modifier.
+ */
+function workspaceIdFrom(config?: Record<string, unknown>): string | null {
+    const raw = config?.workspaceId ?? config?.workspace_id;
+    return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
+
+async function messages(
+    baseUrl: string,
+    apiKey: string,
+    body: Record<string, unknown>,
+    config?: Record<string, unknown>,
+) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
+    const workspaceId = workspaceIdFrom(config);
     let res: Response;
     try {
         res = await fetch(`${baseUrl}/v1/messages`, {
@@ -16,6 +33,7 @@ async function messages(baseUrl: string, apiKey: string, body: Record<string, un
                 'Content-Type': 'application/json',
                 'x-api-key': apiKey,
                 'anthropic-version': '2023-06-01',
+                ...(workspaceId ? { 'anthropic-workspace-id': workspaceId } : {}),
             },
             body: JSON.stringify(body),
             signal: controller.signal,
@@ -27,7 +45,13 @@ async function messages(baseUrl: string, apiKey: string, body: Record<string, un
         clearTimeout(timeout);
     }
 
-    if (res.status === 401 || res.status === 403) throw new AdapterError('Clé API invalide ou refusée.', 'auth');
+    if (res.status === 401 || res.status === 403) {
+        // Conserver le message du fournisseur : indispensable pour distinguer
+        // une clé révoquée d'un défaut de configuration. Il ne contient jamais
+        // la clé elle-même.
+        const detail = (await res.text().catch(() => '')).slice(0, 300);
+        throw new AdapterError(`Clé API refusée (${res.status})${detail ? ` : ${detail}` : ''}`, 'auth');
+    }
     if (res.status === 429) throw new AdapterError('Quota ou limite de débit dépassé.', 'rate_limited');
     if (res.status >= 500) throw new AdapterError(`Erreur serveur du fournisseur (${res.status}).`, 'server_error');
     if (!res.ok) {
@@ -71,7 +95,7 @@ function splitSystem(msgs: { role: string; content: string; imageBase64?: string
 }
 
 export const anthropicAdapter: ProviderAdapter = {
-    async call(req: AdapterRequest, apiKey: string, baseUrl: string | null): Promise<AdapterResult> {
+    async call(req: AdapterRequest, apiKey: string, baseUrl: string | null, config?: Record<string, unknown>): Promise<AdapterResult> {
         if (req.category !== 'llm' || !req.llm) {
             throw new AdapterError('Catégorie non supportée par cet adaptateur.', 'other');
         }
@@ -89,7 +113,7 @@ export const anthropicAdapter: ProviderAdapter = {
                 input_schema: t.parametersSchema,
             }));
         }
-        const data = await messages(baseUrl || DEFAULT_BASE_URL, apiKey, payload) as {
+        const data = await messages(baseUrl || DEFAULT_BASE_URL, apiKey, payload, config) as {
             content?: { type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }[];
             usage?: { input_tokens?: number; output_tokens?: number };
         };
@@ -109,13 +133,16 @@ export const anthropicAdapter: ProviderAdapter = {
         return req.llm.jsonMode ? { json: JSON.parse(text), usage, raw: data } : { text, usage, raw: data };
     },
 
-    async testConnection(apiKey: string, baseUrl: string | null): Promise<{ ok: boolean; message: string }> {
+    async testConnection(apiKey: string, baseUrl: string | null, config?: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
         try {
+            // `config` est transmis pour que le test emprunte exactement le même
+            // chemin qu'un appel réel, en-tête d'espace de travail compris.
+            // Sans cela, le test pourrait réussir là où la production échoue.
             await messages(baseUrl || DEFAULT_BASE_URL, apiKey, {
                 model: 'claude-haiku-4-5-20251001',
                 messages: [{ role: 'user', content: 'ping' }],
                 max_tokens: 1,
-            });
+            }, config);
             return { ok: true, message: 'Connexion réussie.' };
         } catch (err) {
             if (err instanceof AdapterError) {

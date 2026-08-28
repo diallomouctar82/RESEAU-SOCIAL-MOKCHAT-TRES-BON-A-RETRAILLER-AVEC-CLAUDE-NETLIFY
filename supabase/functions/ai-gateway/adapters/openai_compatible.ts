@@ -29,7 +29,15 @@ async function chatCompletions(baseUrl: string, apiKey: string, body: Record<str
     }
 
     if (res.status === 401 || res.status === 403) {
-        throw new AdapterError('Clé API invalide ou refusée.', 'auth');
+        // Le message du fournisseur est indispensable au diagnostic : une clé
+        // révoquée, une clé de projet exigeant un en-tête d'organisation et un
+        // compte sans crédit donnent tous un 401, avec des remèdes différents.
+        // Le corps d'erreur ne contient jamais la clé elle-même.
+        const detail = (await res.text().catch(() => '')).slice(0, 300);
+        throw new AdapterError(
+            `Clé API refusée (${res.status})${detail ? ` : ${detail}` : ''}`,
+            'auth',
+        );
     }
     if (res.status === 429) {
         throw new AdapterError('Quota ou limite de débit dépassé.', 'rate_limited');
