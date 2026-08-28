@@ -41,6 +41,29 @@ interface CatalogTool {
     requires_auth: boolean;
 }
 
+// ── Caches mémoire à portée module ──────────────────────────────────────────
+// Le runtime Deno d'une Edge Function reste chaud entre deux invocations : ces
+// caches survivent donc d'un appel à l'autre sur la même instance, sans qu'un
+// stockage externe soit nécessaire. Les TTL sont volontairement courts pour
+// les données qui doivent refléter un état récent (classement, santé des
+// fournisseurs) et plus longs pour les données quasi statiques (tarifs) ou
+// coûteuses à répéter (secret déchiffré) — jamais indéfinis, pour qu'un
+// changement d'administration (clé, tarif, désactivation) se propage vite.
+const CANDIDATES_TTL_MS = 4_000;
+const SECRET_TTL_MS = 30_000;
+const MODEL_COST_TTL_MS = 5 * 60_000;
+
+const candidatesCache = new Map<string, { data: RankedCandidate[]; expiresAt: number }>();
+const secretCache = new Map<string, { key: string; expiresAt: number }>();
+const modelCostCache = new Map<string, { row: { input_cost_per_million: number | null; output_cost_per_million: number | null; cost_per_call: number | null } | null; expiresAt: number }>();
+
+/** Exécute une écriture d'audit sans bloquer la réponse au client. */
+function fireAndForget(promise: Promise<unknown>) {
+    const runtime = (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+    const tracked = promise.catch((err) => console.error('ai-gateway: écriture différée en échec', err));
+    if (runtime?.waitUntil) runtime.waitUntil(tracked);
+}
+
 const CORS_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -106,10 +129,35 @@ Deno.serve(async (req: Request) => {
     // n'est privilégié par principe. Tous les couples (fournisseur, modèle)
     // éligibles concourent à égalité, départagés uniquement par des critères
     // objectifs et mesurés — palier gratuit, santé récente, coût, latence.
-    // Le classement est recalculé à chaque appel : un fournisseur qui redevient
-    // fiable remonte de lui-même, sans intervention.
-    const { data: candidates, error: candidatesError } = await service
-        .rpc('get_ranked_ai_candidates', { p_category: body.category });
+    // Le classement dépend de mesures qui évoluent lentement (santé sur 7
+    // jours) : un court cache mémoire (CANDIDATES_TTL_MS) évite de le
+    // recalculer en base à chaque appel sans retarder la détection d'un
+    // fournisseur qui redevient fiable ou tombe en panne de plus de quelques
+    // secondes.
+    // ── Trois lectures indépendantes menées de front ──────────────────────────
+    // Le classement, les plafonds de dépense et les outils autorisés pour cet
+    // expert ne dépendent pas les uns des autres : les enchaîner en séquence
+    // ne fait qu'additionner leurs allers-retours DB pour rien.
+    const candidatesPromise: Promise<{ data: RankedCandidate[] | null; error: { message: string } | null }> =
+        (() => {
+            const cached = candidatesCache.get(body.category!);
+            if (cached && cached.expiresAt > Date.now()) {
+                return Promise.resolve({ data: cached.data, error: null });
+            }
+            return service.rpc('get_ranked_ai_candidates', { p_category: body.category }).then((res) => {
+                if (!res.error) candidatesCache.set(body.category!, { data: res.data ?? [], expiresAt: Date.now() + CANDIDATES_TTL_MS });
+                return res;
+            });
+        })();
+
+    const budgetPromise = checkBudget(service);
+
+    const agentToolsPromise = (body.category === 'llm' && body.agentId)
+        ? service.rpc('get_agent_tools', { p_agent_id: body.agentId })
+        : Promise.resolve<{ data: CatalogTool[] | null; error: null }>({ data: null, error: null });
+
+    const [{ data: candidates, error: candidatesError }, budgetVerdict, { data: agentTools, error: toolsError }] =
+        await Promise.all([candidatesPromise, budgetPromise, agentToolsPromise]);
 
     if (candidatesError) return json({ error: `Erreur catalogue : ${candidatesError.message}` }, 500);
 
@@ -131,13 +179,12 @@ Deno.serve(async (req: Request) => {
 
     // ── Plafonds de dépense ─────────────────────────────────────────────────
     // Vérifiés AVANT tout appel réseau : au plafond, plus rien ne part.
-    const budgetVerdict = await checkBudget(service);
     if (budgetVerdict.blocked) {
-        await logCall(service, {
+        fireAndForget(logCall(service, {
             requestId, category: body.category, providerId: null, modelId: null,
             attemptNumber: 0, status: 'blocked', decision: 'blocked_budget',
             decisionReason: budgetVerdict.reason, latencyMs: 0, requestedBy,
-        });
+        }));
         return json({ error: budgetVerdict.reason, budgetExceeded: true }, 402);
     }
 
@@ -150,9 +197,6 @@ Deno.serve(async (req: Request) => {
     let toolDeclarations: ToolDeclaration[] | undefined;
 
     if (body.category === 'llm' && body.agentId) {
-        const { data: agentTools, error: toolsError } = await service.rpc('get_agent_tools', {
-            p_agent_id: body.agentId,
-        });
         if (toolsError) {
             // Un incident sur le catalogue ne doit pas priver la personne de
             // réponse : on continue sans outils plutôt que d'échouer.
@@ -206,11 +250,21 @@ Deno.serve(async (req: Request) => {
         const attemptNumber = i + 1;
         const startedAt = Date.now();
         try {
-            const { data: apiKey, error: secretError } = await service.rpc(
-                'get_ai_provider_secret_internal',
-                { p_provider_id: provider.provider_id },
-            );
-            if (secretError || !apiKey) throw new AdapterError('Clé introuvable.', 'auth');
+            // Le secret déchiffré ne change qu'à la modification manuelle d'une
+            // clé côté admin : un court cache mémoire évite de repayer le coût
+            // de déchiffrement à chaque tentative de bascule sur ce même
+            // fournisseur, tout en restant assez court pour qu'un changement de
+            // clé se propage en quelques dizaines de secondes.
+            let apiKey: string | undefined = secretCache.get(provider.provider_id)?.key;
+            if (apiKey === undefined || (secretCache.get(provider.provider_id)?.expiresAt ?? 0) < Date.now()) {
+                const { data, error: secretError } = await service.rpc(
+                    'get_ai_provider_secret_internal',
+                    { p_provider_id: provider.provider_id },
+                );
+                if (secretError || !data) throw new AdapterError('Clé introuvable.', 'auth');
+                apiKey = data as string;
+                secretCache.set(provider.provider_id, { key: apiKey, expiresAt: Date.now() + SECRET_TTL_MS });
+            }
 
             const adapter = resolveAdapter(provider.adapter_kind);
             // Le modèle vient du classement (couple fournisseur+modèle évalué ensemble).
@@ -260,38 +314,36 @@ Deno.serve(async (req: Request) => {
                     { role: 'assistant', content: result.text ?? '', toolCalls: result.toolCalls },
                 ];
 
-                let suspended = false;
-                for (const call of result.toolCalls) {
+                // GARDE-FOU — CONFIRMATION OBLIGATOIRE.
+                // Un appel exigeant confirmation interrompt le tour à sa place
+                // dans l'ordre du modèle : rien après lui ne s'exécute (identique
+                // au comportement précédent). Les appels qui le PRÉCÈDENT sont en
+                // revanche indépendants les uns des autres — les exécuter en
+                // parallèle plutôt qu'en séquence évite d'additionner leurs
+                // latences pour rien, sans toucher à la garantie de confirmation :
+                // l'exécuteur d'un outil à confirmation obligatoire n'est jamais
+                // atteint ici, qu'il soit premier ou dernier de la liste.
+                const confirmIdx = result.toolCalls.findIndex((call) => toolsById.get(call.name)?.requires_confirmation);
+                const callsToRun = confirmIdx === -1 ? result.toolCalls : result.toolCalls.slice(0, confirmIdx);
+
+                const outcomes = await Promise.all(callsToRun.map(async (call) => {
                     const tool = toolsById.get(call.name);
-
-                    if (!tool) {
-                        history.push({ role: 'tool', content: `Outil « ${call.name} » non autorisé pour cet expert.`, toolCallId: call.id, toolName: call.name });
-                        continue;
-                    }
-
-                    // GARDE-FOU — CONFIRMATION OBLIGATOIRE.
-                    // Toute action soumise à confirmation est suspendue ici :
-                    // on interrompt le tour et on renvoie la demande au client.
-                    // L'exécuteur n'est même pas atteint. Une action DÉJÀ
-                    // confirmée n'arrive jamais dans cette boucle : elle a été
-                    // exécutée en amont, de façon déterministe — d'où l'absence
-                    // d'exception ici, qui éviterait aussi toute double écriture
-                    // si le modèle redemandait le même outil.
-                    if (tool.requires_confirmation) {
-                        pendingAction = { toolId: call.name, label: describeAction(call.name, call.args), args: call.args };
-                        suspended = true;
-                        break;
-                    }
-
+                    if (!tool) return { call, content: `Outil « ${call.name} » non autorisé pour cet expert.`, used: false };
                     const executor = resolveToolExecutor(call.name);
-                    if (!executor) {
-                        history.push({ role: 'tool', content: `Outil « ${call.name} » sans implémentation disponible.`, toolCallId: call.id, toolName: call.name });
-                        continue;
-                    }
-
+                    if (!executor) return { call, content: `Outil « ${call.name} » sans implémentation disponible.`, used: false };
                     const outcome = await executor(call.args, { userClient, service, userId: requestedBy, agentId: body.agentId });
-                    toolsUsed.push(call.name);
-                    history.push({ role: 'tool', content: outcome.content, toolCallId: call.id, toolName: call.name });
+                    return { call, content: outcome.content, used: true };
+                }));
+                for (const o of outcomes) {
+                    if (o.used) toolsUsed.push(o.call.name);
+                    history.push({ role: 'tool', content: o.content, toolCallId: o.call.id, toolName: o.call.name });
+                }
+
+                let suspended = false;
+                if (confirmIdx !== -1) {
+                    const call = result.toolCalls[confirmIdx];
+                    pendingAction = { toolId: call.name, label: describeAction(call.name, call.args), args: call.args };
+                    suspended = true;
                 }
 
                 if (suspended) break;
@@ -309,13 +361,17 @@ Deno.serve(async (req: Request) => {
                 inputTokens: totalInput, outputTokens: totalOutput,
             });
 
-            await logCall(service, {
+            // Écriture d'audit détachée de la réponse : la personne n'a aucune
+            // raison d'attendre l'INSERT dans ai_call_log pour recevoir sa
+            // réponse. `fireAndForget` la maintient en vie via
+            // EdgeRuntime.waitUntil quand le runtime le permet.
+            fireAndForget(logCall(service, {
                 requestId, category: body.category, providerId: provider.provider_id, modelId, attemptNumber,
                 status: 'success', decision: 'selected',
                 decisionReason: `Retenu — ${provider.cost_tier === 'free' ? 'palier gratuit' : 'palier payant'}, coût estimé ${provider.cout_estime} $. ${provider.motif}`,
                 latencyMs: Date.now() - startedAt, requestedBy,
                 inputTokens: totalInput, outputTokens: totalOutput, costUsd,
-            });
+            }));
 
             return json({
                 providerId: provider.provider_id,
@@ -331,7 +387,7 @@ Deno.serve(async (req: Request) => {
             const adapterErr = err instanceof AdapterError ? err : new AdapterError(String(err), 'other');
             attempts.push({ providerId: provider.provider_id, errorClass: adapterErr.errorClass, message: adapterErr.message });
             const resteDesCandidats = i < ordered.length - 1;
-            await logCall(service, {
+            fireAndForget(logCall(service, {
                 requestId, category: body.category, providerId: provider.provider_id, modelId: body.modelId ?? null,
                 attemptNumber, status: 'error', errorClass: adapterErr.errorClass,
                 decision: resteDesCandidats ? 'failover' : 'exhausted',
@@ -341,7 +397,7 @@ Deno.serve(async (req: Request) => {
                     ? `Quota ou limite de débit atteint sur ${provider.provider_id}${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`
                     : `Échec (${adapterErr.errorClass})${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`,
                 errorMessage: adapterErr.message, latencyMs: Date.now() - startedAt, requestedBy,
-            });
+            }));
             // Bascule automatique : on continue sur le fournisseur suivant, quelle que soit la cause.
         }
     }
@@ -406,13 +462,13 @@ function money(n: number): string {
 async function checkBudget(
     service: ReturnType<typeof createServiceRoleClient>,
 ): Promise<{ blocked: boolean; reason: string; spentToday: number; spentMonth: number }> {
-    const { data: budget } = await service
-        .from('ai_budget')
-        .select('daily_cap_usd, monthly_cap_usd, enforced')
-        .eq('id', 'global')
-        .maybeSingle();
-
-    const { data: spend } = await service.rpc('get_ai_spend');
+    // Les deux lectures sont indépendantes (config du plafond vs. dépense déjà
+    // engagée) : les mener de front évite d'attendre deux allers-retours DB en
+    // série pour un contrôle exécuté à CHAQUE appel.
+    const [{ data: budget }, { data: spend }] = await Promise.all([
+        service.from('ai_budget').select('daily_cap_usd, monthly_cap_usd, enforced').eq('id', 'global').maybeSingle(),
+        service.rpc('get_ai_spend'),
+    ]);
     const row = Array.isArray(spend) ? spend[0] : spend;
     const spentToday = Number(row?.spent_today ?? 0);
     const spentMonth = Number(row?.spent_month ?? 0);
@@ -451,12 +507,22 @@ async function computeCost(
     modelId: string,
     usage?: { inputTokens?: number; outputTokens?: number },
 ): Promise<number> {
-    const { data: model } = await service
-        .from('ai_models')
-        .select('input_cost_per_million, output_cost_per_million, cost_per_call')
-        .eq('provider_id', providerId)
-        .eq('model_id', modelId)
-        .maybeSingle();
+    // Grille tarifaire quasi statique (elle ne change qu'à une mise à jour
+    // manuelle des tarifs) : la cacher évite une lecture DB à chaque appel
+    // réussi, y compris à chaque itération de la boucle d'outils.
+    const cacheKey = `${providerId}:${modelId}`;
+    const cached = modelCostCache.get(cacheKey);
+    let model = cached && cached.expiresAt > Date.now() ? cached.row : undefined;
+    if (model === undefined) {
+        const { data } = await service
+            .from('ai_models')
+            .select('input_cost_per_million, output_cost_per_million, cost_per_call')
+            .eq('provider_id', providerId)
+            .eq('model_id', modelId)
+            .maybeSingle();
+        model = data ?? null;
+        modelCostCache.set(cacheKey, { row: model, expiresAt: Date.now() + MODEL_COST_TTL_MS });
+    }
     if (!model) return 0;
 
     const perCall = Number(model.cost_per_call ?? 0);
