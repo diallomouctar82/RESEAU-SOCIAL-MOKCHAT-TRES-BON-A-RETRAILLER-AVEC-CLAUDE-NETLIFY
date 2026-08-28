@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Home, Search, MapPin, DollarSign, ShieldAlert, FileText, CheckCircle, AlertTriangle, Loader2, Sparkles, AlertOctagon } from 'lucide-react';
 import { HOUSING_LISTINGS } from '../constants';
 import { UserProfile, ScamAnalysis } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, generateJSON } from '../services/aiGateway';
 
 interface HousingCenterProps {
     userProfile: UserProfile;
@@ -27,10 +27,9 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
         setScamResult(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Agis comme Monsieur Diallo (Expert Logement). Analyse cette annonce immobilière :
             "${adText.slice(0, 1000)}..."
-            
+
             Détecte les signes d'arnaque (mandat cash, propriétaire absent, fautes, prix irréaliste).
             Réponds en JSON strict :
             {
@@ -40,13 +39,7 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                 "advice": "Conseil de sécurité"
             }`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text || '{}');
+            const result = (await generateJSON<ScamAnalysis>(prompt)) || ({} as ScamAnalysis);
             setScamResult(result);
         } catch (e) {
             console.error(e);
@@ -59,19 +52,15 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
     const handleGenerateDossier = async () => {
         setIsGeneratingDossier(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Agis comme Monsieur Diallo. Rédige une lettre de présentation pour un dossier de location pour ce profil :
             Nom: ${userProfile.name}
             Titre: ${userProfile.title}
             Nationalité/ID: ${userProfile.citizenshipId}
-            
+
             Ton: Professionnel, rassurant, sérieux. Souligne la stabilité et le sérieux.`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-            });
-            setDossierText(response.text || "Erreur de génération.");
+            const resText = await generateText(prompt);
+            setDossierText(resText || "Erreur de génération.");
         } catch (e) {
             console.error(e);
         } finally {

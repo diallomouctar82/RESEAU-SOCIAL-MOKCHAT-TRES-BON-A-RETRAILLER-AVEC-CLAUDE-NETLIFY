@@ -954,13 +954,11 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                                             if (!guidedTopic) return;
                                             setIsGeneratingScript(true);
                                             try {
-                                                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                                                const res = await ai.models.generateContent({
-                                                    model: 'gemini-2.5-flash',
-                                                    contents: `Crée un script court percutant de 30 secondes pour un Reel d'impact sur : "${guidedTopic}".
+                                                const res = await generateText(
+                                                    `Crée un script court percutant de 30 secondes pour un Reel d'impact sur : "${guidedTopic}".
                                                     Structure : 1. Accroche directe (3s), 2. Le point clé actionnable (20s), 3. Appel à l'action claire (7s).`
-                                                });
-                                                setGuidedAiDraft(res.text || '');
+                                                );
+                                                setGuidedAiDraft(res || '');
                                             } catch (err) {
                                                 setGuidedAiDraft(`Accroche : Saviez-vous que 80% des démarches échouent par manque de méthode claire ?\n\nConseil : Pour réussir, appliquez la règle des 3 étapes simples dès aujourd'hui.\n\nAction : Cliquez sur le bouton ci-dessous pour démarrer.`);
                                             } finally {

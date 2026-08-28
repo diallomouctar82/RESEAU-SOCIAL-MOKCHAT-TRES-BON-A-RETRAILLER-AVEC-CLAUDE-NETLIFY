@@ -218,10 +218,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
     const persona = getPersonaDetails(selectedMode);
 
     try {
-      const apiKey = process.env.API_KEY || (window as any).GEMINI_API_KEY;
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
-        const prompt = `Tu es un examinateur expert et coach professionnel d'élite.
+      const prompt = `Tu es un examinateur expert et coach professionnel d'élite.
         Contexte: ${persona.title} (${persona.persona}).
         Question posée: "${currentQuestion}"
         Réponse de l'utilisateur: "${userAnswer}"
@@ -236,54 +233,46 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
           "nextQuestion": "La prochaine question difficile pour continuer la simulation..."
         }`;
 
-        const res = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: { responseMimeType: 'application/json' }
-        });
+      const evalData = await generateJSON<any>(prompt);
+      const score = evalData.score || 8.0;
 
-        const evalData = JSON.parse(res.text || '{}');
-        const score = evalData.score || 8.0;
+      setLastEvaluation({
+        score: score,
+        feedback: evalData.feedback || 'Bonne réponse dans l\'ensemble.',
+        strengths: evalData.strengths || ['Clarté du propos'],
+        improvements: evalData.improvements || ['Ajouter des chiffres concrets'],
+        idealPhrasing: evalData.idealPhrasing || 'Une réponse plus percutante aurait inclus un exemple mesuré.'
+      });
 
-        setLastEvaluation({
-          score: score,
-          feedback: evalData.feedback || 'Bonne réponse dans l\'ensemble.',
-          strengths: evalData.strengths || ['Clarté du propos'],
-          improvements: evalData.improvements || ['Ajouter des chiffres concrets'],
-          idealPhrasing: evalData.idealPhrasing || 'Une réponse plus percutante aurait inclus un exemple mesuré.'
-        });
+      if (onRecordSessionScore) {
+        onRecordSessionScore(score, persona.title);
+      }
 
-        if (onRecordSessionScore) {
-          onRecordSessionScore(score, persona.title);
-        }
+      // Add to history
+      const newSessionRecord: Coach3DSimulationSession = {
+        id: `sim-${Date.now()}`,
+        type: selectedMode,
+        roleplayPersona: persona.persona,
+        contextTitle: persona.title,
+        difficulty: difficulty,
+        turnCount: turnCount,
+        performanceScore: score,
+        strengths: evalData.strengths || ['Assurance'],
+        improvements: evalData.improvements || ['Précision'],
+        idealPhrasingSuggested: evalData.idealPhrasing || '',
+        date: 'À l\'instant'
+      };
 
-        // Add to history
-        const newSessionRecord: Coach3DSimulationSession = {
-          id: `sim-${Date.now()}`,
-          type: selectedMode,
-          roleplayPersona: persona.persona,
-          contextTitle: persona.title,
-          difficulty: difficulty,
-          turnCount: turnCount,
-          performanceScore: score,
-          strengths: evalData.strengths || ['Assurance'],
-          improvements: evalData.improvements || ['Précision'],
-          idealPhrasingSuggested: evalData.idealPhrasing || '',
-          date: 'À l\'instant'
-        };
+      setSessionHistory(prev => [newSessionRecord, ...prev.slice(0, 4)]);
 
-        setSessionHistory(prev => [newSessionRecord, ...prev.slice(0, 4)]);
-
-        // Next Question
-        if (evalData.nextQuestion) {
-          setTimeout(() => {
-            setCurrentQuestion(evalData.nextQuestion);
-            setUserAnswer('');
-            setTurnCount(prev => prev + 1);
-            speakText(evalData.nextQuestion);
-          }, 3500);
-        }
-
+      // Next Question
+      if (evalData.nextQuestion) {
+        setTimeout(() => {
+          setCurrentQuestion(evalData.nextQuestion);
+          setUserAnswer('');
+          setTurnCount(prev => prev + 1);
+          speakText(evalData.nextQuestion);
+        }, 3500);
       }
     } catch (e) {
       console.error(e);

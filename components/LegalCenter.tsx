@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { Scale, FileText, Upload, AlertTriangle, CheckCircle, Clock, Loader2, Send, ScanText, Sparkles, ChevronRight } from 'lucide-react';
 import { LEGAL_PROCEDURES, USER_PROFILE } from '../constants';
 import { LegalDocAnalysis, UserProfile } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { generateText, analyzeImage } from '../services/aiGateway';
 
 interface LegalCenterProps {
     userProfile: UserProfile;

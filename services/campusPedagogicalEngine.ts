@@ -341,14 +341,11 @@ Répondez avec clarté, rigueur et pédagogie sous forme structurée :
 4. Démarche pas-à-pas pour réussir
 5. Question d'application ou conseil pour vérifier la bonne compréhension.`;
 
-            parts.push({ text: prompt });
+            const response = isImage
+                ? await analyzeImage(cleanBase64, mimeType, prompt)
+                : await generateText(prompt);
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: parts
-            });
-
-            const textResult = response.text || "J'ai bien analysé votre document. Révisons ensemble la méthode pas-à-pas.";
+            const textResult = response || "J'ai bien analysé votre document. Révisons ensemble la méthode pas-à-pas.";
 
             return {
                 textExplanation: textResult,
