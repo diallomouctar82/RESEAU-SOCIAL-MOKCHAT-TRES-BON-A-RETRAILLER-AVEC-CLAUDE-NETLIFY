@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const migration = await readFile(
-  new URL('../supabase/migrations/20260828034514_finalize_auth_oauth_session_profile.sql', import.meta.url),
+  new URL('../supabase/migrations/20260828034923_finalize_auth_oauth_session_profile.sql', import.meta.url),
   'utf8',
 );
 

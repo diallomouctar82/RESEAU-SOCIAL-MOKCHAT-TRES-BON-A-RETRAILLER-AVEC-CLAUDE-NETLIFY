@@ -9,3 +9,5 @@
 -- Start with 20260827130000_live_schema_snapshot.sql for a clean database,
 -- then apply every later migration in lexical order. See
 -- docs/SUPABASE_ARCHITECTURE.md for the contract and verification procedure.
+-- The local stack is configured by supabase/config.toml and the executable
+-- integrity check is `npm run db:verify`.

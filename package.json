@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:verify": "node scripts/verify-migrations.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.32.0",

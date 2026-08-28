@@ -4,7 +4,7 @@
 
 ## Source de vérité
 
-Le projet actif `rqciahtpixdjbyoajomg` contient 58 tables `public` issues de 18 migrations. L'ancien fichier `docs/supabase_schema.sql` ne décrivait que douze tables et utilisait plusieurs noms incompatibles. Il est désormais un pointeur ; l'unique chaîne SQL exécutable est `supabase/migrations/`, par ordre lexical.
+Le projet actif `rqciahtpixdjbyoajomg` contient 58 tables `public` issues de 18 migrations. L'ancien fichier `docs/supabase_schema.sql` ne décrivait que douze tables et utilisait plusieurs noms incompatibles. Il est désormais un pointeur ; l'unique chaîne SQL exécutable est `supabase/migrations/`, par ordre lexical. `supabase/schema-manifest.json` fige l'inventaire observé et `npm run db:verify` empêche la réintroduction d'un nom historique, d'une table sans RLS ou d'une version dupliquée.
 
 | Fichier | Objet |
 |---|---|
@@ -57,7 +57,7 @@ Les policies de messagerie utilisent des helpers paramétrés (`private.is_conve
 
 Le test `supabase/tests/core_rls_test.sql` couvre les cas autorisés et refusés : profil complet, annuaire sans données sensibles, isolation des conversations/messages, rôle/crédits et fonctions sensibles. Il doit être exécuté par `supabase test db` après un reset local ou sur une branche sans données.
 
-État au 28 août 2026 : le contrôle statique des cinq migrations est vert. Le reset/apply PostgreSQL et pgTAP ne sont pas déclarés réussis tant que leur sortie n'a pas été capturée dans le rapport d'intégration.
+État au 28 août 2026 : le contrat local cible PostgreSQL 17, comme la production. Le contrôle `npm run db:verify` valide les noms, versions, transactions, 58 tables du snapshot et l'activation RLS de toutes les tables versionnées. Le reset complet reste exécutable avec `supabase db reset` dès qu'un runtime Docker compatible est disponible.
 
 ## Réglages externes
 

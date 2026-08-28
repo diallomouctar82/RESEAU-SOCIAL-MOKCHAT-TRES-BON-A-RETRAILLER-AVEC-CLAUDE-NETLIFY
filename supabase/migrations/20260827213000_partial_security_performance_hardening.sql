@@ -2,6 +2,8 @@
 -- This migration remains deliberately limited to the partially implemented
 -- profile, trust and social domains.
 
+begin;
+
 -- The live baseline already owns equivalent indexes through UNIQUE constraints
 -- and idx_posts_created_at. Drop the redundant reconciliation indexes without
 -- touching their backing constraints.
@@ -32,3 +34,5 @@ create index if not exists idx_abuse_reports_post
 -- current-user binding are enforced server-side. Direct table UPDATE is not
 -- needed by the browser and would unnecessarily widen the attack surface.
 revoke update on table public.profiles from authenticated;
+
+commit;

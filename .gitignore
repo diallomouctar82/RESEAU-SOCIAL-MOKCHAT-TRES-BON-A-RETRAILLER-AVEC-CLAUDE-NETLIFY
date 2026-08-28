@@ -15,6 +15,9 @@ dist-ssr
 # Netlify CLI local state (site-link cache, machine-specific)
 .netlify
 
+# Supabase CLI local state (project link and branch cache, machine-specific)
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
