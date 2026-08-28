@@ -177,4 +177,153 @@ export const supabaseService = {
         if (!isSupabaseConfigured) return;
         await supabase.auth.signOut();
     },
+
+    // --- Messagerie (MoocChatFloating) --------------------------------
+    // Best-effort : jamais d'exception non gérée. En cas d'échec (table/
+    // colonne absente, non configuré...), on dégrade silencieusement — le
+    // widget de chat continue de fonctionner en état local optimiste.
+    async getConversations(userId: string): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        try {
+            const { data, error } = await supabase
+                .from('conversations')
+                .select('*')
+                .or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
+            if (error || !data) return [];
+            return data;
+        } catch {
+            return [];
+        }
+    },
+
+    subscribeToPresence(
+        user: { id: string; name?: string; avatarUrl?: string },
+        callback: (state: Record<string, unknown>) => void,
+    ): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase.channel('lmav-presence', { config: { presence: { key: user.id } } });
+            channel
+                .on('presence', { event: 'sync' }, () => callback(channel.presenceState()))
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        channel.track({ id: user.id, name: user.name, avatarUrl: user.avatarUrl });
+                    }
+                });
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
+    },
+
+    subscribeToCallSignals(userId: string, callback: (signal: any) => void): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase
+                .channel(`call-signals:${userId}`)
+                .on('broadcast', { event: 'signal' }, ({ payload }) => callback(payload))
+                .subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
+    },
+
+    async sendCallSignal(toUserId: string, signal: any): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        try {
+            const channel = supabase.channel(`call-signals:${toUserId}`);
+            await channel.subscribe();
+            await channel.send({ type: 'broadcast', event: 'signal', payload: signal });
+            supabase.removeChannel(channel);
+        } catch {
+            // dégradation silencieuse — l'appel ne partira pas, pas de crash.
+        }
+    },
+
+    subscribeToChat(
+        conversationId: string,
+        handlers: { onMessage?: (m: any) => void; onUpdate?: (m: any) => void; onDelete?: (id: string) => void },
+    ): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase
+                .channel(`chat:${conversationId}`)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, (payload) => {
+                    handlers.onMessage?.(payload.new);
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, (payload) => {
+                    handlers.onUpdate?.(payload.new);
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, (payload) => {
+                    const deletedId = (payload.old as { id?: string })?.id;
+                    if (deletedId) handlers.onDelete?.(deletedId);
+                })
+                .subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
+    },
+
+    async sendMessage(message: Record<string, unknown>): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('messages').insert(message);
+        if (error) throw error;
+    },
+
+    async updateChatMessage(messageId: string, updates: Record<string, unknown>): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('messages').update(updates).eq('id', messageId);
+        if (error) throw error;
+    },
+
+    async deleteChatMessage(messageId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('messages').delete().eq('id', messageId);
+        if (error) throw error;
+    },
+
+    // --- Fil social (SocialFeed) ---------------------------------------
+    async getPosts(): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+        if (error || !data) return [];
+        return data;
+    },
+    async searchProfiles(): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase.from('profiles').select('*').limit(100);
+        if (error || !data) return [];
+        return data;
+    },
+    async createPost(post: Record<string, unknown>): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('posts').insert(post);
+        if (error) throw error;
+    },
+
+    // --- Console Super Admin --------------------------------------------
+    async fetchAdminProfiles(): Promise<SupabaseUserProfile[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase.from('profiles').select('*');
+        if (error || !data) return [];
+        return data as SupabaseUserProfile[];
+    },
+    async updateAdminUserProfile(profile: Partial<SupabaseUserProfile> & { id: string }): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('profiles').update(profile).eq('id', profile.id);
+        if (error) throw error;
+    },
+    async deleteAdminUserProfile(id: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('profiles').delete().eq('id', id);
+        if (error) throw error;
+    },
+    async savePlatformSettings(settings: Record<string, unknown>): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        // Aucune table de configuration plateforme dédiée pour l'instant :
+        // dégradation silencieuse, l'admin console reste utilisable en local.
+        return;
+    },
 };
