@@ -9,13 +9,13 @@
 **Le Monde à Vous** a franchi le jalon officiel **HIGH DEMAND SPIKE ABSORPTION & 503 FAILOVER (v6.6.1)**. La plateforme est un écosystème hautement intégré combinant 15 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance, un espace Super-Administrateur souverain, un orchestrateur central et une interface conversationnelle moderne, aérée et hyper-résiliente.
 
 La version **v6.6.1** consacre :
-- **Absorption Automatique des Pointes de Charge (503 UNAVAILABLE / High Demand)** : Détection proactive et gestion résiliente des surcharges d'API distantes dans `server.ts` et `aiRoutingService.ts`.
+- **Absorption Automatique des Pointes de Charge (503 UNAVAILABLE / High Demand)** : Détection proactive et gestion résiliente des surcharges d'API distantes dans l'Edge Function orchestratrice `supabase/functions/ai-gateway/index.ts`.
 - **Cascade Multi-Modèles Instantanée** : En cas de forte affluence sur `gemini-2.5-flash`, basculement automatique et silencieux vers `gemini-2.5-pro` ou `gemini-2.0-flash`, puis vers les autres fournisseurs configurés (Claude, DeepSeek, OpenAI, Mistral) sans rupture d'expérience.
 - **Protection Multimodale (Vision HUD & Voice)** : Prise en charge des bascules dans `services/multimodalVision.ts` et `services/ai.ts` pour garantir un fonctionnement ininterrompu de la caméra et de l'analyse.
 - **Refonte Complète & Calibre Pro du Chat (`ChatInterface.tsx`)** : Interface épurée, aérée et moderne avec bulles soignées, micro-interactions fluides, suggestions dynamiques par expert, attachement de fichiers/photos, perception visuelle caméra HUD et synthèse vocale HD ElevenLabs.
-- **Fonctionnement Garanti dès le 1er Instant** : Routage multi-fournisseur transparent via `aiRoutingService.executeWithResilience(...)`, assurant zéro blocage et zéro écran blanc même sans configuration de clés.
+- **Fonctionnement Garanti dès le 1er Instant** : Routage multi-fournisseur transparent via `services/aiGateway.ts` (point d'entrée unique côté client vers l'orchestrateur `supabase/functions/ai-gateway`), assurant zéro blocage et zéro écran blanc même sans configuration de clés.
 - **Visualisation Dynamique du Fournisseur Actif & Auto-Bascule** : Badge de statut en temps réel (ex. `🟢 Google Gemini 2.5 Flash • 115ms` ou `⚡ Relais : DeepSeek V3`), et affichage des métriques de latence et moteur utilisé sous chaque réponse.
-- **Tableau de Bord Fournisseurs Dédié (`AIProvidersDashboardModal.tsx`)** : Accessible en 1 clic depuis le Chat et la barre de navigation supérieure (`Layout.tsx`), permettant de tester la latence, forcer le moteur primaire, reconnecter un service défaillant et simuler une bascule d'urgence.
+- **Tableau de Bord Fournisseurs Dédié (`components/admin/AiOrchestrator.tsx`)** : Accessible depuis le Tableau de Bord Super-Admin (`AdminDashboard.tsx`, lui-même ouvert en 1 clic depuis la barre de navigation supérieure `Layout.tsx`), permettant de tester chaque connecteur en direct, prioriser/forcer un fournisseur et le reconnecter après correction de sa clé.
 - **Orchestrateur Central des Modèles IA (Super Admin)** : Pilotage en temps réel de 15+ connecteurs d'IA majeurs (Gemini, DeepSeek, Claude AI, OpenAI, Mistral, Qwen, Kimi, Kling AI, ElevenLabs, HeyGen, Runway, OpenRouter, n8n, Grok, Ollama) activables et désactivables en 1 clic.
 - **Sélection Intelligente & Cascade de Résilience sans Coupure** : Routage automatique selon la spécialité de tâche (raisonnement, juridique & contrats, code, multilingue, vidéo, voix, automatisation), la latence, le taux d'erreur, le score de qualité et les plafonds de budget quotidien (`dailyQuotaLimitUSD`).
 - **Portails Officiels Développeurs 1-Clic** : Accès direct pour chaque fournisseur vers 4 destinations officielles clés : Créer un compte, Générer une clé API, Accéder à la documentation et Consulter les quotas & facturation.
@@ -46,10 +46,10 @@ La version **v6.6.1** consacre :
 ### 1.1. Diallo OS, Experts & Conseil Collégial
 - Dialogue interactif avec chaque expert Diallo (Directeur, Maître, Conseiller, Professeur, Dr, Monsieur, Guide, Analyste).
 - Salle de Conseil Réuni (`CouncilRoom.tsx` / `UnifiedCouncilRoom.tsx`) réunissant les spécialistes pour résoudre un cas transversal.
-- Orchestrateur central (`services/orchestratorService.ts`) avec extraction d'intentions et ventilation automatique vers les modules idoines.
+- Orchestrateur central (`components/DialloOS.tsx`, routé via `services/aiGateway.ts`) avec extraction d'intentions et ventilation automatique vers les modules idoines.
 - **Moteur Vocal Pro & Dialogue Conversationnel Fluide (`voiceEngine.ts`)** :
   - **Synthèse Vocale Haute Fidélité ElevenLabs (HD)** :
-    - Intégration de l'API ElevenLabs avec streaming MP3 haute fidélité via proxy backend sécurisé Express (`/api/tts`, `/api/tts/voices`).
+    - Intégration de l'API ElevenLabs avec restitution MP3 haute fidélité via `generateSpeech()` (`services/aiGateway.ts`), routée par l'orchestrateur `supabase/functions/ai-gateway` (catégorie « voix ») — aucun proxy Express, la clé ne quitte jamais le serveur.
     - Voix personnalisées et réalistes attribuées à chaque membre de la Famille DIALLO et aux formations du Campus.
     - Mise en cache intelligente des flux audio générés (Blob URLs) pour zéro latence lors des réécoutes et économie de bande passante.
     - Bascule automatique et dégradation gracieuse vers le moteur vocal natif (`window.speechSynthesis`) si la clé API n'est pas renseignée.
@@ -61,10 +61,10 @@ La version **v6.6.1** consacre :
   - Heartbeat anti-sommeil de la Web Speech API sur navigateurs Chromium.
   - Interruption instantanée (barge-in) dès que l'utilisateur reprend la parole.
 - HUD Multimodal & Support vocal temps réel (`voiceEngine.ts`).
-- **Hub Central Multi-Fournisseurs d'IA & Cascade Auto-Résilience (`services/unifiedAIConnector.ts`, `services/aiRoutingService.ts`)** :
+- **Hub Central Multi-Fournisseurs d'IA & Cascade Auto-Résilience (`supabase/functions/ai-gateway/index.ts`, `services/aiGateway.ts`)** :
   - **10+ Moteurs Connectés** : DeepSeek (V3/R1), Anthropic Claude (3.5 Sonnet/Haiku), OpenAI (GPT-4o/o1/o3), Alibaba Qwen (DashScope 72B), Moonshot Kimi (K3/K1.5 128k), Kling AI (Vidéo Kuaishou), OpenRouter Multi-LLM Gateway, n8n Workflow Automation, HeyGen Interactive Avatars, RunwayML (Gen-3/Gen-2) et ElevenLabs TTS.
-  - **Proxy Full-Stack Sécurisé (`server.ts`)** : Endpoints dédiés `/api/ai/connectors`, `/api/ai/chat`, `/api/ai/video`, `/api/ai/avatar`, `/api/ai/n8n/trigger` et `/api/tts`.
-  - **Banc d'Essai & Liens Directs 1-Clic (`AIConnectorsHubModal.tsx`)** : Test des requêtes en direct, statut de configuration avec détection de clés, et liens officiels directs vers les portails développeurs pour chaque fournisseur.
+  - **Edge Function Orchestratrice Sécurisée (`supabase/functions/ai-gateway/index.ts`)** : Point d'entrée serveur unique, invoqué via `supabase.functions.invoke('ai-gateway', ...)`, avec sélection automatique du fournisseur, gouvernance de budget (plafonds jour/mois) et calcul du coût de chaque appel.
+  - **Banc d'Essai & Liens Directs 1-Clic (`components/admin/AiOrchestrator.tsx`)** : Test des connecteurs en direct, statut de configuration avec détection de clés, et liens officiels directs vers les portails développeurs pour chaque fournisseur.
   - **Dégradation Gracieuse & Zéro Écran Blanc** : Fonctionnement fluide avec ou sans clés d'environnement grâce aux modèles de repli souverain.
 
 ### 1.2. Marché Mondial & Business Operating System

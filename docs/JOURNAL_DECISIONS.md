@@ -20,6 +20,25 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-031] — 28 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Orchestrateur IA (ai-gateway)`, `Espace Super-Admin Souverain`, `Documentation & Continuité Système`
+* **Problème / Besoin initial** :
+  1. Les entrées [DEC-2026-010], [DEC-2026-025], [DEC-2026-026], [DEC-2026-027], [DEC-2026-028], [DEC-2026-029] et [DEC-2026-030], ainsi que de larges portions de `docs/ETAT_ACTUEL.md`, décrivaient une architecture de routage et de résilience IA reposant sur des fichiers qui n'existent pas dans le dépôt réel : `server.ts`, `services/aiRoutingService.ts`, `services/unifiedAIConnector.ts`, `components/AIProvidersDashboardModal.tsx`, `components/AIConnectorsHubModal.tsx` et `components/admin/AdminAIResilienceHub.tsx`.
+  2. Corriger la documentation pour qu'elle décrive fidèlement l'architecture IA réellement implémentée dans le code, sans jamais créer rétroactivement ces fichiers fantômes pour faire correspondre le code à une documentation erronée.
+* **Idées envisagées** :
+  1. Créer les fichiers fantômes nommés dans les entrées ci-dessus pour aligner le code sur la documentation existante.
+  2. Corriger la documentation elle-même : consigner ici la correction par une nouvelle entrée sans réécrire l'historique (principe de traçabilité du journal), et mettre à jour `docs/ETAT_ACTUEL.md` pour réattribuer chaque fonctionnalité réelle (bascule multi-fournisseurs, gouvernance de coût/budget, dégradation gracieuse, sélection par mérite/spécialité/latence/coût, outils par expert) à l'architecture IA réellement en place : l'Edge Function orchestratrice `supabase/functions/ai-gateway/index.ts`, son client frontend unique `services/aiGateway.ts` (`generateText`, `generateJSON`, `generateSpeech`, `mintLiveToken`, etc.) et les interfaces d'administration Super Admin réelles `components/admin/AiOrchestrator.tsx`, `components/admin/AiCostGovernance.tsx` et `components/admin/AgentToolsMatrix.tsx`.
+* **Décision retenue** : Option 2.
+* **Justification** : Un journal de décisions et un état des lieux n'ont de valeur opposable que s'ils reflètent le code effectivement présent dans le dépôt. Les capacités décrites par les entrées historiques citées ci-dessus (bascule sans coupure entre fournisseurs, gouvernance de budget, dégradation gracieuse, sélection intelligente) sont réelles et demeurent vraies aujourd'hui — seule l'attribution à des fichiers jamais livrés était erronée. La règle du journal impose de tracer les corrections par de nouvelles entrées plutôt que d'effacer ou de modifier l'historique existant.
+* **Conséquences** :
+  1. Aucune régression fonctionnelle ni modification de code : correction strictement documentaire.
+  2. Le doublon d'identifiant `[DEC-2026-028]` (deux entrées distinctes : refonte de l'interface conversationnelle `ChatInterface.tsx` d'une part, hub d'auto-diagnostic des connecteurs IA d'autre part) est levé — la seconde occurrence, relative au hub d'auto-diagnostic, est renommée `[DEC-2026-030]`.
+  3. `docs/ETAT_ACTUEL.md` est corrigé en parallèle pour attribuer les fonctionnalités réelles à `supabase/functions/ai-gateway/index.ts`, `services/aiGateway.ts` et aux interfaces d'administration réelles listées ci-dessus, à l'exclusion des passages relatifs à `services/voiceEngine.ts` / ElevenLabs, qui restent exacts et inchangés.
+* **Éléments techniques** : `supabase/functions/ai-gateway/index.ts`, `services/aiGateway.ts`, `components/admin/AiOrchestrator.tsx`, `components/admin/AiCostGovernance.tsx`, `components/admin/AgentToolsMatrix.tsx`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Validé`.
+
+---
+
 ### [DEC-2026-029] — 28 Août 2026
 * **Module(s)** : `Server Proxy (/api/ai/chat)`, `AIRoutingService`, `AIService`, `MultimodalVisionService`
 * **Problème / Besoin initial** :
@@ -762,7 +781,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-028] — 28 Août 2026
+### [DEC-2026-030] — 28 Août 2026
 * **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Central AI Orchestrator & Resilience Hub`, `Auto-Diagnostic & Détection Clés API`
 * **Problème / Besoin initial** :
   1. Vérifier que toutes les clés API (serveur et client) sont correctement détectées, unifiées et testées sans doublon bloquant.
