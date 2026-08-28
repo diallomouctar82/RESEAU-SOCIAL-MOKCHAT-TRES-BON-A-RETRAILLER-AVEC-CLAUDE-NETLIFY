@@ -17,7 +17,9 @@ import {
     Scan,
     Layers,
     Sparkles,
-    Send
+    Send,
+    X,
+    ArrowLeft
 } from 'lucide-react';
 import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../services/audioUtils';
 import { SYSTEM_INSTRUCTION } from '../constants';
@@ -239,6 +241,14 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
       if (onClose) onClose();
   };
 
+  // Toujours disponible, quel que soit l'état de connexion — sans lui,
+  // un échec de connexion (ex. clé API/modèle indisponible) laissait
+  // l'utilisateur bloqué dans cet écran sans aucun moyen d'en sortir.
+  const handleClose = () => {
+      stopSession();
+      if (onClose) onClose();
+  };
+
   const activeAgentMock: Agent = agent || {
       id: 'diallo-live',
       name: 'Expert Diallo',
@@ -252,7 +262,19 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
 
   return (
     <div className="flex flex-col lg:flex-row items-center justify-center h-full bg-slate-950 text-white p-4 sm:p-6 relative overflow-hidden gap-6">
-      
+
+      {/* Bouton retour / fermer — toujours visible, même avant/pendant une tentative de connexion */}
+      {onClose && (
+        <button
+          onClick={handleClose}
+          className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-bold backdrop-blur-sm border border-slate-700 transition-colors"
+          title="Retour"
+        >
+          <ArrowLeft size={16} />
+          <span>Retour</span>
+        </button>
+      )}
+
       {/* Background Ambient Glow */}
       {isActive && (
         <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none">

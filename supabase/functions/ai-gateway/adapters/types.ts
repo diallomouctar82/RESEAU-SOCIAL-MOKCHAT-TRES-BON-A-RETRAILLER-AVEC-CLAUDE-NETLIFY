@@ -12,8 +12,12 @@ export interface AdapterRequest {
         jsonMode?: boolean;
     };
     voice?: {
-        text: string;
+        // Texte -> parole (TTS)
+        text?: string;
         voiceId?: string;
+        // Parole -> texte (STT/transcription) — audio fourni en base64
+        audioBase64?: string;
+        audioMimeType?: string;
     };
     imageVideo?: {
         prompt: string;
