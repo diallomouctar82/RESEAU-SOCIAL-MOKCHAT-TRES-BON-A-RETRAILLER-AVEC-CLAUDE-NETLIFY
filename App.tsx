@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { GoalProvider } from './contexts/GoalContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard'; 
 import { ChatInterface } from './components/ChatInterface';
@@ -50,7 +51,11 @@ const AppContent = () => {
   // rapides — c'était l'absence de ce lien qui faisait naviguer vers un
   // onglet 'search' inexistant et vider tout l'écran.
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  
+  // Idem pour la modale d'objectif ("Mon Cap") : remontée ici pour que
+  // Dashboard puisse aussi l'ouvrir depuis le pill "Changer de cap" de
+  // son EditorialHero, sans quoi ce clic n'avait aucun effet.
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+
   // LIVE STATE
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
@@ -169,9 +174,12 @@ const AppContent = () => {
         isSearchModalOpen={isSearchModalOpen}
         onOpenSearch={() => setIsSearchModalOpen(true)}
         onCloseSearch={() => setIsSearchModalOpen(false)}
+        isGoalModalOpen={isGoalModalOpen}
+        onOpenGoalModal={() => setIsGoalModalOpen(true)}
+        onCloseGoalModal={() => setIsGoalModalOpen(false)}
     >
 
-      {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} />}
+      {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} onOpenCapModal={() => setIsGoalModalOpen(true)} />}
 
       {activeTab === 'google-maps' && <GoogleMapsExplorer />}
 
@@ -315,7 +323,9 @@ export default function App() {
     return (
         <GlobalProvider>
             <ThemeProvider>
-                <AppContent />
+                <GoalProvider>
+                    <AppContent />
+                </GoalProvider>
             </ThemeProvider>
         </GlobalProvider>
     );

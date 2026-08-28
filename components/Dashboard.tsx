@@ -13,6 +13,7 @@ import {
   Layers
 } from 'lucide-react';
 import { DEFAULT_DOSSIERS } from '../constants';
+import { useGoal } from '../contexts/GoalContext';
 import { EditorialHero } from './ui/EditorialHero';
 import { PointAToBPathway } from './ui/PointAToBPathway';
 import { StatusBadge } from './ui/StatusBadge';
@@ -26,6 +27,8 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, onOpenCapModal, onOpenSearch }) => {
+    const { currentGoal } = useGoal();
+
     return (
         <div className="p-4 sm:p-8 max-w-[1700px] mx-auto space-y-8 animate-fade-up bg-slate-50/60 min-h-full pb-36 font-sans">
             
@@ -65,8 +68,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                 {/* 1. HERO EDITORIAL PERSONNEL */}
                 <EditorialHero 
                     userProfile={userProfile}
-                    activeGoalTitle="Décrocher un poste clé en Europe & Valider le Visa Talents"
-                    activeGoalCategory="Carrière & Accomplissement"
+                    activeGoalTitle={currentGoal?.title || "Choisissez votre premier objectif"}
+                    activeGoalCategory={currentGoal?.category || "Bienvenue sur Le Monde à Vous"}
                     nextBestAction={{
                         title: "Finaliser la simulation d'entretien 3D avec Coach Diallo",
                         description: "Votre CV Maître a été adapté à 94% à l'offre Tech Lead. Passez à l'oral pour consolider votre argumentaire salarial.",

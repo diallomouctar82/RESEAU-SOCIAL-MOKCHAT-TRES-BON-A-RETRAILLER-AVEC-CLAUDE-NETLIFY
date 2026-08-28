@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Users
 } from 'lucide-react';
-import { GOAL_TEMPLATES } from './NavigationItems';
+import { useGoal, GoalTemplate } from '../../contexts/GoalContext';
 
 interface GoalOrientationModalProps {
   isOpen: boolean;
@@ -28,9 +28,12 @@ export const GoalOrientationModal: React.FC<GoalOrientationModalProps> = ({
   onNavigate,
   onOpenDialloOS
 }) => {
+  const { goalTemplates, setCurrentGoal } = useGoal();
+
   if (!isOpen) return null;
 
-  const handleSelectGoal = (template: typeof GOAL_TEMPLATES[0]) => {
+  const handleSelectGoal = (template: GoalTemplate) => {
+    setCurrentGoal(template);
     onNavigate(template.targetTab);
     onClose();
   };
@@ -87,7 +90,7 @@ export const GoalOrientationModal: React.FC<GoalOrientationModalProps> = ({
         {/* Goals Grid */}
         <div className="p-6 overflow-y-auto space-y-4 bg-slate-50">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {GOAL_TEMPLATES.map((tmpl) => {
+            {goalTemplates.map((tmpl) => {
               const Icon = tmpl.icon;
               return (
                 <div
