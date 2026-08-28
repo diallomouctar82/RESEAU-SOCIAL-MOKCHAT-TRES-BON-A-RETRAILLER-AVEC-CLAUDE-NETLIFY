@@ -28,7 +28,7 @@ import { GoogleDriveCenter } from './components/GoogleDriveCenter';
 import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
-import { AdminDashboard } from './components/AdminDashboard';
+import { AdminRoute } from './components/AdminRoute';
 import { AGENTS } from './constants';
 import { Agent, LiveStream } from './types';
 import './styles/accessibility.css';
@@ -94,7 +94,9 @@ const AppContent = () => {
       
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} />}
 
-      {activeTab === 'admin' && ['admin', 'super_admin'].includes(userProfile.role) && <AdminDashboard />}
+      {activeTab === 'admin' && (
+        <AdminRoute role={userProfile.role} onExit={() => setActiveTab('home')} />
+      )}
 
       {activeTab === 'google-maps' && <GoogleMapsExplorer />}
 
