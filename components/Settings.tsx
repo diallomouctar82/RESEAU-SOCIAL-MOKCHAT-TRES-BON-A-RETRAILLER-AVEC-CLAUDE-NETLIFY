@@ -3,14 +3,26 @@ import React, { useState } from 'react';
 import { User, Shield, Lock, Eye, Download, LogOut, Smartphone, Globe, Activity, CheckCircle, Bell, CreditCard, Moon, ChevronRight, Mail, Key, Fingerprint, RefreshCw } from 'lucide-react';
 import { USER_PROFILE, SECURITY_LOGS, ACTIVE_SESSIONS, SUPPORTED_LANGUAGES } from '../constants';
 import { useGlobal } from '../contexts/GlobalContext';
+import { signOut } from '../services/auth';
 
 type SettingsTab = 'profile' | 'security' | 'preferences' | 'billing';
 
 export const Settings: React.FC = () => {
-  const { userProfile, updateUserProfile } = useGlobal();
+  const { userProfile, updateUserProfile, logout } = useGlobal();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [sessions, setSessions] = useState(ACTIVE_SESSIONS);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+      setIsLoggingOut(true);
+      try {
+          await signOut();
+      } catch (e) {
+          console.error('Erreur déconnexion Supabase:', e);
+      }
+      logout();
+  };
 
   // Local state for form handling
   const [formData, setFormData] = useState({
@@ -198,6 +210,17 @@ export const Settings: React.FC = () => {
                                   </div>
                               ))}
                           </div>
+                      </div>
+
+                      <div className="pt-6 border-t border-slate-100">
+                          <button
+                              onClick={handleLogout}
+                              disabled={isLoggingOut}
+                              className="w-full flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
+                          >
+                              <LogOut size={18} />
+                              {isLoggingOut ? 'Déconnexion…' : 'Se déconnecter'}
+                          </button>
                       </div>
 
                       <div className="pt-6 border-t border-slate-100">
