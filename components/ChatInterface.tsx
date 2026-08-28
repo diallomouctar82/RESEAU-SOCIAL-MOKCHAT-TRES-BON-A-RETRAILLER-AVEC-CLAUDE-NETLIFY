@@ -17,17 +17,14 @@ import {
     Volume2,
     VolumeX,
     Eye,
-    Zap,
     Globe,
     Layers,
     Share2,
-    CheckCircle2,
     ChevronDown,
     ChevronUp,
     Compass,
     Activity,
     AlertTriangle,
-    SlidersHorizontal,
     Copy,
     Check
 } from 'lucide-react';
@@ -35,18 +32,13 @@ import { Agent, Message } from '../types';
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { useGlobal } from '../contexts/GlobalContext';
 import { memoryService } from '../services/memory';
-import { aiRoutingService } from '../services/aiRoutingService';
+import { generateText } from '../services/aiGateway';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
 import { VoiceSettingsModal } from './VoiceSettingsModal';
 import { voiceEngine } from '../services/voiceEngine';
-import { AIProvidersDashboardModal } from './AIProvidersDashboardModal';
 
 interface ExtendedMessage extends Message {
-    providerUsedName?: string;
-    modelUsed?: string;
-    latencyMs?: number;
-    wasFailover?: boolean;
-    failoverReason?: string;
+    isError?: boolean;
 }
 
 interface ChatInterfaceProps {
@@ -66,30 +58,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
   const [isListeningVoice, setIsListeningVoice] = useState<boolean>(false);
   const [voiceVolume, setVoiceVolume] = useState<number>(0);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState<boolean>(false);
-  const [isProvidersModalOpen, setIsProvidersModalOpen] = useState<boolean>(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  
-  // Real-time AI engine info
-  const [activeEngine, setActiveEngine] = useState(aiRoutingService.getActiveEngineInfo());
-  const [lastExecutionInfo, setLastExecutionInfo] = useState(aiRoutingService.getLastExecutionInfo());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const currentAvatarUrl = agent.avatarUrl;
-
-  // Listen to AI Routing changes in real time
-  useEffect(() => {
-    setActiveEngine(aiRoutingService.getActiveEngineInfo());
-    setLastExecutionInfo(aiRoutingService.getLastExecutionInfo());
-    const unsubscribe = aiRoutingService.subscribe(() => {
-      setActiveEngine(aiRoutingService.getActiveEngineInfo());
-      setLastExecutionInfo(aiRoutingService.getLastExecutionInfo());
-    });
-    return unsubscribe;
-  }, []);
 
   // Initialisation de la conversation
   useEffect(() => {
@@ -102,10 +78,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
                     id: 'welcome',
                     role: 'model',
                     text: `Bonjour ${userProfile.name.split(' ')[0]} ! Je suis ${agent.name}, ${agent.title}. J'ai accès à votre dossier souverain. Comment puis-je vous accompagner aujourd'hui ?`,
-                    timestamp: new Date(),
-                    providerUsedName: activeEngine.name,
-                    modelUsed: 'Système Souverain',
-                    latencyMs: 85
+                    timestamp: new Date()
                 }]);
             }
         }
@@ -201,27 +174,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
           `Tu t'exprimes toujours en tant qu'humain d'élite de la Famille Diallo, avec rigueur, bienveillance et des solutions concrètes. ` +
           `Ne dis JAMAIS que tu es une intelligence artificielle ou un robot.`;
 
-        // 3. Exécution avec le moteur de routage résilient (auto-bascule transparente)
-        const result = await aiRoutingService.executeWithResilience({
-            prompt: augmentedPrompt,
-            systemInstruction: systemInstruction,
-            preferredModel: agent.modelConfig.model
-        });
-
-        const responseText = result.text || "Votre demande a été enregistrée avec succès. Comment souhaitez-vous approfondir ?";
+        // 3. Exécution via le registre IA central (Super Admin → Connecteurs IA) :
+        // sélection automatique du fournisseur actif + bascule en cas d'échec,
+        // seul chemin officiel pour tout appel IA de l'application.
+        const responseText = await generateText(augmentedPrompt, { systemInstruction });
 
         const newAiMsg: ExtendedMessage = {
             id: (Date.now() + 1).toString(),
             role: 'model',
-            text: responseText,
-            timestamp: new Date(),
-            providerUsedName: result.providerUsed.name,
-            modelUsed: result.modelUsed,
-            latencyMs: result.latencyMs,
-            wasFailover: result.wasFailover,
-            failoverReason: result.failoverReason
+            text: responseText || "Je n'ai pas pu formuler de réponse cette fois-ci. Reformulez votre question ou réessayez dans un instant.",
+            timestamp: new Date()
         };
-        
+
         setMessages(prev => [...prev, newAiMsg]);
 
         // Auto-Lecture Vocale si activée
@@ -235,17 +199,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
         }
 
     } catch (error: any) {
-        console.error("Chat Error, fallback souverain local", error);
+        console.error("Erreur de l'orchestrateur IA :", error);
         setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
             role: 'model',
-            text: `Je poursuis l'analyse de votre demande avec toute l'attention requise. Nos services restent pleinement disponibles pour vous guider pas à pas.`,
+            text: error?.message?.includes('Aucun fournisseur')
+                ? "Aucun fournisseur IA n'est actuellement actif. Un administrateur doit en configurer un dans Super Admin → Connecteurs & Modèles IA."
+                : "Une erreur est survenue lors de la génération de la réponse. Réessayez dans un instant.",
             timestamp: new Date(),
-            providerUsedName: 'Moteur Souverain LMAV',
-            modelUsed: 'Secours Local',
-            latencyMs: 90,
-            wasFailover: true,
-            failoverReason: 'Repli gracieux de sécurité activé'
+            isError: true
         }]);
     } finally {
         setIsLoading(false);
@@ -349,29 +311,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
 
         {/* Live Active AI Provider Status Badge & Action Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-            
-            {/* Clickable AI Provider Status Indicator */}
-            <button
-                onClick={() => setIsProvidersModalOpen(true)}
-                className={`px-3 py-1.5 rounded-2xl text-xs font-semibold flex items-center gap-2 border transition shadow-xs cursor-pointer ${
-                    lastExecutionInfo?.wasFailover 
-                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25 animate-pulse' 
-                        : 'bg-slate-800/90 text-slate-200 border-slate-700 hover:border-amber-500/50 hover:bg-slate-800'
-                }`}
-                title="Cliquer pour ouvrir le tableau de bord des connecteurs et tester la bascule"
-            >
-                <span className={`w-2.5 h-2.5 rounded-full ${
-                    lastExecutionInfo?.wasFailover ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'
-                }`} />
-                <span className="hidden sm:inline text-[11px] text-slate-400">Moteur :</span>
-                <span className="text-[11px] font-bold text-white truncate max-w-[140px]">
-                    {lastExecutionInfo?.providerUsedName || activeEngine.name}
-                </span>
-                <span className="text-[10px] font-mono text-emerald-400">
-                    ({lastExecutionInfo?.latencyMs || activeEngine.latencyMs}ms)
-                </span>
-                <SlidersHorizontal size={12} className="text-amber-400 ml-0.5" />
-            </button>
 
             {/* Camera Vision Toggle */}
             <button
@@ -517,22 +456,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
                                                 </button>
                                             </div>
 
-                                            {/* AI Provider Badge on Response */}
-                                            {msg.providerUsedName && (
-                                                <div 
-                                                    onClick={() => setIsProvidersModalOpen(true)}
-                                                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-amber-300 cursor-pointer transition font-mono"
-                                                    title="Voir les détails du fournisseur IA"
-                                                >
-                                                    {msg.wasFailover ? (
-                                                        <span className="text-amber-400 flex items-center gap-1">
-                                                            <Zap size={10} /> Relais : {msg.providerUsedName} ({msg.latencyMs}ms)
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-emerald-400 flex items-center gap-1">
-                                                            <CheckCircle2 size={10} /> {msg.providerUsedName} ({msg.latencyMs}ms)
-                                                        </span>
-                                                    )}
+                                            {/* Indicateur d'erreur */}
+                                            {msg.isError && (
+                                                <div className="flex items-center gap-1 text-[10px] text-amber-400 font-mono">
+                                                    <AlertTriangle size={10} /> Erreur
                                                 </div>
                                             )}
                                         </div>
@@ -685,12 +612,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
                             </span>
                         )}
                     </div>
-                    <span 
-                        onClick={() => setIsProvidersModalOpen(true)}
-                        className="hover:text-amber-400 cursor-pointer transition flex items-center gap-1"
-                    >
-                        ⚡ Résilience Active : {activeEngine.name}
-                    </span>
                 </div>
             </div>
 
@@ -702,12 +623,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, initialMess
           isOpen={isVoiceSettingsOpen}
           onClose={() => setIsVoiceSettingsOpen(false)}
           currentAgentRole={agent.role}
-      />
-
-      {/* Modal Tableau de Bord des Fournisseurs IA */}
-      <AIProvidersDashboardModal
-          isOpen={isProvidersModalOpen}
-          onClose={() => setIsProvidersModalOpen(false)}
       />
 
     </div>
