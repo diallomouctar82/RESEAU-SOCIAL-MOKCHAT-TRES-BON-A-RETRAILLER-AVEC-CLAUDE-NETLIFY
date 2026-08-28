@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, 
-  LayoutDashboard, 
-  Users, 
-  BrainCircuit, 
-  FileText, 
-  GitBranch, 
-  Activity, 
-  HardDrive, 
-  Layers, 
-  Stamp, 
-  Radio, 
+import {
+  Shield,
+  LayoutDashboard,
+  Users,
+  BrainCircuit,
+  FileText,
+  GitBranch,
+  Activity,
+  HardDrive,
+  Layers,
+  Stamp,
+  Radio,
   Sparkles,
   ShieldAlert,
   Sliders,
@@ -22,11 +22,11 @@ import { AdminOverviewTab } from './admin/AdminOverviewTab';
 import { AdminUsersTab } from './admin/AdminUsersTab';
 import { AdminModerationTab } from './admin/AdminModerationTab';
 import { AdminPlatformSettingsTab } from './admin/AdminPlatformSettingsTab';
-import { AdminAIResilienceHub } from './admin/AdminAIResilienceHub';
 import { AdminPlatformModulesTab } from './admin/AdminPlatformModulesTab';
 import { AdminTemplatesAndStampsTab } from './admin/AdminTemplatesAndStampsTab';
 import { AdminWorkflowsAndBackupTab } from './admin/AdminWorkflowsAndBackupTab';
 import { AdminLogsAndBroadcastTab } from './admin/AdminLogsAndBroadcastTab';
+import { AiOrchestrator } from './admin/AiOrchestrator';
 
 export type AdminTab = 'overview' | 'ai-connectors' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
 
@@ -218,12 +218,11 @@ export const AdminDashboard: React.FC = () => {
         />
       )}
 
-      {/* 🧠 CONNECTEURS & MODÈLES IA — ACCÈS IMMÉDIAT DIRECT */}
+      {/* 🧠 CONNECTEURS & MODÈLES IA — orchestrateur central (Supabase Vault + ai-gateway) */}
       {activeTab === 'ai-connectors' && (
-        <AdminAIResilienceHub 
-          providers={aiProviders}
-          onReload={handleReload}
-        />
+        <div className="animate-fade-up">
+          <AiOrchestrator />
+        </div>
       )}
 
       {activeTab === 'users' && (

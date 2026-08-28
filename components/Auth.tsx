@@ -1,816 +1,359 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Globe, 
-    Mail, 
-    Lock, 
-    Eye, 
-    EyeOff, 
-    User as UserIcon, 
-    Phone, 
-    MapPin, 
-    CheckCircle2, 
-    AlertCircle, 
-    ArrowRight, 
-    Loader2, 
-    KeyRound, 
-    ShieldCheck, 
-    Sparkles, 
-    Check, 
-    X,
-    Users
-} from 'lucide-react';
-import { 
-    signInWithEmail, 
-    signUpWithEmail, 
-    signInWithGoogle, 
-    resetPasswordForEmail, 
-    updateUserPassword,
-    getRememberMePreference,
-    setRememberMePreference 
+
+import React, { useState } from 'react';
+import { Globe, Loader2, AlertCircle, CheckCircle2, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import {
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    sendPasswordResetEmail,
+    resendConfirmationEmail,
 } from '../services/auth';
 
-type AuthMode = 'signin' | 'signup' | 'forgot' | 'reset';
+type Mode = 'signin' | 'signup' | 'signup-sent' | 'forgot' | 'forgot-sent';
+
+// Registre des providers sociaux affichés sur les écrans connexion/inscription.
+// Ajouter Facebook/Apple/Microsoft plus tard = ajouter une entrée ici, rien
+// d'autre à changer (services/auth.ts#signInWithOAuthProvider gère déjà tous
+// les providers Supabase de façon générique).
+const SOCIAL_PROVIDERS: { id: 'google'; label: string; icon: React.ReactNode }[] = [
+    {
+        id: 'google',
+        label: 'Continuer avec Google',
+        icon: (
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+        ),
+    },
+];
+
+const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
+    <div className="flex items-center gap-2 text-red-700 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2.5" role="alert">
+        <AlertCircle size={16} className="shrink-0" /> {message}
+    </div>
+);
+
+const SuccessBanner: React.FC<{ message: string }> = ({ message }) => (
+    <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2.5" role="status">
+        <CheckCircle2 size={16} className="shrink-0" /> {message}
+    </div>
+);
 
 export const Auth: React.FC = () => {
-    const [mode, setMode] = useState<AuthMode>('signin');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-    // Form inputs
+    const [mode, setMode] = useState<Mode>('signin');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [fullName, setFullName] = useState('');
-    const [country, setCountry] = useState('Guinée');
-    const [phone, setPhone] = useState('');
-    const [rememberMe, setRememberMe] = useState(getRememberMePreference());
-    const [agreeTerms, setAgreeTerms] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
-    // Quick test selector state
-    const [showQuickFill, setShowQuickFill] = useState(false);
+    const resetFeedback = () => setError(null);
 
-    // Detect if URL contains password recovery hash
-    useEffect(() => {
-        if (window.location.hash.includes('type=recovery') || window.location.hash.includes('reset-password')) {
-            setMode('reset');
-        }
-    }, []);
-
-    // Email validation helper
-    const isValidEmail = (val: string) => {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
+    const switchMode = (next: Mode) => {
+        resetFeedback();
+        setPassword('');
+        setConfirmPassword('');
+        setShowPassword(false);
+        setMode(next);
     };
 
-    // Password strength calculation (0 to 4)
-    const calculatePasswordStrength = (pass: string) => {
-        let score = 0;
-        if (!pass) return 0;
-        if (pass.length >= 8) score += 1;
-        if (/[A-Z]/.test(pass)) score += 1;
-        if (/[0-9]/.test(pass)) score += 1;
-        if (/[^A-Za-z0-9]/.test(pass)) score += 1;
-        return score;
-    };
-
-    const passwordStrength = calculatePasswordStrength(password);
-    const getStrengthLabel = (score: number) => {
-        switch (score) {
-            case 0: return { label: 'Très faible', color: 'bg-slate-200 text-slate-500' };
-            case 1: return { label: 'Faible', color: 'bg-red-500 text-red-700' };
-            case 2: return { label: 'Moyen', color: 'bg-amber-500 text-amber-700' };
-            case 3: return { label: 'Robuste', color: 'bg-blue-500 text-blue-700' };
-            case 4: return { label: 'Excellent', color: 'bg-emerald-500 text-emerald-700' };
-            default: return { label: '', color: '' };
+    // Redirection en cours (Google) : cette promesse ne se résout normalement
+    // jamais, le navigateur navigue avant. Seule une erreur AVANT la
+    // redirection (provider mal configuré, réseau) atterrit dans ce catch.
+    const handleSocialLogin = async (providerId: 'google') => {
+        setLoadingProvider(providerId);
+        resetFeedback();
+        try {
+            if (providerId === 'google') await signInWithGoogle(rememberMe);
+        } catch (err: any) {
+            console.error(`Erreur connexion ${providerId}:`, err);
+            setError(err?.message || `Échec de la connexion avec ${providerId}. Réessaie.`);
+            setLoadingProvider(null);
         }
     };
 
-    const clearStatus = () => {
-        setError(null);
-        setSuccessMessage(null);
-    };
-
-    // Handle Email Sign In
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
-        clearStatus();
-
-        if (!email.trim()) {
-            setError('Veuillez saisir votre adresse email.');
-            return;
-        }
-        if (!isValidEmail(email)) {
-            setError('Format d\'adresse email invalide (ex: contact@domaine.com).');
-            return;
-        }
-        if (!password) {
-            setError('Veuillez saisir votre mot de passe.');
-            return;
-        }
-
+        resetFeedback();
+        if (!email.includes('@')) { setError('Adresse e-mail invalide.'); return; }
+        if (!password) { setError('Saisis ton mot de passe.'); return; }
         setIsLoading(true);
         try {
-            const res = await signInWithEmail(email, password, rememberMe);
-            if (!res.success) {
-                setError(res.error || 'Identifiants incorrects. Veuillez réessayer.');
-            } else {
-                setSuccessMessage(res.message || 'Connexion réussie.');
-                // Rechargement doux pour monter la session
-                setTimeout(() => {
-                    window.location.reload();
-                }, 400);
-            }
+            await signInWithEmail(email, password, rememberMe);
+            // Succès : onAuthStateChange (App.tsx) prend le relais et monte l'app.
         } catch (err: any) {
-            setError(err?.message || 'Une erreur inattendue est survenue lors de la connexion.');
+            console.error('Erreur connexion email:', err);
+            const msg = err?.message?.includes('Invalid login credentials')
+                ? 'E-mail ou mot de passe incorrect.'
+                : err?.message?.includes('Email not confirmed')
+                ? 'Adresse e-mail non confirmée — vérifie ta boîte de réception.'
+                : err?.message || 'Échec de la connexion.';
+            setError(msg);
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Handle Sign Up
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
-        clearStatus();
-
-        if (!fullName.trim() || fullName.trim().length < 2) {
-            setError('Veuillez renseigner votre nom complet (au moins 2 caractères).');
-            return;
-        }
-        if (!email.trim() || !isValidEmail(email)) {
-            setError('Veuillez fournir une adresse email valide.');
-            return;
-        }
-        if (password.length < 6) {
-            setError('Le mot de passe doit contenir au moins 6 caractères.');
-            return;
-        }
-        if (password !== confirmPassword) {
-            setError('Les deux mots de passe ne correspondent pas.');
-            return;
-        }
-        if (!agreeTerms) {
-            setError('Veuillez accepter les Conditions d\'utilisation pour créer votre compte.');
-            return;
-        }
-
+        resetFeedback();
+        if (!email.includes('@')) { setError('Adresse e-mail invalide.'); return; }
+        if (password.length < 8) { setError('Le mot de passe doit contenir au moins 8 caractères.'); return; }
+        if (password !== confirmPassword) { setError('Les mots de passe ne correspondent pas.'); return; }
         setIsLoading(true);
         try {
-            const res = await signUpWithEmail({
-                email,
-                password,
-                fullName,
-                country,
-                phone
-            });
-
-            if (!res.success) {
-                setError(res.error || 'Échec de la création du compte.');
-            } else {
-                setSuccessMessage(res.message || 'Votre compte a été créé avec succès !');
-                if (res.session || res.user) {
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 600);
-                }
+            const { needsEmailConfirmation } = await signUpWithEmail(email, password);
+            if (needsEmailConfirmation) {
+                setMode('signup-sent');
             }
+            // Sinon (confirmation désactivée côté Supabase) : onAuthStateChange connecte directement.
         } catch (err: any) {
-            setError(err?.message || 'Erreur lors de la création du compte.');
+            console.error('Erreur inscription:', err);
+            const msg = err?.message?.includes('already registered') || err?.message?.includes('User already registered')
+                ? 'Un compte existe déjà avec cette adresse — connecte-toi plutôt.'
+                : err?.message || "Échec de la création du compte.";
+            setError(msg);
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Handle Google OAuth
-    const handleGoogleLogin = async () => {
-        clearStatus();
-        setIsLoading(true);
-        try {
-            await signInWithGoogle();
-        } catch (err: any) {
-            console.error('Erreur connexion Google:', err);
-            setError(err?.message || 'Échec de la connexion avec Google. Vérifiez vos identifiants ou réessayez.');
-            setIsLoading(false);
-        }
-    };
-
-    // Handle Forgot Password
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        clearStatus();
-
-        if (!email.trim() || !isValidEmail(email)) {
-            setError('Veuillez saisir une adresse email valide.');
-            return;
-        }
-
+        resetFeedback();
+        if (!email.includes('@')) { setError('Adresse e-mail invalide.'); return; }
         setIsLoading(true);
         try {
-            const res = await resetPasswordForEmail(email);
-            if (!res.success) {
-                setError(res.error || 'Impossible d\'envoyer le lien de réinitialisation.');
-            } else {
-                setSuccessMessage(res.message || 'Lien de réinitialisation transmis.');
-            }
+            await sendPasswordResetEmail(email);
+            setMode('forgot-sent');
         } catch (err: any) {
-            setError(err?.message || 'Erreur lors de la réinitialisation.');
+            console.error('Erreur réinitialisation:', err);
+            setError(err?.message || "Échec de l'envoi du lien de réinitialisation.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Handle Reset Password (from recovery email)
-    const handleResetPassword = async (e: React.FormEvent) => {
-        e.preventDefault();
-        clearStatus();
-
-        if (password.length < 6) {
-            setError('Le nouveau mot de passe doit contenir au moins 6 caractères.');
-            return;
-        }
-        if (password !== confirmPassword) {
-            setError('Les mots de passe ne correspondent pas.');
-            return;
-        }
-
+    const handleResendConfirmation = async () => {
+        resetFeedback();
         setIsLoading(true);
         try {
-            const res = await updateUserPassword(password);
-            if (!res.success) {
-                setError(res.error || 'Échec de la mise à jour du mot de passe.');
-            } else {
-                setSuccessMessage('Mot de passe mis à jour ! Vous pouvez maintenant vous connecter.');
-                setTimeout(() => {
-                    setMode('signin');
-                    window.location.hash = '';
-                }, 1200);
-            }
+            await resendConfirmationEmail(email);
+            setError(null);
         } catch (err: any) {
-            setError(err?.message || 'Erreur lors de la mise à jour.');
+            setError(err?.message || "Échec de l'envoi.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Pre-fill demo accounts for fast evaluation
-    const fillDemoAccount = (role: 'admin' | 'citizen') => {
-        if (role === 'admin') {
-            setEmail('admin@lemondeavous.com');
-            setPassword('admin123');
-        } else {
-            setEmail('citoyen@lemondeavous.com');
-            setPassword('citoyen123');
-        }
-        setMode('signin');
-        setShowQuickFill(false);
-        setError(null);
-    };
+    const socialButtons = (
+        <div className="w-full space-y-3">
+            {SOCIAL_PROVIDERS.map((p) => (
+                <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleSocialLogin(p.id)}
+                    disabled={loadingProvider !== null}
+                    className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-60 text-gray-700 font-medium py-3 px-4 rounded-full transition-all duration-200 group"
+                >
+                    {loadingProvider === p.id ? <Loader2 className="animate-spin" size={20} /> : <span className="group-hover:scale-110 transition-transform">{p.icon}</span>}
+                    {loadingProvider === p.id ? 'Connexion en cours…' : p.label}
+                </button>
+            ))}
+        </div>
+    );
+
+    const divider = (
+        <div className="relative flex py-1 items-center w-full">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase font-bold tracking-wider">Ou</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 md:p-6 font-sans relative overflow-hidden">
-            {/* Ambient Background Elements (Refined Institution Deep Blue) */}
-            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none" />
+        <div className="fixed inset-0 bg-[#f0f2f5] flex items-center justify-center font-sans overflow-y-auto py-8">
+            <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-xl p-8 md:p-10 border border-gray-100 flex flex-col items-center animate-fade-up my-auto">
 
-            <div className="w-full max-w-[500px] bg-white rounded-3xl shadow-2xl border border-slate-100/80 p-8 md:p-10 relative z-10 animate-fade-up">
-                
-                {/* Header with Sovereign Emblem */}
-                <div className="text-center mb-6">
-                    <div className="w-14 h-14 bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-500/20">
-                        <Globe className="text-white" size={28} />
+                <div className="mb-6 text-center">
+                    <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <Globe className="text-white" size={24} />
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                        {mode === 'signin' && 'Espace Citoyen & Membres'}
-                        {mode === 'signup' && 'Créer un Compte Citoyen'}
-                        {mode === 'forgot' && 'Mot de Passe Oublié'}
-                        {mode === 'reset' && 'Nouveau Mot de Passe'}
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        {mode === 'signin' && 'Se connecter'}
+                        {mode === 'signup' && 'Créer un compte'}
+                        {mode === 'signup-sent' && 'Vérifie ta boîte mail'}
+                        {mode === 'forgot' && 'Mot de passe oublié'}
+                        {mode === 'forgot-sent' && 'E-mail envoyé'}
                     </h1>
-                    <p className="text-xs md:text-sm text-slate-500 mt-1">
-                        Plateforme souveraine internationale • <b>Le Monde à Vous</b>
-                    </p>
+                    {(mode === 'signin' || mode === 'signup') && (
+                        <p className="text-gray-500 mt-2">Pour continuer vers <b>Le Monde à Vous</b></p>
+                    )}
                 </div>
 
-                {/* Notifications & Status Alerts */}
-                {error && (
-                    <div className="mb-5 flex items-start gap-2.5 text-red-700 text-xs md:text-sm bg-red-50 border border-red-200 rounded-xl p-3.5 animate-shake">
-                        <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-600" />
-                        <div className="leading-snug">{error}</div>
+                {/* Onglets Se connecter / Créer un compte */}
+                {(mode === 'signin' || mode === 'signup') && (
+                    <div className="w-full grid grid-cols-2 gap-1 bg-gray-100 rounded-full p-1 mb-6">
+                        <button
+                            type="button"
+                            onClick={() => switchMode('signin')}
+                            className={`py-2 rounded-full text-sm font-bold transition-colors ${mode === 'signin' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Se connecter
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => switchMode('signup')}
+                            className={`py-2 rounded-full text-sm font-bold transition-colors ${mode === 'signup' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Créer un compte
+                        </button>
                     </div>
                 )}
 
-                {successMessage && (
-                    <div className="mb-5 flex items-start gap-2.5 text-emerald-800 text-xs md:text-sm bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 animate-fade-in">
-                        <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-emerald-600" />
-                        <div className="leading-snug">{successMessage}</div>
-                    </div>
-                )}
-
-                {/* MODE: CONNEXION (SIGN IN) */}
                 {mode === 'signin' && (
-                    <form onSubmit={handleSignIn} className="space-y-4">
-                        {/* Email Input */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                                Adresse Email
-                            </label>
+                    <div className="w-full space-y-5">
+                        <form onSubmit={handleSignIn} className="space-y-4">
                             <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="ex: amadou.diallo@domaine.com"
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Adresse e-mail" autoComplete="email" autoFocus
+                                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl outline-none text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
-                        </div>
+                            <div className="relative">
+                                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Mot de passe" autoComplete="current-password"
+                                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl outline-none text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
 
-                        {/* Password Input */}
-                        <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                                    Mot de passe
+                            <div className="flex items-center justify-between text-sm">
+                                <label className="flex items-center gap-2 text-gray-600 cursor-pointer select-none">
+                                    <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                                    Se souvenir de moi
                                 </label>
-                                <button
-                                    type="button"
-                                    onClick={() => { clearStatus(); setMode('forgot'); }}
-                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                                >
+                                <button type="button" onClick={() => switchMode('forgot')} className="text-blue-600 font-semibold hover:underline">
                                     Mot de passe oublié ?
                                 </button>
                             </div>
-                            <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full pl-10 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
-                        </div>
 
-                        {/* Remember Me Checkbox */}
-                        <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={rememberMe}
-                                    onChange={(e) => {
-                                        setRememberMe(e.target.checked);
-                                        setRememberMePreference(e.target.checked);
-                                    }}
-                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                />
-                                <span className="text-xs text-slate-600">Se souvenir de moi</span>
-                            </label>
-                            
-                            <button
-                                type="button"
-                                onClick={() => setShowQuickFill(!showQuickFill)}
-                                className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium"
-                            >
-                                <Users size={13} />
-                                Comptes démo
+                            {error && <ErrorBanner message={error} />}
+
+                            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-full font-bold text-sm hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-md flex items-center justify-center gap-2">
+                                {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Se connecter'}
                             </button>
-                        </div>
+                        </form>
 
-                        {/* Quick Test Accounts Dropdown */}
-                        {showQuickFill && (
-                            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs space-y-2 animate-fade-in">
-                                <div className="font-semibold text-amber-900 flex items-center justify-between">
-                                    <span>Identifiants de test préconfigurés :</span>
-                                    <span className="text-[10px] text-amber-700">1 clic</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => fillDemoAccount('admin')}
-                                        className="p-2 bg-white rounded-lg border border-amber-200 text-left hover:border-amber-400 transition-all text-slate-800"
-                                    >
-                                        <div className="font-bold text-blue-700">Super-Admin</div>
-                                        <div className="text-[10px] text-slate-500 truncate">admin@lemondeavous.com</div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => fillDemoAccount('citizen')}
-                                        className="p-2 bg-white rounded-lg border border-amber-200 text-left hover:border-amber-400 transition-all text-slate-800"
-                                    >
-                                        <div className="font-bold text-emerald-700">Citoyen</div>
-                                        <div className="text-[10px] text-slate-500 truncate">citoyen@lemondeavous.com</div>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Submit Button */}
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
-                        >
-                            {isLoading ? (
-                                <Loader2 className="animate-spin" size={18} />
-                            ) : (
-                                <>
-                                    <span>Se connecter</span>
-                                    <ArrowRight size={16} />
-                                </>
-                            )}
-                        </button>
-
-                        {/* Divider */}
-                        <div className="relative my-4 flex items-center justify-center">
-                            <div className="border-t border-slate-200 w-full" />
-                            <span className="bg-white px-3 text-xs text-slate-400 uppercase tracking-wider font-semibold">ou</span>
-                        </div>
-
-                        {/* Google OAuth Button */}
-                        <button
-                            type="button"
-                            onClick={handleGoogleLogin}
-                            disabled={isLoading}
-                            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium py-3 px-4 rounded-xl transition-all duration-200 group shadow-sm"
-                        >
-                            <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                            </svg>
-                            <span>Continuer avec Google</span>
-                        </button>
-
-                        {/* Switch to Sign Up */}
-                        <div className="pt-2 text-center">
-                            <p className="text-xs text-slate-500">
-                                Pas encore de compte ?{' '}
-                                <button
-                                    type="button"
-                                    onClick={() => { clearStatus(); setMode('signup'); }}
-                                    className="font-semibold text-blue-600 hover:text-blue-800 underline ml-1"
-                                >
-                                    Créer un compte citoyen
-                                </button>
-                            </p>
-                        </div>
-                    </form>
+                        {divider}
+                        {socialButtons}
+                    </div>
                 )}
 
-                {/* MODE: INSCRIPTION (SIGN UP) */}
                 {mode === 'signup' && (
-                    <form onSubmit={handleSignUp} className="space-y-3.5">
-                        {/* Welcome Bonus Callout */}
-                        <div className="p-3 bg-blue-50/80 border border-blue-100 rounded-xl flex items-center gap-2.5 text-xs text-blue-900">
-                            <Sparkles className="text-amber-500 shrink-0" size={18} />
-                            <span>
-                                <b>100 Crédits Ⓒ et 100 XP offerts</b> à l'attribution de votre Passeport Citoyen.
-                            </span>
-                        </div>
-
-                        {/* Full Name Input */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                Nom Complet
-                            </label>
+                    <div className="w-full space-y-5">
+                        <form onSubmit={handleSignUp} className="space-y-4">
                             <div className="relative">
-                                <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
-                                    type="text"
-                                    required
-                                    value={fullName}
-                                    onChange={(e) => setFullName(e.target.value)}
-                                    placeholder="ex: Mamadou Diallo"
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Adresse e-mail" autoComplete="email" autoFocus
+                                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl outline-none text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
-                        </div>
-
-                        {/* Email Input */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                Adresse Email
-                            </label>
                             <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="ex: mamadou@domaine.com"
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                                    type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Mot de passe (8 caractères min.)" autoComplete="new-password"
+                                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl outline-none text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
-                            </div>
-                        </div>
-
-                        {/* Country & Phone Row */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Pays
-                                </label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <select
-                                        value={country}
-                                        onChange={(e) => setCountry(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                                    >
-                                        <option value="Guinée">🇬🇳 Guinée</option>
-                                        <option value="France">🇫🇷 France</option>
-                                        <option value="Sénégal">🇸🇳 Sénégal</option>
-                                        <option value="Côte d'Ivoire">🇨🇮 Côte d'Ivoire</option>
-                                        <option value="Mali">🇲🇱 Mali</option>
-                                        <option value="Canada">🇨🇦 Canada</option>
-                                        <option value="États-Unis">🇺🇸 États-Unis</option>
-                                        <option value="Autre">🌍 International</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Téléphone (optionnel)
-                                </label>
-                                <div className="relative">
-                                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                        type="tel"
-                                        value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
-                                        placeholder="+224 ..."
-                                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Password & Strength Indicator */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                Mot de passe
-                            </label>
-                            <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Au moins 6 caractères"
-                                    className="w-full pl-10 pr-11 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                                >
-                                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
                             </div>
-
-                            {/* Dynamic Strength Bar */}
-                            {password && (
-                                <div className="mt-1.5 space-y-1">
-                                    <div className="flex gap-1 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                        {[1, 2, 3, 4].map((step) => (
-                                            <div
-                                                key={step}
-                                                className={`h-full flex-1 transition-all duration-300 ${
-                                                    passwordStrength >= step
-                                                        ? passwordStrength === 1 ? 'bg-red-500'
-                                                        : passwordStrength === 2 ? 'bg-amber-500'
-                                                        : passwordStrength === 3 ? 'bg-blue-500'
-                                                        : 'bg-emerald-500'
-                                                        : 'bg-slate-200'
-                                                }`}
-                                            />
-                                        ))}
-                                    </div>
-                                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                                        <span>Force du mot de passe :</span>
-                                        <span className="font-semibold">{getStrengthLabel(passwordStrength).label}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Confirm Password */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                Confirmer le mot de passe
-                            </label>
                             <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
-                                    type={showConfirmPassword ? 'text' : 'password'}
-                                    required
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="Répétez votre mot de passe"
-                                    className={`w-full pl-10 pr-11 py-2.5 bg-slate-50 border rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                                        confirmPassword && confirmPassword !== password 
-                                            ? 'border-red-300 focus:ring-red-500' 
-                                            : confirmPassword && confirmPassword === password 
-                                            ? 'border-emerald-300 focus:ring-emerald-500' 
-                                            : 'border-slate-200 focus:ring-blue-600'
-                                    }`}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                                >
-                                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Terms & Conditions */}
-                        <div className="pt-1">
-                            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={agreeTerms}
-                                    onChange={(e) => setAgreeTerms(e.target.checked)}
-                                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                />
-                                <span className="text-xs text-slate-600 leading-tight">
-                                    J'accepte les <a href="#" className="text-blue-600 underline">Conditions d'Utilisation</a> et la <a href="#" className="text-blue-600 underline">Charte Citoyenne</a> de Le Monde à Vous.
-                                </span>
-                            </label>
-                        </div>
-
-                        {/* Submit Button */}
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 mt-2"
-                        >
-                            {isLoading ? (
-                                <Loader2 className="animate-spin" size={18} />
-                            ) : (
-                                <>
-                                    <ShieldCheck size={18} />
-                                    <span>Créer mon Compte Citoyen</span>
-                                </>
-                            )}
-                        </button>
-
-                        {/* Switch to Sign In */}
-                        <div className="pt-2 text-center">
-                            <p className="text-xs text-slate-500">
-                                Vous avez déjà un compte ?{' '}
-                                <button
-                                    type="button"
-                                    onClick={() => { clearStatus(); setMode('signin'); }}
-                                    className="font-semibold text-blue-600 hover:text-blue-800 underline ml-1"
-                                >
-                                    Se connecter
-                                </button>
-                            </p>
-                        </div>
-                    </form>
-                )}
-
-                {/* MODE: MOT DE PASSE OUBLIÉ (FORGOT PASSWORD) */}
-                {mode === 'forgot' && (
-                    <form onSubmit={handleForgotPassword} className="space-y-4">
-                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 leading-relaxed">
-                            Saisissez votre adresse email. Nous vous transmettrons un lien sécurisé permettant de réinitialiser votre mot de passe instantanément.
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                                Adresse Email de Récupération
-                            </label>
-                            <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="ex: amadou@domaine.com"
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                                    type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                                    placeholder="Confirme le mot de passe" autoComplete="new-password"
+                                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl outline-none text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
-                        </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
-                        >
-                            {isLoading ? (
-                                <Loader2 className="animate-spin" size={18} />
-                            ) : (
-                                <>
-                                    <KeyRound size={18} />
-                                    <span>Envoyer le lien de réinitialisation</span>
-                                </>
-                            )}
-                        </button>
+                            {error && <ErrorBanner message={error} />}
 
-                        <div className="pt-2 text-center">
-                            <button
-                                type="button"
-                                onClick={() => { clearStatus(); setMode('signin'); }}
-                                className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-                            >
-                                ← Revenir à la page de connexion
+                            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-full font-bold text-sm hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-md flex items-center justify-center gap-2">
+                                {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Créer mon compte'}
                             </button>
-                        </div>
-                    </form>
+                        </form>
+
+                        {divider}
+                        {socialButtons}
+                    </div>
                 )}
 
-                {/* MODE: NOUVEAU MOT DE PASSE (RESET PASSWORD VIA RECOVERY TOKEN) */}
-                {mode === 'reset' && (
-                    <form onSubmit={handleResetPassword} className="space-y-4">
-                        <div className="p-3.5 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-900 leading-relaxed">
-                            Définissez votre nouveau mot de passe sécurisé pour finaliser la récupération de votre compte.
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                                Nouveau Mot de Passe
-                            </label>
-                            <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full pl-10 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                                Confirmer le Mot de Passe
-                            </label>
-                            <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input
-                                    type={showConfirmPassword ? 'text' : 'password'}
-                                    required
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full pl-10 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                                >
-                                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-                        >
-                            {isLoading ? (
-                                <Loader2 className="animate-spin" size={18} />
-                            ) : (
-                                <>
-                                    <CheckCircle2 size={18} />
-                                    <span>Valider et Enregistrer</span>
-                                </>
-                            )}
+                {mode === 'signup-sent' && (
+                    <div className="w-full space-y-5 text-center">
+                        <SuccessBanner message={`Un e-mail de confirmation a été envoyé à ${email}. Clique sur le lien pour activer ton compte.`} />
+                        {error && <ErrorBanner message={error} />}
+                        <button onClick={handleResendConfirmation} disabled={isLoading} className="text-blue-600 font-semibold text-sm hover:underline disabled:opacity-60">
+                            {isLoading ? 'Envoi…' : "Renvoyer l'e-mail"}
                         </button>
-                    </form>
+                        <button onClick={() => switchMode('signin')} className="flex items-center justify-center gap-1 text-gray-500 text-sm hover:text-gray-700 mx-auto">
+                            <ArrowLeft size={14} /> Retour à la connexion
+                        </button>
+                    </div>
                 )}
 
-                {/* Footer Notice */}
-                <div className="mt-8 pt-4 border-t border-slate-100 text-center">
-                    <p className="text-[11px] text-slate-400">
-                        Protection des données certifiée • Chiffrement de bout-en-bout • Famille Diallo
+                {mode === 'forgot' && (
+                    <div className="w-full space-y-5">
+                        <p className="text-sm text-gray-500 text-center -mt-2">Indique ton adresse e-mail, on t'envoie un lien pour réinitialiser ton mot de passe.</p>
+                        <form onSubmit={handleForgotPassword} className="space-y-4">
+                            <div className="relative">
+                                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Adresse e-mail" autoComplete="email" autoFocus
+                                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl outline-none text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                            {error && <ErrorBanner message={error} />}
+                            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-full font-bold text-sm hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-md flex items-center justify-center gap-2">
+                                {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Envoyer le lien'}
+                            </button>
+                        </form>
+                        <button onClick={() => switchMode('signin')} className="flex items-center justify-center gap-1 text-gray-500 text-sm hover:text-gray-700 mx-auto">
+                            <ArrowLeft size={14} /> Retour à la connexion
+                        </button>
+                    </div>
+                )}
+
+                {mode === 'forgot-sent' && (
+                    <div className="w-full space-y-5 text-center">
+                        <SuccessBanner message={`Si un compte existe pour ${email}, un lien de réinitialisation vient d'être envoyé.`} />
+                        <button onClick={() => switchMode('signin')} className="flex items-center justify-center gap-1 text-gray-500 text-sm hover:text-gray-700 mx-auto">
+                            <ArrowLeft size={14} /> Retour à la connexion
+                        </button>
+                    </div>
+                )}
+
+                <div className="mt-10 text-center">
+                    <p className="text-xs text-gray-400">
+                        En continuant, vous acceptez les <a href="#" className="text-gray-600 underline">Conditions d'utilisation</a> et la <a href="#" className="text-gray-600 underline">Politique de confidentialité</a> de Le Monde à Vous.
                     </p>
                 </div>
             </div>
