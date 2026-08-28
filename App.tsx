@@ -21,7 +21,6 @@ import { LegalCenter } from './components/LegalCenter';
 import { Wallet } from './components/Wallet';
 import { Auth } from './components/Auth';
 import { ResetPassword } from './components/ResetPassword';
-import { Settings } from './components/Settings';
 import { LanguageCenter } from './components/LanguageCenter';
 import { CouncilRoom } from './components/CouncilRoom';
 import { ExpertsHub } from './components/ExpertsHub';
@@ -208,8 +207,6 @@ const AppContent = () => {
       
       {activeTab === 'legal' && <LegalCenter userProfile={userProfile} />}
 
-      {activeTab === 'settings' && <Settings />}
-
       {(activeTab === 'admin' || activeTab === 'super-admin' || activeTab === 'admin-dashboard') &&
           (userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
               <AdminDashboard />
@@ -217,7 +214,7 @@ const AppContent = () => {
 
       {activeTab === 'languages' && <LanguageCenter userProfile={userProfile} />}
 
-      {(activeTab === 'admin-procedures' || activeTab === 'demarches') && <LegalCenter userProfile={userProfile} />}
+      {activeTab === 'admin-procedures' && <LegalCenter userProfile={userProfile} />}
 
       {activeTab === 'council' && <CouncilRoom onClose={() => setActiveTab('home')} />}
 
