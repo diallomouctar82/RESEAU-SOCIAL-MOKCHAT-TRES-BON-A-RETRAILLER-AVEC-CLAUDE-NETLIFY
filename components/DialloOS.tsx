@@ -173,12 +173,12 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                     <span className="w-3 h-3 bg-brand-400 rounded-full animate-bounce delay-75"></span>
                                     <span className="w-3 h-3 bg-brand-400 rounded-full animate-bounce delay-150"></span>
                                 </div>
-                                <p className="text-brand-300 font-mono text-sm uppercase tracking-widest">Analyse Neurale en cours...</p>
+                                <p className="text-brand-300 font-mono text-sm uppercase tracking-widest">Coordination Famille Diallo en cours...</p>
                             </div>
                         ) : aiResponse ? (
                             <div className="animate-fade-up space-y-4">
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold uppercase tracking-wider">
-                                    <Sparkles size={12} /> Diallo Intelligence
+                                    <Sparkles size={12} /> Cabinet Famille Diallo
                                 </div>
                                 <h3 className="text-2xl font-bold text-white leading-relaxed">
                                     "{aiResponse}"

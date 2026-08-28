@@ -20,6 +20,436 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-029] — 28 Août 2026
+* **Module(s)** : `Server Proxy (/api/ai/chat)`, `AIRoutingService`, `AIService`, `MultimodalVisionService`
+* **Problème / Besoin initial** :
+  1. Résoudre l'erreur 503 `UNAVAILABLE` (`This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.`) retournée par les serveurs distants Gemini sous forte charge.
+  2. Éviter toute rupture ou blocage lors des pointes de demande en absorbant automatiquement les erreurs 503/429.
+  3. Garantir une cascade sans coupure vers les modèles alternatifs Gemini (`gemini-2.5-flash` → `gemini-2.5-pro` → `gemini-2.0-flash`), puis vers les fournisseurs tiers configurés (DeepSeek, Claude, OpenAI, Mistral), et enfin vers le mode dégradé souverain en dernier recours.
+* **Idées envisagées** :
+  1. Renvoyer une erreur 500 brute au client et demander à l'utilisateur de réécrire son message.
+  2. Intégrer une boucle de secours multi-modèles au niveau du proxy serveur (`server.ts`), propager les erreurs 503 avec statut explicite et `fallback: true`, enrichir `aiRoutingService.ts` pour détecter les pointes de demande et déclencher la bascule automatique immédiate sans perturber la conversation de l'utilisateur.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité à la règle d'or « Zéro crash, zéro écran blanc » et robustesse de production face aux aléas et congestions d'API externes.
+* **Conséquences** : En cas de forte affluence sur un modèle particulier, la plateforme bascule de façon transparente sur le modèle ou fournisseur suivant en moins d'une fraction de seconde.
+* **Éléments techniques** : `server.ts`, `services/aiRoutingService.ts`, `services/ai.ts`, `services/multimodalVision.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-028] — 28 Août 2026
+* **Module(s)** : `01_DIALLO_OS_ET_EXPERTS`, `ChatInterface`, `AIProvidersDashboardModal`, `AIRoutingService`, `Layout`, `Server Proxy (/api/ai/chat)`
+* **Problème / Besoin initial** :
+  1. Procéder à une refonte complète de l'interface conversationnelle pour qu'elle soit fluide, moderne, aérée et de calibre professionnel avant mise en production.
+  2. Rendre le chat opérationnel dès le premier instant sans aucun blocage ni écran blanc, même en cas de clé API manquante ou invalide.
+  3. Intégrer la détection et la visualisation en temps réel du fournisseur actif et du basculement automatique (*auto-failover*) : afficher un badge explicite avec latence (ex. `🟢 Google Gemini 2.5 Flash • 115ms` ou `⚡ Relais : DeepSeek V3`), et permettre l'ouverture directe du tableau de bord des connecteurs.
+  4. Créer un tableau de bord dédié des fournisseurs IA avec état opérationnel, banc de test interactif, reconnexion 1-clic et simulation de bascule d'urgence.
+* **Idées envisagées** :
+  1. Conserver l'appel direct au SDK Gemini côté client sans gestion du multi-fournisseur.
+  2. Migrer l'intégralité des échanges conversationnels vers `aiRoutingService.executeWithResilience(...)`, enrichir l'API `/api/ai/chat` du serveur avec prise en charge native de Gemini et résolution multicouche des clés, créer un composant modal universel `AIProvidersDashboardModal.tsx`, l'intégrer au header de `ChatInterface.tsx` et au top navbar de `Layout.tsx`, et ajouter les métadonnées de modèle et de latence sur chaque bulle de réponse.
+* **Décision retenue** : Option 2.
+* **Justification** : Résilience absolue sans temps d'arrêt, clarté totale pour l'utilisateur et l'administrateur, respect scrupuleux de l'incarnation humaine des experts Diallo et conformité aux standards d'ergonomie et de design de haute facture.
+* **Conséquences** : Le chat fonctionne instantanément dès l'ouverture ; si un fournisseur est indisponible ou s'essouffle, le système bascule de façon imperceptible sur le modèle de secours actif tout en indiquant clairement le relais utilisé.
+* **Éléments techniques** : `components/ChatInterface.tsx`, `components/AIProvidersDashboardModal.tsx`, `components/Layout.tsx`, `services/aiRoutingService.ts`, `server.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-027] — 27 Août 2026
+* **Module(s)** : `Espace Super-Admin`, `AdminDashboard`, `AdminAIResilienceHub`, `AdminPlatformModulesTab`, `Dashboard`, `Layout`, `Variables d'Environnement (.env.example)`
+* **Problème / Besoin initial** :
+  1. Clarifier la question utilisateur relative aux variables d'environnement (`VITE_KLING_API_KEY` vs `KLING_API_KEY`) : expliciter le rôle de la résolution dynamique côté serveur (`getKeyForProvider` dans `server.ts`) et nettoyer `.env.example` pour éliminer les doublons redondants.
+  2. Rendre les Connecteurs et Modèles d'IA immédiatement visibles et accessibles au premier niveau du Tableau de Bord Super-Admin sous forme d'onglet principal dédié (« Connecteurs & Modèles IA »).
+  3. Découpler la gestion des modules métiers dans un sous-composant propre `AdminPlatformModulesTab.tsx`.
+  4. Garantir un accès direct en 1 clic au Tableau de Bord Super-Admin et aux Connecteurs IA depuis la barre supérieure du Dashboard (`Dashboard.tsx`), le menu mobile drawer (`Layout.tsx`), le Header desktop et la carte KPI de vue d'ensemble (`AdminOverviewTab.tsx`).
+* **Idées envisagées** :
+  1. Laisser les connecteurs IA enfouis dans un sous-onglet secondaire.
+  2. Créer un onglet principal de premier plan « Connecteurs & Modèles IA » dans `AdminDashboard.tsx`, mettre à jour les types d'onglets (`AdminTab`), enrichir les boutons d'accès rapide sur tous les écrans, et documenter l'unification des variables d'environnement.
+* **Décision retenue** : Option 2.
+* **Justification** : Ergonomie optimale pour les administrateurs, clarté totale sur la configuration des clés API pour le déploiement Netlify / GitHub / Cloud Run, et accessibilité instantanée de l'orchestrateur de résilience IA.
+* **Conséquences** : Les connecteurs de modèles IA sont consultables et configurables directement dès l'entrée dans le Tableau de Bord Super-Admin, avec sondes de santé, banc de test, détection des clés et accès 1-clic aux portails officiels.
+* **Éléments techniques** : `components/AdminDashboard.tsx`, `components/admin/AdminAIResilienceHub.tsx`, `components/admin/AdminPlatformModulesTab.tsx`, `components/admin/AdminOverviewTab.tsx`, `components/Dashboard.tsx`, `components/Layout.tsx`, `.env.example`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-026] — 27 Août 2026
+* **Module(s)** : `AdminAIResilienceHub`, `AIRoutingService`, `AdminConfigService`, `UnifiedAIConnector`, `Types`
+* **Problème / Besoin initial** :
+  1. Répondre à la directive système permanente : doter l'espace Super Admin d'un orchestrateur central des modèles IA complet, autonome et sans coupure.
+  2. Gérer plus de 15 connecteurs d'IA majeurs (Gemini, DeepSeek, Claude AI, OpenAI, Mistral, Qwen, Kimi, Kling AI, ElevenLabs, HeyGen, Runway, OpenRouter, n8n, Grok, Ollama) avec activation/désactivation individuelle en 1 clic.
+  3. Piloter la cascade de bascule intelligente selon la spécialité de tâche (`taskCategory`: raisonnement, juridique & contrats, code, multilingue, vidéo, voix, automatisation), la latence, le taux d'erreur, le score de qualité et les plafonds de budget quotidien (`dailyQuotaLimitUSD`).
+  4. Fournir pour chaque fournisseur un centre de configuration complet avec champs pour clés API, jetons secrets, webhooks, ainsi que des boutons directs 1-clic vers les 4 portails officiels de chaque fournisseur : Créer un compte, Générer une clé API, Accéder à la documentation technique et Consulter les quotas & la facturation.
+  5. Détecter automatiquement les variables d'environnement présentes (`detectedEnvVar`, `isEnvKeyPresent`), afficher les diagnostics en direct et guider l'administrateur avec des actions correctives personnalisées.
+* **Idées envisagées** :
+  1. Utiliser un tableau statique non interactif sans possibilité de bascule en direct ni boutons vers les portails officiels.
+  2. Construire un orchestrateur dynamique en temps réel avec détection des variables d'environnement, filtrage multi-critères par spécialité de tâche, routage basé sur les quotas quotidiens, sondes de santé interactives et audit logs des bascules sans coupure.
+* **Décision retenue** : Option 2.
+* **Justification** : Résilience absolue sans temps d'arrêt, zéro exposition des clés réelles au client, ergonomie maximale pour les administrateurs et intégration transparente avec Supabase, GitHub et Netlify.
+* **Conséquences** : Les requêtes IA sont routées automatiquement vers le connecteur le plus adapté et performant, avec bascule transparente vers les moteurs secondaires ou de secours en cas de surcharge, panne ou dépassement de quota.
+* **Éléments techniques** : `components/admin/AdminAIResilienceHub.tsx`, `services/aiRoutingService.ts`, `services/adminConfigService.ts`, `services/unifiedAIConnector.ts`, `types.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`, `docs/modules/15_orchestrateur_ia_central.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-025] — 27 Août 2026
+* **Module(s)** : `AIRoutingService`, `MultiAIConnectorsHub`, `UnifiedAIConnector`, `AdminAIResilienceHub`, `ServerAIProxy`, `Types`
+* **Problème / Besoin initial** :
+  1. Préparer et interconnecter l'infrastructure pour une suite complète de 10+ fournisseurs majeurs d'IA : DeepSeek (V3 & R1), Claude AI (Anthropic), OpenAI (GPT-4o & o1/o3), Alibaba Qwen (DashScope), Moonshot Kimi (K3 & K1.5 128k), Kling AI 1.5 (Vidéo Kuaishou), OpenRouter Multi-LLM Gateway, n8n Workflow Automation, HeyGen Interactive Avatars, RunwayML Gen-3/Gen-2 et ElevenLabs HD TTS.
+  2. Fournir des points d'accès directs (liens 1-clic) pour générer et configurer facilement chaque clé API dans l'environnement.
+  3. Mettre en place un proxy unifié sécurisé côté serveur (`server.ts` : `/api/ai/connectors`, `/api/ai/chat`, `/api/ai/video`, `/api/ai/avatar`, `/api/ai/n8n/trigger`) avec tolérance totale aux pannes, dégradation gracieuse sans crash et banc d'essai interactif (`AIConnectorsHubModal.tsx`).
+* **Idées envisagées** :
+  1. Laisser les clés être appelées côté client directement sans proxy unifié.
+  2. Créer une couche full-stack modulaire avec typage enrichi (`types.ts`), proxy serveur Express, connecteur unifié client-side (`unifiedAIConnector.ts`), intégration dans l'Orchestrateur de Résilience (`AdminAIResilienceHub.tsx`) et documentation des variables d'environnement dans `.env.example`.
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue des clés API côté serveur, résilience et cascade automatique en cas de panne d'un fournisseur, interface d'administration claire avec banc d'essai et liens officiels directs vers les consoles développeurs.
+* **Conséquences** : L'administrateur et la plateforme peuvent basculer dynamiquement entre tous les moteurs d'IA de pointe, tester leurs flux en direct et générer des vidéos, avatars et automatisations complexes sans interruption de service.
+* **Éléments techniques** : `server.ts`, `services/unifiedAIConnector.ts`, `components/AIConnectorsHubModal.tsx`, `components/admin/AdminAIResilienceHub.tsx`, `services/adminConfigService.ts`, `services/aiRoutingService.ts`, `types.ts`, `.env.example`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-024] — 27 Août 2026
+* **Module(s)** : `VoiceEnginePro`, `ElevenLabsIntegration`, `ChatInterface`, `CampusProfessorCoach`, `CampusClassroomView`, `VoiceSettingsModal`, `ServerTTSProxy`
+* **Problème / Besoin initial** :
+  1. La synthèse vocale native des navigateurs (`window.speechSynthesis`) manquait de réalisme, de timbre expressif et de naturel humain pour incarner fidèlement les experts de la Famille DIALLO (Maître Diallo, Docteur Diallo, Professeur Diallo, Conseiller Diallo, etc.).
+  2. Fournir une synthèse vocale haute fidélité (HD) basée sur l'API ElevenLabs avec streaming audio ultra-rapide (MP3 / PCM), mise en cache intelligente des flux générés, bascule automatique et dégradation gracieuse vers le moteur vocal natif du navigateur si aucune clé API n'est configurée.
+  3. Offrir une interface utilisateur dédiée (`VoiceSettingsModal.tsx`) pour sélectionner, tester et associer des voix réalistes et personnalisées pour chaque expert Diallo et le Campus.
+* **Idées envisagées** :
+  1. Forcer l'appel direct côté client à ElevenLabs (risque d'exposition de la clé API et blocage CORS).
+  2. Mettre en place une architecture full-stack robuste avec proxy Express sécurisé (`/api/tts`, `/api/tts/voices`), intégrer le support ElevenLabs dans `voiceEngine.ts` avec cache mémoire de Blob URLs, attribuer des Voice IDs adaptés aux différents rôles d'experts, intégrer les contrôles dans le Chat, la Salle de Classe et le Coach Professeur, et offrir un panneau de réglages dédié.
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue des clés d'API (stockées côté serveur et documentées dans `.env.example`), restitution audio naturelle et chaleureuse sans temps de latence grâce au cache, tolérance aux pannes avec fallback instantané, et respect de la déontologie humaine de la Famille DIALLO.
+* **Conséquences** : Les utilisateurs et apprenants bénéficient d'une voix humaine ultra-naturelle et expressive pour écouter les conseils d'experts, les cours du Campus et les explications en direct.
+* **Éléments techniques** : `server.ts`, `services/voiceEngine.ts`, `components/VoiceSettingsModal.tsx`, `components/ChatInterface.tsx`, `components/CampusProfessorCoach.tsx`, `components/CampusClassroomView.tsx`, `components/VoiceInteractionBar.tsx`, `package.json`, `.env.example`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-023] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `VoiceEnginePro`, `CampusProfessorCoach`, `VoiceInteractionBar`, `Avatar3D`
+* **Problème / Besoin initial** :
+  1. La conversation vocale souffrait de lenteurs, de coupures artificielles (troncatures de texte à 220 caractères), d'absence de Voice Activity Detection (VAD) et de feedbacks acoustiques (écho micro pendant que l'avatar parle).
+  2. Rendre l'interaction orale avec le Professeur Diallo ultra-fluide, naturelle, continue (mains libres) et intelligente avec détection automatique de fin de parole et reprise de micro sans aucun clic requis.
+* **Idées envisagées** :
+  1. Conserver le système de déclenchement manuel bouton par bouton avec synthèse partielle.
+  2. Refondre le `voiceEngine.ts` en moteur conversationnel bidirectionnel : Voice Activity Detection (VAD) avec détection de silence intelligent (~1.4s), suppression d'écho acoustique (désactivation automatique de l'écoute pendant la synthèse), heartbeat anti-endormissement de la Web Speech API sur Chromium, découpage acoustique intelligent en unités phonétiques (ponctuation naturelle) et mode "Mains Libres Continu".
+* **Décision retenue** : Option 2.
+* **Justification** : Fluidité conversationnelle de niveau professionnel, élimination des artefacts robotiques et des troncatures, prise de parole fluide (barge-in supporté) et synchronisation parfaite avec les états de l'Avatar 3D (parole, réflexion, écoute).
+* **Conséquences** : Les apprenants peuvent engager un dialogue continu avec le Professeur Diallo sans toucher au clavier ni à la souris.
+* **Éléments techniques** : `services/voiceEngine.ts`, `components/CampusProfessorCoach.tsx`, `components/VoiceInteractionBar.tsx`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-022] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `REAL_ACADEMIC_COURSES_REGISTRY`, `CampusClassroomView`, `Formations Supérieures D'Élite (Droit OHADA & Ingénierie Cloud)`
+* **Problème / Besoin initial** :
+  1. Remplacer les contenus synthétiques et placeholders par de vrais cours académiques riches, rigoureux et conformes aux programmes officiels (Terminale Maths/Physique/Philo et Formations Supérieures en Droit OHADA, Ingénierie Cloud & Cybersécurité).
+  2. Fournir aux apprenants une expérience d'apprentissage complète : cours magistral structuré, dictée et récitation audio assurée par le Professeur Diallo via Web Speech API (`window.speechSynthesis`), énoncé d'exercice pratique officiel avec démarche guidée, révélation du corrigé type avec barème détaillé pas à pas, mini-quiz formatif interactif et bibliographie officielle.
+* **Idées envisagées** :
+  1. Conserver des textes génériques courts sans exercices réels ni récitation audio.
+  2. Créer un registre académique dédié `services/realCurriculumCourses.ts` avec des cours réels approfondis, intégrer la récitation vocale du Professeur Diallo, déployer les corrigés pas à pas dans `CampusClassroomView.tsx` et enrichir `services/formationsRegistry.ts` avec de nouveaux diplômes supérieurs en Droit OHADA et Ingénierie Cloud.
+* **Décision retenue** : Option 2.
+* **Justification** : Élévation pédagogique majeure, immersion totale et conformité avec les exigences de rigueur scientifique et déontologique de l'Académie Le Monde à Vous.
+* **Conséquences** : Les élèves et étudiants accèdent à des contenus réels, écoutent les explications orales du Professeur Diallo, pratiquent des cas d'épreuves d'État avec corrigés officiels et valident leurs compétences.
+* **Éléments techniques** : `services/realCurriculumCourses.ts`, `services/formationsRegistry.ts`, `components/CampusClassroomView.tsx`, `components/Campus.tsx`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `CampusClassroomView`, `CampusCourseEnrollmentModal`, `Campus.tsx`
+* **Problème / Besoin initial** :
+  1. Résoudre l'erreur d'exécution `Uncaught TypeError: Cannot read properties of undefined (reading 'lessons')` survenue lors de la navigation vers la salle de classe ou l'inscription.
+  2. Harmoniser la cohabitation des deux structures de données au sein du Campus : le modèle `Course` (liste plate de `lessons`) et le modèle `CertifyingFormation` (liste modulaire `modulesList` contenant chacune leurs propres `lessons`).
+  3. Garantir une résilience absolue et zéro crash au démarrage ou en cours de navigation quel que soit le type de cours ou formation sélectionné.
+* **Idées envisagées** :
+  1. Forcer la conversion de toutes les formations en un format unique au risque de perdre les métadonnées modulaires spécifiques.
+  2. Adapter `CampusClassroomView.tsx`, `CampusCourseEnrollmentModal.tsx` et `Campus.tsx` pour extraire dynamiquement les leçons (`lessons || modulesList.flatMap(...)`), initialiser des états internes de repli (`fallback lessons`) et sécuriser tous les accès aux propriétés imbriquées.
+* **Décision retenue** : Option 2.
+* **Justification** : Flexibilité totale, rétrocompatibilité avec les deux formats de données, et robustesse logicielle maximale sans écran blanc.
+* **Conséquences** : Navigation fluide et immédiate entre formations certifiantes modulaires et chapitres officiels des programmes nationaux.
+* **Éléments techniques** : `components/CampusClassroomView.tsx`, `components/CampusCourseEnrollmentModal.tsx`, `components/CampusCertifyingExamView.tsx`, `components/Campus.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-020] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `Catalogue Formations Certifiantes & Diplômes`, `Salle de Classe Interactive`, `Examens Certifiants & Parchemins`
+* **Problème / Besoin initial** :
+  1. Développer l'ensemble des contenus, processus et procédures liés à l'inscription académique, la salle de classe multimédia, les examens certifiants et l'écosystème complet du Catalogue des Formations & Diplômes d'Élite.
+  2. Fournir un parcours étudiant complet : consultation détaillée de la formation (crédits ECTS, prérequis, débouchés, corps professoral, modules), choix du statut (Parcours Certifiant avec diplôme officiel vs Auditeur Libre), suivi des cours interactif avec synthèse vocale, espace pratique interactif avec exécuteur, quiz formatif et prise de notes synchronisée.
+  3. Mettre en place un système d'examen certifiant officiel chronométré avec délibération du jury académique, attribution de note finale /20, génération de parchemin officiel numéroté, estampillé du sceau officiel de l'Académie Diallo avec QR Code d'authentification et export PDF/Impression.
+* **Idées envisagées** :
+  1. Utiliser un simple affichage textuel des cours sans procédure d'inscription formelle ni diplôme authentifié.
+  2. Développer un registre structuré `services/formationsRegistry.ts` (Tech/IA, Droit, Médecine, Finance, etc.), une modale d'inscription complète `CampusCourseEnrollmentModal.tsx`, une salle de classe immersive `CampusClassroomView.tsx`, une salle d'examen certifiant officielle `CampusCertifyingExamView.tsx`, et une visionneuse haute fidélité de diplômes certifiés `CampusDiplomaViewerModal.tsx`.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité absolue avec la vision d'excellence du Campus Mondial Intelligent, valorisation des acquis et reconnaissance officielle des compétences pour l'employabilité internationale.
+* **Conséquences** : Les apprenants peuvent s'inscrire officiellement, suivre leurs cours en mode immersif, passer leurs épreuves certifiantes sous minuterie, et obtenir/imprimer leurs parchemins de diplôme officiels.
+* **Éléments techniques** : `services/formationsRegistry.ts`, `components/CampusCourseEnrollmentModal.tsx`, `components/CampusClassroomView.tsx`, `components/CampusCertifyingExamView.tsx`, `components/CampusDiplomaViewerModal.tsx`, `components/Campus.tsx`, `docs/modules/04_campus_et_education.md`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-019] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `CampusProfessorCoach`, `Moteur Pédagogique Multimodal`, `Vision & Reconnaissance IA`
+* **Problème / Besoin initial** :
+  1. Permettre aux utilisateurs et apprenants d'interagir avec le Professeur Diallo en dialogue vocal bidirectionnel (micro, reconnaissance vocale et synthèse vocale).
+  2. Intégrer un flux vidéo avec caméra temps réel doté de reconnaissance d'objets (cahier d'exercices, calculatrice, feuille de devoir, tableau, etc.) et de détection de mouvements optiques pour scanner et analyser le travail en direct.
+  3. Offrir le partage de documents et photos d'exercices (PDF, images, devoirs, sujets d'examens) avec résolution et explications méthodologiques pas-à-pas par le Professeur Diallo.
+* **Idées envisagées** :
+  1. Utiliser un modal externe séparé déconnecté du cours en cours.
+  2. Intégrer directement le mode vocal, le HUD caméra avec tracking d'objets/mouvements et le partage de documents au sein du widget central du Professeur Diallo (`CampusProfessorCoach.tsx`), couplé à `campusPedagogicalEngine.analyzeHomeworkOrDocument()`, `voiceEngine` et `multimodalVisionService`.
+* **Décision retenue** : Option 2.
+* **Justification** : Expérience utilisateur immersive, fluide et sans couture, respectant la déontologie humaine de la Famille DIALLO et fournissant un accompagnement pédagogique de haute volée.
+* **Conséquences** : Les apprenants peuvent parler au professeur, lui montrer leur cahier ou un exercice physique à la caméra pour une analyse instantanée, ou déposer un document PDF/image pour être guidés étape par étape.
+* **Éléments techniques** : `components/CampusProfessorCoach.tsx`, `services/campusPedagogicalEngine.ts`, `services/voiceEngine.ts`, `services/multimodalVision.ts`, `docs/modules/04_campus_et_education.md`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-018] — 27 Août 2026
+* **Module(s)** : `04_CAMPUS_ET_EDUCATION`, `Campus Académique Universel`, `Moteur Pédagogique Adaptatif`, `Examens Blancs & Passerelles Internationales`
+* **Problème / Besoin initial** :
+  1. Identifier et implémenter l'ensemble des éléments restants de la feuille de route du module Campus Académie.
+  2. Fournir l'exploration directe des programmes officiels et des chapitres officiels par pays sélectionné (Guinée MEPU-A, Sénégal Office du Bac, France Éducation Nationale, Côte d'Ivoire MENA, États-Unis SAT/AP, Fondamentaux/Alphabétisation).
+  3. Intégrer un outil de Diagnostic Initial interactif (Point A ➔ Point B) avec cartographie de la maîtrise des compétences et recalibration automatique du plan de travail.
+  4. Créer un Comparateur & Simulateur de Passerelles et Équivalences académiques internationales (correspondances de diplômes, conversion de notes, sujets divergents, passerelles de mise à niveau).
+  5. Étoffer la banque d'examens blancs officiels multi-pays chronométrés et permettre l'étude directe de tout chapitre officiel avec le Professeur Diallo.
+* **Idées envisagées** :
+  1. Laisser un simple catalogue de cours généralistes statiques sans articulation directe avec les référentiels des ministères.
+  2. Implémenter une architecture complète à 5 onglets (`Programme Officiel`, `Formations Certifiantes`, `Examens Blancs`, `Passerelles & Équivalences`, `Mes Diplômes`), concevoir `CampusDiagnosticModal.tsx` pour le test de positionnement rapide, `CampusEquivalenceComparator.tsx` pour la mobilité internationale, enrichir `MOCK_EXAM_BLUEPRINTS` dans `curriculumRegistry.ts`, et relier chaque chapitre officiel directement au générateur de cours interactif et aux explications personnalisées de Professeur Diallo.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité intégrale à la feuille de route et au livre de vision, accompagnement bienveillant et rigoureux de chaque apprenant selon son référentiel national, et valorisation des compétences validées.
+* **Conséquences** : Les apprenants peuvent s'entraîner aux épreuves officielles de leur pays, diagnostiquer leurs lacunes, générer des leçons sur-mesure pour chaque chapitre du programme national et comparer leurs diplômes pour des études à l'international.
+* **Éléments techniques** : `components/Campus.tsx`, `components/CampusDiagnosticModal.tsx`, `components/CampusEquivalenceComparator.tsx`, `services/curriculumRegistry.ts`, `services/campusPedagogicalEngine.ts`, `docs/modules/04_campus_et_education.md`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-017] — 27 Août 2026
+* **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `Messagerie Instantanée Sécurisée (MoocChatFloating)`, `Chat Experts Diallo & Google Chat Center`
+* **Problème / Besoin initial** :
+  1. Confirmer le bon fonctionnement intégral de la messagerie instantanée (Chat) et l'exécution de toutes les demandes de la feuille de route.
+  2. Assurer que tous les utilisateurs peuvent communiquer librement, s'envoyer des photos/images, des vidéos, des documents et des notes vocales sans restriction, avec persistance pérenne et relecture universelle.
+* **Idées envisagées** :
+  1. Maintenir un système d'envoi textuel standard avec pièces jointes basées sur des URLs éphémères.
+  2. Intégrer des boutons d'accès rapide dédiés (Photo, Vidéo, Document, Vocal, Texte), convertir l'intégralité des médias capturés ou uploadés en flux Base64 Data URLs persistants avec synchronisation Supabase Realtime, supporter l'envoi de pièces jointes multiples sans perte, et garantir la relecture illimitée des vidéos et vocaux dans le flux de messages.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité à la feuille de route, garantie d'interopérabilité sur tous les appareils (desktop, mobile, PWA), zéro perte de données et expérience de communication collaborative d'excellence.
+* **Conséquences** : Les utilisateurs et experts communiquent en temps réel avec partage fluide d'images, de vidéos HD, de fichiers et de messages vocaux avec waveform interactive.
+* **Éléments techniques** : `components/MoocChatFloating.tsx`, `components/chat/ChatMessageItem.tsx`, `components/ChatInterface.tsx`, `services/supabaseClient.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-016] — 27 Août 2026
+* **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Gestion des Comptes & Navigation Globale`
+* **Problème / Besoin initial** :
+  1. Résoudre le dysfonctionnement de relecture des vidéos publiées sur le fil d'actualité : les vidéos enregistrées via un blob URL temporaire devenaient illisibles après rafraîchissement ou pour les autres utilisateurs.
+  2. Rendre le Tableau de Bord Super-Admin immédiatement accessible, visible et opérationnel depuis toute l'interface (Header, Menu Profil, Sidebar, Dashboard et Recherche Universelle) pour l'administrateur, afin de superviser l'ensemble des comptes utilisateurs, les rôles, les crédits, la modération et la configuration système.
+* **Idées envisagées** :
+  1. Utiliser un simple lecteur vidéo basique sans persistance robuste.
+  2. Convertir les fichiers vidéos sélectionnés en Data URL Base64 pérenne (ou URL hébergée), enrichir le lecteur vidéo du post avec des contrôles complets, `playsInline`, `preload="auto"`, réinitialisation au terme de la lecture (`onEnded`), intégrer `AdminDashboard` dans le routage de `App.tsx` et ajouter des points d'accès directs dorés dans le Header desktop, le menu déroulant de l'avatar profil, la sidebar de navigation et le sélecteur du Dashboard d'accueil.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité aux principes de persistance locale et cloud, garantie de relecture illimitée des vidéos par les propriétaires et le public, et visibilité immédiate du Tableau de Bord Super-Admin pour la gouvernance complète de la plateforme.
+* **Conséquences** : Les vidéos publiées sont lisibles et rejouables instantanément à tout moment ; l'administrateur accède au tableau de bord complet en un clic depuis n'importe quel écran.
+* **Éléments techniques** : `components/SocialFeed.tsx`, `App.tsx`, `components/Layout.tsx`, `components/Dashboard.tsx`, `components/navigation/NavigationItems.ts`, `docs/JOURNAL_DECISIONS.md`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-015] — 27 Août 2026
+* **Module(s)** : `Transversal (14 Modules)`, `Qualité & Fiabilité Système`, `Tableau d'Enregistrement des Défauts (IEEE 1044 / PSP)`
+* **Problème / Besoin initial** :
+  1. Fixer l'ensemble des 22 défauts système, ergonomiques, matériels, de synchronisation, d'accessibilité et de dégradation gracieuse enregistrés sur le tableau des défauts.
+  2. Fournir un registre formel exhaustif avec description, cause racine, correction appliquée et critères de validation pour chaque défaut.
+  3. Garantir la conformité absolue avec le principe « Zéro Écran Blanc », la persistance locale continue et la stabilité de l'expérience utilisateur sur mobile et desktop.
+* **Idées envisagées** :
+  1. Corriger les défauts de manière isolée sans traçabilité formelle.
+  2. Établir une matrice officielle `docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md` conforme aux normes IEEE 1044 / PSP, corriger chirurgicalement chaque cause racine dans les composants et services (`Layout.tsx`, `voiceEngine.ts`, `pwaService.ts`, `MoocChatFloating.tsx`, `supabaseClient.ts`, etc.), et valider par build complet `compile_applet`.
+* **Décision retenue** : Option 2.
+* **Justification** : Rigueur documentaire, traçabilité opposable, conformité avec les règles permanentes d'ingénierie et garantie de longévité de la plateforme.
+* **Conséquences** : 22/22 défauts résolus et testés, zéro régression, accessibilité WCAG AA renforcée, raccourcis clavier unifiés (`Escape`, `Ctrl+K`), et clôture audio automatique lors des transitions de navigation.
+* **Éléments techniques** : `docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md`, `components/Layout.tsx`, `services/voiceEngine.ts`, `services/pwaService.ts`, `components/MoocChatFloating.tsx`, `docs/JOURNAL_DECISIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-014] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Profils Utilisateurs & Sync Supabase`, `Gestion de Schéma & Tolérance aux Pannes (PGRST204)`
+* **Problème / Besoin initial** :
+  1. Résoudre les avertissements Supabase `PGRST204` (« Could not find the 'badges' / 'city' column of 'profiles' in the schema cache ») survenant lors des opérations `upsertProfile`.
+  2. Garantir que les mises à jour et créations de profils ne provoquent aucune erreur bloquante, même si la table Supabase `profiles` sur l'instance distante ne dispose pas encore de toutes les colonnes étendues.
+  3. Mettre en place un mécanisme d'auto-adaptation en cas de rejet par le cache de schéma (filtrage dynamique de la colonne incriminée et repli dégradé gracieux avec sauvegarde minimale garantie).
+* **Idées envisagées** :
+  1. Forcer la suppression de tous les champs optionnels côté client.
+  2. Rendre `SupabaseService.upsertProfile` auto-adaptatif : détection automatique de l'erreur `PGRST204`, extraction de la colonne manquante pour réessai immédiat, repli sur un payload minimal en cas d'échec secondaire, et unification de `services/profile.ts` pour passer par ce service résilient.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité avec les règles cardinales de résilience « Zéro Écran Blanc », compatibilité ascendante/descendante avec toutes les versions de tables Supabase, et persistance locale systématique sans perte de données.
+* **Conséquences** : Zéro crash lors des synchronisations de profil, tolérance totale aux variations de schéma distant et mise à jour transparente pour l'utilisateur.
+* **Éléments techniques** : `services/supabaseClient.ts`, `services/profile.ts`, `docs/JOURNAL_DECISIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-013] — 27 Août 2026
+* **Module(s)** : `02_RESEAU_MOK_ET_SOCIAL`, `Espace Live Intelligent`, `SocialLive & Stream Orchestration`, `Audio/Video Resilience`
+* **Problème / Besoin initial** :
+  1. Résoudre le bug d'écran blanc (White Screen of Death) lors du clic sur le bouton « Démarrer le live maintenant » ou « Rejoindre un Live ».
+  2. Rendre la fonction de Live entièrement opérationnelle en streaming vidéo/audio, interactions en direct, copilote IA, tableau blanc, prise de notes, compte-rendu post-live et actions intelligentes.
+  3. Sécuriser les flux médias contre les contextes où `navigator.mediaDevices` ou `AudioContext` ne sont pas disponibles ou bloqués par les permissions iFrame.
+* **Idées envisagées** :
+  1. Masquer les fonctionnalités avancées de Live et n'afficher qu'un composant statique.
+  2. Procéder à un audit approfondi du cycle de vie de montage de `SocialLive.tsx`, `LiveCreationModal.tsx`, `LiveSmartActionBar.tsx`, `LiveWaitingRoomModal.tsx`, corriger les imports orphelins d'icônes (`GraduationCap`, `LifeBuoy`, `FileCheck`, `AlertTriangle`, `Plus`, `Play`, `Pause`, `RotateCcw`, `VolumeX`, `CheckCircle`), standardiser les interfaces de props de `LiveSmartActionBarProps`, ajouter des gardes d'exécution sécurisés (`if (navigator?.mediaDevices?.getUserMedia)` et accesseurs optionnels) pour garantir zéro crash au montage, et valider la compilation globale.
+* **Décision retenue** : Option 2.
+* **Justification** : Conformité absolue avec la charte de stabilité « Zéro Écran Blanc », respect de la dégradation gracieuse en environnement contraint et fonctionnement fluide immédiat pour tous les utilisateurs.
+* **Conséquences** : Le démarrage ou la participation à un Live s'exécute instantanément, sans aucun écran blanc, avec toutes les capacités interactives (multidiffusion, sous-titres bilingues, copilote IA, actions, tableau blanc, replay).
+* **Éléments techniques** : `components/SocialLive.tsx`, `components/LiveCreationModal.tsx`, `components/LiveSmartActionBar.tsx`, `components/LiveWaitingRoomModal.tsx`, `docs/ETAT_ACTUEL.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-012] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Sauvegarde, Versioning & Restauration Intelligente`, `Gouvernance des Versions Stables`
+* **Problème / Besoin initial** :
+  1. Mettre en place un système complet de sauvegarde, de restauration et de gestion des versions dans l'espace Super-Admin.
+  2. Conserver au minimum les trois dernières versions stables de la plateforme, avec leur numéro de version, date de publication, changelog détaillé, checksums d'intégrité et statut opérationnel.
+  3. Concevoir une restauration intelligente qui ne remet **JAMAIS** la plateforme à zéro : préservation intégrale garantie de toutes les données utilisateurs (comptes, profils, messages, médias, paramètres, rôles RBAC, publications, soldes Ⓒ, statistiques, logs d'audit), sans interruption majeure de service.
+  4. Garantir la sécurité absolue avant toute restauration : création automatique d'un instantané (point de récupération pré-restauration) et vérification préalable de la compatibilité du schéma de base de données.
+  5. Offrir depuis le tableau de bord Super-Admin la visualisation de l'historique des versions, la comparaison différentielle entre versions, la restauration en un clic avec dialogue de confirmation et sélection des données à préserver, la planification personnalisable des sauvegardes automatiques, et l'annulation immédiate (Undo / Rollback) de la dernière restauration.
+* **Idées envisagées** :
+  1. Utiliser un simple dump/restore brut de `localStorage` risquant d'écraser les comptes et les profils créés ultérieurement.
+  2. Implémenter une architecture de versioning souveraine et de fusion intelligente (`intelligentRestore` dans `adminConfigService.ts`) avec préservation granulaire des entités vivantes, vérification de compatibilité de schéma (`verifyDatabaseCompatibility`), registre formel des versions stables (`getStableVersions`), création automatique de snapshot de sécurité pré-restauration, mécanisme d'annulation en 1 clic (`undoLastRestore`), planificateur automatisé (`BackupScheduleConfig`) avec élagage automatique, comparateur différentiel (`compareVersions`), et interface Super-Admin modulaire (`AdminWorkflowsAndBackupTab.tsx`).
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue des données des citoyens et utilisateurs, continuité d'exploitation sans perte d'information, traçabilité des montées de version et conformité stricte aux exigences de souveraineté et de déploiement universel (GitHub, Netlify, Cloud Run, Supabase).
+* **Conséquences** : Les opérations de maintenance et de retour de version peuvent être menées en toute confiance par le Super-Admin en un clic sans risque de réinitialisation destructrice ni d'écran blanc.
+* **Éléments techniques** : `types.ts` (`PlatformReleaseVersion`, `BackupSnapshotRecord`, `BackupScheduleConfig`, `RestoreOperationResult`, `VersionComparisonResult`), `services/adminConfigService.ts`, `components/admin/AdminWorkflowsAndBackupTab.tsx`, `docs/HISTORIQUE_VERSIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-011] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Gestion des Utilisateurs & RBAC`, `Supabase Realtime & Auth Sync`
+* **Problème / Besoin initial** :
+  1. Garantir que chaque compte créé ou connecté via Supabase (ou en session locale) apparaisse automatiquement et sans aucune exception dans le tableau de bord Super-Admin en temps réel.
+  2. Fournir des capacités d'administration complètes : gestion individuelle de chaque compte, approbation, suspension, réactivation, suppression, attribution des rôles et privilèges granulaires RBAC, ajustement des crédits Ⓒ avec motif d'audit, consultation de l'historique et des journaux d'audit, et exports CSV/JSON.
+  3. Identifier et corriger automatiquement tout problème de compte existant non visible ou corrompu grâce à un moteur de diagnostic, déduplication et réconciliation automatique des comptes sans casser l'existant et en restant 100% compatible GitHub, Netlify et Cloud Run.
+* **Idées envisagées** :
+  1. Faire un simple rechargement manuel de la table `profiles` sans écouteur temps réel ni mécanisme d'auto-réparation.
+  2. Mettre en place un système complet de synchronisation bi-directionnelle et temps réel avec Supabase (`subscribeToProfilesRealtime`), enrichir `adminConfigService` avec `registerOrSyncUser`, `syncWithSupabase` et `reconcileAndRepairAllAccounts`, connecter les cycles de vie d'authentification (`Auth.tsx`, `App.tsx`, `onAuthStateChange`), et concevoir une interface de gestion d'utilisateurs ultra-complète (`AdminUsersTab.tsx`) avec indicateur d'état cloud en direct, bouton de synchronisation forcée, bouton de diagnostic/réparation, filtrage multicritère (rôle, statut, origine, KYC, tri), modales d'édition complète des privilèges RBAC, modal d'historique d'audit et modal d'ajustement de crédits.
+* **Décision retenue** : Option 2.
+* **Justification** : Zéro compte invisible ou perdu, visibilité instantanée dès l'inscription ou la connexion, protection absolue du Super-Admin (`visionsmart224@gmail.com`), intégrité des données garantie même en cas de coupure réseau (dégradation gracieuse Local-First) et conformité totale avec les directives d'infrastructure.
+* **Conséquences** : Tout utilisateur créé ou connecté via Supabase ou session locale est réconcilié, indexé et visible en temps réel par le Super-Admin avec traçabilité intégrale.
+* **Éléments techniques** : `types.ts`, `services/supabaseClient.ts`, `services/adminConfigService.ts`, `components/admin/AdminUsersTab.tsx`, `components/Auth.tsx`, `App.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-010] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `01_DIALLO_OS_ET_EXPERTS`, `Espace Super-Admin Souverain`, `AI Resilience & Orchestration Hub`
+* **Problème / Besoin initial** :
+  1. Concevoir une architecture auto-résiliente avec bascule automatique (failover) sans interruption entre plusieurs fournisseurs d'IA (OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Mistral, xAI Grok, Alibaba Qwen, Moonshot Kimi, OpenRouter, Replicate, Hugging Face, Ollama Local/Souverain, etc.).
+  2. Fournir dans le tableau de bord Super-Admin un gestionnaire unique permettant de connecter, activer, désactiver, prioriser par rangs (#1, #2, etc.), tester en direct et surveiller tous les fournisseurs majeurs.
+  3. Définir des règles de gouvernance strictes : chaînes de secours, seuils de qualité minimaux (exclusion automatique de tout fournisseur sous le seuil), plafonds de latence tolérée, seuils budgétaires et mise en quarantaine automatique après N échecs consécutifs avec réadmission et retour automatique au meilleur fournisseur (failback).
+* **Idées envisagées** :
+  1. S'appuyer uniquement sur le SDK Gemini avec un simple try/catch renvoyant une chaîne statique en cas d'erreur.
+  2. Bâtir un moteur d'orchestration et de résilience complet (`services/aiRoutingService.ts`), transformer `services/ai.ts` en une façade transparente compatible avec l'ensemble des modules existants, étendre les types (`AIProviderConfig`, `AIRoutingPolicyConfig`, `AIFailoverEvent`, `AIExecutionResult`), enrichir `adminConfigService` avec toutes les opérations de contrôle (réordonnancement, quarantaine, réadmission, test de sonde, ajout custom), et créer un hub de contrôle d'administration haut de gamme (`components/admin/AdminAIResilienceHub.tsx`) doté de 4 sous-vues : Cartes de contrôle des nœuds, Gouvernance & Seuils, Banc d'essai interactif de simulation de bascule en direct, et Journal d'audit des bascules.
+* **Décision retenue** : Option 2.
+* **Justification** : Zéro dépendance bloquante à un fournisseur d'IA unique, continuité absolue de service pour l'ensemble des 14 modules de la plateforme même en cas de panne mondiale d'un fournisseur ou de restriction de quota (429/500/timeout), et supervision souveraine en direct par le Super-Admin.
+* **Conséquences** : Zéro écran blanc, dégradation gracieuse souveraine garantie, persistance des configurations, auditabilité totale des requêtes et compatibilité intégrale avec Supabase, GitHub et Netlify.
+* **Éléments techniques** : `types.ts`, `services/aiRoutingService.ts`, `services/ai.ts`, `services/adminConfigService.ts`, `components/admin/AdminAIResilienceHub.tsx`, `components/admin/AdminAIAndModulesTab.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-009] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Espace Super-Admin Souverain`, `Mobile UX & Smart Dock`, `Mooc Chat Floating`
+* **Problème / Besoin initial** :
+  1. Mise en place d'un espace Super-Admin souverain complet pilotable depuis la plateforme avec attribution automatique de tous les privilèges au compte `visionsmart224@gmail.com` lors de son authentification via Supabase (sans jamais coder de mot de passe en dur). L'espace devait permettre la gestion complète des utilisateurs (RBAC, suspension, suppression, promotion/rétrogradation admin), la modération des contenus et signalements, les paramètres globaux (Live, Commerce, MokTrust, etc.), l'orchestration IA et les sauvegardes.
+  2. Sur mobile, le bouton flottant du Mooc Chat était masqué ou en collision avec le menu latéral / barre de navigation dock inférieure (`bottom dock`). Nécessité d'un audit complet de l'interface mobile pour éliminer tout chevauchement ou blocage d'interactions.
+* **Idées envisagées** :
+  1. Utiliser un simple flag local dans le state React pour l'admin et cacher le bouton chat sur mobile.
+  2. Créer une suite administrative complète et modulaire (`components/AdminDashboard.tsx`, `components/admin/*`, `services/adminConfigService.ts`) connectée à Supabase avec dégradation gracieuse locale, et refondre le positionnement responsive du Mooc Chat (`bottom-24 right-4 md:bottom-6 md:right-6`), du smart dock mobile (`pointer-events-none` sur le wrapper / `pointer-events-auto` sur le dock avec gestion de safe-area iOS/Android `pb-[max(0.75rem,env(safe-area-inset-bottom))]` et `pb-36` sur le viewport principal), ainsi que l'ajustement du scroll horizontal sur les onglets et boîtes de dialogue.
+* **Décision retenue** : Option 2.
+* **Justification** : Sécurité absolue, absence totale de mot de passe dans le code, conformité Supabase Cloud, flexibilité totale sur mobile avec accès immédiat au Mooc Chat sans aucun masquage par le dock.
+* **Conséquences** : Navigation mobile fluide, zéro collision de z-index, accès super-admin protégé et 100% opérationnel pour `visionsmart224@gmail.com`.
+* **Éléments techniques** : `components/AdminDashboard.tsx`, `components/admin/`, `services/adminConfigService.ts`, `components/Layout.tsx`, `components/MoocChatFloating.tsx`, `components/DialloOS.tsx`, `components/settings/BrandColorLabModal.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-008] — 27 Août 2026
+* **Module(s)** : `11_STUDIO_ET_CREATION`, `Co-Création & Collaboration`, `Partage d'Actifs`
+* **Problème / Besoin initial** : Intégrer dans le Studio créatif une suite d'outils collaboratifs complète comprenant le partage fluide de contenu multimédia (images, vidéos, analyses vision, scripts d'avatars), la création et gestion de cercles/groupes de discussion thématiques, et des espaces de co-création d'articles ou de projets en équipe avec répartition des tâches, gestion d'étapes et boîte à idées communautaires.
+* **Idées envisagées** :
+  1. Créer un écran externe séparé du Studio.
+  2. Intégrer un onglet dédié « Co-Création & Collaboration » au sein de `components/Studio.tsx`, complété par des boutons d'actions directes « Partager dans le Hub Collaboratif » sur chaque résultat généré (image, vidéo, vision, avatar) et un composant modulaire `components/StudioCollaboration.tsx` doté de 4 sous-espaces spécialisés (Projets & Articles, Cercles de Discussion, Bibliothèque de Ressources Partagées, Boîte à Idées).
+* **Décision retenue** : Option 2. Typage complet dans `types.ts` (`StudioTab`, `CoCreationProject`, `DiscussionCircle`, `SharedStudioResource`, `CommunityCollaborationIdea`), implémentation de `components/StudioCollaboration.tsx` avec persistance locale et dégradation gracieuse, et liaison bidirectionnelle dans `components/Studio.tsx`.
+* **Justification** : Expérience utilisateur fluide et unifiée dans le Studio : un créateur peut générer un média par IA et l'envoyer directement en un clic dans la bibliothèque d'actifs partagés ou le lier à un projet de co-création sans changer de contexte.
+* **Conséquences** : Zéro régression sur la génération multimédia existante, compatibilité totale Netlify et déploiement cloud sans écran blanc.
+* **Éléments techniques** : `types.ts`, `components/Studio.tsx`, `components/StudioCollaboration.tsx`, `docs/modules/11_studio_et_creation.md`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-007] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Identité & Profils`, `Auth`, `Mok Social`
+* **Problème / Besoin initial** : L'authentification devait reposer entièrement et exclusivement sur Supabase (en remplacement complet de Firebase) avec une suite complète : inscription avec création immédiate de profil (nom complet, avatar certifié, titre, bio, localisation, passeport citoyen), connexion, mot de passe oublié, réinitialisation de mot de passe, renvoi d'email de confirmation, gestion sécurisée du « Se souvenir de moi », synchronisation de session au démarrage, et liaison directe des publications du fil d'actualité au profil réel de l'auteur.
+* **Idées envisagées** :
+  1. Conserver un flux hybride combinant Firebase Auth et Supabase DB.
+  2. Implémenter une suite complète Supabase Auth (`signUp`, `signIn`, `resetPasswordForEmail`, `updateUserPassword`, `resendVerificationEmail`, `getSession`, `onAuthStateChange`, `signInWithOAuth`) avec création automatique d'un profil dans `public.profiles` dès la première connexion/inscription, et synchronisation bi-directionnelle avec le `GlobalContext` et `App.tsx`.
+* **Décision retenue** : Option 2. Refonte intégrale de `components/Auth.tsx` et enrichissement de `services/supabaseClient.ts` et `App.tsx`.
+* **Justification** : Conformité stricte aux directives de souveraineté et d'architecture sans écran blanc, persistance de session robuste et attribution garantie des publications aux profils réels des utilisateurs.
+* **Conséquences** : Toutes les actions sociales (création de post, commentaires, réactions, consultation de profil) utilisent l'identité réelle de l'utilisateur connecté sans aucun placeholder générique.
+* **Éléments techniques** : `components/Auth.tsx`, `services/supabaseClient.ts`, `App.tsx`, `components/SocialFeed.tsx`, `contexts/GlobalContext.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-006] — 27 Août 2026
+* **Module(s)** : `10_RESEAU_ET_COMMUNAUTE_MOK`, `14_SECURITE_ET_INFRASTRUCTURE`, `Identité & Profils`, `Mok Social`
+* **Problème / Besoin initial** : Mettre en place un système complet et authentique d'identité utilisateur et de profils réels. Chaque utilisateur doit posséder une identité unique (photo, nom, bio, localisation, passeport) prise en compte dans toute l'application (fil d'actualité, publications avec identité réelle, annuaire des membres, messagerie privée directe), avec persistance cloud Supabase et dégradation locale fluide.
+* **Idées envisagées** :
+  1. Maintenir un profil mock statique dans les constantes.
+  2. Créer une architecture d'identité dynamique reliant `GlobalContext`, `Settings`, `Profile`, `SocialFeed`, `MemberProfileModal` et `MoocChatFloating` avec persistance bidirectionnelle Supabase (tables `profiles`, `community_posts`, `chat_conversations`, `chat_messages`) et session locale sécurisée (`localStorage`).
+* **Décision retenue** : Option 2. Schéma SQL exhaustif dans `docs/supabase_schema.sql`, typage enrichi dans `types.ts` et `supabaseClient.ts`, synchronisation dynamique dans `GlobalContext.tsx`, et refactorisation de `SocialFeed.tsx` et `Settings.tsx`.
+* **Justification** : Élimine toute ambiguïté sur l'identité de l'auteur d'une publication, assure une recherche et consultation fluide des profils membres, et connecte directement la messagerie et les publications au backend Supabase.
+* **Conséquences** : Les publications créées portent toujours l'identité exacte de l'utilisateur connecté ; les modifications de profil dans les Paramètres se répercutent instantanément dans l'ensemble de l'écosystème.
+* **Éléments techniques** : `docs/supabase_schema.sql`, `types.ts`, `services/supabaseClient.ts`, `contexts/GlobalContext.tsx`, `components/SocialFeed.tsx`, `components/Settings.tsx`, `components/Profile.tsx`, `components/MoocChatFloating.tsx`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-005] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Socle Global`, `AGENTS.md`, `GEMINI.md`
+* **Problème / Besoin initial** : Garantir la portabilité et le déploiement continu immédiat sur GitHub, Netlify, Cloud Run et Vercel sans jamais risquer d'écran blanc (*White Screen of Death*), et standardiser Supabase comme backend par défaut sans dépendance bloquante à Firebase.
+* **Idées envisagées** :
+  1. Maintenir Firebase couplé avec des initialisations directes au chargement de module.
+  2. Adopter Supabase comme backend cloud par défaut, découpler tous les services avec initialisation lazy à la demande (`getClient()`), fallback gracieux (Local-First IndexedDB) et passage exclusif des clés via variables d'environnement.
+* **Décision retenue** : Intégration de la directive permanente dans `AGENTS.md` et `GEMINI.md`, création du service résilient `services/supabaseClient.ts`, sécurisation lazy de `services/googleWorkspace.ts` et génération de `.env.example`.
+* **Justification** : Résilience absolue au démarrage, zéro écran blanc même en l'absence temporaire de variables d'environnement, portabilité GitHub/Netlify immédiate.
+* **Conséquences** : Tout futur projet et module utilise Supabase par défaut sans bloquer le rendu React.
+* **Éléments techniques** : `AGENTS.md`, `GEMINI.md`, `.env.example`, `services/supabaseClient.ts`, `package.json` (`@supabase/supabase-js`).
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
+### [DEC-2026-004] — 27 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `07_JURIDIQUE_ET_ADMINISTRATION`, `Administration Centrale`
+* **Problème / Besoin initial** : L'administrateur général avait besoin de piloter l'intégralité de la plateforme (utilisateurs, rôles RBAC, fournisseurs IA, clés API, modèles de lettres, signatures autographes, cachets/sceaux, workflows A➔B, sauvegardes et journaux) sans jamais toucher au code.
+* **Idées envisagées** :
+  1. Panneaux de configuration dispersés dans le code ou les fichiers de constantes.
+  2. Tableau de bord centralisé no-code avec persistance Local-First réactive, bibliothèque d'actes officiels, moteur de résolution de variables et prévisualisation haute fidélité en temps réel avec export PDF/impression.
+* **Décision retenue** : Création du Service Central `adminConfigService.ts` et du tableau de bord modulaire `AdminDashboard.tsx` découpé en 6 sous-modules spécialisés (`AdminOverviewTab`, `AdminUsersTab`, `AdminAIAndModulesTab`, `AdminTemplatesAndStampsTab`, `AdminWorkflowsAndBackupTab`, `AdminLogsAndBroadcastTab`, `OfficialLetterPreviewModal`).
+* **Justification** : Autonomie opérationnelle totale du Super-Administrateur, conformité institutionnelle des lettres générées, gouvernance de sécurité et traçabilité audit complète.
+* **Conséquences** : Uniformisation des actions primaires (fond bleu, texte blanc), sauvegarde instantanée en Snapshot JSON, gestion des quotas de crédits Ⓒ et validation KYC.
+* **Éléments techniques** : `services/adminConfigService.ts`, `components/AdminDashboard.tsx`, `components/admin/*`, `types.ts`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+---
+
 ### [DEC-2025-001] — 15 Décembre 2025
 * **Module(s)** : `01_DIALLO_OS_ET_EXPERTS`, `Global`
 * **Problème / Besoin initial** : Éviter que les utilisateurs ne perçoivent les assistants comme des robots distants et désincarnés.
@@ -298,21 +728,59 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-018] — 27 Août 2026
-* **Module(s)** : `Global UI`, `Buttons & Controls`, `Accessibility`, `DesignTokens`
-* **Problème / Besoin initial** : Uniformiser l'ensemble des boutons et contrôles d'action de l'application selon la règle de cohérence absolue : **fond bleu institutionnel et écriture blanche** (aligné sur le bouton Accueil), éliminant la dispersion des couleurs secondaires orange/rouge.
+### [DEC-2026-020] — 27 Août 2026
+* **Module(s)** : `Super Admin`, `Gestion des Versions`, `Sauvegarde & Restauration Intelligente`, `Supabase Client`, `Résilience Déploiement`
+* **Problème / Besoin initial** :
+  1. Corriger l'erreur de build suite à la refactorisation de Supabase (`supabaseService` manquant).
+  2. Mettre en place un système complet de sauvegarde, de restauration et de gestion des versions dans l'espace Super Admin : conservation d'au minimum les trois dernières versions stables (numéro, date, changelog, statut), restauration intelligente préservant l'intégralité des données utilisateurs (comptes, profils, messages, médias, paramètres, rôles, publications, stats, logs), point de récupération automatique pré-restauration, comparaison de versions, planification des sauvegardes, annulation / rollback en 1 clic, compatibilité totale Supabase / GitHub / Netlify avec zéro écran blanc.
 * **Idées envisagées** :
-  1. Laisser des couleurs variées selon les sous-composants.
-  2. Procéder à une harmonisation systématique de tous les boutons primaires d'action, en-têtes d'outils, badges d'état et zones d'interaction vers la palette bleue souveraine avec texte blanc haute lisibilité (`bg-blue-600 hover:bg-blue-700 text-white`).
-* **Décision retenue** : Option 2 appliquée sur l'ensemble des composants transversaux (`ActionableAISuggestion`, `PointAToBPathway`, `EmptyStateGuide`, `KnowledgeCard`, `AISynthesisCard`, `SmartConfirmModal`, `FocusAndPresentationControls`, `GuidedModeModal`, `UniversalScannerModal`, `BilingualConversationModal`, `UnifiedSettingsModal`, `QuickActionZone`, `StatusBadge`).
-* **Justification** : « Garantit une identité visuelle unifiée, sobre, technologique et épurée, sans dispersion visuelle, offrant une clarté immédiate à l'utilisateur. »
-* **Conséquences** : Cohérence parfaite entre la barre de navigation, les cartes décisionnelles, les modales interactives et les boutons d'action.
-* **Éléments techniques** : `/components/ui/ActionableAISuggestion.tsx`, `/components/ui/PointAToBPathway.tsx`, `/components/ui/EmptyStateGuide.tsx`, `/components/ui/KnowledgeCard.tsx`, `/components/ui/AISynthesisCard.tsx`, `/components/ui/SmartConfirmModal.tsx`, `/components/ui/FocusAndPresentationControls.tsx`, `/components/accessibility/GuidedModeModal.tsx`, `/components/scanner/UniversalScannerModal.tsx`, `/components/translation/BilingualConversationModal.tsx`, `/components/settings/UnifiedSettingsModal.tsx`, `/components/ui/QuickActionZone.tsx`, `/components/ui/StatusBadge.tsx`.
+  1. Système basique d'export JSON sans gestion d'historique ni préservation sélective.
+  2. Architecture souveraine unifiée et certifiée :
+     - **Unification Supabase** : `services/supabaseClient.ts` exportant à la fois l'instance `supabase`, l'interface `SupabaseUserProfile` et le singleton `supabaseService` avec toutes les méthodes résilientes et tolérantes aux pannes.
+     - **Registre des Versions Stables** : conservation et consultation des versions majeures (v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec métadonnées complètes (schéma, checksum, modules, providers IA, changelog).
+     - **Moteur de Restauration Intelligente** : fusion et conservation des collections utilisateurs sans écrasement ni remise à zéro, création systématique d'un instantané automatique `auto_pre_restore` pour retour arrière instantané (Rollback).
+     - **Planificateur Automatisé** : configuration de la fréquence (horaire, quotidienne, hebdomadaire), quotas de rétention, synchronisation Cloud Supabase et déclenchement manuel immédiat.
+     - **Tableau de Bord Super Admin** : onglet dédié enrichi avec comparateur de versions, filtres d'instantanés, import/export JSON et panneau de rollback d'urgence.
+* **Décision retenue** : Option 2 validée, testée et compilée avec succès.
+* **Justification** : « Garantit la pérennité absolue des données et la souveraineté totale du Super-Administrateur sur l'évolution du système. »
+* **Conséquences** : Zéro régression, build de production vert, résilience totale face aux pannes ou clés manquantes, conservation garantie de toutes les données utilisateurs lors des restaurations.
+* **Éléments techniques** : `/services/supabaseClient.ts`, `/services/adminConfigService.ts`, `/components/admin/AdminWorkflowsAndBackupTab.tsx`, `/components/AdminDashboard.tsx`, `/contexts/GlobalContext.tsx`, `/types.ts`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
+
+### [DEC-2026-021] — 27 Août 2026
+* **Module(s)** : `WebRTC P2P Souverain`, `Service Worker PWA Offline`, `Synchronisation Citoyenne Multi-Utilisateurs`
+* **Problème / Besoin initial** :
+  1. Finaliser l'infrastructure d'appels vidéo et vocaux P2P avec une configuration STUN/TURN haute disponibilité pour traverser les pare-feux sans blocage.
+  2. Mettre en place un Service Worker PWA complet avec politique de cache offline et initialisation résiliente au démarrage.
+  3. Fournir un rapport d'exécution exhaustif avec preuves de bon fonctionnement et validation de build sans régression.
+* **Décision retenue** :
+  - Création du module `/services/webrtcService.ts` avec négociation d'offres/réponses SDP et pool de serveurs STUN mondiaux (Google & Cloudflare).
+  - Création du Service Worker `/public/sw.js` et du service d'enregistrement `/services/pwaService.ts` branché sur l'entrée applicative `/index.tsx`.
+* **Conséquences** : Zéro écran blanc, résilience offline certifiée, appels directs stabilisés et compatibilité PWA immédiate.
+* **Éléments techniques** : `/services/webrtcService.ts`, `/public/sw.js`, `/services/pwaService.ts`, `/index.tsx`, `/docs/modules/AUTHENTIFICATION.md`.
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
 
+### [DEC-2026-028] — 28 Août 2026
+* **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Central AI Orchestrator & Resilience Hub`, `Auto-Diagnostic & Détection Clés API`
+* **Problème / Besoin initial** :
+  1. Vérifier que toutes les clés API (serveur et client) sont correctement détectées, unifiées et testées sans doublon bloquant.
+  2. En cas de clé manquante ou invalide, ne jamais bloquer l'application : dégrader gracieusement vers le fournisseur actif suivant ou le moteur souverain local sans interruption pour l'utilisateur.
+  3. Au démarrage, tester automatiquement le statut de chaque fournisseur et basculer de manière transparente avec rapport visible dans le tableau de bord Super Admin.
+* **Idées envisagées** :
+  1. Bloquer l'accès en affichant un modal d'erreur bloquant si une clé d'API est manquante.
+  2. Orchestration résiliente asynchrone non-bloquante (`probeAllProvidersOnStartup`) :
+     - Découverte conjointe des variables d'environnement (`KLING_API_KEY`, `VITE_KLING_API_KEY`, `ELEVENLABS_API_KEY`, etc.) via `/api/ai/connectors` et le client Vite.
+     - Sondes parallèles avec timeout strict (2500ms) et marquage du statut (`online`, `degraded`, `quarantined`).
+     - Organisation automatique de la chaîne de bascule instantanée vers les moteurs sains ou le repli souverain local.
+     - Bandeau d'état et d'alerte dans le Hub Super Admin avec boutons de copie 1-clic pour le `.env`, liens directs vers les consoles officielles et simulateur de panne en 1 clic.
+* **Décision retenue** : Option 2 développée, intégrée et testée.
+* **Justification** : Respect absolu du principe fondamental « Zéro Écran Blanc & Zéro Interruption Utilisateur ».
+* **Conséquences** : Fonctionnement fluide avec ou sans clés d'API configurées, visibilité totale pour le Super-Administrateur et bascule instantanée certifiée.
+* **Éléments techniques** : `/services/aiRoutingService.ts`, `/components/admin/AdminAIResilienceHub.tsx`, `/server.ts`, `/types.ts`.
+* **Statut** : `Développé`, `Testé` & `Validé`.
 
-
+---
 
 

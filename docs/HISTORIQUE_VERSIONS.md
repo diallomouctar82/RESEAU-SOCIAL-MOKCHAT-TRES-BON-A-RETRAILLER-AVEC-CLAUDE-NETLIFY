@@ -12,23 +12,28 @@
 | **v2.0** | Janvier 2026 | Hub Social, Live Streams & Campus v1 | Social, Campus, Wallet | Core Team | Archivé |
 | **v3.0** | Février 2026 | Diallo OS, Conseil Collégial & Multi-Agents | Experts, Council, Orchestrator | Core Team | Archivé |
 | **v4.0** | Mai 2026 | Intégration Google Workspace & Multimodal HUD | Maps, Drive, Meet, Chat, Vision | Core Team | Archivé |
-| **v5.0** | Juillet 2026 | Marché Mondial B2B/B2C & Business OS | Shop, Trade OS, RFQ, Salons | Core Team | Stable |
-| **v5.4** | Août 2026 | Refonte Carrière & GPS d'Accomplissement A➔B | Career Center, Coach 3D, Jumeau | AI Coding Agent | Stable |
-| **v5.5** | 27 Août 2026 | Système Permanent de Documentation Vivante | Docs, Root Configs, Traçabilité | AI Coding Agent | Stable |
-| **v5.6** | 27 Août 2026 | Campus Mondial Multi-Programmes & Équivalences | Campus, Curriculums, Examens Blancs | AI Coding Agent | Stable |
-| **v5.7** | 27 Août 2026 | Radar Intelligent d'Opportunités (Carrière 2/7) | Radar, Missions de veille, Signaux MOK | AI Coding Agent | Stable |
-| **v5.8** | 27 Août 2026 | Mode Conquête & Salle de Préparation (Carrière 3/7) | War Room, CV Maître, Quality Gate, Décodeur | AI Coding Agent | Stable |
-| **v5.9** | 27 Août 2026 | Suivi Autonome & Agent de Continuité (Carrière 4/7) | Dossier Vivant, Pulse, Relances Anti-Spam, Plan B | AI Coding Agent | Stable |
-| **v5.10** | 27 Août 2026 | Capital Relationnel, Réseau & Prospection (Carrière 5/7) | Mini-CRM, Carte dynamique, Équipes, Mentorat | AI Coding Agent | Stable |
-| **v5.11** | 27 Août 2026 | Intelligence Stratégique & Trajectoires (Carrière 6/7) | Boussole 4D, Simulateur Trajectoires, Skill Graph, Conseil Multi-Experts | AI Coding Agent | Stable |
-| **v5.12** | 27 Août 2026 | Consolidation Finale & Cycle d'Accomplissement (Carrière 7/7) | Centre de Commande Unifié, Dossier Maître, Récit de Vie, Boucle Perpétuelle | AI Coding Agent | Stable |
-| **v5.13** | 27 Août 2026 | Réorganisation Navigation 5 Piliers & Hub Transversal | Navigation, Layout, Recherche Universelle ⌘K, Vocal, Google Suite Intégrée | AI Coding Agent | Stable |
-| **v5.14** | 27 Août 2026 | Accessibilité Universelle & Actionable AI | Guide-moi, Scanner OCR, Traduction bilingue, Fiches savoir | AI Coding Agent | Stable |
-| **v6.0** | 27 Août 2026 | **Jalon Officiel — PREMIUM EXPERIENCE V1** | Design System V1 (26 chapitres), Manifeste, Golden Screens, Handoff | AI Coding Agent | **Courante (Figée)** |
+| **v5.0** | Juillet 2026 | Marché Mondial B2B/B2C & Business OS | Shop, Trade OS, RFQ, Salons | Core Team | Archivé |
+| **v5.14** | 27 Août 2026 | Accessibilité Universelle & Actionable AI | Guide-moi, Scanner OCR, Traduction bilingue, Fiches savoir | AI Coding Agent | Archivé |
+| **v6.0** | 27 Août 2026 | **Jalon Officiel — PREMIUM EXPERIENCE V1** | Design System V1 (26 chapitres), Manifeste, Golden Screens, Handoff | AI Coding Agent | Stable |
+| **v6.1** | 27 Août 2026 | **Socle Cloud Supabase Lazy-Init & Persistance Résiliente** | Auth, Supabase Client, Local-First, Zero White Screen | AI Coding Agent | Stable |
+| **v6.2** | 27 Août 2026 | **Architecture IA Auto-Résiliente (12 Fournisseurs) & Color Lab** | Super-Admin AI Hub, Failover, Auto-Quarantine, Color Lab | AI Coding Agent | Stable |
+| **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | **Courante (Active)** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
+
+### [Version 6.3] — 27 Août 2026 (Sauvegarde, Versioning, Restauration Intelligente & Realtime RBAC)
+- **Objectif** : Mettre en place un système complet de sauvegarde, gestion des versions, comparaison et restauration intelligente sans perte de données dans l'espace Super Admin, avec synchronisation Realtime bidirectionnelle et diagnostic automatique des comptes.
+- **Réalisations & Livrables** :
+  - **Gestionnaire des Versions Stables** : Conservation garantie des 3 dernières versions stables (v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec numéros, dates, changelogs détaillés, checksums et statuts.
+  - **Moteur de Restauration Intelligente** : Restauration en 1 clic sans remise à zéro, préservation intégrale des comptes, profils, soldes Ⓒ, rôles et logs d'audit.
+  - **Point de Récupération Automatique** : Instantané de sécurité généré immédiatement avant chaque restauration, avec bouton d'annulation (Undo / Rollback) en un clic.
+  - **Planificateur Automatisé de Sauvegardes** : Fréquence personnalisable (quotidienne, hebdomadaire, horaire), heure d'exécution, rétention max et élagage automatique.
+  - **Outil de Comparaison Différentielle** : Diff side-by-side entre deux versions (évolutions de fonctionnalités, schémas, et capacités IA).
+  - **Synchronisation Realtime & Diagnostic des Comptes** : Abonnement en direct à la table `profiles` de Supabase, déduplication et réconciliation automatique (`reconcileAndRepairAllAccounts`).
+  - **Compatibilité Universelle** : 100% compatible GitHub, Netlify, Cloud Run et Supabase, sans écran blanc.
+
 
 ### [Version 6.0] — 27 Août 2026 (Jalon Officiel — PREMIUM EXPERIENCE V1)
 - **Objectif** : Figer le socle graphique et ergonomique officiel, consacrer les Golden Screens, rédiger le Manifeste et préparer le dossier de consolidation pour Claude Code.

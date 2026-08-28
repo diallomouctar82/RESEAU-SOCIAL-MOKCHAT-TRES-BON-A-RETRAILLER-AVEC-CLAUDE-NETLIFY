@@ -4,6 +4,13 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
+// Exposé pour les écrans qui veulent adapter leur affichage (ex. masquer un
+// bouton) selon que Supabase est réellement configuré — jamais utilisé ici
+// pour basculer vers une session ou des données fabriquées côté client.
+export const isSupabaseConfigured = Boolean(
+    supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http') && !supabaseUrl.includes('placeholder')
+);
+
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error(
         "Supabase non configuré : VITE_SUPABASE_URL et/ou VITE_SUPABASE_ANON_KEY sont absentes. " +
@@ -82,3 +89,65 @@ export const supabase = createClient(
     supabaseAnonKey || 'placeholder-anon-key',
     { auth: { storage: hybridStorage } }
 );
+
+export interface SupabaseUserProfile {
+    id: string;
+    email: string;
+    name: string;
+    title?: string;
+    bio?: string;
+    role: string;
+    country?: string;
+    city?: string;
+    citizenship_id?: string;
+    phone?: string;
+    website?: string;
+    level?: number;
+    xp?: number;
+    credits?: number;
+    avatar_url?: string;
+    is_verified?: boolean;
+    followers_count?: number;
+    following_count?: number;
+    skills?: any[];
+    badges?: any[];
+    interests?: string[];
+}
+
+/**
+ * Wrapper fin autour du client Supabase réel — jamais de session/profil
+ * fabriqué localement. Utilisé par GlobalContext pour synchroniser le profil
+ * applicatif avec la table `profiles` (lecture au montage + écriture depuis
+ * Settings.tsx) ; l'authentification elle-même reste entièrement gérée par
+ * services/auth.ts, seule source de vérité pour la session.
+ */
+export const supabaseService = {
+    isConfigured(): boolean {
+        return isSupabaseConfigured;
+    },
+    async getCurrentUser() {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.auth.getUser();
+        if (error) return null;
+        return data.user;
+    },
+    async getProfile(userId: string): Promise<SupabaseUserProfile | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+        if (error || !data) return null;
+        return data as SupabaseUserProfile;
+    },
+    async upsertProfile(profile: Partial<SupabaseUserProfile> & { id: string }): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('profiles').update(profile).eq('id', profile.id);
+        if (error) throw error;
+    },
+    onAuthStateChange(callback: (event: string, session: import('@supabase/supabase-js').Session | null) => void) {
+        const { data } = supabase.auth.onAuthStateChange((event, session) => callback(event, session));
+        return { unsubscribe: () => data.subscription.unsubscribe() };
+    },
+    async signOut(): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        await supabase.auth.signOut();
+    },
+};

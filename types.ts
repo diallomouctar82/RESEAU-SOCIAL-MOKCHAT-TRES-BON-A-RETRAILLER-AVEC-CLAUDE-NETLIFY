@@ -46,6 +46,12 @@ export interface UserProfile {
     email: string;
     name: string;
     title?: string;
+    bio?: string;
+    location?: string;
+    country?: string;
+    city?: string;
+    phone?: string;
+    website?: string;
     role: UserRole;
     citizenshipId: string;
     level: number;
@@ -55,6 +61,10 @@ export interface UserProfile {
     avatarUrl: string;
     preferredLanguage: string;
     twoFactorEnabled: boolean;
+    isVerified?: boolean;
+    followersCount?: number;
+    followingCount?: number;
+    joinedDate?: string;
     skills: { name: string; progress: number }[];
     badges: { id: string; name: string; icon: string; description: string }[];
     interests: string[];
@@ -908,18 +918,33 @@ export interface ChatAttachment {
 
 export interface ChatMessage {
     id: string;
+    conversationId?: string;
     senderId: string;
     senderName?: string;
     senderAvatar?: string;
+    senderRole?: string;
     text?: string;
     mediaUrl?: string;
     mediaType?: 'text' | 'image' | 'video' | 'audio' | 'document';
     fileName?: string;
     fileSize?: string;
     audioDuration?: number; // seconds
-    timestamp: Date;
+    timestamp: Date | string;
     isRead: boolean;
+    status?: 'sending' | 'sent' | 'delivered' | 'read';
+    reactions?: Record<string, string[]>; // { '👍': ['user-1', 'user-2'] }
+    replyTo?: {
+        id: string;
+        text?: string;
+        senderName?: string;
+        mediaType?: string;
+    };
+    attachments?: ChatAttachment[];
+    isEdited?: boolean;
+    isPinned?: boolean;
+    isDeleted?: boolean;
     isAiGenerated?: boolean;
+    isEncrypted?: boolean;
 }
 
 export interface ChatConversation {
@@ -928,14 +953,47 @@ export interface ChatConversation {
     participantName: string;
     participantAvatar: string;
     participantTitle?: string;
+    participantRole?: string;
+    participantEmail?: string;
+    participantPhone?: string;
+    participantCountry?: string;
     isGroup?: boolean;
     groupMembersCount?: number;
+    groupMembers?: {
+        id: string;
+        name: string;
+        avatar: string;
+        role?: string;
+        isOnline?: boolean;
+    }[];
     lastMessage: string;
     lastMessageTime: string;
     unreadCount: number;
     isOnline: boolean;
+    lastSeen?: string;
     isAgent?: boolean;
+    isBlocked?: boolean;
+    isMuted?: boolean;
+    isPinned?: boolean;
+    isEncrypted?: boolean;
+    encryptionFingerprint?: string;
+    typingUsers?: string[];
     messages: ChatMessage[];
+}
+
+export interface ActiveCallSession {
+    callId: string;
+    conversationId: string;
+    type: 'audio' | 'video';
+    initiatorId: string;
+    initiatorName: string;
+    initiatorAvatar: string;
+    receiverId: string;
+    receiverName: string;
+    receiverAvatar: string;
+    status: 'ringing' | 'connected' | 'ended' | 'rejected' | 'busy';
+    startedAt?: Date;
+    durationSeconds: number;
 }
 
 export type ReelCategory = 
@@ -1084,7 +1142,153 @@ export interface Reel {
 export interface Review { id: string; author: string; rating: number; comment: string; }
 export interface EvaluationResult { score: number; feedback: string; }
 export type EvaluationStatus = 'pending' | 'passed' | 'failed';
-export type StudioTab = 'image' | 'video' | 'vision' | 'avatar';
+export type StudioTab = 'image' | 'video' | 'vision' | 'avatar' | 'collaboration';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🤝 STUDIO CO-CRÉATION & COLLABORATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type CoCreationType = 'article' | 'project' | 'course' | 'pitch' | 'manifesto' | 'guide';
+export type CoCreationStatus = 'draft' | 'co_writing' | 'peer_review' | 'ready' | 'published';
+
+export interface CoAuthorMember {
+    id: string;
+    name: string;
+    avatarUrl: string;
+    role: 'lead' | 'co_author' | 'reviewer' | 'contributor';
+    isOnline?: boolean;
+    lastActiveAt?: string;
+    colorCode?: string;
+}
+
+export interface CoCreationComment {
+    id: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar: string;
+    sectionId?: string;
+    sectionTitle?: string;
+    text: string;
+    timestamp: string;
+    resolved: boolean;
+}
+
+export interface CoCreationVersion {
+    id: string;
+    versionNumber: number;
+    authorName: string;
+    timestamp: string;
+    changeNote: string;
+    contentSnapshot: string;
+}
+
+export interface CoCreationProject {
+    id: string;
+    title: string;
+    subtitle?: string;
+    description: string;
+    type: CoCreationType;
+    category: string;
+    status: CoCreationStatus;
+    leadAuthor: CoAuthorMember;
+    coAuthors: CoAuthorMember[];
+    content: string;
+    coverImageUrl?: string;
+    tags: string[];
+    createdAt: string;
+    updatedAt: string;
+    viewsCount: number;
+    likesCount: number;
+    sharesCount: number;
+    versions: CoCreationVersion[];
+    comments: CoCreationComment[];
+    visibility: 'public' | 'circle_only' | 'private_team';
+    targetPublishModule?: 'social_feed' | 'campus' | 'market' | 'dossier';
+    isAiAssisted?: boolean;
+    aiSuggestionsCount?: number;
+}
+
+export interface DiscussionCirclePost {
+    id: string;
+    circleId: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar: string;
+    authorTitle?: string;
+    content: string;
+    timestamp: string;
+    likes: number;
+    userLiked?: boolean;
+    sharedStudioAsset?: {
+        title: string;
+        type: 'image' | 'video' | 'script' | 'prompt' | 'article';
+        urlOrContent: string;
+    };
+    repliesCount?: number;
+}
+
+export interface DiscussionCircle {
+    id: string;
+    name: string;
+    tagline: string;
+    description: string;
+    category: string;
+    avatarUrl: string;
+    bannerUrl?: string;
+    membersCount: number;
+    isJoined: boolean;
+    isOfficial?: boolean;
+    activeTopic: string;
+    createdAt: string;
+    lastActivityAt: string;
+    tags: string[];
+    posts: DiscussionCirclePost[];
+    activePoll?: {
+        id: string;
+        question: string;
+        options: { id: string; text: string; votes: number }[];
+        totalVotes: number;
+        userVotedOptionId?: string;
+    };
+}
+
+export interface SharedStudioResource {
+    id: string;
+    title: string;
+    description: string;
+    type: 'template' | 'prompt_library' | 'script' | 'media_asset' | 'project_framework';
+    category: string;
+    authorName: string;
+    authorAvatar: string;
+    authorRole?: string;
+    content: string;
+    previewUrl?: string;
+    downloadsCount: number;
+    likesCount: number;
+    isLiked?: boolean;
+    tags: string[];
+    createdAt: string;
+    accessLevel: 'free_public' | 'verified_only' | 'members_only';
+}
+
+export interface CommunityCollaborationIdea {
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    authorName: string;
+    authorAvatar: string;
+    authorId?: string;
+    targetImpact: string;
+    neededSkills: string[];
+    votesCount: number;
+    userVoted?: boolean;
+    volunteersCount: number;
+    userVolunteered?: boolean;
+    status: 'ideation' | 'approved' | 'in_progress' | 'launched';
+    createdAt: string;
+    linkedProjectId?: string;
+}
 export interface GeneratedMedia { url: string; type: 'image' | 'video'; }
 export interface MobilityProject { type: 'work' | 'study' | 'tourism' | 'health'; details: string; }
 export interface SimulationResult { feasibilityScore: number; visaType: string; estimatedCost: string; processingTime: string; requirements: string[]; advice: string; agentContactId: string; }
@@ -4483,6 +4687,512 @@ export interface CareerMasterDossier {
   returnContext: CareerReturnContext;
   lastCelebration?: CareerAccomplishmentCelebration;
 }
+
+export interface AdminUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: 'super_admin' | 'admin' | 'expert' | 'partner' | 'citizen' | 'guest';
+  status: 'active' | 'pending' | 'suspended';
+  country: string;
+  city?: string;
+  title?: string;
+  bio?: string;
+  phone?: string;
+  citizenshipId?: string;
+  credits: number;
+  joinedAt: string;
+  lastLogin: string;
+  permissions: string[];
+  kycVerified: boolean;
+  avatarUrl: string;
+  assignedExpertId?: string;
+  notes?: string;
+  origin?: 'supabase_cloud' | 'local_session' | 'admin_created';
+  level?: number;
+  xp?: number;
+  isOnline?: boolean;
+  lastSeenOnline?: string;
+  dossiersCount?: number;
+  history?: { id: string; timestamp: string; action: string; actor: string; details?: string }[];
+}
+
+export type SupportedAIProviderType = 
+  | 'gemini' 
+  | 'openai' 
+  | 'claude' 
+  | 'deepseek' 
+  | 'kimi' 
+  | 'qwen' 
+  | 'kling'
+  | 'openrouter' 
+  | 'n8n'
+  | 'heygene'
+  | 'runway'
+  | 'elevenlabs'
+  | 'mistral' 
+  | 'grok' 
+  | 'replicate' 
+  | 'huggingface' 
+  | 'ollama' 
+  | 'custom';
+
+export type AIConnectorCategory = 'llm_reasoning' | 'video_generation' | 'avatar_speech' | 'workflow_automation' | 'multimodal';
+
+export interface ExternalAIConnectorMetadata {
+  id: string;
+  provider: SupportedAIProviderType;
+  displayName: string;
+  category: AIConnectorCategory;
+  description: string;
+  officialPortalUrl: string;
+  apiKeyEnvVar: string;
+  defaultModel: string;
+  supportedModels: string[];
+  isConfigured: boolean;
+  capabilities: ('chat' | 'code' | 'reasoning' | 'vision' | 'text_to_video' | 'image_to_video' | 'talking_avatar' | 'voice_synthesis' | 'workflow_webhook')[];
+  iconName: string;
+  badgeColor: string;
+}
+
+export type AIProviderTier = 'primary' | 'secondary' | 'tertiary' | 'fallback' | 'quarantined';
+export type AIProviderStatus = 'online' | 'degraded' | 'offline' | 'quarantined' | 'testing';
+
+export interface AIPortalLinks {
+  signupUrl: string;
+  apiKeyUrl: string;
+  docsUrl: string;
+  billingUrl: string;
+}
+
+export type AITaskCategory = 'general' | 'coding' | 'reasoning' | 'legal_contract' | 'multilingual' | 'video_generation' | 'voice_speech' | 'workflow_automation';
+
+export interface AIProviderConfig {
+  id: string;
+  name: string;
+  provider: SupportedAIProviderType;
+  category?: AIConnectorCategory;
+  portalUrl?: string;
+  portalLinks?: AIPortalLinks;
+  detectedEnvVar?: string;
+  isEnvKeyPresent?: boolean;
+  correctiveAction?: string;
+  taskSpecialty?: AITaskCategory;
+  dailyQuotaLimitUSD?: number;
+  currentDailySpendUSD?: number;
+  isEnabled: boolean;
+  isDefault: boolean;
+  priority: number; // 1 = top priority, 2, 3, etc.
+  tier: AIProviderTier;
+  apiKey: string;
+  apiSecret?: string;
+  webhookUrl?: string;
+  defaultModel: string;
+  availableModels: string[];
+  temperature: number;
+  maxTokens: number;
+  endpointUrl?: string;
+  latencyMs?: number;
+  status: AIProviderStatus;
+  qualityScore: number; // 0 to 100
+  minQualityThreshold: number; // Minimum acceptable score (e.g. 70)
+  maxLatencyThresholdMs: number; // Maximum acceptable latency before failover
+  costPer1kInputTokens: number; // in USD
+  costPer1kOutputTokens: number; // in USD
+  consecutiveErrors: number;
+  totalCalls: number;
+  successCalls: number;
+  lastHealthCheck?: string;
+  lastErrorMessage?: string;
+  headers?: Record<string, string>;
+  isCustom?: boolean;
+}
+
+export interface AIFailoverEvent {
+  id: string;
+  timestamp: string;
+  requestedProviderId: string;
+  requestedProviderName: string;
+  fallbackProviderId: string;
+  fallbackProviderName: string;
+  modelUsed: string;
+  reason: 'timeout' | 'rate_limit_429' | 'error_5xx' | 'auth_failed' | 'quality_below_threshold' | 'latency_exceeded' | 'manual_switch' | 'offline_key_missing';
+  details: string;
+  latencyMs: number;
+  success: boolean;
+  promptSnippet?: string;
+}
+
+export interface AIRoutingPolicyConfig {
+  strategy: 'auto_resilient_quality' | 'strict_priority' | 'lowest_latency' | 'lowest_cost';
+  globalMinQualityScore: number; // Default: 70
+  globalMaxLatencyMs: number; // Default: 2500
+  maxConsecutiveErrorsBeforeQuarantine: number; // Default: 3
+  autoFailbackIntervalSec: number; // Recheck primary every X seconds
+  autoQuarantineEnabled: boolean;
+  enableBudgetThresholdRouting: boolean;
+  maxCostPerCallCapUSD: number;
+  fallbackChainOrder: string[]; // List of provider IDs
+}
+
+export interface AIExecutionResult<T = any> {
+  text: string;
+  data?: T;
+  providerUsed: AIProviderConfig;
+  modelUsed: string;
+  latencyMs: number;
+  wasFailover: boolean;
+  failoverAttemptsCount?: number;
+  failoverReason?: string;
+  tokensEstimated?: number;
+  costEstimatedUSD?: number;
+}
+
+export interface PlatformModuleConfig {
+  id: string;
+  code: string;
+  label: string;
+  category: string;
+  isEnabled: boolean;
+  inMaintenance: boolean;
+  accessLevel: 'all' | 'verified' | 'vip' | 'admin';
+  description: string;
+  icon: string;
+  activeSessionsCount: number;
+  assignedLeadExpertId?: string;
+}
+
+export interface TemplateVariableDef {
+  key: string;
+  label: string;
+  defaultValue: string;
+  description: string;
+  type?: 'text' | 'date' | 'number' | 'paragraph';
+}
+
+export interface OfficialDocumentTemplate {
+  id: string;
+  title: string;
+  category: 'letter' | 'contract' | 'certificate' | 'mandate' | 'invoice' | 'notice' | 'procedure';
+  description: string;
+  headerTitle: string;
+  headerSubtitle: string;
+  watermarkText: string;
+  bodyTemplate: string;
+  variables: TemplateVariableDef[];
+  defaultSignerId: string;
+  defaultStampId: string;
+  isOfficial: boolean;
+  qrCodeVerification: boolean;
+  footerLegalText: string;
+  updatedAt: string;
+  author: string;
+}
+
+export interface OfficialSignature {
+  id: string;
+  signerName: string;
+  signerTitle: string;
+  expertId?: string;
+  signatureType: 'vector' | 'drawn' | 'uploaded' | 'crypto';
+  signatureSvgOrDataUrl: string;
+  hashSha256: string;
+  issuedAt: string;
+  isActive: boolean;
+}
+
+export interface OfficialStamp {
+  id: string;
+  title: string;
+  institution: string;
+  motto: string;
+  shape: 'circular' | 'oval' | 'rectangular';
+  color: string;
+  sealIcon: string;
+  securityLevel: 'diplomatic' | 'juridique' | 'academique' | 'financier' | 'consulaire';
+  securityHash: string;
+  isActive: boolean;
+}
+
+export interface WorkflowStepConfig {
+  id: string;
+  stepNumber: number;
+  title: string;
+  description: string;
+  assignedRole: string;
+  actionType: 'draft' | 'review' | 'human_validation' | 'ai_synthesis' | 'sign_and_stamp' | 'archive';
+  requiresSignature: boolean;
+  requiresStamp: boolean;
+  timeLimitDays: number;
+}
+
+export interface WorkflowPipelineConfig {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  triggerEvent: string;
+  isAutomatic: boolean;
+  isActive: boolean;
+  steps: WorkflowStepConfig[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SystemAuditLog {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warning' | 'error' | 'security';
+  category: 'auth' | 'ai' | 'document' | 'payment' | 'admin' | 'sync' | 'workflow';
+  message: string;
+  actor: string;
+  ipAddress: string;
+  metadata?: Record<string, any>;
+}
+
+export interface BroadcastNotification {
+  id: string;
+  title: string;
+  message: string;
+  priority: 'info' | 'warning' | 'urgent' | 'maintenance';
+  targetAudience: 'all' | 'citizens' | 'partners' | 'admins';
+  sentAt: string;
+  expiresAt?: string;
+  readCount: number;
+  active: boolean;
+}
+
+export interface AdminSystemConfig {
+  systemName: string;
+  organizationName: string;
+  maintenanceMode: boolean;
+  registrationOpen: boolean;
+  localFirstSync: boolean;
+  highSecurityMode: boolean;
+  cloudBackupIntervalHours: number;
+  primaryNode: string;
+  fallbackNode: string;
+  lastBackupDate: string;
+  totalStorageUsedBytes: number;
+  officialSealText: string;
+}
+
+export interface ContentModerationItem {
+  id: string;
+  type: 'post' | 'comment' | 'listing' | 'live_stream';
+  title: string;
+  contentSnippet: string;
+  authorId: string;
+  authorName: string;
+  authorEmail: string;
+  authorAvatar?: string;
+  createdAt: string;
+  status: 'approved' | 'flagged' | 'hidden' | 'deleted';
+  reportsCount: number;
+  flagsReason: string[];
+  moduleOrigin: string; // 'Réseau MOC', 'Marché B2B', 'Live Session', 'Campus'
+  mediaUrl?: string;
+}
+
+export interface UserReportItem {
+  id: string;
+  targetType: 'user' | 'post' | 'comment' | 'product' | 'live';
+  targetId: string;
+  targetTitle: string;
+  reportedUserId: string;
+  reportedUserName: string;
+  reporterId: string;
+  reporterName: string;
+  reporterEmail: string;
+  reason: 'spam' | 'harassment' | 'fraud' | 'copyright' | 'inappropriate' | 'counterfeit';
+  details: string;
+  status: 'pending' | 'reviewed' | 'actioned' | 'dismissed';
+  createdAt: string;
+  resolutionNotes?: string;
+}
+
+export interface MokTrustAuditItem {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  companyName: string;
+  businessType: string;
+  requestedBadge: 'verified_producer' | 'certified_exporter' | 'trusted_escrow' | 'kyc_gold';
+  documentProofUrl?: string;
+  trustScore: number;
+  status: 'pending' | 'approved' | 'rejected' | 'under_audit';
+  auditNotes?: string;
+  submissionDate: string;
+  kycDocType?: string;
+}
+
+export interface PlatformDetailedModuleSettings {
+  live: {
+    maxBitrateKbps: number;
+    aiModerationSensitivity: 'low' | 'medium' | 'strict';
+    allowPublicStreamCreation: boolean;
+    maxConcurrentLives: number;
+    autoRecordingEnabled: boolean;
+  };
+  commerce: {
+    commissionRatePercent: number;
+    escrowHoldingPeriodDays: number;
+    minRfqAmount: number;
+    supportedCurrencies: string[];
+    autoCustomsCalculator: boolean;
+    verifiedSellersOnlyForB2B: boolean;
+  };
+  mokTrust: {
+    minTrustScoreToPublish: number;
+    mandatoryKycForEscrow: boolean;
+    disputeResolutionTimeoutHours: number;
+    escrowFeePercent: number;
+    smartContractAuditLog: boolean;
+  };
+  studio: {
+    maxDailyGenerationsPerUser: number;
+    defaultVisionModel: string;
+    defaultImageSize: string;
+    watermarkEnabled: boolean;
+    allowVeoVideoGeneration: boolean;
+  };
+  campus: {
+    examPassingScore: number;
+    autoGenerateDiplomaPdf: boolean;
+    xpMultiplier: number;
+    peerReviewEnabled: boolean;
+  };
+  aiCore: {
+    activeDefaultProvider: 'gemini' | 'openai' | 'claude' | 'deepseek' | 'mistral';
+    geminiModel: string;
+    thinkingBudgetTokens: number;
+    streamResponses: boolean;
+    safetyThreshold: 'strict' | 'standard' | 'relaxed';
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🛡️ SYSTÈME MAÎTRE DE GESTION DES VERSIONS, SAUVEGARDES & RESTAURATION INTELLIGENTE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type ReleaseVersionStatus = 'current' | 'stable' | 'archived' | 'deprecated';
+
+export interface PlatformReleaseVersion {
+  version: string;
+  releaseDate: string;
+  title: string;
+  changelog: string[];
+  status: ReleaseVersionStatus;
+  author: string;
+  checksum: string;
+  schemaVersion: string;
+  modulesCount: number;
+  aiProvidersCount: number;
+  templatesCount: number;
+  migrationNotes: string[];
+  isRollbackTarget: boolean;
+  highlights: string[];
+  databaseCompatibility: {
+    schemaCompatible: boolean;
+    migrationsRequired: boolean;
+    dataLossRisk: 'none' | 'low' | 'moderate' | 'high';
+  };
+}
+
+export type SnapshotType = 'auto_pre_restore' | 'scheduled' | 'manual' | 'system_milestone';
+
+export interface BackupSnapshotRecord {
+  id: string;
+  name: string;
+  type: SnapshotType;
+  createdAt: string;
+  versionTag: string;
+  sizeBytes: number;
+  checksum: string;
+  canRollback: boolean;
+  autoCreatedBeforeRestoreOfVersion?: string;
+  notes?: string;
+  recordsCount: {
+    users: number;
+    aiProviders: number;
+    modules: number;
+    templates: number;
+    signatures: number;
+    stamps: number;
+    workflows: number;
+    logs: number;
+    moderation: number;
+    audits: number;
+    settingsIncluded: boolean;
+  };
+  payload?: any;
+}
+
+export interface BackupScheduleConfig {
+  enabled: boolean;
+  frequency: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom_cron';
+  timeOfDay: string; // e.g. '03:00'
+  dayOfWeek?: number; // 0=Sunday, 1=Monday...
+  customCronExpression?: string;
+  keepMaxSnapshots: number; // e.g. 10
+  autoSyncToCloud: boolean; // Supabase Cloud storage / IndexedDB
+  lastRunAt?: string;
+  nextRunAt?: string;
+  notifyAdminOnSuccess: boolean;
+  autoPruneOldSnapshots: boolean;
+}
+
+export interface RestoreOperationResult {
+  success: boolean;
+  preRestoreSnapshotId: string;
+  restoredVersion: string;
+  timestamp: string;
+  preservedUserDataCount: {
+    usersCount: number;
+    rolesPreservedCount: number;
+    creditsPreservedTotal: number;
+    profilesPreservedCount: number;
+    logsPreservedCount: number;
+  };
+  restoredConfigCount: {
+    modulesUpdated: number;
+    aiProvidersUpdated: number;
+    templatesUpdated: number;
+    workflowsUpdated: number;
+    settingsUpdated: boolean;
+  };
+  migrationChecksPassed: boolean;
+  compatibilityWarnings: string[];
+  restoredSnapshotName: string;
+}
+
+export interface VersionComparisonResult {
+  sourceVersion: string;
+  targetVersion: string;
+  featuresDiff: {
+    added: string[];
+    removed: string[];
+    modified: string[];
+  };
+  modulesDiff: {
+    added: string[];
+    removed: string[];
+    modified: string[];
+  };
+  aiProvidersDiff: {
+    added: string[];
+    removed: string[];
+    modified: string[];
+  };
+  databaseSchemaDiff: {
+    isCompatible: boolean;
+    details: string[];
+  };
+  breakingChanges: string[];
+}
+
+
+
 
 
 

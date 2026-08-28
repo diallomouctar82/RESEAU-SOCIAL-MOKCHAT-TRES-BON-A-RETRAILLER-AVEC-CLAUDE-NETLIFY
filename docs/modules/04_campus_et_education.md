@@ -20,7 +20,11 @@
 
 ---
 
-## 🧠 3. MOTEUR PÉDAGOGIQUE ADAPTATIF & COACH 3D
+## 🧠 3. MOTEUR PÉDAGOGIQUE ADAPTATIF, COACH MULTIMODAL & VISION IA
+- **Dialogue Vocal Fluide & Bidirectionnel** : Reconnaissance vocale continue/push-to-talk avec écoute en temps réel, dictée de questions et synthèse vocale haute fidélité pour les réponses du Professeur Diallo.
+- **Caméra Vidéo Interactive & HUD Vision Pédagogique** : Flux vidéo WebRTC en direct avec bascule caméra avant/arrière, détection de mouvement optique en temps réel (taux de mouvement %, zones actives) et reconnaissance d'objets (cahier d'exercices, calculatrice, feuille de cours, tableau, équations manuscrites).
+- **Scanner & Résolution Pas-à-Pas** : Déclencheur direct "📸 Scanner mon exercice" pour analyser visuellement le travail de l'élève à la caméra et lui fournir une guidance pédagogique sans donner bêtement la solution brute.
+- **Partage & Analyse de Documents (Devoirs, Sujets, PDF, Images)** : Import et drag-and-drop de fichiers avec analyse OCR et extraction multimodale par Professeur Diallo.
 - **Diagnostic Initial** : Évaluation ciblée pour cartographier les compétences maîtrisées, partielles et fragiles.
 - **Styles d'Apprentissage** : Exemples concrets & analogies, Audio/Oral, Démonstrations pas à pas, Fiches de lecture, Exercices pratiques, Dialogue avec Professeur Diallo.
 - **Mode "Explique-moi autrement"** : Reformulation instantanée par analogie simple, découpage en étapes, exemple local/terrain ou langage facile sans jargon.
@@ -28,18 +32,32 @@
 
 ---
 
-## ⚙️ 4. ARCHITECTURE TECHNIQUE
-- **Fichiers Clés** :
-  - `types.ts` : Modèles `EducationalCurriculumFramework`, `CurriculumSubject`, `StudentPedagogicalProfile`, `StudentMasteryItem`, `MockExamBlueprint`, `MockExamReport`, `AcademicEquivalenceComparison`.
-  - `services/curriculumRegistry.ts` : Répertoire officiel des programmes et banques d'épreuves d'examens blancs.
-  - `services/campusPedagogicalEngine.ts` : Moteur de génération pédagogique adaptative, diagnostic et reformulations.
-  - `components/Campus.tsx` : Hub principal avec catalogue de formations, plan de travail du jour, certifications.
+## ⚙️ 4. ARCHITECTURE TECHNIQUE & MODULES OPÉRATIONNELS
+- **Fichiers Clés & Composants** :
+  - `types.ts` : Modèles complets `EducationalCurriculumFramework`, `CurriculumSubject`, `StudentPedagogicalProfile`, `StudentMasteryItem`, `MockExamBlueprint`, `MockExamReport`, `AcademicEquivalenceComparison`, `Course`, `Lesson`, `Certificate`.
+  - `services/curriculumRegistry.ts` : Répertoire officiel exhaustif des programmes (Guinée, France, Sénégal, Côte d'Ivoire, USA, UK, Alphabétisation) et banques d'épreuves d'examens blancs.
+  - `services/formationsRegistry.ts` : Catalogue exhaustif des Formations Certifiantes & Diplômes d'Élite (Tech & IA, Droit, Médecine, Finance, Agro, Doctorats) avec crédits ECTS, prérequis et compétences cibles.
+  - `services/campusPedagogicalEngine.ts` : Moteur de génération pédagogique adaptative, diagnostic et reformulations (4 modes cognitifs).
+  - `components/Campus.tsx` : Hub principal avec navigation par onglets (Programme Officiel, Formations, Examens Blancs, Passerelles, Diplômes).
+  - `components/CampusCourseEnrollmentModal.tsx` : Modal de présentation académique et procédure d'inscription officielle (Parcours Certifiant avec diplôme vs Auditeur Libre).
+  - `components/CampusClassroomView.tsx` : Salle de classe immersive avec Professeur Diallo (voix/vidéo), théorie interactive, lab de mise en pratique avec exécuteur, quiz formatif, prise de notes synchronisée et accès direct aux ressources.
+  - `components/CampusCertifyingExamView.tsx` : Salle d'épreuve certifiante sous minuterie, barème officiel, délibération automatique du jury académique et délivrance de diplôme numéroté.
+  - `components/CampusDiplomaViewerModal.tsx` : Parchemin officiel de diplôme certifié avec sceau institutionnel, signature du Professeur Diallo, QR Code d'authentification et export PDF/Impression.
+  - `components/CampusDiagnosticModal.tsx` : Test de positionnement interactif Point A ➔ Point B, cartographie des compétences et recalibration dynamique du plan de travail.
+  - `components/CampusEquivalenceComparator.tsx` : Simulateur et comparateur officiel d'équivalences de diplômes et passerelles internationales.
   - `components/CampusEducationMap.tsx` : Carte mondiale des pays, cycles et sélection des programmes.
-  - `components/CampusProfessorCoach.tsx` : Coach 3D interactif avec synthèse vocale et mode "Explique-moi autrement".
-  - `components/CampusMockExamView.tsx` : Interface d'examen blanc chronométré avec rapport officiel.
+  - `components/CampusProfessorCoach.tsx` : Coach interactif multimédia avec voix et vision optique.
+  - `components/CampusMockExamView.tsx` : Interface d'examen blanc chronométré avec notation instantanée /20 et rapport détaillé.
 
 ---
 
-## 🛡️ 5. RÈGLES MÉTIER ET DÉONTOLOGIE
+## 📊 5. ÉTAT DE DÉPLOIEMENT & VALIDATION
+- **Statut** : 100% Opérationnel et conforme à la feuille de route.
+- **Dernière validation** : Compilation complète sans régression (`compile_applet`).
+- **Tests** : Navigation multi-programmes validée, génération de cours par chapitre officiel active, examens blancs chronométrés opérationnels, équivalences internationales consultables.
+
+---
+
+## 🛡️ 6. RÈGLES MÉTIER ET DÉONTOLOGIE
 - **Incarnation Humaine Déontologique** : Professeur Diallo est un enseignant émérite de la Famille DIALLO, jamais une IA ou un robot.
 - **Non-infantilisation** : Respect absolu du rythme d'apprentissage des adultes et adolescents.

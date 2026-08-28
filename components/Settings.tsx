@@ -27,22 +27,38 @@ export const Settings: React.FC = () => {
   // Local state for form handling
   const [formData, setFormData] = useState({
       name: userProfile.name,
-      title: userProfile.title,
+      title: userProfile.title || 'Citoyen Actif',
       email: userProfile.email,
-      bio: "Citoyen du monde, passionné par la technologie et l'innovation." // Mock data if not in type
+      bio: userProfile.bio || "Citoyen du monde, passionné par la coopération, la technologie et l'innovation.",
+      country: userProfile.country || 'France',
+      city: userProfile.city || 'Paris',
+      phone: userProfile.phone || '+33 6 12 34 56 78',
+      website: userProfile.website || 'https://lemondeavous.org',
+      avatarUrl: userProfile.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop'
   });
 
   const handleRevokeSession = (id: string) => {
       setSessions(prev => prev.filter(s => s.id !== id));
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
       setIsSaving(true);
-      // Simulate API call
-      setTimeout(() => {
-          updateUserProfile({ name: formData.name, title: formData.title });
+      try {
+          await updateUserProfile({
+              name: formData.name,
+              title: formData.title,
+              bio: formData.bio,
+              country: formData.country,
+              city: formData.city,
+              phone: formData.phone,
+              website: formData.website,
+              avatarUrl: formData.avatarUrl
+          });
+      } catch (err) {
+          console.warn('Error saving profile', err);
+      } finally {
           setIsSaving(false);
-      }, 1000);
+      }
   };
 
   const renderSidebarItem = (id: SettingsTab, label: string, icon: React.ElementType, desc: string) => (
@@ -112,27 +128,91 @@ export const Settings: React.FC = () => {
                                   <input 
                                     value={formData.name}
                                     onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                    placeholder="Ex: Amadou DIALLO"
                                   />
                               </div>
                           </div>
                           <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Titre / Poste</label>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Titre / Profession</label>
                               <div className="relative">
                                   <Activity className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                   <input 
                                     value={formData.title}
                                     onChange={(e) => setFormData({...formData, title: e.target.value})}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                    placeholder="Ex: Citoyen Actif & Entrepreneur"
                                   />
                               </div>
                           </div>
+
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pays</label>
+                              <div className="relative">
+                                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                  <input 
+                                    value={formData.country}
+                                    onChange={(e) => setFormData({...formData, country: e.target.value})}
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                    placeholder="Ex: France, Guinée, Sénégal..."
+                                  />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Ville</label>
+                              <div className="relative">
+                                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                  <input 
+                                    value={formData.city}
+                                    onChange={(e) => setFormData({...formData, city: e.target.value})}
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                    placeholder="Ex: Paris, Conakry, Dakar..."
+                                  />
+                              </div>
+                          </div>
+
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Téléphone / WhatsApp</label>
+                              <div className="relative">
+                                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                  <input 
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                    placeholder="+33 6 12 34 56 78"
+                                  />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Site Web / Portfolio</label>
+                              <div className="relative">
+                                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                  <input 
+                                    value={formData.website}
+                                    onChange={(e) => setFormData({...formData, website: e.target.value})}
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                    placeholder="https://..."
+                                  />
+                              </div>
+                          </div>
+
+                          <div className="md:col-span-2">
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">URL Photo de Profil / Avatar</label>
+                              <input 
+                                value={formData.avatarUrl}
+                                onChange={(e) => setFormData({...formData, avatarUrl: e.target.value})}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm"
+                                placeholder="https://images.unsplash.com/..."
+                              />
+                          </div>
+
                           <div className="md:col-span-2">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biographie</label>
                               <textarea 
                                 value={formData.bio}
                                 onChange={(e) => setFormData({...formData, bio: e.target.value})}
                                 className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium text-sm h-24 resize-none"
+                                placeholder="Partagez votre parcours, vos objectifs et centres d'intérêt..."
                               />
                           </div>
                       </div>

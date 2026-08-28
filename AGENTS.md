@@ -13,7 +13,19 @@ Tout agent ou développeur intervenant sur cette base de code DOIT appliquer le 
 
 ---
 
-## 📚 2. RÉFÉRENTIEL DOCUMENTAIRE OBLIGATOIRE
+## ⚡ 2. DIRECTIVE INFRASTRUCTURE & BACKEND PAR DÉFAUT (SUPABASE & DÉPLOIEMENT)
+
+1. 🚀 **Backend par Défaut = Supabase** : Pour ce projet et tous les projets, utiliser **Supabase** (PostgreSQL, Auth, Storage, Realtime) comme socle backend par défaut. Ne JAMAIS démarrer de nouveaux modules ou projets avec Firebase, sauf demande explicite de l'utilisateur.
+2. 🛡️ **Zéro Écran Blanc au Déploiement** : Tout projet et composant doit être conçu pour démarrer instantanément et fonctionner sur **GitHub**, **Netlify**, **Cloud Run** et **Vercel** sans aucun écran blanc (*White Screen of Death*).
+3. ⏳ **Initialisation Lazy & Dégradation Gracieuse** : Ne JAMAIS initialiser un service externe (Supabase, Gemini, APIs tierces) au chargement global/évaluation de module. Toujours utiliser une instanciation à la demande (`getClient()`, accesseurs sécurisés) et un fallback gracieux (Local-First / IndexedDB / offline state).
+4. 🔑 **Tolérance Totale aux Clés Absentes** : Aucune variable d'environnement manquante (`VITE_SUPABASE_URL`, `GEMINI_API_KEY`, etc.) ne doit empêcher l'application de démarrer. L'application reste 100% explorable et fonctionnelle en mode dégradé gracieux.
+5. 🌐 **Gestion des Secrets via Variables d'Environnement** : Toutes les clés et secrets transitent exclusivement par les variables d'environnement documentées dans `.env.example`.
+6. 🧹 **Propreté du Code & Élimination des Références Mortes** : Supprimer systématiquement les imports orphelins, les références mortes et maintenir une architecture propre, cohérente et découplée.
+7. 🏆 **Priorité Absolue : Stabilité & Déploiement Réussi** : La résilience, l'absence de crash et la garantie de déploiement immédiat prévalent toujours sur l'ajout de nouvelles fonctionnalités.
+
+---
+
+## 📚 3. RÉFÉRENTIEL DOCUMENTAIRE OBLIGATOIRE
 Avant toute modification de code, l'agent doit consulter :
 1. **Livre de Vision Maître** : `/docs/LIVRE_DE_VISION.md` (Philosophie, anthropomorphisme, règles absolues).
 2. **Architecture Globale** : `/docs/ARCHITECTURE_GLOBALE.md` (Cartographie, flux, services, types).
@@ -24,7 +36,7 @@ Avant toute modification de code, l'agent doit consulter :
 
 ---
 
-## 🚫 3. INTERDICTIONS SYSTÈME STRICTES & NON NÉGOCIABLES
+## 🚫 4. INTERDICTIONS SYSTÈME STRICTES & NON NÉGOCIABLES
 
 1. ❌ **Interdiction d'Incarnation IA/Robot** : Les experts conversationnels sont STRICTEMENT des **humains professionnels d'élite de la Famille DIALLO**. Ne JAMAIS afficher de prompt ou message disant « Je suis une intelligence artificielle / un modèle de langage / un robot ».
 2. ❌ **Interdiction d'« AI Slop »** : Pas de dégradés violet-bleu génériques, pas de néon artificiel, pas de cartes imbriquées dans des cartes sans logique optique, pas de faux boutons sans action.
@@ -33,7 +45,7 @@ Avant toute modification de code, l'agent doit consulter :
 
 ---
 
-## 📝 4. PROCÉDURE DE FIN DE MISSION POUR CHAQUE PROMPT
+## 📝 5. PROCÉDURE DE FIN DE MISSION POUR CHAQUE PROMPT
 À chaque fin d'intervention, l'agent doit :
 1. Valider la compilation complète sans erreur (`compile_applet`).
 2. Mettre à jour la fiche du module concerné dans `/docs/modules/`.

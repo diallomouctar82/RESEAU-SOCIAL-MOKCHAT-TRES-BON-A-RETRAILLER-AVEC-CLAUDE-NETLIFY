@@ -100,6 +100,11 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
   const startMediaPreview = async () => {
     try {
       setIsTestingCamera(true);
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        console.warn("getUserMedia not available in this environment");
+        setCameraActive(false);
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef.current = stream;
       if (videoPreviewRef.current) {
@@ -109,26 +114,28 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
 
       // Audio Meter
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        audioContextRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-      const updateVolume = () => {
-        if (!streamRef.current) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-        const avg = sum / bufferLength;
-        setAudioVolume(Math.min(100, Math.round(avg * 1.5)));
-        requestAnimationFrame(updateVolume);
-      };
-      updateVolume();
+        const updateVolume = () => {
+          if (!streamRef.current || !analyser) return;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          const avg = sum / bufferLength;
+          setAudioVolume(Math.min(100, Math.round(avg * 1.5)));
+          requestAnimationFrame(updateVolume);
+        };
+        updateVolume();
+      }
     } catch (e) {
       console.warn("Could not access camera/mic for preview", e);
       setCameraActive(false);

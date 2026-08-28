@@ -93,22 +93,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                 </div>
 
                 <div className="flex items-center gap-3 self-end sm:self-auto">
-                    {userProfile.role === 'admin' && (
-                        <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex items-center">
-                            <button 
-                                onClick={() => setViewMode('personal')}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'personal' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
-                            >
-                                <Users size={14} /> Citoyen
-                            </button>
-                            <button 
-                                onClick={() => setViewMode('system')}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'system' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
-                            >
-                                <Shield size={14} /> Admin
-                            </button>
-                        </div>
-                    )}
+                    <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1">
+                        <button 
+                            onClick={() => setViewMode('personal')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'personal' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
+                        >
+                            <Users size={14} /> Citoyen
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('system')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'system' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
+                        >
+                            <Activity size={14} /> Métriques
+                        </button>
+                        <button 
+                            onClick={() => onNavigate('admin')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 shadow-xs hover:scale-[1.02]"
+                            title="Ouvrir le Tableau de Bord Super-Admin & Connecteurs IA Souverains"
+                        >
+                            <Shield size={14} className="fill-slate-950/20" /> Super-Admin & IA
+                        </button>
+                    </div>
 
                     <QuickActionZone 
                         onActionClick={onNavigate} 

@@ -741,7 +741,7 @@ export const BrandColorLabModal: React.FC<BrandColorLabModalProps> = ({ isOpen, 
                 </div>
 
                 {copiedHex && (
-                  <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xl animate-fade-up">
+                  <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-60 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xl animate-fade-up">
                     Code couleur copié : {copiedHex}
                   </div>
                 )}

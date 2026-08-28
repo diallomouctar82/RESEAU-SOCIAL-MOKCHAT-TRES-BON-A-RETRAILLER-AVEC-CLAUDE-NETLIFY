@@ -66,9 +66,9 @@ export const VoiceInteractionBar: React.FC<VoiceInteractionBarProps> = ({
             setIsSpeaking(false);
         } else {
             setIsSpeaking(true);
+            const voiceId = voiceEngine.getVoiceIdForAgent(agent.role);
             voiceEngine.speak(text, {
-                voiceName: agent.metaProfile?.voiceId || 'Henri',
-                rate: 1.05,
+                voiceId: voiceId,
                 onEnd: () => setIsSpeaking(false)
             });
         }

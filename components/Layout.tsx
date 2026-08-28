@@ -55,8 +55,11 @@ import { UnifiedSettingsModal } from './settings/UnifiedSettingsModal';
 import { BrandColorLabModal } from './settings/BrandColorLabModal';
 import { ComponentShowcaseModal } from './ui/ComponentShowcaseModal';
 import { FocusAndPresentationControls } from './ui/FocusAndPresentationControls';
+import { AIProvidersDashboardModal } from './AIProvidersDashboardModal';
+import { aiRoutingService } from '../services/aiRoutingService';
 import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
+import { voiceEngine } from '../services/voiceEngine';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -106,8 +109,17 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isColorLabOpen, setIsColorLabOpen] = useState(false);
   const [isShowcaseModalOpen, setIsShowcaseModalOpen] = useState(false);
+  const [isAIProvidersModalOpen, setIsAIProvidersModalOpen] = useState(false);
+  const [aiEngineInfo, setAiEngineInfo] = useState(aiRoutingService.getActiveEngineInfo());
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
+
+  useEffect(() => {
+    const unsub = aiRoutingService.subscribe(() => {
+      setAiEngineInfo(aiRoutingService.getActiveEngineInfo());
+    });
+    return unsub;
+  }, []);
 
   // Favorites state
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -145,8 +157,9 @@ export const Layout: React.FC<LayoutProps> = ({
     });
   };
 
-  // Track recent tabs on change
+  // Track recent tabs on change & cancel voice speech
   useEffect(() => {
+    voiceEngine.stopSpeaking();
     if (activeTab && activeTab !== 'home') {
       setRecentTabs(prev => {
         const filtered = prev.filter(t => t !== activeTab);
@@ -171,12 +184,24 @@ export const Layout: React.FC<LayoutProps> = ({
     return acc;
   }, {} as Record<NavItemDef['category'], NavItemDef[]>);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (Ctrl/Cmd + K, Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsSearchModalOpen(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setIsSearchModalOpen(false);
+        setIsNotifOpen(false);
+        setIsProfileMenuOpen(false);
+        setIsTransversalModalOpen(false);
+        setIsGoalModalOpen(false);
+        setIsGuidedModeOpen(false);
+        setIsScannerOpen(false);
+        setIsBilingualModalOpen(false);
+        setIsSettingsModalOpen(false);
+        setIsColorLabOpen(false);
+        setIsShowcaseModalOpen(false);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -292,6 +317,33 @@ export const Layout: React.FC<LayoutProps> = ({
                 onTogglePresentationMode={() => setIsPresentationMode(!isPresentationMode)}
               />
             </div>
+
+            {/* AI Providers Resilience & Connectors Hub Trigger */}
+            <button
+              onClick={() => setIsAIProvidersModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-slate-900 hover:bg-slate-850 text-emerald-400 border border-emerald-500/40 transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+              title="Tableau de bord des Connecteurs IA & Résilience (Test de latence, bascule automatique & reconnexion)"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="hidden sm:inline text-slate-300">IA :</span>
+              <span className="text-white max-w-[110px] truncate">{aiEngineInfo.name.split(' ')[0]}</span>
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono font-extrabold">{aiEngineInfo.latencyMs}ms</span>
+            </button>
+
+            {/* Super-Admin Dashboard Trigger */}
+            <button
+              onClick={() => onTabChange('admin')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98] ${
+                activeTab === 'admin' 
+                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300' 
+                  : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40'
+              }`}
+              title="Ouvrir le Tableau de Bord Super-Admin Souverain (Gestion des comptes, rôles, modules & système)"
+            >
+              <Shield size={14} className="text-amber-400 fill-amber-400/20" />
+              <span>Super-Admin</span>
+              <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-extrabold">Tous Comptes</span>
+            </button>
 
             {/* Brand Color Lab (10 Palettes) Trigger */}
             <button
@@ -423,6 +475,10 @@ export const Layout: React.FC<LayoutProps> = ({
                       )}
                     </div>
                     
+                    <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 rounded-xl text-xs flex items-center gap-2 font-black border border-amber-200/80 shadow-2xs mb-1">
+                      <Shield size={15} className="text-amber-600 fill-amber-500/20" /> 
+                      <span>Tableau de Bord Super-Admin</span>
+                    </button>
                     <button onClick={() => {onTabChange('profile'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <User size={14} /> Mon Profil
                     </button>
@@ -786,7 +842,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </aside>
 
         {/* ─── MAIN CONTENT VIEWPORT ─── */}
-        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-32 md:pb-0">
+        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-36 md:pb-0">
           <div className="max-w-[1700px] mx-auto h-full flex flex-col">
             {activeTab !== 'home' && (() => {
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
@@ -813,15 +869,15 @@ export const Layout: React.FC<LayoutProps> = ({
         </main>
 
         {/* ─── MOBILE SMART DOCK (COMPACT & EXPANDABLE) ─── */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
           
           {/* Expanded Menu Drawer */}
           <div 
-            className={`bg-white/95 backdrop-blur-2xl border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden ${
+            className={`bg-white/95 backdrop-blur-2xl border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden pointer-events-auto ${
               isMobileMenuExpanded ? 'h-auto max-h-[85vh] opacity-100 shadow-[0_-10px_40px_rgba(0,0,0,0.25)]' : 'h-0 opacity-0'
             }`}
           >
-            <div className="p-4 pb-24 flex flex-col h-full">
+            <div className="p-4 pb-28 flex flex-col h-full">
               <div className="flex justify-between items-center mb-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-black text-slate-900">Espaces & Piliers de Vie</h2>
@@ -880,7 +936,10 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
               
               <div className="mt-3 pt-3 border-t border-slate-100 shrink-0 flex gap-2">
-                <button onClick={() => {onTabChange('settings'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-2">
+                <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
+                  <Shield size={14} /> Super-Admin (IA & Comptes)
+                </button>
+                <button onClick={() => {onTabChange('settings'); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
                   <Settings size={14} /> Paramètres
                 </button>
                 {onLogout && (
@@ -893,13 +952,13 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Bottom Dock Bar (5 Essential Actions) */}
-          <div className="px-4 pb-3 pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5] to-transparent">
-            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-6 h-18">
+          <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5]/90 to-transparent pointer-events-auto">
+            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
               
               {/* 1. Home */}
               <button 
                 onClick={() => {onTabChange('home'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
               >
                 <LayoutGrid size={22} className={activeTab === 'home' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -907,7 +966,7 @@ export const Layout: React.FC<LayoutProps> = ({
               {/* 2. Mon Parcours */}
               <button 
                 onClick={() => {onTabChange('parcours'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
               >
                 <FolderKanban size={22} className={activeTab === 'parcours' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -915,15 +974,15 @@ export const Layout: React.FC<LayoutProps> = ({
               {/* 3. Central Diallo OS Button */}
               <button 
                 onClick={() => setIsDialloOSOpen(true)}
-                className="flex flex-col items-center justify-center w-15 h-15 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-6 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20"
+                className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
               >
-                <Sparkles size={24} className="animate-pulse" />
+                <Sparkles size={22} className="animate-pulse" />
               </button>
 
               {/* 4. Réseau MOC */}
               <button 
                 onClick={() => {onTabChange('social'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
               >
                 <Users size={22} className={activeTab === 'social' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -931,7 +990,7 @@ export const Layout: React.FC<LayoutProps> = ({
               {/* 5. Menu Drawer Toggle */}
               <button 
                 onClick={() => setIsMobileMenuExpanded(!isMobileMenuExpanded)} 
-                className={`flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
               >
                 {isMobileMenuExpanded ? <ChevronDown size={22} /> : <Menu size={22} />}
               </button>
@@ -1008,6 +1067,12 @@ export const Layout: React.FC<LayoutProps> = ({
         <ComponentShowcaseModal
           isOpen={isShowcaseModalOpen}
           onClose={() => setIsShowcaseModalOpen(false)}
+        />
+
+        {/* AI Providers & Resilience Dashboard Modal */}
+        <AIProvidersDashboardModal
+          isOpen={isAIProvidersModalOpen}
+          onClose={() => setIsAIProvidersModalOpen(false)}
         />
 
         {/* Floating Mooc Chat */}

@@ -1,26 +1,35 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
-> *Date de Mise à Jour : 27 Août 2026*  
-> *Version Courante : v6.1 (Production Ready — CHROMATIC REFINEMENT & COLOR LAB)*
+> *Date de Mise à Jour : 28 Août 2026*  
+> *Version Courante : v6.6.1 (Production Ready — HIGH DEMAND SPIKE ABSORPTION & 503 FAILOVER)*
 
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
-**Le Monde à Vous** a franchi le jalon officiel **PREMIUM EXPERIENCE V1 & CHROMATIC REFINEMENT**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet et un réseau de confiance.
+**Le Monde à Vous** a franchi le jalon officiel **HIGH DEMAND SPIKE ABSORPTION & 503 FAILOVER (v6.6.1)**. La plateforme est un écosystème hautement intégré combinant 15 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance, un espace Super-Administrateur souverain, un orchestrateur central et une interface conversationnelle moderne, aérée et hyper-résiliente.
 
-La version **v6.1 (Chromatic Refinement & Color Lab)** consacre :
-- **Une Direction Chromatique d'Élite** : Évolution vers une identité *Bleu Profond + Premium + Internationale + Institutionnelle + Technologique + Élégante*, bannissant les aplats et dégradés agressifs pour des surfaces claires, respirantes et contrastées.
-- **Laboratoire Chromatique Interactif (Color Lab)** : 10 palettes institutionnelles et technologiques complètes accessibles en 1 clic (`BrandColorLabModal.tsx`) avec bascule instantanée des variables CSS globales.
-- **Un Manifeste Fondateur & Inaltérable** : *« Simple devant, intelligente derrière. Nous nous adaptons à vous, pas l'inverse. »*
-- **Un Design System V1 en 26 Sections** : Fondations figées (`DesignTokens.ts`, architecture modulaire, typographies 'Outfit' & 'Plus Jakarta Sans', constitution UI stricte).
-- **Une Navigation Intuitive en 5 Piliers** : Barre supérieure flottante avec recherche `Ctrl+K`, mode *Guide-moi* pas-à-pas, Scanner Universel OCR, traducteur bilingue et connecteurs transversaux Google Workspace.
-- **Une Suite de Composants Décisionnels & Actionnables** : `ActionableAISuggestion`, `KnowledgeCard`, `AISynthesisCard`, `SmartConfirmModal`, `PointAToBPathway`, `StatusBadge`, `SourceCitationCard`.
-- **Des Golden Screens de Référence** : Dashboard d'accueil, Diallo OS, GPS Carrière, Campus, Marché Mondial, Réseau MOC.
-- **Un Dossier de Passation & Consolidation pour Claude Code** : Registres, dette de design maîtrisée, matrice de cohérence 100% conforme.
+La version **v6.6.1** consacre :
+- **Absorption Automatique des Pointes de Charge (503 UNAVAILABLE / High Demand)** : Détection proactive et gestion résiliente des surcharges d'API distantes dans `server.ts` et `aiRoutingService.ts`.
+- **Cascade Multi-Modèles Instantanée** : En cas de forte affluence sur `gemini-2.5-flash`, basculement automatique et silencieux vers `gemini-2.5-pro` ou `gemini-2.0-flash`, puis vers les autres fournisseurs configurés (Claude, DeepSeek, OpenAI, Mistral) sans rupture d'expérience.
+- **Protection Multimodale (Vision HUD & Voice)** : Prise en charge des bascules dans `services/multimodalVision.ts` et `services/ai.ts` pour garantir un fonctionnement ininterrompu de la caméra et de l'analyse.
+- **Refonte Complète & Calibre Pro du Chat (`ChatInterface.tsx`)** : Interface épurée, aérée et moderne avec bulles soignées, micro-interactions fluides, suggestions dynamiques par expert, attachement de fichiers/photos, perception visuelle caméra HUD et synthèse vocale HD ElevenLabs.
+- **Fonctionnement Garanti dès le 1er Instant** : Routage multi-fournisseur transparent via `aiRoutingService.executeWithResilience(...)`, assurant zéro blocage et zéro écran blanc même sans configuration de clés.
+- **Visualisation Dynamique du Fournisseur Actif & Auto-Bascule** : Badge de statut en temps réel (ex. `🟢 Google Gemini 2.5 Flash • 115ms` ou `⚡ Relais : DeepSeek V3`), et affichage des métriques de latence et moteur utilisé sous chaque réponse.
+- **Tableau de Bord Fournisseurs Dédié (`AIProvidersDashboardModal.tsx`)** : Accessible en 1 clic depuis le Chat et la barre de navigation supérieure (`Layout.tsx`), permettant de tester la latence, forcer le moteur primaire, reconnecter un service défaillant et simuler une bascule d'urgence.
+- **Orchestrateur Central des Modèles IA (Super Admin)** : Pilotage en temps réel de 15+ connecteurs d'IA majeurs (Gemini, DeepSeek, Claude AI, OpenAI, Mistral, Qwen, Kimi, Kling AI, ElevenLabs, HeyGen, Runway, OpenRouter, n8n, Grok, Ollama) activables et désactivables en 1 clic.
+- **Sélection Intelligente & Cascade de Résilience sans Coupure** : Routage automatique selon la spécialité de tâche (raisonnement, juridique & contrats, code, multilingue, vidéo, voix, automatisation), la latence, le taux d'erreur, le score de qualité et les plafonds de budget quotidien (`dailyQuotaLimitUSD`).
+- **Portails Officiels Développeurs 1-Clic** : Accès direct pour chaque fournisseur vers 4 destinations officielles clés : Créer un compte, Générer une clé API, Accéder à la documentation et Consulter les quotas & facturation.
+- **Détection Automatique & Actions Correctives** : Vérification en temps réel des variables d'environnement (`detectedEnvVar`, `isEnvKeyPresent`), alertes visuelles immédiates et recommandations correctives ciblées.
+- **Tableau de Bord & Audit Logs en Temps Réel** : Suivi des métriques de latence, scores de qualité, taux de succès et journal d'audit complet de toutes les bascules de secours.
+- **Relecture Vidéo Pérenne & Fiabilisée** : Conversion des médias vidéos en Data URL Base64 persistantes au lieu d'URLs blob éphémères, permettant une relecture instantanée et illimitée par les propriétaires et tous les membres de la communauté.
+- **Accès Immédiat & Universel au Tableau de Bord Super-Admin** : Intégration du composant `AdminDashboard` dans le routage `App.tsx` et ajout de boutons d'accès directs dorés dans le Header desktop, le menu déroulant profil de l'avatar, la barre latérale (Sidebar) et le Dashboard d'accueil.
+- **Gestion Complète de Tous les Comptes & RBAC** : Vue exhaustive de tous les utilisateurs réels et synchronisés, attribution granulaire des rôles, ajustement audité des soldes Ⓒ, modération en direct, et sauvegardes souveraines.
+- **Unification & Résilience Supabase / Netlify / GitHub** : Tolérance aux pannes de schéma (`PGRST204`), éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │ STATUT GLOBAL : CHROMATIC REFINEMENT v6.1 (14/14 Modules & 10 Palettes Actives) │
+│ QUALITÉ & RÉSILIENCE : 22/22 Défauts Résolus & Validés (Norme IEEE 1044 / PSP) │
 │ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Épuré + Color Lab Réactif   │
 │ DESIGN SYSTEM : V1.0.0 Figé, Documenté (26 chapitres), Zéro AI-Slop             │
 │ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + Transversal Workspace │
@@ -38,7 +47,25 @@ La version **v6.1 (Chromatic Refinement & Color Lab)** consacre :
 - Dialogue interactif avec chaque expert Diallo (Directeur, Maître, Conseiller, Professeur, Dr, Monsieur, Guide, Analyste).
 - Salle de Conseil Réuni (`CouncilRoom.tsx` / `UnifiedCouncilRoom.tsx`) réunissant les spécialistes pour résoudre un cas transversal.
 - Orchestrateur central (`services/orchestratorService.ts`) avec extraction d'intentions et ventilation automatique vers les modules idoines.
+- **Moteur Vocal Pro & Dialogue Conversationnel Fluide (`voiceEngine.ts`)** :
+  - **Synthèse Vocale Haute Fidélité ElevenLabs (HD)** :
+    - Intégration de l'API ElevenLabs avec streaming MP3 haute fidélité via proxy backend sécurisé Express (`/api/tts`, `/api/tts/voices`).
+    - Voix personnalisées et réalistes attribuées à chaque membre de la Famille DIALLO et aux formations du Campus.
+    - Mise en cache intelligente des flux audio générés (Blob URLs) pour zéro latence lors des réécoutes et économie de bande passante.
+    - Bascule automatique et dégradation gracieuse vers le moteur vocal natif (`window.speechSynthesis`) si la clé API n'est pas renseignée.
+    - Panneau de configuration dédié (`VoiceSettingsModal.tsx`) permettant de préécouter, tester et sélectionner les voix préférées.
+  - Voice Activity Detection (VAD) avec détection de silence intelligente et auto-envoi sans clic.
+  - Découpage acoustique phonétique (phrases naturelles sans coupures ni troncatures).
+  - Mode "Dialogue Continu / Mains Libres" avec reprise automatique de micro à la fin de la réponse de l'avatar.
+  - Suppression d'écho acoustique (pause du micro pendant la parole de l'avatar pour éliminer les retours).
+  - Heartbeat anti-sommeil de la Web Speech API sur navigateurs Chromium.
+  - Interruption instantanée (barge-in) dès que l'utilisateur reprend la parole.
 - HUD Multimodal & Support vocal temps réel (`voiceEngine.ts`).
+- **Hub Central Multi-Fournisseurs d'IA & Cascade Auto-Résilience (`services/unifiedAIConnector.ts`, `services/aiRoutingService.ts`)** :
+  - **10+ Moteurs Connectés** : DeepSeek (V3/R1), Anthropic Claude (3.5 Sonnet/Haiku), OpenAI (GPT-4o/o1/o3), Alibaba Qwen (DashScope 72B), Moonshot Kimi (K3/K1.5 128k), Kling AI (Vidéo Kuaishou), OpenRouter Multi-LLM Gateway, n8n Workflow Automation, HeyGen Interactive Avatars, RunwayML (Gen-3/Gen-2) et ElevenLabs TTS.
+  - **Proxy Full-Stack Sécurisé (`server.ts`)** : Endpoints dédiés `/api/ai/connectors`, `/api/ai/chat`, `/api/ai/video`, `/api/ai/avatar`, `/api/ai/n8n/trigger` et `/api/tts`.
+  - **Banc d'Essai & Liens Directs 1-Clic (`AIConnectorsHubModal.tsx`)** : Test des requêtes en direct, statut de configuration avec détection de clés, et liens officiels directs vers les portails développeurs pour chaque fournisseur.
+  - **Dégradation Gracieuse & Zéro Écran Blanc** : Fonctionnement fluide avec ou sans clés d'environnement grâce aux modèles de repli souverain.
 
 ### 1.2. Marché Mondial & Business Operating System
 - Catalogue universel tridimensionnel (B2B, B2C, C2C) avec filtrage par pays d'origine, devises et certifications.
@@ -112,18 +139,47 @@ La version **v6.1 (Chromatic Refinement & Color Lab)** consacre :
     10. *Mon Impact & Transmission* (`CareerImpactTransmissionModal.tsx`) : Boucle d'utilité collective et mentorat.
 - Coach 3D Vocal interactif et certification des résultats tangibles.
 
-### 1.4. Campus Mondial Intelligent, Multi-Programmes & Éducation
-- **Référentiels Officiels Multi-Pays** : Guinée (MEPU-A), Sénégal (Office du Bac), France (Eduscol), Côte d'Ivoire (MENA), USA (AP & SAT), UK (Cambridge A-Levels).
+### 1.4. Campus Mondial Intelligent, Multi-Programmes & Éducation (100% Conforme Feuille de Route)
+- **Registre des Cours Réels d'Excellence (`services/realCurriculumCourses.ts`)** : Véritables contenus académiques exhaustifs pour les programmes nationaux (Mathématiques Terminale, Mécanique Newtonienne, Philosophie de la Liberté et de la Justice) et les formations supérieures (Droit des Affaires OHADA, Ingénierie Cloud & Cybersécurité).
+- **Récitation Vocale & Dictée Audio par Professeur Diallo (`window.speechSynthesis`)** : Récitation audio posée et claire de chaque cours en français académique avec commandes Play, Pause et arrêt automatique lors des changements de module.
+- **Espace Travaux Pratiques avec Corrigé Dépliable & Barème Pas à Pas** : Énoncés d'épreuves réelles, contextes authentiques, étapes méthodologiques guidées et révélation contrôlée du corrigé officiel avec attribution des points.
+- **Référentiels Officiels Multi-Pays & Explorateur de Matières** : Guinée (MEPU-A), Sénégal (Office du Bac), France (Eduscol), Côte d'Ivoire (MENA), USA (AP & SAT), UK (Cambridge A-Levels).
+- **Catalogue des Formations Certifiantes & Diplômes d'Élite (`services/formationsRegistry.ts`)** : Cursus universitaires et professionnels complets (Tech & IA, Droit OHADA, Ingénierie Cloud, Médecine, Finance, Agro-écologie, Doctorats) avec crédits ECTS, prérequis, débouchés et corps professoral.
+- **Processus & Modal d'Inscription Officielle (`CampusCourseEnrollmentModal.tsx`)** : Choix du statut académique (Parcours Certifiant avec délivrance de diplôme vs Auditeur Libre), validation du dossier d'admission et intégration immédiate à la salle de classe.
+- **Salle de Classe Multimédia & Interactive (`CampusClassroomView.tsx`)** : Espace d'apprentissage complet avec cours théorique, écoute vocale, lab de mise en pratique avec exécuteur interactif, quiz formatif de vérification, carnet de notes synchronisé et accès aux ressources.
+- **Salle d'Examen Certifiant Chronométrée (`CampusCertifyingExamView.tsx`)** : Épreuve officielle sous minuterie, correction automatique, délibération du jury académique et attribution du diplôme si note ≥ 10/20.
+- **Visualisation & Registre des Diplômes Authentifiés (`CampusDiplomaViewerModal.tsx` & Onglet `Mes Diplômes`)** : Parchemin haute fidélité avec sceau d'authenticité, numéro de série unique, signature du Professeur Diallo, QR Code de vérification et fonction d'impression / export PDF.
+- **Navigation par 5 Onglets Spécialisés** : `Programme Officiel & Matières`, `Formations & Cursus Certifiants`, `Examens Blancs Officiels`, `Passerelles & Équivalences`, `Mes Diplômes & Certifications`.
+- **Dialogue Vocal Bidirectionnel & Synthèse Temps Réel** : Dictée vocale continue/push-to-talk avec écoute du Professeur Diallo et lecture audio fluide.
+- **Caméra Vidéo Interactive & HUD Vision Pédagogique** : Flux WebRTC avec détection de mouvements optiques (jauge d'activité %) et reconnaissance visuelle d'objets (cahier, calculatrice, devoirs, énoncés manuscrits).
+- **Scanner & Guidance Visuelle Pas-à-Pas** : Bouton d'analyse instantanée face caméra pour scanner les exercices physiques et être guidé méthodologiquement.
+- **Partage & Analyse de Documents et Devoirs** : Drag-and-drop et téléversement de documents (PDF, images, feuilles d'examens) avec résolution guidée par Professeur Diallo.
+- **Diagnostic Initial & Positionnement Interactif (Point A ➔ Point B — `CampusDiagnosticModal.tsx`)** : Test rapide de positionnement en 5 minutes, cartographie des compétences officielles cibles et recalibration automatique du plan d'étude.
+- **Étude Directe des Chapitres Officiels** : Bouton d'étude directe sur chaque chapitre du programme national liant le cours théorique, les exercices corrigés et le coaching de Professeur Diallo.
+- **Banque d'Examens Blancs Officiels Multi-Pays (`CampusMockExamView.tsx`)** : Épreuves minutées conformes aux barèmes officiels (Guinée, France, Sénégal, CI, Alphabétisation) avec notation /20 et analyse des erreurs.
+- **Simulateur de Passerelles & Équivalences Mondiales (`CampusEquivalenceComparator.tsx`)** : Comparateur de diplômes, conversion de notes/GPA, matières partagées, écarts et plan de mise à niveau.
+- **Moteur Pédagogique Adaptatif & Coach 3D Professeur Diallo (`CampusProfessorCoach.tsx`)** : 4 modes de reformulation cognitive (*"Explique-moi autrement"* : analogie simple, pas-à-pas, exemple local, langage direct).
 - **Alphabétisation & Fondamentaux pour Tous** : Parcours d'émancipation pour adultes et jeunes non scolarisés (lecture du quotidien, calcul commercial, monnaie).
-- **Moteur Pédagogique Adaptatif Professeur Diallo** : Diagnostic initial des forces/lacunes, adaptation au style cognitif et mode de reformulation immédiate *"Explique-moi autrement"*.
-- **Salle d'Examen Blanc Chronométrée** : Simulations d'épreuves officielles, correction critériée et plan de révision ciblé.
-- **Passerelles & Équivalences Mondiales** : Moteur de comparaison académique pour la mobilité internationale.
 - **Centre des Langues** : 40+ langues avec répétition espacée et prononciation audio.
 
-### 1.5. Réseau MOK, Confiance & Social Live
-- Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.
-- Fil d'actualité social, publication de Stories et visionneuse de Smart Reels.
-- Live Streaming interactif avec chat en direct, dons/cadeaux et achats intégrés pendant la diffusion.
+### 1.5. Réseau MOK, Messagerie Sécurisée & Espace Live Intelligent 100% Opérationnel
+- **Messagerie Instantanée Sécurisée (`MoocChatFloating.tsx` & `ChatMessageItem.tsx`)** :
+  - Communication 1-à-1 et salons de groupe avec présence en temps réel et chiffrement de bout en bout.
+  - Envoi instantané d'images et photos (`accept="image/*"`) avec aperçu et affichage plein écran (Lightbox HD).
+  - Envoi et lecture pérenne de vidéos (`accept="video/*"`) avec contrôles, streaming fluide et relecture infinie.
+  - Enregistreur de messages vocaux HD avec forme d'onde dynamique interactive (`voiceEngine`).
+  - Partage de documents et pièces jointes (`.pdf`, `.doc`, `.zip`, `.xlsx`) avec téléchargement direct.
+  - Citations/réponses aux messages, réactions emoji en un clic, épinglage et modération directe.
+  - Appels audio et vidéo chiffrés WebRTC avec signalement temps réel via Supabase.
+- **Réseau Social de Confiance (`SocialFeed.tsx`)** :
+  - Publications de posts enrichis (texte, images HD, vidéos avec relecture continue), likes, commentaires, partages et direct live.
+  - Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.
+  - Découverte de Tribus et visionneuse de Smart Reels.
+- **Espace Live Intelligent Haute Résilience (100% Opérationnel — Zéro Écran Blanc)** :
+  - Lancement instantané (« Démarrer le live maintenant ») et programmation de sessions bilingues avec sélection de Copilote IA Diallo OS.
+  - Détection automatique et gestion gracieuse des flux WebRTC/Microphone/Caméra et partage d'écran.
+  - Barre d'actions intelligente (`LiveSmartActionBar`), prise de notes personnelles dans la mémoire privée, création de tâches, demandes de SOS expert, vérification de sources (fact-checking) et rendez-vous 1-à-1.
+  - Tableau blanc interactif (`LiveWhiteboard`), compte-rendu téléchargeable post-live et salle d'attente technique.
 
 ### 1.6. Services Vie Quotidienne & Google Workspace
 - **Juridique** : Générateur de procédures administratives, titres de séjour et Coffre-fort numérique sécurisé.

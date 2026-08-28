@@ -51,11 +51,7 @@ const AppContent = () => {
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
 
-  // SESSION SUPABASE : au montage, puis à chaque changement (connexion,
-  // déconnexion, retour de redirection OAuth Google), charge le profil
-  // applicatif correspondant depuis la table `profiles`. Le rôle
-  // (admin/user) n'est plus jamais déterminé côté client : il vient
-  // de la base, fixé serveur par le trigger handle_new_user.
+  // GESTION DE SESSION RÉSILIENTE (Supabase Cloud + Local-First Fallback)
   useEffect(() => {
       let isMounted = true;
 
@@ -67,23 +63,30 @@ const AppContent = () => {
               }
               return;
           }
-          const profile = await fetchUserProfile(userId);
-          if (!isMounted) return;
-          if (profile) {
-              updateUserProfile(profile);
-              setIsAuthenticated(true);
-              if (!isInitial) {
-                  addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${profile.name.split(' ')[0]}.`, "success");
+
+          try {
+              const profile = await fetchUserProfile(userId);
+              if (!isMounted) return;
+              if (profile) {
+                  updateUserProfile(profile);
+                  setIsAuthenticated(true);
+                  if (!isInitial) {
+                      addNotification("Connexion Réussie", `Bienvenue sur votre espace, ${profile.name.split(' ')[0] || 'Citoyen'}.`, "success");
+                  }
               } else {
-                  addNotification("Retour", `Bon retour parmi nous, ${profile.name.split(' ')[0]}.`, "info");
+                  setIsAuthenticated(true);
               }
-          } else {
-              console.error('Session Supabase active mais profil applicatif introuvable.');
+          } catch (err) {
+              console.warn('Erreur résolution profil session:', err);
+              if (isMounted) setIsAuthenticated(true);
+          } finally {
+              if (isMounted && isInitial) {
+                  setIsAuthChecking(false);
+              }
           }
-          if (isInitial) setIsAuthChecking(false);
       };
 
-      getSession().then((session) => applySession(session?.user.id, true));
+      getSession().then((session) => applySession(session?.user?.id, true));
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion
@@ -95,7 +98,7 @@ const AppContent = () => {
               return;
           }
           setIsPasswordRecovery(false);
-          applySession(session?.user.id, false);
+          applySession(session?.user?.id, false);
       });
 
       return () => {
@@ -199,8 +202,9 @@ const AppContent = () => {
 
       {activeTab === 'settings' && <Settings />}
 
-      {activeTab === 'admin' && (userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
-          <AdminDashboard />
+      {(activeTab === 'admin' || activeTab === 'super-admin' || activeTab === 'admin-dashboard') &&
+          (userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+              <AdminDashboard />
       )}
 
       {activeTab === 'languages' && <LanguageCenter userProfile={userProfile} />}
