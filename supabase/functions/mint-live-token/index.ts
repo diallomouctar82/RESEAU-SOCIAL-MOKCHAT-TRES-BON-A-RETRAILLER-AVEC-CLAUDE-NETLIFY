@@ -130,29 +130,43 @@ Deno.serve(async (req: Request) => {
     const newSessionExpireTime = new Date(now + 60_000).toISOString(); // 1 min pour démarrer la session
     const expireTime = new Date(now + 30 * 60_000).toISOString(); // 30 min de session max
 
-    // v1beta rejette liveConnectConstraints ("Unknown name ... Cannot find
-    // field.") : ce champ n'existe que sur v1alpha, seule version où les
-    // jetons éphémères Live API sont exposés pour l'instant (fonctionnalité
-    // expérimentale, Gemini Developer API uniquement — pas Vertex AI).
+    // Corps = ressource AuthToken. Attention : `liveConnectConstraints` est un
+    // nom propre au SDK (qui le traduit avant l'envoi) ; en REST brut il
+    // n'existe pas et Google rejette la requête avec
+    // « Unknown name "liveConnectConstraints" at 'auth_token' » (400
+    // INVALID_ARGUMENT). Le champ REST équivalent est
+    // `bidiGenerateContentSetup`.
+    //
+    // On le laisse volontairement absent : dans ce cas le jeton « allows full
+    // flexibility in LiveConnectConfig for each session connection », donc le
+    // client fournit sa propre configuration (modèle, voix, instruction) sans
+    // risque de divergence avec une contrainte figée côté serveur — cause
+    // classique de rejet au moment du WebSocket. La portée du jeton reste
+    // étroite : usage unique, 30 min, émis uniquement pour un utilisateur
+    // authentifié.
+    const payload = {
+        uses: 1,
+        newSessionExpireTime,
+        expireTime,
+    };
+
     const mintRes = await fetch('https://generativelanguage.googleapis.com/v1alpha/auth_tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey as string },
-        body: JSON.stringify({
-            uses: 1,
-            newSessionExpireTime,
-            expireTime,
-            liveConnectConstraints: {
-                model,
-                config: { responseModalities: ['AUDIO'] },
-            },
-        }),
+        body: JSON.stringify(payload),
     });
 
     if (!mintRes.ok) {
         const text = await mintRes.text().catch(() => '');
         // Diagnostic serveur uniquement (jamais la clé) : la vraie raison du refus
         // Google n'atteignait pas les logs jusqu'ici, rendant le débogage impossible.
-        console.error(`mint-live-token: Google a refusé la génération du jeton (${mintRes.status})`, text.slice(0, 500));
+        // On journalise la requête envoyée (jamais la clé : elle est dans
+        // l'en-tête, pas dans le corps) pour pouvoir identifier immédiatement
+        // le champ fautif en cas de nouveau rejet.
+        console.error(
+            `mint-live-token: Google a refusé la génération du jeton (${mintRes.status}) — modèle "${model}" — requête envoyée : ${JSON.stringify(payload)}`,
+            text.slice(0, 500),
+        );
         if (mintRes.status === 401 || mintRes.status === 403) {
             return json({ error: 'Clé Gemini invalide ou refusée par Google.' }, 502);
         }
@@ -163,6 +177,8 @@ Deno.serve(async (req: Request) => {
     if (!mintJson.name) {
         return json({ error: 'Réponse Gemini sans jeton.' }, 502);
     }
+
+    console.log(`mint-live-token: jeton généré avec succès pour le modèle "${model}".`);
 
     return json({ token: mintJson.name, model, expiresAt: expireTime });
 });
