@@ -20,6 +20,7 @@ import { HousingCenter } from './components/HousingCenter';
 import { LegalCenter } from './components/LegalCenter';
 import { Wallet } from './components/Wallet';
 import { Auth } from './components/Auth';
+import { ResetPassword } from './components/ResetPassword';
 import { Settings } from './components/Settings';
 import { LanguageCenter } from './components/LanguageCenter';
 import { CouncilRoom } from './components/CouncilRoom';
@@ -38,7 +39,8 @@ const AppContent = () => {
   const { userProfile, notifications, updateUserProfile, addNotification, markNotificationRead, updateUserShop, updateUserCredits, updateUserXp, logout } = useGlobal();
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthChecking, setIsAuthChecking] = useState(true); 
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   
   const [activeTab, setActiveTab] = useState('home'); 
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
@@ -82,7 +84,16 @@ const AppContent = () => {
 
       getSession().then((session) => applySession(session?.user.id, true));
 
-      const unsubscribe = onAuthStateChange((session) => {
+      // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
+      // l'écran "nouveau mot de passe", pas être traité comme une connexion
+      // normale — sinon l'utilisateur se retrouverait dans l'app sans avoir
+      // choisi de nouveau mot de passe.
+      const unsubscribe = onAuthStateChange((session, event) => {
+          if (event === 'PASSWORD_RECOVERY') {
+              setIsPasswordRecovery(true);
+              return;
+          }
+          setIsPasswordRecovery(false);
           applySession(session?.user.id, false);
       });
 
@@ -121,6 +132,14 @@ const AppContent = () => {
       }
       setActiveLiveId(liveId);
   };
+
+  // Prioritaire sur tout le reste : un lien "mot de passe oublié" cliqué
+  // établit une vraie session Supabase, mais l'utilisateur doit choisir un
+  // nouveau mot de passe avant d'entrer dans l'app, même si isAuthenticated
+  // est déjà vrai à ce stade.
+  if (isPasswordRecovery) {
+      return <ResetPassword onDone={() => setIsPasswordRecovery(false)} />;
+  }
 
   // Écran de chargement discret pendant la vérification de session
   if (isAuthChecking) {
