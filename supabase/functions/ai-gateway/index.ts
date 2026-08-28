@@ -16,6 +16,21 @@ import { describeAction } from './tools/actions.ts';
 // même outil) et contre une facture qui s'emballe.
 const MAX_TOOL_ITERATIONS = 4;
 
+// Une ligne du classement renvoyé par get_ranked_ai_candidates.
+interface RankedCandidate {
+    provider_id: string;
+    model_id: string;
+    adapter_kind: string;
+    base_url: string | null;
+    adapter_config: Record<string, unknown> | null;
+    cost_tier: 'free' | 'paid';
+    sante: 'sain' | 'inconnu' | 'defaillant';
+    cout_estime: number;
+    latence_ms: number;
+    /** Explication lisible du rang, reprise telle quelle dans le journal d'audit. */
+    motif: string;
+}
+
 interface CatalogTool {
     id: string;
     display_name: string;
@@ -87,13 +102,14 @@ Deno.serve(async (req: Request) => {
 
     if (!body.category) return json({ error: 'category requis.' }, 400);
 
+    // Classement établi en base par get_ranked_ai_candidates : AUCUN fournisseur
+    // n'est privilégié par principe. Tous les couples (fournisseur, modèle)
+    // éligibles concourent à égalité, départagés uniquement par des critères
+    // objectifs et mesurés — palier gratuit, santé récente, coût, latence.
+    // Le classement est recalculé à chaque appel : un fournisseur qui redevient
+    // fiable remonte de lui-même, sans intervention.
     const { data: candidates, error: candidatesError } = await service
-        .from('ai_providers')
-        .select('id, adapter_kind, base_url, adapter_config, priority, cost_tier, ai_provider_credentials!inner(is_enabled)')
-        .eq('category', body.category)
-        .eq('status', 'active')
-        .eq('ai_provider_credentials.is_enabled', true)
-        .order('priority', { ascending: true });
+        .rpc('get_ranked_ai_candidates', { p_category: body.category });
 
     if (candidatesError) return json({ error: `Erreur catalogue : ${candidatesError.message}` }, 500);
 
@@ -102,18 +118,12 @@ Deno.serve(async (req: Request) => {
     // C'est lui qui rend l'audit lisible dans ai_call_log.
     const requestId = crypto.randomUUID();
 
-    // ── Gouvernance des coûts : quota gratuit d'abord ───────────────────────
-    // À priorité égale, un fournisseur en offre gratuite passe avant un payant.
-    // L'ordre de priorité reste maître à l'intérieur de chaque palier, et se
-    // règle depuis la console sans redéploiement.
-    const ordered = (body.providerId
-        ? (candidates ?? []).filter((c) => c.id === body.providerId)
-        : (candidates ?? [])
-    ).slice().sort((a, b) => {
-        const tierA = a.cost_tier === 'free' ? 0 : 1;
-        const tierB = b.cost_tier === 'free' ? 0 : 1;
-        return tierA !== tierB ? tierA - tierB : (a.priority ?? 100) - (b.priority ?? 100);
-    });
+    // L'ordre vient entièrement du classement calculé en base : aucun tri local
+    // ne vient le contredire. `providerId` reste possible pour forcer un
+    // fournisseur précis (test admin, appel spécialisé), sans bascule.
+    const ordered = body.providerId
+        ? (candidates ?? []).filter((c: RankedCandidate) => c.provider_id === body.providerId)
+        : (candidates ?? []);
 
     if (ordered.length === 0) {
         return json({ error: 'Aucun fournisseur actif et configuré pour cette catégorie.' }, 503);
@@ -192,18 +202,19 @@ Deno.serve(async (req: Request) => {
     const attempts: { providerId: string; errorClass: string; message: string }[] = [];
 
     for (let i = 0; i < ordered.length; i++) {
-        const provider = ordered[i];
+        const provider = ordered[i] as RankedCandidate;
         const attemptNumber = i + 1;
         const startedAt = Date.now();
         try {
             const { data: apiKey, error: secretError } = await service.rpc(
                 'get_ai_provider_secret_internal',
-                { p_provider_id: provider.id },
+                { p_provider_id: provider.provider_id },
             );
             if (secretError || !apiKey) throw new AdapterError('Clé introuvable.', 'auth');
 
             const adapter = resolveAdapter(provider.adapter_kind);
-            const modelId = body.modelId ?? (await defaultModelId(service, provider.id));
+            // Le modèle vient du classement (couple fournisseur+modèle évalué ensemble).
+            const modelId = body.modelId ?? provider.model_id;
             if (!modelId) throw new AdapterError('Aucun modèle configuré pour ce fournisseur.', 'other');
 
             const adapterRequest: AdapterRequest = {
@@ -227,7 +238,7 @@ Deno.serve(async (req: Request) => {
                 r,
                 apiKey as string,
                 provider.base_url,
-                provider.adapter_config as Record<string, unknown> | undefined,
+                provider.adapter_config ?? undefined,
             );
 
             let result = await callProvider(adapterRequest);
@@ -294,20 +305,20 @@ Deno.serve(async (req: Request) => {
             // Le coût agrège TOUS les allers-retours du tour (boucle d'outils
             // comprise) : une réponse ayant nécessité trois appels au modèle est
             // facturée trois fois, et le budget doit le refléter.
-            const costUsd = await computeCost(service, provider.id, modelId, {
+            const costUsd = await computeCost(service, provider.provider_id, modelId, {
                 inputTokens: totalInput, outputTokens: totalOutput,
             });
 
             await logCall(service, {
-                requestId, category: body.category, providerId: provider.id, modelId, attemptNumber,
+                requestId, category: body.category, providerId: provider.provider_id, modelId, attemptNumber,
                 status: 'success', decision: 'selected',
-                decisionReason: `Retenu (${provider.cost_tier === 'free' ? 'palier gratuit' : 'palier payant'}, priorité ${provider.priority}).`,
+                decisionReason: `Retenu — ${provider.cost_tier === 'free' ? 'palier gratuit' : 'palier payant'}, coût estimé ${provider.cout_estime} $. ${provider.motif}`,
                 latencyMs: Date.now() - startedAt, requestedBy,
                 inputTokens: totalInput, outputTokens: totalOutput, costUsd,
             });
 
             return json({
-                providerId: provider.id,
+                providerId: provider.provider_id,
                 modelId,
                 attempts: attemptNumber,
                 result,
@@ -318,16 +329,16 @@ Deno.serve(async (req: Request) => {
             });
         } catch (err) {
             const adapterErr = err instanceof AdapterError ? err : new AdapterError(String(err), 'other');
-            attempts.push({ providerId: provider.id, errorClass: adapterErr.errorClass, message: adapterErr.message });
+            attempts.push({ providerId: provider.provider_id, errorClass: adapterErr.errorClass, message: adapterErr.message });
             const resteDesCandidats = i < ordered.length - 1;
             await logCall(service, {
-                requestId, category: body.category, providerId: provider.id, modelId: body.modelId ?? null,
+                requestId, category: body.category, providerId: provider.provider_id, modelId: body.modelId ?? null,
                 attemptNumber, status: 'error', errorClass: adapterErr.errorClass,
                 decision: resteDesCandidats ? 'failover' : 'exhausted',
                 decisionReason: adapterErr.errorClass === 'rate_limited'
                     // Cas typique d'un quota gratuit épuisé : la bascule vers le
                     // fournisseur suivant est exactement le comportement voulu.
-                    ? `Quota ou limite de débit atteint sur ${provider.id}${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`
+                    ? `Quota ou limite de débit atteint sur ${provider.provider_id}${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`
                     : `Échec (${adapterErr.errorClass})${resteDesCandidats ? ' — bascule sur le fournisseur suivant.' : ' — plus aucun candidat.'}`,
                 errorMessage: adapterErr.message, latencyMs: Date.now() - startedAt, requestedBy,
             });
@@ -338,15 +349,9 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Tous les fournisseurs disponibles ont échoué.', attempts }, 502);
 });
 
-async function defaultModelId(service: ReturnType<typeof createServiceRoleClient>, providerId: string) {
-    const { data } = await service
-        .from('ai_models')
-        .select('model_id')
-        .eq('provider_id', providerId)
-        .eq('is_default', true)
-        .maybeSingle();
-    return data?.model_id ?? null;
-}
+// Le modèle par défaut est désormais résolu par get_ranked_ai_candidates, qui
+// évalue le couple (fournisseur, modèle) d'un seul tenant — la recherche
+// séparée qui existait ici n'a plus d'objet.
 
 async function testProvider(service: ReturnType<typeof createServiceRoleClient>, providerId: string) {
     const { data: provider, error: providerError } = await service
@@ -366,7 +371,7 @@ async function testProvider(service: ReturnType<typeof createServiceRoleClient>,
     const outcome = await adapter.testConnection(
         apiKey as string,
         provider.base_url,
-        provider.adapter_config as Record<string, unknown> | undefined,
+        provider.adapter_config ?? undefined,
     );
 
     await service

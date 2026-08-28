@@ -11,6 +11,7 @@ import {
     listProviders,
     saveKeyTestAndActivate,
     setProviderEnabled,
+    setAnthropicWorkspaceId,
     setProviderPriority,
     testProviderConnection,
 } from '../../services/aiOrchestratorAdmin';
@@ -163,6 +164,8 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+    const [workspaceInput, setWorkspaceInput] = useState('');
+    const workspaceSaved = (provider.adapterConfig as { workspaceId?: string } | undefined)?.workspaceId ?? '';
     const needsDiscoveryInfo = provider.adapterKind === 'generic_http' && provider.discoveryStatus === 'needs_info';
     const notConfigured = provider.status === 'not_implemented' && !needsDiscoveryInfo;
 
@@ -218,6 +221,24 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
             onChanged();
         } finally {
             setTesting(false);
+        }
+    };
+
+    // Enregistre l'identifiant d'espace de travail puis relance aussitôt le
+    // test : l'administrateur voit immédiatement si le blocage est levé.
+    const handleSaveWorkspace = async () => {
+        setSaving(true);
+        setTestResult(null);
+        try {
+            await setAnthropicWorkspaceId(provider.id, workspaceInput);
+            setWorkspaceInput('');
+            const result = await testProviderConnection(provider.id);
+            setTestResult(result);
+            onChanged();
+        } catch (err: any) {
+            setTestResult({ ok: false, message: err?.message || "Échec de l'enregistrement." });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -348,6 +369,34 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                         <div className={`flex items-start gap-2 text-xs rounded-lg px-3 py-2 ${testResult.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                             {testResult.ok ? <CheckCircle2 size={14} className="shrink-0 mt-0.5" /> : <XCircle size={14} className="shrink-0 mt-0.5" />}
                             {testResult.message}
+                        </div>
+                    )}
+
+                    {/* Anthropic : une clé « liée à une identité » exige l'en-tête
+                        anthropic-workspace-id. Sans lui, toute clé — même
+                        fraîchement créée et créditée — échoue en 400. */}
+                    {provider.adapterKind === 'anthropic' && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+                            <p className="text-[11px] text-amber-800">
+                                <strong>Espace de travail Anthropic</strong> — requis uniquement si votre clé
+                                est « liée à une identité ». Identifiant visible dans la console Anthropic,
+                                Settings → Workspaces (format <code>wrkspc_…</code>).
+                            </p>
+                            <div className="flex gap-2">
+                                <input
+                                    value={workspaceInput}
+                                    onChange={(e) => setWorkspaceInput(e.target.value)}
+                                    placeholder={workspaceSaved || 'wrkspc_…'}
+                                    className="flex-1 border border-amber-300 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-amber-500"
+                                />
+                                <button
+                                    onClick={handleSaveWorkspace}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-500 disabled:opacity-50"
+                                >
+                                    Enregistrer
+                                </button>
+                            </div>
                         </div>
                     )}
                 </>
