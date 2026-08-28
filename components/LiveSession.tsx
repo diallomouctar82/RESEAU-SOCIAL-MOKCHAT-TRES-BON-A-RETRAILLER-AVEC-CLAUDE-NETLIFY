@@ -1,368 +1,329 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { 
-    Mic, 
-    MicOff, 
-    PhoneOff, 
-    Activity, 
-    AlertTriangle, 
-    Briefcase, 
-    Stethoscope, 
-    Globe, 
-    User, 
-    RefreshCw,
-    Camera,
-    CameraOff,
-    Eye,
-    Scan,
-    Layers,
-    Sparkles,
-    Send
+import {
+  Mic,
+  MicOff,
+  PhoneOff,
+  Activity,
+  AlertTriangle,
+  Camera,
+  CameraOff,
+  RefreshCw,
+  Sparkles,
+  Volume2,
+  ShieldCheck
 } from 'lucide-react';
-import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../services/audioUtils';
 import { SYSTEM_INSTRUCTION } from '../constants';
-import { Agent, MultimodalVisionAnalysis } from '../types';
+import { Agent } from '../types';
 import { MultimodalCameraHUD } from './MultimodalCameraHUD';
+import { aiRoutingService } from '../services/aiRoutingService';
+import { voiceEngine } from '../services/voiceEngine';
 
 type LiveScenario = 'general' | 'interview' | 'medical' | 'translator';
+type CallStatus = 'disconnected' | 'connecting' | 'connected' | 'thinking' | 'speaking' | 'error';
 
 interface LiveSessionProps {
-    agent?: Agent;
-    onClose?: () => void;
+  agent?: Agent;
+  onClose?: () => void;
 }
 
+/**
+ * Appel Expert résilient.
+ *
+ * Important: aucun secret IA n'est lu dans le navigateur. La conversation passe
+ * par aiRoutingService -> /api/ai/chat (proxy serveur Netlify) avec bascule entre
+ * fournisseurs. La voix utilise voiceEngine -> /api/tts (ElevenLabs côté serveur)
+ * puis le moteur vocal natif comme repli gracieux.
+ */
 export const LiveSession: React.FC<LiveSessionProps> = ({ agent, onClose }) => {
-  const [isActive, setIsActive] = useState(false);
-  const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
-  const [volume, setVolume] = useState(0);
+  const [status, setStatus] = useState<CallStatus>('disconnected');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [scenario, setScenario] = useState<LiveScenario>('general');
-  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
+  const [scenario] = useState<LiveScenario>('general');
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isMicEnabled, setIsMicEnabled] = useState(true);
+  const [volume, setVolume] = useState(0);
+  const [lastUserText, setLastUserText] = useState('');
+  const [lastExpertText, setLastExpertText] = useState('');
+  const [providerLabel, setProviderLabel] = useState(aiRoutingService.getActiveEngineInfo().name);
+  const [ttsLabel, setTtsLabel] = useState<'ElevenLabs HD' | 'Voix système'>('ElevenLabs HD');
   const [liveVisionInsight, setLiveVisionInsight] = useState<string | null>(null);
-  
-  // Audio Refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const outputContextRef = useRef<AudioContext | null>(null);
-  const nextStartTimeRef = useRef<number>(0);
-  const streamRef = useRef<MediaStream | null>(null);
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
-  useEffect(() => {
-    // If agent provided, auto start
-    if (agent && !isActive) {
-        startSession();
-    }
-    return () => {
-      stopSession();
-    };
-  }, [agent]);
+  const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const lastHandledRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+
+  const activeAgent: Agent = agent || {
+    id: 'diallo-live',
+    name: 'Expert Diallo',
+    title: 'Conseiller Polyglotte',
+    specialty: 'Assistance Multimodale',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
+    description: 'Accompagnement en direct',
+    role: 'coach',
+    modelConfig: { model: 'gemini-2.5-flash' }
+  };
 
   const getScenarioInstruction = (s: LiveScenario) => {
-      switch(s) {
-          case 'interview': return "Vous êtes un recruteur professionnel exigeant. Vous faites passer un entretien d'embauche. Posez des questions pertinentes sur le parcours, les compétences et les motivations.";
-          case 'medical': return "Vous êtes un assistant de régulation médicale. Posez des questions précises sur les symptômes pour évaluer l'urgence. Restez calme et rassurant.";
-          case 'translator': return "Vous êtes un traducteur universel. Traduisez instantanément et fidèlement tout ce que l'utilisateur dit.";
-          default: return "Vous êtes en appel direct. Soyez bref, chaleureux, polyglotte et très utile. Vous êtes un membre éminent de la famille d'experts Diallo.";
+    switch (s) {
+      case 'interview':
+        return "Conduis un entretien professionnel structuré, avec des questions courtes et une écoute active.";
+      case 'medical':
+        return "Aide à clarifier la situation avec prudence, sans diagnostic définitif, et oriente vers une prise en charge appropriée si nécessaire.";
+      case 'translator':
+        return "Traduis fidèlement et immédiatement ce que l'utilisateur demande, en restant naturel à l'oral.";
+      default:
+        return "Tu es en appel direct. Réponds de façon brève, naturelle, chaleureuse et concrète, comme dans une vraie conversation téléphonique.";
+    }
+  };
+
+  const buildSystemInstruction = () => `${SYSTEM_INSTRUCTION}\n\nTu es ${activeAgent.name}, ${activeAgent.title}. Spécialité : ${activeAgent.specialty}. ${activeAgent.description}. ${getScenarioInstruction(scenario)} Évite les réponses trop longues à l'oral. Pose une seule question à la fois quand une clarification est nécessaire.`;
+
+  const handleExpertTurn = async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text || busyRef.current) return;
+
+    // Le Web Speech API peut remonter deux fois le même segment final selon le navigateur.
+    const now = Date.now();
+    if (lastHandledRef.current.text === text && now - lastHandledRef.current.at < 3500) return;
+    lastHandledRef.current = { text, at: now };
+
+    busyRef.current = true;
+    setLastUserText(text);
+    setStatus('thinking');
+    setErrorMsg(null);
+    voiceEngine.stopListening();
+    voiceEngine.notifyConversationalTurn('ai_thinking');
+
+    try {
+      const result = await aiRoutingService.executeWithResilience({
+        prompt: text,
+        systemInstruction: buildSystemInstruction(),
+        preferredModel: activeAgent.modelConfig?.model
+      });
+
+      if (!mountedRef.current) return;
+      const responseText = result.text?.trim() || "Je vous écoute. Pouvez-vous préciser votre demande ?";
+      setProviderLabel(result.providerUsed?.name || aiRoutingService.getActiveEngineInfo().name);
+      setLastExpertText(responseText);
+      setStatus('speaking');
+
+      const voiceId = voiceEngine.getVoiceIdForAgent(activeAgent.role);
+      await voiceEngine.speak(responseText, {
+        voiceId,
+        stability: 0.56,
+        similarity_boost: 0.82,
+        onStart: () => mountedRef.current && setStatus('speaking'),
+        onEnd: () => {
+          if (!mountedRef.current) return;
+          setStatus('connected');
+        }
+      });
+    } catch (error: any) {
+      console.error('[LiveSession] expert turn failed', error);
+      if (mountedRef.current) {
+        setErrorMsg(error?.message || "Le moteur de conversation est temporairement indisponible.");
+        setStatus('error');
       }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current && isMicEnabled && status !== 'disconnected') {
+        // voiceEngine redémarre déjà automatiquement après la synthèse en mode conversationnel.
+        voiceEngine.setConversationalMode(true);
+      }
+    }
   };
 
   const startSession = async () => {
-    if (status === 'connecting' || isActive) return;
+    if (status === 'connecting' || status === 'connected' || status === 'thinking' || status === 'speaking') return;
     setStatus('connecting');
     setErrorMsg(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const inputCtx = new AudioContextClass({ sampleRate: 16000 });
-      const outputCtx = new AudioContextClass({ sampleRate: 24000 });
-      
-      audioContextRef.current = inputCtx;
-      outputContextRef.current = outputCtx;
-
-      if (inputCtx.state === 'suspended') await inputCtx.resume();
-      if (outputCtx.state === 'suspended') await outputCtx.resume();
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      let specificInstruction = "";
-      if (agent) {
-          specificInstruction = `Tu es ${agent.name}, ${agent.title}. Spécialité: ${agent.specialty}. ${agent.description}. 
-          Tu es en appel vocal et visuel multimodal direct avec l'utilisateur. Écoute activement, réponds avec chaleur, empathie et pertinence.`;
-      } else {
-          specificInstruction = getScenarioInstruction(scenario);
+      if (!voiceEngine.isSpeechRecognitionSupported()) {
+        throw new Error("La reconnaissance vocale n'est pas disponible dans ce navigateur. Utilisez Chrome/Edge récent ou le chat texte.");
       }
 
-      const instruction = SYSTEM_INSTRUCTION + " " + specificInstruction;
-      const voiceName = agent?.metaProfile?.voiceId || 'Henri';
-
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } },
-          },
-          systemInstruction: instruction,
-        },
-        callbacks: {
-          onopen: () => {
-            console.log('Live session connected');
-            setStatus('connected');
-            setIsActive(true);
-
-            const source = inputCtx.createMediaStreamSource(stream);
-            inputSourceRef.current = source;
-            
-            const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
-
-            processor.onaudioprocess = (e) => {
-              if (!audioContextRef.current) return;
-
-              const inputData = e.inputBuffer.getChannelData(0);
-              let sum = 0;
-              const step = Math.ceil(inputData.length / 50);
-              for(let i=0; i<inputData.length; i+=step) sum += inputData[i] * inputData[i];
-              setVolume(Math.min(100, Math.round(Math.sqrt(sum / (inputData.length / step)) * 300)));
-
-              const pcmBlob = createPcmBlob(inputData);
-              sessionPromise.then(session => {
-                 session.sendRealtimeInput([{
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: pcmBlob
-                 }]);
-              }).catch(e => console.warn('Send audio error', e));
-            };
-
-            source.connect(processor);
-            processor.connect(inputCtx.destination);
-          },
-          onmessage: async (msg: any) => {
-             const serverContent = msg.serverContent;
-             if (serverContent?.modelTurn?.parts) {
-                for (const part of serverContent.modelTurn.parts) {
-                    if (part.inlineData?.data) {
-                        const audioBytes = base64ToUint8Array(part.inlineData.data);
-                        if (outputContextRef.current) {
-                            const audioBuffer = await decodeAudioData(outputContextRef.current, audioBytes, 24000);
-                            playAudioChunk(audioBuffer);
-                        }
-                    }
-                }
-             }
-             if (serverContent?.interrupted) {
-                 stopAllPlayback();
-             }
-          },
-          onerror: (err: any) => {
-             console.error('Live session error', err);
-             setStatus('error');
-             setErrorMsg('La connexion en direct a rencontré un problème.');
-             stopSession();
-          },
-          onclose: () => {
-             setStatus('disconnected');
-             setIsActive(false);
-          }
-        }
-      });
-
-    } catch (e: any) {
-      console.error('Live connect failed', e);
-      setStatus('error');
-      setErrorMsg(e.message || 'Impossible de démarrer la session');
-      stopSession();
+      voiceEngine.setConversationalMode(true);
+      const started = await voiceEngine.startListening('fr-FR');
+      if (!started) throw new Error("Le microphone n'a pas pu démarrer. Vérifiez son autorisation dans le navigateur.");
+      if (mountedRef.current) {
+        setIsMicEnabled(true);
+        setStatus('connected');
+      }
+    } catch (error: any) {
+      console.error('[LiveSession] start failed', error);
+      if (mountedRef.current) {
+        setStatus('error');
+        setErrorMsg(error?.message || "Impossible de démarrer l'appel.");
+      }
     }
-  };
-
-  const playAudioChunk = (buffer: AudioBuffer) => {
-    if (!outputContextRef.current) return;
-    const ctx = outputContextRef.current;
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-
-    const now = ctx.currentTime;
-    const startTime = Math.max(now, nextStartTimeRef.current);
-    source.start(startTime);
-    nextStartTimeRef.current = startTime + buffer.duration;
-
-    sourcesRef.current.add(source);
-    source.onended = () => {
-        sourcesRef.current.delete(source);
-    };
-  };
-
-  const stopAllPlayback = () => {
-    for (const source of sourcesRef.current.values()) {
-        try { source.stop(); } catch(e){}
-    }
-    sourcesRef.current.clear();
-    nextStartTimeRef.current = 0;
   };
 
   const stopSession = () => {
-    setIsActive(false);
-    setStatus('disconnected');
-    stopAllPlayback();
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
-    if (inputSourceRef.current) {
-      inputSourceRef.current.disconnect();
-      inputSourceRef.current = null;
-    }
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state !== 'closed') audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    if (outputContextRef.current) {
-      if (outputContextRef.current.state !== 'closed') outputContextRef.current.close();
-      outputContextRef.current = null;
-    }
+    busyRef.current = false;
+    voiceEngine.setConversationalMode(false);
+    voiceEngine.stopListening();
+    voiceEngine.stopSpeaking();
     setVolume(0);
+    setStatus('disconnected');
+  };
+
+  const toggleMic = async () => {
+    if (isMicEnabled) {
+      voiceEngine.setConversationalMode(false);
+      voiceEngine.stopListening();
+      setIsMicEnabled(false);
+      setVolume(0);
+    } else {
+      voiceEngine.setConversationalMode(true);
+      const ok = await voiceEngine.startListening('fr-FR');
+      if (ok) {
+        setIsMicEnabled(true);
+        setStatus('connected');
+        setErrorMsg(null);
+      } else {
+        setErrorMsg("Impossible d'activer le microphone.");
+        setStatus('error');
+      }
+    }
   };
 
   const handleHangUp = () => {
-      stopSession();
-      if (onClose) onClose();
+    stopSession();
+    onClose?.();
   };
 
-  const activeAgentMock: Agent = agent || {
-      id: 'diallo-live',
-      name: 'Expert Diallo',
-      title: 'Conseiller Polyglotte',
-      specialty: 'Assistance Multimodale Intelligente',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-      description: 'Expert en direct',
-      role: 'coach',
-      modelConfig: { model: 'gemini-2.5-flash' }
-  };
+  useEffect(() => {
+    mountedRef.current = true;
+    const unsubscribeVoice = voiceEngine.addListener({
+      onTranscript: (transcript, isFinal) => {
+        if (isFinal && transcript.trim()) handleExpertTurn(transcript);
+      },
+      onSpeechVolume: value => setVolume(value),
+      onError: error => {
+        if (error !== 'no-speech') setErrorMsg(`Microphone : ${error}`);
+      },
+      onTtsEngineChange: engine => setTtsLabel(engine === 'elevenlabs' ? 'ElevenLabs HD' : 'Voix système'),
+      onConversationalTurnChange: turn => {
+        if (!mountedRef.current) return;
+        if (turn === 'ai_thinking') setStatus('thinking');
+        if (turn === 'ai_speaking') setStatus('speaking');
+        if (turn === 'waiting_user') setStatus('connected');
+      }
+    });
+
+    const unsubscribeRouting = aiRoutingService.subscribe(() => {
+      const last = aiRoutingService.getLastExecutionInfo();
+      if (last?.providerUsedName) setProviderLabel(last.providerUsedName);
+    });
+
+    // Le clic sur Vocal/Vidéo vient de l'utilisateur; on tente donc immédiatement le micro.
+    const timer = window.setTimeout(() => startSession(), 80);
+
+    return () => {
+      mountedRef.current = false;
+      window.clearTimeout(timer);
+      unsubscribeVoice();
+      unsubscribeRouting();
+      voiceEngine.setConversationalMode(false);
+      voiceEngine.stopListening();
+      voiceEngine.stopSpeaking();
+    };
+    // Le changement d'expert remonte un nouveau LiveSession.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAgent.id]);
+
+  const statusText = status === 'connecting' ? 'Connexion du microphone…'
+    : status === 'thinking' ? `${activeAgent.name} prépare sa réponse…`
+    : status === 'speaking' ? `${activeAgent.name} vous répond…`
+    : status === 'connected' ? 'En direct — parlez naturellement'
+    : status === 'error' ? (errorMsg || 'Connexion interrompue')
+    : 'Appel terminé';
 
   return (
-    <div className="flex flex-col lg:flex-row items-center justify-center h-full bg-slate-950 text-white p-4 sm:p-6 relative overflow-hidden gap-6">
-      
-      {/* Background Ambient Glow */}
-      {isActive && (
-        <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none">
-          <div className="w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-20 animate-pulse" />
+    <div className="flex flex-col lg:flex-row items-center justify-center h-full bg-slate-950 text-white p-4 sm:p-6 relative overflow-hidden gap-5">
+      {(status === 'connected' || status === 'thinking' || status === 'speaking') && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-15 animate-pulse" />
         </div>
       )}
 
-      {/* Camera Live Perception Overlay / HUD */}
-      {isCameraOpen ? (
-        <div className="w-full lg:w-1/2 h-[380px] lg:h-[85vh] z-10">
-          <MultimodalCameraHUD 
-            activeAgent={activeAgentMock}
+      {isCameraOpen && (
+        <div className="w-full lg:w-1/2 h-[340px] lg:h-[82vh] z-10 rounded-2xl overflow-hidden">
+          <MultimodalCameraHUD
+            activeAgent={activeAgent}
             onSendVisionContextToChat={(summary) => {
-                setLiveVisionInsight(summary);
+              setLiveVisionInsight(summary);
+              handleExpertTurn(`Contexte caméra : ${summary}`);
             }}
           />
         </div>
-      ) : null}
+      )}
 
-      {/* Main Call Audio & Status Interface */}
-      <div className={`z-10 flex flex-col items-center justify-center text-center space-y-6 animate-fade-up ${isCameraOpen ? 'w-full lg:w-1/2' : 'max-w-md w-full'}`}>
-        
-        {/* Header */}
+      <div className={`z-10 flex flex-col items-center justify-center text-center gap-5 ${isCameraOpen ? 'w-full lg:w-1/2' : 'max-w-lg w-full'}`}>
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
-            <Sparkles size={14} />
-            <span>Salon Vocal & Visuel IA</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold">
+            <ShieldCheck size={14} /> Appel Expert sécurisé & résilient
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            {agent ? `Appel avec ${agent.name}` : 'Appel Expert Direct'}
-          </h2>
-          <p className="text-sm text-slate-400">
-            {agent 
-                ? `${agent.title} • ${agent.specialty}` 
-                : (scenario === 'general' ? "Parlez naturellement avec nos experts." : scenario)
-            }
-          </p>
-          {agent && (
-            <div className="relative inline-block mt-2">
-              <img 
-                src={agent.avatarUrl} 
-                className="w-24 h-24 rounded-full mx-auto border-4 border-slate-800 shadow-2xl object-cover" 
-              />
-              <span className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-900 ${status === 'connected' ? 'bg-emerald-500 animate-ping' : 'bg-slate-500'}`} />
-            </div>
-          )}
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Appel avec {activeAgent.name}</h2>
+          <p className="text-sm text-slate-400">{activeAgent.title} • {activeAgent.specialty}</p>
         </div>
 
-        {/* Visualizer Circle */}
-        <div className="relative my-2">
-          <div className={`w-36 h-36 rounded-full border-4 flex items-center justify-center transition-all duration-300 ${
-            status === 'connected' ? 'border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.4)] bg-blue-950/30' : 
-            status === 'error' ? 'border-red-500 bg-red-900/20' : 'border-slate-800 bg-slate-900/60'
-          }`}>
-             {status === 'connecting' ? (
-                <Activity className="animate-spin text-blue-400" size={42} />
-             ) : status === 'connected' ? (
-                <div 
-                  className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 transition-transform duration-75 shadow-lg flex items-center justify-center text-white"
-                  style={{ transform: `scale(${1 + volume / 80})` }}
-                >
-                  <Activity size={28} className="animate-pulse" />
-                </div>
-             ) : status === 'error' ? (
-                <AlertTriangle className="text-red-500" size={42} />
-             ) : (
-                <MicOff className="text-slate-600" size={42} />
-             )}
+        <div className="relative">
+          <img src={activeAgent.avatarUrl} alt={activeAgent.name} className="w-28 h-28 rounded-full object-cover border-4 border-slate-800 shadow-2xl" />
+          <span className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 border-slate-950 ${status === 'error' ? 'bg-red-500' : status === 'disconnected' ? 'bg-slate-500' : 'bg-emerald-500 animate-pulse'}`} />
+        </div>
+
+        <div className="relative h-20 flex items-center justify-center">
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-300'}`} style={{ transform: `scale(${1 + Math.min(volume, 100) / 250})` }}>
+            {status === 'connecting' || status === 'thinking' ? <RefreshCw className="animate-spin" size={28} /> : status === 'error' ? <AlertTriangle size={28} /> : status === 'speaking' ? <Volume2 className="animate-pulse" size={28} /> : <Activity size={28} />}
           </div>
         </div>
 
-        {/* Status Text */}
-        <div className={`text-xs font-bold tracking-wider uppercase ${status === 'error' ? 'text-red-400' : 'text-blue-400'}`}>
-          {status === 'disconnected' && 'Prêt pour la session'}
-          {status === 'connecting' && 'Connexion sécurisée en cours...'}
-          {status === 'connected' && `En direct • Latence ultra-faible (${volume}% audio)`}
-          {status === 'error' && (errorMsg || 'Erreur de connexion')}
+        <div className={`text-xs font-bold tracking-wide ${status === 'error' ? 'text-red-300' : 'text-blue-300'}`}>{statusText}</div>
+
+        <div className="grid grid-cols-2 gap-2 w-full text-left text-[11px]">
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+            <div className="text-slate-500 mb-1">Moteur conversation</div>
+            <div className="font-bold text-slate-200 truncate">{providerLabel}</div>
+          </div>
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+            <div className="text-slate-500 mb-1">Voix</div>
+            <div className="font-bold text-slate-200">{ttsLabel}</div>
+          </div>
         </div>
 
-        {/* Action Controls */}
+        {(lastUserText || lastExpertText) && (
+          <div className="w-full bg-slate-900/75 border border-slate-800 rounded-2xl p-3 text-left space-y-2 max-h-36 overflow-y-auto">
+            {lastUserText && <p className="text-xs text-slate-400"><span className="font-bold text-white">Vous :</span> {lastUserText}</p>}
+            {lastExpertText && <p className="text-xs text-slate-300"><span className="font-bold text-blue-300">{activeAgent.name} :</span> {lastExpertText}</p>}
+          </div>
+        )}
+
+        {liveVisionInsight && <div className="w-full text-[11px] text-cyan-200 bg-cyan-950/30 border border-cyan-800/40 p-2.5 rounded-xl">Vision : {liveVisionInsight}</div>}
+
         <div className="flex flex-wrap items-center justify-center gap-3">
-           {/* Camera Switch */}
-           <button
-              onClick={() => setIsCameraOpen(!isCameraOpen)}
-              className={`p-3.5 rounded-2xl font-bold flex items-center gap-2 border transition-all ${isCameraOpen ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}`}
-              title={isCameraOpen ? "Masquer la caméra" : "Activer la caméra & détection"}
-           >
-              {isCameraOpen ? <CameraOff size={20} /> : <Camera size={20} />}
-              <span className="text-xs">{isCameraOpen ? 'Caméra On' : 'Vision Caméra'}</span>
-           </button>
+          <button onClick={toggleMic} className={`p-3.5 rounded-2xl border transition-all ${isMicEnabled ? 'bg-slate-800 border-slate-700 text-white' : 'bg-red-500/15 border-red-500/40 text-red-300'}`} title={isMicEnabled ? 'Couper le microphone' : 'Activer le microphone'}>
+            {isMicEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+          </button>
 
-           {/* Call / Hangup */}
-           {!isActive ? (
-             <button 
-               onClick={startSession}
-               className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg shadow-emerald-600/30 transform transition hover:scale-105 flex items-center gap-2 text-sm"
-             >
-               {status === 'error' ? <RefreshCw size={20} /> : <Mic size={20} />}
-               <span>{status === 'error' ? 'Réessayer' : 'Démarrer l\'Appel'}</span>
-             </button>
-           ) : (
-             <button 
-               onClick={handleHangUp}
-               className="bg-red-600 hover:bg-red-500 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg shadow-red-600/30 transform transition hover:scale-105 flex items-center gap-2 text-sm"
-             >
-               <PhoneOff size={20} />
-               <span>Raccrocher</span>
-             </button>
-           )}
+          <button onClick={() => setIsCameraOpen(value => !value)} className={`p-3.5 rounded-2xl border transition-all ${isCameraOpen ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-200'}`} title={isCameraOpen ? 'Fermer la caméra' : 'Activer la vidéo / caméra'}>
+            {isCameraOpen ? <Camera size={20} /> : <CameraOff size={20} />}
+          </button>
+
+          {(status === 'error' || status === 'disconnected') && (
+            <button onClick={startSession} className="px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xs font-bold flex items-center gap-2">
+              <RefreshCw size={17} /> Réessayer
+            </button>
+          )}
+
+          <button onClick={handleHangUp} className="px-5 py-3 bg-red-600 hover:bg-red-500 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-red-950/30">
+            <PhoneOff size={18} /> Raccrocher
+          </button>
         </div>
+
+        <p className="text-[10px] text-slate-500 max-w-md">
+          Si ElevenLabs n'est pas configuré ou devient indisponible, la voix système prend automatiquement le relais. Si un fournisseur de conversation échoue, le routeur IA passe au moteur suivant sans bloquer l'appel.
+        </p>
       </div>
     </div>
   );
