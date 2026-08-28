@@ -62,8 +62,9 @@ La documentation n'est pas un rapport rédigé a posteriori : elle est le **socl
 | **12. Golden Screens & Avant/Après** | Écrans de référence et mesures d'impact de transformation UX. | [`docs/GOLDEN_SCREENS_ET_AVANT_APRES.md`](./GOLDEN_SCREENS_ET_AVANT_APRES.md) |
 | **13. Component Registry & Changelog** | Registre officiel des composants et journal des évolutions UI. | [`docs/UX_CHANGELOG.md`](./UX_CHANGELOG.md) |
 | **14. Registre Dette de Design** | Suivi et priorisation des chantiers d'optimisation futurs. | [`docs/DESIGN_DEBT_REGISTER.md`](./DESIGN_DEBT_REGISTER.md) |
-| **15. Passation Claude Code (Handoff)** | Guide stratégique pour l'audit et la consolidation future. | [`docs/HANDOFF_CLAUDE_CODE.md`](./HANDOFF_CLAUDE_CODE.md) |
-| **16. Dossiers par Module** | Spécifications complètes des 14 modules fonctionnels de la plateforme. | [`docs/modules/`](./modules/) |
+| **15. Tableau d'Enregistrement des Défauts** | Matrice formelle des 22 défauts résolus et certifiés (Norme IEEE 1044 / PSP). | [`docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md`](./TABLEAU_ENREGISTREMENT_DEFAUTS.md) |
+| **16. Passation Claude Code (Handoff)** | Guide stratégique pour l'audit et la consolidation future. | [`docs/HANDOFF_CLAUDE_CODE.md`](./HANDOFF_CLAUDE_CODE.md) |
+| **17. Dossiers par Module** | Spécifications complètes des 14 modules fonctionnels de la plateforme. | [`docs/modules/`](./modules/) |
 
 ---
 

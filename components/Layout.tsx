@@ -57,6 +57,7 @@ import { ComponentShowcaseModal } from './ui/ComponentShowcaseModal';
 import { FocusAndPresentationControls } from './ui/FocusAndPresentationControls';
 import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
+import { voiceEngine } from '../services/voiceEngine';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -153,8 +154,9 @@ export const Layout: React.FC<LayoutProps> = ({
     });
   };
 
-  // Track recent tabs on change
+  // Track recent tabs on change & cancel voice speech
   useEffect(() => {
+    voiceEngine.stopSpeaking();
     if (activeTab && activeTab !== 'home') {
       setRecentTabs(prev => {
         const filtered = prev.filter(t => t !== activeTab);
@@ -219,12 +221,24 @@ export const Layout: React.FC<LayoutProps> = ({
     return acc;
   }, {} as Record<NavItemDef['category'], NavItemDef[]>);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (Ctrl/Cmd + K, Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsSearchModalOpen(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setIsSearchModalOpen(false);
+        setIsNotifOpen(false);
+        setIsProfileMenuOpen(false);
+        setIsTransversalModalOpen(false);
+        setIsGoalModalOpen(false);
+        setIsGuidedModeOpen(false);
+        setIsScannerOpen(false);
+        setIsBilingualModalOpen(false);
+        setIsSettingsModalOpen(false);
+        setIsColorLabOpen(false);
+        setIsShowcaseModalOpen(false);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -346,6 +360,21 @@ export const Layout: React.FC<LayoutProps> = ({
                 onTogglePresentationMode={() => setIsPresentationMode(!isPresentationMode)}
               />
             </div>
+
+            {/* Super-Admin Dashboard Trigger */}
+            <button
+              onClick={() => onTabChange('admin')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98] ${
+                activeTab === 'admin' 
+                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300' 
+                  : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40'
+              }`}
+              title="Ouvrir le Tableau de Bord Super-Admin Souverain (Gestion des comptes, rôles, modules & système)"
+            >
+              <Shield size={14} className="text-amber-400 fill-amber-400/20" />
+              <span>Super-Admin</span>
+              <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-extrabold">Tous Comptes</span>
+            </button>
 
             {/* Brand Color Lab (10 Palettes) Trigger */}
             <button
@@ -502,6 +531,10 @@ export const Layout: React.FC<LayoutProps> = ({
                       )}
                     </div>
                     
+                    <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 rounded-xl text-xs flex items-center gap-2 font-black border border-amber-200/80 shadow-2xs mb-1">
+                      <Shield size={15} className="text-amber-600 fill-amber-500/20" /> 
+                      <span>Tableau de Bord Super-Admin</span>
+                    </button>
                     <button onClick={() => {onTabChange('profile'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <User size={14} /> Mon Profil
                     </button>

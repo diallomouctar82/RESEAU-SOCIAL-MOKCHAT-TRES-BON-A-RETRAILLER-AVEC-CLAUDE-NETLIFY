@@ -60,7 +60,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                         <button
                             type="button"
                             onClick={() => onNavigate('admin')}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
+                            className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-sm hover:from-amber-600 hover:to-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                            title="Ouvrir la console d’administration sécurisée"
                         >
                             <Shield size={14} /> Console d’administration
                         </button>

@@ -41,6 +41,10 @@ export const LiveWaitingRoomModal: React.FC<LiveWaitingRoomModalProps> = ({
 
   const startMediaPreview = async () => {
     try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        console.warn("getUserMedia not available in this environment");
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -49,22 +53,24 @@ export const LiveWaitingRoomModal: React.FC<LiveWaitingRoomModalProps> = ({
 
       // Audio Meter
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const src = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 32;
-      src.connect(analyser);
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const src = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 32;
+        src.connect(analyser);
 
-      const buffer = new Uint8Array(analyser.frequencyBinCount);
-      const loop = () => {
-        if (!streamRef.current) return;
-        analyser.getByteFrequencyData(buffer);
-        let sum = 0;
-        for (let i = 0; i < buffer.length; i++) sum += buffer[i];
-        setAudioLevel(Math.min(100, Math.round((sum / buffer.length) * 2.5)));
-        requestAnimationFrame(loop);
-      };
-      loop();
+        const buffer = new Uint8Array(analyser.frequencyBinCount);
+        const loop = () => {
+          if (!streamRef.current || !analyser) return;
+          analyser.getByteFrequencyData(buffer);
+          let sum = 0;
+          for (let i = 0; i < buffer.length; i++) sum += buffer[i];
+          setAudioLevel(Math.min(100, Math.round((sum / buffer.length) * 2.5)));
+          requestAnimationFrame(loop);
+        };
+        loop();
+      }
     } catch (e) {
       console.warn("Hardware test fallback", e);
     }

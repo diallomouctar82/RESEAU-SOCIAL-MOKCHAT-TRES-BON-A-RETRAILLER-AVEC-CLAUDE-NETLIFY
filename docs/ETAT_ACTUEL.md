@@ -5,7 +5,7 @@
 
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
 > *Date de Mise à Jour : 27 Août 2026*  
-> *Version Courante : v6.3.0 (Production Ready — SOVEREIGN VERSIONING & BACKUP SYSTEM)*
+> *Version Courante : v6.4.0 (fusion source — validation cloud/E2E requise)*
 
 ---
 
@@ -23,25 +23,23 @@
 ## 🎯 SYNTHÈSE EXÉCUTIVE
 > **Rectificatif d'audit du 27 août 2026** : les affirmations historiques « Production Ready » ci-dessous décrivent une cible produit et non une preuve E2E. Pour les modules IA/Studio, le code source utilise désormais une passerelle Netlify authentifiée et un stockage Supabase privé. Dossiers, CV/Radar Carrière, progression Campus/Langues et collaboration Studio utilisent une persistance Supabase partagée sous RLS avec file IndexedDB hors ligne. Wallet lit un ledger immuable et ne modifie plus de solde local; Commerce crée commandes, RFQ, cotations et séquestres par RPC avec prix serveur, idempotence et audit. Google Drive/Chat/Meet passent par un proxy authentifié, avec consentements incrémentaux et sans faux lien Meet. Aucun paiement/change/Mobile Money externe n'est revendiqué. La production reste **configuration requise** tant que les secrets Netlify/Google ne sont pas définis et les migrations appliquées. Builds locaux : réussis. Tests ciblés IA 3/3, persistance 3/3, Wallet/Commerce 3/3, Google 3/3. E2E cloud/fournisseur : bloqué par la configuration externe manquante.
 
-**Le Monde à Vous** a franchi le jalon officiel **SOVEREIGN VERSIONING & BACKUP SYSTEM (v6.3.0)**. La plateforme est un écosystème hautement intégré combinant 14 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance et un espace Super-Administrateur souverain doté de capacités de sauvegarde, restauration intelligente et gestion des versions.
+La fusion **v6.4.0** ajoute notamment des points d'accès visibles à la console d'administration et plusieurs prototypes média/PWA/WebRTC. Seules les capacités reliées aux migrations, services sécurisés et tests ciblés sont classées comme finalisation des points partiels. Les ajouts correspondant aux chantiers initialement « Non commencé » restent explicitement non validés.
 
-La version **v6.3.0** consacre :
-- **Gestionnaire des Versions Stables** : Suivi rigoureux des versions majeures (v6.3.0, v6.2.0, v6.1.0, v6.0.0) avec numéro, date, changelog officiel, points clés, statut, empreinte cryptographique SHA256 et comparateur différentiel.
-- **Restauration Intelligente & Continuité des Données** : Restauration en 1 clic sans remise à zéro, garantissant la préservation de tous les comptes, profils, messages, soldes Ⓒ, paramètres, droits RBAC et journaux d'audit.
-- **Point de Récupération Automatique & Rollback** : Création automatique d'un instantané de sécurité avant toute opération (`auto_pre_restore`) avec possibilité d'annuler et revenir en arrière en 1 clic.
-- **Planificateur de Sauvegardes Automatisé** : Cycles programmés (horaires, quotidiens, hebdomadaires), quotas de rétention configurables et synchronisation avec Supabase Cloud.
-- **Unification & Résilience Supabase / Netlify / GitHub** : Export unifié du client Supabase et du service singleton tolérant aux pannes, éliminant tout risque d'écran blanc (*Zero White Screen of Death*).
-- **Direction Chromatique & Design System Figé** : Palette institutionnelle *Bleu Profond + Or Institutionnel* visant WCAG AA et zéro AI-Slop ; contraste à revalider pour chaque palette dynamique.
+La version **v6.4.0** consacre :
+- **Console d'administration atteignable** : `admin` et `super_admin` disposent de points d'accès directs vers la console riche; les opérations privilégiées passent par l'API serveur auditée.
+- **Finalisation des points partiels** : Auth/profils, IA, dossiers métier, Wallet/Commerce, Google Workspace, MokTrust et modules Vie disposent de contrats source et de tests ciblés documentés, avec migrations/configuration/E2E encore requis selon le module.
+- **Ajouts de fusion à qualifier** : les Data URL média ne remplacent pas un upload durable Supabase Storage; les fichiers PWA/WebRTC et les écrans Live ne prouvent ni synchronisation hors ligne, ni TURN/flux distant, ni infrastructure de diffusion.
+- **Qualité de preuve** : les builds et tests ciblés sont conservés; aucune restauration réelle, conformité globale, observabilité, diffusion Live ou couverture WCAG exhaustive n'est déclarée terminée.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ STATUT GLOBAL : CHROMATIC REFINEMENT v6.1 (14/14 Modules & 10 Palettes Actives) │
-│ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Épuré + Color Lab Réactif   │
-│ DESIGN SYSTEM : V1.0.0 Figé, Documenté (26 chapitres), Zéro AI-Slop             │
-│ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + Transversal Workspace │
-│ ACCESSIBILITÉ : Socle clavier/ARIA/responsive audité ; contrôle continu requis │
-│ COHÉRENCE ARCHITECTURALE : 100% (Builds verts, Types stricts)                  │
-│ MÉMOIRE VIVANTE & HANDOFF : Suite documentaire complète et interconnectée      │
+│ STATUT GLOBAL : finalisation source des points partiels ; recette cloud requise │
+│ QUALITÉ : builds et tests ciblés verts ; typecheck global non revendiqué        │
+│ IDENTITÉ VISUELLE : Bleu Profond + Institutionnel + Color Lab Réactif           │
+│ NAVIGATION : 5 Piliers + Mode Guide-moi + Recherche ⌘K + console admin          │
+│ ACCESSIBILITÉ : socle clavier/ARIA/responsive audité ; contrôle continu requis  │
+│ NON COMMENCÉS : prototypes fusionnés non assimilés à une livraison validée      │
+│ HANDOFF : migrations, variables et E2E listés explicitement par module          │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -150,7 +148,9 @@ La version **v6.3.0** consacre :
   fondées sont prises en compte. Ce n'est pas une certification KYC/KYB ou
   transactionnelle. Migration versionnée, recette Supabase cible encore requise.
 - Fil d'actualité social, publication de Stories et visionneuse de Smart Reels.
-- Live Streaming interactif avec chat en direct, dons/cadeaux et achats intégrés pendant la diffusion.
+- Messagerie texte, groupes, présence, réactions et épinglage sont reliés aux contrats Supabase du lot partiel; les états d'erreur restent visibles.
+- La fusion ajoute des sélecteurs média, lecteurs, gardes caméra/micro et prototypes WebRTC/PWA. Les médias Base64/blob ne sont pas considérés comme pièces jointes durables et aucun chiffrement de bout en bout n'est revendiqué.
+- Les appels audio/vidéo réels et le streaming Live restent dans la catégorie « Non commencé » tant que SDP/ICE/TURN, flux distant, stockage média et diffusion/lecture n'ont pas été prouvés en E2E.
 
 ### 1.6. Services Vie Quotidienne & Google Workspace
 - **Juridique** : Générateur de procédures administratives, titres de séjour et Coffre-fort numérique sécurisé.
