@@ -27,8 +27,12 @@ export async function executeCreateDossier(
         .insert({
             owner_id: ctx.userId,
             title: titre,
-            description: typeof args.description === 'string' ? args.description : null,
+            // La colonne s'appelle `objective` dans le schéma (pas `description`).
+            objective: typeof args.description === 'string' ? args.description : null,
             category: typeof args.categorie === 'string' ? args.categorie : null,
+            // Trace l'expert qui a ouvert le dossier : utile pour le suivi et
+            // pour réattribuer la conversation au bon interlocuteur.
+            lead_agent_id: ctx.agentId ?? null,
             status: 'active',
         })
         .select('id, title')

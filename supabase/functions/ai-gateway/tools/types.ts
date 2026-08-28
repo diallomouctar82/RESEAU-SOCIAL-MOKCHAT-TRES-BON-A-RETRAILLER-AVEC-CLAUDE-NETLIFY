@@ -10,6 +10,8 @@ export interface ToolExecutionContext {
     // dans Vault pour la recherche web). Jamais pour lire des données métier.
     service: ReturnType<typeof createServiceRoleClient>;
     userId: string;
+    /** Expert à l'origine de l'appel, tracé sur les objets qu'il crée. */
+    agentId?: string;
 }
 
 export interface ToolResult {

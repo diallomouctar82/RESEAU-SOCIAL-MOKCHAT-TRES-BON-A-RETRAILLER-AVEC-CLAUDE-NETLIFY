@@ -211,7 +211,7 @@ Deno.serve(async (req: Request) => {
                     // par la personne, jamais avec ceux que le modèle
                     // reproposerait au tour suivant.
                     const args = dejaConfirmee ? body.confirmedAction!.args : call.args;
-                    const outcome = await executor(args, { userClient, service, userId: requestedBy });
+                    const outcome = await executor(args, { userClient, service, userId: requestedBy, agentId: body.agentId });
                     toolsUsed.push(call.name);
                     history.push({ role: 'tool', content: outcome.content, toolCallId: call.id, toolName: call.name });
                 }
