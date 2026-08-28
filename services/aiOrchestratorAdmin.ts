@@ -37,6 +37,8 @@ export interface AiProviderRow {
     discoveryConfidence: number | null;
     discoverySummary: string | null;
     missingFields: MissingField[];
+    authMethod: 'api_key' | 'oauth2' | 'webhook' | 'mcp' | 'unknown';
+    pricingSummary: string | null;
 }
 
 /**
@@ -78,6 +80,8 @@ export const listProviders = async (): Promise<AiProviderRow[]> => {
             discoveryConfidence: p.discovery_confidence ?? null,
             discoverySummary: p.discovery_summary ?? null,
             missingFields: (p.missing_fields as MissingField[] | null) ?? [],
+            authMethod: p.auth_method ?? 'unknown',
+            pricingSummary: p.pricing_summary ?? null,
             models: (models || [])
                 .filter((m) => m.provider_id === p.id)
                 .map((m) => ({ id: m.id, modelId: m.model_id, label: m.label, isDefault: m.is_default })),
@@ -110,12 +114,15 @@ export interface DiscoveryResult {
     displayName: string;
     category: AiCategory;
     discoveryStatus: 'ready' | 'needs_info';
+    authMethod: 'api_key' | 'oauth2' | 'webhook' | 'mcp' | 'unknown';
     confidence: number | null;
     notes: string | null;
     docsUrl: string | null;
     signupUrl: string | null;
     apiKeyUrl: string | null;
     billingUrl: string | null;
+    pricingSummary: string | null;
+    modelsDetected: number;
     missingFields: MissingField[];
 }
 
@@ -142,12 +149,15 @@ export const completeDiscoveredProvider = async (
 ): Promise<void> => {
     const { data: row, error: fetchError } = await supabase
         .from('ai_providers')
-        .select('category, display_name, source_url, docs_url, api_key_url, billing_url, base_url, adapter_config, discovery_confidence, discovery_summary')
+        .select('category, display_name, source_url, docs_url, api_key_url, billing_url, base_url, adapter_config, discovery_confidence, discovery_summary, auth_method, pricing_summary')
         .eq('id', providerId)
         .single();
     if (fetchError || !row) throw fetchError || new Error('Fournisseur introuvable.');
 
     const mergedConfig = { ...(row.adapter_config as Record<string, unknown>), ...adapterConfigPatch };
+    // L'admin qui complète manuellement la config confirme de fait qu'une clé/jeton
+    // statique fonctionne (sinon il n'aurait pas pu remplir ces champs) — on repasse
+    // donc auth_method à 'api_key' pour que ce fournisseur redevienne activable.
     const { error } = await supabase.rpc('upsert_discovered_provider', {
         p_id: providerId,
         p_category: row.category,
@@ -162,6 +172,9 @@ export const completeDiscoveredProvider = async (
         p_discovery_summary: row.discovery_summary,
         p_adapter_config: mergedConfig,
         p_missing_fields: [],
+        p_auth_method: 'api_key',
+        p_pricing_summary: row.pricing_summary,
+        p_models: [],
     });
     if (error) throw error;
 };
@@ -174,4 +187,23 @@ export const testProviderConnection = async (providerId: string): Promise<{ ok: 
         return { ok: false, message: error.message || 'Échec du test de connexion.' };
     }
     return data as { ok: boolean; message: string };
+};
+
+/**
+ * Enregistre la clé, teste immédiatement la connexion et, si elle est valide,
+ * active le fournisseur — en un seul geste pour l'admin. « L'IA colle l'URL, teste
+ * la connexion, et si elle est valide, le fournisseur est actif partout » : c'est
+ * ce que cette fonction couvre pour l'étape clé -> activation ; la découverte de
+ * la config elle-même se fait en amont via discoverProvider().
+ */
+export const saveKeyTestAndActivate = async (
+    providerId: string,
+    secret: string,
+): Promise<{ ok: boolean; message: string }> => {
+    await setProviderSecret(providerId, secret);
+    const result = await testProviderConnection(providerId);
+    if (result.ok) {
+        await setProviderEnabled(providerId, true);
+    }
+    return result;
 };

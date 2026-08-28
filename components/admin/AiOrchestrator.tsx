@@ -7,11 +7,19 @@ import {
     completeDiscoveredProvider,
     discoverProvider,
     listProviders,
+    saveKeyTestAndActivate,
     setProviderEnabled,
     setProviderPriority,
-    setProviderSecret,
     testProviderConnection,
 } from '../../services/aiOrchestratorAdmin';
+
+const AUTH_METHOD_LABEL: Record<string, string> = {
+    api_key: 'Clé API',
+    oauth2: 'OAuth2 (échange de jeton)',
+    webhook: 'Webhook',
+    mcp: 'Serveur MCP',
+    unknown: 'Authentification inconnue',
+};
 
 // Assistant de découverte automatique : l'admin colle une URL, le système explore
 // le site du fournisseur et fait apparaître une fiche prête à l'emploi plus bas
@@ -27,11 +35,17 @@ const ProviderDiscoveryPanel: React.FC<{ onDiscovered: () => void }> = ({ onDisc
         setResult(null);
         try {
             const r = await discoverProvider(url.trim());
+            const categoryLabel = r.category === 'llm' ? 'Modèles de langage' : r.category === 'voice' ? 'Voix & audio' : 'Image & vidéo';
+            const details = [
+                r.modelsDetected > 0 ? `${r.modelsDetected} modèle(s) détecté(s)` : null,
+                r.pricingSummary ? `tarifs : ${r.pricingSummary}` : null,
+                `auth : ${AUTH_METHOD_LABEL[r.authMethod] ?? r.authMethod}`,
+            ].filter(Boolean).join(' · ');
             setResult({
                 ok: true,
                 message: r.discoveryStatus === 'ready'
-                    ? `« ${r.displayName} » analysé et actif. Il apparaît ci-dessous, dans « ${r.category === 'llm' ? 'Modèles de langage' : r.category === 'voice' ? 'Voix & audio' : 'Image & vidéo'} ». Collez sa clé API pour l'activer.`
-                    : `« ${r.displayName} » repéré, mais certaines informations techniques restent à préciser (voir sa fiche ci-dessous, catégorie « ${r.category === 'llm' ? 'Modèles de langage' : r.category === 'voice' ? 'Voix & audio' : 'Image & vidéo'} »).`,
+                    ? `« ${r.displayName} » analysé et prêt (${categoryLabel}). ${details}. Collez sa clé API ci-dessous : elle sera testée et le fournisseur activé automatiquement si elle est valide.`
+                    : `« ${r.displayName} » repéré (${categoryLabel}), mais certaines informations restent à préciser (voir sa fiche ci-dessous). ${details}.`,
             });
             setUrl('');
             onDiscovered();
@@ -150,12 +164,19 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
     const needsDiscoveryInfo = provider.adapterKind === 'generic_http' && provider.discoveryStatus === 'needs_info';
     const notConfigured = provider.status === 'not_implemented' && !needsDiscoveryInfo;
 
+    // Enregistre la clé, la teste immédiatement et active le fournisseur si le
+    // test réussit — l'admin n'a rien d'autre à faire pour qu'il devienne
+    // opérationnel dans toute l'application.
     const handleSaveKey = async () => {
         if (!keyInput.trim()) return;
         setSaving(true);
+        setTestResult(null);
         try {
-            await setProviderSecret(provider.id, keyInput.trim());
+            const result = await saveKeyTestAndActivate(provider.id, keyInput.trim());
             setKeyInput('');
+            setTestResult(result.ok
+                ? { ok: true, message: `${result.message} Fournisseur activé — utilisable partout dans l'application.` }
+                : { ok: false, message: `${result.message} La clé est enregistrée mais le fournisseur n'a pas été activé automatiquement — corrigez puis testez à nouveau.` });
             onChanged();
         } catch (err: any) {
             setTestResult({ ok: false, message: err?.message || "Échec de l'enregistrement de la clé." });
@@ -235,6 +256,14 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                             <CreditCard size={11} /> Facturation <ExternalLink size={10} />
                         </a>
                     )}
+                    {provider.adapterKind === 'generic_http' && provider.authMethod !== 'unknown' && (
+                        <span
+                            title={provider.authMethod === 'api_key' ? 'Authentification par clé statique — gérée automatiquement.' : 'Ce mode d\'authentification nécessite une intervention manuelle (voir la fiche ci-dessous).'}
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${provider.authMethod === 'api_key' ? 'bg-slate-100 text-slate-500' : 'bg-orange-100 text-orange-700'}`}
+                        >
+                            {AUTH_METHOD_LABEL[provider.authMethod]}
+                        </span>
+                    )}
                     {needsDiscoveryInfo ? (
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Info technique manquante</span>
                     ) : notConfigured ? (
@@ -265,7 +294,11 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                     {provider.models.length > 0 && (
                         <p className="text-xs text-slate-500">
                             Modèle par défaut : <span className="font-mono">{provider.models.find((m) => m.isDefault)?.modelId || provider.models[0].modelId}</span>
+                            {provider.models.length > 1 && <span className="text-slate-400"> (+{provider.models.length - 1} autre{provider.models.length > 2 ? 's' : ''})</span>}
                         </p>
+                    )}
+                    {provider.pricingSummary && (
+                        <p className="text-xs text-slate-500 italic">Tarifs : {provider.pricingSummary}</p>
                     )}
 
                     <div className="flex items-center gap-2">

@@ -94,6 +94,12 @@ interface ExtractionResult {
     api_key_url: string | null;
     billing_url: string | null;
     base_url: string | null;
+    // Type d'authentification détecté. Seul 'api_key' est géré de bout en bout par
+    // le moteur générique (bearer/header/query, tous couverts par `auth.style`
+    // ci-dessous) : oauth2/webhook/mcp restent affichés à l'admin comme un
+    // avertissement, car ils nécessitent un jeton/secret statique fourni à la main
+    // (pas d'échange de jeton OAuth automatisé, pas de client MCP dans ce moteur).
+    auth_method: 'api_key' | 'oauth2' | 'webhook' | 'mcp' | 'unknown';
     auth: { style: 'bearer' | 'header' | 'query' | 'none'; header_name: string | null; query_param: string | null };
     primary_endpoint: {
         method: 'POST' | 'GET';
@@ -106,6 +112,8 @@ interface ExtractionResult {
         status_path: string | null;
         done_values: string[] | null;
     } | null;
+    pricing_summary: string | null;
+    models: { model_id: string; label: string; capabilities: Record<string, boolean> }[];
     confidence: number;
     notes: string;
     missing_fields: { key: string; label: string; hint: string }[];
@@ -239,6 +247,7 @@ Deno.serve(async (req: Request) => {
   "api_key_url": string | null,
   "billing_url": string | null,
   "base_url": string | null,
+  "auth_method": "api_key" | "oauth2" | "webhook" | "mcp" | "unknown",
   "auth": { "style": "bearer" | "header" | "query" | "none", "header_name": string | null, "query_param": string | null },
   "primary_endpoint": {
     "method": "POST" | "GET",
@@ -251,15 +260,20 @@ Deno.serve(async (req: Request) => {
     "status_path": string | null,
     "done_values": string[] | null
   } | null,
+  "pricing_summary": string | null,
+  "models": [{ "model_id": string, "label": string, "capabilities": { "text": boolean, "vision": boolean, "streaming": boolean, "json": boolean } }],
   "confidence": number entre 0 et 1,
   "notes": string courte,
   "missing_fields": [{ "key": string, "label": string, "hint": string }]
 }
 Règles :
 - "category" : llm = génération de texte/chat, voice = synthèse ou transcription vocale, image_video = génération d'image ou de vidéo.
+- "auth_method" : "api_key" si le fournisseur délivre une clé/jeton statique à coller dans les requêtes (le cas le plus courant, y compris quand l'inscription elle-même passe par un login OAuth type Google/GitHub — ce qui compte est l'authentification DE L'API, pas celle du site web). "oauth2" seulement si l'API elle-même exige un flux d'échange de jeton (authorization code / client credentials) pour CHAQUE appel. "webhook" si l'usage principal est de recevoir des événements plutôt que d'appeler une API. "mcp" si le fournisseur n'expose que ses capacités via un serveur MCP. "unknown" si tu ne peux pas déterminer.
 - "primary_endpoint" décrit l'endpoint principal de génération (pas l'authentification ni la liste des modèles). "path" est relatif à base_url (ex. "/v1/chat/completions"). "response_text_path" est le chemin JSON (notation pointée, ex. "choices[0].message.content") vers le texte ou l'URL de résultat dans la réponse.
 - Si l'API est asynchrone (soumission d'un job puis sondage), remplis is_async=true, job_id_path, poll_path (chemin relatif, peut contenir {{JOB_ID}}), status_path, done_values.
 - "body_template" est un exemple de corps JSON de requête ; utilise exactement les jetons {{MESSAGES}} (tableau de messages), {{PROMPT}}, {{TEXT}}, {{VOICE_ID}}, {{MODEL_ID}} ou {{AUDIO_BASE64}} là où la vraie valeur doit être injectée à l'exécution.
+- "pricing_summary" : une phrase courte résumant la tarification si elle apparaît dans le contenu (sinon null) — pas besoin d'exactitude parfaite, juste un repère pour l'admin.
+- "models" : liste les modèles identifiés dans le contenu avec leur identifiant technique exact (celui à utiliser dans les requêtes, pas juste un nom marketing) et leurs capacités. Liste vide si aucun modèle n'est identifiable avec certitude — n'invente jamais un identifiant de modèle.
 - Si une information ne peut pas être déterminée avec confiance à partir du contenu fourni, mets la valeur à null et ajoute une entrée dans "missing_fields" décrivant précisément ce qui manque, avec un indice pour aider un humain à répondre.
 - "confidence" reflète ta certitude globale sur "primary_endpoint" uniquement (pas sur les liens).
 - N'invente jamais un chemin d'endpoint que tu n'as pas vu dans le contenu ; dans le doute, laisse à null et documente-le dans missing_fields.
@@ -278,14 +292,35 @@ ${corpus}`;
         return json({ error: (err as Error).message }, 502);
     }
 
+    const missingFields = extraction.missing_fields ?? [];
+
+    // Le moteur générique n'authentifie qu'avec une clé/jeton statique (bearer,
+    // en-tête ou paramètre de requête). oauth2/webhook/mcp exigent un échange de
+    // jeton, la réception d'événements, ou un client MCP — rien de tout ça n'est
+    // automatisable ici. On le dit clairement plutôt que d'activer un fournisseur
+    // qui échouera silencieusement à chaque appel.
+    const authMethod = extraction.auth_method ?? 'unknown';
+    if (authMethod === 'oauth2' || authMethod === 'webhook' || authMethod === 'mcp') {
+        const labels: Record<string, string> = {
+            oauth2: 'OAuth2 (échange de jeton par appel)',
+            webhook: 'Webhook (réception d\'événements, pas un appel direct)',
+            mcp: 'Serveur MCP dédié',
+        };
+        missingFields.push({
+            key: 'auth_method',
+            label: `Authentification détectée : ${labels[authMethod]}`,
+            hint: "Ce mode n'est pas géré automatiquement par le moteur générique. Si ce fournisseur délivre malgré tout une clé/jeton statique utilisable en Bearer, complétez la configuration manuellement ci-dessous ; sinon ce fournisseur nécessite un développement spécifique.",
+        });
+    }
+
     const hasUsableEndpoint = !!(
         extraction?.primary_endpoint?.path &&
         extraction?.primary_endpoint?.response_text_path &&
-        (extraction.confidence ?? 0) >= 0.5
+        (extraction.confidence ?? 0) >= 0.5 &&
+        (authMethod === 'api_key' || authMethod === 'unknown')
     );
     const discoveryStatus = hasUsableEndpoint ? 'ready' : 'needs_info';
 
-    const missingFields = extraction.missing_fields ?? [];
     if (!hasUsableEndpoint && missingFields.length === 0) {
         missingFields.push({
             key: 'primary_endpoint',
@@ -333,6 +368,9 @@ ${corpus}`;
         p_discovery_summary: extraction.notes ?? null,
         p_adapter_config: adapterConfig,
         p_missing_fields: missingFields,
+        p_auth_method: authMethod,
+        p_pricing_summary: extraction.pricing_summary ?? null,
+        p_models: extraction.models ?? [],
     });
     if (rpcError) return json({ error: `Échec de l'enregistrement : ${rpcError.message}` }, 500);
 
@@ -341,12 +379,15 @@ ${corpus}`;
         displayName: extraction.display_name || siteUrl.hostname,
         category: extraction.category,
         discoveryStatus,
+        authMethod,
         confidence: extraction.confidence,
         notes: extraction.notes,
         docsUrl: extraction.docs_url,
         signupUrl: extraction.signup_url,
         apiKeyUrl: extraction.api_key_url,
         billingUrl: extraction.billing_url,
+        pricingSummary: extraction.pricing_summary ?? null,
+        modelsDetected: (extraction.models ?? []).length,
         missingFields,
     });
 });
