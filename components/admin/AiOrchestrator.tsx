@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { BrainCircuit, Mic, Image as ImageIcon, Loader2, CheckCircle2, XCircle, KeyRound, ChevronUp, ChevronDown } from 'lucide-react';
+import { BrainCircuit, Mic, Image as ImageIcon, Loader2, CheckCircle2, XCircle, KeyRound, ChevronUp, ChevronDown, ExternalLink, CreditCard } from 'lucide-react';
 import {
     AiCategory,
     AiProviderRow,
@@ -75,8 +75,26 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
     return (
         <div className={`bg-white border rounded-2xl p-5 space-y-3 ${notConfigured ? 'border-slate-100 opacity-60' : 'border-slate-200'}`}>
             <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-bold text-slate-800">{provider.displayName}</h3>
+                    {provider.apiKeyUrl && (
+                        <a
+                            href={provider.apiKeyUrl} target="_blank" rel="noopener noreferrer"
+                            title="Créer / gérer la clé API chez ce fournisseur"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:underline"
+                        >
+                            <KeyRound size={11} /> Clé API <ExternalLink size={10} />
+                        </a>
+                    )}
+                    {provider.billingUrl && (
+                        <a
+                            href={provider.billingUrl} target="_blank" rel="noopener noreferrer"
+                            title="Facturation / recharge de crédits / abonnement chez ce fournisseur"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:underline"
+                        >
+                            <CreditCard size={11} /> Facturation <ExternalLink size={10} />
+                        </a>
+                    )}
                     {notConfigured ? (
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Bientôt disponible</span>
                     ) : provider.isEnabled ? (

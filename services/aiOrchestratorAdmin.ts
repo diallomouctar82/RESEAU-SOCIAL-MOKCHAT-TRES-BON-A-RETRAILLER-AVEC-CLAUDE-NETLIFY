@@ -17,6 +17,8 @@ export interface AiProviderRow {
     adapterKind: string;
     priority: number;
     status: 'not_implemented' | 'active';
+    apiKeyUrl: string | null;
+    billingUrl: string | null;
     models: AiProviderModel[];
     isEnabled: boolean;
     keyHint: string | null;
@@ -57,6 +59,8 @@ export const listProviders = async (): Promise<AiProviderRow[]> => {
             adapterKind: p.adapter_kind,
             priority: p.priority,
             status: p.status,
+            apiKeyUrl: p.api_key_url ?? null,
+            billingUrl: p.billing_url ?? null,
             models: (models || [])
                 .filter((m) => m.provider_id === p.id)
                 .map((m) => ({ id: m.id, modelId: m.model_id, label: m.label, isDefault: m.is_default })),
