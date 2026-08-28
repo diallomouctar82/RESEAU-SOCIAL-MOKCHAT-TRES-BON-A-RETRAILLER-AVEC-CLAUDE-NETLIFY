@@ -195,12 +195,23 @@ export const transcribeAudio = async (
  * seul cas où le navigateur a besoin d'une forme de clé, à courte durée de
  * vie et à usage limité. Voir supabase/functions/mint-live-token.
  */
-export const mintLiveToken = async (model?: string): Promise<string> => {
+export interface LiveTokenGrant {
+    token: string;
+    /**
+     * Modèle réellement retenu par le serveur : il peut différer de celui
+     * demandé (noms de modèles Live en préversion, renouvelés régulièrement).
+     * Le client DOIT se connecter avec ce modèle-là, sinon le jeton — qui est
+     * lié au modèle — est refusé.
+     */
+    model: string;
+}
+
+export const mintLiveToken = async (model?: string): Promise<LiveTokenGrant> => {
     const { data, error } = await supabase.functions.invoke('mint-live-token', { body: { model } });
     if (error) throw new Error((await readFunctionErrorMessage(error)) || error.message || "Impossible de préparer l'appel vocal.");
     if (data?.error) throw new Error(data.error as string);
     if (!data?.token) throw new Error("Jeton d'appel introuvable dans la réponse du serveur.");
-    return data.token as string;
+    return { token: data.token as string, model: (data.model as string) || (model ?? '') };
 };
 
 /** @deprecated utilisez generateText — conservé pour compatibilité. */
