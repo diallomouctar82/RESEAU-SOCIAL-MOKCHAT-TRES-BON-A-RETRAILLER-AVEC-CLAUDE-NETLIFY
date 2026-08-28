@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Notification, UserProfile, UserShop, WalletTransaction } from '../types';
 import { MOCK_TRANSACTIONS } from '../constants';
-import { onAuthStateChange, signOut, type Session } from '../services/auth';
+import { completeOAuthCallback, hasOAuthCallbackCode, onAuthStateChange, signOut, type Session } from '../services/auth';
 import { fetchUserProfile, updateOwnProfile } from '../services/profile';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 
@@ -131,9 +131,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     useEffect(() => {
         let active = true;
+        const callbackPending = hasOAuthCallbackCode();
         // Supabase émet INITIAL_SESSION : un getSession() parallèle ferait
         // une seconde synchronisation inutile du même profil.
-        const unsubscribe = onAuthStateChange((_event, session) => {
+        const unsubscribe = onAuthStateChange((event, session) => {
+            // Pendant un retour OAuth, l'ancienne INITIAL_SESSION ne doit pas
+            // masquer l'écran de chargement avant l'échange du nouveau code.
+            if (callbackPending && event === 'INITIAL_SESSION') return;
             if (active) void loadSessionProfile(session).catch(() => {
                 if (!active) return;
                 loadedSessionKeyRef.current = undefined;
@@ -141,6 +145,22 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 setIsAuthChecking(false);
             });
         });
+        if (callbackPending) {
+            void completeOAuthCallback()
+                .then((session) => {
+                    if (active) return loadSessionProfile(session);
+                })
+                .catch((error: unknown) => {
+                    if (!active) return;
+                    loadedSessionKeyRef.current = undefined;
+                    setUserProfile(EMPTY_USER_PROFILE);
+                    setIsAuthenticated(false);
+                    setAuthError(error instanceof Error
+                        ? `Connexion Google impossible : ${error.message}`
+                        : 'Connexion Google impossible. Relancez la connexion.');
+                    setIsAuthChecking(false);
+                });
+        }
         return () => {
             active = false;
             authRequestRef.current += 1;

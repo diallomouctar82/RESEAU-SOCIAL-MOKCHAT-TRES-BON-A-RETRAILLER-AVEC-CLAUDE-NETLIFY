@@ -2,12 +2,67 @@ import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const OAUTH_ERROR_KEYS = ['error', 'error_code', 'error_description'] as const;
+const OAUTH_CALLBACK_KEYS = ['code', 'sb_flow_id', ...OAUTH_ERROR_KEYS] as const;
+
+let callbackExchange: Promise<Session | null> | null = null;
+let callbackCode: string | null = null;
 
 export interface OAuthCallbackError {
     code: string;
     message: string;
     retryable: boolean;
 }
+
+const replaceOAuthCallbackUrl = (url: URL): void => {
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+    OAUTH_CALLBACK_KEYS.forEach((key) => {
+        url.searchParams.delete(key);
+        hash.delete(key);
+    });
+    url.hash = hash.toString() ? `#${hash.toString()}` : '';
+    window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+};
+
+const oauthErrorMessage = (code?: string | null, description?: string | null): string => {
+    const normalized = `${code || ''} ${description || ''}`.toLowerCase();
+    const stateExpired = normalized.includes('state') && (
+        normalized.includes('missing') || normalized.includes('expired') || normalized.includes('not found')
+    );
+    return stateExpired
+        ? 'La demande de connexion a expiré ou a déjà été utilisée. Relancez la connexion Google depuis cette page.'
+        : (description || 'Google n’a pas pu terminer la connexion. Réessayez.');
+};
+
+export const hasOAuthCallbackCode = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(new URL(window.location.href).searchParams.get('code'));
+};
+
+/**
+ * Échange explicitement et une seule fois le code PKCE reçu de Supabase.
+ * Le nettoyage de l'URL après succès empêche tout rejeu au rafraîchissement.
+ */
+export const completeOAuthCallback = async (): Promise<Session | null> => {
+    if (!isSupabaseConfigured || typeof window === 'undefined') return null;
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    if (!code) return null;
+
+    if (callbackExchange && callbackCode === code) return callbackExchange;
+    callbackCode = code;
+    callbackExchange = (async () => {
+        const { data, error } = await getSupabaseClient().auth.exchangeCodeForSession(code);
+        if (error) throw error;
+        replaceOAuthCallbackUrl(url);
+        return data.session;
+    })().catch((error) => {
+        callbackExchange = null;
+        callbackCode = null;
+        replaceOAuthCallbackUrl(url);
+        throw error;
+    });
+    return callbackExchange;
+};
 
 /** Reads, then removes, OAuth errors so a refreshed callback is idempotent. */
 export const consumeOAuthCallbackError = (): OAuthCallbackError | null => {
@@ -19,22 +74,10 @@ export const consumeOAuthCallbackError = (): OAuthCallbackError | null => {
     const description = read('error_description');
     if (!code && !description) return null;
 
-    OAUTH_ERROR_KEYS.forEach((key) => {
-        url.searchParams.delete(key);
-        hash.delete(key);
-    });
-    url.hash = hash.toString() ? `#${hash.toString()}` : '';
-    window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
-
-    const normalized = `${code || ''} ${description || ''}`.toLowerCase();
-    const stateExpired = normalized.includes('state') && (
-        normalized.includes('missing') || normalized.includes('expired') || normalized.includes('not found')
-    );
+    replaceOAuthCallbackUrl(url);
     return {
         code: code || 'oauth_callback_error',
-        message: stateExpired
-            ? 'La demande de connexion a expiré ou a déjà été utilisée. Relancez la connexion Google depuis cette page.'
-            : (description || 'Google n’a pas pu terminer la connexion. Réessayez.'),
+        message: oauthErrorMessage(code, description),
         retryable: true,
     };
 };

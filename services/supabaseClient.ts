@@ -37,7 +37,10 @@ export const getSupabaseClient = (): SupabaseClient<Database> => {
             {
                 auth: {
                     flowType: 'pkce',
-                    detectSessionInUrl: true,
+                    // Le callback PKCE est échangé explicitement par
+                    // completeOAuthCallback(), ce qui évite une course entre
+                    // l'auto-détection et le listener de session React.
+                    detectSessionInUrl: false,
                     persistSession: true,
                     autoRefreshToken: true,
                 },
