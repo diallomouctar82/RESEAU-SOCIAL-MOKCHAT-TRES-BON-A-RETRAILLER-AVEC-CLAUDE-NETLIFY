@@ -207,3 +207,60 @@ export const saveKeyTestAndActivate = async (
     }
     return result;
 };
+
+// ── Boîte à outils des experts ───────────────────────────────────────────────
+// Le catalogue d'outils et les autorisations par expert vivent en base
+// (ai_tools + agent_tool_grants). L'administrateur ouvre ou ferme un outil pour
+// un expert donné depuis la console, sans qu'aucune ligne de code ne change et
+// sans redéploiement : l'orchestrateur relit ces droits à chaque appel.
+
+export interface ToolMatrixRow {
+    toolId: string;
+    displayName: string;
+    description: string;
+    category: 'search' | 'read' | 'action';
+    requiresConfirmation: boolean;
+    requiresAuth: boolean;
+    /** Interrupteur global : coupe l'outil pour tous les experts d'un coup. */
+    toolEnabled: boolean;
+    /** agentId -> autorisé. Un expert absent de cette table n'a pas l'outil. */
+    grants: Record<string, boolean>;
+}
+
+export const listToolMatrix = async (): Promise<ToolMatrixRow[]> => {
+    const { data, error } = await supabase.rpc('get_tool_matrix');
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+        toolId: r.tool_id as string,
+        displayName: r.display_name as string,
+        description: r.description as string,
+        category: r.category as ToolMatrixRow['category'],
+        requiresConfirmation: Boolean(r.requires_confirmation),
+        requiresAuth: Boolean(r.requires_auth),
+        toolEnabled: Boolean(r.tool_enabled),
+        grants: (r.grants ?? {}) as Record<string, boolean>,
+    }));
+};
+
+/** Active ou coupe un outil pour UN expert précis. */
+export const setAgentToolEnabled = async (
+    agentId: string,
+    toolId: string,
+    enabled: boolean,
+): Promise<void> => {
+    const { error } = await supabase.rpc('set_agent_tool_enabled', {
+        p_agent_id: agentId,
+        p_tool_id: toolId,
+        p_enabled: enabled,
+    });
+    if (error) throw new Error(error.message);
+};
+
+/** Interrupteur global d'un outil, tous experts confondus. */
+export const setToolEnabled = async (toolId: string, enabled: boolean): Promise<void> => {
+    const { error } = await supabase.rpc('set_tool_enabled', {
+        p_tool_id: toolId,
+        p_enabled: enabled,
+    });
+    if (error) throw new Error(error.message);
+};

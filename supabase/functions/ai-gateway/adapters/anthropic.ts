@@ -41,15 +41,32 @@ function splitSystem(msgs: { role: string; content: string; imageBase64?: string
     const systemParts = msgs.filter((m) => m.role === 'system').map((m) => m.content);
     const rest = msgs
         .filter((m) => m.role !== 'system')
-        .map((m) => ({
-            role: m.role === 'assistant' ? 'assistant' : 'user',
-            content: m.imageBase64
-                ? [
-                    { type: 'text', text: m.content },
-                    { type: 'image', source: { type: 'base64', media_type: m.imageMimeType || 'image/jpeg', data: m.imageBase64 } },
-                ]
-                : m.content,
-        }));
+        .map((m) => {
+            // Résultat d'outil : bloc tool_result porté par un tour 'user'.
+            if (m.role === 'tool') {
+                return {
+                    role: 'user',
+                    content: [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.content }],
+                };
+            }
+            // Tour d'assistant ayant demandé des outils : blocs tool_use rejoués.
+            if (m.role === 'assistant' && m.toolCalls?.length) {
+                const blocks: Record<string, unknown>[] = m.content ? [{ type: 'text', text: m.content }] : [];
+                for (const tc of m.toolCalls) {
+                    blocks.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.args });
+                }
+                return { role: 'assistant', content: blocks };
+            }
+            return {
+                role: m.role === 'assistant' ? 'assistant' : 'user',
+                content: m.imageBase64
+                    ? [
+                        { type: 'text', text: m.content },
+                        { type: 'image', source: { type: 'base64', media_type: m.imageMimeType || 'image/jpeg', data: m.imageBase64 } },
+                    ]
+                    : m.content,
+            };
+        });
     return { system: systemParts.join('\n\n') || undefined, rest };
 }
 
@@ -59,13 +76,30 @@ export const anthropicAdapter: ProviderAdapter = {
             throw new AdapterError('Catégorie non supportée par cet adaptateur.', 'other');
         }
         const { system, rest } = splitSystem(req.llm.messages);
-        const data = await messages(baseUrl || DEFAULT_BASE_URL, apiKey, {
+        const payload: Record<string, unknown> = {
             model: req.modelId,
             system,
             messages: rest,
             max_tokens: 4096,
-        }) as { content?: { type: string; text?: string }[] };
-        const text = (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+        };
+        if (req.llm.tools?.length) {
+            payload.tools = req.llm.tools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                input_schema: t.parametersSchema,
+            }));
+        }
+        const data = await messages(baseUrl || DEFAULT_BASE_URL, apiKey, payload) as {
+            content?: { type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }[];
+        };
+        const blocks = data.content ?? [];
+        const text = blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+
+        const toolCalls = blocks
+            .filter((b) => b.type === 'tool_use' && b.name)
+            .map((b, i) => ({ id: b.id ?? `toolu_${Date.now()}_${i}`, name: b.name!, args: b.input ?? {} }));
+        if (toolCalls.length) return { text, toolCalls, raw: data };
+
         if (!text) throw new AdapterError('Réponse vide du fournisseur.', 'other');
         return req.llm.jsonMode ? { json: JSON.parse(text), raw: data } : { text, raw: data };
     },

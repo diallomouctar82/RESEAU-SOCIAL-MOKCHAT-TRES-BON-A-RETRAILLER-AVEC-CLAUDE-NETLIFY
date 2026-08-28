@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { BrainCircuit, Mic, Image as ImageIcon, Loader2, CheckCircle2, XCircle, KeyRound, ChevronUp, ChevronDown, ExternalLink, CreditCard, BookOpen, Sparkles, AlertTriangle, Search } from 'lucide-react';
+import { AgentToolsMatrix } from './AgentToolsMatrix';
 import {
     AiCategory,
     AiProviderRow,
@@ -400,6 +401,10 @@ export const AiOrchestrator: React.FC = () => {
                     </div>
                 );
             })}
+
+            <div className="pt-2 border-t border-slate-200">
+                <AgentToolsMatrix />
+            </div>
         </div>
     );
 };
