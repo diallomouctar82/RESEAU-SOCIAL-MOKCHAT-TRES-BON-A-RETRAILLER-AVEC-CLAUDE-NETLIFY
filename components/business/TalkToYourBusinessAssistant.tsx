@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { StockItem, BusinessOrder, CrmLeadClient, CrmFollowUp, ProductProfitability } from '../../types';
 import { generateText } from '../../services/aiGateway';
+import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
+import { ELEVENLABS_CURATED_VOICES } from '../../services/voiceEngine';
 
 interface TalkToYourBusinessAssistantProps {
   orders: BusinessOrder[];
@@ -50,13 +52,22 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
 
   const [inputQuery, setInputQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Copilote vocal : voix "Analyste Diallo" (finance/B2B), cohérente avec le
+  // ton business de ce panneau. onFinalTranscript envoie directement la
+  // question dès que la reconnaissance vocale a fini de transcrire.
+  const { isListening, isSupported: isVoiceSupported, startListening, stopListening, speak } = useVoiceAssistant({
+    voiceId: ELEVENLABS_CURATED_VOICES.finance.id,
+    lang: 'fr-FR',
+    onFinalTranscript: (transcript) => handleSendMessage(transcript),
+    onInterimTranscript: (transcript) => setInputQuery(transcript),
+  });
 
   const handleSendMessage = async (queryText: string) => {
     if (!queryText.trim()) return;
@@ -126,6 +137,10 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
       };
 
       setMessages(prev => [...prev, botMsg]);
+
+      if (isSpeaking) {
+        void speak(botMsg.text).catch(() => {});
+      }
     } catch (e) {
       console.error(e);
       const fallbackMsg: ChatMessage = {
@@ -139,6 +154,10 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
         ]
       };
       setMessages(prev => [...prev, fallbackMsg]);
+
+      if (isSpeaking) {
+        void speak(fallbackMsg.text).catch(() => {});
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -255,21 +274,19 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
           <button
             type="button"
             onClick={() => {
-              setIsListening(!isListening);
-              if (!isListening) {
-                // simulate voice prompt
-                setTimeout(() => {
-                  setInputQuery("Diallo, quel est l'état de nos stocks à Conakry ?");
-                  setIsListening(false);
-                }, 1800);
+              if (isListening) {
+                stopListening();
+              } else {
+                startListening();
               }
             }}
+            disabled={!isVoiceSupported}
             className={`p-3 rounded-2xl transition-all border ${
               isListening 
                 ? 'bg-rose-600 text-white animate-pulse border-rose-400' 
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-white/10'
             }`}
-            title="Dicter la question"
+            title={isVoiceSupported ? 'Dicter la question' : 'Reconnaissance vocale non supportée par ce navigateur'}
           >
             {isListening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>

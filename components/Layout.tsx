@@ -67,6 +67,12 @@ interface LayoutProps {
   onMarkRead: (id: string) => void;
   userProfile: UserProfile;
   onLogout?: () => void;
+  // Remonté à App.tsx : Dashboard a aussi besoin d'ouvrir la recherche
+  // universelle depuis sa zone d'actions rapides, ce qu'un état purement
+  // interne à Layout ne permettait pas.
+  isSearchModalOpen: boolean;
+  onOpenSearch: () => void;
+  onCloseSearch: () => void;
 }
 
 const NEWS_ITEMS = [
@@ -79,14 +85,17 @@ const NEWS_ITEMS = [
 
 const DEFAULT_FAVORITES = ['career', 'campus', 'housing', 'shop'];
 
-export const Layout: React.FC<LayoutProps> = ({ 
-  children, 
-  activeTab, 
-  onTabChange, 
-  notifications, 
-  onMarkRead, 
-  userProfile, 
-  onLogout 
+export const Layout: React.FC<LayoutProps> = ({
+  children,
+  activeTab,
+  onTabChange,
+  notifications,
+  onMarkRead,
+  userProfile,
+  onLogout,
+  isSearchModalOpen,
+  onOpenSearch,
+  onCloseSearch,
 }) => {
   const { currentPalette, paletteId } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -96,8 +105,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
-  // Modals state
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  // Modals state (isSearchModalOpen vient désormais de App.tsx — voir LayoutProps)
   const [isTransversalModalOpen, setIsTransversalModalOpen] = useState(false);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [isGuidedModeOpen, setIsGuidedModeOpen] = useState(false);
@@ -178,9 +186,9 @@ export const Layout: React.FC<LayoutProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsSearchModalOpen(prev => !prev);
+        if (isSearchModalOpen) onCloseSearch(); else onOpenSearch();
       } else if (e.key === 'Escape') {
-        setIsSearchModalOpen(false);
+        onCloseSearch();
         setIsNotifOpen(false);
         setIsProfileMenuOpen(false);
         setIsTransversalModalOpen(false);
@@ -195,7 +203,7 @@ export const Layout: React.FC<LayoutProps> = ({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isSearchModalOpen, onOpenSearch, onCloseSearch]);
 
   const handleOpenDialloOSWithPrompt = (prompt?: string) => {
     setDialloInitialPrompt(prompt);
@@ -230,7 +238,7 @@ export const Layout: React.FC<LayoutProps> = ({
           {/* Central Universal Search Bar / Command Palette Trigger */}
           <div className="flex-1 max-w-xl flex items-center gap-2">
             <button 
-              onClick={() => setIsSearchModalOpen(true)}
+              onClick={onOpenSearch}
               className="flex-1 bg-slate-100/90 hover:bg-white hover:ring-2 ring-brand-200 text-slate-500 hover:text-brand-700 flex items-center justify-between px-4 py-2 rounded-full border border-slate-200/60 hover:border-brand-300 transition-all group shadow-inner"
             >
               <div className="flex items-center gap-2.5">
@@ -285,7 +293,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
             {/* Diallo OS Micro Trigger */}
             <button
-              onClick={() => setIsSearchModalOpen(true)}
+              onClick={onOpenSearch}
               className="p-2 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-600 transition shrink-0 shadow-xs"
               title="Commande vocale de navigation"
               aria-label="Commande vocale"
@@ -509,7 +517,7 @@ export const Layout: React.FC<LayoutProps> = ({
         <div className="flex items-center gap-2">
           {/* Quick Search trigger */}
           <button 
-            onClick={() => setIsSearchModalOpen(true)}
+            onClick={onOpenSearch}
             className="p-1.5 rounded-full bg-slate-100 text-slate-600"
           >
             <Search size={16} />
@@ -825,7 +833,6 @@ export const Layout: React.FC<LayoutProps> = ({
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
               return (
                 <ContextActionBar
-                  activeTabId={activeTab}
                   activeTabLabel={currentItem?.label || activeTab}
                   pillarLabel={currentItem?.category || 'Espace LMAV'}
                   description={currentItem?.description}
@@ -835,7 +842,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     setIsDialloOSOpen(true);
                   }}
                   onOpenTransversal={() => setIsTransversalModalOpen(true)}
-                  onOpenSearch={() => setIsSearchModalOpen(true)}
+                  onOpenSearch={onOpenSearch}
                 />
               );
             })()}
@@ -881,7 +888,47 @@ export const Layout: React.FC<LayoutProps> = ({
                 </div>
                 <ChevronRight size={14} className="text-slate-400" />
               </button>
-              
+
+              {/* Outils rapides — desktop-only jusqu'ici (Notifications,
+                  Scanner, Bilingue n'avaient aucun déclencheur mobile). */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <button
+                  onClick={() => { setIsNotifOpen(true); setIsMobileMenuExpanded(false); }}
+                  className="relative flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Bell size={16} />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1.5 right-1/2 translate-x-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                  )}
+                  <span className="text-[9px] font-bold">Notifications</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const ctxMap: Record<string, ScannerContext> = {
+                      languages: 'languages',
+                      'admin-procedures': 'procedures',
+                      health: 'health',
+                      shop: 'shop',
+                      studio: 'studio'
+                    };
+                    setScannerContext(ctxMap[activeTab] || 'general');
+                    setIsScannerOpen(true);
+                    setIsMobileMenuExpanded(false);
+                  }}
+                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Search size={16} />
+                  <span className="text-[9px] font-bold">Scanner</span>
+                </button>
+                <button
+                  onClick={() => { setIsBilingualModalOpen(true); setIsMobileMenuExpanded(false); }}
+                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Languages size={16} />
+                  <span className="text-[9px] font-bold">Bilingue</span>
+                </button>
+              </div>
+
               <div className="space-y-4 overflow-y-auto flex-1">
                 {categoryOrder.map((category) => {
                   const items = groupedNavItems[category] || [];
@@ -916,7 +963,10 @@ export const Layout: React.FC<LayoutProps> = ({
                 <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
                   <Shield size={14} /> Super-Admin (IA & Comptes)
                 </button>
-                <button onClick={() => {onTabChange('settings'); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                {/* Ouvre la même UnifiedSettingsModal que le desktop — le
+                    tab 'settings'/Settings.tsx était une implémentation
+                    séparée, propre au mobile, sans équivalent desktop. */}
+                <button onClick={() => {setIsSettingsModalOpen(true); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
                   <Settings size={14} /> Paramètres
                 </button>
                 {onLogout && (
@@ -983,9 +1033,54 @@ export const Layout: React.FC<LayoutProps> = ({
           userProfile={userProfile}
         />
 
+        {/* Notifications — panneau mobile. Le panneau desktop (ci-dessus,
+            dans le header) est positionné en absolu par rapport à un
+            conteneur masqué sur mobile (hidden md:block) : sans cet
+            équivalent, activer isNotifOpen depuis le tiroir mobile n'aurait
+            eu aucun effet visible. */}
+        {isNotifOpen && (
+          <div className="md:hidden fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/50" onClick={() => setIsNotifOpen(false)}>
+            <div
+              className="w-full max-h-[75vh] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-fade-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-slate-50/70 shrink-0">
+                <span className="font-bold text-sm text-slate-800">Notifications</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-slate-200/80 px-2 py-0.5 rounded-full text-slate-600 font-bold">{unreadCount} nouvelles</span>
+                  <button onClick={() => setIsNotifOpen(false)} className="p-1 rounded-full bg-slate-100 text-slate-500">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto divide-y divide-slate-50">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-xs">Rien à signaler</div>
+                ) : (
+                  notifications.map(notif => (
+                    <div
+                      key={notif.id}
+                      className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.read ? 'bg-blue-50/30' : ''}`}
+                      onClick={() => onMarkRead(notif.id)}
+                    >
+                      <div className="flex gap-2.5">
+                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                        <div>
+                          <div className="font-semibold text-xs text-slate-800">{notif.title}</div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{notif.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <UniversalSearchModal
           isOpen={isSearchModalOpen}
-          onClose={() => setIsSearchModalOpen(false)}
+          onClose={onCloseSearch}
           onNavigate={onTabChange}
           onOpenDialloOS={handleOpenDialloOSWithPrompt}
         />

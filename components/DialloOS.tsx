@@ -4,6 +4,7 @@ import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Act
 import { generateJSON } from '../services/aiGateway';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 
 interface DialloOSProps {
     isOpen: boolean;
@@ -22,7 +23,6 @@ type AIAction = {
 export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate, userProfile }) => {
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
-    const [isListening, setIsListening] = useState(false);
     const [aiResponse, setAiResponse] = useState<string | null>(null);
     const [activeAction, setActiveAction] = useState<AIAction | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -33,27 +33,15 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         }
     }, [isOpen]);
 
-    const handleVoiceInput = () => {
-        if (isListening) return;
-        setIsListening(true);
-        try {
-            const recognition = new (window as any).webkitSpeechRecognition();
-            recognition.lang = 'fr-FR';
-            recognition.start();
-            recognition.onresult = (event: any) => {
-                const transcript = event.results[0][0].transcript;
-                setInput(transcript);
-                handleExecute(transcript);
-                setIsListening(false);
-            };
-            recognition.onerror = () => setIsListening(false);
-        } catch (e) {
-            console.error("Voice not supported");
-            setIsListening(false);
-        }
-    };
+    const { isListening, startListening, stopListening, speak } = useVoiceAssistant({
+        lang: 'fr-FR',
+        onFinalTranscript: (transcript) => {
+            setInput(transcript);
+            handleExecute(transcript, true);
+        },
+    });
 
-    const handleExecute = async (overrideInput?: string) => {
+    const handleExecute = async (overrideInput?: string, viaVoice: boolean = false) => {
         const command = overrideInput || input;
         if (!command.trim()) return;
 
@@ -101,6 +89,10 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             setAiResponse(result.explanation);
             setActiveAction(result);
 
+            if (viaVoice && result.explanation) {
+                speak(result.explanation);
+            }
+
             // Execute Navigation with delay for effect
             if (result.type === 'NAVIGATE' && result.target) {
                 setTimeout(() => {
@@ -144,7 +136,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                             className="flex-1 bg-transparent text-xl font-medium text-white placeholder-slate-500 outline-none"
                         />
                         
-                        <button onClick={handleVoiceInput} className="text-slate-400 hover:text-white transition-colors">
+                        <button onClick={() => (isListening ? stopListening() : startListening())} className="text-slate-400 hover:text-white transition-colors">
                             <Mic size={24} className={isListening ? 'text-red-500' : ''} />
                         </button>
                         

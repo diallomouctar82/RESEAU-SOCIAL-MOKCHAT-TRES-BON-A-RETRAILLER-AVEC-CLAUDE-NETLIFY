@@ -24,7 +24,6 @@ import {
   UserCheck
 } from 'lucide-react';
 import { ImportExportProject, ImportExportRoadmapStep } from '../types';
-import { GoogleGenAI } from '@google/genai';
 
 interface ImportExportManagerProps {
   projects: ImportExportProject[];

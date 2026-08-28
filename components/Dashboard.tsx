@@ -49,9 +49,10 @@ interface DashboardProps {
     userProfile: UserProfile;
     onNavigate: (tab: string, context?: any) => void;
     onOpenCapModal?: () => void;
+    onOpenSearch?: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, onOpenCapModal }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, onOpenCapModal, onOpenSearch }) => {
     // STATE: DASHBOARD MODE (Personal vs System)
     const [viewMode, setViewMode] = useState<'personal' | 'system'>('personal');
 
@@ -115,9 +116,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                         </button>
                     </div>
 
-                    <QuickActionZone 
-                        onActionClick={onNavigate} 
-                        onOpenDialloOS={() => onNavigate('chat')} 
+                    <QuickActionZone
+                        onActionClick={onNavigate}
+                        onOpenDialloOS={() => onNavigate('chat')}
+                        onOpenSearch={onOpenSearch}
                         className="hidden md:flex"
                     />
                 </div>

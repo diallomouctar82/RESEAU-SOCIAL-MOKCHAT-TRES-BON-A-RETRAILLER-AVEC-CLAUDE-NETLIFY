@@ -43,9 +43,14 @@ const AppContent = () => {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   
-  const [activeTab, setActiveTab] = useState('home'); 
+  const [activeTab, setActiveTab] = useState('home');
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
+  // Recherche universelle : remontée ici (au lieu d'un état local à Layout)
+  // pour que Dashboard puisse aussi l'ouvrir depuis sa zone d'actions
+  // rapides — c'était l'absence de ce lien qui faisait naviguer vers un
+  // onglet 'search' inexistant et vider tout l'écran.
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   
   // LIVE STATE
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
@@ -155,16 +160,19 @@ const AppContent = () => {
   }
 
   return (
-    <Layout 
-        activeTab={activeTab} 
+    <Layout
+        activeTab={activeTab}
         onTabChange={setActiveTab}
         notifications={notifications}
         onMarkRead={markNotificationRead}
         userProfile={userProfile}
         onLogout={handleLogout}
+        isSearchModalOpen={isSearchModalOpen}
+        onOpenSearch={() => setIsSearchModalOpen(true)}
+        onCloseSearch={() => setIsSearchModalOpen(false)}
     >
-      
-      {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} />}
+
+      {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} />}
 
       {activeTab === 'google-maps' && <GoogleMapsExplorer />}
 

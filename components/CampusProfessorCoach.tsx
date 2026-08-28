@@ -51,6 +51,7 @@ import {
 import { campusPedagogicalEngine } from '../services/campusPedagogicalEngine';
 import { voiceEngine } from '../services/voiceEngine';
 import { multimodalVisionService } from '../services/multimodalVision';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 
 interface CampusProfessorCoachProps {
     profile: StudentPedagogicalProfile;
@@ -82,10 +83,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
     // États de l'Avatar et de la Synthèse Vocale
     const [avatarState, setAvatarState] = useState<'idle' | 'speaking' | 'thinking' | 'routine'>('idle');
     const [audioEnabled, setAudioEnabled] = useState(true); // Voix active par défaut pour immersion
-    const [isListening, setIsListening] = useState(false);
-    const [speechVolume, setSpeechVolume] = useState(0);
     const [isConversationalMode, setIsConversationalMode] = useState(false);
-    const [conversationalTurn, setConversationalTurn] = useState<'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user'>('waiting_user');
     const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
     const [currentVoiceId, setCurrentVoiceId] = useState<string>(() => voiceEngine.getVoiceIdForAgent('professor'));
 
@@ -136,59 +134,73 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
     const isGeneratingRef = useRef(isGenerating);
     isGeneratingRef.current = isGenerating;
 
-    // 1. Initialisation de la Reconnaissance Vocale (Microphone) & Turn-Taking
-    useEffect(() => {
-        const removeListener = voiceEngine.addListener({
-            onTranscript: (transcript: string, isFinal: boolean) => {
-                setInputText(transcript);
-                if (isFinal && isConversationalModeRef.current && transcript.trim() && !isGeneratingRef.current) {
-                    handleSendMessage(transcript.trim());
-                }
-            },
-            onSpeechVolume: (vol: number) => {
-                setSpeechVolume(vol);
-            },
-            onError: (err: string) => {
-                console.warn("Avis micro Campus:", err);
-                setIsListening(false);
-            },
-            onStart: () => {
-                setIsListening(true);
-            },
-            onEnd: () => {
-                setIsListening(false);
-            },
-            onSpeakingStateChange: (speaking: boolean) => {
-                if (speaking) {
-                    setAvatarState('speaking');
-                } else if (!isGeneratingRef.current) {
-                    setAvatarState('idle');
-                }
-            },
-            onConversationalTurnChange: (turn) => {
-                setConversationalTurn(turn);
-                if (turn === 'ai_thinking') {
-                    setAvatarState('thinking');
-                }
+    // 1. Moteur vocal partagé (hook centralisé unique au-dessus de voiceEngine.ts —
+    // remplace l'ancien câblage manuel de voiceEngine.addListener ci-dessus ;
+    // comportement strictement identique : même micro, même synthèse, même turn-taking).
+    const {
+        isListening,
+        isSpeaking,
+        volume: speechVolume,
+        conversationalTurn,
+        error: voiceError,
+        startListening,
+        stopListening,
+        speak,
+        stopSpeaking,
+        setConversationalMode,
+    } = useVoiceAssistant({
+        lang: 'fr-FR',
+        voiceId: currentVoiceId,
+        onFinalTranscript: (transcript) => {
+            setInputText(transcript);
+            if (isConversationalModeRef.current && transcript.trim() && !isGeneratingRef.current) {
+                handleSendMessage(transcript.trim());
             }
-        });
+        },
+        onInterimTranscript: (transcript) => {
+            setInputText(transcript);
+        },
+    });
 
+    // Avis micro (reproduit le console.warn auparavant émis par le onError câblé à la main)
+    useEffect(() => {
+        if (voiceError) {
+            console.warn("Avis micro Campus:", voiceError);
+        }
+    }, [voiceError]);
+
+    // Pilotage de l'avatar selon l'état de synthèse vocale (ex onSpeakingStateChange)
+    useEffect(() => {
+        if (isSpeaking) {
+            setAvatarState('speaking');
+        } else if (!isGeneratingRef.current) {
+            setAvatarState('idle');
+        }
+    }, [isSpeaking]);
+
+    // Pilotage de l'avatar selon le tour conversationnel (ex onConversationalTurnChange)
+    useEffect(() => {
+        if (conversationalTurn === 'ai_thinking') {
+            setAvatarState('thinking');
+        }
+    }, [conversationalTurn]);
+
+    // Nettoyage à la désactivation du coach (identique à l'ancien useEffect)
+    useEffect(() => {
         return () => {
-            removeListener();
-            voiceEngine.stopListening();
-            voiceEngine.stopSpeaking();
-            voiceEngine.setConversationalMode(false);
+            stopListening();
+            stopSpeaking();
+            setConversationalMode(false);
         };
-    }, []);
+    }, [stopListening, stopSpeaking, setConversationalMode]);
 
     const toggleListening = async () => {
         if (isListening) {
-            voiceEngine.stopListening();
-            setIsListening(false);
+            stopListening();
         } else {
             // Arrêter toute synthèse en cours si l'utilisateur prend la parole (barge-in)
-            voiceEngine.stopSpeaking();
-            const success = await voiceEngine.startListening('fr-FR');
+            stopSpeaking();
+            const success = await startListening('fr-FR');
             if (!success) {
                 alert("Impossible d'accéder au microphone. Veuillez autoriser l'accès au micro dans votre navigateur.");
             }
@@ -198,14 +210,14 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
     const toggleConversationalMode = async () => {
         const nextState = !isConversationalMode;
         setIsConversationalMode(nextState);
-        voiceEngine.setConversationalMode(nextState);
+        setConversationalMode(nextState);
 
         if (nextState) {
             setAudioEnabled(true);
-            voiceEngine.stopSpeaking();
-            await voiceEngine.startListening('fr-FR');
+            stopSpeaking();
+            await startListening('fr-FR');
         } else {
-            voiceEngine.stopListening();
+            stopListening();
         }
     };
 
@@ -396,13 +408,13 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
             ]);
 
             if (audioEnabled) {
-                voiceEngine.speak(analysis.textExplanation, {
+                speak(analysis.textExplanation, {
                     voiceId: currentVoiceId,
                     onStart: () => setAvatarState('speaking'),
                     onEnd: () => {
                         setAvatarState('idle');
                         if (isConversationalModeRef.current) {
-                            voiceEngine.startListening('fr-FR');
+                            startListening('fr-FR');
                         }
                     }
                 });
@@ -465,7 +477,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
         if (fileInputRef.current) fileInputRef.current.value = '';
 
         // Si l'utilisateur parle ou écrit, on interrompt toute lecture en cours pour réactivité immédiate (barge-in)
-        voiceEngine.stopSpeaking();
+        stopSpeaking();
 
         // Message de l'élève
         setMessages(prev => [
@@ -522,14 +534,14 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
             ]);
 
             if (audioEnabled) {
-                voiceEngine.speak(explanation, {
+                speak(explanation, {
                     voiceId: currentVoiceId,
                     onStart: () => setAvatarState('speaking'),
                     onEnd: () => {
                         setAvatarState('idle');
                         if (isConversationalModeRef.current) {
                             // Relance l'écoute pour le tour de l'utilisateur
-                            voiceEngine.startListening('fr-FR');
+                            startListening('fr-FR');
                         }
                     }
                 });
@@ -551,7 +563,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
         if (isGenerating) return;
         setIsExplainingOtherwise(true);
         setAvatarState('thinking');
-        voiceEngine.stopSpeaking();
+        stopSpeaking();
 
         const lastModelMsg = [...messages].reverse().find(m => m.role === 'model')?.text || currentLessonTitle;
 
@@ -574,13 +586,13 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
             ]);
 
             if (audioEnabled) {
-                voiceEngine.speak(alternative, {
+                speak(alternative, {
                     voiceId: currentVoiceId,
                     onStart: () => setAvatarState('speaking'),
                     onEnd: () => {
                         setAvatarState('idle');
                         if (isConversationalModeRef.current) {
-                            voiceEngine.startListening('fr-FR');
+                            startListening('fr-FR');
                         }
                     }
                 });
