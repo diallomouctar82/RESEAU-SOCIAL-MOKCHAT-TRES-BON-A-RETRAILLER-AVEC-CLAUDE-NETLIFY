@@ -1,6 +1,6 @@
 # 🔐 AUTHENTIFICATION — LE MONDE À VOUS
 
-> *Mise à jour : 27 août 2026 — migration Firebase → Supabase Auth.*
+> *Mise à jour : 28 août 2026 — système complet email/mot de passe + Google, prêt pour la production.*
 
 ---
 
@@ -8,7 +8,7 @@
 
 **Avant** : `Auth.tsx` simulait un flux email + mot de passe (le mot de passe n'était jamais vérifié ni transmis), et la session était un objet JSON dans `localStorage['lmav_session_v2']` restauré sur simple présence d'un champ `email` — falsifiable en un clic devtools. Le rôle admin était déterminé côté client par comparaison d'email en dur. Firebase Auth ne servait que de courtier OAuth Google pour obtenir un token d'accès aux API Drive/Chat/Meet.
 
-**Après** : Supabase Auth est la seule source de vérité pour l'identité. Google OAuth est le provider prioritaire (email/mot de passe reporté à une mission ultérieure, regroupé avec Facebook/Apple/Microsoft/OTP). Le rôle et les données sensibles du profil vivent en base, jamais côté client.
+**Après** : Supabase Auth est la seule source de vérité pour l'identité, avec deux méthodes de connexion pleinement fonctionnelles — **Google OAuth** (minimal, prioritaire) et **e-mail + mot de passe** (création de compte, confirmation d'e-mail, connexion, mot de passe oublié avec réinitialisation, "se souvenir de moi", déconnexion). Le rôle et les données sensibles du profil vivent en base, jamais côté client. Architecture volontairement extensible : ajouter Facebook/Apple/Microsoft plus tard = un appel de plus à `signInWithOAuthProvider(provider)`, rien d'autre à changer.
 
 ---
 
@@ -72,8 +72,43 @@ Voir `docs/SUPABASE_ARCHITECTURE.md §3`. Résumé : `role` est une colonne serv
 
 ---
 
-## 7. Tests réalisés vs à faire
+## 7. Écran `Auth.tsx` — 5 modes
 
-**Fait (automatisé, cette mission)** : build sans variables d'environnement (l'app démarre quand même, erreur catchée) ; build avec variables réelles + clic "Continuer avec Google" → vérifié que l'appel réseau exact (`/auth/v1/authorize?provider=google`) part sans erreur JS.
+`components/Auth.tsx` est une machine à 5 états (`mode`) :
 
-**À faire une fois le prérequis §4 complété** (nécessite une vraie session Google, donc un navigateur humain) : première connexion réelle (création profil), reconnexion, déconnexion, session multi-appareils, révocation/erreur provider, comportement mobile. Voir la checklist complète du cahier des charges (section "Tests Auth").
+| Mode | Déclenché par | Contenu |
+|---|---|---|
+| `signin` | Onglet "Se connecter" (défaut) | E-mail, mot de passe, case "se souvenir de moi", lien "Mot de passe oublié ?", bouton Google |
+| `signup` | Onglet "Créer un compte" | E-mail, mot de passe (8 caractères min.), confirmation, bouton Google |
+| `signup-sent` | Après un `signUp` réussi si la confirmation d'e-mail est requise | Message de confirmation + bouton "Renvoyer l'e-mail" |
+| `forgot` | Lien "Mot de passe oublié ?" | E-mail seul |
+| `forgot-sent` | Après `sendPasswordResetEmail` | Confirmation générique (ne révèle jamais si le compte existe) |
+
+`components/ResetPassword.tsx` est un écran séparé, affiché uniquement quand `App.tsx` détecte l'événement Supabase `PASSWORD_RECOVERY` (lien de réinitialisation cliqué) — prioritaire sur tout le reste, même si une session est déjà active à ce moment-là.
+
+`services/auth.ts` expose : `signInWithGoogle`/`signInWithOAuthProvider` (extensible), `signUpWithEmail`, `signInWithEmail`, `sendPasswordResetEmail`, `resendConfirmationEmail`, `updatePassword`, `signOut`, `getSession`, `onAuthStateChange` (distingue notamment `PASSWORD_RECOVERY` des connexions/déconnexions normales).
+
+### "Se souvenir de moi"
+
+`services/supabaseClient.ts` utilise un storage adapter hybride (`hybridStorage`) : la préférence est appelée **avant** `signIn*`/`signUp`, et détermine où le token de session Supabase est écrit — `localStorage` (persiste après fermeture du navigateur) si coché, `sessionStorage` (effacé à la fermeture de l'onglet) sinon. Vérifié : décocher la case avant une tentative de connexion règle bien `localStorage['lmav_remember_me'] = 'false'`.
+
+---
+
+## 8. Incident CAPTCHA (résolu le 28 août 2026)
+
+Après activation du système complet, tous les flux e-mail/mot de passe (`signup`, `signin`, `recover`, `resend`) échouaient instantanément avec `captcha_failed` — la protection **"Attack Protection" (CAPTCHA)** de Supabase Auth était activée côté Dashboard sans intégration Turnstile/hCaptcha côté frontend (jamais demandée dans le cahier des charges). Diagnostiqué en appelant directement les 4 endpoints via `curl` (hors navigateur), qui répondaient tous en moins d'une seconde avec ce même code. Corrigé en désactivant le réglage : **Dashboard Supabase → Authentication → Attack Protection → "Enable CAPTCHA protection" → OFF**. Google restait non affecté (passe par `/authorize`, pas concerné par ce réglage). Si une protection anti-bot est souhaitée plus tard, l'ajouter proprement nécessite une clé Cloudflare Turnstile + un widget côté `Auth.tsx`, plutôt que de la réactiver sans intégration.
+
+---
+
+## 9. Tests réalisés
+
+**Chaîne Google** (déjà validée en production par l'utilisateur, confirmée par de vraies connexions dans les logs Supabase depuis `moknet.net`) — non régressée par la refonte de `Auth.tsx` : bouton "Continuer avec Google" déclenche toujours l'appel exact `/auth/v1/authorize?provider=google`, sans erreur JS.
+
+**Chaîne e-mail/mot de passe** (testée bout en bout après correction du CAPTCHA, via navigateur headless contre le vrai projet Supabase) :
+- Inscription réelle : requête envoyée, réponse reçue, gestion d'erreur correcte (testé notamment sur la limite d'envoi d'e-mails par défaut de Supabase — message affiché proprement, bouton de nouveau cliquable).
+- Connexion : identifiants invalides → message français clair ; Supabase renvoie volontairement le même message générique pour un e-mail non confirmé (comportement de sécurité Supabase, pas un bug — évite de révéler qu'un compte existe).
+- Mot de passe oublié : requête envoyée, écran de confirmation générique affiché.
+- "Se souvenir de moi" : préférence correctement écrite en `localStorage` selon l'état de la case.
+- Artefacts de test nettoyés de `auth.users`/`profiles` après vérification.
+
+**Non testable en conditions réelles dans cette session** : le clic effectif sur un lien de confirmation d'e-mail ou de réinitialisation (nécessite une vraie boîte mail humaine) — le code du côté réception (`PASSWORD_RECOVERY`, `USER_UPDATED`) a été relu mais pas déclenché par un vrai clic.
