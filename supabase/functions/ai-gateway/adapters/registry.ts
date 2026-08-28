@@ -12,6 +12,7 @@ import {
     fluxAdapter, leonardoAdapter, runwayAdapter, heygenAdapter, lumaAdapter, klingAdapter, pikaAdapter,
 } from './image_video_providers.ts';
 import { veoAdapter } from './veo.ts';
+import { genericHttpAdapter } from './generic_http.ts';
 import { unimplementedAdapter } from './unimplemented.ts';
 
 // Clé = ai_providers.adapter_kind. Plusieurs fournisseurs (OpenAI, DeepSeek, Qwen...)
@@ -41,6 +42,9 @@ export const ADAPTERS: Record<string, ProviderAdapter> = {
     kling: klingAdapter,
     pika: pikaAdapter,
     veo: veoAdapter,
+    // Fournisseurs ajoutés via l'auto-découverte (module "coller une URL") : aucun
+    // code écrit pour eux, leur forme d'appel vit entièrement dans ai_providers.adapter_config.
+    generic_http: genericHttpAdapter,
     unimplemented: unimplementedAdapter,
 };
 

@@ -45,6 +45,9 @@ export class AdapterError extends Error {
 }
 
 export interface ProviderAdapter {
-    call(req: AdapterRequest, apiKey: string, baseUrl: string | null): Promise<AdapterResult>;
-    testConnection(apiKey: string, baseUrl: string | null): Promise<{ ok: boolean; message: string }>;
+    // config : présent uniquement pour les fournisseurs auto-découverts (adapter_kind
+    // 'generic_http') — c'est ai_providers.adapter_config, ignoré par tous les
+    // adaptateurs codés en dur qui connaissent déjà la forme de leur API.
+    call(req: AdapterRequest, apiKey: string, baseUrl: string | null, config?: Record<string, unknown>): Promise<AdapterResult>;
+    testConnection(apiKey: string, baseUrl: string | null, config?: Record<string, unknown>): Promise<{ ok: boolean; message: string }>;
 }
