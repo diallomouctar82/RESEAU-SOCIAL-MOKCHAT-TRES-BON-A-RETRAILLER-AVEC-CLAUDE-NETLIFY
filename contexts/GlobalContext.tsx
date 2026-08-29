@@ -33,7 +33,9 @@ const mapSupabaseNotification = (rn: any): Notification => ({
     message: rn.message,
     type: (['success', 'info', 'warning', 'alert'] as const).includes(rn.type) ? rn.type : 'info',
     timestamp: new Date(rn.created_at),
-    read: rn.read
+    read: rn.read,
+    priority: (['low', 'normal', 'high'] as const).includes(rn.priority) ? rn.priority : 'normal',
+    targetAction: rn.target_action || undefined
 });
 
 export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -85,18 +87,43 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setIsSupabaseConnected(isConfig);
         if (!isConfig) return;
 
+        // Réel temps réel (LOOP 08/17) : `notifications` est dans la
+        // publication Realtime depuis l'origine, mais jusqu'ici seul
+        // `loadRealNotifications` (fetch ponctuel) la consommait — une
+        // notification créée pendant que l'app est déjà ouverte (ami qui
+        // accepte, nouveau message reçu) n'apparaissait qu'au rechargement
+        // suivant. Un seul canal actif à la fois, réattaché à chaque
+        // changement d'utilisateur (le filtre `user_id` est figé à la
+        // création du canal).
+        let unsubscribeNotifications: (() => void) | null = null;
+        const attachNotificationsRealtime = (userId: string) => {
+            unsubscribeNotifications?.();
+            unsubscribeNotifications = supabaseService.subscribeToNotifications(userId, (row) => {
+                const mapped = mapSupabaseNotification(row);
+                setNotifications(prev => prev.some(n => n.id === mapped.id) ? prev : [mapped, ...prev]);
+            });
+        };
+
         supabaseService.getCurrentUser().then(currentUser => {
-            if (currentUser) loadRealNotifications(currentUser.id);
+            if (currentUser) {
+                loadRealNotifications(currentUser.id);
+                attachNotificationsRealtime(currentUser.id);
+            }
         });
 
         const { unsubscribe } = supabaseService.onAuthStateChange(async (event, session) => {
             if (session?.user) {
                 await loadRealNotifications(session.user.id);
+                attachNotificationsRealtime(session.user.id);
+            } else {
+                unsubscribeNotifications?.();
+                unsubscribeNotifications = null;
             }
         });
 
         return () => {
             unsubscribe();
+            unsubscribeNotifications?.();
         };
     }, []);
 

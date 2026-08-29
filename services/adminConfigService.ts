@@ -3307,6 +3307,35 @@ export class AdminConfigService {
     this.notifications.unshift(newNotif);
     this.addLog('info', 'admin', `Diffusion d’une alerte générale : ${newNotif.title} (Cible: ${newNotif.targetAudience})`, 'Super-Admin');
     this.notify();
+
+    // LOOP 08/17 (moteur de notifications) : jusqu'ici cette méthode
+    // n'écrivait que dans ce tableau en mémoire (persistance localStorage
+    // propre à ce navigateur) — un admin croyait diffuser une alerte à
+    // toute la communauté, mais AUCUN autre utilisateur ne recevait jamais
+    // rien. Écriture réelle en tâche de fond dans la même table
+    // `notifications` que les autres notifications (pas un second
+    // mécanisme) — best-effort, ne bloque jamais le retour synchrone
+    // ci-dessus dont dépend le reste de cette classe (même patron que le
+    // reste du dépôt : optimiste localement, écriture réelle en arrière-plan).
+    const typeMap: Record<BroadcastNotification['priority'], 'success' | 'info' | 'warning' | 'alert'> = {
+      info: 'info', warning: 'warning', urgent: 'alert', maintenance: 'warning',
+    };
+    const priorityMap: Record<BroadcastNotification['priority'], 'low' | 'normal' | 'high'> = {
+      info: 'low', warning: 'normal', urgent: 'high', maintenance: 'high',
+    };
+    supabaseService.broadcastNotification({
+      title: newNotif.title,
+      message: newNotif.message,
+      type: typeMap[newNotif.priority],
+      priority: priorityMap[newNotif.priority],
+      targetAudience: newNotif.targetAudience,
+    }).then((count) => {
+      if (count > 0) this.addLog('info', 'admin', `Alerte "${newNotif.title}" réellement livrée à ${count} compte(s) réel(s).`, 'Super-Admin');
+    }).catch((err) => {
+      console.warn('Erreur diffusion réelle de la notification:', err);
+      this.addLog('warning', 'admin', `La diffusion réelle de "${newNotif.title}" a échoué — visible uniquement dans cette console admin.`, 'Super-Admin');
+    });
+
     return newNotif;
   }
 

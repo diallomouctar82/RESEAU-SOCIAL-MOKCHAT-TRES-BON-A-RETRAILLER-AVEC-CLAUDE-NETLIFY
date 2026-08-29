@@ -769,6 +769,79 @@ export const supabaseService = {
         const { error } = await supabase.from('notifications').update({ read: true }).eq('id', notificationId);
         if (error) throw error;
     },
+    /**
+     * LOOP 08/17 (moteur de notifications, fondation) : la table
+     * `notifications` est réellement dans la publication `supabase_realtime`
+     * depuis l'origine, mais jamais consommée — `GlobalContext.tsx` ne
+     * faisait qu'un fetch ponctuel au montage/à l'auth, jamais de mise à
+     * jour en direct (un ami qui accepte une demande, un nouveau message,
+     * pendant que l'app est ouverte, n'apparaissait qu'au rechargement
+     * suivant). Même patron que `subscribeToChat`.
+     */
+    subscribeToNotifications(userId: string, onInsert: (n: any) => void): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase
+                .channel(`notifications:${userId}`)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
+                    onInsert(payload.new);
+                })
+                .subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
+    },
+    /**
+     * Diffusion admin réelle — jusqu'ici `adminConfigService.sendBroadcastNotification`
+     * n'écrivait que dans un tableau en mémoire (`localStorage`), lu par
+     * personne d'autre : un admin croyait diffuser une alerte à toute la
+     * communauté, mais aucun autre utilisateur ne recevait jamais rien.
+     * Réutilise la même table `notifications` (pas un second mécanisme) —
+     * `notifications_owner` autorise déjà un admin (`is_admin()`) à écrire
+     * pour n'importe quel `user_id`, aucune fonction SECURITY DEFINER
+     * n'est donc nécessaire ici (à la différence des notifications entre
+     * deux utilisateurs ordinaires, qui passent par des triggers).
+     *
+     * `targetAudience` vient de `BroadcastNotification` (vocabulaire
+     * 'citizens'/'partners' d'AdminConfigService — hérité d'un modèle de
+     * rôles fictif jamais réconcilié avec la vraie contrainte
+     * `profiles_role_check`, découvert en testant cette fonction : les
+     * vraies valeurs sont `user`/`admin`/`expert`/`mentor`/`moderator`/
+     * `organization`/`super_admin`, AUCUNE ligne n'a jamais `role='citizen'`
+     * ou `role='partner'` — filtrer sur ces valeurs littérales aurait
+     * toujours matché zéro destinataire. Mappé ici vers l'équivalent réel
+     * le plus proche (`user` = membre ordinaire, `organization` = partenaire)
+     * — réconcilier tout le vocabulaire de rôles d'AdminConfigService est un
+     * chantier à part entière, hors périmètre d'une LOOP notifications.
+     */
+    async broadcastNotification(params: {
+        title: string;
+        message: string;
+        type: 'success' | 'info' | 'warning' | 'alert';
+        priority: 'low' | 'normal' | 'high';
+        targetAudience: 'all' | 'citizens' | 'partners' | 'admins';
+    }): Promise<number> {
+        if (!isSupabaseConfigured) return 0;
+        let query = supabase.from('profiles').select('id');
+        if (params.targetAudience === 'citizens') query = query.eq('role', 'user');
+        else if (params.targetAudience === 'partners') query = query.eq('role', 'organization');
+        else if (params.targetAudience === 'admins') query = query.in('role', ['admin', 'super_admin']);
+        const { data: recipients, error: fetchError } = await query;
+        if (fetchError || !recipients || recipients.length === 0) return 0;
+
+        const rows = recipients.map((r: { id: string }) => ({
+            user_id: r.id,
+            type: params.type,
+            title: params.title,
+            message: params.message,
+            priority: params.priority,
+            target_action: 'broadcast',
+        }));
+        const { error } = await supabase.from('notifications').insert(rows);
+        if (error) throw error;
+        return rows.length;
+    },
 
     // --- Console Super Admin --------------------------------------------
     async fetchAdminProfiles(): Promise<SupabaseUserProfile[]> {

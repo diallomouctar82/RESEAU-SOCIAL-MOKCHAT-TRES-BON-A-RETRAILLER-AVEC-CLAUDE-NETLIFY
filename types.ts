@@ -1036,6 +1036,10 @@ export interface Notification {
     type: 'success' | 'info' | 'warning' | 'alert';
     timestamp: Date;
     read: boolean;
+    /** LOOP 08/17 (moteur de notifications) : priorité fixée par le TYPE d'événement côté serveur (jamais par qui l'a émis) — colonne réelle, jamais mappée côté client avant cette LOOP. */
+    priority?: 'low' | 'normal' | 'high';
+    /** Cible de navigation (ex. 'messages', 'social', 'friend_requests') — colonne réelle `target_action`, jamais consommée avant cette LOOP. */
+    targetAction?: string;
 }
 
 export interface Message {

@@ -433,7 +433,12 @@ export const Layout: React.FC<LayoutProps> = ({
                             <div className="flex gap-2.5">
                               <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
                               <div>
-                                <div className="font-semibold text-xs text-slate-800">{notif.title}</div>
+                                <div className="font-semibold text-xs text-slate-800 flex items-center gap-1.5">
+                          <span>{notif.title}</span>
+                          {notif.priority === 'high' && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-bold uppercase tracking-wide">Important</span>
+                          )}
+                        </div>
                                 <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{notif.message}</p>
                               </div>
                             </div>
@@ -1077,7 +1082,12 @@ export const Layout: React.FC<LayoutProps> = ({
                       <div className="flex gap-2.5">
                         <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
                         <div>
-                          <div className="font-semibold text-xs text-slate-800">{notif.title}</div>
+                          <div className="font-semibold text-xs text-slate-800 flex items-center gap-1.5">
+                          <span>{notif.title}</span>
+                          {notif.priority === 'high' && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-bold uppercase tracking-wide">Important</span>
+                          )}
+                        </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{notif.message}</p>
                         </div>
                       </div>
