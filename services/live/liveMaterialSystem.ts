@@ -32,6 +32,25 @@ export const LIVE_MATERIAL_ANIMATION: Record<LiveMaterialState, string> = {
     error: 'animate-water-error',
 };
 
+import type { LiveVisualUniverse } from '../../types';
+
+/**
+ * Cinq univers visuels (prompt 3/7, LOOP 08/14) — métadonnées d'affichage
+ * pour le sélecteur (Avancé, hôte uniquement). Le rendu réel de chaque
+ * univers est porté par des variables CSS définies dans index.html
+ * (`[data-live-universe="..."] { --glass-*: ... }`), appliquées via
+ * l'attribut `data-live-universe` posé sur le conteneur racine du LIVE —
+ * .glass-crystal/.glass-crystal-surface restent les seules classes, ce
+ * n'est jamais une deuxième famille de classes par univers.
+ */
+export const LIVE_VISUAL_UNIVERSES: { id: LiveVisualUniverse; label: string; description: string }[] = [
+    { id: 'crystal', label: 'Cristal (référence)', description: 'Glassmorphism Crystal Water — verre et eau, la référence du LIVE.' },
+    { id: 'futuristic_blue', label: 'Futuriste Bleu', description: 'Bleu électrique, contrastes nets, sensation de vitesse.' },
+    { id: 'natural_fresh', label: 'Naturel & Frais', description: 'Vert/émeraude doux, lumière naturelle.' },
+    { id: 'violet_luxe', label: 'Violet Luxe', description: 'Violet profond, reflet doré, sensation premium.' },
+    { id: 'deep_ocean', label: 'Océan Profond', description: 'Bleu-sarcelle sombre, profondeur, calme.' },
+];
+
 export type GlassSurfaceVariant = 'primary' | 'surface';
 
 /** .glass-crystal (chrome principal : header, dock) vs .glass-crystal-surface (panneaux secondaires : sidebar, tuiles). */

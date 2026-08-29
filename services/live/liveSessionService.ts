@@ -1,5 +1,5 @@
-import { supabase } from '../supabaseClient';
-import { LiveStream, LiveStageParticipant, LiveType, LiveQualityMode } from '../../types';
+import { supabase, isSupabaseConfigured } from '../supabaseClient';
+import { LiveStream, LiveStageParticipant, LiveType, LiveQualityMode, LiveVisualUniverse } from '../../types';
 
 /**
  * Cycle de vie de session + rôles (LOOP 03/14). live_speakers sert de roster
@@ -54,6 +54,7 @@ interface LiveSessionRow {
     interview_guest_bio: string | null;
     conf_tracks: string[];
     sensitive_data_alert: boolean;
+    visual_universe: LiveVisualUniverse;
 }
 
 interface LiveSpeakerRow {
@@ -120,6 +121,7 @@ function mapSessionRow(row: LiveSessionRow): LiveStream {
         interviewGuestBio: row.interview_guest_bio || undefined,
         confTracks: row.conf_tracks || [],
         sensitiveDataAlert: row.sensitive_data_alert,
+        visualUniverse: row.visual_universe || 'crystal',
     };
 }
 
@@ -280,4 +282,37 @@ export async function setHandRaised(sessionId: string, userId: string, raised: b
         .eq('session_id', sessionId)
         .eq('user_id', userId);
     if (error) throw new Error(error.message);
+}
+
+/**
+ * Change l'univers visuel actif (LOOP 08/14) — hôte uniquement
+ * (live_sessions_update_host), s'applique à tous les participants via la
+ * souscription Realtime ci-dessous.
+ */
+export async function updateVisualUniverse(sessionId: string, universe: LiveVisualUniverse): Promise<void> {
+    const { error } = await supabase.from('live_sessions').update({ visual_universe: universe }).eq('id', sessionId);
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * Diffuse les changements d'univers visuel décidés par l'hôte à tous les
+ * participants — vérifié réel (Realtime `postgres_changes` UPDATE livré de
+ * bout en bout, contrairement au trou d'infrastructure documenté sur
+ * live_speakers au LOOP 05/14 : pas besoin de repli par sondage ici).
+ */
+export function subscribeToLiveSessionUniverse(sessionId: string, onChange: (universe: LiveVisualUniverse) => void): () => void {
+    if (!isSupabaseConfigured) return () => {};
+    try {
+        const channel = supabase
+            .channel(`live-session-universe:${sessionId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: `id=eq.${sessionId}` },
+                (payload) => onChange((payload.new as { visual_universe: LiveVisualUniverse }).visual_universe),
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    } catch {
+        return () => {};
+    }
 }

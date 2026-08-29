@@ -11,11 +11,12 @@ import {
   AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand
 } from 'lucide-react';
 import { generateText } from '../services/aiGateway';
-import { 
-  LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc, 
+import {
+  LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc,
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
   LiveCommerceProduct, LiveAgendaItem, LiveDecision, LivePersonalNote,
-  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes, LiveChatMessage
+  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes, LiveChatMessage,
+  LiveVisualUniverse
 } from '../types';
 import { AGENTS, USER_PROFILE, LIVE_GIFTS, TRIBES } from '../constants';
 import { Avatar3D } from './Avatar3D';
@@ -29,9 +30,9 @@ import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
-import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants } from '../services/live/liveSessionService';
+import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
-import { glassSurfaceClass } from '../services/live/liveMaterialSystem';
+import { glassSurfaceClass, LIVE_VISUAL_UNIVERSES } from '../services/live/liveMaterialSystem';
 
 interface SocialLiveProps {
   liveId: string;
@@ -164,6 +165,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // créer (RLS le lui interdit de toute façon) — dégradation gracieuse :
   // pas de transport tant qu'aucune session réelle n'est confirmée.
   const [realSessionId, setRealSessionId] = useState<string | null>(null);
+  // Univers visuel actif (LOOP 08/14) — réglage de session, pas un état
+  // local par spectateur : initialisé depuis la ligne réelle, puis tenu à
+  // jour pour tout le monde via subscribeToLiveSessionUniverse ci-dessous.
+  const [visualUniverse, setVisualUniverse] = useState<LiveVisualUniverse>('crystal');
 
   useEffect(() => {
     let cancelled = false;
@@ -173,6 +178,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       if (existing) {
         setRealSessionId(existing.id);
         setRealHostId(existing.hostId);
+        setVisualUniverse(existing.visualUniverse || 'crystal');
         return;
       }
       if (!isHost) return; // spectateur sur une session pas encore créée : rien à faire, transport désactivé.
@@ -188,7 +194,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           tribeName: liveData.tribeName,
           language: liveData.language,
         });
-        if (!cancelled) { setRealSessionId(created.id); setRealHostId(created.hostId); }
+        if (!cancelled) {
+          setRealSessionId(created.id);
+          setRealHostId(created.hostId);
+          setVisualUniverse(created.visualUniverse || 'crystal');
+        }
       } catch (err) {
         console.error('SocialLive: échec de création de la session réelle', err);
       }
@@ -196,6 +206,21 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveId]);
+
+  // Diffuse à tous les participants le choix d'univers visuel de l'hôte —
+  // vérifié réel via Realtime (postgres_changes UPDATE sur live_sessions).
+  useEffect(() => {
+    if (!realSessionId) return;
+    const unsub = subscribeToLiveSessionUniverse(realSessionId, setVisualUniverse);
+    return unsub;
+  }, [realSessionId]);
+
+  /** Hôte uniquement (RLS live_sessions_update_host) — s'applique à tous les spectateurs. */
+  const handleChangeVisualUniverse = (universe: LiveVisualUniverse) => {
+    if (!realSessionId || !isHost) return;
+    setVisualUniverse(universe);
+    updateVisualUniverse(realSessionId, universe).catch((err) => console.error('SocialLive: échec du changement d\'univers visuel', err));
+  };
 
   // Une fois la session réelle confirmée, s'y inscrire comme participant
   // (spectateur ou hôte) — nécessaire pour can_view_live_session()/
@@ -842,7 +867,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
+    <div data-live-universe={visualUniverse} className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
       
       {/* 1. TOP HEADER BAR — matière verre/eau/lumière (LOOP 07/14), surface de référence */}
       <div className={`h-16 ${glassSurfaceClass('primary')} px-4 flex items-center justify-between z-30`}>
@@ -965,6 +990,22 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               >
                 <Sliders size={14} />
               </button>
+            )}
+
+            {/* Univers visuel (LOOP 08/14) — Avancé, hôte uniquement : change
+                l'expérience pour TOUS les spectateurs (voir handleChangeVisualUniverse). */}
+            {isHost && (
+              <div className="hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10">
+                {LIVE_VISUAL_UNIVERSES.map((universe) => (
+                  <button
+                    key={universe.id}
+                    onClick={() => handleChangeVisualUniverse(universe.id)}
+                    className={`w-5 h-5 rounded-full transition-all ${glassSurfaceClass('surface')} ${visualUniverse === universe.id ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                    data-live-universe={universe.id}
+                    title={`${universe.label} — ${universe.description}`}
+                  />
+                ))}
+              </div>
             )}
 
             {isUserOnStage && (

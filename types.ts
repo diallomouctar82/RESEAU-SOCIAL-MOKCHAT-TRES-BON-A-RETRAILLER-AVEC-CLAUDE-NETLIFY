@@ -627,6 +627,15 @@ export interface LiveReplayData {
     campusReady?: boolean;
 }
 
+/**
+ * Cinq univers visuels (prompt 3/7, LOOP 08/14) — une architecture commune
+ * (verre/eau/lumière du LOOP 07/14), pas cinq interfaces séparées. 'crystal'
+ * (Glassmorphism Crystal Water) est la référence ; les 4 autres réutilisent
+ * les mêmes classes/keyframes avec des variables de thème différentes (voir
+ * services/live/liveMaterialSystem.ts et index.html).
+ */
+export type LiveVisualUniverse = 'crystal' | 'futuristic_blue' | 'natural_fresh' | 'violet_luxe' | 'deep_ocean';
+
 export interface LiveStream {
     id: string;
     title: string;
@@ -682,6 +691,8 @@ export interface LiveStream {
     interviewGuestBio?: string;
     confTracks?: string[];
     sensitiveDataAlert?: boolean;
+    /** Univers visuel actif (LOOP 08/14) — réglage de session, diffusé à tous via Realtime. Défaut : 'crystal'. */
+    visualUniverse?: LiveVisualUniverse;
 }
 
 export interface LivePricing {

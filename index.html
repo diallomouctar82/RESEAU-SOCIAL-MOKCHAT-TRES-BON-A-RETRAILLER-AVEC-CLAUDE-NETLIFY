@@ -198,20 +198,80 @@
          plaqué partout : bordure claire en haut (lumière qui vient d'en
          haut), légère dégradation vers le bas (profondeur du liquide),
          netteté du contenu jamais compromise (le flou reste sur le fond,
-         jamais sur le texte au premier plan — prompt 3/7). */
+         jamais sur le texte au premier plan — prompt 3/7).
+
+         Cinq univers visuels (LOOP 08/14) : les teintes sont des variables
+         CSS avec la valeur "crystal" par défaut sur :root — [data-live-
+         universe] (posé sur le conteneur racine du LIVE) les redéfinit pour
+         les 4 univers secondaires. Toujours les 2 mêmes classes, jamais une
+         famille de classes par univers — une architecture, pas 5 refontes. */
+      :root {
+        --glass-tint-a: rgba(15, 41, 61, 0.72);
+        --glass-tint-b: rgba(4, 11, 20, 0.85);
+        --glass-border: rgba(143, 227, 255, 0.18);
+        --glass-border-top: rgba(232, 251, 255, 0.35);
+        --glass-shadow-inset: rgba(232, 251, 255, 0.12);
+        --glass-surface-tint-a: rgba(14, 41, 61, 0.55);
+        --glass-surface-tint-b: rgba(12, 27, 46, 0.65);
+        --glass-surface-border: rgba(143, 227, 255, 0.14);
+      }
+      /* 1 — Futuriste Bleu : bleu électrique, contrastes plus nets. */
+      [data-live-universe="futuristic_blue"] {
+        --glass-tint-a: rgba(10, 35, 80, 0.75);
+        --glass-tint-b: rgba(2, 8, 30, 0.88);
+        --glass-border: rgba(90, 170, 255, 0.22);
+        --glass-border-top: rgba(180, 220, 255, 0.4);
+        --glass-shadow-inset: rgba(180, 220, 255, 0.14);
+        --glass-surface-tint-a: rgba(10, 35, 80, 0.55);
+        --glass-surface-tint-b: rgba(6, 18, 50, 0.68);
+        --glass-surface-border: rgba(90, 170, 255, 0.16);
+      }
+      /* 2 — Naturel & Frais : émeraude doux, lumière plus naturelle. */
+      [data-live-universe="natural_fresh"] {
+        --glass-tint-a: rgba(15, 50, 42, 0.7);
+        --glass-tint-b: rgba(6, 20, 16, 0.85);
+        --glass-border: rgba(110, 230, 180, 0.2);
+        --glass-border-top: rgba(220, 255, 235, 0.35);
+        --glass-shadow-inset: rgba(220, 255, 235, 0.12);
+        --glass-surface-tint-a: rgba(15, 50, 42, 0.5);
+        --glass-surface-tint-b: rgba(10, 32, 26, 0.62);
+        --glass-surface-border: rgba(110, 230, 180, 0.14);
+      }
+      /* 5 — Violet Luxe : violet profond, reflet doré (sensation premium). */
+      [data-live-universe="violet_luxe"] {
+        --glass-tint-a: rgba(45, 20, 60, 0.74);
+        --glass-tint-b: rgba(14, 6, 22, 0.87);
+        --glass-border: rgba(200, 150, 255, 0.2);
+        --glass-border-top: rgba(255, 222, 170, 0.35);
+        --glass-shadow-inset: rgba(255, 222, 170, 0.12);
+        --glass-surface-tint-a: rgba(45, 20, 60, 0.52);
+        --glass-surface-tint-b: rgba(28, 12, 42, 0.64);
+        --glass-surface-border: rgba(200, 150, 255, 0.16);
+      }
+      /* 6 — Océan Profond : bleu-sarcelle sombre, plus dense, plus calme. */
+      [data-live-universe="deep_ocean"] {
+        --glass-tint-a: rgba(6, 35, 45, 0.78);
+        --glass-tint-b: rgba(2, 10, 14, 0.9);
+        --glass-border: rgba(70, 200, 210, 0.18);
+        --glass-border-top: rgba(160, 240, 240, 0.3);
+        --glass-shadow-inset: rgba(160, 240, 240, 0.1);
+        --glass-surface-tint-a: rgba(6, 35, 45, 0.56);
+        --glass-surface-tint-b: rgba(4, 20, 26, 0.68);
+        --glass-surface-border: rgba(70, 200, 210, 0.14);
+      }
       .glass-crystal {
-        background: linear-gradient(180deg, rgba(15, 41, 61, 0.72) 0%, rgba(4, 11, 20, 0.85) 100%);
+        background: linear-gradient(180deg, var(--glass-tint-a) 0%, var(--glass-tint-b) 100%);
         backdrop-filter: blur(20px) saturate(140%);
         -webkit-backdrop-filter: blur(20px) saturate(140%);
-        border: 1px solid rgba(143, 227, 255, 0.18);
-        border-top-color: rgba(232, 251, 255, 0.35);
-        box-shadow: inset 0 1px 0 0 rgba(232, 251, 255, 0.12), 0 8px 32px -8px rgba(4, 11, 20, 0.6);
+        border: 1px solid var(--glass-border);
+        border-top-color: var(--glass-border-top);
+        box-shadow: inset 0 1px 0 0 var(--glass-shadow-inset), 0 8px 32px -8px rgba(4, 11, 20, 0.6);
       }
       .glass-crystal-surface {
-        background: linear-gradient(180deg, rgba(14, 41, 61, 0.55) 0%, rgba(12, 27, 46, 0.65) 100%);
+        background: linear-gradient(180deg, var(--glass-surface-tint-a) 0%, var(--glass-surface-tint-b) 100%);
         backdrop-filter: blur(14px) saturate(130%);
         -webkit-backdrop-filter: blur(14px) saturate(130%);
-        border: 1px solid rgba(143, 227, 255, 0.14);
+        border: 1px solid var(--glass-surface-border);
       }
     </style>
   <script type="importmap">
