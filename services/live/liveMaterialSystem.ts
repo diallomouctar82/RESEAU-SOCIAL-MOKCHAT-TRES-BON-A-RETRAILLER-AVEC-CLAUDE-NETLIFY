@@ -63,3 +63,61 @@ export function liveMaterialClass(state: LiveMaterialState, variant: GlassSurfac
     const animation = LIVE_MATERIAL_ANIMATION[state];
     return animation ? `${glassSurfaceClass(variant)} ${animation}` : glassSurfaceClass(variant);
 }
+
+/**
+ * Grammaire d'états de l'avatar IA (LOOP 10/14, prompt 5/7) — étend le même
+ * système verre/eau/lumière plutôt que d'en construire un second. 6 des 10
+ * états réutilisent directement une animation du LOOP 07/14 (repos/écoute/
+ * réflexion/réponse/succès/erreur) ; 4 sont propres à l'avatar (vision
+ * active/compréhension/action/incertitude) — voir index.html pour leurs
+ * keyframes (avatar-vision/avatar-comprehension/avatar-action/
+ * avatar-uncertainty). L'avatar n'est jamais présenté avec plus de
+ * certitude que ce qu'il a réellement (état "incertitude" dédié — prompt 5/7).
+ */
+export type AvatarGrammarState =
+    | 'repos'          // Écran par défaut, immobile.
+    | 'ecoute'         // Commande vocale en cours de capture.
+    | 'vision_active'  // Analyse visuelle en cours (branché au LOOP 11/14).
+    | 'comprehension'  // Traite une réponse de clarification.
+    | 'reflexion'      // Interprète une commande fraîche (appel LLM en cours).
+    | 'reponse'        // Parle une confirmation.
+    | 'action'         // Exécute réellement une action (impulsion brève).
+    | 'succes'         // Action terminée avec succès.
+    | 'incertitude'    // Commande non comprise / information manquante — jamais présenté comme sûr à tort.
+    | 'erreur';        // Action refusée ou échouée.
+
+export const AVATAR_GRAMMAR_ANIMATION: Record<AvatarGrammarState, string> = {
+    repos: 'animate-water-idle',
+    ecoute: 'animate-water-wave',
+    vision_active: 'animate-avatar-vision',
+    comprehension: 'animate-avatar-comprehension',
+    reflexion: 'animate-water-reflect',
+    reponse: '',
+    action: 'animate-avatar-action',
+    succes: 'animate-water-success',
+    incertitude: 'animate-avatar-uncertainty',
+    erreur: 'animate-water-error',
+};
+
+/** Couleur du halo par état — "la lumière comme langage d'état" (prompt 3/7), jamais deux états de la même teinte. */
+export const AVATAR_GRAMMAR_COLOR: Record<AvatarGrammarState, string> = {
+    repos: 'rgba(232, 251, 255, 0.25)',
+    ecoute: 'rgba(143, 227, 255, 0.6)',
+    vision_active: 'rgba(217, 143, 255, 0.6)',
+    comprehension: 'rgba(255, 196, 110, 0.55)',
+    reflexion: 'rgba(129, 140, 255, 0.5)',
+    reponse: 'rgba(255, 255, 255, 0.6)',
+    action: 'rgba(110, 255, 180, 0.6)',
+    succes: 'rgba(143, 227, 255, 0.7)',
+    incertitude: 'rgba(200, 200, 190, 0.4)',
+    erreur: 'rgba(255, 120, 120, 0.6)',
+};
+
+/** Halo circulaire (voir .avatar-halo dans index.html) + son animation/couleur pour un état donné — à poser autour d'Avatar3D. */
+export function avatarHaloProps(state: AvatarGrammarState): { className: string; style: Record<string, string> } {
+    const animation = AVATAR_GRAMMAR_ANIMATION[state];
+    return {
+        className: `avatar-halo${animation ? ` ${animation}` : ''}`,
+        style: { '--halo-color': AVATAR_GRAMMAR_COLOR[state] },
+    };
+}

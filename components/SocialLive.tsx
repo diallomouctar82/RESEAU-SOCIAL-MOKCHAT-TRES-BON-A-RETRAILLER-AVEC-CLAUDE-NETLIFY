@@ -33,7 +33,7 @@ import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransp
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
-import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES } from '../services/live/liveMaterialSystem';
+import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState } from '../services/live/liveMaterialSystem';
 import { interpretLiveVoiceCommand, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { createSolidarityCause } from '../services/live/liveSolidarityService';
 
@@ -316,6 +316,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     translated: 'We are now covering the structure of the financing plan...'
   });
   const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
+  // Grammaire d'états de l'avatar (LOOP 10/14) — piloté par les vrais signaux
+  // du copilote vocal (voir dispatchVoiceAction plus bas), pas un état
+  // décoratif : c'est aussi le même langage visuel que "l'Architecte" décrit
+  // (disponible/écoute/compréhension/exécution/confirmation/succès/erreur).
+  const [avatarGrammarState, setAvatarGrammarState] = useState<AvatarGrammarState>('repos');
   const [copilotInsight, setCopilotInsight] = useState<string | null>(null);
   const [showCatchupSummary, setShowCatchupSummary] = useState(false);
   const [catchupDigest, setCatchupDigest] = useState<string | null>(null);
@@ -883,10 +888,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   }, [voiceFeedback]);
 
   const dispatchVoiceAction = (action: LiveVoiceAction, originalUtterance: string) => {
-    const say = (text?: string) => {
+    // Grammaire d'états (LOOP 10/14) : 'action' = impulsion "je m'exécute
+    // réellement", remplacée juste après par le statut final (succès/erreur/
+    // incertitude) — jamais un état sans rapport avec ce qui s'est vraiment
+    // passé (cf. complément « Architecte » : ne jamais présenter une action
+    // non exécutée comme terminée).
+    if (action.type !== 'UNKNOWN' && action.type !== 'ASK_CLARIFICATION') setAvatarGrammarState('action');
+    const say = (text?: string, grammar: AvatarGrammarState = 'succes') => {
       if (!text) return;
       setVoiceFeedback(text);
-      voiceAssistant.speak(text).catch(() => {});
+      setAvatarGrammarState(grammar);
+      voiceAssistant.speak(text, { onEnd: () => setAvatarGrammarState('repos') }).catch(() => {});
     };
     switch (action.type) {
       case 'TOGGLE_MIC':
@@ -898,7 +910,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'TOGGLE_SCREEN_SHARE':
-        if (!isUserOnStage) { say("Seules les personnes sur scène peuvent partager leur écran."); break; }
+        if (!isUserOnStage) { say("Seules les personnes sur scène peuvent partager leur écran.", 'erreur'); break; }
         handleToggleScreenShare();
         say(action.spokenConfirmation);
         break;
@@ -907,12 +919,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'GIVE_FLOOR': {
-        if (!isHost) { say("Seul l'hôte peut donner la parole."); break; }
+        if (!isHost) { say("Seul l'hôte peut donner la parole.", 'erreur'); break; }
         const wanted = action.payload?.participantName?.toLowerCase();
         const target = wanted
           ? raisedHands.find((p) => p.name.toLowerCase().includes(wanted))
           : (raisedHands.length === 1 ? raisedHands[0] : undefined);
-        if (!target) { say("Je ne trouve pas cette main levée."); break; }
+        if (!target) { say("Je ne trouve pas cette main levée.", 'erreur'); break; }
         handlePromoteToSpeaker(target.id);
         say(action.spokenConfirmation || `La parole est donnée à ${target.name}.`);
         break;
@@ -942,20 +954,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'CHANGE_VISUAL_UNIVERSE':
-        if (!isHost) { say("Seul l'hôte peut changer l'univers visuel."); break; }
+        if (!isHost) { say("Seul l'hôte peut changer l'univers visuel.", 'erreur'); break; }
         if (action.payload?.universe) handleChangeVisualUniverse(action.payload.universe);
         say(action.spokenConfirmation);
         break;
       case 'SUMMON_EXPERT':
-        if (!isHost) { say("Seul l'hôte peut inviter un expert."); break; }
+        if (!isHost) { say("Seul l'hôte peut inviter un expert.", 'erreur'); break; }
         setShowSummonExpertModal(true);
         say(action.spokenConfirmation);
         break;
       case 'CREATE_SOLIDARITY_CAUSE': {
-        if (!isHost) { say("Seul l'hôte peut lancer une mission solidaire."); break; }
-        if (!realSessionId) { say("La session n'est pas encore prête."); break; }
+        if (!isHost) { say("Seul l'hôte peut lancer une mission solidaire.", 'erreur'); break; }
+        if (!realSessionId) { say("La session n'est pas encore prête.", 'erreur'); break; }
         const payload = action.payload;
-        if (!payload?.title || !payload?.beneficiaryDescription) { say("Il manque le sujet de la mission."); break; }
+        if (!payload?.title || !payload?.beneficiaryDescription) { say("Il manque le sujet de la mission.", 'erreur'); break; }
         // Jamais confiance aveugle dans la sortie du LLM pour une valeur
         // contrainte en base (CHECK constraint) — validé ici, pas seulement
         // demandé dans le prompt (ex. observé en test réel : "family" au
@@ -970,20 +982,23 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           beneficiaryType,
           targetAmount: payload.targetAmount,
         })
-          .then(() => pushLocalSystemMessage('Diallo OS', `Mission solidaire lancée : "${payload.title}".`))
-          .catch((err) => console.error('SocialLive: échec création mission solidaire', err));
+          .then(() => {
+            pushLocalSystemMessage('Diallo OS', `Mission solidaire lancée : "${payload.title}".`);
+            setAvatarGrammarState('succes'); // confirmation finale une fois la ligne réellement persistée, pas seulement au moment de la parler.
+          })
+          .catch((err) => { console.error('SocialLive: échec création mission solidaire', err); setAvatarGrammarState('erreur'); });
         say(action.spokenConfirmation);
         break;
       }
       case 'ASK_CLARIFICATION':
         if (action.payload?.question) {
           setPendingVoiceClarification({ originalUtterance, question: action.payload.question });
-          say(action.payload.question);
+          say(action.payload.question, 'incertitude');
         }
         break;
       case 'UNKNOWN':
       default:
-        say(action.spokenConfirmation);
+        say(action.spokenConfirmation, 'incertitude');
         break;
     }
   };
@@ -993,11 +1008,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     if (!trimmed) return;
     let promptText = trimmed;
     let originalUtterance = trimmed;
+    const isFollowUp = !!pendingVoiceClarification;
     if (pendingVoiceClarification) {
       promptText = `Demande initiale : "${pendingVoiceClarification.originalUtterance}". Question posée : "${pendingVoiceClarification.question}". Réponse de l'utilisateur : "${trimmed}".`;
       originalUtterance = pendingVoiceClarification.originalUtterance;
       setPendingVoiceClarification(null);
     }
+    // 'comprehension' pour la réponse à une clarification (on assemble une
+    // information partielle), 'reflexion' pour une commande fraîche — deux
+    // étapes de traitement réellement distinctes, pas un simple habillage.
+    setAvatarGrammarState(isFollowUp ? 'comprehension' : 'reflexion');
     interpretLiveVoiceCommand(promptText, {
       liveTitle: liveData.title,
       isHost,
@@ -1008,6 +1028,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleVoiceTranscript });
+
+  // Reflète l'écoute/la parole réelles du moteur vocal dans la grammaire de
+  // l'avatar — les autres états (réflexion/action/succès/erreur/incertitude)
+  // sont posés explicitement au fil du traitement de la commande ci-dessus.
+  useEffect(() => {
+    if (voiceAssistant.isListening) setAvatarGrammarState('ecoute');
+  }, [voiceAssistant.isListening]);
+  useEffect(() => {
+    if (voiceAssistant.isSpeaking) setAvatarGrammarState('reponse');
+  }, [voiceAssistant.isSpeaking]);
 
   return (
     <div data-live-universe={visualUniverse} className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
@@ -1289,6 +1319,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     <Avatar3D
                       avatarId={aiAgent.id}
                       state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
+                      grammarState={avatarGrammarState}
                       className="w-full h-full"
                     />
 

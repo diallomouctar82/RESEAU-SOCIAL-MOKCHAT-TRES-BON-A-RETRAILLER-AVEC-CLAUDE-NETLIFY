@@ -1,26 +1,53 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { AGENTS } from '../constants';
+import { AvatarGrammarState, avatarHaloProps } from '../services/live/liveMaterialSystem';
+
+type LegacyAvatarState = 'idle' | 'speaking' | 'thinking' | 'routine';
 
 interface Avatar3DProps {
     avatarId: string;
-    state: 'idle' | 'speaking' | 'thinking' | 'routine';
+    state: LegacyAvatarState;
     audioLevel?: number; // 0 to 100
     className?: string;
     showHud?: boolean;
     metaverseMode?: boolean; // New prop for immersive mode
+    /**
+     * Grammaire d'états étendue (LOOP 10/14, prompt 5/7) — optionnelle,
+     * réservée au LIVE pour l'instant (les autres appelants d'Avatar3D
+     * continuent avec `state` seul, comportement inchangé). Quand fournie,
+     * pilote le halo verre/eau/lumière ET la vidéo affichée (voir
+     * GRAMMAR_TO_LEGACY_STATE) — l'avatar est intégré au même système que
+     * le LIVE, pas un composant isolé.
+     */
+    grammarState?: AvatarGrammarState;
 }
 
-export const Avatar3D: React.FC<Avatar3DProps> = ({ avatarId, state, audioLevel = 0, className = "", showHud = true, metaverseMode = false }) => {
+/** Un seul des 4 supports vidéo existants par état de grammaire — la différenciation visuelle des 10 états vient du halo, pas de 10 vidéos qui n'existent pas. */
+const GRAMMAR_TO_LEGACY_STATE: Record<AvatarGrammarState, LegacyAvatarState> = {
+    repos: 'idle',
+    ecoute: 'thinking',
+    vision_active: 'thinking',
+    comprehension: 'thinking',
+    reflexion: 'thinking',
+    reponse: 'speaking',
+    action: 'speaking',
+    succes: 'speaking',
+    incertitude: 'idle',
+    erreur: 'idle',
+};
+
+export const Avatar3D: React.FC<Avatar3DProps> = ({ avatarId, state, audioLevel = 0, className = "", showHud = true, metaverseMode = false, grammarState }) => {
     const agent = AGENTS.find(a => a.id === avatarId);
     const metaProfile = agent?.metaProfile;
-    
+    const effectiveState = grammarState ? GRAMMAR_TO_LEGACY_STATE[grammarState] : state;
+
     // Fallback if no meta profile
-    const currentSrc = !metaProfile ? 
-        (state === 'speaking' ? 'https://cdn.coverr.co/videos/coverr-man-talking-to-camera-5339/1080p.mp4' : 'https://cdn.coverr.co/videos/coverr-portrait-of-a-serious-man-1604/1080p.mp4')
-        : (state === 'speaking' ? metaProfile.videos.speaking : 
-           state === 'thinking' ? metaProfile.videos.listening :
-           state === 'routine' ? metaProfile.videos.routine : 
+    const currentSrc = !metaProfile ?
+        (effectiveState === 'speaking' ? 'https://cdn.coverr.co/videos/coverr-man-talking-to-camera-5339/1080p.mp4' : 'https://cdn.coverr.co/videos/coverr-portrait-of-a-serious-man-1604/1080p.mp4')
+        : (effectiveState === 'speaking' ? metaProfile.videos.speaking :
+           effectiveState === 'thinking' ? metaProfile.videos.listening :
+           effectiveState === 'routine' ? metaProfile.videos.routine :
            metaProfile.videos.idle);
 
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -68,9 +95,15 @@ export const Avatar3D: React.FC<Avatar3DProps> = ({ avatarId, state, audioLevel 
                 </div>
             )}
 
+            {/* Halo verre/eau/lumière (LOOP 10/14) — seul élément qui différencie visuellement les 10 états de la grammaire ; les 4 supports vidéo existants ne suffisent pas à eux seuls. */}
+            {grammarState && (() => {
+                const halo = avatarHaloProps(grammarState);
+                return <div className={halo.className} style={halo.style} />;
+            })()}
+
             {/* Character Video - "Floating" Effect */}
-            <div 
-                className={`w-full h-full relative transition-transform duration-100 ease-out will-change-transform flex items-end justify-center ${state === 'speaking' ? 'animate-breathe-fast' : 'animate-breathe'}`}
+            <div
+                className={`w-full h-full relative transition-transform duration-100 ease-out will-change-transform flex items-end justify-center ${effectiveState === 'speaking' ? 'animate-breathe-fast' : 'animate-breathe'}`}
                 style={{
                     transform: metaverseMode ? `
                         rotateY(${rotateY}deg) 
@@ -108,7 +141,7 @@ export const Avatar3D: React.FC<Avatar3DProps> = ({ avatarId, state, audioLevel 
             {/* Simple HUD if not metaverse (or specific metaverse HUD) */}
             {showHud && !metaverseMode && (
                 <div className="absolute top-4 left-4 bg-black/60 px-2 py-1 rounded text-white text-xs font-bold uppercase backdrop-blur-md">
-                    {state}
+                    {grammarState || state}
                 </div>
             )}
             

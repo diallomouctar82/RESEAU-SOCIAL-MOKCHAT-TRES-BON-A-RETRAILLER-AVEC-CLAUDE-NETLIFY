@@ -87,6 +87,30 @@
                 '25%': { transform: 'translateX(-1.5px)' },
                 '75%': { transform: 'translateX(1.5px)' },
               },
+              // Grammaire d'états de l'avatar (LOOP 10/14) — 4 états propres
+              // à l'avatar, en plus des 6 réutilisés du LOOP 07/14 ci-dessus.
+              // Vision active : double impulsion lumineuse (balayage/attention visuelle).
+              'avatar-vision': {
+                '0%, 100%': { boxShadow: '0 0 16px 2px var(--halo-color)', opacity: '0.85' },
+                '25%, 75%': { boxShadow: '0 0 28px 6px var(--halo-color)', opacity: '1' },
+              },
+              // Compréhension : micro-mouvement ascendant, comme des bulles qui remontent.
+              'avatar-comprehension': {
+                '0%, 100%': { transform: 'translateY(0) scale(1)' },
+                '50%': { transform: 'translateY(-2px) scale(1.015)' },
+              },
+              // Action : impulsion décisive et brève, jamais en boucle.
+              'avatar-action': {
+                '0%': { transform: 'scale(1) rotate(0deg)' },
+                '30%': { transform: 'scale(1.06) rotate(-1deg)' },
+                '60%': { transform: 'scale(1.02) rotate(0.5deg)' },
+                '100%': { transform: 'scale(1) rotate(0deg)' },
+              },
+              // Incertitude : balancement lent et discret, jamais présenté comme une erreur ni une certitude.
+              'avatar-uncertainty': {
+                '0%, 100%': { transform: 'translateX(0)', opacity: '0.75' },
+                '50%': { transform: 'translateX(3px)', opacity: '0.55' },
+              },
               'fade-up': {
                 '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
                 '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -159,6 +183,10 @@
               'water-reflect': 'water-reflect 2.4s ease-in-out infinite',
               'water-success': 'water-success 0.6s ease-out forwards',
               'water-error': 'water-error 0.4s ease-in-out',
+              'avatar-vision': 'avatar-vision 1s ease-in-out infinite',
+              'avatar-comprehension': 'avatar-comprehension 1.2s ease-in-out infinite',
+              'avatar-action': 'avatar-action 0.5s ease-out',
+              'avatar-uncertainty': 'avatar-uncertainty 2.2s ease-in-out infinite',
             }
           }
         }
@@ -272,6 +300,27 @@
         backdrop-filter: blur(14px) saturate(130%);
         -webkit-backdrop-filter: blur(14px) saturate(130%);
         border: 1px solid var(--glass-surface-border);
+      }
+      /* Halo de l'avatar (LOOP 10/14) — l'avatar est intégré au système
+         verre/eau/lumière (couleur portée par --halo-color, posée par
+         avatarHaloProps()), pas un élément visuel isolé posé par-dessus.
+         inset:0 + ombre INTÉRIEURE (jamais une valeur négative type -6px) :
+         les tuiles avatar du LIVE sont systématiquement dans un conteneur
+         overflow-hidden (rounded-3xl) — un halo qui déborderait serait
+         invisible, tronqué par cet ancêtre. */
+      .avatar-halo {
+        position: absolute;
+        inset: 0;
+        /* Valeur fixe (pas "inherit", qui remonterait au conteneur direct
+           d'Avatar3D — non arrondi — et non à la tuile rounded-3xl du LIVE
+           qui l'englobe) : les tuiles avatar du LIVE utilisent toutes
+           rounded-3xl (1.5rem) par convention dans ce dépôt. */
+        border-radius: 1.5rem;
+        border: 2px solid var(--halo-color, rgba(232, 251, 255, 0.3));
+        box-shadow: inset 0 0 28px 4px var(--halo-color, rgba(232, 251, 255, 0.2));
+        pointer-events: none;
+        z-index: 5;
+        transition: border-color 0.4s ease, box-shadow 0.4s ease;
       }
     </style>
   <script type="importmap">
