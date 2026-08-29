@@ -10,13 +10,14 @@ import {
   Compass, Copy, EyeOff, Headphones, GraduationCap, LifeBuoy, FileCheck,
   AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand
 } from 'lucide-react';
-import { generateText } from '../services/aiGateway';
+import { generateText, analyzeImage } from '../services/aiGateway';
 import {
   LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc,
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
   LiveCommerceProduct, LiveAgendaItem, LiveDecision, LivePersonalNote,
   LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes, LiveChatMessage,
-  LiveVisualUniverse
+  LiveVisualUniverse, LiveSolidarityCause, LiveSolidarityLedgerEntry,
+  LiveSolidarityProof, LiveSolidarityUpdate, SolidarityCauseVisibility
 } from '../types';
 import { AGENTS, USER_PROFILE, LIVE_GIFTS, TRIBES } from '../constants';
 import { Avatar3D } from './Avatar3D';
@@ -35,7 +36,12 @@ import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession,
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState } from '../services/live/liveMaterialSystem';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
-import { createSolidarityCause } from '../services/live/liveSolidarityService';
+import {
+  createSolidarityCause, fetchActiveSolidarityCause, subscribeToSolidarityCause, updateSolidarityCauseVisibility,
+  fetchSolidarityLedger, fetchSolidarityProofs, addSolidarityProof, subscribeToSolidarityProofs,
+  fetchSolidarityUpdates, addSolidarityUpdate, subscribeToSolidarityUpdates,
+  detectSolidarityAnomalies, SolidarityAnomalyCheck,
+} from '../services/live/liveSolidarityService';
 import { multimodalVisionService } from '../services/multimodalVision';
 
 interface SocialLiveProps {
@@ -354,7 +360,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [isAudioOnlyMode, setIsAudioOnlyMode] = useState(false);
 
   // 7. Interactive Sidebar Tabs
-  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant'>('chat');
+  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant' | 'solidarity'>('chat');
   
   // 8. Personal & Collective Memory
   const [personalNotes, setPersonalNotes] = useState<LivePersonalNote[]>([
@@ -527,6 +533,160 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       text,
       createdAt: new Date().toISOString(),
     }]);
+  };
+
+  /**
+   * Live Solidaire (complément reçu pendant LOOP 05/14, cause créée depuis
+   * LOOP 09/14) — jusqu'ici la cause n'avait aucun lecteur une fois créée
+   * (ledger/preuves/mises à jour migrés en LOOP 09 mais jamais consommés).
+   * LOOP 14/16 les branche réellement : aucun mouvement réel de fonds n'a
+   * lieu ici (le ledger est une saisie déclarative de l'organisateur, pas
+   * un prestataire de paiement), mais toutes les écritures/preuves/mises à
+   * jour affichées sont réellement persistées et diffusées en temps réel.
+   */
+  const [activeSolidarityCause, setActiveSolidarityCause] = useState<LiveSolidarityCause | null>(null);
+  const [solidarityLedger, setSolidarityLedger] = useState<LiveSolidarityLedgerEntry[]>([]);
+  const [solidarityProofs, setSolidarityProofs] = useState<LiveSolidarityProof[]>([]);
+  const [solidarityUpdates, setSolidarityUpdates] = useState<LiveSolidarityUpdate[]>([]);
+  const [isCapturingSolidarityProof, setIsCapturingSolidarityProof] = useState(false);
+  const [solidarityUpdateInput, setSolidarityUpdateInput] = useState('');
+  const [solidarityAnomalyCheck, setSolidarityAnomalyCheck] = useState<SolidarityAnomalyCheck | null>(null);
+  const [isCheckingSolidarityAnomalies, setIsCheckingSolidarityAnomalies] = useState(false);
+
+  useEffect(() => {
+    if (!realSessionId) return;
+    let cancelled = false;
+    fetchActiveSolidarityCause(realSessionId).then((cause) => { if (!cancelled) setActiveSolidarityCause(cause); });
+    const unsub = subscribeToSolidarityCause(realSessionId, (cause) => {
+      if (cancelled) return;
+      setActiveSolidarityCause((prev) => (cause.status === 'active' || prev?.id === cause.id) ? cause : prev);
+    });
+    return () => { cancelled = true; unsub(); };
+  }, [realSessionId]);
+
+  useEffect(() => {
+    const causeId = activeSolidarityCause?.id;
+    if (!causeId) {
+      setSolidarityLedger([]); setSolidarityProofs([]); setSolidarityUpdates([]); setSolidarityAnomalyCheck(null);
+      return;
+    }
+    let cancelled = false;
+    fetchSolidarityLedger(causeId).then((rows) => { if (!cancelled) setSolidarityLedger(rows); });
+    fetchSolidarityProofs(causeId).then((rows) => { if (!cancelled) setSolidarityProofs(rows); });
+    fetchSolidarityUpdates(causeId).then((rows) => { if (!cancelled) setSolidarityUpdates(rows); });
+    const unsubProofs = subscribeToSolidarityProofs(causeId, (p) => {
+      setSolidarityProofs((prev) => (prev.some((x) => x.id === p.id) ? prev : [p, ...prev]));
+    });
+    const unsubUpdates = subscribeToSolidarityUpdates(causeId, (u) => {
+      setSolidarityUpdates((prev) => (prev.some((x) => x.id === u.id) ? prev : [u, ...prev]));
+    });
+    return () => { cancelled = true; unsubProofs(); unsubUpdates(); };
+  }, [activeSolidarityCause?.id]);
+
+  const solidarityCollected = solidarityLedger.filter((e) => e.entryType === 'collected').reduce((sum, e) => sum + e.amount, 0);
+  const solidarityUsed = solidarityLedger.filter((e) => e.entryType === 'used').reduce((sum, e) => sum + e.amount, 0);
+
+  /** Niveaux de visibilité basiques (LOOP 14/16) — organisateur seulement ; la vraie garantie reste la policy RLS, ceci n'est qu'un contrôle d'UI. */
+  const handleToggleSolidarityVisibility = () => {
+    if (!activeSolidarityCause || !isHost) return;
+    const previous = activeSolidarityCause.visibility;
+    const next: SolidarityCauseVisibility = previous === 'organizer_only' ? 'live_participants' : 'organizer_only';
+    setActiveSolidarityCause({ ...activeSolidarityCause, visibility: next });
+    updateSolidarityCauseVisibility(activeSolidarityCause.id, next).catch((err) => {
+      console.error('SocialLive: échec de mise à jour de la visibilité de la cause solidaire', err);
+      setActiveSolidarityCause((prev) => (prev ? { ...prev, visibility: previous } : prev));
+      addNotification('Visibilité non enregistrée', "Le changement n'a pas pu être sauvegardé — réessayez.", 'alert');
+    });
+  };
+
+  /**
+   * Preuve de dépense via vision (LOOP 14/16) — réutilise la vraie capture
+   * de frame et le vrai appel d'analyse d'image déjà branchés pour Vision
+   * IA (LOOP 11/14), jamais un montant/une description inventés : si
+   * l'analyse ne parvient pas à lire le justificatif, la preuve est quand
+   * même enregistrée (la photo est réelle) mais le champ montant reste vide
+   * plutôt que d'être deviné.
+   */
+  const handleCaptureSolidarityProof = async () => {
+    if (!activeSolidarityCause || !isHost) return;
+    const videoEl = visionCaptureVideoElRef.current;
+    if (!videoEl || videoEl.videoWidth === 0) {
+      pushLocalSystemMessage('Preuve de dépense', 'Aucune image de caméra disponible pour capturer un justificatif.');
+      return;
+    }
+    setIsCapturingSolidarityProof(true);
+    try {
+      const frame = multimodalVisionService.captureFrame(videoEl);
+      if (!frame) throw new Error('Capture de frame impossible.');
+      const base64Data = frame.includes(',') ? frame.split(',')[1] : frame;
+      const extractionPrompt = `Cette image montre potentiellement un reçu, une facture ou un justificatif de dépense pour une mission de solidarité. Extrais, si réellement lisible, le montant total et une courte description de la dépense. Réponds UNIQUEMENT en JSON strict : { "amount": nombre ou null, "description": "courte description ou null" }. N'invente jamais un montant que tu ne peux pas lire : renvoie null dans ce cas.`;
+      let extracted: { amount?: number | null; description?: string | null } = {};
+      try {
+        const raw = await analyzeImage(base64Data, 'image/jpeg', extractionPrompt, { jsonMode: true });
+        extracted = JSON.parse(raw);
+      } catch {
+        extracted = {};
+      }
+
+      const proof = await addSolidarityProof({
+        causeId: activeSolidarityCause.id,
+        stepLabel: 'Dépense capturée en direct',
+        expenseDescription: extracted.description || undefined,
+        amount: typeof extracted.amount === 'number' ? extracted.amount : undefined,
+        proofType: 'receipt',
+        documentUrl: frame,
+        createdBy: userProfile.id,
+      });
+      setSolidarityProofs((prev) => (prev.some((x) => x.id === proof.id) ? prev : [proof, ...prev]));
+      setAvatarGrammarState('succes');
+      pushLocalSystemMessage(
+        'Preuve de dépense',
+        typeof extracted.amount === 'number'
+          ? `Justificatif enregistré : ${extracted.amount} ${activeSolidarityCause.currency} — ${extracted.description || 'sans description lisible'}.`
+          : "Justificatif photo enregistré — le montant n'a pas pu être lu automatiquement, précisez-le dans une mise à jour si besoin."
+      );
+    } catch {
+      setAvatarGrammarState('erreur');
+      pushLocalSystemMessage('Preuve de dépense', "La capture ou l'enregistrement du justificatif a échoué — réessayez.");
+    } finally {
+      setIsCapturingSolidarityProof(false);
+    }
+  };
+
+  /** Mise à jour de mission déclenchée par l'organisateur (LOOP 14/16). */
+  const handlePostSolidarityUpdate = () => {
+    const text = solidarityUpdateInput.trim();
+    if (!text || !activeSolidarityCause || !isHost) return;
+    setSolidarityUpdateInput('');
+    addSolidarityUpdate(activeSolidarityCause.id, userProfile.id, text)
+      .then((update) => setSolidarityUpdates((prev) => (prev.some((x) => x.id === update.id) ? prev : [update, ...prev])))
+      .catch((err) => {
+        console.error('SocialLive: échec de publication de la mise à jour solidaire', err);
+        addNotification('Mise à jour non publiée', "La publication a échoué — réessayez.", 'alert');
+      });
+  };
+
+  /**
+   * IA de détection d'anomalie (LOOP 14/16) — relit les lignes réelles du
+   * ledger/preuves avant de vérifier, jamais sur un état local pouvant être
+   * périmé. `checked: false` (IA indisponible) est affiché honnêtement,
+   * jamais confondu avec "rien à signaler".
+   */
+  const handleCheckSolidarityAnomalies = async () => {
+    if (!activeSolidarityCause) return;
+    setIsCheckingSolidarityAnomalies(true);
+    try {
+      const [freshLedger, freshProofs] = await Promise.all([
+        fetchSolidarityLedger(activeSolidarityCause.id),
+        fetchSolidarityProofs(activeSolidarityCause.id),
+      ]);
+      setSolidarityLedger(freshLedger);
+      setSolidarityProofs(freshProofs);
+      const result = await detectSolidarityAnomalies(activeSolidarityCause, freshLedger, freshProofs);
+      setSolidarityAnomalyCheck(result);
+    } finally {
+      setIsCheckingSolidarityAnomalies(false);
+    }
   };
 
   // Questions (Q&R Zone)
@@ -1003,7 +1163,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         break;
       }
       case 'OPEN_TAB': {
-        const validTabs = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant'];
+        const validTabs = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant', 'solidarity'];
         if (action.payload?.tabId && validTabs.includes(action.payload.tabId)) {
           setActiveSideTab(action.payload.tabId as typeof activeSideTab);
         }
@@ -1058,12 +1218,26 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           beneficiaryType,
           targetAmount: payload.targetAmount,
         })
-          .then(() => {
+          .then((cause) => {
+            setActiveSolidarityCause(cause); // rend la cause immédiatement visible dans l'onglet "Solidaire" (LOOP 14/16), pas seulement dans le chat.
             pushLocalSystemMessage('Diallo OS', `Mission solidaire lancée : "${payload.title}".`);
             setAvatarGrammarState('succes'); // confirmation finale une fois la ligne réellement persistée, pas seulement au moment de la parler.
           })
           .catch((err) => { console.error('SocialLive: échec création mission solidaire', err); setAvatarGrammarState('erreur'); });
         say(action.spokenConfirmation);
+        break;
+      }
+      case 'ADD_SOLIDARITY_UPDATE': {
+        if (!activeSolidarityCause) { say("Il n'y a pas de mission solidaire active sur ce direct.", 'erreur'); break; }
+        const updateText = action.payload?.updateText;
+        if (!updateText) { say("Je n'ai pas compris le contenu de la mise à jour.", 'erreur'); break; }
+        try {
+          const update = await addSolidarityUpdate(activeSolidarityCause.id, userProfile.id, updateText);
+          setSolidarityUpdates((prev) => (prev.some((x) => x.id === update.id) ? prev : [update, ...prev]));
+          say(action.spokenConfirmation);
+        } catch {
+          say("La mise à jour n'a pas pu être publiée — réessayez.", 'erreur');
+        }
         break;
       }
       case 'DISCOVER_CAPABILITIES':
@@ -1934,7 +2108,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               { id: 'products', label: 'Boutique', icon: ShoppingBag },
               { id: 'polls', label: 'Sondage', icon: PieChart },
               { id: 'docs', label: 'Docs', icon: FileText },
-              { id: 'assistant', label: 'IA Perso', icon: Bot }
+              { id: 'assistant', label: 'IA Perso', icon: Bot },
+              { id: 'solidarity', label: 'Solidaire', icon: Heart }
             ].map(t => {
               const Icon = t.icon;
               return (
@@ -2285,6 +2460,120 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </div>
             )}
 
+            {/* 10. LIVE SOLIDAIRE (LOOP 14/16) */}
+            {activeSideTab === 'solidarity' && (
+              <div className="space-y-3">
+                {!activeSolidarityCause && (
+                  <div className="p-4 bg-rose-950/30 border border-rose-500/20 rounded-2xl text-center space-y-2">
+                    <Heart size={22} className="mx-auto text-rose-400" />
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Aucune mission solidaire active pour ce direct. {isHost ? 'Dites par exemple « Lance-moi un Live Solidaire pour aider... » pour en créer une.' : "L'organisateur peut en lancer une par la voix."}
+                    </p>
+                  </div>
+                )}
+
+                {activeSolidarityCause && (
+                  <>
+                    <div className="p-3 bg-rose-950/30 border border-rose-500/20 rounded-2xl space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h5 className="text-xs font-extrabold text-white leading-snug">{activeSolidarityCause.title}</h5>
+                        <span className="px-2 py-0.5 bg-rose-600/30 text-rose-200 text-[9px] font-black rounded uppercase whitespace-nowrap">
+                          {activeSolidarityCause.beneficiaryType}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">{activeSolidarityCause.beneficiaryDescription}</p>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1 text-[10px]">
+                        <div className="bg-black/20 rounded-xl p-2">
+                          <div className="text-slate-400 uppercase font-bold">Collecté (déclaré)</div>
+                          <div className="text-white font-extrabold">{solidarityCollected} {activeSolidarityCause.currency}</div>
+                        </div>
+                        <div className="bg-black/20 rounded-xl p-2">
+                          <div className="text-slate-400 uppercase font-bold">Utilisé (déclaré)</div>
+                          <div className="text-white font-extrabold">{solidarityUsed} {activeSolidarityCause.currency}</div>
+                        </div>
+                      </div>
+                      {typeof activeSolidarityCause.targetAmount === 'number' && (
+                        <div className="text-[10px] text-slate-400">Objectif : {activeSolidarityCause.targetAmount} {activeSolidarityCause.currency}</div>
+                      )}
+
+                      {isHost && (
+                        <button
+                          onClick={handleToggleSolidarityVisibility}
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300 hover:text-white pt-1"
+                          title="Basculer la visibilité de la mission"
+                        >
+                          {activeSolidarityCause.visibility === 'organizer_only' ? <Lock size={12} /> : <Globe size={12} />}
+                          {activeSolidarityCause.visibility === 'organizer_only' ? 'Strictement privée (organisateur uniquement)' : 'Visible par les participants du direct'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isHost && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCaptureSolidarityProof}
+                          disabled={isCapturingSolidarityProof}
+                          className="flex-1 px-2.5 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-[10px] font-bold rounded-xl flex items-center justify-center gap-1.5"
+                        >
+                          <Camera size={13} /> {isCapturingSolidarityProof ? 'Analyse...' : 'Preuve de dépense'}
+                        </button>
+                        <button
+                          onClick={handleCheckSolidarityAnomalies}
+                          disabled={isCheckingSolidarityAnomalies}
+                          className="flex-1 px-2.5 py-2 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-slate-200 text-[10px] font-bold rounded-xl flex items-center justify-center gap-1.5"
+                        >
+                          <AlertTriangle size={13} /> {isCheckingSolidarityAnomalies ? 'Vérification...' : 'Vérifier'}
+                        </button>
+                      </div>
+                    )}
+
+                    {solidarityAnomalyCheck && (
+                      <div className="p-2.5 bg-amber-950/30 border border-amber-500/20 rounded-2xl space-y-1.5">
+                        {!solidarityAnomalyCheck.checked && (
+                          <p className="text-[10px] text-amber-300">Vérification indisponible pour le moment (IA injoignable) — réessayez dans un instant.</p>
+                        )}
+                        {solidarityAnomalyCheck.checked && solidarityAnomalyCheck.questions.length === 0 && (
+                          <p className="text-[10px] text-emerald-300">Rien à signaler sur les lignes actuellement enregistrées.</p>
+                        )}
+                        {solidarityAnomalyCheck.questions.map((q, idx) => (
+                          <p key={idx} className="text-[10px] text-amber-200 flex items-start gap-1.5">
+                            <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" /> {q}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    {solidarityProofs.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preuves ({solidarityProofs.length})</span>
+                        {solidarityProofs.map((p) => (
+                          <div key={p.id} className="p-2 bg-slate-950/40 rounded-xl border border-white/5 flex items-center gap-2.5">
+                            {p.documentUrl && <img src={p.documentUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[10px] font-bold text-white truncate">{p.expenseDescription || p.stepLabel}</div>
+                              <div className="text-[9px] text-slate-400">{typeof p.amount === 'number' ? `${p.amount} ${activeSolidarityCause.currency}` : 'Montant non lu'}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {solidarityUpdates.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mises à jour</span>
+                        {solidarityUpdates.map((u) => (
+                          <div key={u.id} className="p-2.5 bg-slate-950/40 rounded-xl border border-white/5 text-[11px] text-slate-200 leading-relaxed">
+                            {u.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
           </div>
 
           {/* Sidebar Footer Input Bar */}
@@ -2373,6 +2662,25 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   onClick={handleAskPrivateAssistant}
                   disabled={isAssistantThinking}
                   className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors disabled:opacity-40"
+                >
+                  <Send size={14} />
+                </button>
+              </div>
+            )}
+
+            {activeSideTab === 'solidarity' && activeSolidarityCause && isHost && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={solidarityUpdateInput}
+                  onChange={(e) => setSolidarityUpdateInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePostSolidarityUpdate()}
+                  placeholder="Publier une mise à jour de la mission..."
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                />
+                <button
+                  onClick={handlePostSolidarityUpdate}
+                  className="p-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl transition-colors"
                 >
                   <Send size={14} />
                 </button>

@@ -704,6 +704,9 @@ export interface LiveStream {
  */
 export type SolidarityBeneficiaryType = 'person' | 'community' | 'project' | 'medical' | 'complex';
 
+/** Visibilité basique (LOOP 14/16) — pas de niveau "donateurs" séparé, voir rapport final. */
+export type SolidarityCauseVisibility = 'organizer_only' | 'live_participants';
+
 export interface LiveSolidarityCause {
     id: string;
     liveSessionId: string;
@@ -715,6 +718,45 @@ export interface LiveSolidarityCause {
     currency: string;
     organizerFeePercent: number;
     status: 'active' | 'completed' | 'cancelled';
+    visibility: SolidarityCauseVisibility;
+    createdAt: string;
+}
+
+/** Écriture append-only du ledger (LOOP 14/16) — jamais un solde stocké, le
+ * total collecté/utilisé se calcule côté client à partir de ces lignes,
+ * même principe que wallet_transactions/get_wallet_balance(). Saisie
+ * manuelle par l'organisateur (aucun prestataire de paiement branché dans
+ * ce sandbox) — ce n'est pas un mouvement réel de fonds, seulement le
+ * suivi déclaré par l'organisateur de ce qui s'est passé hors de l'app. */
+export interface LiveSolidarityLedgerEntry {
+    id: string;
+    causeId: string;
+    entryType: 'collected' | 'used';
+    amount: number;
+    description?: string;
+    createdBy?: string;
+    createdAt: string;
+}
+
+export type SolidarityProofType = 'photo' | 'invoice' | 'receipt' | 'document' | 'video';
+
+export interface LiveSolidarityProof {
+    id: string;
+    causeId: string;
+    stepLabel: string;
+    expenseDescription?: string;
+    amount?: number;
+    proofType: SolidarityProofType;
+    documentUrl?: string;
+    createdBy?: string;
+    createdAt: string;
+}
+
+export interface LiveSolidarityUpdate {
+    id: string;
+    causeId: string;
+    authorId?: string;
+    text: string;
     createdAt: string;
 }
 

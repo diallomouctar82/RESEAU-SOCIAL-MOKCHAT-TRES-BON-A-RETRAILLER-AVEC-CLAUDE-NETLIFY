@@ -29,6 +29,7 @@ export type LiveVoiceActionType =
     | 'CHANGE_VISUAL_UNIVERSE'
     | 'SUMMON_EXPERT'
     | 'CREATE_SOLIDARITY_CAUSE'
+    | 'ADD_SOLIDARITY_UPDATE'
     | 'DISCOVER_CAPABILITIES'
     | 'ASK_CLARIFICATION'
     | 'UNKNOWN';
@@ -45,6 +46,7 @@ export interface LiveVoiceAction {
         beneficiaryDescription?: string;
         beneficiaryType?: 'person' | 'community' | 'project' | 'medical' | 'complex';
         targetAmount?: number;
+        updateText?: string;
         question?: string;
     };
     /** Toujours une phrase courte à dire à voix haute — jamais vide, même pour UNKNOWN (message d'incompréhension). L'IA doit savoir se taire : pas de bavardage au-delà. */
@@ -59,7 +61,7 @@ export interface LiveVoiceCommandContext {
     subtitlesMode: 'off' | 'original' | 'translated' | 'bilingual';
 }
 
-const SIDE_TABS = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant'];
+const SIDE_TABS = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant', 'solidarity'];
 const UNIVERSES: LiveVisualUniverse[] = ['crystal', 'futuristic_blue', 'natural_fresh', 'violet_luxe', 'deep_ocean'];
 
 /**
@@ -103,6 +105,13 @@ export const LIVE_VOICE_CAPABILITIES: LiveVoiceCapability[] = [
         description: "lancer une mission de solidarité depuis ce LIVE, payload.title, payload.beneficiaryDescription, payload.beneficiaryType = EXACTEMENT une de ces 5 valeurs, jamais une autre (une famille ou une personne seule = \"person\" ; un groupe/village/quartier = \"community\" ; une infrastructure/un projet = \"project\" ; une prise en charge médicale = \"medical\" ; une mission à étapes multiples = \"complex\") : person|community|project|medical|complex. payload.targetAmount (nombre, optionnel — ne JAMAIS le demander en clarification, il peut être ajouté plus tard)",
         requiredRole: 'host',
         riskLevel: 'moderate',
+    },
+    {
+        id: 'live.solidarity.post_update',
+        actionType: 'ADD_SOLIDARITY_UPDATE',
+        description: "publier une mise à jour sur la mission solidaire en cours (avancement, étape franchie...), payload.updateText = le texte exact de la mise à jour",
+        requiredRole: 'host',
+        riskLevel: 'low',
     },
 ];
 
