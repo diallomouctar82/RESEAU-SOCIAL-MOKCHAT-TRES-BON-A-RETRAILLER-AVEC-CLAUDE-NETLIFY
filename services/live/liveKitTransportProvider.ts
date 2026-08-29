@@ -6,6 +6,7 @@
 import {
     ConnectionState,
     LocalParticipant,
+    LocalTrackPublication,
     Participant,
     RemoteParticipant,
     Room,
@@ -91,6 +92,23 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         });
         room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant) => {
             events.onDataReceived?.(payload, participant?.identity);
+        });
+        room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
+            const track = publication.track;
+            const kind = TRACK_SOURCE_TO_KIND[publication.source];
+            if (!track || !kind) return;
+            const handle: LiveTrackHandle = {
+                participantIdentity: room.localParticipant.identity,
+                kind,
+                attach: (el) => { track.attach(el); },
+                detach: (el) => { if (el) track.detach(el); else track.detach(); },
+            };
+            events.onLocalTrackPublished?.(handle);
+        });
+        room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
+            const kind = TRACK_SOURCE_TO_KIND[publication.source];
+            if (!kind) return;
+            events.onLocalTrackUnpublished?.(kind);
         });
         room.on(RoomEvent.Disconnected, (reason) => {
             events.onDisconnected?.(reason !== undefined ? String(reason) : undefined);

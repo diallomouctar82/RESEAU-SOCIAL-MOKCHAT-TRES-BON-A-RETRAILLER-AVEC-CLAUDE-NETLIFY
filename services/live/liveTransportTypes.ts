@@ -43,6 +43,9 @@ export interface LiveTransportEvents {
     onParticipantMetadataChanged?: (identity: string, metadata: string | undefined) => void;
     onTrackSubscribed?: (track: LiveTrackHandle) => void;
     onTrackUnsubscribed?: (participantIdentity: string, kind: LiveTrackKind) => void;
+    /** Ma propre piste (caméra/micro/partage d'écran) vient d'être publiée — pour l'auto-aperçu, même contrat attach/detach que les pistes distantes. */
+    onLocalTrackPublished?: (track: LiveTrackHandle) => void;
+    onLocalTrackUnpublished?: (kind: LiveTrackKind) => void;
     onActiveSpeakersChanged?: (identities: string[]) => void;
     /** Canal de données temps réel — utilisé par les LOOPs suivantes pour chat/réactions/demandes de parole en complément des tables persistées. */
     onDataReceived?: (payload: Uint8Array, fromIdentity: string | undefined) => void;

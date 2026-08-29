@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, Users, Send, Bot, Settings, Signal, Wifi, Activity, Check, Heart, 
   Sparkles, Zap, MessageSquare, Mic, MicOff, Video, VideoOff, Layout, 
@@ -28,6 +28,7 @@ import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
 import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
 
 interface SocialLiveProps {
   liveId: string;
@@ -35,6 +36,37 @@ interface SocialLiveProps {
   initialData?: LiveStream;
   onNavigateToTab?: (tab: string) => void;
 }
+
+/**
+ * Tuile vidéo d'un participant distant réel (LOOP 04/14) — piste vidéo +
+ * piste audio (élément séparé, on ne veut jamais couper le son d'un autre
+ * participant) attachées via callback ref dès qu'elles sont disponibles.
+ */
+const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ media }) => {
+  const videoRef = useCallback((el: HTMLVideoElement | null) => {
+    if (el && media.videoTrack) media.videoTrack.attach(el);
+  }, [media.videoTrack]);
+  const audioRef = useCallback((el: HTMLAudioElement | null) => {
+    if (el && media.audioTrack) media.audioTrack.attach(el);
+  }, [media.audioTrack]);
+
+  return (
+    <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center">
+      {media.videoTrack ? (
+        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-xl font-bold text-white">
+          {media.participant.name.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <audio ref={audioRef} autoPlay />
+      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+        {media.participant.isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>}
+        <span className="text-xs font-bold text-white">{media.participant.name}</span>
+      </div>
+    </div>
+  );
+};
 
 export const SocialLive: React.FC<SocialLiveProps> = ({ 
   liveId, 
@@ -85,11 +117,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [networkQuality, setNetworkQuality] = useState<LiveQualityMode>(liveData.qualityMode || 'auto');
   const [networkLatency, setNetworkLatency] = useState(42); // ms
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  // Le vrai flux (caméra/micro/écran) transite par useLiveTransport (LOOP 04/14,
+  // adaptateur LiveKit) — ces refs ne servent plus qu'à recevoir la piste
+  // via des callback refs (voir localVideoTrackRef/screenShareTrackRef).
 
   // 3. Stage & Participants
   const isHost = liveData.hostName === userProfile.name || userProfile.role === 'admin';
@@ -118,6 +148,24 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   const [stageInvitation, setStageInvitation] = useState<{ inviterName: string } | null>(null);
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
+
+  // Transport vidéo réel (LOOP 04/14) — une room LiveKit par session LIVE
+  // (liveData.id), publication activée seulement si l'utilisateur est
+  // réellement sur scène (cohérent avec le jeton émis côté serveur).
+  const liveTransport = useLiveTransport({
+    roomName: liveData.id,
+    participantName: userProfile.name,
+    canPublish: isUserOnStage,
+    enabled: true,
+  });
+
+  const localVideoTrackRef = useCallback((el: HTMLVideoElement | null) => {
+    if (el && liveTransport.localVideoTrack) liveTransport.localVideoTrack.attach(el);
+  }, [liveTransport.localVideoTrack]);
+
+  const screenShareTrackRef = useCallback((el: HTMLVideoElement | null) => {
+    if (el && liveTransport.localScreenShareTrack) liveTransport.localScreenShareTrack.attach(el);
+  }, [liveTransport.localScreenShareTrack]);
 
   // 4. View Mode: Video Stage / Screen Share / Whiteboard / Documents / Meeting / Commerce / Masterclass
   const [mainStageMode, setMainStageMode] = useState<'camera' | 'screen' | 'whiteboard' | 'document' | 'council' | 'meeting' | 'commerce' | 'masterclass'>('camera');
@@ -305,113 +353,58 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [summonSearchQuery, setSummonSearchQuery] = useState('');
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
 
-  // 9. Initialize Real Webcam & Mic
+  // 9. Real Webcam & Mic — publiés/abonnés via useLiveTransport (LOOP 04/14),
+  // plus de getUserMedia direct ici. L'indicateur de parole (barre audio du
+  // slot présentateur) reflète maintenant un signal réel (RoomEvent.ActiveSpeakersChanged),
+  // pas une simulation.
   useEffect(() => {
-    startLocalMedia();
-    return () => {
-      stopLocalMedia();
-    };
-  }, []);
-
-  const startLocalMedia = async () => {
-    try {
-      if (!navigator?.mediaDevices?.getUserMedia) {
-        console.warn("getUserMedia not available in this environment");
-        return;
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-
-      // Audio Level Analyzer
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        const ctx = new AudioContextClass();
-        audioContextRef.current = ctx;
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
-        source.connect(analyser);
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const checkVolume = () => {
-          if (!localStreamRef.current || !analyser) return;
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-          setAudioVolume(Math.min(100, Math.round((sum / bufferLength) * 2)));
-          requestAnimationFrame(checkVolume);
-        };
-        checkVolume();
-      }
-    } catch (e) {
-      console.warn("Real media permission fallback", e);
-    }
-  };
+    setAudioVolume(liveTransport.localIsSpeaking ? 100 : 15);
+  }, [liveTransport.localIsSpeaking]);
 
   const stopLocalMedia = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(t => t.stop());
-      localStreamRef.current = null;
-    }
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach(t => t.stop());
-      screenStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
+    liveTransport.disconnect();
   };
 
   // Toggle Mic
   const toggleMic = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(t => t.enabled = isMicMuted);
-    }
+    liveTransport.setMicrophoneEnabled(isMicMuted);
     setIsMicMuted(!isMicMuted);
   };
 
   // Toggle Camera
   const toggleVideo = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach(t => t.enabled = isVideoMuted);
-    }
+    liveTransport.setCameraEnabled(isVideoMuted);
     setIsVideoMuted(!isVideoMuted);
   };
 
-  // Real Screen Share
+  // Real Screen Share — publié via l'adaptateur LiveKit, visible par tous les
+  // participants de la room (plus un aperçu purement local).
   const handleToggleScreenShare = async () => {
     if (isScreenSharing) {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach(t => t.stop());
-        screenStreamRef.current = null;
-      }
+      await liveTransport.stopScreenShare();
       setIsScreenSharing(false);
       setMainStageMode('camera');
     } else {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        screenStreamRef.current = stream;
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = stream;
-        }
+        await liveTransport.startScreenShare();
         setIsScreenSharing(true);
         setMainStageMode('screen');
-
-        stream.getVideoTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          setMainStageMode('camera');
-        };
       } catch (e) {
         console.warn("Screen share cancelled", e);
       }
     }
   };
+
+  // Le partage d'écran peut s'arrêter depuis le contrôle natif du navigateur
+  // ("Arrêter le partage") sans passer par handleToggleScreenShare — la
+  // piste locale disparaît alors (onLocalTrackUnpublished) sans que l'état
+  // d'affichage local ne le sache : on le resynchronise ici.
+  useEffect(() => {
+    if (isScreenSharing && !liveTransport.localScreenShareTrack) {
+      setIsScreenSharing(false);
+      setMainStageMode('camera');
+    }
+  }, [liveTransport.localScreenShareTrack]);
 
   // Multimodal Vision IA Snapshot & Analysis
   const handleTriggerVisionAnalysis = async () => {
@@ -658,15 +651,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const handleToggleAudioOnly = () => {
     setIsAudioOnlyMode(!isAudioOnlyMode);
     if (!isAudioOnlyMode) {
-      if (localStreamRef.current) {
-        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = false);
-      }
+      liveTransport.setCameraEnabled(false);
       setIsVideoMuted(true);
       addNotification("Mode Audio Seul 🎧", "Flux vidéo coupé pour économiser jusqu'à 85% de données mobiles.", "info");
     } else {
-      if (localStreamRef.current) {
-        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = true);
-      }
+      liveTransport.setCameraEnabled(true);
       setIsVideoMuted(false);
       addNotification("Vidéo Réactivée 📹", "Flux visuel HD rétabli.", "info");
     }
@@ -894,7 +883,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Slot 1: Presenter / Host Stream */}
                 <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center group">
                   <video
-                    ref={localVideoRef}
+                    ref={localVideoTrackRef}
                     autoPlay
                     playsInline
                     muted
@@ -952,6 +941,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   </div>
                 )}
 
+                {/* Participants distants réels (LOOP 04/14) — publication/abonnement LiveKit, pas de simulation. */}
+                {liveTransport.remoteParticipants.map((media) => (
+                  <RemoteParticipantTile key={media.participant.identity} media={media} />
+                ))}
+
               </div>
             )}
 
@@ -959,7 +953,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {mainStageMode === 'screen' && (
               <div className="w-full h-full relative bg-black p-2 flex items-center justify-center">
                 <video
-                  ref={screenVideoRef}
+                  ref={screenShareTrackRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-contain rounded-2xl"
@@ -968,7 +962,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* PIP Speaker Thumbnail */}
                 <div className="absolute bottom-4 right-4 w-44 aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900">
                   <video
-                    ref={localVideoRef}
+                    ref={localVideoTrackRef}
                     autoPlay
                     playsInline
                     muted
@@ -1018,7 +1012,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Left (1 col): Video & Speaker */}
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
-                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
                     {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
                     <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded-lg text-[10px] font-bold text-white flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-400"></span> {liveData.hostName}
@@ -1125,7 +1119,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Presenter Stage */}
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
-                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
                     {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
                     <div className="absolute top-3 left-3 bg-red-600 px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow-md">
                       <ShoppingBag size={12} /> SHOPPING DIRECT
@@ -1191,7 +1185,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
-                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
                     {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
                     <div className="absolute top-3 left-3 bg-purple-600 px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow-md">
                       <GraduationCap size={12} /> MASTERCLASS OFFICIELLE
