@@ -308,10 +308,34 @@ export const supabaseService = {
         if (error || !data) return [];
         return data;
     },
-    async searchProfiles(): Promise<any[]> {
+    /**
+     * LOOP 05/17 (découverte) : `query` filtre réellement par nom/titre
+     * (recherche de personnes) — absent, se comporte exactement comme
+     * avant (liste des profils, pour l'écran principal du fil).
+     */
+    async searchProfiles(query?: string): Promise<any[]> {
         if (!isSupabaseConfigured) return [];
-        const { data, error } = await supabase.from('profiles').select('*').limit(100);
+        let q = supabase.from('profiles').select('*').limit(100);
+        if (query && query.trim()) {
+            const term = `%${query.trim()}%`;
+            q = q.or(`name.ilike.${term},title.ilike.${term}`);
+        }
+        const { data, error } = await q;
         if (error || !data) return [];
+        return data;
+    },
+    /**
+     * Nombre d'amis en commun entre l'utilisateur courant et un autre
+     * membre — recommandation explicable (un chiffre, jamais l'identité
+     * des amis communs) sans fuite d'information privée : la fonction
+     * SECURITY DEFINER ne retourne qu'un entier, jamais les lignes
+     * `friendships` d'un tiers que la RLS de l'appelant ne pourrait pas
+     * voir directement.
+     */
+    async getMutualFriendsCount(userId: string, otherUserId: string): Promise<number> {
+        if (!isSupabaseConfigured || userId === otherUserId) return 0;
+        const { data, error } = await supabase.rpc('get_mutual_friends_count', { p_user_a: userId, p_user_b: otherUserId });
+        if (error || typeof data !== 'number') return 0;
         return data;
     },
     async createPost(post: Record<string, unknown>): Promise<{ id: string; created_at: string } | null> {

@@ -26,6 +26,7 @@ import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient
 import { useGlobal } from '../contexts/GlobalContext';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { interpretContentVoiceCommand, ContentVoiceAction } from '../services/content/contentVoiceCommands';
+import { interpretSocialVoiceCommand, SocialVoiceAction } from '../services/social/socialVoiceCommands';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -66,6 +67,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // — toujours affiché EN PLUS d'être dit à voix haute, jamais l'un sans
   // l'autre (l'écran reste visible pendant l'exécution).
   const [voiceContentFeedback, setVoiceContentFeedback] = useState<string | null>(null);
+  // Découverte de personnes — LOOP 05/17.
+  const [voiceSocialFeedback, setVoiceSocialFeedback] = useState<string | null>(null);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [mutualFriendsCounts, setMutualFriendsCounts] = useState<Record<string, number>>({});
 
   // Comments State
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
@@ -112,6 +117,81 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const videoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Chargement des membres — extrait de l'effet de montage (LOOP 05/17)
+  // pour être réutilisable par la recherche de personnes (bouton/voix),
+  // pas seulement au premier chargement. `query` absent = comportement
+  // historique (liste des profils pour le fil).
+  const loadMembers = async (query?: string) => {
+    if (!supabaseService.isConfigured()) return;
+    const profiles = await supabaseService.searchProfiles(query);
+    if (!profiles || profiles.length === 0) return;
+    const rawFriendships = currentUser.id ? await supabaseService.getFriendshipsForUser(currentUser.id) : [];
+    setFriendships(rawFriendships);
+    // Abonnement (follow) et blocage — LOOP 04/17 : deux relations
+    // réelles et indépendantes de l'amitié, jamais recalculées à
+    // partir de friendshipStatus (qui ne représente que l'amitié).
+    const [followingIds, blockedIds] = currentUser.id
+      ? await Promise.all([
+          supabaseService.getFollowingIdsForUser(currentUser.id),
+          supabaseService.getBlockedUserIds(currentUser.id)
+        ])
+      : [[], []];
+
+    const mappedMembers: MemberProfile[] = profiles.map(p => {
+      const rel = rawFriendships.find((f: any) => f.requester_id === p.id || f.addressee_id === p.id);
+      let friendshipStatus: MemberProfile['friendshipStatus'] = 'none';
+      if (rel) {
+        if (rel.status === 'accepted') friendshipStatus = 'friends';
+        else if (rel.requester_id === currentUser.id) friendshipStatus = 'pending_sent';
+        else friendshipStatus = 'pending_received';
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+        title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
+        bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
+        location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
+        joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
+        isVerified: p.is_verified ?? true,
+        isFollowing: followingIds.includes(p.id),
+        isBlockedByMe: blockedIds.includes(p.id),
+        friendshipStatus,
+        friendshipId: rel?.id,
+        followersCount: p.followers_count ?? 12,
+        followingCount: p.following_count ?? 8,
+        postsCount: 5,
+        storiesCount: 2,
+        reelsCount: 1,
+        livesCount: 0,
+        skills: p.skills?.map((s: any) => s.name) || [],
+        privacySettings: p.privacy_settings || {
+          profileVisibility: 'public',
+          allowMessagesFrom: 'all',
+          showOnlineStatus: true,
+          allowTagging: true,
+          showActivityFeed: true,
+          allowFriendRequestsFrom: 'all',
+          showFollowersList: true,
+          showFollowingList: true
+        }
+      };
+    });
+    // Une recherche explicite ne mélange pas les résultats avec les
+    // membres de démonstration (MOCK_MEMBERS) — ceux-ci ne servent qu'à
+    // peupler le fil par défaut quand aucune recherche n'est en cours.
+    const mergedMembers = [...mappedMembers];
+    if (!query) {
+      MOCK_MEMBERS.forEach(mockM => {
+        if (!mergedMembers.some(m => m.name.toLowerCase() === mockM.name.toLowerCase())) {
+          mergedMembers.push(mockM);
+        }
+      });
+    }
+    setMembers(mergedMembers);
+  };
 
   // Load Cloud Data on mount
   useEffect(() => {
@@ -245,72 +325,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         }
 
         // 3. Fetch Members from Supabase if connected
-        if (supabaseService.isConfigured()) {
-          const profiles = await supabaseService.searchProfiles();
-          if (profiles && profiles.length > 0) {
-            const rawFriendships = currentUser.id ? await supabaseService.getFriendshipsForUser(currentUser.id) : [];
-            setFriendships(rawFriendships);
-            // Abonnement (follow) et blocage — LOOP 04/17 : deux relations
-            // réelles et indépendantes de l'amitié, jamais recalculées à
-            // partir de friendshipStatus (qui ne représente que l'amitié).
-            const [followingIds, blockedIds] = currentUser.id
-              ? await Promise.all([
-                  supabaseService.getFollowingIdsForUser(currentUser.id),
-                  supabaseService.getBlockedUserIds(currentUser.id)
-                ])
-              : [[], []];
-
-            const mappedMembers: MemberProfile[] = profiles.map(p => {
-              const rel = rawFriendships.find((f: any) => f.requester_id === p.id || f.addressee_id === p.id);
-              let friendshipStatus: MemberProfile['friendshipStatus'] = 'none';
-              if (rel) {
-                if (rel.status === 'accepted') friendshipStatus = 'friends';
-                else if (rel.requester_id === currentUser.id) friendshipStatus = 'pending_sent';
-                else friendshipStatus = 'pending_received';
-              }
-
-              return {
-                id: p.id,
-                name: p.name,
-                avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-                title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
-                bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
-                location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
-                joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
-                isVerified: p.is_verified ?? true,
-                isFollowing: followingIds.includes(p.id),
-                isBlockedByMe: blockedIds.includes(p.id),
-                friendshipStatus,
-                friendshipId: rel?.id,
-                followersCount: p.followers_count ?? 12,
-                followingCount: p.following_count ?? 8,
-                postsCount: 5,
-                storiesCount: 2,
-                reelsCount: 1,
-                livesCount: 0,
-                skills: p.skills?.map((s: any) => s.name) || [],
-                privacySettings: p.privacy_settings || {
-                  profileVisibility: 'public',
-                  allowMessagesFrom: 'all',
-                  showOnlineStatus: true,
-                  allowTagging: true,
-                  showActivityFeed: true,
-                  allowFriendRequestsFrom: 'all',
-                  showFollowersList: true,
-                  showFollowingList: true
-                }
-              };
-            });
-            // Merge with MOCK_MEMBERS
-            const mergedMembers = [...mappedMembers];
-            MOCK_MEMBERS.forEach(mockM => {
-              if (!mergedMembers.some(m => m.name.toLowerCase() === mockM.name.toLowerCase())) {
-                mergedMembers.push(mockM);
-              }
-            });
-            setMembers(mergedMembers);
-          }
-        }
+        await loadMembers();
       } catch (e) {
         console.warn("Using default initial posts", e);
         setPosts(INITIAL_POSTS);
@@ -320,6 +335,27 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     };
     fetchPostsAndMembers();
   }, []);
+
+  // Recommandation explicable, sans fuite d'information privée — LOOP
+  // 05/17 : un nombre d'amis en commun (jamais leur identité) pour les
+  // suggestions actuellement affichées, borné à 4 appels.
+  useEffect(() => {
+    if (!currentUser.id) return;
+    const suggested = members.filter(m => m.id !== currentUser.id && isRealMemberId(m.id) && mutualFriendsCounts[m.id] === undefined).slice(0, 4);
+    if (suggested.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(suggested.map(async (m) => [m.id, await supabaseService.getMutualFriendsCount(currentUser.id!, m.id)] as const));
+      if (!cancelled) {
+        setMutualFriendsCounts(prev => {
+          const next = { ...prev };
+          entries.forEach(([id, count]) => { next[id] = count; });
+          return next;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [members, currentUser.id]);
 
   // Filter posts dynamically based on selected feed filter & search
   const filteredPosts = posts.filter(post => {
@@ -455,6 +491,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     } catch (err) {
       console.warn('Could not unblock user', err);
     }
+  };
+
+  // Recherche de personnes — LOOP 05/17. Une requête vide revient à la
+  // liste par défaut (comportement historique), jamais un fil vide.
+  const runMemberSearch = (query: string) => {
+    loadMembers(query.trim() || undefined);
   };
 
   // Reactions Handler
@@ -1005,7 +1047,109 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     dispatchContentVoiceAction(action);
   };
 
-  const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleContentVoiceTranscript });
+  // Architecte — navigateur social (LOOP 05/17). Résolution du nom vers un
+  // membre réel : code déterministe, jamais le LLM (qui n'a fourni que le
+  // texte tel qu'énoncé) — 0 correspondance ou plusieurs → clarification,
+  // jamais une action devinée sur la mauvaise personne.
+  const resolveMemberByName = (rawName: string): { member: MemberProfile | null; candidates: MemberProfile[] } => {
+    const term = rawName.trim().toLowerCase();
+    if (!term) return { member: null, candidates: [] };
+    const candidates = members.filter(m => m.id !== (currentUser.id || 'u1') && m.name.toLowerCase().includes(term));
+    return { member: candidates.length === 1 ? candidates[0] : null, candidates };
+  };
+
+  const dispatchSocialVoiceAction = (action: SocialVoiceAction) => {
+    const say = (text: string) => {
+      setVoiceSocialFeedback(text);
+      voiceAssistant.speak(text);
+    };
+
+    const withResolvedMember = (fn: (m: MemberProfile) => void) => {
+      const name = action.payload?.memberName;
+      if (!name) { say('Pour qui ? Dites le nom de la personne.'); return; }
+      const { member, candidates } = resolveMemberByName(name);
+      if (member) { fn(member); return; }
+      if (candidates.length > 1) {
+        say(`Plusieurs personnes correspondent à "${name}" : ${candidates.slice(0, 3).map(c => c.name).join(', ')}. Pouvez-vous préciser ?`);
+        return;
+      }
+      say(`Je ne trouve personne correspondant à "${name}" parmi les membres actuellement affichés.`);
+    };
+
+    switch (action.type) {
+      case 'SEND_FRIEND_REQUEST':
+        withResolvedMember((m) => { handleFriendAction(m.id, 'send'); say(action.spokenConfirmation); });
+        break;
+      case 'ACCEPT_FRIEND_REQUEST':
+        withResolvedMember((m) => {
+          if (m.friendshipStatus !== 'pending_received') { say(`Aucune demande en attente de ${m.name}.`); return; }
+          handleFriendAction(m.id, 'accept'); say(action.spokenConfirmation);
+        });
+        break;
+      case 'DECLINE_FRIEND_REQUEST':
+        withResolvedMember((m) => {
+          if (m.friendshipStatus !== 'pending_received') { say(`Aucune demande en attente de ${m.name}.`); return; }
+          handleFriendAction(m.id, 'decline'); say(action.spokenConfirmation);
+        });
+        break;
+      case 'REMOVE_FRIEND':
+        withResolvedMember((m) => { handleFriendAction(m.id, 'remove'); say(action.spokenConfirmation); });
+        break;
+      case 'FOLLOW':
+        withResolvedMember((m) => { if (!m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'UNFOLLOW':
+        withResolvedMember((m) => { if (m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'BLOCK':
+        // Réutilise exactement handleBlockUser, qui exige déjà une
+        // confirmation explicite (window.confirm) — jamais de bypass vocal
+        // pour une action de ce niveau de risque.
+        withResolvedMember((m) => { handleBlockUser(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'UNBLOCK':
+        withResolvedMember((m) => { handleUnblockUser(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'SEARCH_PEOPLE':
+        if (action.payload?.query) {
+          setMemberSearchQuery(action.payload.query);
+          runMemberSearch(action.payload.query);
+        }
+        say(action.spokenConfirmation);
+        break;
+      case 'DISCOVER_CAPABILITIES':
+      case 'ASK_CLARIFICATION':
+      case 'UNKNOWN':
+      default:
+        say(action.spokenConfirmation);
+        break;
+    }
+  };
+
+  const handleSocialVoiceTranscript = async (transcript: string) => {
+    if (!transcript.trim()) return;
+    const action = await interpretSocialVoiceCommand(transcript, {
+      visibleMemberNames: members.filter(m => m.id !== (currentUser.id || 'u1')).slice(0, 20).map(m => m.name),
+    });
+    dispatchSocialVoiceAction(action);
+  };
+
+  // Un seul moteur vocal partagé (une capacité, un registre) — le champ
+  // vers lequel router la transcription dépend du dernier bouton micro
+  // pressé (composeur de contenu vs découverte sociale), jamais deux
+  // instances de reconnaissance vocale actives en même temps.
+  const voiceIntentScopeRef = useRef<'content' | 'social'>('content');
+  const handleVoiceTranscript = async (transcript: string) => {
+    if (voiceIntentScopeRef.current === 'social') {
+      await handleSocialVoiceTranscript(transcript);
+    } else {
+      await handleContentVoiceTranscript(transcript);
+    }
+  };
+
+  const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleVoiceTranscript });
+  const startContentVoiceCommand = () => { voiceIntentScopeRef.current = 'content'; voiceAssistant.startListening(); };
+  const startSocialVoiceCommand = () => { voiceIntentScopeRef.current = 'social'; voiceAssistant.startListening(); };
 
   // Open Author Profile Modal
   const handleOpenAuthorProfile = (post: Post) => {
@@ -1366,7 +1510,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                   {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
                   {voiceAssistant.isSupported && (
                     <button
-                      onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : voiceAssistant.startListening())}
+                      onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startContentVoiceCommand())}
                       className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
                       title="Dicter ou commander la rédaction par la voix"
                     >
@@ -1769,6 +1913,39 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 <span className="text-[10px] font-bold text-indigo-600 uppercase">Communauté Mooc</span>
               </div>
 
+              {/* Recherche de personnes — LOOP 05/17 */}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') runMemberSearch(memberSearchQuery); }}
+                  placeholder="Rechercher un membre..."
+                  className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <button
+                  onClick={() => runMemberSearch(memberSearchQuery)}
+                  title="Rechercher"
+                  className="p-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all shrink-0"
+                >
+                  <Search size={14} />
+                </button>
+                {voiceAssistant.isSupported && (
+                  <button
+                    onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startSocialVoiceCommand())}
+                    title="Commande vocale (suivre, ajouter en ami, bloquer, chercher...)"
+                    className={`p-1.5 rounded-xl transition-all shrink-0 ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                  >
+                    <Mic size={14} />
+                  </button>
+                )}
+              </div>
+              {voiceSocialFeedback && (
+                <div className="text-[11px] text-indigo-700 bg-indigo-50 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                  <Mic size={12} /> {voiceSocialFeedback}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {members.filter(m => m.id !== 'u1').slice(0, 4).map(member => (
                   <div key={member.id} className="flex items-center justify-between gap-3 p-2 hover:bg-slate-50 rounded-2xl transition-all">
@@ -1783,6 +1960,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           {member.isVerified && <CheckCircle size={12} className="text-blue-600" />}
                         </div>
                         <p className="text-[11px] text-slate-500 truncate">{member.title}</p>
+                        {!!mutualFriendsCounts[member.id] && (
+                          <p className="text-[10px] text-indigo-500 truncate">{mutualFriendsCounts[member.id]} ami{mutualFriendsCounts[member.id] > 1 ? 's' : ''} en commun</p>
+                        )}
                       </div>
                     </div>
 
