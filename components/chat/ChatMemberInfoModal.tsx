@@ -105,12 +105,18 @@ export const ChatMemberInfoModal: React.FC<ChatMemberInfoModalProps> = ({
               <span className="font-bold text-slate-800">{conversation.participantCountry || 'France / International'}</span>
             </div>
             
+            {/* LOOP 07/17 : retire l'empreinte "SHA256-AES-LMAV-OK" —
+                fabriquée (`encryptionFingerprint` n'est jamais réellement
+                calculée ni assignée nulle part dans le dépôt, ce texte
+                s'affichait donc identique pour toutes les conversations) et
+                affirmait un chiffrement de bout en bout qui n'existe pas.
+                Règle anti-fausse-promesse. */}
             <div className="flex items-center justify-between">
               <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                <Lock size={13} className="text-emerald-600" /> Chiffrement
+                <Lock size={13} className="text-emerald-600" /> Confidentialité
               </span>
-              <span className="font-bold text-emerald-700 font-mono text-[10px]">
-                {conversation.encryptionFingerprint || 'SHA256-AES-LMAV-OK'}
+              <span className="font-bold text-emerald-700 text-[10px]">
+                Réservée aux membres
               </span>
             </div>
 

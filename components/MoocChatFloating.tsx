@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall, 
-  PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2, 
+import {
+  MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall,
+  PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2,
   Sparkles, Pin, ShieldAlert, ArrowLeft, CheckCheck, UserPlus, MoreVertical,
-  Maximize2, Minimize2, Eye
+  Maximize2, Minimize2, Eye, Wand2
 } from 'lucide-react';
 import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSession } from '../types';
 import { MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
 import { adminConfigService } from '../services/adminConfigService';
+import { summarizeConversation, assistRewriteMessage, translateMessageText } from '../services/messaging/messagingIntelligence';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { ChatReportModal } from './chat/ChatReportModal';
@@ -64,6 +65,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [inputText, setInputText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; size: string; type: string; url: string }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+
+  // Intelligence de messagerie (LOOP 07/17) : résumé de conversation +
+  // assistance de rédaction. État volontairement local et éphémère (jamais
+  // persisté) — un résumé/une correction n'est jamais une vérité durable,
+  // juste une aide ponctuelle relue par l'utilisateur avant d'agir.
+  const [conversationSummary, setConversationSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
   
   // Voice Recording state
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -123,6 +132,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setIsOpen(true);
     }
   }, [activeConversationId]);
+
+  // Un résumé IA appartient à SA conversation — jamais laissé affiché en
+  // rouvrant une autre discussion (LOOP 07/17).
+  useEffect(() => {
+    setConversationSummary(null);
+  }, [currentChatId]);
 
   // Load Real Supabase Conversations (LOOP 06/17 — réécrit entièrement,
   // l'ancienne version interrogeait des colonnes `participant_one_id`/
@@ -672,6 +687,39 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     });
   };
 
+  // --- Résumé de conversation (LOOP 07/17) ---
+  // Même patron que SocialLive.tsx::handleEndLive (seul précédent réel de
+  // résumé IA dans ce dépôt) : matière première = vrais messages déjà
+  // chargés, jamais rien d'inventé si la conversation est vide, dégradation
+  // gracieuse si l'IA échoue.
+  const handleSummarizeConversation = async () => {
+    if (!activeChat || isSummarizing) return;
+    setIsSummarizing(true);
+    setConversationSummary(null);
+    try {
+      const summary = await summarizeConversation(
+        activeChat.messages.map(m => ({ senderName: m.senderId === currentUser.id ? 'Moi' : (m.senderName || activeChat.participantName), text: m.text || '' }))
+      );
+      setConversationSummary(summary);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  // --- Assistance de rédaction (LOOP 07/17) ---
+  // Ne modifie que le champ de saisie — n'envoie jamais rien elle-même
+  // (préparer n'est pas envoyer, principe transversal de la mission).
+  const handleAssistRewrite = async () => {
+    if (!inputText.trim() || isRewriting) return;
+    setIsRewriting(true);
+    try {
+      const corrected = await assistRewriteMessage(inputText, 'corrige l\'orthographe, la grammaire et la clarté, garde un ton naturel');
+      setInputText(corrected);
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
   // --- Start Call ---
   const handleStartCall = (type: 'audio' | 'video') => {
     if (!activeChat) return;
@@ -786,7 +834,16 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           setIsOpen(true);
           return;
         }
-      } catch (err) {
+      } catch (err: any) {
+        // LOOP 07/17 : un refus de permission (`allowMessagesFrom` du
+        // destinataire) est un résultat réel et attendu, pas un incident
+        // réseau — jamais un repli silencieux vers une fausse conversation
+        // locale qui ne pourrait de toute façon jamais délivrer un message
+        // (l'ancien comportement aurait laissé croire à un envoi réussi).
+        if (err?.code === 'MESSAGING_NOT_ALLOWED') {
+          alert(`${member.name} limite qui peut lui écrire. Suivez cette personne, ou attendez qu'elle accepte votre demande d'ami, pour pouvoir lui envoyer un message.`);
+          return;
+        }
         console.warn('Erreur création conversation Supabase, repli local:', err);
       }
     }
@@ -903,6 +960,19 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 {/* Call buttons in active chat */}
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={handleSummarizeConversation}
+                    disabled={isSummarizing}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-50"
+                    title="Résumer cette conversation (IA)"
+                  >
+                    {isSummarizing ? (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
+                    ) : (
+                      <Sparkles size={16} />
+                    )}
+                  </button>
+
+                  <button
                     onClick={() => handleStartCall('audio')}
                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
                     title="Appel Audio"
@@ -941,7 +1011,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         Realtime
                       </span>
                     </h3>
-                    <p className="text-[10px] text-slate-400">Échanges chiffrés de bout-en-bout</p>
+                    <p className="text-[10px] text-slate-400">Visible uniquement par les membres de chaque discussion</p>
                   </div>
                 </div>
 
@@ -1095,11 +1165,29 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 {/* Messages Stream */}
                 <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2">
                   
-                  {/* Encryption Notice Banner */}
+                  {/* Access Notice Banner — LOOP 07/17 : ne revendique plus un
+                      chiffrement de bout-en-bout qui n'existe pas (aucune
+                      bibliothèque E2E, `content` stocké en clair) — règle
+                      anti-fausse-promesse. Affirme uniquement ce qui est
+                      réellement garanti par la RLS (is_conversation_member). */}
                   <div className="py-2 px-3 bg-indigo-50/70 border border-indigo-100/80 rounded-2xl text-center text-[10px] text-indigo-900 font-medium flex items-center justify-center gap-1.5 shadow-2xs">
                     <Shield size={13} className="text-indigo-600 flex-shrink-0" />
-                    <span>Les messages et appels sont chiffrés de bout-en-bout. Personne d'autre ne peut les lire.</span>
+                    <span>Cette conversation n'est visible que par ses membres.</span>
                   </div>
+
+                  {/* Conversation Summary Banner (LOOP 07/17) */}
+                  {conversationSummary && (
+                    <div className="py-2.5 px-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-900 flex items-start gap-2 shadow-2xs">
+                      <Sparkles size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-bold block mb-0.5">Résumé (IA) :</span>
+                        <span>{conversationSummary}</span>
+                      </div>
+                      <button onClick={() => setConversationSummary(null)} className="text-amber-500 hover:text-amber-700 flex-shrink-0">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
 
                   {activeChat.messages.map(msg => (
                     <ChatMessageItem
@@ -1125,6 +1213,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       onToggleAudio={togglePlayAudio}
                       audioProgress={audioProgress}
                       onOpenImageLightbox={(imgUrl) => setLightboxImageUrl(imgUrl)}
+                      onTranslate={(text) => translateMessageText(text, currentUser.preferredLanguage || 'français')}
                     />
                   ))}
                   
@@ -1270,10 +1359,28 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         handleSendMessage();
                       }
                     }}
-                    placeholder={isRecordingVoice ? 'Enregistrement en cours...' : 'Écrivez un message sécurisé...'}
+                    placeholder={isRecordingVoice ? 'Enregistrement en cours...' : 'Écrivez un message...'}
                     disabled={isRecordingVoice}
                     className="flex-1 px-3.5 py-2.5 bg-slate-100 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 min-w-0"
                   />
+
+                  {/* Rewrite Assist Button (LOOP 07/17) — corrige uniquement
+                      le champ de saisie, n'envoie jamais rien elle-même. */}
+                  {inputText.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleAssistRewrite}
+                      disabled={isRewriting}
+                      className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
+                      title="Corriger l'orthographe et la clarté (IA) — ne change jamais le sens ni n'envoie le message"
+                    >
+                      {isRewriting ? (
+                        <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin block"></span>
+                      ) : (
+                        <Wand2 size={17} />
+                      )}
+                    </button>
+                  )}
 
                   {/* Voice Record Button or Send Button */}
                   {!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob ? (

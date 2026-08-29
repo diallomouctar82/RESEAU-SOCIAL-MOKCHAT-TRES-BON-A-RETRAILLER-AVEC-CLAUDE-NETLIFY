@@ -162,15 +162,14 @@ La version **v6.6.1** consacre :
 - **Alphabétisation & Fondamentaux pour Tous** : Parcours d'émancipation pour adultes et jeunes non scolarisés (lecture du quotidien, calcul commercial, monnaie).
 - **Centre des Langues** : 40+ langues avec répétition espacée et prononciation audio.
 
-### 1.5. Réseau MOK, Messagerie Sécurisée & Espace Live Intelligent 100% Opérationnel
-- **Messagerie Instantanée Sécurisée (`MoocChatFloating.tsx` & `ChatMessageItem.tsx`)** :
-  - Communication 1-à-1 et salons de groupe avec présence en temps réel et chiffrement de bout en bout.
-  - Envoi instantané d'images et photos (`accept="image/*"`) avec aperçu et affichage plein écran (Lightbox HD).
-  - Envoi et lecture pérenne de vidéos (`accept="video/*"`) avec contrôles, streaming fluide et relecture infinie.
-  - Enregistreur de messages vocaux HD avec forme d'onde dynamique interactive (`voiceEngine`).
-  - Partage de documents et pièces jointes (`.pdf`, `.doc`, `.zip`, `.xlsx`) avec téléchargement direct.
-  - Citations/réponses aux messages, réactions emoji en un clic, épinglage et modération directe.
-  - Appels audio et vidéo chiffrés WebRTC avec signalement temps réel via Supabase.
+### 1.5. Réseau MOK, Messagerie & Espace Live Intelligent
+- **Messagerie Instantanée (`MoocChatFloating.tsx` & `ChatMessageItem.tsx`)** — réécrite contre le vrai schéma Supabase aux LOOP 06-07/17 (Architecte MOCnet) après audit : cette section affirmait auparavant des capacités jamais implémentées (chiffrement de bout en bout, épinglage, appels chiffrés) alors que l'envoi de message réel échouait silencieusement depuis toujours contre le backend. État réel, vérifié par test de bout en bout :
+  - Communication 1-à-1 et groupes réels (`conversations`/`conversation_participants`/`messages`), avec anti-doublon d'envoi (`client_message_id`) et blocage réellement appliqué à l'envoi.
+  - **Confidentialité réelle** : chaque conversation n'est visible que par ses membres (RLS `is_conversation_member`) — **aucun chiffrement de bout en bout n'est implémenté** (le contenu est stocké en clair dans la base, comme documenté honnêtement dans l'interface elle-même depuis le LOOP 07/17), il ne faut donc jamais présenter cette capacité comme acquise.
+  - Envoi d'images/vidéos/documents/messages vocaux avec aperçu — pièces jointes réellement persistées (colonne `attachment_url`), mais encore en base64 (upload Storage réel non fait, voir Chantier Messagerie LOOP 06/17 dans `docs/SUPABASE_ARCHITECTURE.md`).
+  - Citations/réponses, réactions emoji (atomiques, `toggle_message_reaction`), résumé de conversation et traduction de message par IA (LOOP 07/17, langue d'origine toujours conservée).
+  - **Épinglage** : bouton présent dans l'UI mais **non fonctionnel** — `onPin` n'est câblé par aucun appelant, aucune colonne `is_pinned` n'existe sur `messages`. Non implémenté, pas un correctif à faire passer pour acquis.
+  - **Appels audio/vidéo** : la signalisation (sonnerie/acceptation/refus) est réelle (Supabase Broadcast), mais **aucun transport audio/vidéo pair-à-pair n'est établi entre les deux personnes** (`ChatCallModal.tsx` ne capture que la caméra locale de l'utilisateur — pas de `RTCPeerConnection`) : un appel ne délivre donc pas encore le son/l'image de l'autre participant. Non chiffré pour la même raison qu'il n'y a pas de flux média à chiffrer.
 - **Réseau Social de Confiance (`SocialFeed.tsx`)** :
   - Publications de posts enrichis (texte, images HD, vidéos avec relecture continue), likes, commentaires, partages et direct live.
   - Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.

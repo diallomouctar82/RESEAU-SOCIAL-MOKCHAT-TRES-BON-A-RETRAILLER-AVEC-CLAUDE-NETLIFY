@@ -1,4 +1,22 @@
 -- ==============================================================================
+-- ⚠️ FICHIER OBSOLÈTE — NE PAS EXÉCUTER, NE PAS CITER COMME RÉFÉRENCE.
+-- Ce brouillon ("v2.4 Souverain") précède la vraie migration Supabase de ce
+-- dépôt et ne correspond à AUCUNE table réellement présente en base
+-- aujourd'hui (ex. `profiles` ci-dessous invente `kyc_status`/`language`/
+-- `metadata` qui n'existent pas, et omet `citizenship_id`/`next_level_xp`/
+-- `two_factor_enabled`/`admin_notes` qui existent réellement ; la messagerie
+-- ci-dessous utilise `chat_conversations`/`chat_messages`, deux noms de
+-- table qui n'ont jamais existé — les vraies tables sont `conversations`/
+-- `conversation_participants`/`messages`, voir LOOP 06/17). Découvert et
+-- documenté comme tel au LOOP 07/17 (mission Architecte MOCnet, messagerie)
+-- en corrigeant les fiches doc de la messagerie qui le citaient encore.
+-- Source de vérité réelle et vérifiée : `docs/SUPABASE_ARCHITECTURE.md`.
+-- Conservé ici uniquement comme trace historique du brouillon d'origine —
+-- une réécriture complète des ~15 domaines qu'il couvre est un chantier de
+-- documentation à part entière, hors périmètre d'une LOOP messagerie.
+-- ==============================================================================
+
+-- ==============================================================================
 -- 🏛️ LE MONDE À VOUS — SCHÉMA SQL COMPLET POUR SUPABASE (POSTGRESQL + RLS)
 -- Compatible : Supabase SQL Editor (1-Click Run)
 -- Version : v2.4 Souverain

@@ -275,6 +275,24 @@ export const supabaseService = {
         const { data: existing } = await supabase.from('conversations').select('id').eq('direct_key', directKey).maybeSingle();
         if (existing) return existing.id;
 
+        // LOOP 07/17 : vérifie AVANT toute écriture que le destinataire
+        // accepte ce message (`allowMessagesFrom`, combiné au blocage —
+        // `can_message_user`, même fonction que la policy RLS ci-dessous).
+        // Nécessaire car `conversations` n'a AUCUNE policy DELETE : si
+        // l'échec survenait seulement au moment d'ajouter le second
+        // participant (après la création de la conversation elle-même),
+        // la conversation resterait orpheline en base, impossible à
+        // nettoyer côté client. `error.code = 'MESSAGING_NOT_ALLOWED'`
+        // permet à l'appelant de distinguer ce refus légitime d'un échec
+        // réseau générique et d'informer honnêtement l'utilisateur.
+        const { data: allowed, error: permError } = await supabase.rpc('can_message_user', { p_sender: userId, p_recipient: otherUserId });
+        if (permError) throw permError;
+        if (!allowed) {
+            const err: any = new Error('Ce membre limite qui peut lui écrire.');
+            err.code = 'MESSAGING_NOT_ALLOWED';
+            throw err;
+        }
+
         // Volontairement sans `.select()` : `INSERT ... RETURNING` exigerait
         // que la policy SELECT (appartenance à la conversation) soit déjà
         // vraie au moment même de l'insertion, hors le créateur ne devient

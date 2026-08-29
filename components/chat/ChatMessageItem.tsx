@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  Check, CheckCheck, Play, Pause, Download, FileText, Reply, Smile, 
-  MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2
+import {
+  Check, CheckCheck, Play, Pause, Download, FileText, Reply, Smile,
+  MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2, Languages
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 
@@ -20,6 +20,8 @@ interface ChatMessageItemProps {
   onToggleAudio: (messageId: string, audioUrl?: string) => void;
   audioProgress?: number; // 0 to 100
   onOpenImageLightbox?: (imageUrl: string) => void;
+  /** LOOP 07/17 : traduction à la demande — retourne toujours le texte d'origine à côté de la traduction, jamais un remplacement silencieux. */
+  onTranslate?: (text: string) => Promise<{ translatedText: string; originalText: string; targetLanguage: string }>;
 }
 
 const COMMON_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💡', '🛡️'];
@@ -38,13 +40,28 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   playingAudioId,
   onToggleAudio,
   audioProgress = 0,
-  onOpenImageLightbox
+  onOpenImageLightbox,
+  onTranslate
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [translation, setTranslation] = useState<{ translatedText: string; targetLanguage: string } | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const isAudioPlaying = playingAudioId === message.id;
+
+  const handleTranslate = async () => {
+    if (!onTranslate || !message.text || isTranslating) return;
+    setShowMenu(false);
+    setIsTranslating(true);
+    try {
+      const result = await onTranslate(message.text);
+      setTranslation({ translatedText: result.translatedText, targetLanguage: result.targetLanguage });
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const handleCopyText = () => {
     if (message.text) {
@@ -101,6 +118,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           {/* Text Content */}
           {message.text && (
             <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
+          )}
+
+          {/* Translation (LOOP 07/17) — le texte d'origine reste toujours affiché au-dessus, jamais remplacé silencieusement. */}
+          {translation && (
+            <div className={`text-xs leading-relaxed whitespace-pre-wrap break-words pt-1.5 mt-1 border-t ${isMe ? 'border-white/20 text-indigo-50' : 'border-slate-200 text-slate-700'} italic`}>
+              <span className={`not-italic text-[9px] font-bold uppercase tracking-wide block mb-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>Traduit ({translation.targetLanguage})</span>
+              {translation.translatedText}
+            </div>
           )}
 
           {/* Image Content */}
@@ -305,6 +330,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   >
                     <Pin size={13} className="text-amber-500" />
                     <span>{message.isPinned ? 'Détacher' : 'Épingler'}</span>
+                  </button>
+                )}
+
+                {onTranslate && message.text && !translation && (
+                  <button
+                    onClick={handleTranslate}
+                    disabled={isTranslating}
+                    className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Languages size={13} className="text-indigo-500" />
+                    <span>{isTranslating ? 'Traduction...' : 'Traduire'}</span>
                   </button>
                 )}
 
