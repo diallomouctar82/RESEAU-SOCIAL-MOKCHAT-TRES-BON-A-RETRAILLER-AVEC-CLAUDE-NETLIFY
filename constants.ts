@@ -376,7 +376,10 @@ export const USER_PROFILE: UserProfile = {
         allowMessagesFrom: 'all',
         showOnlineStatus: true,
         allowTagging: true,
-        showActivityFeed: true
+        showActivityFeed: true,
+        allowFriendRequestsFrom: 'all',
+        showFollowersList: true,
+        showFollowingList: true
     },
     shop: {
         id: 's1',

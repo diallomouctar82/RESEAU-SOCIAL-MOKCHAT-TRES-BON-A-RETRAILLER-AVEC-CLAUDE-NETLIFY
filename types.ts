@@ -74,6 +74,10 @@ export interface UserProfile {
         showOnlineStatus: boolean;
         allowTagging: boolean;
         showActivityFeed: boolean;
+        /** LOOP 04/17 (moteur social) : qui peut m'envoyer une demande d'ami. 'network' non encore proposé (nécessite une notion de relations mutuelles hors périmètre fondation). */
+        allowFriendRequestsFrom: 'all' | 'none';
+        showFollowersList: boolean;
+        showFollowingList: boolean;
     };
     shop?: UserShop;
     medical?: {
@@ -936,6 +940,8 @@ export interface MemberProfile {
     joinedDate: string;
     isVerified?: boolean;
     isFollowing?: boolean;
+    /** LOOP 04/17 : ai-je (le viewer courant) bloqué ce membre — jamais l'inverse, un blocage reste invisible à la personne bloquée. */
+    isBlockedByMe?: boolean;
     friendshipId?: string;
     friendshipStatus?: 'none' | 'pending_sent' | 'pending_received' | 'friends';
     followersCount: number;
@@ -951,6 +957,9 @@ export interface MemberProfile {
         showOnlineStatus: boolean;
         allowTagging: boolean;
         showActivityFeed: boolean;
+        allowFriendRequestsFrom?: 'all' | 'none';
+        showFollowersList?: boolean;
+        showFollowingList?: boolean;
     };
 }
 

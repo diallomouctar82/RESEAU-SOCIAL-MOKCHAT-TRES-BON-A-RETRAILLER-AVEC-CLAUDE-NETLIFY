@@ -116,6 +116,9 @@ export interface SupabaseUserProfile {
         showOnlineStatus: boolean;
         allowTagging: boolean;
         showActivityFeed: boolean;
+        allowFriendRequestsFrom?: 'all' | 'none';
+        showFollowersList?: boolean;
+        showFollowingList?: boolean;
     };
 }
 
@@ -461,6 +464,14 @@ export const supabaseService = {
      * personne m'avait déjà demandé), l'accepte directement au lieu de créer
      * une seconde ligne — deux demandes croisées doivent aboutir à une amitié,
      * pas à un doublon bloqué par l'index unique sur la paire.
+     *
+     * Anti-doublon (LOOP 04/17) : un second appel pour la même paire (double
+     * clic, retry réseau, répétition vocale) percute l'index unique côté
+     * base (23505) — traité ici comme un no-op idempotent, jamais une
+     * erreur, puisque l'état désiré (une relation existe déjà) est déjà
+     * atteint. Un refus RLS (42501 — bloqué, ou destinataire ayant désactivé
+     * les demandes) est en revanche une vraie erreur, propagée telle quelle
+     * pour un message honnête côté UI.
      */
     async sendFriendRequest(requesterId: string, addresseeId: string): Promise<void> {
         if (!isSupabaseConfigured) return;
@@ -480,7 +491,7 @@ export const supabaseService = {
         }
 
         const { error } = await supabase.from('friendships').insert({ requester_id: requesterId, addressee_id: addresseeId, status: 'pending' });
-        if (error) throw error;
+        if (error && error.code !== '23505') throw error;
     },
     async acceptFriendRequest(friendshipId: string): Promise<void> {
         if (!isSupabaseConfigured) return;
@@ -492,6 +503,67 @@ export const supabaseService = {
         if (!isSupabaseConfigured) return;
         const { error } = await supabase.from('friendships').delete().eq('id', friendshipId);
         if (error) throw error;
+    },
+
+    // --- Abonnements (follows) — LOOP 04/17 --------------------------------
+    // Modèle unilatéral, distinct de l'amitié (réciproque) : les deux ne
+    // sont jamais mélangés (décision d'architecture centrale du moteur
+    // social). RLS empêche un abonnement vers/depuis une personne qui a
+    // bloqué l'autre partie ; les compteurs profiles.followers_count/
+    // following_count sont maintenus par un trigger réel (LOOP 04/17).
+    /** Le jeu d'ids que `userId` suit réellement — utilisé pour calculer `isFollowing` indépendamment du statut d'amitié. */
+    async getFollowingIdsForUser(userId: string): Promise<string[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase.from('follows').select('followee_id').eq('follower_id', userId);
+        if (error || !data) return [];
+        return data.map((r: any) => r.followee_id);
+    },
+    async followUser(followerId: string, followeeId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('follows').insert({ follower_id: followerId, followee_id: followeeId });
+        if (error && error.code !== '23505') throw error;
+    },
+    async unfollowUser(followerId: string, followeeId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('follows').delete().eq('follower_id', followerId).eq('followee_id', followeeId);
+        if (error) throw error;
+    },
+
+    // --- Blocage (user_blocks) — LOOP 04/17 --------------------------------
+    // Action forte et personnelle, distincte du signalement (qui remonte à
+    // la modération) : le blocage ne remonte nulle part, il ne fait
+    // qu'agir sur la relation entre les deux personnes. RLS restreint la
+    // visibilité d'une ligne à son seul auteur (blocker_id = auth.uid()) —
+    // la personne bloquée ne peut jamais le découvrir via une lecture
+    // directe de cette table.
+    /** Bloque `blockedId` et met fin, dans le même geste explicite et disclosed à l'utilisateur, à toute amitié/abonnement existant entre les deux — jamais une automatisation cachée : c'est la conséquence directe et annoncée de CETTE action. */
+    async blockUser(blockerId: string, blockedId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('user_blocks').insert({ blocker_id: blockerId, blocked_id: blockedId });
+        if (error && error.code !== '23505') throw error;
+
+        const { data: existingFriendship } = await supabase
+            .from('friendships')
+            .select('id')
+            .or(`and(requester_id.eq.${blockerId},addressee_id.eq.${blockedId}),and(requester_id.eq.${blockedId},addressee_id.eq.${blockerId})`)
+            .maybeSingle();
+        if (existingFriendship) {
+            await supabase.from('friendships').delete().eq('id', existingFriendship.id);
+        }
+        await supabase.from('follows').delete().eq('follower_id', blockerId).eq('followee_id', blockedId);
+        await supabase.from('follows').delete().eq('follower_id', blockedId).eq('followee_id', blockerId);
+    },
+    async unblockUser(blockerId: string, blockedId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('user_blocks').delete().eq('blocker_id', blockerId).eq('blocked_id', blockedId);
+        if (error) throw error;
+    },
+    /** Uniquement les blocages posés PAR `userId` — jamais ceux dont il/elle fait l'objet (RLS ne les exposerait de toute façon pas). */
+    async getBlockedUserIds(userId: string): Promise<string[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase.from('user_blocks').select('blocked_id').eq('blocker_id', userId);
+        if (error || !data) return [];
+        return data.map((r: any) => r.blocked_id);
     },
 
     // --- Notifications réelles --------------------------------------------

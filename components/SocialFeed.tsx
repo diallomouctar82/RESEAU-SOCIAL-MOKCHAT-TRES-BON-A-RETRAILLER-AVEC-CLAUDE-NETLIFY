@@ -250,6 +250,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           if (profiles && profiles.length > 0) {
             const rawFriendships = currentUser.id ? await supabaseService.getFriendshipsForUser(currentUser.id) : [];
             setFriendships(rawFriendships);
+            // Abonnement (follow) et blocage — LOOP 04/17 : deux relations
+            // réelles et indépendantes de l'amitié, jamais recalculées à
+            // partir de friendshipStatus (qui ne représente que l'amitié).
+            const [followingIds, blockedIds] = currentUser.id
+              ? await Promise.all([
+                  supabaseService.getFollowingIdsForUser(currentUser.id),
+                  supabaseService.getBlockedUserIds(currentUser.id)
+                ])
+              : [[], []];
 
             const mappedMembers: MemberProfile[] = profiles.map(p => {
               const rel = rawFriendships.find((f: any) => f.requester_id === p.id || f.addressee_id === p.id);
@@ -269,7 +278,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
                 joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
                 isVerified: p.is_verified ?? true,
-                isFollowing: friendshipStatus === 'friends',
+                isFollowing: followingIds.includes(p.id),
+                isBlockedByMe: blockedIds.includes(p.id),
                 friendshipStatus,
                 friendshipId: rel?.id,
                 followersCount: p.followers_count ?? 12,
@@ -284,7 +294,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                   allowMessagesFrom: 'all',
                   showOnlineStatus: true,
                   allowTagging: true,
-                  showActivityFeed: true
+                  showActivityFeed: true,
+                  allowFriendRequestsFrom: 'all',
+                  showFollowersList: true,
+                  showFollowingList: true
                 }
               };
             });
@@ -393,6 +406,54 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       } catch (err) {
         console.warn('Could not remove friendship', err);
       }
+    }
+  };
+
+  // Abonnement (follow) — LOOP 04/17. Modèle unilatéral et réel, distinct
+  // de l'amitié : ne touche jamais friendshipStatus.
+  const handleToggleFollow = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (!member) return;
+    const nextFollowing = !member.isFollowing;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isFollowing: nextFollowing } : m));
+    if (supabaseService.isConfigured() && currentUser.id && isRealMemberId(memberId)) {
+      try {
+        if (nextFollowing) {
+          await supabaseService.followUser(currentUser.id, memberId);
+        } else {
+          await supabaseService.unfollowUser(currentUser.id, memberId);
+        }
+      } catch (err) {
+        console.warn('Could not update follow state', err);
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isFollowing: !nextFollowing } : m));
+        if (nextFollowing) alert("Impossible de suivre ce membre pour le moment.");
+      }
+    }
+  };
+
+  // Blocage — LOOP 04/17. Action forte et personnelle, distincte du
+  // signalement (qui remonte à la modération) : confirmée explicitement
+  // car elle met fin, dans le même geste, à toute amitié/abonnement.
+  const handleBlockUser = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (!member || !currentUser.id || !isRealMemberId(memberId)) return;
+    if (!window.confirm(`Bloquer ${member.name} ? Cela mettra fin à votre amitié et à tout abonnement mutuel, et l'empêchera de vous contacter ou de vous envoyer une demande. Vous pourrez débloquer cette personne à tout moment.`)) return;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: true, friendshipStatus: 'none', friendshipId: undefined, isFollowing: false } : m));
+    setSelectedMemberForProfile(null);
+    try {
+      await supabaseService.blockUser(currentUser.id, memberId);
+    } catch (err) {
+      console.warn('Could not block user', err);
+    }
+  };
+
+  const handleUnblockUser = async (memberId: string) => {
+    if (!currentUser.id || !isRealMemberId(memberId)) return;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: false } : m));
+    try {
+      await supabaseService.unblockUser(currentUser.id, memberId);
+    } catch (err) {
+      console.warn('Could not unblock user', err);
     }
   };
 
@@ -1725,7 +1786,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                       </div>
                     </div>
 
-                    {member.friendshipStatus === 'pending_received' ? (
+                    {member.isBlockedByMe ? (
+                      <button
+                        onClick={() => handleUnblockUser(member.id)}
+                        title="Débloquer cette personne"
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 bg-red-50 text-red-600 hover:bg-red-100"
+                      >
+                        Débloquer
+                      </button>
+                    ) : member.friendshipStatus === 'pending_received' ? (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => handleFriendAction(member.id, 'accept')}
@@ -2288,6 +2357,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           reels={reels}
           lives={lives}
           onFriendAction={handleFriendAction}
+          onToggleFollow={handleToggleFollow}
+          onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
           onStartChatWithMember={(m) => {
             if (onOpenDirectChat) onOpenDirectChat(undefined, m);
           }}

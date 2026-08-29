@@ -54,7 +54,10 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
             allowMessagesFrom: 'all',
             showOnlineStatus: true,
             allowTagging: true,
-            showActivityFeed: true
+            showActivityFeed: true,
+            allowFriendRequestsFrom: 'all',
+            showFollowersList: true,
+            showFollowingList: true
         },
     };
 };

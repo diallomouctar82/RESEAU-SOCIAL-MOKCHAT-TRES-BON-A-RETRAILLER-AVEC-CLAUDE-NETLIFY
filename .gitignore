@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (Supabase keys, etc.) — never committed
+.env
+.env.*
+!.env.example
+
 # Netlify CLI local state (site-link cache, machine-specific)
 .netlify
 
