@@ -201,6 +201,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     citizenship_id: updates.citizenshipId || userProfile.citizenshipId,
                     interests: updates.interests || userProfile.interests,
                     privacy_settings: updates.privacySettings || userProfile.privacySettings,
+                    // LOOP 13/17 : colonne réelle, déjà lue (services/profile.ts)
+                    // mais jamais incluse ici — un nouveau sélecteur de langue
+                    // (UnifiedSettingsModal.tsx) aurait mis à jour l'état React
+                    // local sans jamais persister le changement.
+                    preferred_language: updates.preferredLanguage || userProfile.preferredLanguage,
                 });
             } catch (err) {
                 console.warn('Error syncing profile to Supabase', err);

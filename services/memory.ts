@@ -27,6 +27,18 @@ class MemoryService {
         this.currentUserId = userId;
     }
 
+    /**
+     * LOOP 13/17 (multi-appareils) : notifie `onChange` à chaque
+     * insertion/modification/suppression de mémoire pour l'utilisateur
+     * courant, sur N'IMPORTE QUEL appareil — l'appelant décide comment
+     * réagir (typiquement re-fetch via `getActiveMemories()`). Retourne un
+     * no-op si aucun utilisateur n'est connu.
+     */
+    subscribeToChanges(onChange: () => void): () => void {
+        if (!this.currentUserId) return () => {};
+        return supabaseService.subscribeToMemoryChanges(this.currentUserId, onChange);
+    }
+
     private mapRow(row: any): ActiveMemoryItem {
         return {
             id: row.id,
@@ -54,17 +66,21 @@ class MemoryService {
 
     /**
      * `scope` déduit du contexte plutôt qu'ajouté comme nouveau paramètre
-     * (aucun appelant existant ne le fournit) : un élément rattaché à un
-     * dossier est un jalon de parcours (`project`) ; sans dossier, une
-     * activité ponctuelle (`recent_activity`). Raffiné en LOOP 13/17.
+     * (aucun appelant existant ne le fournit) : `category==='preference'`
+     * est une préférence durable (LOOP 13/17 — une correction sur la même
+     * clé remplace la valeur au lieu de s'empiler, index unique partiel
+     * côté base) ; un élément rattaché à un dossier est un jalon de
+     * parcours (`project`, historique préservé) ; sinon, une activité
+     * ponctuelle (`recent_activity`, historique préservé).
      */
     async addOrUpdateMemory(item: Omit<ActiveMemoryItem, 'id' | 'timestamp'> & { id?: string }): Promise<ActiveMemoryItem> {
         if (!this.currentUserId) {
             throw new Error("Impossible d'enregistrer un élément de mémoire sans utilisateur connecté.");
         }
+        const scope = item.category === 'preference' ? 'durable_preference' : (item.dossierId ? 'project' : 'recent_activity');
         const row = await supabaseService.upsertMemory(this.currentUserId, {
             id: item.id,
-            scope: item.dossierId ? 'project' : 'recent_activity',
+            scope,
             category: item.category,
             key: item.key,
             value: item.value,

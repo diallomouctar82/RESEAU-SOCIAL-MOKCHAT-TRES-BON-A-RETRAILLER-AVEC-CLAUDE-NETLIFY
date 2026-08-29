@@ -22,6 +22,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { UserProfile } from '../../types';
+import { SUPPORTED_LANGUAGES } from '../../constants';
 
 interface UnifiedSettingsModalProps {
   isOpen: boolean;
@@ -306,9 +307,9 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
               <div className="space-y-4">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
                   <div className="flex items-center gap-4">
-                    <img 
-                      src={userProfile.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"} 
-                      alt="Avatar" 
+                    <img
+                      src={userProfile.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                      alt="Avatar"
                       className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-xs"
                     />
                     <div>
@@ -318,6 +319,32 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                         {userProfile.role || 'Membre Titulaire'}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                {/* LOOP 13/17 (mémoire contextuelle, préférence durable) :
+                    `profiles.preferred_language` existe et est déjà lu
+                    (ex. MoocChatFloating.tsx) mais n'avait jusqu'ici aucun
+                    écran pour l'écrire — ce sélecteur est le premier. */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Languages size={18} className="text-blue-600" />
+                    <span className="text-sm font-bold text-slate-900">Langue Préférée</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => onUpdateProfile?.({ preferredLanguage: lang.code })}
+                        className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-colors ${
+                          userProfile.preferredLanguage === lang.code
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-blue-300'
+                        }`}
+                      >
+                        <span>{lang.flag}</span> {lang.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>

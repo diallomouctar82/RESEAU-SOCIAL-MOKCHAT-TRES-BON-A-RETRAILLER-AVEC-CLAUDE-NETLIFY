@@ -114,6 +114,17 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
         loadAllData();
     }, []);
 
+    // LOOP 13/17 (mémoire contextuelle, multi-appareils) : un ajout/une
+    // modification/une suppression de mémoire sur un autre appareil déjà
+    // ouvert apparaît désormais ici en direct, au lieu de rester invisible
+    // jusqu'au rechargement complet de la page.
+    useEffect(() => {
+        const unsubscribe = memoryService.subscribeToChanges(() => {
+            memoryService.getActiveMemories().then(setMemories);
+        });
+        return unsubscribe;
+    }, []);
+
     const loadAllData = async () => {
         const loadedDossiers = await dossierService.getAllDossiers();
         setDossiers(loadedDossiers);

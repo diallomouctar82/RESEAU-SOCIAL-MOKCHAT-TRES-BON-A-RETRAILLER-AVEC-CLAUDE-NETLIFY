@@ -110,6 +110,8 @@ export interface SupabaseUserProfile {
     followers_count?: number;
     following_count?: number;
     interests?: string[];
+    /** LOOP 13/17 : colonne réelle, déjà lue par services/profile.ts, jamais écrite avant cette LOOP (aucun écran de réglages n'exposait de sélecteur de langue). */
+    preferred_language?: string;
     privacy_settings?: {
         profileVisibility: 'public' | 'network' | 'private';
         allowMessagesFrom: 'all' | 'network' | 'none';
@@ -884,6 +886,19 @@ export const supabaseService = {
      * à l'appelant (`.eq('user_id', userId)` en plus de l'id, en complément
      * de RLS).
      */
+    /**
+     * LOOP 13/17 (durabilité) : pour les scopes `durable_preference`/
+     * `explicit`, une correction REMPLACE la valeur active existante pour
+     * la même clé plutôt que d'empiler une ligne concurrente (index unique
+     * partiel posé par cette LOOP) — `project`/`recent_activity` restent
+     * un historique (plusieurs lignes légitimes, ex. plusieurs tentatives
+     * d'examen). PostgREST ne permet pas d'exprimer un `ON CONFLICT`
+     * ciblant un index partiel via `.upsert()` (Postgres exige que le
+     * prédicat partiel soit répété dans la clause `ON CONFLICT` elle-même,
+     * ce que PostgREST n'expose pas) — la logique lit donc explicitement
+     * la ligne active existante avant de décider insert vs update, plutôt
+     * que de s'appuyer sur un upsert base de données qui échouerait.
+     */
     async upsertMemory(userId: string, item: { id?: string; scope: string; category: string; key: string; value: string; agentId?: string; dossierId?: string; layer?: string; verified?: boolean; confidence?: number }): Promise<any | null> {
         if (!isSupabaseConfigured) return null;
         const row = {
@@ -898,8 +913,18 @@ export const supabaseService = {
             verified: item.verified ?? true,
             confidence: item.confidence ?? null,
         };
-        if (item.id) {
-            const { data, error } = await supabase.from('user_memory').update(row).eq('id', item.id).eq('user_id', userId).select().single();
+        let targetId = item.id;
+        const isPreferenceLike = item.scope === 'durable_preference' || item.scope === 'explicit';
+        if (!targetId && isPreferenceLike) {
+            const { data: existing } = await supabase
+                .from('user_memory')
+                .select('id')
+                .eq('user_id', userId).eq('scope', item.scope).eq('category', item.category).eq('key', item.key).eq('status', 'active')
+                .maybeSingle();
+            if (existing) targetId = existing.id;
+        }
+        if (targetId) {
+            const { data, error } = await supabase.from('user_memory').update(row).eq('id', targetId).eq('user_id', userId).select().single();
             if (error) throw error;
             return data;
         }
@@ -911,6 +936,30 @@ export const supabaseService = {
         if (!isSupabaseConfigured) return;
         const { error } = await supabase.from('user_memory').delete().eq('id', id).eq('user_id', userId);
         if (error) throw error;
+    },
+    /**
+     * LOOP 13/17 (multi-appareils) : `user_memory` ajoutée à la publication
+     * Realtime par cette LOOP (jusqu'ici seules `notifications`/`messages`
+     * y étaient) — un ajout/une modification/une suppression de mémoire sur
+     * un appareil reste sinon invisible sur un second appareil déjà ouvert
+     * jusqu'au rechargement complet. Un seul callback générique (le
+     * consommateur re-fetch la liste complète plutôt que de fusionner
+     * manuellement chaque évènement — plus simple et sans risque
+     * d'incohérence pour une liste déjà peu volumineuse par utilisateur).
+     */
+    subscribeToMemoryChanges(userId: string, onChange: () => void): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase
+                .channel(`user_memory:${userId}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'user_memory', filter: `user_id=eq.${userId}` }, () => {
+                    onChange();
+                })
+                .subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
     },
     /**
      * Diffusion admin réelle — jusqu'ici `adminConfigService.sendBroadcastNotification`
