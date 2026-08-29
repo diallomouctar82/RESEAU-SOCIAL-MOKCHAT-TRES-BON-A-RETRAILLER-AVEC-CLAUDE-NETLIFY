@@ -119,6 +119,7 @@ export interface SupabaseUserProfile {
         allowFriendRequestsFrom?: 'all' | 'none';
         showFollowersList?: boolean;
         showFollowingList?: boolean;
+        notificationsMuted?: boolean;
     };
 }
 
@@ -777,20 +778,41 @@ export const supabaseService = {
      * jour en direct (un ami qui accepte une demande, un nouveau message,
      * pendant que l'app est ouverte, n'apparaissait qu'au rechargement
      * suivant). Même patron que `subscribeToChat`.
+     * LOOP 09/17 (orchestration proactive) : `onUpdate` ajouté pour le
+     * multi-appareils — sans lui, marquer une notification lue sur un
+     * appareil ne se reflétait jamais sur un second appareil déjà ouvert
+     * (seul l'INSERT était écouté).
      */
-    subscribeToNotifications(userId: string, onInsert: (n: any) => void): () => void {
+    subscribeToNotifications(userId: string, handlers: { onInsert: (n: any) => void; onUpdate?: (n: any) => void }): () => void {
         if (!isSupabaseConfigured) return () => {};
         try {
             const channel = supabase
                 .channel(`notifications:${userId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
-                    onInsert(payload.new);
+                    handlers.onInsert(payload.new);
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
+                    handlers.onUpdate?.(payload.new);
                 })
                 .subscribe();
             return () => { supabase.removeChannel(channel); };
         } catch {
             return () => {};
         }
+    },
+    /**
+     * LOOP 09/17 (orchestration proactive) : première écriture cliente vers
+     * `reminders` (schéma + moteur cron ajoutés par cette LOOP). Aucune UI de
+     * création dédiée pour l'instant (décision explicite de périmètre) — le
+     * moteur est testé directement via SQL/REST, voir
+     * docs/SUPABASE_ARCHITECTURE.md. `fire_due_reminders()` (pg_cron, toutes
+     * les 5 min) transforme un rappel dû en notification réelle une seule
+     * fois (`pending`→`fired`), jamais récurrent par défaut.
+     */
+    async createReminder(userId: string, message: string, remindAt: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('reminders').insert({ user_id: userId, message, remind_at: remindAt });
+        if (error) throw error;
     },
     /**
      * Diffusion admin réelle — jusqu'ici `adminConfigService.sendBroadcastNotification`

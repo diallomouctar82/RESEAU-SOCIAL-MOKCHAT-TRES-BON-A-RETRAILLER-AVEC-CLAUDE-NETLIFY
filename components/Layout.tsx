@@ -81,6 +81,10 @@ interface LayoutProps {
   // montée ici et non dans App.tsx.
   pendingDirectChatMember?: MemberProfile;
   onConsumePendingDirectChatMember?: () => void;
+  // LOOP 09/17 (notifications, orchestration proactive) : jusqu'ici jamais
+  // fourni à <UnifiedSettingsModal>, rendant son bouton "Enregistrer" inerte
+  // pour tout ce que ce modal peut modifier (dont le nouveau mode silencieux).
+  onUpdateProfile?: (updated: Partial<UserProfile>) => void;
 }
 
 const NEWS_ITEMS = [
@@ -109,6 +113,7 @@ export const Layout: React.FC<LayoutProps> = ({
   onCloseGoalModal,
   pendingDirectChatMember,
   onConsumePendingDirectChatMember,
+  onUpdateProfile,
 }) => {
   const { currentPalette, paletteId } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -408,7 +413,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 text-slate-600 transition-colors relative shadow-xs"
               >
                 <Bell size={16} />
-                {unreadCount > 0 && (
+                {unreadCount > 0 && !userProfile.privacySettings?.notificationsMuted && (
                   <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
                 )}
               </button>
@@ -906,7 +911,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   className="relative flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
                 >
                   <Bell size={16} />
-                  {unreadCount > 0 && (
+                  {unreadCount > 0 && !userProfile.privacySettings?.notificationsMuted && (
                     <span className="absolute top-1.5 right-1/2 translate-x-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
                   )}
                   <span className="text-[9px] font-bold">Notifications</span>
@@ -1147,6 +1152,7 @@ export const Layout: React.FC<LayoutProps> = ({
           isOpen={isSettingsModalOpen}
           onClose={() => setIsSettingsModalOpen(false)}
           userProfile={userProfile}
+          onUpdateProfile={onUpdateProfile}
         />
 
         {/* Brand Color Lab — 10 Palettes Chromatiques */}

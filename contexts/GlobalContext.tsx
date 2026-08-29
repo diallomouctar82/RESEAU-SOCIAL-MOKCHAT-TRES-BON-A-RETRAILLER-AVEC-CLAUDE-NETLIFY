@@ -95,12 +95,22 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         // suivant. Un seul canal actif à la fois, réattaché à chaque
         // changement d'utilisateur (le filtre `user_id` est figé à la
         // création du canal).
+        // LOOP 09/17 : `onUpdate` reflète en direct un changement fait sur un
+        // autre appareil (ex. `read` passé à true) — jusqu'ici seul l'INSERT
+        // était écouté, un second appareil déjà ouvert restait bloqué sur
+        // l'ancien état jusqu'au rechargement complet de la page.
         let unsubscribeNotifications: (() => void) | null = null;
         const attachNotificationsRealtime = (userId: string) => {
             unsubscribeNotifications?.();
-            unsubscribeNotifications = supabaseService.subscribeToNotifications(userId, (row) => {
-                const mapped = mapSupabaseNotification(row);
-                setNotifications(prev => prev.some(n => n.id === mapped.id) ? prev : [mapped, ...prev]);
+            unsubscribeNotifications = supabaseService.subscribeToNotifications(userId, {
+                onInsert: (row) => {
+                    const mapped = mapSupabaseNotification(row);
+                    setNotifications(prev => prev.some(n => n.id === mapped.id) ? prev : [mapped, ...prev]);
+                },
+                onUpdate: (row) => {
+                    const mapped = mapSupabaseNotification(row);
+                    setNotifications(prev => prev.map(n => n.id === mapped.id ? mapped : n));
+                },
             });
         };
 

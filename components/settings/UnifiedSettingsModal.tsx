@@ -335,11 +335,38 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
             {/* NOTIFICATIONS PANEL */}
             {activeSection === 'notifications' && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4 text-xs text-slate-600 leading-relaxed">
-                <h4 className="text-sm font-bold text-slate-900">Canaux de Notification</h4>
-                <p>
-                  Seules les alertes critiques (délais consulaires, échéances d'examens, paiements séquestres) génèrent des notifications prioritaires pour protéger votre concentration.
-                </p>
+              <div className="space-y-4">
+                {/* LOOP 09/17 (notifications, orchestration proactive) : ce
+                    panneau affichait un texte statique prétendant déjà
+                    filtrer les alertes par criticité — aucun réglage
+                    n'existait nulle part. Premier réglage réel, persisté
+                    sur `profiles.privacy_settings`. */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Bell size={18} className="text-blue-600" />
+                      <span className="text-sm font-bold text-slate-900">Mode Silencieux</span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Éteint le badge rouge de la cloche pour réduire l'interruption. Chaque notification continue d'arriver normalement dans le panneau — rien n'est masqué ni supprimé.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onUpdateProfile?.({
+                      privacySettings: {
+                        ...userProfile.privacySettings,
+                        notificationsMuted: !userProfile.privacySettings?.notificationsMuted,
+                      },
+                    })}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${
+                      userProfile.privacySettings?.notificationsMuted ? 'bg-blue-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                      userProfile.privacySettings?.notificationsMuted ? 'right-0.5' : 'left-0.5'
+                    }`} />
+                  </button>
+                </div>
               </div>
             )}
 

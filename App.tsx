@@ -185,6 +185,7 @@ const AppContent = () => {
         onCloseGoalModal={() => setIsGoalModalOpen(false)}
         pendingDirectChatMember={pendingDirectChatMember}
         onConsumePendingDirectChatMember={() => setPendingDirectChatMember(undefined)}
+        onUpdateProfile={updateUserProfile}
     >
 
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} onOpenCapModal={() => setIsGoalModalOpen(true)} />}

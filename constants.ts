@@ -379,7 +379,8 @@ export const USER_PROFILE: UserProfile = {
         showActivityFeed: true,
         allowFriendRequestsFrom: 'all',
         showFollowersList: true,
-        showFollowingList: true
+        showFollowingList: true,
+        notificationsMuted: false
     },
     shop: {
         id: 's1',

@@ -78,6 +78,8 @@ export interface UserProfile {
         allowFriendRequestsFrom: 'all' | 'none';
         showFollowersList: boolean;
         showFollowingList: boolean;
+        /** LOOP 09/17 (notifications, orchestration proactive) : mode silencieux — réduit l'interruption (badge non-lus masqué) sans jamais cacher les notifications elles-mêmes du panneau. */
+        notificationsMuted: boolean;
     };
     shop?: UserShop;
     medical?: {
@@ -960,6 +962,7 @@ export interface MemberProfile {
         allowFriendRequestsFrom?: 'all' | 'none';
         showFollowersList?: boolean;
         showFollowingList?: boolean;
+        notificationsMuted?: boolean;
     };
 }
 
