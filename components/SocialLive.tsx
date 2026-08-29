@@ -30,9 +30,12 @@ import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
-import { glassSurfaceClass, LIVE_VISUAL_UNIVERSES } from '../services/live/liveMaterialSystem';
+import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES } from '../services/live/liveMaterialSystem';
+import { interpretLiveVoiceCommand, LiveVoiceAction } from '../services/live/liveVoiceCommands';
+import { createSolidarityCause } from '../services/live/liveSolidarityService';
 
 interface SocialLiveProps {
   liveId: string;
@@ -734,16 +737,18 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   // Send Public Message
-  const handleSendMessage = () => {
-    if (!chatInput.trim() || !realSessionId) return;
-    const text = chatInput.trim();
-    setChatInput('');
+  /** overrideText : envoi programmatique (commande vocale) sans passer par le champ de saisie. */
+  const handleSendMessage = (overrideText?: string) => {
+    const raw = overrideText ?? chatInput;
+    if (!raw.trim() || !realSessionId) return;
+    const text = raw.trim();
+    if (overrideText === undefined) setChatInput('');
     sendLiveMessage(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, text)
       .then((sent) => setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent])))
       .catch((err) => console.error('SocialLive: échec envoi message', err));
 
     // Trigger AI reaction if question
-    if (chatInput.toLowerCase().includes('comment') || chatInput.toLowerCase().includes('pourquoi') || chatInput.toLowerCase().includes('expert')) {
+    if (text.toLowerCase().includes('comment') || text.toLowerCase().includes('pourquoi') || text.toLowerCase().includes('expert')) {
       setTimeout(() => {
         setCopilotInsight(`L'Expert IA peut apporter une réponse détaillée à : "${text}"`);
       }, 1000);
@@ -865,6 +870,144 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     stopLocalMedia();
     setShowPostContinuityModal(true);
   };
+
+  // Voix native branchée sur le LIVE (LOOP 09/14, prompts 2/7 et 4/7) —
+  // réutilise useVoiceAssistant.ts (moteur déjà réel, partagé avec
+  // DialloOS/CareerCoach3D/etc.), pas un second moteur vocal pour le LIVE.
+  const [pendingVoiceClarification, setPendingVoiceClarification] = useState<{ originalUtterance: string; question: string } | null>(null);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  useEffect(() => {
+    if (!voiceFeedback) return;
+    const timer = setTimeout(() => setVoiceFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [voiceFeedback]);
+
+  const dispatchVoiceAction = (action: LiveVoiceAction, originalUtterance: string) => {
+    const say = (text?: string) => {
+      if (!text) return;
+      setVoiceFeedback(text);
+      voiceAssistant.speak(text).catch(() => {});
+    };
+    switch (action.type) {
+      case 'TOGGLE_MIC':
+        toggleMic();
+        say(action.spokenConfirmation);
+        break;
+      case 'TOGGLE_VIDEO':
+        toggleVideo();
+        say(action.spokenConfirmation);
+        break;
+      case 'TOGGLE_SCREEN_SHARE':
+        if (!isUserOnStage) { say("Seules les personnes sur scène peuvent partager leur écran."); break; }
+        handleToggleScreenShare();
+        say(action.spokenConfirmation);
+        break;
+      case 'RAISE_HAND':
+        handleToggleHandRaise();
+        say(action.spokenConfirmation);
+        break;
+      case 'GIVE_FLOOR': {
+        if (!isHost) { say("Seul l'hôte peut donner la parole."); break; }
+        const wanted = action.payload?.participantName?.toLowerCase();
+        const target = wanted
+          ? raisedHands.find((p) => p.name.toLowerCase().includes(wanted))
+          : (raisedHands.length === 1 ? raisedHands[0] : undefined);
+        if (!target) { say("Je ne trouve pas cette main levée."); break; }
+        handlePromoteToSpeaker(target.id);
+        say(action.spokenConfirmation || `La parole est donnée à ${target.name}.`);
+        break;
+      }
+      case 'OPEN_TAB': {
+        const validTabs = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant'];
+        if (action.payload?.tabId && validTabs.includes(action.payload.tabId)) {
+          setActiveSideTab(action.payload.tabId as typeof activeSideTab);
+        }
+        say(action.spokenConfirmation);
+        break;
+      }
+      case 'SEND_CHAT_MESSAGE':
+        if (action.payload?.text) handleSendMessage(action.payload.text);
+        say(action.spokenConfirmation);
+        break;
+      case 'REQUEST_SUMMARY':
+        handleRequestCatchup();
+        say(action.spokenConfirmation);
+        break;
+      case 'SET_SUBTITLES_MODE':
+        if (action.payload?.mode) setSubtitlesMode(action.payload.mode);
+        say(action.spokenConfirmation);
+        break;
+      case 'TOGGLE_AUDIO_ONLY':
+        handleToggleAudioOnly();
+        say(action.spokenConfirmation);
+        break;
+      case 'CHANGE_VISUAL_UNIVERSE':
+        if (!isHost) { say("Seul l'hôte peut changer l'univers visuel."); break; }
+        if (action.payload?.universe) handleChangeVisualUniverse(action.payload.universe);
+        say(action.spokenConfirmation);
+        break;
+      case 'SUMMON_EXPERT':
+        if (!isHost) { say("Seul l'hôte peut inviter un expert."); break; }
+        setShowSummonExpertModal(true);
+        say(action.spokenConfirmation);
+        break;
+      case 'CREATE_SOLIDARITY_CAUSE': {
+        if (!isHost) { say("Seul l'hôte peut lancer une mission solidaire."); break; }
+        if (!realSessionId) { say("La session n'est pas encore prête."); break; }
+        const payload = action.payload;
+        if (!payload?.title || !payload?.beneficiaryDescription) { say("Il manque le sujet de la mission."); break; }
+        // Jamais confiance aveugle dans la sortie du LLM pour une valeur
+        // contrainte en base (CHECK constraint) — validé ici, pas seulement
+        // demandé dans le prompt (ex. observé en test réel : "family" au
+        // lieu de "person").
+        const validBeneficiaryTypes = ['person', 'community', 'project', 'medical', 'complex'] as const;
+        const beneficiaryType = validBeneficiaryTypes.includes(payload.beneficiaryType as any) ? payload.beneficiaryType! : 'person';
+        createSolidarityCause({
+          liveSessionId: realSessionId,
+          organizerId: userProfile.id,
+          title: payload.title,
+          beneficiaryDescription: payload.beneficiaryDescription,
+          beneficiaryType,
+          targetAmount: payload.targetAmount,
+        })
+          .then(() => pushLocalSystemMessage('Diallo OS', `Mission solidaire lancée : "${payload.title}".`))
+          .catch((err) => console.error('SocialLive: échec création mission solidaire', err));
+        say(action.spokenConfirmation);
+        break;
+      }
+      case 'ASK_CLARIFICATION':
+        if (action.payload?.question) {
+          setPendingVoiceClarification({ originalUtterance, question: action.payload.question });
+          say(action.payload.question);
+        }
+        break;
+      case 'UNKNOWN':
+      default:
+        say(action.spokenConfirmation);
+        break;
+    }
+  };
+
+  const handleVoiceTranscript = (transcript: string) => {
+    const trimmed = transcript.trim();
+    if (!trimmed) return;
+    let promptText = trimmed;
+    let originalUtterance = trimmed;
+    if (pendingVoiceClarification) {
+      promptText = `Demande initiale : "${pendingVoiceClarification.originalUtterance}". Question posée : "${pendingVoiceClarification.question}". Réponse de l'utilisateur : "${trimmed}".`;
+      originalUtterance = pendingVoiceClarification.originalUtterance;
+      setPendingVoiceClarification(null);
+    }
+    interpretLiveVoiceCommand(promptText, {
+      liveTitle: liveData.title,
+      isHost,
+      isUserOnStage,
+      raisedHandNames: raisedHands.map((h) => h.name),
+      subtitlesMode,
+    }).then((action) => dispatchVoiceAction(action, originalUtterance));
+  };
+
+  const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleVoiceTranscript });
 
   return (
     <div data-live-universe={visualUniverse} className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
@@ -1566,6 +1709,23 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               >
                 <Layout size={18} />
               </button>
+
+              {/* Commandes vocales (LOOP 09/14) — voix native, essentiel : toujours accessible. */}
+              {voiceAssistant.isSupported && (
+                <button
+                  onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : voiceAssistant.startListening())}
+                  className={`p-3 rounded-2xl transition-all shadow-md ${voiceAssistant.isListening ? `${liveMaterialClass('voice')} text-white` : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                  title={voiceAssistant.isListening ? "Arrêter l'écoute des commandes vocales" : 'Activer les commandes vocales'}
+                >
+                  <Command size={18} />
+                </button>
+              )}
+
+              {voiceFeedback && (
+                <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-indigo-100 ${glassSurfaceClass('surface')}`}>
+                  <Sparkles size={12} /> {voiceFeedback}
+                </div>
+              )}
 
               {!isHost && (
                 <button

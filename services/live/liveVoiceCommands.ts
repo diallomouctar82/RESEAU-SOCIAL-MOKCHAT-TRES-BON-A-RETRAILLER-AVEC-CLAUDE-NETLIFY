@@ -1,0 +1,115 @@
+import { generateJSON } from '../aiGateway';
+import { LiveVisualUniverse } from '../../types';
+
+/**
+ * Voix native branchée sur le LIVE (LOOP 09/14, prompts 2/7 et 4/7) —
+ * interprétation d'une commande vocale en une action structurée, même
+ * approche que DialloOS.tsx (generateJSON, pas une grammaire figée de
+ * regex) : le langage naturel reste naturel, la compréhension vient du
+ * LLM, l'exécution reste 100% déterministe côté client (jamais le LLM
+ * n'exécute directement une action).
+ *
+ * Fin de LIVE (END_LIVE) délibérément absente de cette liste : action à
+ * fort impact et peu réversible (coupe tout le monde) — prompt 5/7,
+ * "évaluer le risque de l'action". Reste un geste explicite (bouton), pas
+ * une commande vocale.
+ */
+
+export type LiveVoiceActionType =
+    | 'TOGGLE_MIC'
+    | 'TOGGLE_VIDEO'
+    | 'TOGGLE_SCREEN_SHARE'
+    | 'RAISE_HAND'
+    | 'GIVE_FLOOR'
+    | 'OPEN_TAB'
+    | 'SEND_CHAT_MESSAGE'
+    | 'REQUEST_SUMMARY'
+    | 'SET_SUBTITLES_MODE'
+    | 'TOGGLE_AUDIO_ONLY'
+    | 'CHANGE_VISUAL_UNIVERSE'
+    | 'SUMMON_EXPERT'
+    | 'CREATE_SOLIDARITY_CAUSE'
+    | 'ASK_CLARIFICATION'
+    | 'UNKNOWN';
+
+export interface LiveVoiceAction {
+    type: LiveVoiceActionType;
+    payload?: {
+        tabId?: string;
+        text?: string;
+        participantName?: string;
+        mode?: 'off' | 'original' | 'translated' | 'bilingual';
+        universe?: LiveVisualUniverse;
+        title?: string;
+        beneficiaryDescription?: string;
+        beneficiaryType?: 'person' | 'community' | 'project' | 'medical' | 'complex';
+        targetAmount?: number;
+        question?: string;
+    };
+    /** Toujours une phrase courte à dire à voix haute — jamais vide, même pour UNKNOWN (message d'incompréhension). L'IA doit savoir se taire : pas de bavardage au-delà. */
+    spokenConfirmation: string;
+}
+
+export interface LiveVoiceCommandContext {
+    liveTitle: string;
+    isHost: boolean;
+    isUserOnStage: boolean;
+    raisedHandNames: string[];
+    subtitlesMode: 'off' | 'original' | 'translated' | 'bilingual';
+}
+
+const SIDE_TABS = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant'];
+const UNIVERSES: LiveVisualUniverse[] = ['crystal', 'futuristic_blue', 'natural_fresh', 'violet_luxe', 'deep_ocean'];
+
+function buildSystemInstruction(ctx: LiveVoiceCommandContext): string {
+    return `Tu es le copilote vocal du LIVE "${ctx.liveTitle}" sur Le Monde à Vous (MokNet).
+Ta mission : transformer UNE commande vocale en UNE action JSON strictement parmi la liste ci-dessous. Ne jamais inventer un type d'action hors de cette liste.
+
+Contexte de la personne qui parle :
+- Rôle : ${ctx.isHost ? "hôte du LIVE (peut donner la parole, changer l'univers visuel, inviter un expert, lancer une mission solidaire)" : 'spectateur (ne peut pas exécuter les actions réservées à l\'hôte)'}
+- Sur scène : ${ctx.isUserOnStage ? 'oui' : 'non'}
+- Onglets ouvrables (OPEN_TAB, payload.tabId) : ${SIDE_TABS.join(', ')}
+- Mains levées actuellement (GIVE_FLOOR, payload.participantName) : ${ctx.raisedHandNames.join(', ') || 'aucune'}
+- Univers visuels disponibles (CHANGE_VISUAL_UNIVERSE, payload.universe) : ${UNIVERSES.join(', ')}
+- Mode sous-titres actuel (SET_SUBTITLES_MODE, payload.mode: off|original|translated|bilingual) : ${ctx.subtitlesMode}
+
+Actions disponibles :
+- TOGGLE_MIC : couper/réactiver son micro
+- TOGGLE_VIDEO : couper/réactiver sa caméra
+- TOGGLE_SCREEN_SHARE : démarrer/arrêter le partage d'écran
+- RAISE_HAND : lever ou baisser sa main pour demander la parole
+- GIVE_FLOOR : donner la parole à quelqu'un dont la main est levée (hôte uniquement), payload.participantName
+- OPEN_TAB : ouvrir un onglet de la barre latérale (chat/commentaires, Q&A, mémoire, décisions, agenda, boutique, sondage, docs, assistant), payload.tabId
+- SEND_CHAT_MESSAGE : envoyer un message dans le chat, payload.text = le texte exact à envoyer (sans les mots d'introduction comme "dis dans le chat que")
+- REQUEST_SUMMARY : demander un résumé du direct en cours
+- SET_SUBTITLES_MODE : changer le mode sous-titres/traduction, payload.mode
+- TOGGLE_AUDIO_ONLY : basculer en mode audio seul (économie de données)
+- CHANGE_VISUAL_UNIVERSE : changer l'univers visuel pour tout le monde (hôte uniquement), payload.universe
+- SUMMON_EXPERT : appeler un expert IA sur scène (hôte uniquement)
+- CREATE_SOLIDARITY_CAUSE : lancer une mission de solidarité depuis ce LIVE (hôte uniquement), payload.title, payload.beneficiaryDescription, payload.beneficiaryType = EXACTEMENT une de ces 5 valeurs, jamais une autre (une famille ou une personne seule = "person" ; un groupe/village/quartier = "community" ; une infrastructure/un projet = "project" ; une prise en charge médicale = "medical" ; une mission à étapes multiples = "complex") : person|community|project|medical|complex. payload.targetAmount (nombre, optionnel — ne JAMAIS le demander en clarification, il peut être ajouté plus tard)
+- ASK_CLARIFICATION : le titre OU la description du bénéficiaire manque encore pour CREATE_SOLIDARITY_CAUSE — payload.question = UNE SEULE question courte (ne jamais poser plusieurs questions à la fois : demande uniquement l'information réellement manquante)
+- UNKNOWN : aucune action ne correspond à la commande
+
+Réponds UNIQUEMENT en JSON strict, sans texte autour :
+{ "type": "...", "payload": { ... }, "spokenConfirmation": "courte phrase en français à dire à voix haute, une seule phrase, jamais de bavardage" }`;
+}
+
+/**
+ * Interprète une commande vocale. `promptText` est normalement le
+ * transcript brut ; en cas de clarification en cours (ASK_CLARIFICATION
+ * précédent), l'appelant compose un prompt combinant la demande d'origine
+ * et la réponse à la question posée (voir SocialLive.tsx).
+ */
+export async function interpretLiveVoiceCommand(promptText: string, context: LiveVoiceCommandContext): Promise<LiveVoiceAction> {
+    try {
+        const action = await generateJSON<LiveVoiceAction>(promptText, { systemInstruction: buildSystemInstruction(context) });
+        if (!action || !action.type) {
+            return { type: 'UNKNOWN', spokenConfirmation: "Je n'ai pas compris cette commande, pouvez-vous reformuler ?" };
+        }
+        return action;
+    } catch {
+        // Dégradation gracieuse (prompt 5/7) : une IA indisponible ne doit
+        // jamais bloquer le LIVE — juste ne pas exécuter cette commande.
+        return { type: 'UNKNOWN', spokenConfirmation: "Désolé, je n'ai pas pu traiter cette commande vocale." };
+    }
+}

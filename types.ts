@@ -695,6 +695,29 @@ export interface LiveStream {
     visualUniverse?: LiveVisualUniverse;
 }
 
+/**
+ * Live Solidaire (complément reçu pendant LOOP 05/14, intégré aux LOOPs
+ * restantes — voir le plan). Mission de solidarité créée depuis un LIVE,
+ * souvent par la voix (LOOP 09/14) : le ledger/preuves/donateurs ne
+ * détiennent jamais de vrais fonds (traçabilité uniquement) — le mouvement
+ * réel d'argent passe par un prestataire de paiement externe, hors périmètre.
+ */
+export type SolidarityBeneficiaryType = 'person' | 'community' | 'project' | 'medical' | 'complex';
+
+export interface LiveSolidarityCause {
+    id: string;
+    liveSessionId: string;
+    organizerId: string;
+    title: string;
+    beneficiaryDescription: string;
+    beneficiaryType: SolidarityBeneficiaryType;
+    targetAmount?: number;
+    currency: string;
+    organizerFeePercent: number;
+    status: 'active' | 'completed' | 'cancelled';
+    createdAt: string;
+}
+
 export interface LivePricing {
     isEnabled: boolean;
     pricePerMinute: number;
