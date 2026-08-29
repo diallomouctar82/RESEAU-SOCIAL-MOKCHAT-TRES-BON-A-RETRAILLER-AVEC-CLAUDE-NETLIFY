@@ -855,6 +855,63 @@ export const supabaseService = {
         const { error } = await supabase.from('reminders').insert({ user_id: userId, message, remind_at: remindAt });
         if (error) throw error;
     },
+
+    // --- Mémoire contextuelle (LOOP 12/17) ----------------------------
+    /**
+     * LOOP 12/17 (moteur de mémoire contextuelle, fondation) : `user_memory`
+     * remplace `localStorage['lmav_active_memory_v1']` (clé plate, jamais
+     * scindée par utilisateur — sur un appareil partagé, un second compte
+     * héritait de la mémoire du premier). RLS owner-only, aucune fonction
+     * `SECURITY DEFINER` nécessaire. Seules les lignes `status='active'`
+     * sont renvoyées (le statut `superseded`/`expired` sera exploité par la
+     * LOOP 13/17, colonnes déjà prêtes).
+     */
+    async getMemories(userId: string): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase
+            .from('user_memory')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
+        if (error || !data) return [];
+        return data;
+    },
+    /**
+     * Insertion par défaut (historique : deux appels sans `id` — ex. deux
+     * tentatives d'examen — restent deux lignes distinctes, jamais fusionnées
+     * par clé) ; mise à jour uniquement si `item.id` est fourni ET appartient
+     * à l'appelant (`.eq('user_id', userId)` en plus de l'id, en complément
+     * de RLS).
+     */
+    async upsertMemory(userId: string, item: { id?: string; scope: string; category: string; key: string; value: string; agentId?: string; dossierId?: string; layer?: string; verified?: boolean; confidence?: number }): Promise<any | null> {
+        if (!isSupabaseConfigured) return null;
+        const row = {
+            user_id: userId,
+            scope: item.scope,
+            category: item.category,
+            key: item.key,
+            value: item.value,
+            agent_id: item.agentId ?? null,
+            dossier_id: item.dossierId ?? null,
+            layer: item.layer ?? null,
+            verified: item.verified ?? true,
+            confidence: item.confidence ?? null,
+        };
+        if (item.id) {
+            const { data, error } = await supabase.from('user_memory').update(row).eq('id', item.id).eq('user_id', userId).select().single();
+            if (error) throw error;
+            return data;
+        }
+        const { data, error } = await supabase.from('user_memory').insert(row).select().single();
+        if (error) throw error;
+        return data;
+    },
+    async deleteMemory(userId: string, id: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('user_memory').delete().eq('id', id).eq('user_id', userId);
+        if (error) throw error;
+    },
     /**
      * Diffusion admin réelle — jusqu'ici `adminConfigService.sendBroadcastNotification`
      * n'écrivait que dans un tableau en mémoire (`localStorage`), lu par

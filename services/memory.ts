@@ -1,126 +1,87 @@
+import { UserProfile, ActiveMemoryItem } from '../types';
 import { cloudService } from './cloud';
-import { UserProfile, StoredDocument, ActiveMemoryItem } from '../types';
-import { INITIAL_ACTIVE_MEMORIES } from '../constants';
+import { supabaseService } from './supabaseClient';
 
-export interface MemoryMessage {
-    role: 'user' | 'model';
-    text: string;
-    timestamp: number;
-    image?: string;
-    groundingSources?: { title: string, uri: string }[];
-}
-
+/**
+ * LOOP 12/17 (moteur de mémoire contextuelle, fondation) : la Mémoire
+ * Active (consommée par ExpertsHub.tsx, WorldHub.tsx, ParcoursDetailView.tsx
+ * et services/dossierService.ts) vivait entièrement dans
+ * `localStorage['lmav_active_memory_v1']` — une clé plate, jamais scindée
+ * par utilisateur (sur un appareil partagé, un second compte hérite
+ * silencieusement de la mémoire du premier), et pré-remplie pour tout
+ * nouveau compte réel avec un scénario agroalimentaire entièrement fictif
+ * (`constants.ts::INITIAL_ACTIVE_MEMORIES`, supprimé par cette LOOP).
+ * Remplacée par la table réelle `user_memory` (RLS owner-only) —
+ * `setCurrentUserId` est appelé depuis `GlobalContext.tsx` dès que
+ * l'authentification est connue, exactement comme le fait déjà l'attache
+ * Realtime des notifications dans ce même fichier.
+ *
+ * Signatures externes volontairement inchangées (aucun appelant existant
+ * n'a besoin d'être modifié) : seul l'utilisateur courant, gardé en
+ * mémoire de service, détermine désormais où lire/écrire.
+ */
 class MemoryService {
-    private readonly STORAGE_KEY_PREFIX = 'chat_history_';
-    private readonly ACTIVE_MEMORY_KEY = 'lmav_active_memory_v1';
-    private memoryCache: ActiveMemoryItem[] | null = null;
+    private currentUserId: string | null = null;
 
-    /**
-     * Sauvegarde une conversation
-     */
-    async saveConversation(agentId: string, messages: MemoryMessage[]): Promise<void> {
-        try {
-            const key = `${this.STORAGE_KEY_PREFIX}${agentId}`;
-            await cloudService.saveData(key, {
-                agentId,
-                lastUpdated: Date.now(),
-                messages
-            });
-        } catch (error) {
-            console.error("Erreur sauvegarde mémoire:", error);
-        }
+    setCurrentUserId(userId: string | null) {
+        this.currentUserId = userId;
+    }
+
+    private mapRow(row: any): ActiveMemoryItem {
+        return {
+            id: row.id,
+            category: row.category,
+            key: row.key,
+            value: row.value,
+            agentId: row.agent_id || undefined,
+            dossierId: row.dossier_id || undefined,
+            layer: row.layer || undefined,
+            timestamp: new Date(row.created_at).toLocaleDateString('fr-FR'),
+            verified: row.verified,
+            confidence: row.confidence != null ? Number(row.confidence) : 0.95,
+        };
     }
 
     /**
-     * Récupère l'historique
-     */
-    async getConversation(agentId: string): Promise<MemoryMessage[] | null> {
-        try {
-            const key = `${this.STORAGE_KEY_PREFIX}${agentId}`;
-            const data = await cloudService.getData(key);
-            if (data && data.messages) return data.messages;
-            return null;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    /**
-     * Récupère la liste des éléments de mémoire active
+     * Aucun utilisateur connecté → liste vide, jamais un scénario fictif de
+     * remplacement (voir suppression d'`INITIAL_ACTIVE_MEMORIES` ci-dessus).
      */
     async getActiveMemories(): Promise<ActiveMemoryItem[]> {
-        if (this.memoryCache) return this.memoryCache;
-        try {
-            const stored = localStorage.getItem(this.ACTIVE_MEMORY_KEY);
-            if (stored) {
-                this.memoryCache = JSON.parse(stored);
-                return this.memoryCache || INITIAL_ACTIVE_MEMORIES;
-            }
-            this.memoryCache = [...INITIAL_ACTIVE_MEMORIES];
-            this.persistActiveMemories();
-            return this.memoryCache;
-        } catch (e) {
-            return INITIAL_ACTIVE_MEMORIES;
-        }
+        if (!this.currentUserId) return [];
+        const rows = await supabaseService.getMemories(this.currentUserId);
+        return rows.map((r) => this.mapRow(r));
     }
 
     /**
-     * Ajoute ou met à jour un élément de mémoire active
+     * `scope` déduit du contexte plutôt qu'ajouté comme nouveau paramètre
+     * (aucun appelant existant ne le fournit) : un élément rattaché à un
+     * dossier est un jalon de parcours (`project`) ; sans dossier, une
+     * activité ponctuelle (`recent_activity`). Raffiné en LOOP 13/17.
      */
     async addOrUpdateMemory(item: Omit<ActiveMemoryItem, 'id' | 'timestamp'> & { id?: string }): Promise<ActiveMemoryItem> {
-        const list = await this.getActiveMemories();
-        const existingIndex = item.id ? list.findIndex(m => m.id === item.id) : -1;
-
-        const updatedItem: ActiveMemoryItem = {
-            id: item.id || `mem-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        if (!this.currentUserId) {
+            throw new Error("Impossible d'enregistrer un élément de mémoire sans utilisateur connecté.");
+        }
+        const row = await supabaseService.upsertMemory(this.currentUserId, {
+            id: item.id,
+            scope: item.dossierId ? 'project' : 'recent_activity',
             category: item.category,
             key: item.key,
             value: item.value,
             agentId: item.agentId,
             dossierId: item.dossierId,
-            timestamp: new Date().toLocaleDateString('fr-FR'),
-            verified: item.verified ?? true,
-            confidence: item.confidence ?? 0.95
-        };
-
-        if (existingIndex >= 0) {
-            list[existingIndex] = updatedItem;
-        } else {
-            list.unshift(updatedItem);
-        }
-
-        this.memoryCache = list;
-        this.persistActiveMemories();
-        return updatedItem;
+            layer: item.layer,
+            verified: item.verified,
+            confidence: item.confidence,
+        });
+        if (!row) throw new Error("Échec de l'enregistrement de la mémoire.");
+        return this.mapRow(row);
     }
 
-    /**
-     * Supprime un élément de mémoire active
-     */
     async deleteMemory(id: string): Promise<boolean> {
-        const list = await this.getActiveMemories();
-        const filtered = list.filter(m => m.id !== id);
-        this.memoryCache = filtered;
-        this.persistActiveMemories();
+        if (!this.currentUserId) return false;
+        await supabaseService.deleteMemory(this.currentUserId, id);
         return true;
-    }
-
-    /**
-     * Réinitialise la mémoire active
-     */
-    async resetMemories(): Promise<void> {
-        this.memoryCache = [...INITIAL_ACTIVE_MEMORIES];
-        this.persistActiveMemories();
-    }
-
-    private persistActiveMemories() {
-        if (this.memoryCache) {
-            try {
-                localStorage.setItem(this.ACTIVE_MEMORY_KEY, JSON.stringify(this.memoryCache));
-            } catch (e) {
-                console.error("Erreur sauvegarde locale mémoire", e);
-            }
-        }
     }
 
     /**
@@ -132,8 +93,8 @@ class MemoryService {
         const files = await cloudService.getAllFiles();
         const queryLower = query.toLowerCase();
 
-        const relevantDocs = files.filter((f: any) => 
-            queryLower.includes(f.category?.toLowerCase() || '') || 
+        const relevantDocs = files.filter((f: any) =>
+            queryLower.includes(f.category?.toLowerCase() || '') ||
             queryLower.includes('document') ||
             queryLower.includes('contrat') ||
             queryLower.includes('dossier') ||
@@ -148,7 +109,7 @@ class MemoryService {
 
         // 2. Contexte de la Mémoire Active Structurée
         const activeMemories = await this.getActiveMemories();
-        const relevantMemories = activeMemories.filter(m => 
+        const relevantMemories = activeMemories.filter(m =>
             (currentDossierId && m.dossierId === currentDossierId) ||
             queryLower.includes(m.key.toLowerCase()) ||
             queryLower.includes(m.category.toLowerCase()) ||
@@ -162,13 +123,20 @@ class MemoryService {
         }
 
         // 3. Contexte du Profil
+        // LOOP 12/17 : la ligne "Résidence" affichait auparavant
+        // "Paris, France" codé en dur pour CHAQUE utilisateur, quel que soit
+        // son vrai pays/ville réels (colonnes `country`/`city` pourtant déjà
+        // présentes sur `UserProfile`) — une donnée fabriquée injectée dans
+        // le contexte envoyé au LLM à chaque appel. Utilise désormais les
+        // vraies valeurs, avec un repli honnête si elles ne sont pas renseignées.
+        const location = [userProfile.city, userProfile.country].filter(Boolean).join(', ');
         const profileContext = `\n[PROFIL UTILISATEUR & CADRE]:
 - Nom: ${userProfile.name}
 - Titre: ${userProfile.title}
 - Niveau d'Expérience: ${userProfile.level}
 - Compétences: ${userProfile.skills && userProfile.skills.length > 0 ? userProfile.skills.map(s => s.name).join(', ') : 'Non renseignées'}
 - ID Citoyen: ${userProfile.citizenshipId}
-- Nationalité / Résidence: Paris, France (Adaptation locale active)`;
+- Résidence: ${location || 'Non renseignée'}`;
 
         // 4. Contexte Médical (si pertinent)
         let medicalContext = "";

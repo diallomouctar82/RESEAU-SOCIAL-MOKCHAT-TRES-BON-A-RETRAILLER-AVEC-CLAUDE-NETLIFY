@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { UserProfile, Notification, UserShop, WalletTransaction } from '../types';
 import { USER_PROFILE, MOCK_TRANSACTIONS } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
+import { memoryService } from '../services/memory';
 
 interface GlobalContextType {
     userProfile: UserProfile;
@@ -118,6 +119,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             if (currentUser) {
                 loadRealNotifications(currentUser.id);
                 attachNotificationsRealtime(currentUser.id);
+                // LOOP 12/17 (mémoire contextuelle) : mémoire active
+                // désormais réelle par utilisateur — memoryService a besoin
+                // de savoir qui est connecté, exactement comme les
+                // notifications juste au-dessus.
+                memoryService.setCurrentUserId(currentUser.id);
             }
         });
 
@@ -125,9 +131,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             if (session?.user) {
                 await loadRealNotifications(session.user.id);
                 attachNotificationsRealtime(session.user.id);
+                memoryService.setCurrentUserId(session.user.id);
             } else {
                 unsubscribeNotifications?.();
                 unsubscribeNotifications = null;
+                memoryService.setCurrentUserId(null);
             }
         });
 

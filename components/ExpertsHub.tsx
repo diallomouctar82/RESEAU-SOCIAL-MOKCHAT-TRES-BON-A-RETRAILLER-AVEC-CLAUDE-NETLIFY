@@ -45,7 +45,7 @@ import {
     SlidersHorizontal,
     Globe2
 } from 'lucide-react';
-import { AGENTS, DEFAULT_DOSSIERS, INITIAL_ACTIVE_MEMORIES, INITIAL_COMPETENCIES } from '../constants';
+import { AGENTS, DEFAULT_DOSSIERS, INITIAL_COMPETENCIES } from '../constants';
 import { Agent, DossierParcours, DossierStep, DossierTask, DossierDeliverable, DossierCategory, ActiveMemoryItem, CompetencyRecord, UserProfile } from '../types';
 import { dossierService } from '../services/dossierService';
 import { memoryService } from '../services/memory';
