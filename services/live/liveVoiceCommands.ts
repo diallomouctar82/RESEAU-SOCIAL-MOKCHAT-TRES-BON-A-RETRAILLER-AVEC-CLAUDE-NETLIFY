@@ -29,6 +29,7 @@ export type LiveVoiceActionType =
     | 'CHANGE_VISUAL_UNIVERSE'
     | 'SUMMON_EXPERT'
     | 'CREATE_SOLIDARITY_CAUSE'
+    | 'DISCOVER_CAPABILITIES'
     | 'ASK_CLARIFICATION'
     | 'UNKNOWN';
 
@@ -122,12 +123,13 @@ Ta mission : transformer UNE commande vocale en UNE action JSON strictement parm
 Contexte de la personne qui parle :
 - Rôle : ${ctx.isHost ? "hôte du LIVE (peut donner la parole, changer l'univers visuel, inviter un expert, lancer une mission solidaire)" : 'spectateur (ne peut pas exécuter les actions réservées à l\'hôte)'}
 - Sur scène : ${ctx.isUserOnStage ? 'oui' : 'non'}
-- Mains levées actuellement (GIVE_FLOOR, payload.participantName) : ${ctx.raisedHandNames.join(', ') || 'aucune'}
+- Mains levées actuellement, dans l'ordre chronologique de levée (la dernière de la liste est la plus récente) — pour résoudre "elle"/"lui"/"la dernière main levée"/"le dernier" vers cette personne (GIVE_FLOOR, payload.participantName) : ${ctx.raisedHandNames.join(', ') || 'aucune'}
 - Univers visuels disponibles (CHANGE_VISUAL_UNIVERSE, payload.universe) : ${UNIVERSES.join(', ')}
 - Mode sous-titres actuel (SET_SUBTITLES_MODE, payload.mode: off|original|translated|bilingual) : ${ctx.subtitlesMode}
 
 Actions disponibles :
 ${actionsList}
+- DISCOVER_CAPABILITIES : la personne demande ce qu'elle peut faire ici (« Qu'est-ce que je peux faire ? », « Que peux-tu faire ? », « Aide », « Comment ça marche ? »). payload vide. spokenConfirmation doit résumer en langage naturel (2-3 phrases maximum, jamais une liste technique d'identifiants) les actions RÉELLEMENT disponibles pour CETTE personne parmi celles listées ci-dessus (respecte les mentions "réservé" selon son rôle), regroupées par thème (ex. média, interaction, animation).
 - ASK_CLARIFICATION : le titre OU la description du bénéficiaire manque encore pour CREATE_SOLIDARITY_CAUSE — payload.question = UNE SEULE question courte (ne jamais poser plusieurs questions à la fois : demande uniquement l'information réellement manquante)
 - UNKNOWN : aucune action ne correspond à la commande
 

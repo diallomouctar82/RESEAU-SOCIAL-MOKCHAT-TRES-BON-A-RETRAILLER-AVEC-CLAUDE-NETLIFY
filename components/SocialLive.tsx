@@ -229,10 +229,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   }, [realSessionId]);
 
   /** Hôte uniquement (RLS live_sessions_update_host) — s'applique à tous les spectateurs. */
-  const handleChangeVisualUniverse = (universe: LiveVisualUniverse) => {
-    if (!realSessionId || !isHost) return;
+  /** Retourne la promesse de l'écriture réelle (LOOP 13/16, « Architecte ») — un appelant qui a besoin de savoir si l'action a VRAIMENT réussi (ex. confirmation vocale) peut l'attendre, au lieu de confirmer avant que la base ne l'ait confirmé. */
+  const handleChangeVisualUniverse = (universe: LiveVisualUniverse): Promise<void> => {
+    if (!realSessionId || !isHost) return Promise.reject(new Error('Action non autorisée.'));
     setVisualUniverse(universe);
-    updateVisualUniverse(realSessionId, universe).catch((err) => console.error('SocialLive: échec du changement d\'univers visuel', err));
+    return updateVisualUniverse(realSessionId, universe).catch((err) => {
+      console.error('SocialLive: échec du changement d\'univers visuel', err);
+      throw err;
+    });
   };
 
   // Une fois la session réelle confirmée, s'y inscrire comme participant
@@ -499,11 +503,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     return () => { cancelled = true; unsub(); clearInterval(pollInterval); };
   }, [realSessionId, isHost]);
 
-  const handlePromoteToSpeaker = (participantId: string) => {
-    if (!realSessionId) return;
-    updateParticipantRole(realSessionId, participantId, 'speaker').catch(() => {});
-    setHandRaised(realSessionId, participantId, false).catch(() => {});
+  /** Retourne la promesse des deux écritures réelles (LOOP 13/16) — voir handleChangeVisualUniverse. */
+  const handlePromoteToSpeaker = (participantId: string): Promise<void> => {
+    if (!realSessionId) return Promise.reject(new Error('Session non prête.'));
     setRaisedHands((prev) => prev.filter(p => p.id !== participantId));
+    return Promise.all([
+      updateParticipantRole(realSessionId, participantId, 'speaker'),
+      setHandRaised(realSessionId, participantId, false),
+    ]).then(() => {});
   };
 
   // Notices système/IA (analyse Vision, arrivée d'un expert...) : purement
@@ -934,7 +941,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     return () => clearTimeout(timer);
   }, [voiceFeedback]);
 
-  const dispatchVoiceAction = (action: LiveVoiceAction, originalUtterance: string) => {
+  const dispatchVoiceAction = async (action: LiveVoiceAction, originalUtterance: string) => {
     // Grammaire d'états (LOOP 10/14) : 'action' = impulsion "je m'exécute
     // réellement", remplacée juste après par le statut final (succès/erreur/
     // incertitude) — jamais un état sans rapport avec ce qui s'est vraiment
@@ -972,13 +979,27 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'GIVE_FLOOR': {
+        // Résolution de référence naturelle (LOOP 13/16, « Architecte ») :
+        // le LLM résout déjà "elle"/"le dernier"/"la dernière main levée"
+        // vers un nom via le contexte (ordre chronologique de levée
+        // fourni dans le prompt) — ici on ne fait que retrouver ce nom
+        // dans la liste réelle, ou prendre l'unique main levée si le nom
+        // est absent/non trouvé et qu'il n'y en a qu'une (jamais deviner
+        // s'il y a une ambiguïté réelle entre plusieurs personnes).
         const wanted = action.payload?.participantName?.toLowerCase();
         const target = wanted
           ? raisedHands.find((p) => p.name.toLowerCase().includes(wanted))
           : (raisedHands.length === 1 ? raisedHands[0] : undefined);
         if (!target) { say("Je ne trouve pas cette main levée.", 'erreur'); break; }
-        handlePromoteToSpeaker(target.id);
-        say(action.spokenConfirmation || `La parole est donnée à ${target.name}.`);
+        // Statut d'exécution explicite (« Architecte », point 166) : ne
+        // jamais dire "c'est fait" avant que l'écriture réelle n'ait
+        // réussi — l'impulsion "action" reste affichée pendant l'attente.
+        try {
+          await handlePromoteToSpeaker(target.id);
+          say(action.spokenConfirmation || `La parole est donnée à ${target.name}.`);
+        } catch {
+          say(`Je n'ai pas pu donner la parole à ${target.name} — réessayez.`, 'erreur');
+        }
         break;
       }
       case 'OPEN_TAB': {
@@ -1005,10 +1026,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         handleToggleAudioOnly();
         say(action.spokenConfirmation);
         break;
-      case 'CHANGE_VISUAL_UNIVERSE':
-        if (action.payload?.universe) handleChangeVisualUniverse(action.payload.universe);
-        say(action.spokenConfirmation);
+      case 'CHANGE_VISUAL_UNIVERSE': {
+        if (!action.payload?.universe) { say("Je ne sais pas vers quel univers basculer.", 'erreur'); break; }
+        try {
+          await handleChangeVisualUniverse(action.payload.universe);
+          say(action.spokenConfirmation);
+        } catch {
+          say("Le changement d'univers n'a pas pu être enregistré — réessayez.", 'erreur');
+        }
         break;
+      }
       case 'SUMMON_EXPERT':
         setShowSummonExpertModal(true);
         say(action.spokenConfirmation);
@@ -1039,6 +1066,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       }
+      case 'DISCOVER_CAPABILITIES':
+        // « Architecte » — commande de découverte contextuelle : le résumé
+        // vient déjà du LLM à partir du registre réel filtré par rôle
+        // (voir buildSystemInstruction), jamais une liste technique brute.
+        say(action.spokenConfirmation);
+        break;
       case 'ASK_CLARIFICATION':
         if (action.payload?.question) {
           setPendingVoiceClarification({ originalUtterance, question: action.payload.question });
@@ -1823,7 +1856,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   {raisedHands.map(p => (
                     <button
                       key={p.id}
-                      onClick={() => handlePromoteToSpeaker(p.id)}
+                      onClick={() => handlePromoteToSpeaker(p.id).catch(() => {})}
                       title={`Inviter ${p.name} sur scène`}
                       className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-white text-amber-300 text-[10px] font-bold rounded-lg transition-colors"
                     >
