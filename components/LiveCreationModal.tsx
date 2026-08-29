@@ -166,6 +166,17 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
     const tags = tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0);
     const assignedAgent = AGENTS.find(a => a.id === selectedAgentId);
     const assignedTribe = TRIBES.find(t => t.id === selectedTribeId);
+    // LOOP 15/17 (mission Architecte MOCnet) : `scheduled_for` est une vraie
+    // colonne `timestamptz` en base (confirmé en testant le correctif de
+    // persistance de cette même LOOP) — la chaîne lisible "2026-09-05 à
+    // 18:00 (Europe/Paris)" auparavant assignée directement à `scheduledFor`
+    // aurait fait échouer l'insertion réelle avec `22007 invalid input
+    // syntax for type timestamp with time zone` dès que ce champ serait
+    // effectivement transmis. Un seul Date calculé, réutilisé pour
+    // `startedAt` (comportement inchangé) et `scheduledFor` (ISO réel) ; le
+    // libellé lisible reste utilisé uniquement pour le message affiché.
+    const scheduledDateObj = new Date(scheduledDate ? `${scheduledDate}T${scheduledTime || '12:00'}` : Date.now() + 86400000);
+    const scheduledLabel = `${scheduledDate} à ${scheduledTime} (${timezone})`;
 
     const newLive: LiveStream = {
       id: `live-${Date.now()}`,
@@ -177,9 +188,9 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
       viewers: 1,
       isMixed: true,
       aiAssistantId: selectedAgentId,
-      startedAt: isScheduled ? new Date(scheduledDate ? `${scheduledDate}T${scheduledTime || '12:00'}` : Date.now() + 86400000) : new Date(),
+      startedAt: isScheduled ? scheduledDateObj : new Date(),
       isScheduled,
-      scheduledFor: isScheduled ? `${scheduledDate} à ${scheduledTime} (${timezone})` : undefined,
+      scheduledFor: isScheduled ? scheduledDateObj.toISOString() : undefined,
       timezone: isScheduled ? timezone : undefined,
       duration: 45,
       isPaid: false,
@@ -229,7 +240,7 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
 
     addNotification(
       isScheduled ? "Live Programmé 🗓️" : "Live Démarré 🔴",
-      isScheduled ? `Votre Live "${title}" est programmé pour ${newLive.scheduledFor}.` : `Votre Live intelligent "${title}" est maintenant ouvert.`,
+      isScheduled ? `Votre Live "${title}" est programmé pour ${scheduledLabel}.` : `Votre Live intelligent "${title}" est maintenant ouvert.`,
       "success"
     );
   };

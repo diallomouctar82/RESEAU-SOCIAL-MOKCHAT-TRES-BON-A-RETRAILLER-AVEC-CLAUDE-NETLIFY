@@ -979,9 +979,22 @@ export const supabaseService = {
             .eq('user_id', userId)
             .order('due_at', { ascending: true, nullsFirst: false });
         if (error || !data) return [];
-        return data;
+        // LOOP 15/17 : `isBlocked` calculé à la lecture, jamais stocké — une
+        // tâche avec depends_on_task_id reste bloquée tant que la tâche dont
+        // elle dépend n'est pas completed/cancelled. Seconde requête plutôt
+        // qu'une jointure : reste RLS-safe (mêmes lignes déjà garanties
+        // même utilisateur par le trigger validate_task_dependency) sans
+        // complexifier le `select('*')` existant.
+        const dependencyIds = [...new Set(data.map((t: any) => t.depends_on_task_id).filter(Boolean))];
+        if (dependencyIds.length === 0) return data.map((t: any) => ({ ...t, isBlocked: false }));
+        const { data: deps } = await supabase.from('tasks').select('id, status').in('id', dependencyIds);
+        const statusById = new Map((deps || []).map((d: any) => [d.id, d.status]));
+        return data.map((t: any) => ({
+            ...t,
+            isBlocked: !!t.depends_on_task_id && !['completed', 'cancelled'].includes(statusById.get(t.depends_on_task_id)),
+        }));
     },
-    async createTask(userId: string, task: { title: string; description?: string; priority?: 'low' | 'medium' | 'high'; dueAt?: string; relatedType?: string; relatedId?: string }): Promise<any | null> {
+    async createTask(userId: string, task: { title: string; description?: string; priority?: 'low' | 'medium' | 'high'; dueAt?: string; relatedType?: string; relatedId?: string; recurrenceRule?: 'daily' | 'weekly' | 'monthly'; dependsOnTaskId?: string }): Promise<any | null> {
         if (!isSupabaseConfigured) return null;
         const { data, error } = await supabase.from('tasks').insert({
             user_id: userId,
@@ -991,6 +1004,12 @@ export const supabaseService = {
             due_at: task.dueAt ?? null,
             related_type: task.relatedType ?? null,
             related_id: task.relatedId ?? null,
+            // LOOP 15/17 : recurrence_rule fait de cette tâche la "règle"
+            // racine d'une série — generate_recurring_task_instances() (cron
+            // 5 min) engendre la prochaine occurrence (nouvelle ligne, jamais
+            // une réécriture in-place) dès que celle-ci passe à 'completed'.
+            recurrence_rule: task.recurrenceRule ?? null,
+            depends_on_task_id: task.dependsOnTaskId ?? null,
         }).select().single();
         if (error) throw error;
         return data;
@@ -1003,6 +1022,28 @@ export const supabaseService = {
     async deleteTask(userId: string, id: string): Promise<void> {
         if (!isSupabaseConfigured) return;
         const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', userId);
+        if (error) throw error;
+    },
+    // LOOP 15/17 : "replanification" volontairement minimale — un refus
+    // explicite de replanifier une tâche déjà terminée/annulée (pas de
+    // détection de conflit contre des événements fixes externes, aucune
+    // infrastructure de calendrier/conflit n'existe ailleurs dans l'app à
+    // ce jour — voir docs/SUPABASE_ARCHITECTURE.md, ligne Tâches, différé).
+    async rescheduleTask(userId: string, id: string, newDueAt: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { data: current } = await supabase.from('tasks').select('status').eq('id', id).eq('user_id', userId).maybeSingle();
+        if (current && (current.status === 'completed' || current.status === 'cancelled')) {
+            throw new Error('Impossible de replanifier une tâche déjà terminée ou annulée.');
+        }
+        const { error } = await supabase.from('tasks').update({ due_at: newDueAt }).eq('id', id).eq('user_id', userId);
+        if (error) throw error;
+    },
+    // La validation (même utilisateur, jamais d'auto-référence) vit dans le
+    // trigger validate_task_dependency — appliquée même à un appel direct de
+    // l'API REST, pas seulement via ce chemin client.
+    async setTaskDependency(userId: string, id: string, dependsOnTaskId: string | null): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('tasks').update({ depends_on_task_id: dependsOnTaskId }).eq('id', id).eq('user_id', userId);
         if (error) throw error;
     },
     /**

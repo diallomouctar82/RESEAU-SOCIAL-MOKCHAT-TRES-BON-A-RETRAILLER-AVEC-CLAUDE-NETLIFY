@@ -213,6 +213,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           tribeId: liveData.tribeId,
           tribeName: liveData.tribeName,
           language: liveData.language,
+          isScheduled: liveData.isScheduled,
+          scheduledFor: liveData.scheduledFor,
+          timezone: liveData.timezone,
         });
         if (!cancelled) {
           setRealSessionId(created.id);

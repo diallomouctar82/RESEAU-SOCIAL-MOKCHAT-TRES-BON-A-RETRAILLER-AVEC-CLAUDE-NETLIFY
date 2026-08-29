@@ -153,6 +153,15 @@ export interface CreateLiveSessionParams {
     tribeId?: string;
     tribeName?: string;
     language?: string;
+    // LOOP 15/17 (mission Architecte MOCnet) : scheduled_for/is_scheduled/
+    // timezone existaient déjà en base et étaient lus (mapSessionRow
+    // ci-dessus) mais jamais écrits — LiveCreationModal.tsx les calcule bien
+    // mais l'appel réel de création (SocialLive.tsx) ne les transmettait
+    // jamais, un Live "programmé" n'avait donc en réalité aucune date en
+    // base. Voir docs/SUPABASE_ARCHITECTURE.md, ligne Tâches.
+    isScheduled?: boolean;
+    scheduledFor?: string;
+    timezone?: string;
 }
 
 /** Crée une session réelle, hôte = utilisateur courant (contrainte RLS live_sessions_insert_own). */
@@ -177,6 +186,9 @@ export async function createLiveSession(
             tribe_id: params.tribeId,
             tribe_name: params.tribeName,
             language: params.language,
+            is_scheduled: params.isScheduled ?? false,
+            scheduled_for: params.scheduledFor ?? null,
+            timezone: params.timezone ?? null,
         })
         .select()
         .single();
