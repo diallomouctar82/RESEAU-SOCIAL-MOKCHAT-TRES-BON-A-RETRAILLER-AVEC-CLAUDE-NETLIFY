@@ -166,7 +166,7 @@ class MemoryService {
 - Nom: ${userProfile.name}
 - Titre: ${userProfile.title}
 - Niveau d'Expérience: ${userProfile.level}
-- Compétences: ${userProfile.skills?.join(', ') || 'Polyvalent'}
+- Compétences: ${userProfile.skills && userProfile.skills.length > 0 ? userProfile.skills.map(s => s.name).join(', ') : 'Non renseignées'}
 - ID Citoyen: ${userProfile.citizenshipId}
 - Nationalité / Résidence: Paris, France (Adaptation locale active)`;
 
