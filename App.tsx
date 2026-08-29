@@ -31,7 +31,7 @@ import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
-import { Agent, LiveStream } from './types';
+import { Agent, LiveStream, MemberProfile } from './types';
 import { getSession, onAuthStateChange, signOut } from './services/auth';
 import { fetchUserProfile } from './services/profile';
 
@@ -55,6 +55,12 @@ const AppContent = () => {
   // Dashboard puisse aussi l'ouvrir depuis le pill "Changer de cap" de
   // son EditorialHero, sans quoi ce clic n'avait aucun effet.
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  // LOOP 06/17 (messagerie, fondation) : même patron — remonté ici pour que
+  // le bouton "Message"/"Mooc Chat" du fil social (SocialFeed.tsx) puisse
+  // ouvrir une vraie conversation dans <MoocChatFloating>, montée à
+  // l'intérieur de <Layout>. Sans ce pont, `onOpenDirectChat` n'avait aucun
+  // appelant réel : ces boutons ne faisaient rien pour un vrai membre.
+  const [pendingDirectChatMember, setPendingDirectChatMember] = useState<MemberProfile | undefined>(undefined);
 
   // LIVE STATE
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
@@ -177,6 +183,8 @@ const AppContent = () => {
         isGoalModalOpen={isGoalModalOpen}
         onOpenGoalModal={() => setIsGoalModalOpen(true)}
         onCloseGoalModal={() => setIsGoalModalOpen(false)}
+        pendingDirectChatMember={pendingDirectChatMember}
+        onConsumePendingDirectChatMember={() => setPendingDirectChatMember(undefined)}
     >
 
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} onOpenCapModal={() => setIsGoalModalOpen(true)} />}
@@ -189,7 +197,7 @@ const AppContent = () => {
 
       {activeTab === 'google-meet' && <GoogleMeetCenter />}
 
-      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} />}
+      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} onOpenDirectChat={(_, member) => member && setPendingDirectChatMember(member)} />}
 
       {activeTab === 'world' && <WorldHub onNavigateToAgent={handleNavigateToAgent} onNavigate={setActiveTab} />}
 

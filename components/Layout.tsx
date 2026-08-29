@@ -38,7 +38,7 @@ import {
   HelpCircle,
   FolderKanban
 } from 'lucide-react';
-import { Notification, UserProfile, Language } from '../types';
+import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
@@ -76,6 +76,11 @@ interface LayoutProps {
   isGoalModalOpen: boolean;
   onOpenGoalModal: () => void;
   onCloseGoalModal: () => void;
+  // LOOP 06/17 (messagerie, fondation) : idem — SocialFeed (enfant profond)
+  // doit pouvoir ouvrir une vraie conversation dans <MoocChatFloating>,
+  // montée ici et non dans App.tsx.
+  pendingDirectChatMember?: MemberProfile;
+  onConsumePendingDirectChatMember?: () => void;
 }
 
 const NEWS_ITEMS = [
@@ -102,6 +107,8 @@ export const Layout: React.FC<LayoutProps> = ({
   isGoalModalOpen,
   onOpenGoalModal,
   onCloseGoalModal,
+  pendingDirectChatMember,
+  onConsumePendingDirectChatMember,
 }) => {
   const { currentPalette, paletteId } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -1145,8 +1152,10 @@ export const Layout: React.FC<LayoutProps> = ({
         />
 
         {/* Floating Mooc Chat */}
-        <MoocChatFloating 
-          currentUser={userProfile} 
+        <MoocChatFloating
+          currentUser={userProfile}
+          pendingDirectChatMember={pendingDirectChatMember}
+          onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
         />
 
       </div>

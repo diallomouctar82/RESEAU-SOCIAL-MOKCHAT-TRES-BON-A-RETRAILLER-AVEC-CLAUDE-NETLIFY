@@ -190,18 +190,116 @@ export const supabaseService = {
     // Best-effort : jamais d'exception non gérée. En cas d'échec (table/
     // colonne absente, non configuré...), on dégrade silencieusement — le
     // widget de chat continue de fonctionner en état local optimiste.
-    async getConversations(userId: string): Promise<any[]> {
+    /**
+     * LOOP 06/17 (moteur de messagerie) : réécrite entièrement — l'ancienne
+     * version filtrait sur `participant_one_id`/`participant_two_id`, deux
+     * colonnes qui n'ont jamais existé sur `conversations` (le vrai modèle
+     * relationnel passe par `conversation_participants`, resté du code mort
+     * côté client jusqu'ici). Toute conversation réelle retournait `[]`
+     * silencieusement — `MoocChatFloating.tsx` ne montrait donc jamais que
+     * `MOCK_CHATS`. RLS filtre déjà aux conversations dont `userId` est
+     * membre — inutile de le refiltrer ici.
+     */
+    async getConversationsForUser(userId: string): Promise<any[]> {
         if (!isSupabaseConfigured) return [];
         try {
-            const { data, error } = await supabase
-                .from('conversations')
-                .select('*')
-                .or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
+            // Le join imbrique `profiles(...)` ci-dessous est filtré ligne par
+            // ligne par la RLS de `profiles` (profiles_select_visible) — or
+            // deux personnes qui démarrent une PREMIÈRE conversation ne sont
+            // typiquement pas encore amies, et 'network' (qui exige une
+            // amitié acceptée) est le défaut de tout nouveau compte. Vérifié
+            // empiriquement : le nom/avatar de l'autre participant disparaît
+            // silencieusement dans le cas le plus courant. `get_my_
+            // conversation_participant_profiles` (SECURITY DEFINER, LOOP
+            // 06/17) contourne ce filtrage pour cette seule divulgation
+            // minimale (nom/avatar/titre/rôle — jamais email/téléphone/
+            // crédits/permissions), la même que révèle n'importe quelle app
+            // de messagerie grand public en ouvrant une conversation.
+            const [convResult, profilesResult] = await Promise.all([
+                supabase
+                    .from('conversations')
+                    .select(`
+                        id, is_group, title, last_message_at, last_message_preview,
+                        conversation_participants(user_id, member_role, last_read_at)
+                    `)
+                    .order('last_message_at', { ascending: false, nullsFirst: false }),
+                supabase.rpc('get_my_conversation_participant_profiles'),
+            ]);
+            const { data, error } = convResult;
             if (error || !data) return [];
-            return data;
+
+            const profilesByConversation = new Map<string, Map<string, { id: string; name: string; avatar_url: string | null; title: string | null; role: string | null }>>();
+            (profilesResult.data || []).forEach((row: any) => {
+                if (!profilesByConversation.has(row.conversation_id)) profilesByConversation.set(row.conversation_id, new Map());
+                profilesByConversation.get(row.conversation_id)!.set(row.id, row);
+            });
+
+            return data.map((conv: any) => ({
+                ...conv,
+                conversation_participants: (conv.conversation_participants || []).map((cp: any) => ({
+                    ...cp,
+                    profiles: profilesByConversation.get(conv.id)?.get(cp.user_id) || null,
+                })),
+            }));
         } catch {
             return [];
         }
+    },
+    /** Historique réel d'une conversation — jamais fourni avant cette LOOP (le client ne recevait que les messages arrivés après ouverture, via `subscribeToChat`). */
+    async getConversationMessages(conversationId: string, limit = 50): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        try {
+            const { data, error } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('conversation_id', conversationId)
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            if (error || !data) return [];
+            return data.reverse();
+        } catch {
+            return [];
+        }
+    },
+    /**
+     * Conversation directe (non-groupe), idempotente via `direct_key`
+     * (index unique déjà présent en base) : réutilise le fil existant s'il
+     * y en a déjà un entre ces deux personnes plutôt que d'en créer un
+     * second. Aucune fonction de création n'existait avant cette LOOP.
+     */
+    async createDirectConversation(userId: string, otherUserId: string): Promise<string | null> {
+        if (!isSupabaseConfigured) return null;
+        const [a, b] = [userId, otherUserId].sort();
+        const directKey = `${a}:${b}`;
+
+        const { data: existing } = await supabase.from('conversations').select('id').eq('direct_key', directKey).maybeSingle();
+        if (existing) return existing.id;
+
+        // Volontairement sans `.select()` : `INSERT ... RETURNING` exigerait
+        // que la policy SELECT (appartenance à la conversation) soit déjà
+        // vraie au moment même de l'insertion, hors le créateur ne devient
+        // participant que via le trigger `enroll_creator_as_participant`
+        // (AFTER INSERT) — l'id est donc généré côté client pour éviter ce
+        // problème d'oeuf-et-poule plutôt que de dépendre de la valeur
+        // renvoyée par la base.
+        const newId = crypto.randomUUID();
+        const { error } = await supabase.from('conversations').insert({ id: newId, is_group: false, created_by: userId, direct_key: directKey });
+        if (error) {
+            if (error.code === '23505') {
+                const { data: raced } = await supabase.from('conversations').select('id').eq('direct_key', directKey).maybeSingle();
+                if (raced) return raced.id;
+            }
+            throw error;
+        }
+
+        const { error: participantError } = await supabase.from('conversation_participants').insert({ conversation_id: newId, user_id: otherUserId });
+        if (participantError && participantError.code !== '23505') throw participantError;
+        return newId;
+    },
+    /** Marque la conversation comme lue par `userId` jusqu'à maintenant — utilisé pour dériver l'état "lu" des messages de l'AUTRE participant sans écrire un flag par message. */
+    async markConversationRead(conversationId: string, userId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        await supabase.from('conversation_participants').update({ last_read_at: new Date().toISOString() }).eq('conversation_id', conversationId).eq('user_id', userId);
     },
 
     subscribeToPresence(
@@ -274,10 +372,47 @@ export const supabaseService = {
         }
     },
 
-    async sendMessage(message: Record<string, unknown>): Promise<void> {
-        if (!isSupabaseConfigured) return;
-        const { error } = await supabase.from('messages').insert(message);
-        if (error) throw error;
+    /**
+     * Réécrite pour les vraies colonnes de `messages` (LOOP 06/17) : l'ancien
+     * appel envoyait `text`/`sender_name`/`sender_avatar`/`sender_role`/
+     * `media_type`/`media_url`/`voice_url`/`voice_duration`/`reply_to`,
+     * aucune de ces colonnes n'existe réellement (`content`/
+     * `attachment_url`/`message_type`/`reply_to_id` sont les vraies) — tout
+     * envoi vers un Supabase réellement configuré échouait donc à 100%,
+     * silencieusement avalé par le `.catch()` de l'appelant. `clientMessageId`
+     * est l'ancrage d'idempotence (index unique déjà présent en base) :
+     * généré une seule fois côté client par tentative d'envoi logique, un
+     * retry réutilise le même id — un doublon devient un no-op (23505),
+     * jamais un second message.
+     */
+    async sendChatMessage(params: {
+        conversationId: string;
+        senderId: string;
+        clientMessageId: string;
+        content?: string;
+        attachmentUrl?: string;
+        messageType?: 'text' | 'image' | 'video' | 'audio' | 'document';
+        replyToId?: string;
+    }): Promise<{ id: string; createdAt: string; status: string } | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                conversation_id: params.conversationId,
+                sender_id: params.senderId,
+                client_message_id: params.clientMessageId,
+                content: params.content || '',
+                attachment_url: params.attachmentUrl,
+                message_type: params.messageType || 'text',
+                reply_to_id: params.replyToId,
+            })
+            .select('id, created_at, status')
+            .single();
+        if (error) {
+            if (error.code === '23505') return null; // déjà envoyé — no-op idempotent, pas une erreur.
+            throw error;
+        }
+        return { id: data.id, createdAt: data.created_at, status: data.status };
     },
 
     async updateChatMessage(messageId: string, updates: Record<string, unknown>): Promise<void> {
@@ -286,9 +421,18 @@ export const supabaseService = {
         if (error) throw error;
     },
 
+    /** Ajoute/retire la réaction de l'utilisateur courant — via la fonction atomique `toggle_message_reaction` (LOOP 06/17), jamais un lire-modifier-écrire côté client sujet à une course entre deux personnes réagissant en même temps. */
+    async toggleMessageReaction(messageId: string, emoji: string): Promise<Record<string, string[]>> {
+        if (!isSupabaseConfigured) return {};
+        const { data, error } = await supabase.rpc('toggle_message_reaction', { p_message_id: messageId, p_emoji: emoji });
+        if (error) throw error;
+        return (data as Record<string, string[]>) || {};
+    },
+
+    /** Suppression douce (LOOP 06/17) : `deleted_at` plutôt qu'un `DELETE` définitif — l'historique de la conversation pour l'autre participant n'est pas perdu, seul le contenu est masqué à l'affichage. */
     async deleteChatMessage(messageId: string): Promise<void> {
         if (!isSupabaseConfigured) return;
-        const { error } = await supabase.from('messages').delete().eq('id', messageId);
+        const { error } = await supabase.from('messages').update({ deleted_at: new Date().toISOString(), content: '' }).eq('id', messageId);
         if (error) throw error;
     },
 
