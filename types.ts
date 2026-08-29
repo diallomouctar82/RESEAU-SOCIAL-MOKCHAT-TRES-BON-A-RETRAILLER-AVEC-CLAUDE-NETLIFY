@@ -880,6 +880,16 @@ export interface PostDocument {
     pageCount?: number;
 }
 
+// Cycle de vie du moteur de contenu unifié (LOOP 01/17, mission Architecte
+// MOCnet) : draft = jamais visible publiquement quel que soit `visibility` ;
+// published = comportement historique ; scheduled = publication différée
+// (voir `scheduledAt`) ; archived = masqué du fil sans suppression.
+export type PostStatus = 'draft' | 'published' | 'scheduled' | 'archived';
+// Propriété du contenu plutôt qu'une architecture séparée — 'story' est
+// volontairement absent, les stories restent modélisées par `Story`/la
+// table `stories` (cycle de vie éphémère propre), pas un format de Post.
+export type PostFormat = 'text' | 'image' | 'video' | 'audio' | 'document' | 'live_extract' | 'composite';
+
 export interface Post {
     id: string;
     agentId?: string;
@@ -894,12 +904,19 @@ export interface Post {
     commentsList?: Comment[];
     imageUrl?: string;
     videoUrl?: string;
+    audioUrl?: string;
     document?: PostDocument;
     type?: string;
     category?: string;
     tags?: string[];
     pinned?: boolean;
     visibility?: PostVisibility;
+    status?: PostStatus;
+    scheduledAt?: string;
+    format?: PostFormat;
+    /** Provenance quand ce contenu est dérivé d'un autre objet MOCnet (ex. 'live_session'). */
+    sourceType?: string;
+    sourceId?: string;
     shares?: number;
     saved?: boolean;
     reactions?: Record<PostReactionType, number>;

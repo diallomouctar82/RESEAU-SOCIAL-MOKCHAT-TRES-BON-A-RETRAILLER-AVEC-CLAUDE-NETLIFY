@@ -292,9 +292,15 @@ export const supabaseService = {
     // --- Fil social (SocialFeed) ---------------------------------------
     async getPosts(): Promise<any[]> {
         if (!isSupabaseConfigured) return [];
+        // Le fil principal ne montre jamais un brouillon/une publication
+        // programmée non encore déclenchée/un contenu archivé — y compris
+        // les siens (une vraie vue "mes brouillons" est un écran séparé à
+        // construire en LOOP 02/17, pas ce fil). La policy RLS laisserait
+        // l'auteur les relire ici sinon, ce qui romprait "préparer ≠ publier".
         const { data, error } = await supabase
             .from('posts')
-            .select('*, author:profiles!posts_author_id_fkey(name, avatar_url, title)')
+            .select('*, author:profiles!posts_author_id_fkey(name, avatar_url, title), post_documents!post_documents_post_id_fkey(*)')
+            .eq('status', 'published')
             .order('created_at', { ascending: false });
         if (error || !data) return [];
         return data;
@@ -312,6 +318,51 @@ export const supabaseService = {
         // (`post-${Date.now()}`) dans une colonne `uuid` — ce qui échouait
         // systématiquement ("invalid input syntax for type uuid").
         const { data, error } = await supabase.from('posts').insert(post).select('id, created_at').single();
+        if (error) throw error;
+        return data;
+    },
+
+    // --- Moteur de contenu unifié (LOOP 01/17, mission Architecte MOCnet) --
+    /**
+     * Upload réel vers le bucket Storage `public` (lecture publique à
+     * quiconque connaît l'URL, écriture restreinte au dossier de
+     * l'utilisateur par les policies `public_bucket_*` — le chemin doit donc
+     * commencer par `<dossier>/<userId>/...`). Remplace le pattern base64/
+     * blob-URL historique de SocialFeed : le fichier survit désormais au
+     * rechargement de page au lieu d'être perdu (documents/vidéos) ou
+     * alourdir la ligne `posts` elle-même (images).
+     */
+    async uploadContentMedia(userId: string, file: File, folder: 'posts' | 'stories' | 'documents'): Promise<string | null> {
+        if (!isSupabaseConfigured) return null;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `${folder}/${userId}/${Date.now()}-${safeName}`;
+        const { error } = await supabase.storage.from('public').upload(path, file, { upsert: false });
+        if (error) throw error;
+        const { data } = supabase.storage.from('public').getPublicUrl(path);
+        return data.publicUrl;
+    },
+    async createPostDocument(doc: { post_id: string; name: string; url: string; size: number; type: string; page_count?: number }): Promise<any | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.from('post_documents').insert(doc).select().single();
+        if (error) throw error;
+        return data;
+    },
+    // Table réelle et RLS-protégée depuis le début du projet mais jamais
+    // consommée par le client avant cette LOOP (StoryViewerModal/SocialFeed
+    // ne géraient les stories qu'en état React local, perdu au rechargement).
+    async getStories(): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase
+            .from('stories')
+            .select('*, author:profiles!stories_author_id_fkey(name, avatar_url)')
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false });
+        if (error || !data) return [];
+        return data;
+    },
+    async createStory(story: { author_id: string; media_url: string; caption?: string; is_live?: boolean }): Promise<{ id: string; created_at: string; expires_at: string } | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.from('stories').insert(story).select('id, created_at, expires_at').single();
         if (error) throw error;
         return data;
     },

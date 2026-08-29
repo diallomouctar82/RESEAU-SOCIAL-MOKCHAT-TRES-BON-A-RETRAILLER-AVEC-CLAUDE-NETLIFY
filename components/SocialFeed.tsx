@@ -70,6 +70,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [newPostVideo, setNewPostVideo] = useState<string | null>(null);
   const [newPostDocument, setNewPostDocument] = useState<PostDocument | null>(null);
+  // Fichiers bruts conservés séparément des aperçus ci-dessus (LOOP 01/17,
+  // moteur de contenu unifié) : `newPostImage` peut aussi être une URL déjà
+  // hébergée (image générée par l'IA, cf. handleApplyAIEnhancement) qui ne
+  // doit jamais être re-uploadée — seul un fichier sélectionné localement
+  // doit l'être, au moment de la publication (pas avant, pour ne pas
+  // uploader un brouillon jamais publié).
+  const [newPostImageFile, setNewPostImageFile] = useState<File | null>(null);
+  const [newPostVideoFile, setNewPostVideoFile] = useState<File | null>(null);
+  const [newPostDocumentFile, setNewPostDocumentFile] = useState<File | null>(null);
   const [newPostTags, setNewPostTags] = useState<string[]>([]);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -87,6 +96,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [isCreateStoryOpen, setIsCreateStoryOpen] = useState(false);
   const [newStoryCaption, setNewStoryCaption] = useState('');
   const [newStoryImage, setNewStoryImage] = useState<string | null>(null);
+  const [newStoryImageFile, setNewStoryImageFile] = useState<File | null>(null);
 
   // File Input References
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +150,18 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               const mine = postReactions.find(rr => rr.user_id === currentUser.id);
               if (mine) initialReactions[rp.id] = mine.type as PostReactionType;
 
+              // post_documents!post_documents_post_id_fkey renvoie un tableau
+              // (relation 1-N côté PostgREST même si l'UI n'affiche qu'un
+              // seul document par post pour l'instant) — voir LOOP 01/17.
+              const rawDoc = Array.isArray(rp.post_documents) ? rp.post_documents[0] : undefined;
+              const document: PostDocument | undefined = rawDoc ? {
+                name: rawDoc.name,
+                url: rawDoc.url,
+                size: typeof rawDoc.size === 'number' ? `${(rawDoc.size / (1024 * 1024)).toFixed(1)} MB` : String(rawDoc.size || ''),
+                type: rawDoc.type,
+                pageCount: rawDoc.page_count || undefined
+              } : undefined;
+
               return {
                 id: rp.id,
                 authorId: rp.author_id,
@@ -148,9 +170,17 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 authorTitle: rp.author?.title || 'Membre Communauté',
                 content: rp.content,
                 imageUrl: rp.image_url,
+                videoUrl: rp.video_url || undefined,
+                audioUrl: rp.audio_url || undefined,
+                document,
                 category: rp.category || 'Général',
                 tags: rp.tags || [],
                 visibility: rp.visibility || 'public',
+                status: rp.status || 'published',
+                format: rp.format || 'text',
+                scheduledAt: rp.scheduled_at || undefined,
+                sourceType: rp.source_type || undefined,
+                sourceId: rp.source_id || undefined,
                 timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 likes: postReactions.length,
                 comments: postComments.length,
@@ -179,7 +209,33 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           setPosts(INITIAL_POSTS);
         }
 
-        // 2. Fetch Members from Supabase if connected
+        // 2. Fetch Stories from Supabase if connected — la table `stories`
+        // existe et est RLS-protégée depuis le début du projet mais n'était
+        // jamais consommée par le client avant cette LOOP (voir handleCreateStory).
+        // `getStories()` filtre déjà `expires_at > now()` côté requête.
+        if (supabaseService.isConfigured()) {
+          try {
+            const remoteStories = await supabaseService.getStories();
+            if (remoteStories && remoteStories.length > 0) {
+              const mappedStories: Story[] = remoteStories.map((rs: any) => ({
+                id: rs.id,
+                author: rs.author?.name || 'Membre',
+                authorId: rs.author_id,
+                avatar: rs.author?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+                isLive: !!rs.is_live,
+                mediaUrl: rs.media_url,
+                caption: rs.caption || undefined,
+                timestamp: new Date(rs.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                viewersCount: rs.viewers_count || 0
+              }));
+              setStories(mappedStories);
+            }
+          } catch (e) {
+            console.warn('Could not fetch stories from Supabase', e);
+          }
+        }
+
+        // 3. Fetch Members from Supabase if connected
         if (supabaseService.isConfigured()) {
           const profiles = await supabaseService.searchProfiles();
           if (profiles && profiles.length > 0) {
@@ -497,27 +553,25 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setCommentInput('');
   };
 
-  // Upload Handlers
+  // Upload Handlers — aperçu local léger (objectURL) + fichier brut conservé
+  // pour un vrai upload Supabase Storage au moment de la publication
+  // (LOOP 01/17, moteur de contenu unifié). Remplace le pattern base64
+  // historique : plus léger en mémoire, et surtout l'URL finale persistée
+  // sera une vraie URL hébergée qui survit au rechargement, pas un blob/
+  // data URL local.
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setNewPostImage(reader.result as string);
-      reader.readAsDataURL(file);
+      setNewPostImageFile(file);
+      setNewPostImage(URL.createObjectURL(file));
     }
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Convert to persistent Data URL (Base64) to ensure video can be replayed after save, refresh, or session restart
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setNewPostVideo(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      setNewPostVideoFile(file);
+      setNewPostVideo(URL.createObjectURL(file));
     }
   };
 
@@ -525,11 +579,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     const file = e.target.files?.[0];
     if (file) {
       const sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
-      const url = URL.createObjectURL(file);
+      setNewPostDocumentFile(file);
       setNewPostDocument({
         name: file.name,
         size: sizeStr,
-        url: url,
+        url: URL.createObjectURL(file),
         type: file.name.endsWith('.pdf') ? 'pdf' : 'doc',
         pageCount: 1
       });
@@ -543,11 +597,46 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     if (generatedImageUrl) setNewPostImage(generatedImageUrl);
   };
 
-  // Create Post Submit
-  const handlePublishPost = async () => {
+  // Create Post Submit — `asDraft` implémente la distinction absolue
+  // « préparer ≠ publier » du moteur de contenu unifié (LOOP 01/17) : un
+  // brouillon est écrit avec status='draft' et n'est jamais visible par
+  // personne d'autre que son auteur (voir la policy RLS posts_select_visible,
+  // corrigée dans cette même LOOP pour ne plus dépendre uniquement de
+  // `visibility`).
+  const handlePublishPost = async (asDraft: boolean = false) => {
     if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return;
 
     setIsPublishing(true);
+
+    let finalImageUrl = newPostImage || undefined;
+    let finalVideoUrl = newPostVideo || undefined;
+    let finalDocument = newPostDocument || undefined;
+    const canUpload = supabaseService.isConfigured() && !!currentUser.id;
+
+    // Upload réel vers Supabase Storage (LOOP 01/17) — uniquement pour les
+    // fichiers sélectionnés localement ; une image déjà hébergée (générée
+    // par l'IA via handleApplyAIEnhancement, par ex.) n'est jamais re-uploadée.
+    if (canUpload) {
+      try {
+        if (newPostImageFile) {
+          const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostImageFile, 'posts');
+          if (url) finalImageUrl = url;
+        }
+        if (newPostVideoFile) {
+          const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostVideoFile, 'posts');
+          if (url) finalVideoUrl = url;
+        }
+        if (newPostDocumentFile && newPostDocument) {
+          const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostDocumentFile, 'documents');
+          if (url) finalDocument = { ...newPostDocument, url };
+        }
+      } catch (err) {
+        console.warn('Could not upload post media to Supabase Storage', err);
+      }
+    }
+
+    const format: string = finalVideoUrl ? 'video' : finalDocument ? 'document' : finalImageUrl ? 'image' : 'text';
+
     const newPost: Post = {
       id: `post-${Date.now()}`,
       authorId: currentUser.id || 'u1',
@@ -555,13 +644,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       authorAvatar: currentUser.avatarUrl,
       authorTitle: currentUser.title || 'Membre Communauté',
       content: newPostContent,
-      imageUrl: newPostImage || undefined,
-      videoUrl: newPostVideo || undefined,
-      document: newPostDocument || undefined,
+      imageUrl: finalImageUrl,
+      videoUrl: finalVideoUrl,
+      document: finalDocument,
       category: newPostCategory,
       tags: newPostTags.length > 0 ? newPostTags : undefined,
       visibility: newPostVisibility,
-      timestamp: 'À l\'instant',
+      status: asDraft ? 'draft' : 'published',
+      format: format as Post['format'],
+      timestamp: asDraft ? 'Brouillon' : 'À l\'instant',
       likes: 0,
       comments: 0,
       shares: 0,
@@ -569,61 +660,112 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       commentsList: []
     };
 
-    // Save to Supabase if connected — vidéo/document restent local-only pour
-    // l'instant (pas de colonnes dédiées ni de vrai stockage de fichiers,
-    // cf. Chantier 2 : aucun appel supabase.storage n'existe dans le dépôt).
-    // Texte, image (en data URL), catégorie et tags sont de vraies colonnes.
-    if (supabaseService.isConfigured() && currentUser.id) {
+    if (canUpload) {
       try {
         const inserted = await supabaseService.createPost({
           author_id: currentUser.id,
           content: newPost.content,
           image_url: newPost.imageUrl,
+          video_url: newPost.videoUrl,
           category: newPost.category,
           tags: newPost.tags || [],
-          visibility: newPost.visibility
+          visibility: newPost.visibility,
+          status: newPost.status,
+          format: newPost.format
         });
         if (inserted) {
           newPost.id = inserted.id;
+          if (finalDocument) {
+            try {
+              await supabaseService.createPostDocument({
+                post_id: inserted.id,
+                name: finalDocument.name,
+                url: finalDocument.url,
+                size: newPostDocumentFile?.size ?? 0,
+                type: finalDocument.type,
+                page_count: finalDocument.pageCount
+              });
+            } catch (docErr) {
+              console.warn('Post created but its document could not be attached', docErr);
+            }
+          }
         }
       } catch (err) {
         console.warn('Could not save post to Supabase', err);
       }
     }
 
-    const updatedPosts = [newPost, ...posts];
-    setPosts(updatedPosts);
-    await cloudService.savePost(newPost);
+    // Un brouillon n'apparaît pas dans le fil (il n'est visible que par son
+    // auteur, sur un futur écran de gestion de brouillons — LOOP 02/17) :
+    // ne l'ajoute pas à l'état local `posts` du fil principal.
+    if (!asDraft) {
+      const updatedPosts = [newPost, ...posts];
+      setPosts(updatedPosts);
+      await cloudService.savePost(newPost);
+    }
 
     // Reset Composer
     setNewPostContent('');
     setNewPostImage(null);
     setNewPostVideo(null);
     setNewPostDocument(null);
+    setNewPostImageFile(null);
+    setNewPostVideoFile(null);
+    setNewPostDocumentFile(null);
     setNewPostTags([]);
     setIsComposerFocused(false);
     setIsPublishing(false);
   };
 
-  // Create Story Submit
-  const handleCreateStory = () => {
+  // Create Story Submit — branchement réel sur la table `stories` (LOOP
+  // 01/17, moteur de contenu unifié) : cette table existe et est RLS-
+  // protégée depuis le début du projet mais n'était jamais consommée par le
+  // client (état React local uniquement, perdu au rechargement). `expires_at`
+  // est géré par la base (default now()+24h) — aucune logique d'expiration
+  // à gérer ici côté client.
+  const handleCreateStory = async () => {
     if (!newStoryImage && !newStoryCaption) return;
+    const fallbackImage = 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&fit=crop';
+    let mediaUrl = newStoryImage || fallbackImage;
+
     const newStory: Story = {
       id: `story-${Date.now()}`,
       author: currentUser.name,
-      authorId: 'u1',
+      authorId: currentUser.id || 'u1',
       avatar: currentUser.avatarUrl,
-      mediaUrl: newStoryImage || 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&fit=crop',
+      mediaUrl,
       caption: newStoryCaption || 'Nouvelle Story Mooc',
       timestamp: 'À l\'instant',
       isLive: false,
       viewersCount: 1
     };
 
+    if (supabaseService.isConfigured() && currentUser.id) {
+      try {
+        if (newStoryImageFile) {
+          const uploaded = await supabaseService.uploadContentMedia(currentUser.id, newStoryImageFile, 'stories');
+          if (uploaded) mediaUrl = uploaded;
+        }
+        const inserted = await supabaseService.createStory({
+          author_id: currentUser.id,
+          media_url: mediaUrl,
+          caption: newStoryCaption || undefined,
+          is_live: false
+        });
+        if (inserted) {
+          newStory.id = inserted.id;
+          newStory.mediaUrl = mediaUrl;
+        }
+      } catch (err) {
+        console.warn('Could not save story to Supabase', err);
+      }
+    }
+
     setStories([newStory, ...stories]);
     setIsCreateStoryOpen(false);
     setNewStoryCaption('');
     setNewStoryImage(null);
+    setNewStoryImageFile(null);
   };
 
   // Open Author Profile Modal
@@ -973,9 +1115,19 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                   </button>
                 </div>
 
+                {/* Brouillon / Publier — distinction absolue "préparer ≠ publier" (LOOP 01/17) */}
+                <button
+                  onClick={() => handlePublishPost(true)}
+                  disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
+                  title="Enregistrer comme brouillon — jamais visible par les autres membres"
+                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 transition-all flex items-center gap-2"
+                >
+                  <span>Brouillon</span>
+                </button>
+
                 {/* Submit Button */}
                 <button
-                  onClick={handlePublishPost}
+                  onClick={() => handlePublishPost(false)}
                   disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
                   className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-40 transition-all flex items-center gap-2"
                 >
@@ -1953,9 +2105,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => setNewStoryImage(reader.result as string);
-                  reader.readAsDataURL(file);
+                  setNewStoryImageFile(file);
+                  setNewStoryImage(URL.createObjectURL(file));
                 }
               }}
             />
@@ -1963,8 +2114,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             {newStoryImage ? (
               <div className="relative aspect-[9/16] max-h-72 rounded-2xl overflow-hidden bg-slate-900 mx-auto">
                 <img src={newStoryImage} className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => setNewStoryImage(null)}
+                <button
+                  onClick={() => { setNewStoryImage(null); setNewStoryImageFile(null); }}
                   className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full"
                 >
                   <X size={14} />
