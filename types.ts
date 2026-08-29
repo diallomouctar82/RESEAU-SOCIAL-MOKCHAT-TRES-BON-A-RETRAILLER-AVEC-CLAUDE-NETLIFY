@@ -632,6 +632,8 @@ export interface LiveStream {
     title: string;
     description?: string;
     type?: LiveType;
+    /** profiles.id de l'animateur — nécessaire pour les vérifications "suis-je l'hôte ?" par identité, pas seulement par nom affiché. */
+    hostId?: string;
     hostName: string;
     hostAvatar: string;
     viewers: number;
@@ -642,6 +644,8 @@ export interface LiveStream {
     coHosts?: string[];
     moderators?: string[];
     startedAt: Date;
+    /** Renseigné une fois le LIVE terminé (live_sessions.ended_at) — absent tant qu'il est en cours. */
+    endedAt?: string;
     scheduledFor?: string;
     timezone?: string;
     isScheduled?: boolean;
@@ -699,6 +703,26 @@ export interface LiveGift {
     icon: string;
     cost: number;
     animation: string;
+}
+
+/** Message de chat libre du LIVE (public.live_messages) — distinct des Questions/Réponses structurées (LiveQuestion). */
+export interface LiveChatMessage {
+    id: string;
+    sessionId: string;
+    authorId?: string;
+    authorName: string;
+    authorAvatar: string;
+    text: string;
+    createdAt: string;
+}
+
+/** Réaction ponctuelle (tap emoji) pendant le LIVE (public.live_reactions) — journal d'événements, pas un état unique par utilisateur. */
+export interface LiveReaction {
+    id: string;
+    sessionId: string;
+    userId: string;
+    type: string;
+    createdAt: string;
 }
 
 export interface Story {
