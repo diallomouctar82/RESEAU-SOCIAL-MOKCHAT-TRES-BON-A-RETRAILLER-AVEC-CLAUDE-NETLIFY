@@ -1447,6 +1447,8 @@ export interface MultimodalVisionAnalysis {
     scene: SceneUnderstanding;
     recognizedPersons: RecognizedPerson[];
     executiveSummary: string;
+    /** true si la passerelle IA était indisponible et que ce résultat vient du repli local — jamais présenté comme une vraie analyse (LOOP 11/14). */
+    degraded?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

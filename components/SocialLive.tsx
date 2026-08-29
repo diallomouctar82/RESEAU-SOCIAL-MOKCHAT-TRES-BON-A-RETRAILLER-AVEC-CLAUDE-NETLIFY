@@ -34,8 +34,9 @@ import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState } from '../services/live/liveMaterialSystem';
-import { interpretLiveVoiceCommand, LiveVoiceAction } from '../services/live/liveVoiceCommands';
+import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { createSolidarityCause } from '../services/live/liveSolidarityService';
+import { multimodalVisionService } from '../services/multimodalVision';
 
 interface SocialLiveProps {
   liveId: string;
@@ -248,7 +249,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     enabled: !!realSessionId,
   });
 
+  // Référence conservée pour la capture de frame réelle (LOOP 11/14, Vision
+  // IA) — le ref-callback ci-dessous attache la vraie piste LiveKit, on garde
+  // aussi le nœud DOM pour pouvoir en extraire une image à la demande.
+  const visionCaptureVideoElRef = useRef<HTMLVideoElement | null>(null);
   const localVideoTrackRef = useCallback((el: HTMLVideoElement | null) => {
+    visionCaptureVideoElRef.current = el;
     if (el && liveTransport.localVideoTrack) liveTransport.localVideoTrack.attach(el);
   }, [liveTransport.localVideoTrack]);
 
@@ -625,21 +631,38 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
   }, [liveTransport.localScreenShareTrack]);
 
-  // Multimodal Vision IA Snapshot & Analysis
+  /**
+   * Vision IA du LIVE (LOOP 11/14) — réutilise le vrai moteur multimodal
+   * (services/multimodalVision.ts, déjà branché ailleurs dans l'app :
+   * CampusProfessorCoach, MultimodalCameraHUD) au lieu d'un texte LLM
+   * générique sans image (ancien comportement de ce bouton — vérifié par
+   * audit : `generateText` seul, avec un texte de repli inventé affiché
+   * comme un vrai résultat en cas d'échec). Capture une vraie frame de la
+   * caméra locale, l'envoie réellement en analyse image, et ne présente
+   * jamais un échec comme une analyse réussie. Reconnaissance de personnes
+   * désactivée ici (allowPersonRecognition=false) : aucun écran de
+   * consentement caméra/vision dédié dans le LIVE avant la LOOP 12/16.
+   */
   const handleTriggerVisionAnalysis = async () => {
+    const videoEl = visionCaptureVideoElRef.current;
+    if (!videoEl || videoEl.videoWidth === 0) {
+      pushLocalSystemMessage('Vision IA', "Aucune image de caméra disponible à analyser pour le moment.");
+      return;
+    }
     setIsVisionAnalyzing(true);
     try {
-      const prompt = `Tu es Diallo OS en analyse Vision IA pendant le Live "${liveData.title}".
-      L'intervenant présente un document / schéma / objet à la caméra.
-      Décris précisément ce que tu observes, les points clés administratifs ou techniques, et le conseil immédiat pour la salle.`;
-
-      const response = await generateText(prompt);
-
-      const resultText = response || "Document analysé : Modèle de pacte d'associés conforme aux normes OHADA.";
+      const frame = multimodalVisionService.captureFrame(videoEl);
+      if (!frame) throw new Error('Capture de frame impossible.');
+      const analysis = await multimodalVisionService.analyzeFrame(frame, undefined, false);
+      const resultText = analysis.executiveSummary || analysis.scene.summary;
       setVisionAnalysisResult(resultText);
-      pushLocalSystemMessage("Vision IA Diallo", `👁️ Analyse visuelle du document partagé : ${resultText}`);
+      const prefix = analysis.degraded ? '⚠️ Analyse en mode dégradé (IA indisponible)' : '👁️ Analyse visuelle';
+      pushLocalSystemMessage('Vision IA Diallo', `${prefix} : ${resultText}`);
     } catch (e) {
-      setVisionAnalysisResult("Document analysé : Tableau prévisionnel de trésorerie avec équilibre d'exploitation à M+6.");
+      // Dégradation honnête (prompt 5/7) : jamais un résultat inventé
+      // présenté comme une vraie analyse quand celle-ci a réellement échoué.
+      setVisionAnalysisResult(null);
+      pushLocalSystemMessage('Vision IA', "L'analyse visuelle a échoué — réessayez dans un instant.");
     } finally {
       setIsVisionAnalyzing(false);
     }
@@ -703,18 +726,31 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     addNotification("Conseil Réuni 🏛️", "Table ronde multi-experts activée sur la scène Live.", "info");
   };
 
-  // "Ce que vous avez manqué" (Catchup Summary)
+  /**
+   * "Ce que vous avez manqué" (LOOP 11/14) — nourri du vrai chat
+   * (`messages`, réel depuis le LOOP 05/14 : live_messages via Supabase),
+   * pas seulement du titre du LIVE (ancien comportement, vérifié par audit :
+   * `generateText` ne recevait que `liveData.title`). Sans transcript
+   * réel, le résumé le dit honnêtement plutôt que d'en inventer un.
+   */
   const handleRequestCatchup = async () => {
     setShowCatchupSummary(true);
-    setCatchupDigest("Génération du résumé des 20 premières minutes par Diallo OS...");
+
+    if (messages.length === 0) {
+      setCatchupDigest("Aucun message n'a encore été échangé dans ce direct — rien à résumer pour l'instant.");
+      return;
+    }
+
+    setCatchupDigest("Génération du résumé à partir du chat réel par Diallo OS...");
+    const transcript = messages.slice(-60).map((m) => `${m.authorName}: ${m.text}`).join('\n');
 
     try {
       const response = await generateText(
-        `Résume en 3 puces percutantes ce qui s'est dit au début du Live "${liveData.title}". Mets en avant les points clés pour un spectateur qui arrive en retard.`
+        `Voici le chat réel du LIVE "${liveData.title}" (messages les plus récents en dernier) :\n\n${transcript}\n\nRésume en 3 puces percutantes ce qui s'est dit, à l'attention d'un spectateur qui arrive en retard. Base-toi uniquement sur ce chat, n'invente rien.`
       );
-      setCatchupDigest(response || "1. Présentation des différents types de subventions.\n2. Explication des critères bancaires.\n3. Analyse des garanties diaspora.");
+      setCatchupDigest(response || "Le résumé n'a pas pu être généré pour le moment — réessayez dans un instant.");
     } catch (e) {
-      setCatchupDigest("• Cadrage initial du besoin de financement (amorçage vs croissance)\n• Rôle de l'Expert Projet Diallo dans la constitution du dossier\n• 2 questions clés du public déjà traitées sur l'imposition transfrontalière.");
+      setCatchupDigest("Le résumé n'a pas pu être généré (service IA temporairement indisponible) — réessayez dans un instant.");
     }
   };
 
@@ -900,6 +936,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       setAvatarGrammarState(grammar);
       voiceAssistant.speak(text, { onEnd: () => setAvatarGrammarState('repos') }).catch(() => {});
     };
+    // Permission vérifiée une seule fois ici, contre le registre de
+    // capacités (LOOP 11/14) — jamais un `if (!isHost)` dispersé par cas
+    // (source unique de vérité entre le prompt LLM et l'exécution réelle).
+    if (!isVoiceCapabilityAllowed(action.type, { isHost, isUserOnStage })) {
+      say("Cette action n'est pas autorisée pour ton rôle actuel.", 'erreur');
+      return;
+    }
     switch (action.type) {
       case 'TOGGLE_MIC':
         toggleMic();
@@ -910,7 +953,6 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'TOGGLE_SCREEN_SHARE':
-        if (!isUserOnStage) { say("Seules les personnes sur scène peuvent partager leur écran.", 'erreur'); break; }
         handleToggleScreenShare();
         say(action.spokenConfirmation);
         break;
@@ -919,7 +961,6 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'GIVE_FLOOR': {
-        if (!isHost) { say("Seul l'hôte peut donner la parole.", 'erreur'); break; }
         const wanted = action.payload?.participantName?.toLowerCase();
         const target = wanted
           ? raisedHands.find((p) => p.name.toLowerCase().includes(wanted))
@@ -954,17 +995,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation);
         break;
       case 'CHANGE_VISUAL_UNIVERSE':
-        if (!isHost) { say("Seul l'hôte peut changer l'univers visuel.", 'erreur'); break; }
         if (action.payload?.universe) handleChangeVisualUniverse(action.payload.universe);
         say(action.spokenConfirmation);
         break;
       case 'SUMMON_EXPERT':
-        if (!isHost) { say("Seul l'hôte peut inviter un expert.", 'erreur'); break; }
         setShowSummonExpertModal(true);
         say(action.spokenConfirmation);
         break;
       case 'CREATE_SOLIDARITY_CAUSE': {
-        if (!isHost) { say("Seul l'hôte peut lancer une mission solidaire.", 'erreur'); break; }
         if (!realSessionId) { say("La session n'est pas encore prête.", 'erreur'); break; }
         const payload = action.payload;
         if (!payload?.title || !payload?.beneficiaryDescription) { say("Il manque le sujet de la mission.", 'erreur'); break; }
