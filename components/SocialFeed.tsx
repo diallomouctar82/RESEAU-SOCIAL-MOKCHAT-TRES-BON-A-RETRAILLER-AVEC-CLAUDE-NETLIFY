@@ -24,6 +24,8 @@ import { LiveReplayModal } from './LiveReplayModal';
 import { cloudService } from '../services/cloud';
 import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
+import { interpretContentVoiceCommand, ContentVoiceAction } from '../services/content/contentVoiceCommands';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -60,6 +62,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // Menu "..." archiver/supprimer (LOOP 02/17, gouvernance du contenu) —
   // un seul menu ouvert à la fois, identifié par l'id du post.
   const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
+  // Retour visuel de la dernière commande vocale du composeur (LOOP 03/17)
+  // — toujours affiché EN PLUS d'être dit à voix haute, jamais l'un sans
+  // l'autre (l'écran reste visible pendant l'exécution).
+  const [voiceContentFeedback, setVoiceContentFeedback] = useState<string | null>(null);
 
   // Comments State
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
@@ -616,25 +622,58 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     let finalDocument = newPostDocument || undefined;
     const canUpload = supabaseService.isConfigured() && !!currentUser.id;
 
-    // Upload réel vers Supabase Storage (LOOP 01/17) — uniquement pour les
-    // fichiers sélectionnés localement ; une image déjà hébergée (générée
-    // par l'IA via handleApplyAIEnhancement, par ex.) n'est jamais re-uploadée.
     if (canUpload) {
+      // Upload réel vers Supabase Storage (LOOP 01/17) — uniquement pour les
+      // fichiers sélectionnés localement ; une image déjà hébergée (générée
+      // par l'IA via handleApplyAIEnhancement, par ex.) n'est jamais
+      // re-uploadée. Résilience (LOOP 03/17) : `newPostImage`/`newPostVideo`
+      // ne sont, à ce stade, que des objectURL locaux (voir
+      // handleImageSelect/handleVideoSelect) qui ne survivraient ni à un
+      // rechargement de page ni à un autre utilisateur — un échec d'upload
+      // doit donc annuler la publication plutôt que d'enregistrer cette
+      // référence morte comme si elle était valide (jamais de faux succès).
       try {
         if (newPostImageFile) {
           const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostImageFile, 'posts');
-          if (url) finalImageUrl = url;
+          if (!url) throw new Error('upload image failed');
+          finalImageUrl = url;
         }
         if (newPostVideoFile) {
           const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostVideoFile, 'posts');
-          if (url) finalVideoUrl = url;
+          if (!url) throw new Error('upload video failed');
+          finalVideoUrl = url;
         }
         if (newPostDocumentFile && newPostDocument) {
           const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostDocumentFile, 'documents');
-          if (url) finalDocument = { ...newPostDocument, url };
+          if (!url) throw new Error('upload document failed');
+          finalDocument = { ...newPostDocument, url };
         }
       } catch (err) {
         console.warn('Could not upload post media to Supabase Storage', err);
+        alert("L'envoi du média a échoué (connexion instable ?). La publication n'a pas été enregistrée — réessayez.");
+        setIsPublishing(false);
+        return;
+      }
+    } else if (newPostImageFile || newPostVideoFile || newPostDocumentFile) {
+      // Pas de session Supabase active (mode démo/hors ligne) : repli sur le
+      // comportement historique — une Data URL base64 auto-suffisante
+      // (contrairement à un objectURL, elle survit au rechargement de page
+      // et à la persistance IndexedDB via cloudService, cf. LOOP 03/17).
+      const toDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('read failed')));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      try {
+        if (newPostImageFile) finalImageUrl = await toDataUrl(newPostImageFile);
+        if (newPostVideoFile) finalVideoUrl = await toDataUrl(newPostVideoFile);
+        if (newPostDocumentFile && newPostDocument) finalDocument = { ...newPostDocument, url: await toDataUrl(newPostDocumentFile) };
+      } catch (err) {
+        console.warn('Could not read local media file', err);
+        alert("La lecture du fichier a échoué. Réessayez.");
+        setIsPublishing(false);
+        return;
       }
     }
 
@@ -822,6 +861,90 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     }
     alert('Lien de la publication copié !');
   };
+
+  // --- Création de contenu par la voix (LOOP 03/17, Architecte MOCnet) ---
+  // Même triptyque que services/live/liveVoiceCommands.ts + SocialLive.tsx
+  // ::dispatchVoiceAction, déjà en production pour le LIVE : interpréter →
+  // vérifier → exécuter de façon déterministe. La voix appelle exactement
+  // les mêmes setters que les boutons du composeur — aucune logique
+  // dupliquée.
+  const dispatchContentVoiceAction = (action: ContentVoiceAction) => {
+    const say = (text: string) => {
+      setVoiceContentFeedback(text);
+      voiceAssistant.speak(text);
+    };
+
+    switch (action.type) {
+      case 'SET_CONTENT':
+      case 'REWRITE_STYLE':
+      case 'SHORTEN':
+      case 'EXPAND':
+      case 'TRANSLATE':
+        if (action.payload?.text) {
+          setNewPostContent(action.payload.text);
+          setIsComposerFocused(true);
+        }
+        say(action.spokenConfirmation);
+        break;
+      case 'SET_VISIBILITY':
+        if (action.payload?.visibility) setNewPostVisibility(action.payload.visibility as PostVisibility);
+        say(action.spokenConfirmation);
+        break;
+      case 'SET_CATEGORY':
+        if (action.payload?.category) setNewPostCategory(action.payload.category);
+        say(action.spokenConfirmation);
+        break;
+      case 'ADD_TAGS':
+        if (action.payload?.tags?.length) setNewPostTags(prev => Array.from(new Set([...prev, ...action.payload!.tags!])));
+        say(action.spokenConfirmation);
+        break;
+      case 'SAVE_DRAFT':
+        say(action.spokenConfirmation);
+        handlePublishPost(true);
+        break;
+      case 'PUBLISH':
+        say(action.spokenConfirmation);
+        handlePublishPost(false);
+        break;
+      case 'DISCARD_DRAFT':
+        // Action à impact plus élevé (moderate) — confirmation explicite,
+        // même règle que handleDeletePost.
+        if (window.confirm('Abandonner ce brouillon ? Le contenu saisi sera perdu.')) {
+          setNewPostContent('');
+          setNewPostImage(null);
+          setNewPostVideo(null);
+          setNewPostDocument(null);
+          setNewPostImageFile(null);
+          setNewPostVideoFile(null);
+          setNewPostDocumentFile(null);
+          setNewPostTags([]);
+          setIsComposerFocused(false);
+          say(action.spokenConfirmation);
+        } else {
+          say("D'accord, je garde le brouillon.");
+        }
+        break;
+      case 'DISCOVER_CAPABILITIES':
+      case 'ASK_CLARIFICATION':
+      case 'UNKNOWN':
+      default:
+        say(action.spokenConfirmation);
+        break;
+    }
+  };
+
+  const handleContentVoiceTranscript = async (transcript: string) => {
+    if (!transcript.trim()) return;
+    const action = await interpretContentVoiceCommand(transcript, {
+      currentContent: newPostContent,
+      currentVisibility: newPostVisibility,
+      currentCategory: newPostCategory,
+      hasMedia: !!(newPostImage || newPostVideo || newPostDocument),
+    });
+    dispatchContentVoiceAction(action);
+  };
+
+  const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleContentVoiceTranscript });
 
   // Open Author Profile Modal
   const handleOpenAuthorProfile = (post: Post) => {
@@ -1132,6 +1255,16 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 </div>
               )}
 
+              {/* Retour de la dernière commande vocale (LOOP 03/17) — toujours visible en plus d'être dit à voix haute */}
+              {voiceContentFeedback && (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold">
+                  <span className="flex items-center gap-1.5"><Mic size={13} /> {voiceContentFeedback}</span>
+                  <button onClick={() => setVoiceContentFeedback(null)} className="text-indigo-400 hover:text-indigo-700">
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+
               {/* Bottom Toolbar: Upload Buttons & Submit */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 
@@ -1168,6 +1301,18 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                     <FileText size={17} className="text-amber-500" />
                     <span className="hidden sm:inline">Document</span>
                   </button>
+
+                  {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
+                  {voiceAssistant.isSupported && (
+                    <button
+                      onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : voiceAssistant.startListening())}
+                      className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                      title="Dicter ou commander la rédaction par la voix"
+                    >
+                      <Mic size={17} />
+                      <span className="hidden sm:inline">{voiceAssistant.isListening ? 'Écoute...' : 'Voix'}</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Brouillon / Publier — distinction absolue "préparer ≠ publier" (LOOP 01/17) */}

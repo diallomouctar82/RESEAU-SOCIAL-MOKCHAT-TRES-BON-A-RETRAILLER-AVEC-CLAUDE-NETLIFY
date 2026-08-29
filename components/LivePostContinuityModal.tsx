@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { 
-  X, CheckCircle2, Sparkles, FileText, ArrowRight, Download, 
-  Calendar, MessageSquare, Compass, BookOpen, Video, Users, 
-  CheckSquare, Award, Clock, Share2, Copy, BarChart3, ShieldCheck
+import {
+  X, CheckCircle2, Sparkles, FileText, ArrowRight, Download,
+  Calendar, MessageSquare, Compass, BookOpen, Video, Users,
+  CheckSquare, Award, Clock, Share2, Copy, BarChart3, ShieldCheck, Loader2
 } from 'lucide-react';
 import { LiveStream, LiveActionItem } from '../types';
 
@@ -13,6 +13,16 @@ interface LivePostContinuityModalProps {
   actionItems?: LiveActionItem[];
   personalNotesCount?: number;
   onNavigateToTab?: (tab: string) => void;
+  /**
+   * Compte-rendu réel généré par IA à partir du vrai chat du Live (LOOP
+   * 03/17, connexion Contenu↔Live — voir SocialLive.tsx::handleEndLive).
+   * `undefined` = non fourni par l'appelant (repli sur l'ancien texte
+   * d'exemple, pour ne casser aucun appelant existant) ; `null` = génération
+   * en cours ; `string` = résumé réel prêt.
+   */
+  realSummary?: string | null;
+  /** Crée un vrai brouillon de post (status='draft', jamais publié automatiquement) à partir de `realSummary`. Retourne le succès réel — jamais simulé. */
+  onPublishToFeed?: () => Promise<boolean>;
 }
 
 export const LivePostContinuityModal: React.FC<LivePostContinuityModalProps> = ({
@@ -21,14 +31,17 @@ export const LivePostContinuityModal: React.FC<LivePostContinuityModalProps> = (
   liveStream,
   actionItems = [],
   personalNotesCount = 0,
-  onNavigateToTab
+  onNavigateToTab,
+  realSummary,
+  onPublishToFeed
 }) => {
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>(actionItems.map(a => a.id));
+  const [publishState, setPublishState] = useState<'idle' | 'publishing' | 'done' | 'error'>('idle');
 
   if (!isOpen) return null;
 
-  const defaultSummary = `COMPTE-RENDU DE SESSION LIVE — DIALLO OS
+  const exampleSummary = `COMPTE-RENDU DE SESSION LIVE — DIALLO OS (exemple)
 Date : ${new Date().toLocaleDateString('fr-FR')} | Session : "${liveStream.title}"
 Intervenant : ${liveStream.hostName} | Type : ${liveStream.type || 'Session Interactive'}
 
@@ -44,20 +57,33 @@ Intervenant : ${liveStream.hostName} | Type : ${liveStream.type || 'Session Inte
 3. PROCHAINES ÉTAPES :
 • Finalisation des livrables et consultation de suivi programmée.`;
 
+  // realSummary === undefined : appelant qui ne fournit pas encore ce prop (repli, pas un mock présenté comme réel — voir docs/SUPABASE_ARCHITECTURE.md).
+  // realSummary === null : génération réelle en cours.
+  // realSummary === string : résumé réel, basé sur le vrai chat du Live.
+  const isRealSummaryReady = typeof realSummary === 'string';
+  const summary = realSummary === undefined ? exampleSummary : (realSummary ?? 'Génération du compte-rendu réel par Diallo OS à partir du chat de ce Live...');
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(defaultSummary);
+    navigator.clipboard.writeText(summary);
     setCopiedSummary(true);
     setTimeout(() => setCopiedSummary(false), 2000);
   };
 
   const handleDownloadMinutes = () => {
     const element = document.createElement("a");
-    const file = new Blob([defaultSummary], {type: 'text/plain;charset=utf-8'});
+    const file = new Blob([summary], {type: 'text/plain;charset=utf-8'});
     element.href = URL.createObjectURL(file);
     element.download = `Compte_Rendu_Live_${liveStream.id}_DialloOS.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const handlePublishToFeed = async () => {
+    if (!onPublishToFeed) return;
+    setPublishState('publishing');
+    const success = await onPublishToFeed();
+    setPublishState(success ? 'done' : 'error');
   };
 
   const toggleTask = (id: string) => {
@@ -137,9 +163,35 @@ Intervenant : ${liveStream.hostName} | Type : ${liveStream.type || 'Session Inte
               </div>
             </div>
 
+            {!isRealSummaryReady && realSummary !== undefined && (
+              <p className="text-[10px] text-slate-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Génération à partir du chat réel de ce Live en cours...</p>
+            )}
+            {realSummary === undefined && (
+              <p className="text-[10px] text-amber-500/80">⚠ Exemple illustratif — pas encore un compte-rendu généré à partir de ce Live.</p>
+            )}
+
             <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {defaultSummary}
+              {summary}
             </div>
+
+            {/* Publier sur le fil — connexion Contenu↔Live réelle (LOOP 03/17) : crée
+                un vrai brouillon (status='draft'), jamais publié automatiquement —
+                l'auteur garde le contrôle avant toute diffusion. */}
+            {onPublishToFeed && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePublishToFeed}
+                  disabled={!isRealSummaryReady || publishState === 'publishing' || publishState === 'done'}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors"
+                >
+                  {publishState === 'publishing' ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                  <span>
+                    {publishState === 'done' ? 'Brouillon enregistré sur votre fil' : publishState === 'error' ? 'Échec — réessayer' : 'Enregistrer ce résumé en brouillon sur mon fil'}
+                  </span>
+                </button>
+                {publishState === 'done' && <span className="text-[10px] text-emerald-400">Visible uniquement par vous tant que vous ne le publiez pas.</span>}
+              </div>
+            )}
           </div>
 
           {/* Section 2: Tâches détectées */}

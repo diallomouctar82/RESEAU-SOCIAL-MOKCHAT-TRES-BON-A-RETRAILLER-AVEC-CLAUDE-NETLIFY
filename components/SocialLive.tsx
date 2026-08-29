@@ -11,6 +11,7 @@ import {
   AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand
 } from 'lucide-react';
 import { generateText, analyzeImage } from '../services/aiGateway';
+import { supabaseService } from '../services/supabaseClient';
 import {
   LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc,
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
@@ -439,6 +440,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // 10. Modals State
   const [showWaitingRoomModal, setShowWaitingRoomModal] = useState(false);
   const [showPostContinuityModal, setShowPostContinuityModal] = useState(false);
+  // Compte-rendu réel de fin de Live (LOOP 03/17, connexion Contenu↔Live) —
+  // null tant que la génération est en cours, voir handleEndLive.
+  const [liveEndSummary, setLiveEndSummary] = useState<string | null>(null);
   const [showFactCheckModal, setShowFactCheckModal] = useState(false);
   const [showInstantHelpModal, setShowInstantHelpModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -1084,10 +1088,52 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
   };
 
-  // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard
+  // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard — génère un
+  // vrai compte-rendu à partir du chat réel (LOOP 03/17, connexion
+  // Contenu↔Live), même principe que handleRequestCatchup : jamais inventé,
+  // honnête si aucun message n'a été échangé.
   const handleEndLive = () => {
     stopLocalMedia();
     setShowPostContinuityModal(true);
+    setLiveEndSummary(null);
+
+    if (messages.length === 0) {
+      setLiveEndSummary("Aucun message n'a été échangé pendant ce direct — pas assez de matière pour un compte-rendu.");
+      return;
+    }
+
+    const transcript = messages.slice(-80).map((m) => `${m.authorName}: ${m.text}`).join('\n');
+    generateText(
+      `Voici le chat réel du LIVE "${liveData.title}" animé par ${userProfile.name} (messages les plus récents en dernier) :\n\n${transcript}\n\nRédige un compte-rendu structuré en 3 parties courtes (1. POINTS CLÉS ABORDÉS, 2. DÉCISIONS & ENGAGEMENTS, 3. PROCHAINES ÉTAPES), à partir UNIQUEMENT de ce chat réel. N'invente aucun fait, nom ou décision absent de ce texte — si une partie n'a rien de réel à contenir, écris "Rien de notable dans ce direct." pour cette partie plutôt que d'inventer.`
+    ).then((response) => {
+      setLiveEndSummary(response || "Le résumé n'a pas pu être généré pour le moment — réessayez.");
+    }).catch(() => {
+      setLiveEndSummary("Le résumé n'a pas pu être généré (service IA temporairement indisponible).");
+    });
+  };
+
+  // Publier le compte-rendu sur le fil social — crée un vrai brouillon
+  // (jamais publié automatiquement), avec la provenance réelle vers ce Live
+  // (source_type/source_id, LOOP 01/17). Retourne le succès réel.
+  const handlePublishLiveSummaryToFeed = async (): Promise<boolean> => {
+    if (!liveEndSummary || !supabaseService.isConfigured() || !userProfile.id) return false;
+    try {
+      const inserted = await supabaseService.createPost({
+        author_id: userProfile.id,
+        content: liveEndSummary,
+        category: 'Live',
+        tags: [],
+        visibility: 'public',
+        status: 'draft',
+        format: 'live_extract',
+        source_type: 'live_session',
+        source_id: realSessionId || undefined,
+      });
+      return !!inserted;
+    } catch (err) {
+      console.warn('Could not create post from Live summary', err);
+      return false;
+    }
   };
 
   // Voix native branchée sur le LIVE (LOOP 09/14, prompts 2/7 et 4/7) —
@@ -2839,6 +2885,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         }}
         liveStream={liveData}
         userProfile={userProfile}
+        realSummary={liveEndSummary}
+        onPublishToFeed={handlePublishLiveSummaryToFeed}
         onNavigateToTab={(tab) => {
           setShowPostContinuityModal(false);
           onClose();
