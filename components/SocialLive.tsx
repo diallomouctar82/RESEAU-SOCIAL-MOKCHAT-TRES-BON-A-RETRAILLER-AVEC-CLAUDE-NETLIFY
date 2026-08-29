@@ -8,14 +8,14 @@ import {
   Camera, Lock, Globe, Flame, AlertCircle, CheckCircle2, CheckCircle, Sliders, ExternalLink,
   ShoppingBag, ShieldAlert, CheckSquare, Bell, Calendar, Clock, Bookmark,
   Compass, Copy, EyeOff, Headphones, GraduationCap, LifeBuoy, FileCheck,
-  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX
+  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand
 } from 'lucide-react';
 import { generateText } from '../services/aiGateway';
 import { 
   LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc, 
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
   LiveCommerceProduct, LiveAgendaItem, LiveDecision, LivePersonalNote,
-  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes
+  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes, LiveChatMessage
 } from '../types';
 import { AGENTS, USER_PROFILE, LIVE_GIFTS, TRIBES } from '../constants';
 import { Avatar3D } from './Avatar3D';
@@ -29,6 +29,8 @@ import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
+import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants } from '../services/live/liveSessionService';
+import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 
 interface SocialLiveProps {
   liveId: string;
@@ -149,14 +151,72 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [stageInvitation, setStageInvitation] = useState<{ inviterName: string } | null>(null);
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
 
+  // Provisionnement de la session réelle (LOOP 05/14) — la plupart des points
+  // d'entrée du LIVE (SocialFeed, Trade*, StoryViewer...) ouvrent encore ce
+  // composant avec un liveId/LiveStream purement client (aucune ligne
+  // live_sessions correspondante), hérité d'avant cette mission. Le transport
+  // (LOOP 04) et le temps réel (chat/réactions/mains levées, ce LOOP)
+  // dépendent tous deux de RLS sur une vraie ligne live_sessions — on
+  // l'assure ici : on réutilise la session si elle existe déjà (ex. un autre
+  // participant l'a déjà créée), sinon l'hôte la crée à la volée. Un
+  // spectateur qui arrive sur une session encore inexistante ne peut rien
+  // créer (RLS le lui interdit de toute façon) — dégradation gracieuse :
+  // pas de transport tant qu'aucune session réelle n'est confirmée.
+  const [realSessionId, setRealSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const existing = await fetchLiveSession(liveId);
+      if (cancelled) return;
+      if (existing) {
+        setRealSessionId(existing.id);
+        setRealHostId(existing.hostId);
+        return;
+      }
+      if (!isHost) return; // spectateur sur une session pas encore créée : rien à faire, transport désactivé.
+      try {
+        const created = await createLiveSession(userProfile.id, userProfile.name, userProfile.avatarUrl, {
+          title: liveData.title,
+          description: liveData.description,
+          type: liveData.type,
+          isPrivate: liveData.isPrivate,
+          isQuestionsEnabled: liveData.isQuestionsEnabled,
+          isScreenShareEnabled: liveData.isScreenShareEnabled,
+          tribeId: liveData.tribeId,
+          tribeName: liveData.tribeName,
+          language: liveData.language,
+        });
+        if (!cancelled) { setRealSessionId(created.id); setRealHostId(created.hostId); }
+      } catch (err) {
+        console.error('SocialLive: échec de création de la session réelle', err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveId]);
+
+  // Une fois la session réelle confirmée, s'y inscrire comme participant
+  // (spectateur ou hôte) — nécessaire pour can_view_live_session()/
+  // is_live_host() côté RLS et pour apparaître dans le roster live_speakers.
+  useEffect(() => {
+    if (!realSessionId) return;
+    joinLiveSession(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, isHost ? 'host' : 'viewer')
+      .catch((err) => console.error('SocialLive: échec pour rejoindre la session', err));
+    return () => {
+      leaveLiveSession(realSessionId, userProfile.id).catch(() => {});
+    };
+  }, [realSessionId]);
+
   // Transport vidéo réel (LOOP 04/14) — une room LiveKit par session LIVE
-  // (liveData.id), publication activée seulement si l'utilisateur est
-  // réellement sur scène (cohérent avec le jeton émis côté serveur).
+  // réelle, publication activée seulement si l'utilisateur est réellement
+  // sur scène (cohérent avec le jeton émis côté serveur). Désactivé tant que
+  // la session réelle n'est pas confirmée (voir ci-dessus).
   const liveTransport = useLiveTransport({
-    roomName: liveData.id,
+    roomName: realSessionId || '',
     participantName: userProfile.name,
     canPublish: isUserOnStage,
-    enabled: true,
+    enabled: !!realSessionId,
   });
 
   const localVideoTrackRef = useCallback((el: HTMLVideoElement | null) => {
@@ -275,16 +335,93 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedAgentForBooking, setSelectedAgentForBooking] = useState<Agent>(AGENTS[0]);
   
-  // Chat & Gifts
-  const [messages, setMessages] = useState<{ user: string; avatar?: string; text: string; isAi?: boolean; isHost?: boolean; timestamp?: string }[]>([
-    { user: "Diallo OS", text: `Bienvenue dans la session intelligente "${liveData.title}". Sous-titres bilingues et copilote IA actifs.`, isAi: true, timestamp: "12:00" },
-    { user: "Amadou Diallo", text: "Bonjour à tous ! Hâte d'écouter les conseils sur les financements transfrontaliers.", timestamp: "12:01" },
-    { user: "Fatou Diop", text: "Est-ce que l'enregistrement sera exportable vers le Campus après le direct ?", timestamp: "12:02" }
-  ]);
+  // Chat & Réactions — réels (LOOP 05/14), tables live_messages/live_reactions
+  // (LOOP 02/14), diffusés via Supabase Realtime dès que la session réelle
+  // (realSessionId) est confirmée.
+  const [messages, setMessages] = useState<LiveChatMessage[]>([]);
+  const [realHostId, setRealHostId] = useState<string | undefined>(liveData.hostId);
   const [chatInput, setChatInput] = useState('');
   const [showGifts, setShowGifts] = useState(false);
   const [activeGiftAnim, setActiveGiftAnim] = useState<{ icon: string; id: number } | null>(null);
-  const [likesCount, setLikesCount] = useState(184);
+  const [likesCount, setLikesCount] = useState(0);
+
+  useEffect(() => {
+    if (!realSessionId) return;
+    let cancelled = false;
+    fetchRecentLiveMessages(realSessionId).then((msgs) => { if (!cancelled) setMessages(msgs); });
+    fetchLiveReactionCount(realSessionId).then((count) => { if (!cancelled) setLikesCount(count); });
+
+    const unsubMessages = subscribeToLiveMessages(realSessionId, (m) => {
+      setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+    });
+    const unsubReactions = subscribeToLiveReactions(realSessionId, () => {
+      setLikesCount((prev) => prev + 1);
+    });
+    return () => { cancelled = true; unsubMessages(); unsubReactions(); };
+  }, [realSessionId]);
+
+  // Demandes de parole (LOOP 05/14) — is_hand_raised sur live_speakers
+  // (LOOP 02-03/14), pas de table séparée. Un spectateur lève/baisse sa
+  // propre main ; l'hôte/modérateur voit la liste en direct et promeut.
+  const [isHandRaisedByMe, setIsHandRaisedByMe] = useState(false);
+  const [raisedHands, setRaisedHands] = useState<{ id: string; name: string }[]>([]);
+
+  const handleToggleHandRaise = () => {
+    if (!realSessionId) return;
+    const next = !isHandRaisedByMe;
+    setIsHandRaisedByMe(next);
+    setHandRaised(realSessionId, userProfile.id, next).catch(() => setIsHandRaisedByMe(!next));
+  };
+
+  useEffect(() => {
+    if (!realSessionId || !isHost) return; // seul l'hôte a besoin de la liste agrégée des mains levées
+    let cancelled = false;
+    const refresh = () => {
+      fetchActiveParticipants(realSessionId).then((participants) => {
+        if (cancelled) return;
+        setRaisedHands(participants.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
+      });
+    };
+    refresh();
+    const unsub = subscribeToLiveSpeakerChanges(realSessionId, (row) => {
+      const participantId = row.user_id;
+      if (!participantId || row.left_at) return;
+      setRaisedHands((prev) => {
+        const withoutThis = prev.filter(p => p.id !== participantId);
+        return row.is_hand_raised ? [...withoutThis, { id: participantId, name: row.name }] : withoutThis;
+      });
+    });
+    // Filet de sécurité : les mises à jour live_speakers ne sont pas
+    // toujours livrées par Realtime dans cet environnement (constaté en
+    // testant ce LOOP — contrairement à live_messages/live_reactions,
+    // confirmées fonctionnelles) ; ce polling garantit que la fonctionnalité
+    // reste réellement utilisable en attendant d'en identifier la cause.
+    const pollInterval = setInterval(refresh, 4000);
+    return () => { cancelled = true; unsub(); clearInterval(pollInterval); };
+  }, [realSessionId, isHost]);
+
+  const handlePromoteToSpeaker = (participantId: string) => {
+    if (!realSessionId) return;
+    updateParticipantRole(realSessionId, participantId, 'speaker').catch(() => {});
+    setHandRaised(realSessionId, participantId, false).catch(() => {});
+    setRaisedHands((prev) => prev.filter(p => p.id !== participantId));
+  };
+
+  // Notices système/IA (analyse Vision, arrivée d'un expert...) : purement
+  // locales à cet onglet, pas persistées ni diffusées — contrairement au chat
+  // saisi par un vrai utilisateur (handleSendMessage), qui lui passe par
+  // live_messages. Même forme (LiveChatMessage) pour un rendu unifié.
+  const pushLocalSystemMessage = (authorName: string, text: string) => {
+    setMessages(prev => [...prev, {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      sessionId: realSessionId || '',
+      authorId: undefined,
+      authorName,
+      authorAvatar: '',
+      text,
+      createdAt: new Date().toISOString(),
+    }]);
+  };
 
   // Questions (Q&R Zone)
   const [questions, setQuestions] = useState<LiveQuestion[]>([
@@ -418,11 +555,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
       const resultText = response || "Document analysé : Modèle de pacte d'associés conforme aux normes OHADA.";
       setVisionAnalysisResult(resultText);
-      setMessages(prev => [...prev, {
-        user: "Vision IA Diallo",
-        text: `👁️ Analyse visuelle du document partagé : ${resultText}`,
-        isAi: true
-      }]);
+      pushLocalSystemMessage("Vision IA Diallo", `👁️ Analyse visuelle du document partagé : ${resultText}`);
     } catch (e) {
       setVisionAnalysisResult("Document analysé : Tableau prévisionnel de trésorerie avec équilibre d'exploitation à M+6.");
     } finally {
@@ -456,7 +589,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setAiCopilotState('speaking');
 
     const welcomeMsg = `L'expert ${agent.name} (${agent.specialty}) a rejoint la scène en direct ! Posez vos questions spécialisées.`;
-    setMessages(prev => [...prev, { user: "Diallo OS", text: `⚡ ${welcomeMsg}`, isAi: true }]);
+    pushLocalSystemMessage("Diallo OS", `⚡ ${welcomeMsg}`);
     addNotification("Expert sur Scène ⚖️", `${agent.name} a rejoint le Live pour vous conseiller.`, "success");
 
     setTimeout(() => setAiCopilotState('idle'), 4000);
@@ -483,11 +616,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     ];
     setStageParticipants(newParticipants);
 
-    setMessages(prev => [...prev, {
-      user: "Diallo OS",
-      text: "🏛️ Le Conseil des Experts est réuni en direct : Projet, Juridique, Finance et Mobilité délibèrent conjointement sur votre dossier.",
-      isAi: true
-    }]);
+    pushLocalSystemMessage("Diallo OS", "🏛️ Le Conseil des Experts est réuni en direct : Projet, Juridique, Finance et Mobilité délibèrent conjointement sur votre dossier.");
 
     addNotification("Conseil Réuni 🏛️", "Table ronde multi-experts activée sur la scène Live.", "info");
   };
@@ -532,21 +661,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // Send Public Message
   const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    const newMsg = {
-      user: userProfile.name,
-      avatar: userProfile.avatarUrl,
-      text: chatInput.trim(),
-      isHost: isHost,
-      timestamp: 'À l\'instant'
-    };
-    setMessages(prev => [...prev, newMsg]);
+    if (!chatInput.trim() || !realSessionId) return;
+    const text = chatInput.trim();
     setChatInput('');
+    sendLiveMessage(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, text)
+      .then((sent) => setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent])))
+      .catch((err) => console.error('SocialLive: échec envoi message', err));
 
     // Trigger AI reaction if question
     if (chatInput.toLowerCase().includes('comment') || chatInput.toLowerCase().includes('pourquoi') || chatInput.toLowerCase().includes('expert')) {
       setTimeout(() => {
-        setCopilotInsight(`L'Expert IA peut apporter une réponse détaillée à : "${newMsg.text}"`);
+        setCopilotInsight(`L'Expert IA peut apporter une réponse détaillée à : "${text}"`);
       }, 1000);
     }
   };
@@ -1340,6 +1465,32 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               >
                 <Layout size={18} />
               </button>
+
+              {!isHost && (
+                <button
+                  onClick={handleToggleHandRaise}
+                  className={`p-3 rounded-2xl transition-all shadow-md ${isHandRaisedByMe ? 'bg-amber-500 text-white' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                  title={isHandRaisedByMe ? "Baisser la main" : "Demander la parole"}
+                >
+                  <Hand size={18} />
+                </button>
+              )}
+
+              {isHost && raisedHands.length > 0 && (
+                <div className="flex items-center gap-1.5 pl-2 ml-1 border-l border-white/10">
+                  <Hand size={14} className="text-amber-400" />
+                  {raisedHands.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => handlePromoteToSpeaker(p.id)}
+                      title={`Inviter ${p.name} sur scène`}
+                      className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-white text-amber-300 text-[10px] font-bold rounded-lg transition-colors"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Center Transformation Bridges */}
@@ -1379,7 +1530,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </button>
 
               <button
-                onClick={() => setLikesCount(prev => prev + 1)}
+                // Pas d'incrément optimiste ici : la table est append-only et
+                // le compteur ne fait que suivre les événements Realtime
+                // (y compris ceux qu'on envoie soi-même, rediffusés) — un
+                // incrément local en plus doublerait le compte de son propre tap.
+                onClick={() => { if (realSessionId) sendLiveReaction(realSessionId, userProfile.id, 'heart').catch(() => {}); }}
                 className="p-3 bg-gradient-to-tr from-pink-500 to-red-500 rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform flex items-center gap-1"
               >
                 <Heart size={18} fill="white" />
@@ -1430,7 +1585,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {copilotInsight && (
                   <div 
                     onClick={() => {
-                      setMessages(prev => [...prev, { user: aiAgent?.name || "Directeur Diallo", text: copilotInsight, isAi: true }]);
+                      pushLocalSystemMessage(aiAgent?.name || "Directeur Diallo", copilotInsight);
                       setCopilotInsight(null);
                     }}
                     className="p-3 bg-indigo-600/30 border border-indigo-500/40 rounded-2xl text-xs font-bold text-indigo-200 flex items-center justify-between cursor-pointer hover:bg-indigo-600/40 transition-colors animate-fade-down"
@@ -1440,27 +1595,31 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   </div>
                 )}
 
-                {messages.map((msg, i) => (
-                  <div 
-                    key={i} 
-                    className={`flex items-start gap-2.5 p-2 rounded-2xl transition-all ${msg.isAi ? 'bg-indigo-950/40 border border-indigo-500/20' : 'hover:bg-white/5'}`}
+                {messages.map((msg) => {
+                  const isAiMsg = !msg.authorId;
+                  const isHostMsg = !!msg.authorId && msg.authorId === realHostId;
+                  return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start gap-2.5 p-2 rounded-2xl transition-all ${isAiMsg ? 'bg-indigo-950/40 border border-indigo-500/20' : 'hover:bg-white/5'}`}
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${msg.isAi ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
-                      {msg.isAi ? <Bot size={16} /> : msg.user.charAt(0)}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAiMsg ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                      {isAiMsg ? <Bot size={16} /> : msg.authorName.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className={`text-xs font-extrabold truncate ${msg.isAi ? 'text-indigo-300' : 'text-slate-300'}`}>
-                          {msg.user}
+                        <span className={`text-xs font-extrabold truncate ${isAiMsg ? 'text-indigo-300' : 'text-slate-300'}`}>
+                          {msg.authorName}
                         </span>
-                        {msg.isHost && (
+                        {isHostMsg && (
                           <span className="px-1.5 py-0.2 bg-red-600/30 text-red-300 text-[9px] font-black rounded uppercase">Hôte</span>
                         )}
                       </div>
                       <p className="text-xs text-slate-200 leading-relaxed break-words">{msg.text}</p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
