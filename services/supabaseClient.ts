@@ -961,6 +961,50 @@ export const supabaseService = {
             return () => {};
         }
     },
+
+    // --- Tâches (LOOP 14/17) -------------------------------------------
+    /**
+     * LOOP 14/17 (moteur Tâches/Agenda/Planification, fondation) : premier
+     * TODO réellement trackable (statut/priorité/échéance) — distinct de
+     * `reminders` (déclenchement ponctuel unique, LOOP 09/17) et de
+     * `user_memory` (faits contextuels, LOOP 12-13/17). Aucune UI dédiée
+     * dans cette LOOP (décision de scope explicite, même choix que les
+     * rappels en LOOP 09/17) — testé directement via SQL/REST.
+     */
+    async getTasks(userId: string): Promise<any[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('user_id', userId)
+            .order('due_at', { ascending: true, nullsFirst: false });
+        if (error || !data) return [];
+        return data;
+    },
+    async createTask(userId: string, task: { title: string; description?: string; priority?: 'low' | 'medium' | 'high'; dueAt?: string; relatedType?: string; relatedId?: string }): Promise<any | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.from('tasks').insert({
+            user_id: userId,
+            title: task.title,
+            description: task.description ?? null,
+            priority: task.priority ?? 'medium',
+            due_at: task.dueAt ?? null,
+            related_type: task.relatedType ?? null,
+            related_id: task.relatedId ?? null,
+        }).select().single();
+        if (error) throw error;
+        return data;
+    },
+    async updateTaskStatus(userId: string, id: string, status: 'pending' | 'in_progress' | 'completed' | 'cancelled'): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('tasks').update({ status }).eq('id', id).eq('user_id', userId);
+        if (error) throw error;
+    },
+    async deleteTask(userId: string, id: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', userId);
+        if (error) throw error;
+    },
     /**
      * Diffusion admin réelle — jusqu'ici `adminConfigService.sendBroadcastNotification`
      * n'écrivait que dans un tableau en mémoire (`localStorage`), lu par
