@@ -31,6 +31,7 @@ import { MAIN_NAV_ITEMS, TRANSVERSAL_SERVICES, NavItemDef } from './NavigationIt
 import { LEGAL_PROCEDURES } from '../../constants';
 import { supabaseService } from '../../services/supabaseClient';
 import { SearchResult } from '../../types';
+import { interpretSearchVoiceCommand } from '../../services/search/searchVoiceCommands';
 
 interface UniversalSearchModalProps {
   isOpen: boolean;
@@ -59,6 +60,9 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   // chaque frappe.
   const [realResults, setRealResults] = useState<SearchResult[]>([]);
   const [isSearchingReal, setIsSearchingReal] = useState(false);
+  // LOOP 11/17 : distingue explicitement « la recherche a échoué » de
+  // « aucun résultat » — l'un ne doit jamais être présenté comme l'autre.
+  const [searchFailed, setSearchFailed] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,6 +70,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
       setVoiceFeedback(null);
       setSelectedIndex(0);
       setRealResults([]);
+      setSearchFailed(false);
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
@@ -77,13 +82,20 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     if (term.length < 2) {
       setRealResults([]);
       setIsSearchingReal(false);
+      setSearchFailed(false);
       return;
     }
     setIsSearchingReal(true);
     const handle = setTimeout(() => {
       supabaseService.universalSearch(term)
-        .then(setRealResults)
-        .catch(() => setRealResults([]))
+        .then(({ results, degraded }) => {
+          setRealResults(results);
+          setSearchFailed(degraded);
+        })
+        .catch(() => {
+          setRealResults([]);
+          setSearchFailed(true);
+        })
         .finally(() => setIsSearchingReal(false));
     }, 300);
     return () => clearTimeout(handle);
@@ -118,7 +130,19 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
         setQuery(transcript);
         setVoiceFeedback(`Compris : "${transcript}"`);
         setIsListening(false);
-        processVoiceCommand(transcript);
+        const matchedNavigation = processVoiceCommand(transcript);
+        // LOOP 11/17 (Architecte — navigateur de recherche) : repli
+        // uniquement quand aucun raccourci de navigation par mot-clé n'a
+        // été reconnu — le chemin rapide/déterministe ci-dessus reste
+        // inchangé et prioritaire, jamais remplacé par un appel IA.
+        if (!matchedNavigation) {
+          interpretSearchVoiceCommand(transcript).then((action) => {
+            if (action.type === 'SEARCH' && action.payload?.query) {
+              setQuery(action.payload.query);
+            }
+            setVoiceFeedback(action.spokenConfirmation);
+          });
+        }
       };
 
       recognition.onerror = () => {
@@ -138,82 +162,88 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     }
   };
 
-  const processVoiceCommand = (text: string) => {
+  /**
+   * Retourne `true` si un raccourci de navigation par mot-clé a été
+   * reconnu et exécuté (chemin rapide, déterministe, sans appel IA) —
+   * `false` sinon, pour laisser `interpretSearchVoiceCommand` (LOOP 11/17)
+   * prendre le relais côté recherche.
+   */
+  const processVoiceCommand = (text: string): boolean => {
     const clean = text.toLowerCase().trim();
-    
+
     // Quick intent matching
     if (clean.includes('carriere') || clean.includes('carrière') || clean.includes('emploi') || clean.includes('cv') || clean.includes('job')) {
       onNavigate('career');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('cours') || clean.includes('campus') || clean.includes('examen') || clean.includes('etude')) {
       onNavigate('campus');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('langue') || clean.includes('anglais') || clean.includes('espagnol')) {
       onNavigate('languages');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('demarche') || clean.includes('démarche') || clean.includes('titre de sejour') || clean.includes('admin')) {
       onNavigate('admin-procedures');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('logement') || clean.includes('habitat') || clean.includes('appartement')) {
       onNavigate('housing');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('sante') || clean.includes('santé') || clean.includes('medecin') || clean.includes('docteur')) {
       onNavigate('health');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('juridique') || clean.includes('droit') || clean.includes('avocat') || clean.includes('contrat')) {
       onNavigate('legal');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('marche') || clean.includes('marché') || clean.includes('boutique') || clean.includes('vendre') || clean.includes('fournisseur')) {
       onNavigate('shop');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('studio') || clean.includes('video') || clean.includes('creer')) {
       onNavigate('studio');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('reseau') || clean.includes('réseau') || clean.includes('moc') || clean.includes('social')) {
       onNavigate('social');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('expert') || clean.includes('conseil') || clean.includes('diallo')) {
       onNavigate('chat');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('parcours') || clean.includes('dossier') || clean.includes('cap')) {
       onNavigate('parcours');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('maps') || clean.includes('carte')) {
       onNavigate('google-maps');
       onClose();
-      return;
+      return true;
     }
     if (clean.includes('drive') || clean.includes('document')) {
       onNavigate('google-drive');
       onClose();
-      return;
+      return true;
     }
-    
-    // If no direct shortcut, pass query to search state
+
+    return false;
   };
 
   // Filter modules
@@ -477,6 +507,20 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
             <div className="px-2 text-[11px] text-slate-400 flex items-center gap-2">
               <div className="w-3 h-3 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
               Recherche dans les profils, publications et formations...
+            </div>
+          )}
+
+          {/* LOOP 11/17 : dégradation gracieuse honnête — un échec n'est
+              jamais présenté comme un simple silence, un vrai zéro résultat
+              n'est jamais présenté comme une panne. */}
+          {!isSearchingReal && query.trim().length >= 2 && searchFailed && (
+            <div className="px-2 text-[11px] text-amber-600">
+              La recherche dans les profils/publications/formations a rencontré un problème — réessayez, ou demandez à Diallo OS ci-dessus.
+            </div>
+          )}
+          {!isSearchingReal && !searchFailed && query.trim().length >= 2 && realResults.length === 0 && (
+            <div className="px-2 text-[11px] text-slate-400">
+              Aucun profil, publication ou formation ne correspond exactement — essayez de reformuler, ou demandez à Diallo OS ci-dessus.
             </div>
           )}
 

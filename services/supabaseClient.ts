@@ -488,72 +488,45 @@ export const supabaseService = {
         return data;
     },
     /**
-     * LOOP 10/17 (moteur de recherche universelle, fondation) : première
-     * recherche transversale réellement branchée sur Supabase —
-     * `UniversalSearchModal.tsx` ne filtrait jusqu'ici que des constantes
-     * locales (navigation, un `COURSES` factice à un seul élément, jamais
-     * connecté à la vraie table). Trois domaines réels, chacun passant par
-     * la session de l'appelant (RLS appliquée normalement, aucun
-     * contournement `SECURITY DEFINER` nécessaire) : `profiles` (déjà
-     * protégée par `profiles_select_visible`), `posts` (déjà protégée par
-     * `posts_select_visible` — un brouillon ou un post privé d'un tiers
-     * n'est jamais renvoyé), `courses` (déjà protégée par
-     * `courses_select_published_or_admin`). Deux requêtes `.ilike()` par
-     * domaine texte (jamais un `.or()` combinant les deux colonnes dans une
-     * seule chaîne de filtre) : une valeur de recherche contenant une
-     * virgule ou une parenthèse casserait la syntaxe de filtre `.or()` de
-     * PostgREST si elle n'était pas échappée — `.ilike()` seul lie la
-     * valeur normalement, sans ce risque. Volontairement absent de cette
-     * fondation (voir LOOP 11/17) : messages (nécessite un scope par
-     * conversation-membre, déjà signalé comme différé depuis la LOOP
-     * 06/17), tolérance aux fautes/accents (`pg_trgm`/`unaccent`, aucun des
-     * deux installé sur ce projet), classement par pertinence au-delà de
-     * l'ordre naturel, `live_sessions`/`documents` (aucune méthode de ce
-     * fichier ne les touche encore).
+     * LOOP 10/17 (fondation) puis LOOP 11/17 (intelligence & Architecte) —
+     * recherche transversale réelle : `profiles`/`posts`/`courses`, un seul
+     * appel RPC (`search_universal`, `SECURITY INVOKER` — RLS de chaque
+     * table appliquée normalement pour l'appelant, jamais de contournement)
+     * remplaçant les 5-6 requêtes REST séparées de la LOOP 10/17 :
+     * accent-insensible (`unaccent`, installé par cette LOOP — comble une
+     * lacune documentée depuis `searchProfiles`, LOOP 05/17) et le nom de
+     * l'auteur d'une publication résolu par une jointure côté serveur
+     * (jamais un second aller-retour réseau, jamais un nom fabriqué : si
+     * l'auteur n'est pas visible pour l'appelant, la jointure le filtre
+     * silencieusement — la publication reste, sans nom d'auteur).
+     *
+     * `degraded: true` distingue explicitement « l'appel a échoué » de
+     * « aucun résultat » — l'UI ne doit jamais présenter un échec comme un
+     * simple silence (dégradation gracieuse honnête, jamais un résultat
+     * fantôme ni une fausse certitude de zéro résultat).
+     *
+     * Volontairement absent (voir lots du plan, hors périmètre de cette
+     * mission à ce stade) : messages (scope par conversation-membre, différé
+     * depuis la LOOP 06/17), recherche sémantique/vectorielle (`pgvector`
+     * disponible mais non installé, aucun pipeline d'embedding), classement
+     * par pertinence au-delà de l'ordre naturel, `live_sessions`/`documents`.
      */
-    async universalSearch(query: string): Promise<Array<{ id: string; type: 'profile' | 'post' | 'course'; title: string; subtitle?: string; avatarUrl?: string }>> {
-        if (!isSupabaseConfigured) return [];
+    async universalSearch(query: string): Promise<{ results: Array<{ id: string; type: 'profile' | 'post' | 'course'; title: string; subtitle?: string; avatarUrl?: string }>; degraded: boolean }> {
+        if (!isSupabaseConfigured) return { results: [], degraded: false };
         const term = query.trim();
-        if (term.length < 2) return [];
-        const like = `%${term}%`;
+        if (term.length < 2) return { results: [], degraded: false };
 
-        const [profilesByName, profilesByTitle, postsByContent, coursesByTitle, coursesByDescription] = await Promise.all([
-            supabase.from('profiles').select('id, name, title, avatar_url').ilike('name', like).limit(8),
-            supabase.from('profiles').select('id, name, title, avatar_url').ilike('title', like).limit(8),
-            supabase.from('posts').select('id, author_id, content, created_at').ilike('content', like).order('created_at', { ascending: false }).limit(8),
-            supabase.from('courses').select('id, title, description, category').ilike('title', like).limit(8),
-            supabase.from('courses').select('id, title, description, category').ilike('description', like).limit(8),
-        ]);
+        const { data, error } = await supabase.rpc('search_universal', { term });
+        if (error) return { results: [], degraded: true };
 
-        const results: Array<{ id: string; type: 'profile' | 'post' | 'course'; title: string; subtitle?: string; avatarUrl?: string }> = [];
-
-        const seenProfiles = new Map<string, any>();
-        [...(profilesByName.data || []), ...(profilesByTitle.data || [])].forEach((p: any) => seenProfiles.set(p.id, p));
-        seenProfiles.forEach((p) => results.push({ id: p.id, type: 'profile', title: p.name, subtitle: p.title || undefined, avatarUrl: p.avatar_url || undefined }));
-
-        const seenCourses = new Map<string, any>();
-        [...(coursesByTitle.data || []), ...(coursesByDescription.data || [])].forEach((c: any) => seenCourses.set(c.id, c));
-        seenCourses.forEach((c) => results.push({ id: c.id, type: 'course', title: c.title, subtitle: c.category || undefined }));
-
-        const posts = postsByContent.data || [];
-        if (posts.length > 0) {
-            const authorIds = Array.from(new Set(posts.map((p: any) => p.author_id).filter(Boolean)));
-            const { data: authors } = await supabase.from('profiles').select('id, name, avatar_url').in('id', authorIds);
-            const authorById = new Map((authors || []).map((a: any) => [a.id, a]));
-            posts.forEach((p: any) => {
-                const author = authorById.get(p.author_id);
-                const snippet = (p.content || '').trim().slice(0, 100);
-                results.push({
-                    id: p.id,
-                    type: 'post',
-                    title: snippet || 'Publication',
-                    subtitle: author ? `Par ${author.name}` : undefined,
-                    avatarUrl: author?.avatar_url || undefined,
-                });
-            });
-        }
-
-        return results;
+        const results = (data || []).map((row: any) => ({
+            id: row.id,
+            type: row.result_type as 'profile' | 'post' | 'course',
+            title: row.title,
+            subtitle: row.subtitle || undefined,
+            avatarUrl: row.avatar_url || undefined,
+        }));
+        return { results, degraded: false };
     },
     /**
      * Nombre d'amis en commun entre l'utilisateur courant et un autre
