@@ -156,6 +156,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   const [stageInvitation, setStageInvitation] = useState<{ inviterName: string } | null>(null);
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
+  // Consentement caméra/micro/vision (LOOP 12/16) — au-delà du simple
+  // toggle mic/caméra existant : avant toute publication réelle de média,
+  // la personne qui monte sur scène voit explicitement ce qui sera capturé
+  // et peut refuser (repli : spectateur, jamais de caméra/micro publiés
+  // sans ce choix explicite).
+  const [hasMediaConsent, setHasMediaConsent] = useState(false);
+  const [showMediaConsentModal, setShowMediaConsentModal] = useState(isHost);
+  const handleAcceptMediaConsent = () => { setHasMediaConsent(true); setShowMediaConsentModal(false); };
+  const handleDeclineMediaConsent = () => { setIsUserOnStage(false); setShowMediaConsentModal(false); };
 
   // Provisionnement de la session réelle (LOOP 05/14) — la plupart des points
   // d'entrée du LIVE (SocialFeed, Trade*, StoryViewer...) ouvrent encore ce
@@ -240,12 +249,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // Transport vidéo réel (LOOP 04/14) — une room LiveKit par session LIVE
   // réelle, publication activée seulement si l'utilisateur est réellement
-  // sur scène (cohérent avec le jeton émis côté serveur). Désactivé tant que
-  // la session réelle n'est pas confirmée (voir ci-dessus).
+  // sur scène (cohérent avec le jeton émis côté serveur) ET a donné son
+  // consentement explicite (LOOP 12/16) — jamais de getUserMedia déclenché
+  // avant ce choix. Désactivé tant que la session réelle n'est pas
+  // confirmée (voir ci-dessus).
   const liveTransport = useLiveTransport({
     roomName: realSessionId || '',
     participantName: userProfile.name,
-    canPublish: isUserOnStage,
+    canPublish: isUserOnStage && hasMediaConsent,
     enabled: !!realSessionId,
   });
 
@@ -2427,6 +2438,42 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             >
               Reprendre le Direct
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* CONSENTEMENT CAMÉRA/MICRO/VISION (LOOP 12/16) — au-delà du simple
+          toggle mic/caméra : personne ne publie de média réel avant ce choix
+          explicite (voir canPublish plus haut). Essentiel, jamais soumis à
+          l'effacement contextuel, au-dessus de toute autre modale. */}
+      {showMediaConsentModal && (
+        <div className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-scale-in">
+            <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+              <Camera size={18} /> Avant de rejoindre la scène
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              En rejoignant la scène de ce direct, votre caméra et votre micro seront diffusés en direct à l'ensemble des participants.
+            </p>
+            <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
+              <li>Caméra : votre image vidéo sera visible par tous les participants du direct.</li>
+              <li>Micro : votre voix sera diffusée en direct.</li>
+              <li>Vision IA : un intervenant peut déclencher manuellement une analyse ponctuelle d'une image partagée (jamais automatique, jamais une reconnaissance faciale fiable).</li>
+            </ul>
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={handleAcceptMediaConsent}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Autoriser caméra et micro
+              </button>
+              <button
+                onClick={handleDeclineMediaConsent}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Continuer sans caméra ni micro (spectateur)
+              </button>
+            </div>
           </div>
         </div>
       )}
