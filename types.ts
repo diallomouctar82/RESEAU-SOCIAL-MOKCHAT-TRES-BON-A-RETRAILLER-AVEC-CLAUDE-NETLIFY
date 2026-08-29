@@ -467,7 +467,7 @@ export interface LiveStageParticipant {
     id: string;
     name: string;
     avatar: string;
-    role: 'host' | 'cohost' | 'guest' | 'expert_ai' | 'expert_human' | 'speaker' | 'secretary_ai' | 'moderator_ai' | 'director_ai';
+    role: 'host' | 'cohost' | 'guest' | 'viewer' | 'moderator' | 'expert_ai' | 'expert_human' | 'speaker' | 'secretary_ai' | 'moderator_ai' | 'director_ai';
     isMuted: boolean;
     isVideoOn: boolean;
     isAi?: boolean;
