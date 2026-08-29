@@ -5,6 +5,23 @@ import { generateJSON } from '../services/aiGateway';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
+import { describeCapabilitiesForHumans } from '../services/architecte/capabilityRegistry';
+
+// LOOP 16/17 (Capability Registry plateforme, mission Architecte MOCnet) :
+// « qu'est-ce que tu peux faire ? » est traité de façon 100% déterministe,
+// sans appel LLM — la réponse ne peut donc jamais contenir une capacité
+// inventée, uniquement ce que PLATFORM_CAPABILITY_REGISTRY contient
+// réellement. Formulations volontairement précises (pas de simple "aide"
+// seul, trop générique et qui intercepterait de vraies commandes de
+// navigation contenant ce mot, ex. "aide-moi à trouver un emploi").
+const DISCOVERY_PHRASES = [
+    'que peux-tu faire',
+    "qu'est-ce que tu peux faire",
+    "qu'est ce que tu peux faire",
+    'quelles sont tes capacités',
+    'que sais-tu faire',
+    "qu'est-ce que tu sais faire",
+];
 
 interface DialloOSProps {
     isOpen: boolean;
@@ -48,6 +65,15 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         setIsThinking(true);
         setAiResponse(null);
         setActiveAction(null);
+
+        const normalizedCommand = command.trim().toLowerCase();
+        if (DISCOVERY_PHRASES.some((phrase) => normalizedCommand.includes(phrase))) {
+            const summary = describeCapabilitiesForHumans();
+            setAiResponse(summary);
+            if (viaVoice) speak(summary);
+            setIsThinking(false);
+            return;
+        }
 
         try {
             // SYSTEM PROMPT FOR OS CONTROL
