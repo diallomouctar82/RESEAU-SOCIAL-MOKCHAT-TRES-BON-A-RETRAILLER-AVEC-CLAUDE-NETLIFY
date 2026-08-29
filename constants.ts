@@ -368,12 +368,16 @@ export const USER_PROFILE: UserProfile = {
     avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&fit=crop',
     preferredLanguage: 'fr',
     twoFactorEnabled: true,
-    skills: [{ name: 'React', progress: 85 }, { name: 'Node.js', progress: 70 }, { name: 'Anglais', progress: 60 }],
-    badges: [
-        { id: 'b1', name: 'Pionnier', icon: '🚀', description: 'Membre fondateur' },
-        { id: 'b2', name: 'Polyglotte', icon: '🗣️', description: 'Parle 3 langues' }
-    ],
+    skills: [],
+    badges: [],
     interests: ['Tech', 'Voyage', 'Entrepreneuriat'],
+    privacySettings: {
+        profileVisibility: 'public',
+        allowMessagesFrom: 'all',
+        showOnlineStatus: true,
+        allowTagging: true,
+        showActivityFeed: true
+    },
     shop: {
         id: 's1',
         name: 'Diallo Tech Solutions',

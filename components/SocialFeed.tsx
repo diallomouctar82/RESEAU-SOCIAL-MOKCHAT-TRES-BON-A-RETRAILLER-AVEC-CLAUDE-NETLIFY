@@ -39,7 +39,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isRealPostId = (id: string) => UUID_RE.test(id);
 
 export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat }) => {
-  const { userProfile: currentUser, isSupabaseConnected } = useGlobal();
+  const { userProfile: currentUser, isSupabaseConnected, updateUserProfile } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
   const [feedFilter, setFeedFilter] = useState<'for_you' | 'following' | 'community' | 'tech' | 'legal' | 'business'>('for_you');
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,7 +213,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 storiesCount: 2,
                 reelsCount: 1,
                 livesCount: 0,
-                skills: p.skills?.map((s: any) => s.name) || ['Coopération', 'Tech'],
+                skills: p.skills?.map((s: any) => s.name) || [],
                 privacySettings: p.privacy_settings || {
                   profileVisibility: 'public',
                   allowMessagesFrom: 'all',
@@ -751,14 +751,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 storiesCount: stories.filter(s => s.author === currentUser.name).length,
                 reelsCount: reels.filter(r => r.author === currentUser.name).length,
                 livesCount: 0,
-                skills: ['Coopération', 'Tech', 'Innovation'],
-                privacySettings: {
-                  profileVisibility: 'public',
-                  allowMessagesFrom: 'all',
-                  showOnlineStatus: true,
-                  allowTagging: true,
-                  showActivityFeed: true
-                }
+                skills: currentUser.skills.map(s => s.name),
+                privacySettings: currentUser.privacySettings
               };
               setSelectedMemberForProfile(myProfile);
             }}
@@ -1916,6 +1910,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           onStartChatWithMember={(m) => {
             if (onOpenDirectChat) onOpenDirectChat(undefined, m);
           }}
+          // Confidentialité modifiable uniquement sur son propre profil —
+          // ne jamais fournir ce callback pour la fiche d'un autre membre.
+          onUpdatePrivacySettings={
+            selectedMemberForProfile.id === (currentUser.id || 'u1')
+              ? (newSettings) => updateUserProfile({ privacySettings: newSettings })
+              : undefined
+          }
         />
       )}
 

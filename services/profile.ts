@@ -49,5 +49,12 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
         skills: skills || [],
         badges: (badges || []).map((b) => ({ id: b.id, name: b.name, icon: b.icon || '', description: b.description || '' })),
         interests: profile.interests || [],
+        privacySettings: profile.privacy_settings || {
+            profileVisibility: 'public',
+            allowMessagesFrom: 'all',
+            showOnlineStatus: true,
+            allowTagging: true,
+            showActivityFeed: true
+        },
     };
 };

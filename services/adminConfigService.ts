@@ -2139,34 +2139,16 @@ export class AdminConfigService {
 
       const cloudProfiles = await supabaseService.fetchAdminProfiles();
       if (!cloudProfiles || cloudProfiles.length === 0) {
-        // Pousser les utilisateurs locaux vers Supabase s'il est vide
-        for (const localUser of this.users) {
-          try {
-            await supabaseService.upsertProfile({
-              id: localUser.id,
-              email: localUser.email,
-              name: localUser.name,
-              role: localUser.role as any,
-              country: localUser.country,
-              city: localUser.city || 'Paris',
-              title: localUser.title,
-              bio: localUser.bio,
-              avatar_url: localUser.avatarUrl,
-              citizenship_id: localUser.citizenshipId,
-              credits: localUser.credits,
-              xp: localUser.xp || 50,
-              level: localUser.level || 1,
-              is_verified: localUser.kycVerified
-            });
-          } catch (err: any) {
-            errors.push(`Erreur push profil ${localUser.email}: ${err?.message}`);
-          }
-        }
+        // `this.users` (INITIAL_USERS) contient uniquement des personas de
+        // démonstration (isDemoSeed) avec des ids non-UUID — jamais de vrais
+        // comptes à pousser vers `profiles` (colonne `id` de type uuid, tout
+        // upsert échouerait). Rien à synchroniser tant qu'aucun vrai profil
+        // n'existe côté Supabase ; ce n'est pas un échec.
         return {
           success: true,
           totalUsers: this.users.length,
           newUsersCount: 0,
-          errors
+          errors: []
         };
       }
 

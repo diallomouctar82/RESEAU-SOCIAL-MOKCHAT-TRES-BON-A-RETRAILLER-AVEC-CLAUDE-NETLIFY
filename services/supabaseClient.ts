@@ -109,9 +109,14 @@ export interface SupabaseUserProfile {
     is_verified?: boolean;
     followers_count?: number;
     following_count?: number;
-    skills?: any[];
-    badges?: any[];
     interests?: string[];
+    privacy_settings?: {
+        profileVisibility: 'public' | 'network' | 'private';
+        allowMessagesFrom: 'all' | 'network' | 'none';
+        showOnlineStatus: boolean;
+        allowTagging: boolean;
+        showActivityFeed: boolean;
+    };
 }
 
 /**

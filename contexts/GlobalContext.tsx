@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile, Notification, UserShop, WalletTransaction } from '../types';
 import { USER_PROFILE, MOCK_TRANSACTIONS } from '../constants';
-import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient';
+import { supabaseService } from '../services/supabaseClient';
 
 interface GlobalContextType {
     userProfile: UserProfile;
@@ -35,34 +35,6 @@ const mapSupabaseNotification = (rn: any): Notification => ({
     timestamp: new Date(rn.created_at),
     read: rn.read
 });
-
-// Helper to convert Supabase DB Profile into App UserProfile
-const mapSupabaseToUserProfile = (db: SupabaseUserProfile, current: UserProfile): UserProfile => {
-    return {
-        ...current,
-        id: db.id || current.id,
-        email: db.email || current.email,
-        name: db.name || current.name,
-        title: db.title || current.title,
-        bio: db.bio || current.bio,
-        role: db.role === 'super_admin' || db.role === 'admin' ? 'admin' : 'user',
-        country: db.country || current.country,
-        city: db.city || current.city,
-        citizenshipId: db.citizenship_id || current.citizenshipId,
-        phone: db.phone || current.phone,
-        website: db.website || current.website,
-        level: db.level ?? current.level,
-        xp: db.xp ?? current.xp,
-        credits: db.credits ?? current.credits,
-        avatarUrl: db.avatar_url || current.avatarUrl,
-        isVerified: db.is_verified ?? current.isVerified,
-        followersCount: db.followers_count ?? current.followersCount,
-        followingCount: db.following_count ?? current.followingCount,
-        skills: db.skills && Array.isArray(db.skills) ? db.skills : current.skills,
-        badges: db.badges && Array.isArray(db.badges) ? db.badges : current.badges,
-        interests: db.interests && Array.isArray(db.interests) ? db.interests : current.interests,
-    };
-};
 
 export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -99,40 +71,26 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         });
     };
 
-    // Sync profile with Supabase on mount and auth state change
+    // Le chargement du profil applicatif complet (profil + compétences +
+    // badges + confidentialité) est entièrement géré par App.tsx via
+    // services/profile.ts::fetchUserProfile, qui va chercher les vraies
+    // tables profile_skills/profile_badges — le dupliquer ici (comme
+    // c'était le cas auparavant) faisait tourner une seconde implémentation
+    // incomplète en parallèle, sans ces jointures, avec un résultat qui
+    // dépendait de l'ordre de résolution des deux. Ce contexte ne gère donc
+    // plus que ce qui n'est pas déjà couvert par ce chemin : l'état de
+    // connexion Supabase et les notifications réelles.
     useEffect(() => {
-        const checkCloudProfile = async () => {
-            const isConfig = supabaseService.isConfigured();
-            setIsSupabaseConnected(isConfig);
+        const isConfig = supabaseService.isConfigured();
+        setIsSupabaseConnected(isConfig);
+        if (!isConfig) return;
 
-            if (isConfig) {
-                const currentUser = await supabaseService.getCurrentUser();
-                if (currentUser) {
-                    const dbProfile = await supabaseService.getProfile(currentUser.id);
-                    if (dbProfile) {
-                        setUserProfile(prev => {
-                            const merged = mapSupabaseToUserProfile(dbProfile, prev);
-                            localStorage.setItem('lmav_session_v2', JSON.stringify(merged));
-                            return merged;
-                        });
-                    }
-                    await loadRealNotifications(currentUser.id);
-                }
-            }
-        };
-
-        checkCloudProfile();
+        supabaseService.getCurrentUser().then(currentUser => {
+            if (currentUser) loadRealNotifications(currentUser.id);
+        });
 
         const { unsubscribe } = supabaseService.onAuthStateChange(async (event, session) => {
             if (session?.user) {
-                const dbProfile = await supabaseService.getProfile(session.user.id);
-                if (dbProfile) {
-                    setUserProfile(prev => {
-                        const merged = mapSupabaseToUserProfile(dbProfile, prev);
-                        localStorage.setItem('lmav_session_v2', JSON.stringify(merged));
-                        return merged;
-                    });
-                }
                 await loadRealNotifications(session.user.id);
             }
         });
@@ -197,6 +155,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     avatar_url: updates.avatarUrl || userProfile.avatarUrl,
                     citizenship_id: updates.citizenshipId || userProfile.citizenshipId,
                     interests: updates.interests || userProfile.interests,
+                    privacy_settings: updates.privacySettings || userProfile.privacySettings,
                 });
             } catch (err) {
                 console.warn('Error syncing profile to Supabase', err);

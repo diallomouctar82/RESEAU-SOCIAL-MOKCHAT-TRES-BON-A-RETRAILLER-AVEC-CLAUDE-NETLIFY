@@ -18,7 +18,7 @@ Toute l'app converge vers **une identité unique** : `auth.users` (Supabase Auth
 
 | Domaine | Tables | Notes |
 |---|---|---|
-| **Identity** | `profiles`, `profile_skills`, `profile_badges` | `profiles.id` = `auth.users.id`. `role`/`credits`/`xp`/`level`/`next_level_xp` protégés en écriture (trigger, voir §5). |
+| **Identity** | `profiles`, `profile_skills`, `profile_badges` | `profiles.id` = `auth.users.id`. `role`/`credits`/`xp`/`level`/`next_level_xp` protégés en écriture (trigger, voir §5). `profile_skills`/`profile_badges` : lecture réelle (`services/profile.ts`), édition non exposée côté UI ; `source_type`/`source_id` (ajoutés 29 août 2026) préparent un enrichissement automatique futur (formation, certification, projet, recommandation, activité) — non implémenté, RLS reste privée `own_or_admin`. |
 | **Social** | `posts`, `post_documents`, `comments`, `post_reactions`, `stories` | Réactions UNIQUE(post_id, user_id). Commentaires self-FK (réponses imbriquées). |
 | **Messagerie** | `conversations`, `conversation_participants`, `messages`, `agent_chat_sessions`, `agent_chat_messages` | `messages` en Realtime. Chat Expert IA enfin persisté (service `memoryService` existait côté code mais n'était jamais branché). |
 | **Dossiers de vie** | `dossiers`, `dossier_steps`, `dossier_tasks`, `dossier_documents`, `dossier_deliverables`, `dossier_appointments`, `dossier_shares` | Domaine le mieux justifié par l'audit (CRUD réel préexistant). Partage explicite via `dossier_shares`. |

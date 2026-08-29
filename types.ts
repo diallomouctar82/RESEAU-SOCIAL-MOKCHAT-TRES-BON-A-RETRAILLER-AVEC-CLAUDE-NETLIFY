@@ -68,6 +68,13 @@ export interface UserProfile {
     skills: { name: string; progress: number }[];
     badges: { id: string; name: string; icon: string; description: string }[];
     interests: string[];
+    privacySettings: {
+        profileVisibility: 'public' | 'network' | 'private';
+        allowMessagesFrom: 'all' | 'network' | 'none';
+        showOnlineStatus: boolean;
+        allowTagging: boolean;
+        showActivityFeed: boolean;
+    };
     shop?: UserShop;
     medical?: {
         bloodType: string;
