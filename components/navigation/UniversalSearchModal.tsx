@@ -28,7 +28,9 @@ import {
   Volume2
 } from 'lucide-react';
 import { MAIN_NAV_ITEMS, TRANSVERSAL_SERVICES, NavItemDef } from './NavigationItems';
-import { AGENTS, COURSES, JOBS, LEGAL_PROCEDURES } from '../../constants';
+import { LEGAL_PROCEDURES } from '../../constants';
+import { supabaseService } from '../../services/supabaseClient';
+import { SearchResult } from '../../types';
 
 interface UniversalSearchModalProps {
   isOpen: boolean;
@@ -49,16 +51,43 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // LOOP 10/17 (recherche universelle, fondation) : résultats réels
+  // (Supabase, RLS appliquée) — distincts des sections ci-dessous qui
+  // restent à raison purement locales (MAIN_NAV_ITEMS/TRANSVERSAL_SERVICES/
+  // LEGAL_PROCEDURES sont la structure de navigation de l'app elle-même,
+  // jamais des données en base). Débounce 300ms pour éviter une requête à
+  // chaque frappe.
+  const [realResults, setRealResults] = useState<SearchResult[]>([]);
+  const [isSearchingReal, setIsSearchingReal] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setQuery('');
       setVoiceFeedback(null);
       setSelectedIndex(0);
+      setRealResults([]);
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setRealResults([]);
+      setIsSearchingReal(false);
+      return;
+    }
+    setIsSearchingReal(true);
+    const handle = setTimeout(() => {
+      supabaseService.universalSearch(term)
+        .then(setRealResults)
+        .catch(() => setRealResults([]))
+        .finally(() => setIsSearchingReal(false));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query]);
 
   // Voice command detection
   const handleToggleVoice = () => {
@@ -214,9 +243,12 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     ? LEGAL_PROCEDURES.filter(p => p.title.toLowerCase().includes(query.toLowerCase()) || p.category.toLowerCase().includes(query.toLowerCase()))
     : [];
 
-  const filteredCourses = query.trim().length > 1
-    ? COURSES.filter(c => c.title.toLowerCase().includes(query.toLowerCase()) || c.category.toLowerCase().includes(query.toLowerCase()))
-    : [];
+  // Résultats réels (LOOP 10/17) répartis par type — remplace l'ancien
+  // filtre local sur un `COURSES` factice à un seul élément, jamais
+  // connecté à la vraie table.
+  const realProfiles = realResults.filter(r => r.type === 'profile');
+  const realPosts = realResults.filter(r => r.type === 'post');
+  const realCourses = realResults.filter(r => r.type === 'course');
 
   const handleSelectTab = (tabId: string) => {
     onNavigate(tabId);
@@ -440,8 +472,78 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
             </div>
           )}
 
-          {/* Course Matches */}
-          {filteredCourses.length > 0 && (
+          {/* Recherche réelle en cours (LOOP 10/17) */}
+          {isSearchingReal && (
+            <div className="px-2 text-[11px] text-slate-400 flex items-center gap-2">
+              <div className="w-3 h-3 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+              Recherche dans les profils, publications et formations...
+            </div>
+          )}
+
+          {/* Profil Matches — réel, respecte profiles_select_visible (LOOP 10/17) */}
+          {realProfiles.length > 0 && (
+            <div>
+              <div className="flex justify-between items-center px-2 mb-2 pt-2 border-t border-slate-100">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Profils MOK
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {realProfiles.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectTab('social')}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-between text-left transition"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {p.avatarUrl ? (
+                        <img src={p.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <Users size={16} className="text-indigo-600 shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 truncate block">{p.title}</span>
+                        {p.subtitle && <span className="text-[10px] text-slate-500">{p.subtitle}</span>}
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Publication Matches — réel, respecte posts_select_visible (LOOP 10/17) */}
+          {realPosts.length > 0 && (
+            <div>
+              <div className="flex justify-between items-center px-2 mb-2 pt-2 border-t border-slate-100">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Publications MOK
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {realPosts.map((post) => (
+                  <button
+                    key={post.id}
+                    onClick={() => handleSelectTab('social')}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 flex items-center justify-between text-left transition"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <MessageSquare size={16} className="text-blue-600 shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 truncate block">{post.title}</span>
+                        {post.subtitle && <span className="text-[10px] text-slate-500">{post.subtitle}</span>}
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Course Matches — réel, respecte courses_select_published_or_admin (LOOP 10/17, remplace l'ancien filtre sur un COURSES factice à un seul élément) */}
+          {realCourses.length > 0 && (
             <div>
               <div className="flex justify-between items-center px-2 mb-2 pt-2 border-t border-slate-100">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -449,20 +551,20 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                 </span>
               </div>
               <div className="space-y-1.5">
-                {filteredCourses.map((crs) => (
+                {realCourses.map((crs) => (
                   <button
                     key={crs.id}
                     onClick={() => handleSelectTab('campus')}
                     className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 flex items-center justify-between text-left transition"
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <GraduationCap size={16} className="text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="text-xs font-bold text-slate-800">{crs.title}</span>
-                        <span className="text-[10px] text-slate-500 ml-2">• {crs.duration} • {crs.xp} XP</span>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 truncate block">{crs.title}</span>
+                        {crs.subtitle && <span className="text-[10px] text-slate-500">{crs.subtitle}</span>}
                       </div>
                     </div>
-                    <ChevronRight size={14} className="text-slate-400" />
+                    <ChevronRight size={14} className="text-slate-400 shrink-0" />
                   </button>
                 ))}
               </div>

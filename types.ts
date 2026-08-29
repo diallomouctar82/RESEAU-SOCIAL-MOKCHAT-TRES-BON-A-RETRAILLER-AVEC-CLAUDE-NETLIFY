@@ -1045,6 +1045,28 @@ export interface Notification {
     targetAction?: string;
 }
 
+/**
+ * LOOP 10/17 (moteur de recherche universelle, fondation) : forme commune
+ * pour un résultat de recherche réel (Supabase), quel que soit son domaine
+ * d'origine — jusqu'ici `UniversalSearchModal.tsx` ne filtrait que des
+ * constantes locales (`MAIN_NAV_ITEMS`, `TRANSVERSAL_SERVICES`,
+ * `LEGAL_PROCEDURES`, et un `COURSES` factice à un seul élément, jamais
+ * connecté à la vraie table `courses`). `subtitle`/`avatarUrl` restent
+ * optionnels car leur pertinence dépend du domaine (un profil a un avatar,
+ * une publication non). Aucun champ sensible ici — chaque requête d'origine
+ * (voir `supabaseClient.ts::universalSearch`) sélectionne déjà un ensemble
+ * minimal de colonnes, RLS appliquée normalement (pas de contournement
+ * `SECURITY DEFINER` nécessaire, chaque requête passe par la session réelle
+ * de l'utilisateur qui cherche).
+ */
+export interface SearchResult {
+    id: string;
+    type: 'profile' | 'post' | 'course';
+    title: string;
+    subtitle?: string;
+    avatarUrl?: string;
+}
+
 export interface Message {
     id: string;
     role: 'user' | 'model';
