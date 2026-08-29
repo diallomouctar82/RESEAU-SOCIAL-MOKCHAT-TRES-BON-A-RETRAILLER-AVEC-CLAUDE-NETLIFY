@@ -367,6 +367,31 @@ export const supabaseService = {
         return data;
     },
 
+    // --- Gouvernance du contenu (LOOP 02/17, mission Architecte MOCnet) ----
+    /** Suppression réelle et définitive — RLS (`posts_delete_own_or_admin`) limite déjà l'accès à l'auteur ou un admin ; la confirmation avant appel est de la responsabilité de l'appelant UI. */
+    async deletePost(postId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('posts').delete().eq('id', postId);
+        if (error) throw error;
+    },
+    /** Archiver/désarchiver/republier — réutilise le statut ajouté en LOOP 01/17 ; RLS limite déjà à l'auteur ou un admin. */
+    async updatePostStatus(postId: string, status: 'published' | 'archived'): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.from('posts').update({ status }).eq('id', postId);
+        if (error) throw error;
+    },
+    /**
+     * Partage réel avec vérification de droits (LOOP 02/17) : appelle la
+     * fonction `increment_post_shares` (SECURITY DEFINER, vérifie elle-même
+     * que le post est public ET publié avant d'incrémenter — jamais de
+     * partage silencieux d'un contenu privé/brouillon/archivé).
+     */
+    async sharePost(postId: string): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase.rpc('increment_post_shares', { p_post_id: postId });
+        if (error) throw error;
+    },
+
     // --- Commentaires & réactions (fil social) --------------------------
     async getCommentsForPosts(postIds: string[]): Promise<any[]> {
         if (!isSupabaseConfigured || postIds.length === 0) return [];

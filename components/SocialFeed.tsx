@@ -5,8 +5,8 @@ import {
   FileText, ChevronLeft, MapPin, X, Bot, Camera, Image as ImageIcon, DollarSign, 
   Clock, Lock, Volume2, VolumeX, Music, Wand2, Zap, Globe, MessageSquare, Check, 
   Smile, Send, ChevronDown, ChevronUp, ArrowRight, Mic, Phone, PhoneCall, Paperclip, 
-  MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp, 
-  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle
+  MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp,
+  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle, Trash2, Archive
 } from 'lucide-react';
 import { 
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
@@ -57,6 +57,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [userReactions, setUserReactions] = useState<{ [postId: string]: PostReactionType }>({ 'post-1': 'like', 'post-3': 'insightful' });
   const [bookmarkedPosts, setBookmarkedPosts] = useState<string[]>([]);
   const [showReactionPickerForPost, setShowReactionPickerForPost] = useState<string | null>(null);
+  // Menu "..." archiver/supprimer (LOOP 02/17, gouvernance du contenu) —
+  // un seul menu ouvert à la fois, identifié par l'id du post.
+  const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
 
   // Comments State
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
@@ -768,6 +771,58 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setNewStoryImageFile(null);
   };
 
+  // --- Gouvernance du contenu (LOOP 02/17) : suppression, archivage, partage ---
+  const canManagePost = (post: Post) => post.authorId === (currentUser.id || 'u1') || currentUser.role === 'admin';
+
+  const handleDeletePost = async (post: Post) => {
+    setOpenPostMenuId(null);
+    if (!window.confirm('Supprimer définitivement cette publication ? Cette action est irréversible.')) return;
+    if (supabaseService.isConfigured() && isRealPostId(post.id)) {
+      try {
+        await supabaseService.deletePost(post.id);
+      } catch (err) {
+        console.warn('Could not delete post from Supabase', err);
+        alert('La suppression a échoué. Réessayez.');
+        return;
+      }
+    }
+    setPosts(prev => prev.filter(p => p.id !== post.id));
+  };
+
+  // Un post archivé sort immédiatement du fil (même règle côté serveur :
+  // getPosts() ne renvoie que status='published', voir services/supabaseClient.ts)
+  // — le désarchiver depuis ce fil n'a donc pas de sens ici ; une vraie vue
+  // "mes archives" reste à construire (LOOP 03/17) pour le faire.
+  const handleArchivePost = async (post: Post) => {
+    setOpenPostMenuId(null);
+    if (supabaseService.isConfigured() && isRealPostId(post.id)) {
+      try {
+        await supabaseService.updatePostStatus(post.id, 'archived');
+      } catch (err) {
+        console.warn('Could not archive post', err);
+        return;
+      }
+    }
+    setPosts(prev => prev.filter(p => p.id !== post.id));
+  };
+
+  // Partage réel (LOOP 02/17) : incrémente shares_count via une fonction
+  // serveur qui vérifie elle-même que le post est public ET publié avant
+  // d'accepter l'incrément (services/supabaseClient.ts::sharePost) — jamais
+  // de partage silencieux d'un contenu qui ne devrait pas l'être.
+  const handleSharePost = async (post: Post) => {
+    navigator.clipboard.writeText(`https://lemondeavous.org/mooc/posts/${post.id}`);
+    if (supabaseService.isConfigured() && isRealPostId(post.id)) {
+      try {
+        await supabaseService.sharePost(post.id);
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares: (p.shares || 0) + 1 } : p));
+      } catch (err) {
+        console.warn('Could not record share', err);
+      }
+    }
+    alert('Lien de la publication copié !');
+  };
+
   // Open Author Profile Modal
   const handleOpenAuthorProfile = (post: Post) => {
     const foundMember = members.find(m => m.id === post.authorId || m.name === post.authorName);
@@ -1227,13 +1282,44 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                               {post.category}
                             </span>
                           )}
-                          <button 
+                          <button
                             onClick={() => handleToggleBookmark(post.id)}
                             className={`p-2 rounded-xl transition-colors ${isBookmarked ? 'bg-amber-50 text-amber-600' : 'text-slate-400 hover:bg-slate-100'}`}
                             title="Enregistrer dans mes favoris"
                           >
                             <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
                           </button>
+
+                          {/* Menu Archiver/Supprimer — auteur ou admin uniquement (LOOP 02/17, gouvernance du contenu) */}
+                          {canManagePost(post) && (
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenPostMenuId(openPostMenuId === post.id ? null : post.id)}
+                                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                                title="Plus d'options"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {openPostMenuId === post.id && (
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl border border-slate-100 shadow-xl z-20 py-1 animate-scale-up">
+                                  <button
+                                    onClick={() => handleArchivePost(post)}
+                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                                  >
+                                    <Archive size={14} />
+                                    <span>Archiver</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePost(post)}
+                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 size={14} />
+                                    <span>Supprimer</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                       </div>
@@ -1368,16 +1454,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           </button>
                         </div>
 
-                        {/* Shares Count & Button */}
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText(`https://lemondeavous.org/mooc/posts/${post.id}`);
-                            alert('Lien de la publication copié !');
-                          }}
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+                        {/* Shares Count & Button — partage réel avec vérification de droits (LOOP 02/17) */}
+                        <button
+                          onClick={() => handleSharePost(post)}
+                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-1"
                           title="Partager le post"
                         >
                           <Share2 size={16} />
+                          {(post.shares ?? 0) > 0 && <span className="text-[11px] font-bold">{post.shares}</span>}
                         </button>
 
                       </div>
