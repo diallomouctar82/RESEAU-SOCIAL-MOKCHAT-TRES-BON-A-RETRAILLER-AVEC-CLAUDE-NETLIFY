@@ -31,6 +31,7 @@ import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
 import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
+import { glassSurfaceClass } from '../services/live/liveMaterialSystem';
 
 interface SocialLiveProps {
   liveId: string;
@@ -843,8 +844,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
       
-      {/* 1. TOP HEADER BAR */}
-      <div className="h-16 bg-slate-900/90 backdrop-blur-xl border-b border-white/10 px-4 flex items-center justify-between z-30">
+      {/* 1. TOP HEADER BAR — matière verre/eau/lumière (LOOP 07/14), surface de référence */}
+      <div className={`h-16 ${glassSurfaceClass('primary')} px-4 flex items-center justify-between z-30`}>
         
         {/* Left: Live Indicator, Title & Badges */}
         <div className="flex items-center gap-3 min-w-0">
@@ -1449,7 +1450,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
           {/* REAL-TIME BILINGUAL SUBTITLES BAR (DIALLO OS) */}
           {subtitlesMode !== 'off' && (
-            <div className="h-16 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 px-6 flex items-center justify-between z-20">
+            <div className={`h-16 ${glassSurfaceClass('primary')} px-6 flex items-center justify-between z-20`}>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 bg-indigo-600/30 text-indigo-400 rounded-xl border border-indigo-500/30 flex-shrink-0">
                   <Globe size={16} />
@@ -1496,8 +1497,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             </div>
           )}
 
-          {/* BOTTOM CONTROLS DOCK */}
-          <div className="h-16 bg-slate-900 border-t border-white/10 px-6 flex items-center justify-between z-20">
+          {/* BOTTOM CONTROLS DOCK — matière verre/eau/lumière (LOOP 07/14) */}
+          <div className={`h-16 ${glassSurfaceClass('primary')} px-6 flex items-center justify-between z-20`}>
             
             {/* Media Toggles */}
             <div className="flex items-center gap-2">
@@ -1605,9 +1606,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
         </div>
 
-        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) */}
-        <div className="w-full md:w-96 bg-slate-900 border-l border-white/10 flex flex-col h-1/2 md:h-full z-20">
-          
+        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) — matière verre/eau/lumière (LOOP 07/14) */}
+        <div className={`w-full md:w-96 ${glassSurfaceClass('surface')} border-l flex flex-col h-1/2 md:h-full z-20`}>
+
           {/* Sidebar Tabs */}
           <div className="flex border-b border-white/10 bg-black/40 p-1 overflow-x-auto">
             {[

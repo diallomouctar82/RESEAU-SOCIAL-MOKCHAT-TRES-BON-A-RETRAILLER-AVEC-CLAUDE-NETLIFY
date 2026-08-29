@@ -39,9 +39,54 @@
                 600: '#2563eb', // Primary Blue
                 700: '#1d4ed8',
                 900: '#0B132B', // Institutional Deep Navy
-              }
+              },
+              // Système verre/eau/lumière du LIVE (LOOP 07/14, univers n°9
+              // Glassmorphism Crystal Water — prompts 1/7 et 3/7). Teintes du
+              // "corps" du verre/de l'eau, distinctes du slate/indigo générique
+              // utilisé partout ailleurs dans l'app pour bien signaler que le
+              // LIVE a sa propre matière visuelle.
+              crystal: {
+                deep: '#040B14',    // fond derrière le verre, jamais du noir pur
+                glass: '#0C1B2E',   // corps du verre au repos
+                water: '#0E293D',   // teinte de l'eau en mouvement
+                highlight: '#8FE3FF', // reflet/lumière sur le verre
+                foam: '#E8FBFF',    // microbulles/écume, très clair
+              },
             },
             keyframes: {
+              // Repos : quasi immobile, respiration à peine perceptible.
+              'water-idle': {
+                '0%, 100%': { transform: 'scale(1)', opacity: '0.9' },
+                '50%': { transform: 'scale(1.004)', opacity: '1' },
+              },
+              // Interaction : légère ondulation à la surface.
+              'water-ripple': {
+                '0%, 100%': { transform: 'translateY(0) scale(1)' },
+                '50%': { transform: 'translateY(-1px) scale(1.006)' },
+              },
+              // Commande vocale : onde lumineuse qui traverse le verre.
+              'water-wave': {
+                '0%': { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' },
+              },
+              // Réflexion (l'IA réfléchit) : mouvements internes subtils, plus lents que l'ondulation.
+              'water-reflect': {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '33%': { transform: 'translateY(-0.5px)' },
+                '66%': { transform: 'translateY(0.5px)' },
+              },
+              // Succès : impulsion positive, brève et nette.
+              'water-success': {
+                '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(143,227,255,0.5)' },
+                '40%': { transform: 'scale(1.03)', boxShadow: '0 0 0 8px rgba(143,227,255,0)' },
+                '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(143,227,255,0)' },
+              },
+              // Erreur : variation discrète, jamais agressive (pas de secousse violente).
+              'water-error': {
+                '0%, 100%': { transform: 'translateX(0)' },
+                '25%': { transform: 'translateX(-1.5px)' },
+                '75%': { transform: 'translateX(1.5px)' },
+              },
               'fade-up': {
                 '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
                 '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -107,7 +152,13 @@
               'fall': 'fall 3s linear forwards',
               'slide-across': 'slide-across 5s linear forwards',
               'pop-in': 'pop-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-              'scan-vertical': 'scan-vertical 2s linear infinite'
+              'scan-vertical': 'scan-vertical 2s linear infinite',
+              'water-idle': 'water-idle 6s ease-in-out infinite',
+              'water-ripple': 'water-ripple 1.6s ease-in-out infinite',
+              'water-wave': 'water-wave 1.8s linear infinite',
+              'water-reflect': 'water-reflect 2.4s ease-in-out infinite',
+              'water-success': 'water-success 0.6s ease-out forwards',
+              'water-error': 'water-error 0.4s ease-in-out',
             }
           }
         }
@@ -141,6 +192,26 @@
       .perspective-container {
         perspective: 1000px;
         transform-style: preserve-3d;
+      }
+      /* Système verre/eau/lumière (LOOP 07/14) — le verre est une matière
+         (épaisseur perçue, reflet, profondeur), pas un effet CSS générique
+         plaqué partout : bordure claire en haut (lumière qui vient d'en
+         haut), légère dégradation vers le bas (profondeur du liquide),
+         netteté du contenu jamais compromise (le flou reste sur le fond,
+         jamais sur le texte au premier plan — prompt 3/7). */
+      .glass-crystal {
+        background: linear-gradient(180deg, rgba(15, 41, 61, 0.72) 0%, rgba(4, 11, 20, 0.85) 100%);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        border: 1px solid rgba(143, 227, 255, 0.18);
+        border-top-color: rgba(232, 251, 255, 0.35);
+        box-shadow: inset 0 1px 0 0 rgba(232, 251, 255, 0.12), 0 8px 32px -8px rgba(4, 11, 20, 0.6);
+      }
+      .glass-crystal-surface {
+        background: linear-gradient(180deg, rgba(14, 41, 61, 0.55) 0%, rgba(12, 27, 46, 0.65) 100%);
+        backdrop-filter: blur(14px) saturate(130%);
+        -webkit-backdrop-filter: blur(14px) saturate(130%);
+        border: 1px solid rgba(143, 227, 255, 0.14);
       }
     </style>
   <script type="importmap">
