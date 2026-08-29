@@ -1,0 +1,73 @@
+# Déploiement LiveKit Server auto-hébergé (LOOP 15/16) — Redis + Caddy (TLS
+# automatique Let's Encrypt) + LiveKit Server (signalisation + média RTC).
+#
+# Architecture "ports & adapters" respectée (voir services/live/liveTransportTypes.ts,
+# services/live/liveKitTransportProvider.ts) : ce serveur ne remplace qu'une
+# LIGNE de configuration dans la table Supabase `live_transport_config`
+# (environment='production') — aucun code applicatif ne change entre le
+# serveur de développement local (`livekit-server --dev`, LOOP 01/16) et ce
+# déploiement. Voir README.md de ce dossier pour les étapes manuelles.
+#
+# Usage (sur le VPS, avec accès SSH) :
+#   cp .env.production.example .env.production
+#   nano .env.production   # renseigner LIVEKIT_DOMAIN, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+#   ./deploy.sh
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  livekit:
+    image: livekit/livekit-server:v1.8
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      # LiveKit accepte sa configuration complète via cette variable (YAML
+      # en ligne) — évite un fichier séparé à interpoler au démarrage du
+      # conteneur. Substitution faite par docker compose lui-même à partir
+      # de .env.production, avant que le conteneur ne démarre.
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50100
+          use_external_ip: true
+        redis:
+          address: redis:6379
+        keys:
+          ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+        turn:
+          enabled: true
+          udp_port: 3478
+    ports:
+      # Média RTC (WebRTC) — UDP prioritaire, TCP en repli si UDP bloqué par le réseau du participant.
+      - "7881:7881/tcp"
+      - "50000-50100:50000-50100/udp"
+      # Relais TURN (UDP) — pour les participants derrière un NAT/pare-feu strict.
+      - "3478:3478/udp"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - livekit
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      LIVEKIT_DOMAIN: "${LIVEKIT_DOMAIN}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  redis-data:
+  caddy-data:
+  caddy-config:
