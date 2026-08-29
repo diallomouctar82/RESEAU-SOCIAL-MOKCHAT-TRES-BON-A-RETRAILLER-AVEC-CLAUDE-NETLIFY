@@ -229,6 +229,54 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // 4. View Mode: Video Stage / Screen Share / Whiteboard / Documents / Meeting / Commerce / Masterclass
   const [mainStageMode, setMainStageMode] = useState<'camera' | 'screen' | 'whiteboard' | 'document' | 'council' | 'meeting' | 'commerce' | 'masterclass'>('camera');
+
+  // Trois niveaux d'interface (LOOP 06/14, prompt 4/7) : Essentiel (toujours
+  // là — live/titre/quitter, mic/vidéo, demande de parole) ne dépend jamais
+  // de controlsVisible ; Contextuel (chrome secondaire : sélecteur de scène,
+  // outils rapides, ponts de transformation) s'efface au repos et
+  // réapparaît à la moindre activité — souris (desktop) ou tap (mobile, pas
+  // de survol persistant en tactile) ; Avancé (changer la scène pour tout le
+  // monde, salle d'attente, invoquer un expert) est réservé à qui est
+  // réellement sur scène, jamais affiché à un simple spectateur.
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    // Souris/clavier (desktop) : signal continu, force la réapparition —
+    // c'est le comportement attendu du survol. Le tactile n'a pas
+    // d'équivalent continu (un tap est ponctuel) : on se contente d'y
+    // repousser l'horloge d'inactivité, sans forcer l'affichage — sinon
+    // chaque tap entrerait en conflit avec le geste explicite de
+    // handleStageTap (qui, lui, doit pouvoir masquer le chrome).
+    const markActiveVisible = () => { lastActivityRef.current = Date.now(); setControlsVisible(true); };
+    const markActiveSilent = () => { lastActivityRef.current = Date.now(); };
+    window.addEventListener('mousemove', markActiveVisible);
+    window.addEventListener('keydown', markActiveVisible);
+    window.addEventListener('touchstart', markActiveSilent);
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivityRef.current > 4000) setControlsVisible(false);
+    }, 1000);
+    return () => {
+      window.removeEventListener('mousemove', markActiveVisible);
+      window.removeEventListener('keydown', markActiveVisible);
+      window.removeEventListener('touchstart', markActiveSilent);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Geste mobile (prompt 4/7, "gestes limités et découvrables") : tap sur la
+  // scène = équivalent tactile du survol souris, bascule l'affichage du
+  // chrome contextuel au lieu de ne réagir qu'à l'inactivité.
+  const handleStageTap = (e: React.MouseEvent) => {
+    // Ignore les clics sur un contrôle réel à l'intérieur de la scène (Vision
+    // IA, tuiles participants...) — seul un tap sur le fond vide doit
+    // basculer la visibilité du chrome contextuel.
+    if (e.target !== e.currentTarget) return;
+    if (controlsVisible) { lastActivityRef.current = 0; setControlsVisible(false); }
+    else { lastActivityRef.current = Date.now(); setControlsVisible(true); }
+  };
+
+  const contextualChromeClass = `transition-opacity duration-500 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`;
   
   // 5. Diallo OS Copilot & Real-Time Multilingual Subtitles
   const [subtitlesMode, setSubtitlesMode] = useState<'off' | 'original' | 'translated' | 'bilingual'>('bilingual');
@@ -825,8 +873,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           </div>
         </div>
 
-        {/* Center: Stage Mode Selectors */}
-        <div className="hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-xl">
+        {/* Center: Stage Mode Selectors — Avancé : change la scène pour TOUS
+            les spectateurs, réservé à qui est réellement sur scène. */}
+        {isUserOnStage && (
+        <div className={`hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-xl ${contextualChromeClass}`}>
           <button
             onClick={() => setMainStageMode('camera')}
             className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'camera' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
@@ -870,61 +920,68 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             <Award size={13} /> Conseil
           </button>
         </div>
+        )}
 
-        {/* Right: Quick Tools, Summon Expert, Subtitles & Close */}
+        {/* Right: Quick Tools (Contextuel, s'efface au repos), Summon Expert
+            (Avancé, sur scène uniquement), et Quitter (Essentiel, toujours visible) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Audio Only Mode (Low Data) */}
-          <button
-            onClick={handleToggleAudioOnly}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-white/10 hover:text-white'}`}
-            title="Mode Audio Seul (Économie de bande passante 85%)"
-          >
-            <Headphones size={14} />
-            <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
-          </button>
+          <div className={`flex items-center gap-1.5 sm:gap-2 ${contextualChromeClass}`}>
+            {/* Audio Only Mode (Low Data) — personnel, utile à tout spectateur */}
+            <button
+              onClick={handleToggleAudioOnly}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-white/10 hover:text-white'}`}
+              title="Mode Audio Seul (Économie de bande passante 85%)"
+            >
+              <Headphones size={14} />
+              <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
+            </button>
 
-          {/* SOS Help Button */}
-          <button
-            onClick={() => setShowInstantHelpModal(true)}
-            className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
-            title="Besoin d'aide immédiate ou modération"
-          >
-            <LifeBuoy size={14} />
-            <span className="hidden sm:inline">SOS Aide</span>
-          </button>
+            {/* SOS Help Button */}
+            <button
+              onClick={() => setShowInstantHelpModal(true)}
+              className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              title="Besoin d'aide immédiate ou modération"
+            >
+              <LifeBuoy size={14} />
+              <span className="hidden sm:inline">SOS Aide</span>
+            </button>
 
-          {/* Fact-Check Sources */}
-          <button
-            onClick={() => setShowFactCheckModal(true)}
-            className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/40 text-sky-300 border border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
-            title="Vérificateur de sources et déclarations"
-          >
-            <FileCheck size={14} />
-            <span className="hidden xl:inline">Fact-Check</span>
-          </button>
+            {/* Fact-Check Sources */}
+            <button
+              onClick={() => setShowFactCheckModal(true)}
+              className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/40 text-sky-300 border border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
+              title="Vérificateur de sources et déclarations"
+            >
+              <FileCheck size={14} />
+              <span className="hidden xl:inline">Fact-Check</span>
+            </button>
 
-          {/* Waiting Room Briefing */}
-          <button
-            onClick={() => setShowWaitingRoomModal(true)}
-            className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
-            title="Paramètres de scène & Salle d'attente"
-          >
-            <Sliders size={14} />
-          </button>
+            {isUserOnStage && (
+              <button
+                onClick={() => setShowWaitingRoomModal(true)}
+                className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
+                title="Paramètres de scène & Salle d'attente"
+              >
+                <Sliders size={14} />
+              </button>
+            )}
 
-          <button
-            onClick={() => setShowSummonExpertModal(true)}
-            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
-          >
-            <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
-          </button>
+            {isUserOnStage && (
+              <button
+                onClick={() => setShowSummonExpertModal(true)}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+              >
+                <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
+              </button>
+            )}
 
-          <button
-            onClick={handleRequestCatchup}
-            className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
-          >
-            <Sparkles size={14} /> Résumé
-          </button>
+            <button
+              onClick={handleRequestCatchup}
+              className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
+            >
+              <Sparkles size={14} /> Résumé
+            </button>
+          </div>
 
           <button
             onClick={handleEndLive}
@@ -998,9 +1055,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         {/* A. LEFT MAIN STAGE (70%) */}
         <div className="flex-1 relative bg-slate-950 flex flex-col overflow-hidden">
           
-          {/* Active Stage View Switcher */}
-          <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-            
+          {/* Active Stage View Switcher — tap = geste mobile équivalent au
+              survol souris pour révéler/masquer le chrome contextuel
+              (pas de survol persistant en tactile). */}
+          <div className="flex-1 relative flex items-center justify-center overflow-hidden" onClick={handleStageTap}>
+
             {/* MODE 1: CAMERA & MULTI-SPEAKER STAGE */}
             {mainStageMode === 'camera' && (
               <div className="w-full h-full p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950">
@@ -1493,34 +1552,34 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               )}
             </div>
 
-            {/* Center Transformation Bridges */}
-            <div className="flex items-center gap-2">
+            {/* Center Transformation Bridges — Contextuel, s'efface au repos */}
+            <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
               <button
                 onClick={handleTransformToParcours}
-                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all"
+                className="px-3 sm:px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all"
               >
-                <ListTodo size={14} /> Transformer en Parcours
+                <ListTodo size={14} /> <span className="hidden sm:inline">Transformer en Parcours</span>
               </button>
 
               <button
                 onClick={handleBookPrivateSession}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-white/10 flex items-center gap-1.5 transition-all"
+                className="px-3 sm:px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-white/10 flex items-center gap-1.5 transition-all"
               >
-                <Lock size={14} /> Continuer en Privé
+                <Lock size={14} /> <span className="hidden sm:inline">Continuer en Privé</span>
               </button>
 
               {liveData.tribeName && (
                 <button
                   onClick={handleJoinTribe}
-                  className="px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
+                  className="px-3 sm:px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1.5 transition-all"
                 >
-                  <Flame size={14} /> Rejoindre la Tribu
+                  <Flame size={14} /> <span className="hidden sm:inline">Rejoindre la Tribu</span>
                 </button>
               )}
             </div>
 
-            {/* Right: Likes & Gifts */}
-            <div className="flex items-center gap-2">
+            {/* Right: Likes & Gifts — Contextuel, s'efface au repos */}
+            <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
               <button
                 onClick={() => setShowGifts(!showGifts)}
                 className="p-3 bg-pink-600/20 hover:bg-pink-600 text-pink-400 hover:text-white rounded-2xl border border-pink-500/30 transition-all"
