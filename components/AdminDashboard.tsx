@@ -87,12 +87,12 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Unified Tab Bar with prominent AI Connectors tab */}
-        <div className="flex overflow-x-auto sm:flex-wrap gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-full xl:w-auto">
+        <div className="flex overflow-x-auto sm:flex-wrap gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-full xl:w-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'overview' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'overview'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -103,9 +103,9 @@ export const AdminDashboard: React.FC = () => {
           {/* Connecteurs & Modèles IA — Mise en avant stratégique */}
           <button
             onClick={() => setActiveTab('ai-connectors')}
-            className={`px-3.5 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'ai-connectors' 
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md ring-2 ring-blue-400/40' 
+            className={`px-3.5 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'ai-connectors'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md ring-2 ring-blue-400/40'
                 : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200 shadow-xs'
             }`}
           >
@@ -120,9 +120,9 @@ export const AdminDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'users' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'users'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -132,24 +132,27 @@ export const AdminDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('moderation')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'moderation' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'moderation'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
             <ShieldAlert size={15} />
             Modération & MokTrust
             {(pendingReportsCount > 0 || flaggedCount > 0) && (
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+              <span className="relative inline-flex w-2 h-2">
+                <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full w-2 h-2 bg-red-500"></span>
+              </span>
             )}
           </button>
 
           <button
             onClick={() => setActiveTab('modules')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'modules' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'modules'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -159,9 +162,9 @@ export const AdminDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'settings' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'settings'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -171,9 +174,9 @@ export const AdminDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('templates')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'templates' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'templates'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -183,9 +186,9 @@ export const AdminDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('workflows')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'workflows' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'workflows'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -195,9 +198,9 @@ export const AdminDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('logs')}
-            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeTab === 'logs' 
-                ? 'bg-blue-600 text-white shadow-sm' 
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'logs'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -214,6 +217,9 @@ export const AdminDashboard: React.FC = () => {
           users={users}
           modules={modules}
           logs={logs}
+          aiProviders={aiProviders}
+          signatures={signatures}
+          stamps={stamps}
           onNavigateTab={(tab) => setActiveTab(tab as AdminTab)}
         />
       )}

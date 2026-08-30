@@ -21,7 +21,7 @@ import {
   Sparkles,
   ArrowUpRight
 } from 'lucide-react';
-import { AdminSystemConfig, AdminUserRecord, PlatformModuleConfig, SystemAuditLog } from '../../types';
+import { AdminSystemConfig, AdminUserRecord, PlatformModuleConfig, SystemAuditLog, AIProviderConfig, OfficialSignature, OfficialStamp } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { cloudService } from '../../services/cloud';
 
@@ -30,6 +30,9 @@ interface AdminOverviewTabProps {
   users: AdminUserRecord[];
   modules: PlatformModuleConfig[];
   logs: SystemAuditLog[];
+  aiProviders: AIProviderConfig[];
+  signatures: OfficialSignature[];
+  stamps: OfficialStamp[];
   onNavigateTab: (tabId: string) => void;
 }
 
@@ -38,6 +41,9 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
   users,
   modules,
   logs,
+  aiProviders,
+  signatures,
+  stamps,
   onNavigateTab
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,6 +52,8 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
   const activeUsersCount = users.filter(u => u.status === 'active').length;
   const activeModulesCount = modules.filter(m => m.isEnabled && !m.inMaintenance).length;
   const activeSecurityAlerts = logs.filter(l => l.level === 'security' || l.level === 'error').length;
+  const activeProvidersCount = aiProviders.filter(p => p.isEnabled).length;
+  const activeStampsCount = stamps.filter(s => s.isActive).length;
 
   const handleToggleMaintenance = () => {
     const updated = !config.maintenanceMode;
@@ -95,9 +103,9 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           <div className="flex flex-wrap gap-3">
             <button
               onClick={handleToggleMaintenance}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${
-                config.maintenanceMode 
-                  ? 'bg-amber-500 text-slate-950 ring-4 ring-amber-500/30 font-black' 
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950 ${
+                config.maintenanceMode
+                  ? 'bg-amber-500 text-slate-950 ring-4 ring-amber-500/30 font-black'
                   : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
               }`}
             >
@@ -107,9 +115,9 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
             <button
               onClick={handleToggleHighSecurity}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${
-                config.highSecurityMode 
-                  ? 'bg-blue-600 text-white ring-2 ring-blue-400 font-bold' 
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950 ${
+                config.highSecurityMode
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-400 font-bold'
                   : 'bg-white/10 hover:bg-white/20 text-slate-300 border border-white/10'
               }`}
             >
@@ -119,8 +127,9 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
             <button
               onClick={handleRefresh}
-              className={`p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all ${isRefreshing ? 'animate-spin' : ''}`}
+              className={`p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950 ${isRefreshing ? 'animate-spin' : ''}`}
               title="Rafraîchir les métriques"
+              aria-label="Rafraîchir les métriques"
             >
               <RefreshCw size={18} />
             </button>
@@ -130,9 +139,10 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div 
+        <button
+          type="button"
           onClick={() => onNavigateTab('users')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group"
+          className="text-left w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
           <div className="flex justify-between items-start mb-3">
             <div className="p-3 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition">
@@ -147,49 +157,52 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
             <span>Citoyens & Experts</span>
             <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 text-blue-600 transition" />
           </div>
-        </div>
+        </button>
 
-        <div 
+        <button
+          type="button"
           onClick={() => onNavigateTab('ai-connectors')}
-          className="bg-white p-5 rounded-2xl border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 transition cursor-pointer group"
+          className="text-left w-full bg-white p-5 rounded-2xl border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 transition cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
         >
           <div className="flex justify-between items-start mb-3">
             <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition">
               <BrainCircuit size={22} />
             </div>
             <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
-              Auto-Résilience Active
+              {activeProvidersCount} Actif{activeProvidersCount > 1 ? 's' : ''}
             </span>
           </div>
-          <div className="text-3xl font-black text-slate-900">15 Connecteurs IA</div>
+          <div className="text-3xl font-black text-slate-900">{aiProviders.length} Connecteur{aiProviders.length > 1 ? 's' : ''} IA</div>
           <div className="text-xs font-bold text-slate-500 mt-1 flex items-center justify-between">
             <span>Orchestrateur & Modèles</span>
             <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 text-indigo-600 transition" />
           </div>
-        </div>
+        </button>
 
-        <div 
+        <button
+          type="button"
           onClick={() => onNavigateTab('templates')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group"
+          className="text-left w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
           <div className="flex justify-between items-start mb-3">
             <div className="p-3 rounded-xl bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition">
               <FileText size={22} />
             </div>
             <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800">
-              4 Sceaux Actifs
+              {activeStampsCount} Sceau{activeStampsCount > 1 ? 'x' : ''} Actif{activeStampsCount > 1 ? 's' : ''}
             </span>
           </div>
           <div className="text-3xl font-black text-slate-900">Signatures & Lettres</div>
           <div className="text-xs font-bold text-slate-500 mt-1 flex items-center justify-between">
-            <span>Actes & Modèles Certifiés</span>
+            <span>{signatures.length} signature{signatures.length > 1 ? 's' : ''} & {stamps.length} sceau{stamps.length > 1 ? 'x' : ''}</span>
             <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 text-amber-600 transition" />
           </div>
-        </div>
+        </button>
 
-        <div 
-          onClick={() => onNavigateTab('workflows')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group"
+        <button
+          type="button"
+          onClick={() => onNavigateTab('modules')}
+          className="text-left w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
           <div className="flex justify-between items-start mb-3">
             <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
@@ -204,7 +217,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
             <span>Local-First & Sauvegardes</span>
             <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 text-emerald-600 transition" />
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Grid: Infrastructure & Modules Health */}
@@ -217,7 +230,10 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
               <h3 className="font-bold text-slate-900 text-base">Topologie & Serveurs</h3>
             </div>
             <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className="relative inline-flex w-1.5 h-1.5">
+                <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-emerald-500"></span>
+              </span>
               Opérationnel
             </span>
           </div>
@@ -228,7 +244,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
                 <p className="font-bold text-slate-800">Nœud Primaire (Europe)</p>
                 <p className="text-slate-500 text-[11px]">{config.primaryNode}</p>
               </div>
-              <span className="font-mono font-bold text-emerald-600">LATENCE 18ms</span>
+              <span className="font-mono font-bold text-emerald-600">EN LIGNE</span>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 flex justify-between items-center">
@@ -248,14 +264,9 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-              <span>Stockage Utilisé (IndexedDB Local-First)</span>
-              <span className="font-bold text-slate-800">{cloudService.formatBytes(config.totalStorageUsedBytes)}</span>
-            </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div className="bg-blue-600 h-full w-[28%] rounded-full"></div>
-            </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Stockage Utilisé (IndexedDB Local-First)</span>
+            <span className="font-bold text-slate-800">{cloudService.formatBytes(config.totalStorageUsedBytes)}</span>
           </div>
         </div>
 
@@ -266,9 +277,9 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
               <Layers className="text-blue-600" size={20} />
               <h3 className="font-bold text-slate-900 text-base">État des Modules Piliers</h3>
             </div>
-            <button 
-              onClick={() => onNavigateTab('ai-modules')}
-              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+            <button
+              onClick={() => onNavigateTab('modules')}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 px-2 py-1 -mr-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Gérer
             </button>
@@ -294,8 +305,8 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
 
           <button
-            onClick={() => onNavigateTab('ai-modules')}
-            className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition text-center"
+            onClick={() => onNavigateTab('modules')}
+            className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             Voir les {modules.length} modules de la plateforme
           </button>
@@ -310,7 +321,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
             </div>
             <button 
               onClick={() => onNavigateTab('logs')}
-              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 px-2 py-1 -mr-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Tous ({logs.length})
             </button>
@@ -337,7 +348,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
           <button
             onClick={() => onNavigateTab('logs')}
-            className="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold transition text-center"
+            className="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold transition text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             Consulter les journaux d'audit complets
           </button>
