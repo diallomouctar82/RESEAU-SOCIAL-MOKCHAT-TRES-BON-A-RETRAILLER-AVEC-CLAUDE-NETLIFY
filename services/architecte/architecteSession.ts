@@ -94,7 +94,7 @@ export function buildSessionContext(maxChars: number = 1600): string {
         if (t.kind === 'image') {
             lines.unshift(`[${who} a montré une image — ${t.text || 'sans légende'}]`);
         } else if (t.kind === 'document') {
-            lines.unshift(`[${who} a fourni le document « ${t.docName} »]`);
+            lines.unshift(`[${who} a fourni le document « ${t.docName} »${t.docExcerpt ? ` — extrait réel : ${t.docExcerpt.slice(0, 300)}` : ''}]`);
         } else {
             lines.unshift(`${who} : ${t.text.slice(0, 220)}`);
         }

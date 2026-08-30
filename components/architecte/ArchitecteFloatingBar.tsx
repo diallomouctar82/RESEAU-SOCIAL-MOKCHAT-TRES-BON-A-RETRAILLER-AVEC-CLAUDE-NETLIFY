@@ -11,6 +11,7 @@ import {
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
 import { isVisionQuestion, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
+import { extractDocumentText, UnsupportedDocumentError } from '../../services/architecte/documentExtractor';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
 import { registerSettingsCapabilities } from '../../services/architecte/settingsCapabilityHandlers';
 import { registerSearchCapabilities } from '../../services/architecte/searchCapabilityHandlers';
@@ -343,13 +344,6 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    /** Formats binaires qu'aucune bibliothèque du dépôt ne sait ouvrir. */
-    const isUnreadableBinary = (file: File) =>
-        /\.(xlsx|xls|docx|doc|pptx|ppt|zip|rar)$/i.test(file.name) ||
-        file.type.includes('officedocument') ||
-        file.type.includes('ms-excel') ||
-        file.type.includes('msword');
-
     const handleFilePicked = useCallback(async (file: File | undefined) => {
         if (!file) return;
 
@@ -373,36 +367,32 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             return;
         }
 
-        if (isUnreadableBinary(file)) {
-            // Honnêteté : aucun analyseur Excel/Word/PowerPoint n'existe dans
-            // ce dépôt. Le dire vaut mieux qu'un échec silencieux ou qu'une
-            // réponse inventée à partir d'octets illisibles.
-            announce(
-                `Je ne sais pas encore ouvrir un fichier ${file.name.split('.').pop()?.toUpperCase()}. Exportez-le en PDF, en texte ou en image, et je le lirai.`,
-                'text-amber-300'
-            );
-            return;
-        }
-
-        if (file.type === 'application/pdf') {
-            announce("Je ne sais pas encore lire un PDF. Envoyez-moi une capture d'écran de la page qui vous intéresse.", 'text-amber-300');
-            return;
-        }
-
-        // Texte lisible tel quel : txt, csv, json, markdown, code...
+        // Extraction RÉELLE du texte — PDF, Word, Excel, PowerPoint, ZIP,
+        // texte : le moteur d'extraction (`documentExtractor.ts`) remplace
+        // les anciens refus. Le document rejoint la session : l'Architecte
+        // peut en discuter immédiatement, à la voix comme au clavier.
         try {
-            const texte = (await file.text()).slice(0, 12000);
-            if (!texte.trim()) { announce('Ce fichier est vide.', 'text-amber-300'); return; }
             setIsThinking(true);
             setStatus('Je lis le document...');
             setStatusTone('text-cyan-300/80');
+            const doc = await extractDocumentText(file);
+            addSessionTurn({
+                role: 'utilisateur', kind: 'document',
+                text: `Document fourni : ${doc.name}`,
+                docName: doc.name,
+                docExcerpt: doc.text.slice(0, 1200),
+            });
             const reponse = await generateText(
-                `Voici le contenu du fichier « ${file.name} » :\n\n${texte}\n\nRésume-le et donne ton avis utile, en deux phrases maximum, en français.`,
-                { systemInstruction: "Tu es L'Architecte de MokNet. Tu t'appuies uniquement sur le contenu fourni et tu n'inventes rien." }
+                `Voici le contenu réellement extrait du ${doc.kindLabel} « ${doc.name} »${doc.truncated ? ' (tronqué)' : ''} :\n\n${doc.text}\n\nRésume l'essentiel en deux ou trois phrases, en français, puis propose UNE suite utile (correction, réorganisation, réponse à une question...).`,
+                { systemInstruction: "Tu es L'Architecte de MokNet. Tu t'appuies UNIQUEMENT sur le contenu fourni et tu n'inventes rien — si le contenu est partiel, dis-le." }
             );
             announce(reponse?.trim() || "Je n'ai rien pu tirer de ce document.", 'text-cyan-300/80');
         } catch (e: any) {
-            announce(`La lecture a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            if (e instanceof UnsupportedDocumentError) {
+                announce(e.message, 'text-amber-300');
+            } else {
+                announce(`La lecture de « ${file.name} » a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            }
         } finally {
             setIsThinking(false);
         }
@@ -764,7 +754,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
-                    accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc"
+                    accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
                     onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
                 />
                 <button
