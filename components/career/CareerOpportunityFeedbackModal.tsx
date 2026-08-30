@@ -70,7 +70,7 @@ export const CareerOpportunityFeedbackModal: React.FC<CareerOpportunityFeedbackM
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white"
+            className="p-3 hover:bg-white/10 rounded-full text-slate-400 hover:text-white"
           >
             <X size={20} />
           </button>

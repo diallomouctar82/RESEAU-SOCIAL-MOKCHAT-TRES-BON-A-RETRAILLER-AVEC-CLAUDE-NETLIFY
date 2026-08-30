@@ -102,7 +102,7 @@ export const CareerOpportunityVaultModal: React.FC<CareerOpportunityVaultModalPr
           </div>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
+            className="p-3 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
           >
             <X size={22} />
           </button>
@@ -138,7 +138,7 @@ export const CareerOpportunityVaultModal: React.FC<CareerOpportunityVaultModalPr
                   }`}
                 >
                   <span>{tab.label}</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${tab.countColor}`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${tab.countColor}`}>
                     {count}
                   </span>
                 </button>

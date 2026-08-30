@@ -25,7 +25,8 @@ import {
   DollarSign, 
   HelpCircle,
   Compass,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { 
   RelationalNode, 
@@ -138,10 +139,8 @@ export const CareerRelationalEcosystemHub: React.FC<CareerRelationalEcosystemHub
     <div className="space-y-6 animate-fade-up">
       
       {/* 🌟 1. HERO COCKPIT: PULSE RELATIONNEL & COMMANDES D'ACTION */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-b from-indigo-600/20 via-blue-600/10 to-transparent rounded-full blur-[100px] pointer-events-none" />
-
-        <div className="relative z-10 space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 text-white shadow-2xl">
+        <div className="space-y-6">
           
           {/* Top Title & Vision Banner */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -161,7 +160,7 @@ export const CareerRelationalEcosystemHub: React.FC<CareerRelationalEcosystemHub
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setShowWhoShouldIKnowModal(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2"
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/20 flex items-center gap-2"
               >
                 <Sparkles size={15} /> Qui devrais-je connaître ?
               </button>
@@ -435,7 +434,7 @@ export const CareerRelationalEcosystemHub: React.FC<CareerRelationalEcosystemHub
             </div>
 
             {/* Core Value Proposition ("Pourquoi quelqu'un devrait travailler avec moi ?") */}
-            <div className="p-5 bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-2xl space-y-2">
+            <div className="p-5 bg-slate-900 text-white rounded-2xl space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
                 <Sparkles size={14} /> Réponse Clé : « Pourquoi travailler avec vous ? »
               </span>
@@ -571,7 +570,7 @@ export const CareerRelationalEcosystemHub: React.FC<CareerRelationalEcosystemHub
           </div>
 
           {/* Mentorship Hub Launcher */}
-          <div className="p-6 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 text-white rounded-3xl border border-amber-800/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="p-6 bg-slate-900 text-white rounded-3xl border border-amber-800/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
                 <Award size={15} /> Boucle de Mentorat & Transmission
@@ -792,8 +791,8 @@ export const CareerRelationalEcosystemHub: React.FC<CareerRelationalEcosystemHub
                 <Clock className="text-blue-600" size={20} />
                 <h3 className="font-bold text-slate-900 text-base">Arbitrage des Relances du Jour</h3>
               </div>
-              <button onClick={() => setShowWhoToFollowUpDialog(false)} className="p-1 rounded-full hover:bg-slate-100 text-slate-400">
-                ✕
+              <button onClick={() => setShowWhoToFollowUpDialog(false)} className="p-3 -m-1 rounded-full hover:bg-slate-100 text-slate-400 transition-colors" aria-label="Fermer">
+                <X size={18} />
               </button>
             </div>
 

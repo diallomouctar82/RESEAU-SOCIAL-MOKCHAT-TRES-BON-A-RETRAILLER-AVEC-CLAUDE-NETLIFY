@@ -31,7 +31,7 @@ export const CareerSurpriseOpportunityModal: React.FC<CareerSurpriseOpportunityM
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-purple-200 overflow-hidden my-8">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-6 md:p-8 relative">
+        <div className="bg-slate-900 text-white p-6 md:p-8 relative">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-purple-500/20 border border-purple-400/30 rounded-2xl text-purple-300">
@@ -50,7 +50,7 @@ export const CareerSurpriseOpportunityModal: React.FC<CareerSurpriseOpportunityM
 
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
+              className="p-3 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
             >
               <X size={20} />
             </button>

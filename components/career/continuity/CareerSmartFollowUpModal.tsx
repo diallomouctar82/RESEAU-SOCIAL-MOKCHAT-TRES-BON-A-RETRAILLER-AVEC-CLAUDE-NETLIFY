@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   Calendar,
   MessageSquare,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 import { CareerLiveDossier, CareerTimelineEvent } from '../../../types';
 
@@ -76,7 +77,7 @@ export const CareerSmartFollowUpModal: React.FC<CareerSmartFollowUpModalProps> =
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[90vh] flex flex-col">
         
         {/* HEADER */}
-        <div className="p-6 bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 text-white flex justify-between items-start">
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
           <div className="space-y-1">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/30">
               Générateur de Relances Anti-Spam (Diallo Continuity)
@@ -86,11 +87,12 @@ export const CareerSmartFollowUpModal: React.FC<CareerSmartFollowUpModalProps> =
               Destinataire : <strong className="text-white">{contactPerson.name}</strong> ({contactPerson.role}) chez <strong className="text-white">{dossier.entityName}</strong>
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
+            aria-label="Fermer"
+            className="text-slate-400 hover:text-white p-3 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 

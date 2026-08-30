@@ -167,7 +167,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
         {/* TOP HEADER: OPPORTUNITY IDENTITY & QUICK ACTIONS */}
         <div className="p-4 md:p-5 bg-slate-950 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 border border-blue-400/40 text-white rounded-2xl shadow-lg shadow-blue-600/30">
+            <div className="p-2.5 bg-blue-600 border border-blue-400/40 text-white rounded-2xl shadow-lg shadow-blue-600/30">
               <ShieldCheck size={22} />
             </div>
             <div>
@@ -199,7 +199,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
             {/* Quality Gate Button */}
             <button
               onClick={() => setShowQualityGateModal(true)}
-              className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all"
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all"
             >
               <Send size={13} />
               <span>Valider l'Action</span>
@@ -207,7 +207,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
 
             <button 
               onClick={onClose} 
-              className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors ml-1"
+              className="p-3 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors ml-1"
             >
               <X size={20} />
             </button>
@@ -561,7 +561,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
             <div className="space-y-6 animate-fade-up">
               
               {/* VIDEO SCRIPT & TELEPROMPTER CALLOUT */}
-              <div className="p-5 md:p-6 bg-gradient-to-r from-blue-950/80 via-slate-950 to-indigo-950/80 border border-blue-800/50 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="p-5 md:p-6 bg-slate-900 border border-blue-800/50 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 max-w-2xl">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1">
@@ -649,7 +649,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
             <div className="space-y-6 animate-fade-up">
               
               {/* LAUNCH COACH 3D HERO CARD */}
-              <div className="p-6 bg-gradient-to-r from-blue-950/70 via-slate-950 to-purple-950/70 border border-blue-800/40 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="p-6 bg-slate-900 border border-blue-800/40 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-5">
                 <div className="space-y-2 max-w-2xl">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -669,7 +669,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
 
                 <button
                   onClick={() => setShowCoach3DModal(true)}
-                  className="px-6 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-blue-600/30 flex items-center gap-2 shrink-0 transition-all"
+                  className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-black shadow-xl shadow-blue-600/30 flex items-center gap-2 shrink-0 transition-all"
                 >
                   <Video size={16} />
                   <span>Démarrer Simulation Vocale</span>
@@ -759,7 +759,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
                             {item.label}
                           </strong>
                           {item.isRequiredForSubmission && (
-                            <span className="text-[9px] bg-rose-950 text-rose-300 px-1.5 py-0.2 rounded font-bold">
+                            <span className="text-[9px] bg-rose-950 text-rose-300 px-1.5 py-0.5 rounded font-bold">
                               Obligatoire
                             </span>
                           )}
@@ -772,7 +772,7 @@ export const CareerConquestRoom: React.FC<CareerConquestRoomProps> = ({
               </div>
 
               {/* ACTION DISPATCH BAR */}
-              <div className="p-5 bg-gradient-to-r from-emerald-950/60 via-slate-950 to-teal-950/60 border border-emerald-800/40 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="p-5 bg-slate-900 border border-emerald-800/40 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Lock size={12} /> Étape Finale : Autorisation & Engagement

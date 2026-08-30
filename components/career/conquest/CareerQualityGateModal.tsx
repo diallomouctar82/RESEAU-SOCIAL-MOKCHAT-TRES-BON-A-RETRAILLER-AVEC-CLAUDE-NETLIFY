@@ -65,7 +65,7 @@ export const CareerQualityGateModal: React.FC<CareerQualityGateModalProps> = ({
 
           <button 
             onClick={onClose} 
-            className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            className="p-3 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
           >
             <X size={20} />
           </button>
@@ -178,7 +178,7 @@ export const CareerQualityGateModal: React.FC<CareerQualityGateModalProps> = ({
           <button
             onClick={onConfirmAction}
             disabled={!isAllVerified}
-            className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all"
+            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all"
           >
             <Send size={14} />
             <span>Valider l'action & Passer en Suivi Continu</span>

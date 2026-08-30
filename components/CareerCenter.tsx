@@ -717,10 +717,8 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
     <div className="flex flex-col h-full bg-slate-50 animate-fade-up">
       
       {/* 🌟 UNIFIED TOP CARRIER HEADER */}
-      <div className="bg-slate-900 text-white p-6 md:p-8 relative overflow-hidden shrink-0 border-b border-slate-800">
-        <div className="absolute top-0 right-0 w-[650px] h-[650px] bg-gradient-to-b from-blue-600/30 via-indigo-600/20 to-transparent rounded-full blur-[130px] opacity-40 pointer-events-none" />
-        
-        <div className="relative z-10 max-w-6xl mx-auto space-y-6">
+      <div className="bg-slate-900 text-white p-6 md:p-8 shrink-0 border-b border-slate-800">
+        <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
             <div>
               <div className="flex items-center gap-2 text-blue-400 font-bold uppercase text-xs tracking-wider mb-2">
@@ -728,7 +726,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
               </div>
               <h1 className="text-3xl md:text-4xl font-black tracking-tight flex items-center gap-3">
                 <span>Carrière & Conquête</span>
-                <span className="text-xs px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full font-bold">
+                <span className="text-xs px-3 py-1 bg-blue-600 rounded-full font-bold">
                   Point A ➔ Point B
                 </span>
               </h1>
@@ -766,7 +764,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
 
               <button
                 onClick={() => setShowMasterResumeGlobal(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 border border-emerald-400/30 whitespace-nowrap"
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 border border-emerald-400/30 whitespace-nowrap"
                 title="Consulter et enrichir votre CV Maître universel"
               >
                 <FileText size={15} />
@@ -1099,7 +1097,7 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 <FileText className="text-blue-600" /> Brouillon d'Approche IA ({actionType})
               </h3>
-              <button onClick={() => setGeneratedContent(null)} className="p-2 hover:bg-slate-200 rounded-full">
+              <button onClick={() => setGeneratedContent(null)} className="p-3 hover:bg-slate-200 rounded-full transition-colors" aria-label="Fermer">
                 <X size={20} />
               </button>
             </div>

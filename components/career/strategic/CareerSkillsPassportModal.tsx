@@ -15,7 +15,7 @@ import {
   Lock,
   Eye
 } from 'lucide-react';
-import { SkillGraphItem, TransferableSkillMapping, SkillProofLevel } from '../../types';
+import { SkillGraphItem, TransferableSkillMapping, SkillProofLevel } from '../../../types';
 
 interface CareerSkillsPassportModalProps {
   isOpen: boolean;
@@ -51,6 +51,10 @@ export const CareerSkillsPassportModal: React.FC<CareerSkillsPassportModalProps>
   };
 
   const handleExportPassport = () => {
+    const passportText = `PASSEPORT DE COMPÉTENCES CERTIFIÉ — ${userName} (${userRole})\n\n${skillGraph
+      .map(s => `• ${s.name} — ${proofLevelsMap[s.proofLevel].label}${s.proofDetails ? ` (${s.proofDetails.proofType})` : ''}`)
+      .join('\n')}`;
+    navigator.clipboard.writeText(passportText);
     setIsExported(true);
     setTimeout(() => setIsExported(false), 3000);
   };
@@ -60,7 +64,7 @@ export const CareerSkillsPassportModal: React.FC<CareerSkillsPassportModalProps>
       <div className="bg-slate-900 border border-slate-700/70 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-teal-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-teal-600/20 border border-teal-500/30 rounded-2xl text-teal-400">
               <Award size={24} />
@@ -79,7 +83,7 @@ export const CareerSkillsPassportModal: React.FC<CareerSkillsPassportModalProps>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X size={20} />
           </button>
@@ -117,7 +121,7 @@ export const CareerSkillsPassportModal: React.FC<CareerSkillsPassportModalProps>
             <div className="space-y-6 animate-fade-up">
               
               {/* Top User Passport Identity Card */}
-              <div className="bg-gradient-to-r from-slate-800/80 to-slate-900/90 border border-teal-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-slate-800/90 border border-teal-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-teal-600/20 border border-teal-500/30 flex items-center justify-center text-teal-300 font-bold text-xl">
                     {userName.charAt(0)}
@@ -142,7 +146,7 @@ export const CareerSkillsPassportModal: React.FC<CareerSkillsPassportModalProps>
                     className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-teal-600/20"
                   >
                     {isExported ? <CheckCircle2 size={14} /> : <Share2 size={14} />}
-                    <span>{isExported ? 'Lien Sécurisé Généré !' : 'Partager mon Passeport'}</span>
+                    <span>{isExported ? 'Copié dans le presse-papier !' : 'Copier mon Passeport'}</span>
                   </button>
                 </div>
               </div>

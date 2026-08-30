@@ -20,7 +20,8 @@ import {
   Paperclip,
   ExternalLink,
   Layers,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { CareerLiveDossier, CareerTimelineEvent, CareerNextBestAction } from '../../../types';
 
@@ -76,11 +77,11 @@ export const CareerLiveDossierModal: React.FC<CareerLiveDossierModalProps> = ({
 
   const getUniverseBadge = (universe: string) => {
     switch (universe) {
-      case 'emploi': return { label: 'Emploi & Recrutement', color: 'bg-blue-100 text-blue-800 border-blue-200' };
-      case 'clients': return { label: 'Client B2B & Prestation', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
-      case 'fonds': return { label: 'Bourse & Financement', color: 'bg-purple-100 text-purple-800 border-purple-200' };
-      case 'achats': return { label: 'Sourcing & Fournisseur', color: 'bg-amber-100 text-amber-800 border-amber-200' };
-      default: return { label: 'Général', color: 'bg-slate-100 text-slate-800 border-slate-200' };
+      case 'emploi': return { label: 'Emploi & Recrutement', color: 'bg-blue-500/30 text-blue-300 border-blue-400/30' };
+      case 'clients': return { label: 'Client B2B & Prestation', color: 'bg-emerald-500/30 text-emerald-300 border-emerald-400/30' };
+      case 'fonds': return { label: 'Bourse & Financement', color: 'bg-purple-500/30 text-purple-300 border-purple-400/30' };
+      case 'achats': return { label: 'Sourcing & Fournisseur', color: 'bg-amber-500/30 text-amber-300 border-amber-400/30' };
+      default: return { label: 'Général', color: 'bg-slate-500/30 text-slate-300 border-slate-400/30' };
     }
   };
 
@@ -110,7 +111,7 @@ export const CareerLiveDossierModal: React.FC<CareerLiveDossierModalProps> = ({
       <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[92vh] flex flex-col">
         
         {/* HEADER */}
-        <div className="p-6 md:p-7 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white">
+        <div className="p-6 md:p-7 bg-slate-900 text-white">
           <div className="flex justify-between items-start gap-4">
             <div className="space-y-1.5 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -147,11 +148,12 @@ export const CareerLiveDossierModal: React.FC<CareerLiveDossierModalProps> = ({
               </div>
             </div>
 
-            <button 
+            <button
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-all text-sm font-bold shrink-0"
+              aria-label="Fermer"
+              className="text-slate-400 hover:text-white p-3 rounded-xl hover:bg-white/10 transition-all text-sm font-bold shrink-0"
             >
-              ✕
+              <X size={18} />
             </button>
           </div>
         </div>
@@ -254,7 +256,7 @@ export const CareerLiveDossierModal: React.FC<CareerLiveDossierModalProps> = ({
           {/* TAB 2: PROCHAIN MEILLEUR PAS (NEXT BEST ACTION) */}
           {activeTab === 'next_action' && (
             <div className="space-y-5">
-              <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 space-y-4">
+              <div className="p-6 rounded-3xl bg-blue-50 border border-blue-200 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="px-3 py-1 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
                     <Sparkles size={12} /> Next Best Action — Prochain Meilleur Pas

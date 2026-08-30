@@ -192,10 +192,8 @@ export const CareerRadarOpportunities: React.FC<CareerRadarOpportunitiesProps> =
     <div className="space-y-6 animate-fade-up">
       
       {/* 🌟 1. RADAR INTENT SEARCH HERO */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden border border-slate-800">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-b from-blue-600/20 to-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
-        
-        <div className="relative z-10 space-y-6 max-w-4xl">
+      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800">
+        <div className="space-y-6 max-w-4xl">
           <div>
             <div className="flex items-center gap-2 text-blue-400 font-bold uppercase text-xs tracking-wider mb-2">
               <Radar size={16} className="animate-spin" style={{ animationDuration: '8s' }} /> 

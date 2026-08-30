@@ -311,7 +311,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
           </div>
           <button 
             onClick={onClose} 
-            className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            className="p-3 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
           >
             <X size={20} />
           </button>
@@ -376,7 +376,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
             <div className="pt-4 flex justify-end">
               <button
                 onClick={handleStartSimulation}
-                className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-600/30 flex items-center gap-2 transition-all"
+                className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-600/30 flex items-center gap-2 transition-all"
               >
                 <Video size={18} /> Démarrer la session en direct
               </button>

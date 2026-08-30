@@ -9,7 +9,8 @@ import {
   FileText, 
   CheckCircle2, 
   Layers,
-  Award
+  Award,
+  X
 } from 'lucide-react';
 import { CareerPlanBRecommendation, RadarOpportunityItem } from '../../../types';
 
@@ -29,7 +30,7 @@ export const CareerPlanBModal: React.FC<CareerPlanBModalProps> = ({
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[90vh] flex flex-col">
         
         {/* HEADER */}
-        <div className="p-6 bg-gradient-to-r from-slate-950 via-blue-950 to-slate-950 text-white flex justify-between items-start">
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
           <div className="space-y-1">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/30 text-blue-300 border border-blue-400/30">
               Résilience & Capitalisation Continue (Diallo Plan B)
@@ -39,11 +40,12 @@ export const CareerPlanBModal: React.FC<CareerPlanBModalProps> = ({
               Dossier clôturé : <strong className="text-white">{planB.opportunityTitle}</strong> chez <strong className="text-white">{planB.entityName}</strong>
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
+            aria-label="Fermer"
+            className="text-slate-400 hover:text-white p-3 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 

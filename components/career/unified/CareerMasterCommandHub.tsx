@@ -159,7 +159,7 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
             {/* Bouton Urgence Carrière */}
             <button
               onClick={onOpenEmergency}
-              className="px-3 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm shadow-rose-600/20 transition animate-pulse"
+              className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm shadow-rose-600/20 transition animate-pulse"
               title="Assistance tactique immédiate pour entretien ou dossier urgent"
             >
               <Flame size={14} />
@@ -185,7 +185,7 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
             {/* Raconte-moi mon parcours */}
             <button
               onClick={onOpenNarrativeStory}
-              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl border border-indigo-200 transition flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 transition flex items-center gap-1.5"
             >
               <BookOpen size={13} />
               <span>Raconte-moi mon parcours</span>
@@ -194,7 +194,7 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
             {/* Opportunités Surprises */}
             <button
               onClick={onOpenSurpriseOpportunities}
-              className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl border border-purple-200 transition flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 transition flex items-center gap-1.5"
             >
               <Lightbulb size={13} />
               <span>Opportunités Surprises (2)</span>
@@ -203,7 +203,7 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
             {/* Mon Impact */}
             <button
               onClick={onOpenImpactTransmission}
-              className="px-3 py-1.5 bg-pink-50 hover:bg-pink-100 text-pink-700 font-bold rounded-xl border border-pink-200 transition flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 transition flex items-center gap-1.5"
             >
               <HeartHandshake size={13} />
               <span>Mon Impact ({dossier.impactData.peopleHelpedCount} aidés)</span>
@@ -239,10 +239,8 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
         <div className="space-y-6 animate-fade-in">
           
           {/* SECTION 1 : MA JOURNÉE CARRIÈRE (NEXT BEST ACTION) */}
-          <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
-            
-            <div className="relative z-10 space-y-4">
+          <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl">
+            <div className="space-y-4">
               
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-blue-300 uppercase tracking-wider">
@@ -380,7 +378,7 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
             </div>
 
             {/* 3. Coach 3D Vocal */}
-            <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-3xl border border-indigo-800 shadow-sm space-y-4 flex flex-col justify-between">
+            <div className="bg-slate-900 text-white p-6 rounded-3xl border border-indigo-800 shadow-sm space-y-4 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-bold text-indigo-300 uppercase tracking-wider">Compagnon Permanent</span>
@@ -394,7 +392,7 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
 
               <button
                 onClick={onOpenCoach3D}
-                className="w-full py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition"
               >
                 <Video size={15} />
                 <span>Lancer la Simulation Vocale</span>
@@ -422,13 +420,13 @@ export const CareerMasterCommandHub: React.FC<CareerMasterCommandHubProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {[
-              { id: 'gps', label: 'GPS & Objectif', desc: 'Point A ➔ Point B et étapes', icon: Navigation, color: 'blue' },
-              { id: 'twin', label: 'Jumeau Pro', desc: 'Preuves & certifications auditées', icon: UserCheck, color: 'emerald' },
-              { id: 'hunter', label: 'Radar & Conquête', desc: 'Opportunités et War Room', icon: Radar, color: 'indigo' },
-              { id: 'network', label: 'Réseau & ICP', desc: 'Capital relationnel & mentorat', icon: Users, color: 'purple' },
-              { id: 'pipeline', label: 'Suivi Continu', desc: 'Dossiers vivants & relances', icon: BriefcaseBusiness, color: 'amber' },
-              { id: 'strategic', label: 'Stratégie & Trajectoires', desc: 'Boussole 4D & Skill Graph', icon: Compass, color: 'teal' },
-              { id: 'simulator', label: 'Coach 3D Vocal', desc: 'Entraînement immersif', icon: Video, color: 'rose' }
+              { id: 'gps', label: 'GPS & Objectif', desc: 'Point A ➔ Point B et étapes', icon: Navigation },
+              { id: 'twin', label: 'Jumeau Pro', desc: 'Preuves & certifications auditées', icon: UserCheck },
+              { id: 'hunter', label: 'Radar & Conquête', desc: 'Opportunités et War Room', icon: Radar },
+              { id: 'network', label: 'Réseau & ICP', desc: 'Capital relationnel & mentorat', icon: Users },
+              { id: 'pipeline', label: 'Suivi Continu', desc: 'Dossiers vivants & relances', icon: BriefcaseBusiness },
+              { id: 'strategic', label: 'Stratégie & Trajectoires', desc: 'Boussole 4D & Skill Graph', icon: Compass },
+              { id: 'simulator', label: 'Coach 3D Vocal', desc: 'Entraînement immersif', icon: Video }
             ].map(tab => (
               <button
                 key={tab.id}

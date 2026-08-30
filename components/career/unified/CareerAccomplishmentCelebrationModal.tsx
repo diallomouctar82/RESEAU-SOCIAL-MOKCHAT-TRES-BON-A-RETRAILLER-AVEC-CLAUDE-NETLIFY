@@ -72,11 +72,11 @@ export const CareerAccomplishmentCelebrationModal: React.FC<CareerAccomplishment
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-amber-200 overflow-hidden my-8">
         
         {/* Celebration Banner */}
-        <div className="bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white p-6 md:p-8 relative text-center">
+        <div className="bg-amber-600 text-white p-6 md:p-8 relative text-center">
           <div className="absolute top-2 right-2">
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-full transition text-white/80 hover:text-white"
+              className="p-3 hover:bg-white/20 rounded-full transition text-white/80 hover:text-white"
             >
               <X size={20} />
             </button>
@@ -101,22 +101,22 @@ export const CareerAccomplishmentCelebrationModal: React.FC<CareerAccomplishment
         <div className="p-6 md:p-8 space-y-6 max-h-[60vh] overflow-y-auto">
           
           {/* Victory Card */}
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-5 rounded-2xl border border-amber-200 space-y-3">
+          <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-3">
             <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">Résultat Majeur Validé</div>
-            <div className="text-lg md:text-xl font-black text-slate-900">{celebration.achievedResultTitle}</div>
-            
+            <div className="text-lg md:text-xl font-black text-slate-900">{activeCelebration.achievedResultTitle}</div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-amber-200/60 text-xs">
               <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100 text-center">
                 <div className="text-slate-500 text-[10px]">Temps de parcours</div>
-                <div className="font-bold text-slate-900">{celebration.totalDurationWeeks} semaines</div>
+                <div className="font-bold text-slate-900">{activeCelebration.totalDurationWeeks} semaines</div>
               </div>
               <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100 text-center">
                 <div className="text-slate-500 text-[10px]">Jalons franchis</div>
-                <div className="font-bold text-emerald-700">{celebration.milestonesPassedCount} validés</div>
+                <div className="font-bold text-emerald-700">{activeCelebration.milestonesPassedCount} validés</div>
               </div>
               <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100 text-center">
                 <div className="text-slate-500 text-[10px]">Relations créées</div>
-                <div className="font-bold text-indigo-700">{celebration.relationshipsCreatedCount} décideurs</div>
+                <div className="font-bold text-indigo-700">{activeCelebration.relationshipsCreatedCount} décideurs</div>
               </div>
               <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100 text-center">
                 <div className="text-slate-500 text-[10px]">Capital Preuve</div>
@@ -131,16 +131,16 @@ export const CareerAccomplishmentCelebrationModal: React.FC<CareerAccomplishment
               <ShieldCheck size={16} /> Ce que ce parcours a définitivement changé dans votre profil
             </div>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
-              {celebration.twinGainsSummary}
+              {activeCelebration.twinGainsSummary}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-xs">
               <div className="bg-white/10 p-2.5 rounded-xl border border-white/10">
                 <div className="text-slate-400 text-[10px] uppercase font-bold">Compétences verrouillées</div>
-                <div className="text-slate-200 mt-0.5">{celebration.skillsAcquired.join(' • ')}</div>
+                <div className="text-slate-200 mt-0.5">{activeCelebration.skillsAcquired.join(' • ')}</div>
               </div>
               <div className="bg-white/10 p-2.5 rounded-xl border border-white/10">
                 <div className="text-slate-400 text-[10px] uppercase font-bold">Défis & Résilience</div>
-                <div className="text-slate-200 mt-0.5">{celebration.difficultiesOvercome[0]}</div>
+                <div className="text-slate-200 mt-0.5">{activeCelebration.difficultiesOvercome[0]}</div>
               </div>
             </div>
           </div>
@@ -155,7 +155,7 @@ export const CareerAccomplishmentCelebrationModal: React.FC<CareerAccomplishment
             </div>
             
             <div className="space-y-3">
-              {celebration.nextSuggestedAmbitions.map(ambition => (
+              {activeCelebration.nextSuggestedAmbitions.map(ambition => (
                 <button
                   key={ambition.id}
                   onClick={() => setSelectedAmbitionId(ambition.id)}
@@ -200,7 +200,7 @@ export const CareerAccomplishmentCelebrationModal: React.FC<CareerAccomplishment
             <button
               onClick={handleConfirmNextCycle}
               disabled={isActivating}
-              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20 transition"
             >
               <span>{isActivating ? 'Activation en cours...' : 'Enclencher ce nouveau cycle'}</span>
               <ArrowRight size={15} />

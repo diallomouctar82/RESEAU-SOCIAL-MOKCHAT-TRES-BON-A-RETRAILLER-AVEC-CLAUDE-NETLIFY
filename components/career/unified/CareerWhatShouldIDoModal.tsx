@@ -52,7 +52,7 @@ export const CareerWhatShouldIDoModal: React.FC<CareerWhatShouldIDoModalProps> =
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 md:p-8 relative">
+        <div className="bg-slate-900 text-white p-6 md:p-8 relative">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-blue-500/20 border border-blue-400/30 rounded-2xl text-blue-300">
@@ -71,7 +71,7 @@ export const CareerWhatShouldIDoModal: React.FC<CareerWhatShouldIDoModalProps> =
 
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
+              className="p-3 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
             >
               <X size={20} />
             </button>

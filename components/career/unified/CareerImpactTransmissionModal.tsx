@@ -37,7 +37,7 @@ export const CareerImpactTransmissionModal: React.FC<CareerImpactTransmissionMod
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-rose-200 overflow-hidden my-8">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-900 via-pink-950 to-slate-900 text-white p-6 md:p-8 relative">
+        <div className="bg-slate-900 text-white p-6 md:p-8 relative">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-rose-500/20 border border-rose-400/30 rounded-2xl text-rose-300">
@@ -56,7 +56,7 @@ export const CareerImpactTransmissionModal: React.FC<CareerImpactTransmissionMod
 
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
+              className="p-3 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
             >
               <X size={20} />
             </button>
@@ -126,7 +126,7 @@ export const CareerImpactTransmissionModal: React.FC<CareerImpactTransmissionMod
 
           {/* Action Boxes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <div className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100 space-y-2">
+            <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-2">
               <h5 className="text-xs md:text-sm font-bold text-indigo-950 flex items-center gap-2">
                 <HeartHandshake size={16} className="text-indigo-600" /> Proposer un créneau de mentorat
               </h5>
@@ -145,7 +145,7 @@ export const CareerImpactTransmissionModal: React.FC<CareerImpactTransmissionMod
               </button>
             </div>
 
-            <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-100 space-y-2">
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
               <h5 className="text-xs md:text-sm font-bold text-amber-950 flex items-center gap-2">
                 <Video size={16} className="text-amber-600" /> Organiser un Live Thématique
               </h5>
