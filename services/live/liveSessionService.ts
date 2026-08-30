@@ -197,10 +197,39 @@ export async function createLiveSession(
     return mapSessionRow(data as LiveSessionRow);
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function fetchLiveSession(sessionId: string): Promise<LiveStream | null> {
+    // Équipe F3 : un id non-UUID (cartes de démonstration 'live1'…) faisait
+    // une requête vouée au 22P02, avalée en silence — on répond null tout de
+    // suite, et un VRAI échec de lecture reste visible en console.
+    if (!UUID_RE.test(sessionId)) return null;
     const { data, error } = await supabase.from('live_sessions').select('*').eq('id', sessionId).maybeSingle();
-    if (error || !data) return null;
+    if (error) {
+        console.warn('fetchLiveSession: lecture impossible', error.message);
+        return null;
+    }
+    if (!data) return null;
     return mapSessionRow(data as LiveSessionRow);
+}
+
+/**
+ * Équipe F3 — LA pièce manquante de la découverte : le fil ne listait que
+ * des cartes de démonstration à ids factices, donc un spectateur n'ouvrait
+ * JAMAIS une session réelle (et n'entendait donc jamais personne). Liste les
+ * sessions publiques réellement EN DIRECT (démarrées, non terminées).
+ */
+export async function fetchActiveLiveSessions(): Promise<LiveStream[]> {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .select('*')
+        .is('ended_at', null)
+        .not('started_at', 'is', null)
+        .eq('is_private', false)
+        .order('started_at', { ascending: false })
+        .limit(24);
+    if (error || !data) return [];
+    return (data as LiveSessionRow[]).map(mapSessionRow);
 }
 
 /** Démarre le LIVE (started_at) — hôte uniquement (live_sessions_update_host). */

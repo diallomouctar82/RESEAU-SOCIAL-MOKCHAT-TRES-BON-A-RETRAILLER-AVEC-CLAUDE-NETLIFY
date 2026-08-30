@@ -33,6 +33,8 @@ interface MoocChatFloatingProps {
    */
   pendingDirectChatMember?: MemberProfile;
   onConsumePendingDirectChatMember?: () => void;
+  /** Équipe F1 (D12) : compteur-signal incrémenté par Layout quand une notification `target_action='chat'` est cliquée — ouvre le widget. */
+  openWidgetSignal?: number;
 }
 
 const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
@@ -43,7 +45,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   onCloseDirect,
   onOpenMemberProfile,
   pendingDirectChatMember,
-  onConsumePendingDirectChatMember
+  onConsumePendingDirectChatMember,
+  openWidgetSignal = 0
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [conversations, setConversations] = useState<ChatConversation[]>(() => {
@@ -81,6 +84,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  // Équipe F1 : drapeau d'annulation — le onstop asynchrone du recorder ne
+  // doit jamais ressusciter un enregistrement que l'utilisateur a annulé.
+  const voiceCancelledRef = useRef(false);
   const recordingTimerRef = useRef<any>(null);
 
   // Audio Playback state
@@ -108,6 +114,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // conversations, permet d'enrichir un message temps reel avec le nom/
   // avatar de son expediteur sans une requete supplementaire par message.
   const participantProfilesRef = useRef<Record<string, Record<string, { name: string; avatarUrl?: string; role?: string }>>>({});
+  // Équipe F1 (D8) : last_read_at le plus récent des AUTRES participants,
+  // par conversation — sert à dériver l'état « Lu » de MES messages à
+  // l'affichage (created_at <= cette borne), jamais un flag par message.
+  const othersLastReadAtRef = useRef<Record<string, string | null>>({});
+  // Équipe F1 (D10) : qui est « en train d'écrire » dans la conversation
+  // ouverte — éphémère (broadcast), avec TTL client par utilisateur.
+  const [typingUsers, setTypingUsers] = useState<Record<string, { name: string; until: number }>>({});
+  const typingSelfActiveRef = useRef(false);
 
   // Online presences mapped by user id
   const [onlinePresences, setOnlinePresences] = useState<Record<string, boolean>>({});
@@ -132,6 +146,25 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setIsOpen(true);
     }
   }, [activeConversationId]);
+
+  // Équipe F1 (D12) : ouverture demandée par une notification de message
+  // cliquée dans la cloche (Layout) — ouvre la liste des conversations.
+  useEffect(() => {
+    if (openWidgetSignal > 0) setIsOpen(true);
+  }, [openWidgetSignal]);
+
+  // Équipe F1 (D13) : un utilisateur Supabase réel ne garde jamais les
+  // conversations de démonstration (MOCK_CHATS 'chat1'..'chat4') — elles
+  // portaient des compteurs « non lus » fictifs (le badge « 6 » fantôme,
+  // relu depuis le cache localStorage à chaque session) et des messages
+  // inventés. Les fils réels et les fils locaux créés dans la session
+  // (annuaire de démonstration) restent intacts.
+  useEffect(() => {
+    const isRealUser = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUser?.id || '');
+    if (!isRealUser) return;
+    const mockIds = new Set(MOCK_CHATS.map(c => c.id));
+    setConversations(prev => prev.some(c => mockIds.has(c.id)) ? prev.filter(c => !mockIds.has(c.id)) : prev);
+  }, [currentUser?.id]);
 
   // Un résumé IA appartient à SA conversation — jamais laissé affiché en
   // rouvrant une autre discussion (LOOP 07/17).
@@ -166,6 +199,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
             const others = participants.filter((p) => p.user_id !== currentUser.id);
             const other = others[0];
             const otherProfile = other ? profileCache[other.user_id] : undefined;
+            othersLastReadAtRef.current[rc.id] = rc.others_last_read_at || null;
 
             return {
               id: rc.id,
@@ -178,7 +212,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
               groupMembers: rc.is_group ? participants.map((p) => ({ id: p.user_id, name: profileCache[p.user_id]?.name || 'Membre', avatar: profileCache[p.user_id]?.avatarUrl || '' })) : undefined,
               lastMessage: rc.last_message_preview || '',
               lastMessageTime: rc.last_message_at ? new Date(rc.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-              unreadCount: 0,
+              // Équipe F1 (D13) : compteur RÉEL (HEAD count serveur borné par
+              // mon last_read_at) — l'ancien 0 en dur rendait le badge inerte.
+              unreadCount: typeof rc.unread_count === 'number' ? rc.unread_count : 0,
               isOnline: false,
               messages: [],
             } as ChatConversation;
@@ -237,19 +273,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         setActiveCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
         setIsIncomingCall(false);
       } else if (signal.type === 'call_ended' || signal.type === 'call_rejected') {
-        // Équipe I (LOOP I3 — cloche centralisée) : la signalisation d'appel
-        // est un broadcast éphémère — sans cette ligne, un appel manqué ne
-        // laissait AUCUNE trace nulle part. L'appelé enregistre sa propre
-        // notification (policy notifications_owner : soi-même uniquement).
-        const prev = activeCallSessionRef.current;
-        if (signal.type === 'call_ended' && prev && prev.status === 'ringing' && prev.receiverId === currentUser.id) {
-          void supabaseService.recordSelfNotification({
-            title: 'Appel manqué',
-            message: `${prev.initiatorName} a essayé de vous appeler (${prev.type === 'video' ? 'vidéo' : 'audio'}).`,
-            type: 'warning',
-            targetAction: 'chat',
-          });
-        }
+        // Équipe F2 : la notification « Appel manqué » de l'appelé est
+        // désormais écrite CÔTÉ SERVEUR par l'APPELANT (notify_missed_call,
+        // SECURITY DEFINER gardé par l'appartenance à une conversation
+        // commune) — elle atteint la cloche même si l'app de l'appelé est
+        // FERMÉE (le broadcast est éphémère). L'ancienne auto-notification
+        // locale de l'appelé (LOOP I3) est retirée pour ne pas doubler.
         setActiveCallSession(null);
         setIsIncomingCall(false);
       }
@@ -273,6 +302,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     const senderProfile = participantProfilesRef.current[conversationId]?.[raw.sender_id];
     const isDeleted = !!raw.deleted_at;
     const repliedTo = raw.reply_to_id ? existingMessages.find(m => m.id === raw.reply_to_id) : undefined;
+    // Équipe F1 (D8) : « Lu » dérivé du last_read_at réel des autres
+    // participants — jamais un état inventé par message.
+    const othersLastReadAt = othersLastReadAtRef.current[conversationId];
+    const isMine = raw.sender_id === currentUser.id;
+    const readByOthers = isMine && !!othersLastReadAt && !!raw.created_at
+      && new Date(raw.created_at).getTime() <= new Date(othersLastReadAt).getTime();
     return {
       id: raw.id,
       conversationId,
@@ -284,8 +319,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       mediaType: isDeleted ? undefined : (raw.attachment_url ? (raw.message_type || 'document') : 'text'),
       mediaUrl: isDeleted ? undefined : raw.attachment_url,
       timestamp: raw.created_at ? new Date(raw.created_at) : new Date(),
-      isRead: false, // dérivé plus bas depuis last_read_at de l'autre participant, jamais un flag par message inventé.
-      status: (raw.status as ChatMessage['status']) || 'sent', // valeur réelle renvoyée par la base, jamais fabriquée côté client.
+      isRead: readByOthers,
+      status: readByOthers ? 'read' : ((raw.status as ChatMessage['status']) || 'sent'), // Lu dérivé du last_read_at réel, sinon valeur base — jamais fabriqué.
+      audioDuration: typeof raw.metadata?.audio_duration === 'number' ? raw.metadata.audio_duration : undefined,
       reactions: raw.metadata?.reactions || {},
       replyTo: repliedTo ? { id: repliedTo.id, text: repliedTo.text, senderName: repliedTo.senderName, mediaType: repliedTo.mediaType } : undefined,
       isEdited: !!raw.edited_at,
@@ -299,6 +335,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   useEffect(() => {
     if (!currentChatId || !currentUser?.id) return;
     let cancelled = false;
+
+    // Équipe F1 (D13) : ouvrir une conversation la marque lue — le badge
+    // local retombe à 0 en même temps que markConversationRead côté serveur.
+    setConversations(prev => prev.map(c => c.id === currentChatId && c.unreadCount ? { ...c, unreadCount: 0 } : c));
+    setTypingUsers({});
 
     (async () => {
       const history = await supabaseService.getConversationMessages(currentChatId);
@@ -367,11 +408,62 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       }
     });
 
+    // Équipe F1 (D10) : « en train d'écrire » — broadcast éphémère, TTL
+    // client de 4 s par utilisateur (un signal isTyping=false l'efface tout
+    // de suite ; un onglet fermé brutalement expire tout seul).
+    const unsubTyping = supabaseService.subscribeToTyping(currentChatId, (payload) => {
+      if (!payload || payload.userId === currentUser.id) return;
+      setTypingUsers(prev => {
+        const next = { ...prev };
+        if (payload.isTyping) {
+          next[payload.userId] = { name: payload.userName || 'Membre', until: Date.now() + 4000 };
+        } else {
+          delete next[payload.userId];
+        }
+        return next;
+      });
+    });
+    const typingSweep = setInterval(() => {
+      setTypingUsers(prev => {
+        const now = Date.now();
+        const expired = Object.keys(prev).filter(id => prev[id].until <= now);
+        if (expired.length === 0) return prev;
+        const next = { ...prev };
+        expired.forEach(id => { delete next[id]; });
+        return next;
+      });
+    }, 1500);
+
     return () => {
       cancelled = true;
       unsubChat();
+      unsubTyping();
+      clearInterval(typingSweep);
+      typingSelfActiveRef.current = false;
     };
   }, [currentChatId, currentUser.id]);
+
+  // Équipe F1 (D13) : compteurs « non lus » EN DIRECT pour les conversations
+  // non ouvertes — flux global borné par la RLS de `messages` (le canal ne
+  // délivre que les conversations dont je suis réellement membre).
+  const currentChatIdRef = useRef<string | null>(null);
+  currentChatIdRef.current = currentChatId;
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const unsub = supabaseService.subscribeToIncomingMessages((raw) => {
+      if (!raw || raw.sender_id === currentUser.id) return;
+      if (raw.conversation_id === currentChatIdRef.current) return; // la conversation ouverte est lue au fil de l'eau.
+      setConversations(prev => prev.map(c => c.id === raw.conversation_id
+        ? {
+            ...c,
+            unreadCount: (c.unreadCount || 0) + 1,
+            lastMessage: raw.deleted_at ? c.lastMessage : (raw.content || '📎 Fichier partagé'),
+            lastMessageTime: 'À l\'instant',
+          }
+        : c));
+    });
+    return unsub;
+  }, [currentUser?.id]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -405,12 +497,24 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   );
 
   // --- Voice Recorder Engine ---
+  // Équipe F1 : le type MIME était CODÉ EN DUR 'audio/webm' quel que soit
+  // l'encodeur réel — un vocal enregistré sur Safari/iOS (audio/mp4)
+  // devenait illisible PARTOUT (data-URI au type menteur). On négocie le
+  // premier format réellement supporté et on étiquette le Blob avec le type
+  // EFFECTIF du recorder.
+  const pickSupportedAudioMime = (): string | undefined => {
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined;
+    return ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
+      .find((t) => MediaRecorder.isTypeSupported(t));
+  };
   const startVoiceRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mime = pickSupportedAudioMime();
+      const mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      voiceCancelledRef.current = false;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -419,16 +523,24 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        // Équipe F1 : « Annuler » remettait les états à null PUIS ce handler
+        // asynchrone les réécrivait — l'enregistrement refusé ressuscitait
+        // en « prêt à envoyer ». Le drapeau d'annulation coupe court.
+        if (voiceCancelledRef.current) return;
+        const effectiveType = mediaRecorder.mimeType || mime || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: effectiveType });
         const reader = new FileReader();
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
             setRecordedAudioUrl(reader.result);
+            // Équipe F1 (D7) : le Blob n'est posé qu'AVEC l'URL prête — le
+            // bouton Envoyer ne peut plus partir dans la fenêtre où l'URL
+            // n'existait pas encore (vocal perdu en silence).
+            setRecordedAudioBlob(audioBlob);
           }
         };
         reader.readAsDataURL(audioBlob);
-        setRecordedAudioBlob(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start(100);
@@ -454,11 +566,35 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   const cancelVoiceRecording = () => {
     if (mediaRecorderRef.current && isRecordingVoice) {
+      voiceCancelledRef.current = true;
       mediaRecorderRef.current.stop();
       setIsRecordingVoice(false);
       clearInterval(recordingTimerRef.current);
       setRecordedAudioBlob(null);
       setRecordedAudioUrl(null);
+    }
+  };
+
+  // Équipe F1 (D10) : émission « en train d'écrire » — un seul signal
+  // isTyping=true par rafale de frappe, isTyping=false après 2,5 s
+  // d'inactivité ou à l'envoi. Broadcast éphémère, jamais une écriture base.
+  const emitTypingSignal = (isTypingNow: boolean) => {
+    if (!currentChatId || !currentUser?.id) return;
+    if (!supabaseService.isConfigured() || !/^[0-9a-f]{8}-/i.test(currentChatId)) return; // conversation locale/démonstration — personne en face.
+    if (isTypingNow) {
+      if (!typingSelfActiveRef.current) {
+        typingSelfActiveRef.current = true;
+        void supabaseService.sendTypingSignal(currentChatId, { userId: currentUser.id, userName: currentUser.name, isTyping: true });
+      }
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        typingSelfActiveRef.current = false;
+        void supabaseService.sendTypingSignal(currentChatId, { userId: currentUser.id, userName: currentUser.name, isTyping: false });
+      }, 2500);
+    } else if (typingSelfActiveRef.current) {
+      typingSelfActiveRef.current = false;
+      clearTimeout(typingTimeoutRef.current);
+      void supabaseService.sendTypingSignal(currentChatId, { userId: currentUser.id, userName: currentUser.name, isTyping: false });
     }
   };
 
@@ -476,7 +612,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         const audio = new Audio(audioUrl);
         audioPlayerRef.current = audio;
         setPlayingAudioId(messageId);
-        
+
         audio.ontimeupdate = () => {
           if (audio.duration) {
             setAudioProgress((audio.currentTime / audio.duration) * 100);
@@ -488,9 +624,21 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           setAudioProgress(0);
         };
 
+        // Équipe F1 (D6) : un échec de lecture est DIT, jamais un bouton qui
+        // semble marcher sans son (source invalide, autoplay bloqué…).
+        audio.onerror = () => {
+          setPlayingAudioId(null);
+          setAudioProgress(0);
+          alert("Impossible de lire ce message vocal — le fichier audio est indisponible ou corrompu.");
+        };
         audio.play().catch(() => {
           setPlayingAudioId(null);
+          alert("La lecture audio a été bloquée par le navigateur. Touchez à nouveau le bouton de lecture.");
         });
+      } else {
+        // Équipe F1 (D6) : pas d'URL — le bouton est désactivé dans la bulle,
+        // ce garde-fou couvre tout autre chemin d'appel.
+        alert("Ce message vocal n'a pas de fichier audio associé.");
       }
     }
   };
@@ -548,11 +696,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const handleSendMessage = async () => {
     if (!currentChatId || (!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob)) return;
 
+    emitTypingSignal(false); // Équipe F1 (D10) : envoyer efface tout de suite « en train d'écrire » chez l'autre.
     const currentReplyTo = replyingTo;
     const filesToSend = [...attachedFiles];
     const textToSend = inputText.trim();
-    const currentAudioUrl = recordedAudioUrl;
-    const currentAudioDuration = recordingDuration || 5;
+    const currentAudioBlob = recordedAudioBlob;
+    let currentAudioUrl = recordedAudioUrl;
+    // Équipe F1 : durée RÉELLE ou rien — l'ancien `|| 5` inventait 5 s.
+    const currentAudioDuration = recordingDuration > 0 ? recordingDuration : undefined;
     const canSync = supabaseService.isConfigured() && isRealConversationId(currentChatId);
 
     setInputText('');
@@ -560,6 +711,31 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     setRecordedAudioBlob(null);
     setRecordedAudioUrl(null);
     setReplyingTo(null);
+
+    // Équipe F1 (D4) : le vocal partait en BASE64 DANS LA LIGNE — au-delà de
+    // ~1 Mo, Supabase Realtime remplace l'enregistrement diffusé par un stub
+    // et le destinataire recevait une BULLE VIDE (l'émetteur perdait même son
+    // propre vocal à la réconciliation). Sur une vraie conversation, l'audio
+    // monte désormais dans Storage et seule l'URL courte voyage. Un échec
+    // d'upload ANNULE l'envoi et restitue le composeur — jamais de faux départ.
+    if (canSync && currentAudioBlob && currentAudioUrl) {
+      try {
+        const ext = (currentAudioBlob.type.includes('mp4') ? 'm4a' : currentAudioBlob.type.includes('ogg') ? 'ogg' : 'webm');
+        const file = new File([currentAudioBlob], `vocal-${Date.now()}.${ext}`, { type: currentAudioBlob.type || 'audio/webm' });
+        const url = await supabaseService.uploadContentMedia(currentUser.id!, file, 'chat');
+        if (!url) throw new Error('upload vocal failed');
+        currentAudioUrl = url;
+      } catch (err) {
+        console.warn('Envoi du vocal impossible (upload Storage)', err);
+        alert("L'envoi du message vocal a échoué (connexion instable ?). Il n'a pas été envoyé — réessayez.");
+        setInputText(textToSend);
+        setAttachedFiles(filesToSend);
+        setRecordedAudioBlob(currentAudioBlob);
+        setRecordedAudioUrl(recordedAudioUrl);
+        setReplyingTo(currentReplyTo);
+        return;
+      }
+    }
 
     type PendingSend = { msg: ChatMessage; clientMessageId: string; messageType: 'text' | 'image' | 'video' | 'audio' | 'document'; content?: string; attachmentUrl?: string };
     const pending: PendingSend[] = [];
@@ -638,6 +814,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           // confirmé n'existe pas encore comme ligne réelle, le référencer
           // violerait la contrainte de clé étrangère reply_to_id.
           replyToId: currentReplyTo && currentReplyTo.status !== 'sending' ? currentReplyTo.id : undefined,
+          audioDurationSeconds: p.messageType === 'audio' ? currentAudioDuration : undefined,
         });
         if (sent) {
           setConversations(prev => prev.map(c => c.id === currentChatId ? {
@@ -647,9 +824,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         }
       } catch (err) {
         console.warn('Erreur envoi message Supabase:', err);
+        // Équipe F1 (D3) : un envoi ÉCHOUÉ s'affichait « Envoyé » (status
+        // undefined → branche par défaut de la coche grise). État explicite.
         setConversations(prev => prev.map(c => c.id === currentChatId ? {
           ...c,
-          messages: c.messages.map(m => m.id === p.clientMessageId ? { ...m, status: undefined } : m)
+          messages: c.messages.map(m => m.id === p.clientMessageId ? { ...m, status: 'failed' } : m)
         } : c));
       }
     }
@@ -769,6 +948,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       const session = activeCallSessionRef.current;
       if (!session || session.status !== 'ringing') return;
       supabaseService.sendCallSignal(callPeerId(session), { type: 'call_ended', callId: session.callId });
+      // Équipe F2 : trace serveur « Appel manqué » pour l'appelé — atteint
+      // sa cloche même si son application est fermée.
+      void supabaseService.notifyMissedCall(callPeerId(session));
       void supabaseService.recordSelfNotification({
         title: 'Appel sans réponse',
         message: `${session.receiverName} n'a pas répondu à votre appel ${session.type === 'video' ? 'vidéo' : 'audio'}.`,
@@ -978,7 +1160,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       {isOpen && (
         <div 
           id="mooc-chat-window"
-          className="fixed inset-x-2 sm:inset-x-auto bottom-20 md:bottom-24 sm:right-6 w-auto sm:w-[420px] md:w-[460px] h-[78vh] sm:h-[620px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 flex flex-col overflow-hidden animate-scale-up"
+          className="fixed inset-x-2 sm:inset-x-auto bottom-20 md:bottom-24 sm:right-6 w-auto sm:w-[420px] md:w-[460px] h-[78vh] sm:h-[620px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-[70] flex flex-col overflow-hidden animate-scale-up"
         >
           
           {/* Header */}
@@ -1255,6 +1437,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       key={msg.id}
                       message={msg}
                       isMe={msg.senderId === currentUser.id}
+                      currentUserId={currentUser.id}
                       isGroup={activeChat.isGroup}
                       participantAvatar={activeChat.participantAvatar}
                       onReply={(targetMsg) => setReplyingTo(targetMsg)}
@@ -1278,6 +1461,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     />
                   ))}
                   
+                  {/* Équipe F1 (D10) : « en train d'écrire » — éphémère, jamais persisté. */}
+                  {Object.keys(typingUsers).length > 0 && (
+                    <div className="flex items-center gap-2 px-1 text-[11px] text-slate-500 animate-pulse">
+                      <span className="flex gap-0.5">
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </span>
+                      <span className="italic">
+                        {Object.keys(typingUsers).map(id => typingUsers[id].name).join(', ')} {Object.keys(typingUsers).length > 1 ? 'écrivent…' : 'est en train d\'écrire…'}
+                      </span>
+                    </div>
+                  )}
+
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -1413,7 +1610,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                   <input
                     type="text"
                     value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
+                    onChange={(e) => { setInputText(e.target.value); emitTypingSignal(e.target.value.length > 0); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -1504,6 +1701,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
               type: 'call_ended',
               callId: activeCallSession.callId
             });
+            // Équipe F2 : annulation PENDANT la sonnerie sortante = appel
+            // manqué pour l'appelé — trace serveur, même app fermée.
+            if (activeCallSession.status === 'ringing' && !isIncomingCall) {
+              void supabaseService.notifyMissedCall(callPeerId(activeCallSession));
+            }
             setActiveCallSession(null);
             setIsIncomingCall(false);
           }}

@@ -73,6 +73,56 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     return () => clearInterval(interval);
   }, [callSession.status]);
 
+  // Sonnerie AUDIBLE (Équipe F2) : jusqu'ici la « sonnerie » était purement
+  // visuelle — un appel entrant pouvait passer inaperçu. Tonalité générée
+  // localement en WebAudio (aucun fichier à charger), cadence type téléphone
+  // (entrant plus insistant que la tonalité de retour côté appelant),
+  // vibration sur mobile, et arrêt NET à la connexion/fermeture — même
+  // discipline anti-son-fantôme que stopSpeaking() du moteur vocal. Si le
+  // navigateur bloque l'audio sans geste utilisateur, la sonnerie reste
+  // visuelle : jamais une erreur, jamais un blocage de l'appel.
+  useEffect(() => {
+    if (callSession.status !== 'ringing') return;
+    let ctx: AudioContext | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let stopped = false;
+    const ringOnce = () => {
+      if (!ctx || stopped || ctx.state !== 'running') return;
+      const t0 = ctx.currentTime;
+      // Double bip (ring-ring) pour l'entrant, bip long doux pour le retour d'appel.
+      const bursts: Array<[number, number]> = isIncoming ? [[0, 0.45], [0.6, 0.45]] : [[0, 1.4]];
+      for (const [offset, len] of bursts) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = isIncoming ? 440 : 425;
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.exponentialRampToValueAtTime(isIncoming ? 0.12 : 0.05, t0 + offset + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + offset + len);
+        osc.start(t0 + offset);
+        osc.stop(t0 + offset + len + 0.05);
+      }
+    };
+    try {
+      ctx = new AudioContext();
+      void ctx.resume().then(() => { if (!stopped) ringOnce(); }).catch(() => {});
+      interval = setInterval(ringOnce, isIncoming ? 2600 : 4000);
+      if (isIncoming && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate([400, 250, 400]); } catch { /* non supporté */ }
+      }
+    } catch { /* AudioContext indisponible : sonnerie visuelle seule */ }
+    return () => {
+      stopped = true;
+      if (interval) clearInterval(interval);
+      if (ctx) { try { void ctx.close(); } catch { /* déjà fermé */ } }
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate(0); } catch { /* non supporté */ }
+      }
+    };
+  }, [callSession.status, isIncoming]);
+
   // Attache des pistes réelles — même patron éprouvé que
   // RemoteParticipantTile du LIVE (LOOP 04/14) : callback refs, l'audio dans
   // son propre élément pour que couper la caméra ne coupe jamais le son.

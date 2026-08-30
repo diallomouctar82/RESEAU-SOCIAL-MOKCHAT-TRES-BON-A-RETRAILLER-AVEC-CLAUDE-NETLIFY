@@ -55,6 +55,28 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [stories, setStories] = useState<Story[]>(STORIES);
   const [reels, setReels] = useState<Reel[]>(REELS);
   const [lives, setLives] = useState<LiveStream[]>(ACTIVE_LIVES);
+
+  // Équipe F3 : le fil ne listait QUE des cartes de démonstration (ids
+  // factices 'live1'…) — un spectateur cliquant dessus n'ouvrait jamais une
+  // session réelle, donc n'entendait jamais le présentateur. Les sessions
+  // réellement EN DIRECT passent devant ; les cartes de démonstration
+  // restent derrière (elles s'ouvrent en « Aperçu », bannière honnête côté
+  // studio).
+  useEffect(() => {
+    if (!supabaseService.isConfigured()) return;
+    let cancelled = false;
+    import('../services/live/liveSessionService')
+      .then(({ fetchActiveLiveSessions }) => fetchActiveLiveSessions())
+      .then((real) => {
+        if (cancelled || real.length === 0) return;
+        setLives((prev) => {
+          const demo = prev.filter((l) => !real.some((r) => r.id === l.id));
+          return [...real, ...demo];
+        });
+      })
+      .catch(() => { /* lecture impossible : les cartes de démonstration restent */ });
+    return () => { cancelled = true; };
+  }, []);
   const [members, setMembers] = useState<MemberProfile[]>(MOCK_MEMBERS);
   const [friendships, setFriendships] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);

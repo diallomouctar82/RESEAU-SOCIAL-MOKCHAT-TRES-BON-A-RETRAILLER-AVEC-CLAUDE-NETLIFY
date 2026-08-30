@@ -237,13 +237,39 @@ export const supabaseService = {
                 profilesByConversation.get(row.conversation_id)!.set(row.id, row);
             });
 
-            return data.map((conv: any) => ({
+            const mapped = data.map((conv: any) => ({
                 ...conv,
                 conversation_participants: (conv.conversation_participants || []).map((cp: any) => ({
                     ...cp,
                     profiles: profilesByConversation.get(conv.id)?.get(cp.user_id) || null,
                 })),
             }));
+
+            // Équipe F1 (D8/D13) : le VRAI compteur de non-lus (messages des
+            // autres postérieurs à MON last_read_at — l'ancien code posait 0
+            // en dur partout et le badge n'affichait que le « 6 » fantôme des
+            // conversations de démonstration) + le last_read_at le plus
+            // récent des AUTRES participants (pour dériver l'état « Lu » de
+            // mes propres messages à l'affichage, jamais persisté par
+            // message). Comptes HEAD bornés aux 20 conversations les plus
+            // récentes.
+            await Promise.all(mapped.slice(0, 20).map(async (conv: any) => {
+                const mine = (conv.conversation_participants || []).find((cp: any) => cp.user_id === userId);
+                const others = (conv.conversation_participants || []).filter((cp: any) => cp.user_id !== userId);
+                conv.others_last_read_at = others.reduce((max: string | null, cp: any) =>
+                    cp.last_read_at && (!max || cp.last_read_at > max) ? cp.last_read_at : max, null);
+                try {
+                    let q = supabase.from('messages').select('id', { count: 'exact', head: true })
+                        .eq('conversation_id', conv.id)
+                        .neq('sender_id', userId);
+                    if (mine?.last_read_at) q = q.gt('created_at', mine.last_read_at);
+                    const { count } = await q;
+                    conv.unread_count = count ?? 0;
+                } catch {
+                    conv.unread_count = 0;
+                }
+            }));
+            return mapped;
         } catch {
             return [];
         }
@@ -343,6 +369,51 @@ export const supabaseService = {
         }
     },
 
+    /**
+     * Équipe F1 : indicateur « en train d'écrire » — broadcast ÉPHÉMÈRE sur
+     * un canal `typing:{conversationId}` (même patron que la signalisation
+     * d'appel) ; la frappe n'est pas une donnée durable, jamais une écriture
+     * en base.
+     */
+    subscribeToTyping(conversationId: string, callback: (payload: { userId: string; userName: string; isTyping: boolean }) => void): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase
+                .channel(`typing:${conversationId}`)
+                .on('broadcast', { event: 'typing' }, ({ payload }) => callback(payload))
+                .subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
+    },
+
+    async sendTypingSignal(conversationId: string, payload: { userId: string; userName: string; isTyping: boolean }): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        try {
+            // La conversation est forcément OUVERTE quand on y tape :
+            // `subscribeToTyping` tient donc déjà le canal `typing:{id}` de ce
+            // client. `supabase.channel(nom)` renvoie CETTE instance existante —
+            // s'y réabonner jette (« tried to subscribe multiple times »,
+            // avalé par le catch → aucun signal ne partait jamais), et la
+            // retirer après envoi aurait tué notre propre écoute. On envoie
+            // sur le canal déjà joint ; le canal jetable ne sert qu'au cas
+            // (théorique) où aucune écoute n'est en place.
+            const topic = `realtime:typing:${conversationId}`;
+            const existing = supabase.getChannels().find((c) => c.topic === topic);
+            if (existing) {
+                await existing.send({ type: 'broadcast', event: 'typing', payload });
+                return;
+            }
+            const channel = supabase.channel(`typing:${conversationId}`);
+            await channel.subscribe();
+            await channel.send({ type: 'broadcast', event: 'typing', payload });
+            supabase.removeChannel(channel);
+        } catch {
+            // signal de confort — jamais bloquant
+        }
+    },
+
     subscribeToCallSignals(userId: string, callback: (signal: any) => void): () => void {
         if (!isSupabaseConfigured) return () => {};
         try {
@@ -394,6 +465,29 @@ export const supabaseService = {
     },
 
     /**
+     * Équipe F1 : flux entrant GLOBAL de messages (toutes conversations de
+     * l'utilisateur) — postgres_changes SANS filtre `conversation_id`, la
+     * RLS de `messages` (membres seulement) borne côté serveur ce que le
+     * canal délivre réellement. Sert aux compteurs « non lus » en direct sur
+     * les conversations NON ouvertes ; la conversation ouverte garde son
+     * propre abonnement filtré (`subscribeToChat`).
+     */
+    subscribeToIncomingMessages(callback: (m: any) => void): () => void {
+        if (!isSupabaseConfigured) return () => {};
+        try {
+            const channel = supabase
+                .channel('incoming-messages')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+                    callback(payload.new);
+                })
+                .subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch {
+            return () => {};
+        }
+    },
+
+    /**
      * Réécrite pour les vraies colonnes de `messages` (LOOP 06/17) : l'ancien
      * appel envoyait `text`/`sender_name`/`sender_avatar`/`sender_role`/
      * `media_type`/`media_url`/`voice_url`/`voice_duration`/`reply_to`,
@@ -414,6 +508,8 @@ export const supabaseService = {
         attachmentUrl?: string;
         messageType?: 'text' | 'image' | 'video' | 'audio' | 'document';
         replyToId?: string;
+        /** Équipe F1 : durée RÉELLE du vocal (secondes) — persistée dans metadata.audio_duration, jamais une valeur inventée à l'affichage. */
+        audioDurationSeconds?: number;
     }): Promise<{ id: string; createdAt: string; status: string } | null> {
         if (!isSupabaseConfigured) return null;
         const { data, error } = await supabase
@@ -426,6 +522,7 @@ export const supabaseService = {
                 attachment_url: params.attachmentUrl,
                 message_type: params.messageType || 'text',
                 reply_to_id: params.replyToId,
+                ...(params.audioDurationSeconds ? { metadata: { audio_duration: params.audioDurationSeconds } } : {}),
             })
             .select('id, created_at, status')
             .single();
@@ -589,7 +686,7 @@ export const supabaseService = {
      * rechargement de page au lieu d'être perdu (documents/vidéos) ou
      * alourdir la ligne `posts` elle-même (images).
      */
-    async uploadContentMedia(userId: string, file: File, folder: 'posts' | 'stories' | 'documents'): Promise<string | null> {
+    async uploadContentMedia(userId: string, file: File, folder: 'posts' | 'stories' | 'documents' | 'chat'): Promise<string | null> {
         if (!isSupabaseConfigured) return null;
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const path = `${folder}/${userId}/${Date.now()}-${safeName}`;
@@ -861,6 +958,19 @@ export const supabaseService = {
             read: false,
         });
         if (error) console.warn('recordSelfNotification: écriture impossible', error.message);
+    },
+    /**
+     * Équipe F2 : « Appel manqué » écrit CÔTÉ SERVEUR par l'APPELANT pour
+     * l'appelé (`notify_missed_call`, SECURITY DEFINER gardé par
+     * l'appartenance à une conversation commune + blocages) — atteint la
+     * cloche de l'appelé même si son application est FERMÉE, ce que ni le
+     * broadcast éphémère ni l'auto-insertion (RLS notifications_owner) ne
+     * permettaient.
+     */
+    async notifyMissedCall(calleeId: string): Promise<void> {
+        if (!isSupabaseConfigured || !calleeId) return;
+        const { error } = await supabase.rpc('notify_missed_call', { p_callee: calleeId });
+        if (error) console.warn('notifyMissedCall: échec', error.message);
     },
     /**
      * LOOP 08/17 (moteur de notifications, fondation) : la table

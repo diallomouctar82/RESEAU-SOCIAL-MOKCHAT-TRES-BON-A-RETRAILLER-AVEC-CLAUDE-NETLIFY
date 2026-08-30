@@ -121,6 +121,17 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const { currentPalette, paletteId } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  // Équipe F1 (D12) : une notification de message cliquée OUVRE le widget de
+  // chat — compteur-signal consommé par <MoocChatFloating>, jamais une
+  // navigation d'onglet (le chat est flottant, pas une page).
+  const [chatOpenSignal, setChatOpenSignal] = useState(0);
+  const handleNotificationClick = (notif: Notification) => {
+    onMarkRead(notif.id);
+    if (notif.targetAction === 'chat' || notif.targetAction === 'messages') {
+      setChatOpenSignal(s => s + 1);
+      setIsNotifOpen(false);
+    }
+  };
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isDialloOSOpen, setIsDialloOSOpen] = useState(false);
   const [dialloInitialPrompt, setDialloInitialPrompt] = useState<string | undefined>(undefined);
@@ -437,7 +448,7 @@ export const Layout: React.FC<LayoutProps> = ({
                           <div 
                             key={notif.id} 
                             className={`p-3 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.read ? 'bg-blue-50/30' : ''}`}
-                            onClick={() => onMarkRead(notif.id)}
+                            onClick={() => handleNotificationClick(notif)}
                           >
                             <div className="flex gap-2.5">
                               <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
@@ -1120,7 +1131,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     <div
                       key={notif.id}
                       className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.read ? 'bg-blue-50/30' : ''}`}
-                      onClick={() => onMarkRead(notif.id)}
+                      onClick={() => handleNotificationClick(notif)}
                     >
                       <div className="flex gap-2.5">
                         <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
@@ -1210,6 +1221,7 @@ export const Layout: React.FC<LayoutProps> = ({
           currentUser={userProfile}
           pendingDirectChatMember={pendingDirectChatMember}
           onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
+          openWidgetSignal={chatOpenSignal}
         />
 
       </div>
