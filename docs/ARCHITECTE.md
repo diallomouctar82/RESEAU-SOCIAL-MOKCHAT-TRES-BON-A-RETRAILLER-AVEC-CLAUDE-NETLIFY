@@ -142,15 +142,19 @@ Elle n'est pas contournable, même si le modèle a formulé la demande comme une
 | Contenu | 11 | `SocialFeed.tsx` |
 | Social | 9 | `SocialFeed.tsx` |
 | LIVE | 14 | `SocialLive.tsx`, **pendant un direct uniquement** |
-| Recherche | 1 | *Non branchée* |
+| Recherche | 1 | L'Architecte lui-même (`searchCapabilityHandlers.ts`) — disponible **partout** |
 
-**54 / 55 exécutables.**
+**55 / 55 exécutables.**
 
-La 42ᵉ (`search.universal.search`) est une entrée **synthétique** du registre :
-`services/search/searchVoiceCommands.ts` n'a jamais eu de tableau structuré
-(3 actions codées en dur dans son prompt, sans `id` ni `riskLevel`). Elle est
-documentée comme telle depuis sa création plutôt que fabriquée à partir d'une
-source qui n'existe pas.
+`search.universal.search` était la dernière capacité sans handler — un défaut
+relevé par l'audit navigateur du 30/08/2026 : la découverte l'annonçait
+(« la recherche dans MokNet ») alors qu'aucune exécution n'existait. Son
+handler appelle `universalSearch` (RPC `search_universal`, accent-insensible,
+RLS de l'appelant) et distingue trois issues jamais confondues : échec
+RPC (`ok: false`, « n'a pas pu aboutir ») ≠ zéro correspondance (`ok: true`,
+« aucun résultat ») ≠ résultats listés avec leur compte exact. L'entrée du
+registre reste synthétique (le fichier `searchVoiceCommands.ts` n'a jamais eu
+de tableau structuré), mais elle est désormais réellement exécutable.
 
 Les 14 capacités LIVE ne sont **pas** enregistrées hors direct, et c'est
 délibéré : « donner la parole » n'a aucun sens sans session en cours. Le bus
@@ -203,8 +207,8 @@ d'exploitable n'est trouvé.
 
 ## 11. Tests
 
-**92 tests réels, tous verts** — 72 hors navigateur via `esbuild` + Node, plus
-**20 sous `vitest` + `@testing-library/react`** (voir §15), l'outillage DOM
+**104 tests réels, tous verts** — 72 hors navigateur via `esbuild` + Node, plus
+**32 sous `vitest` + `@testing-library/react`** (voir §15), l'outillage DOM
 que le dépôt n'avait pas jusqu'ici.
 
 | Suite | Couvre |
@@ -214,7 +218,9 @@ que le dépôt n'avait pas jusqu'ici.
 | Tâches (12) | Casse et accents · **titre ambigu refusé sans qu'aucune suppression ne parte** · titre inexistant · date non ISO jamais écrite · succès partiel annoncé honnêtement · auto-dépendance refusée |
 | JSON (11) | Clôtures markdown · phrases avant/après · tableaux · imbrication préservée · `undefined` plutôt qu'un objet inventé |
 | File hors-ligne (11) | Tâche conservée hors ligne · id UUID valide comme ancre · **tâche sans gestionnaire CONSERVÉE, jamais perdue** · tâche ajoutée pendant le traitement qui survit · pas de double passage concurrent · abandon signalé après 5 tentatives · refus définitif abandonné immédiatement · isolation stricte entre comptes |
-| Barre flottante — DOM (9) | Pastille présente · barre absente avant ouverture · **ouverture réellement vérifiée** (et non `toBeDefined()` sur un `null`) · écoute démarrée à l'ouverture · les trois boutons d'action · **ouverture au clavier** · **micro relâché au démontage** · rien coupé quand la barre est fermée |
+| Barre flottante — DOM (10) | Pastille présente · barre absente avant ouverture · **ouverture réellement vérifiée** (et non `toBeDefined()` sur un `null`) · écoute démarrée à l'ouverture · les trois boutons d'action · **ouverture au clavier** · **micro relâché au démontage** · rien coupé quand la barre est fermée · **échec micro terminal affiché** (jamais « Connexion... » à l'infini) |
+| Moteur vocal (5) | **Aucune relance après erreur fatale** (`audio-capture`, `not-allowed`) — fin de la boucle mesurée à 16 relances/5 s par l'audit du 30/08/2026 · relance légitime sur erreur transitoire isolée · plafond de relances (4) puis abandon signalé · nouveau `startListening` explicite = nouvelle chance · de l'audio réel réarme le compteur |
+| Recherche (6) | Échec RPC ≠ zéro résultat ≠ résultats (trois issues jamais confondues) · compte exact et surplus annoncé · terme trop court refusé sans appel · tolérance aux formes de payload du modèle |
 | Paramètres (29) | Registre à 55 sans doublon · confidentialité = confirmation requise · **6 écritures rapportées `ok:false` quand la persistance échoue** · clés `privacy_settings` voisines préservées · champ vide jamais écrit · valeur d'énumération inexistante refusée (`network` pour les demandes d'ami) · API appareil absente annoncée, jamais simulée |
 
 ---
@@ -310,7 +316,6 @@ et les 6 écritures de réglages sont testées dans le cas où la persistance
 
 ## 14. Ce qui reste ouvert
 
-- **Recherche** — 1 capacité non branchée (voir §8).
 - **Mémoire inter-sessions** — l'Architecte ne se souvient de rien d'une
   session à l'autre. `user_memory` existe (LOOP 12-13/17) mais n'est pas
   consommée ici.
