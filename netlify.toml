@@ -1,0 +1,53 @@
+# Configuration Netlify — MokNet
+#
+# Ce fichier ne contient QUE des en-têtes de réponse. Il est repris du
+# `netlify/netlify.toml` du paquet Architecte (AI Studio), dont c'était le seul
+# apport réellement utile : quatre en-têtes de sécurité mesurés absents du
+# déploiement réel (seul `Strict-Transport-Security`, posé par Netlify
+# lui-même, était servi).
+#
+# Ce qui n'est PAS repris du fichier d'origine, délibérément :
+#
+#   • le bloc `[build]` — les trois sites Netlify de MokNet sont configurés
+#     par l'interface et fonctionnent ; en plus, son `functions =
+#     "netlify/functions"` désigne un répertoire qui n'existe pas ici.
+#   • la redirection `/api/*` — elle route vers une fonction serverless dont
+#     l'endpoint `/config` renvoie la clé Gemini en clair, avec un CORS
+#     `Access-Control-Allow-Origin: *`, donc lisible par n'importe quel
+#     domaine. MokNet passe par l'Edge Function `ai-gateway`, clés en Vault
+#     côté serveur.
+#
+# L'absence de section `[build]` est intentionnelle : Netlify conserve alors la
+# configuration de build définie dans l'interface pour chacun des trois sites.
+
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    # Empêche l'intégration de MokNet dans une iframe d'un autre domaine
+    # (détournement de clic). `SAMEORIGIN` plutôt que `DENY` : aucun code du
+    # dépôt ne détecte d'auto-intégration, mais `SAMEORIGIN` couvre le besoin
+    # sans risquer de casser un usage interne non repéré.
+    X-Frame-Options = "SAMEORIGIN"
+
+    # Interdit au navigateur de deviner un type MIME différent de celui
+    # annoncé — évite qu'un fichier téléversé soit interprété comme un script.
+    X-Content-Type-Options = "nosniff"
+
+    # L'URL complète n'est transmise qu'aux destinations de même origine ; vers
+    # l'extérieur, seul le domaine part, et rien du tout en HTTP non chiffré.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # Chaque entrée correspond à un usage RÉEL, vérifié dans le dépôt avant
+    # d'écrire cette ligne — une politique inventée bloquerait des
+    # fonctionnalités qui marchent aujourd'hui :
+    #   camera + microphone → LIVE, appels, Architecte vocal, scanner
+    #                         (getUserMedia/getDisplayMedia dans 10 fichiers)
+    #   geolocation         → HealthCenter (navigator.geolocation)
+    #   payment, usb        → aucun usage nulle part : refusés explicitement
+    # `(self)` n'élargit rien — c'est déjà le défaut du navigateur pour ces
+    # trois-là ; l'écrire empêche en revanche une iframe tierce de les demander.
+    # Les fonctionnalités non listées gardent le comportement par défaut du
+    # navigateur, délibérément : en verrouiller une par excès de zèle casserait
+    # un usage existant sans rien protéger de plus.
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()"
