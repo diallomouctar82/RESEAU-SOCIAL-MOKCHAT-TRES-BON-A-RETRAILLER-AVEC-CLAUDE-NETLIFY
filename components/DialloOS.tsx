@@ -136,6 +136,8 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             const outcome = await runArchitecteCommand(command, {
                 userName: userProfile.name,
                 userLevel: userProfile.level,
+                // Même identité, même mémoire de relation que la barre (§13/§22).
+                callName: userProfile.privacySettings?.architecte?.callName,
                 confirm: (message) => window.confirm(message),
                 runLegacyTarget: async (target, payload) => {
                     if (!LEGACY_EXECUTABLE_TARGETS.has(target)) {
@@ -208,7 +210,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleExecute()}
-                            placeholder="Demandez à Diallo OS... (ex: 'Trouve-moi un job au Canada')"
+                            placeholder="Demandez à L'Architecte... (ex : « Trouve-moi un job au Canada »)"
                             className="flex-1 bg-transparent text-xl font-medium text-white placeholder-slate-500 outline-none"
                         />
                         
@@ -230,12 +232,12 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                     <span className="w-3 h-3 bg-brand-400 rounded-full animate-bounce delay-75"></span>
                                     <span className="w-3 h-3 bg-brand-400 rounded-full animate-bounce delay-150"></span>
                                 </div>
-                                <p className="text-brand-300 font-mono text-sm uppercase tracking-widest">Coordination Famille Diallo en cours...</p>
+                                <p className="text-brand-300 font-mono text-sm uppercase tracking-widest">L'Architecte s'en occupe...</p>
                             </div>
                         ) : aiResponse ? (
                             <div className="animate-fade-up space-y-4">
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold uppercase tracking-wider">
-                                    <Sparkles size={12} /> Cabinet Famille Diallo
+                                    <Sparkles size={12} /> L'Architecte — MokNet
                                 </div>
                                 <h3 className="text-2xl font-bold text-white leading-relaxed">
                                     "{aiResponse}"

@@ -31,10 +31,16 @@ import {
     subscribeToSession,
 } from '../services/architecte/architecteSession';
 import {
+    buildArchitecteGreeting,
     buildArchitecteSystemPrompt,
+    describeArchitecteIdentity,
+    isAffirmativeReply,
+    isIdentityQuestion,
+    isVagueNeed,
     isVisionQuestion,
     runArchitecteCommand,
 } from '../services/architecte/architecteBrain';
+import { generateJSON } from '../services/aiGateway';
 
 beforeEach(() => clearSession());
 
@@ -103,6 +109,122 @@ describe('Garde anti-hallucination visuelle', () => {
         const prompt = buildArchitecteSystemPrompt('Test', 1);
         expect(prompt).toContain('ont été montrées');
         expect(prompt).toContain('ne décris jamais leur contenu de mémoire');
+    });
+});
+
+describe('Comportement humain (Boucle 1) — identité unique et déterministe', () => {
+    it('reconnaît les questions d\'identité, en français réel', () => {
+        for (const q of [
+            'Qui es-tu ?',
+            "t'es qui toi",
+            'tu es qui',
+            "comment tu t'appelles ?",
+            'Présente-toi',
+            "c'est quoi l'architecte ?",
+        ]) {
+            expect(isIdentityQuestion(q), q).toBe(true);
+        }
+        for (const q of ['Emmène-moi sur le fil social', 'qui est le président du Sénégal', 'crée une tâche']) {
+            expect(isIdentityQuestion(q), q).toBe(false);
+        }
+    });
+
+    it('la présentation est stable, se nomme L\'Architecte, et utilise le nom choisi', () => {
+        const anonyme = describeArchitecteIdentity();
+        expect(anonyme).toContain("L'Architecte");
+        expect(anonyme).not.toContain('Diallo');
+        const nomme = describeArchitecteIdentity('Mamadou');
+        expect(nomme).toContain('Mamadou');
+    });
+
+    it('« Qui es-tu ? » est traité SANS appel au modèle et inscrit 2 tours en session', async () => {
+        vi.mocked(generateJSON).mockClear();
+        const outcome = await runArchitecteCommand('Qui es-tu ?', {
+            userName: 'Test', userLevel: 1, confirm: () => true,
+        });
+        expect(outcome.handledLocally).toBe(true);
+        expect(outcome.spoken).toContain("L'Architecte");
+        expect(generateJSON).not.toHaveBeenCalled();
+        expect(getSessionTurns()).toHaveLength(2);
+    });
+
+    it('le prompt du cerveau impose UNE SEULE identité — jamais « Diallo OS »', () => {
+        const prompt = buildArchitecteSystemPrompt('Test', 1);
+        expect(prompt).toContain("Tu es L'ARCHITECTE");
+        expect(prompt).toContain('UNE SEULE IDENTITÉ');
+        expect(prompt).not.toContain('Tu es Diallo OS');
+        expect(prompt).not.toContain('Cabinet Famille Diallo');
+    });
+
+    it('le prompt porte les règles de conduite : besoin flou, rythme adapté, pas de récitation', () => {
+        const prompt = buildArchitecteSystemPrompt('Test', 1);
+        expect(prompt).toContain('BESOIN FLOU');
+        expect(prompt).toContain('apprendre, travailler, communiquer, créer');
+        expect(prompt).toContain('ADAPTE ton rythme');
+        expect(prompt).toContain('Ne récite jamais spontanément');
+    });
+
+    it('le prompt exige la production écrite COMPLÈTE et propose les outils au bon moment (Équipe C)', () => {
+        const prompt = buildArchitecteSystemPrompt('Test', 1);
+        expect(prompt).toContain('PRODUCTION ÉCRITE');
+        expect(prompt).toContain('PRODUCTION COMPLÈTE');
+        expect(prompt).toContain('pas un résumé ni une promesse');
+        expect(prompt).toContain('OUTILS AU BON MOMENT');
+        expect(prompt).toContain('je peux ouvrir la caméra si vous voulez');
+    });
+
+    it('le nom choisi (fiche de consentement) est injecté et jamais redemandé', () => {
+        const prompt = buildArchitecteSystemPrompt('Test', 1, 'Mamadou');
+        expect(prompt).toContain('« Mamadou »');
+        expect(prompt).toContain('ne le redemande jamais');
+        expect(buildArchitecteSystemPrompt('Test', 1)).not.toContain('ne le redemande jamais');
+    });
+});
+
+describe('Comportement humain (Boucle 1) — accueil différencié', () => {
+    it('première rencontre (pas de fiche) : accueil complet qui se présente et propose la fiche', () => {
+        const greeting = buildArchitecteGreeting(null, 'Mamadou');
+        expect(greeting.firstMeeting).toBe(true);
+        expect(greeting.text).toContain('bienvenue');
+        expect(greeting.text).toContain("L'Architecte");
+        expect(greeting.text).toContain('Voulez-vous');
+    });
+
+    it('personne connue (fiche existante) : accueil léger avec son nom, sans refaire l\'onboarding', () => {
+        const greeting = buildArchitecteGreeting({ callName: 'Mamadou' }, 'Autre');
+        expect(greeting.firstMeeting).toBe(false);
+        expect(greeting.text).toBe("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?");
+        expect(greeting.text).not.toContain('bienvenue');
+    });
+
+    it('le besoin flou PUR est reconnu — une phrase qui porte un sujet ne l\'est pas', () => {
+        for (const v of ['Je ne sais pas trop.', 'je sais pas quoi faire', 'aucune idée', "j'hésite"]) {
+            expect(isVagueNeed(v), v).toBe(true);
+        }
+        for (const c of ['je ne sais pas comment faire un CV', "je veux apprendre l'allemand", 'je ne sais pas si mon visa est prêt']) {
+            expect(isVagueNeed(c), c).toBe(false);
+        }
+    });
+
+    it('« Je ne sais pas trop. » reçoit UNE question douce par familles — sans appel au modèle', async () => {
+        vi.mocked(generateJSON).mockClear();
+        const outcome = await runArchitecteCommand('Je ne sais pas trop.', {
+            userName: 'Test', userLevel: 1, callName: 'Mamadou', confirm: () => true,
+        });
+        expect(outcome.handledLocally).toBe(true);
+        expect(outcome.spoken).toContain('Mamadou');
+        expect(outcome.spoken).toContain('apprendre');
+        expect(outcome.spoken).toContain('organiser');
+        expect(generateJSON).not.toHaveBeenCalled();
+    });
+
+    it('un « oui » court est une acceptation — une phrase qui continue est une commande', () => {
+        for (const yes of ['oui', 'Oui !', "d'accord", 'ok', 'vas-y', 'je veux bien']) {
+            expect(isAffirmativeReply(yes), yes).toBe(true);
+        }
+        for (const no of ['oui je veux voyager au Canada', 'non', 'oui mais plus tard', 'ouvre le campus']) {
+            expect(isAffirmativeReply(no), no).toBe(false);
+        }
     });
 });
 

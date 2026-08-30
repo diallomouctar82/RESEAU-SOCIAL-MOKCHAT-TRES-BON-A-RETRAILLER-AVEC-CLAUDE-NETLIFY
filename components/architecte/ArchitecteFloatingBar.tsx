@@ -11,7 +11,15 @@ import {
 } from '../../services/architecte/architecteSession';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
-import { ARCHITECTE_AGENT_ID, isVisionQuestion, isWebSearchCommand, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
+import {
+    ARCHITECTE_AGENT_ID,
+    buildArchitecteGreeting,
+    isAffirmativeReply,
+    isVisionQuestion,
+    isWebSearchCommand,
+    runArchitecteCommand,
+    type ArchitectePhase,
+} from '../../services/architecte/architecteBrain';
 import { extractDocumentText, UnsupportedDocumentError } from '../../services/architecte/documentExtractor';
 import { buildConsentRecap, CONSENT_STEPS, isConsentCommand, type ArchitecteConsent } from '../../services/architecte/consentFlow';
 import {
@@ -143,6 +151,22 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const profileRef = useRef(userProfile);
     useEffect(() => { profileRef.current = userProfile; }, [userProfile]);
 
+    // ── Comportement humain (Boucle 1) ──────────────────────────────────
+    // `isOpenRef` : lu par les chemins asynchrones — fermé signifie
+    // RÉELLEMENT silencieux, y compris pour une réponse arrivée après la
+    // fermeture (§14). `hasGreetedRef` : l'accueil se fait UNE fois par
+    // session de page, jamais à chaque ouverture (§2). `consentOfferRef` :
+    // l'offre de configuration faite à la première rencontre — un « oui »
+    // court l'accepte, toute autre réponse la laisse tomber sans insister
+    // (savoir se taire, §8).
+    const isOpenRef = useRef(false);
+    useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+    const hasGreetedRef = useRef(false);
+    const consentOfferRef = useRef(false);
+    // Les commandes vocales caméra sont routées via cette ref (les callbacks
+    // caméra sont définis plus bas dans le fichier).
+    const cameraControlRef = useRef<{ open: () => void; close: () => void }>({ open: () => {}, close: () => {} });
+
     useEffect(() => {
         try {
             const raw = localStorage.getItem(POSITION_STORAGE_KEY);
@@ -246,12 +270,18 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // lire le dit franchement plutôt que d'échouer en silence.
     // ─────────────────────────────────────────────────────────────────────
 
-    /** Dit et affiche un résultat d'analyse, avec la même discipline que handleCommand — et l'inscrit dans le fil de la session. */
+    /**
+     * Dit et affiche un résultat, et l'inscrit dans le fil de la session.
+     *
+     * Fermé = RÉELLEMENT silencieux (§14) : une réponse qui arrive après la
+     * fermeture (commande encore en vol) est conservée dans le fil mais
+     * n'est JAMAIS prononcée — l'Architecte ne monologue pas en arrière-plan.
+     */
     const announce = useCallback((message: string, tone: string) => {
         setStatus(message);
         setStatusTone(tone);
         addSessionTurn({ role: 'architecte', kind: 'texte', text: message });
-        void speak(message);
+        if (isOpenRef.current) void speak(message);
     }, [speak]);
 
     const analyseVisual = useCallback(async (base64: string, mimeType: string, contexte: string) => {
@@ -349,10 +379,44 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const handleCommand = useCallback(async (command: string) => {
         if (!command.trim()) return;
 
+        // Offre de configuration en attente (première rencontre) : un « oui »
+        // court l'accepte et démarre la fiche ; toute autre réponse la laisse
+        // tomber SANS insister et se traite normalement.
+        if (consentOfferRef.current) {
+            consentOfferRef.current = false;
+            if (isAffirmativeReply(command)) {
+                addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+                consentRef.current = { step: 0, answers: {} };
+                announce(CONSENT_STEPS[0].question, 'text-cyan-300/80');
+                return;
+            }
+        }
+
         // Fiche de consentement active : la réponse va à la fiche, pas au
         // cerveau — même canal, même session, zéro second assistant.
         if (consentRef.current) {
             await handleConsentAnswer(command.trim());
+            return;
+        }
+
+        // Outils à la voix (§18) : la caméra s'ouvre et se ferme sans que la
+        // personne ait à trouver le bouton. Le sélecteur de fichiers, lui, ne
+        // peut pas s'ouvrir sans un vrai clic (règle des navigateurs) — on le
+        // dit honnêtement au lieu de simuler.
+        if (/\b(ouvre|active|lance|allume)\b[^.!?]{0,30}\bcam[ée]ra\b/i.test(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            cameraControlRef.current.open();
+            return;
+        }
+        if (/\bferme\b[^.!?]{0,30}\bcam[ée]ra\b/i.test(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            cameraControlRef.current.close();
+            announce('Caméra fermée.', 'text-slate-400');
+            return;
+        }
+        if (/\b(joins?|joindre|importe[rz]?|t[ée]l[ée]verse[rz]?|envoie[- ]moi)\b[^.!?]{0,40}\b(fichier|document)\b/i.test(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            announce("Appuyez sur le bouton Fichier, juste en dessous, et choisissez votre document — je le lirai immédiatement. (Le navigateur exige un vrai appui pour ouvrir le sélecteur.)", 'text-cyan-300/80');
             return;
         }
         if (isConsentCommand(command)) {
@@ -466,18 +530,23 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             const outcome = await runArchitecteCommand(command, {
                 userName: profileRef.current.name,
                 userLevel: profileRef.current.level,
+                // Mémoire de la relation (§22) : le nom choisi dans la fiche
+                // est utilisé, jamais redemandé.
+                callName: profileRef.current.privacySettings?.architecte?.callName,
                 confirm: (message) => window.confirm(message),
                 onPhase: (phase, message) => { setStatus(message); setStatusTone(PHASE_TONE[phase]); },
             });
 
             // Ce qui est prononcé est toujours le RÉSULTAT réel quand il y en
             // a un — jamais l'intention annoncée par le modèle si l'exécution
-            // a ensuite échoué, été refusée ou annulée.
+            // a ensuite échoué, été refusée ou annulée. Et jamais barre
+            // fermée (§14) : une réponse arrivée après la fermeture reste
+            // dans le fil, silencieuse.
             const spoken = outcome.execution?.message || outcome.spoken;
             if (spoken) {
                 setStatus(spoken);
                 setStatusTone(outcome.execution ? PHASE_TONE[outcome.execution.phase] : 'text-cyan-300/80');
-                void speak(spoken);
+                if (isOpenRef.current) void speak(spoken);
             }
 
             if (outcome.action?.type === 'NAVIGATE' && outcome.action.target) {
@@ -580,6 +649,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
             streamRef.current = stream;
             setIsCameraOpen(true);
+            // Confirmation APRÈS l'ouverture réelle — jamais avant (§21).
+            announce('La caméra est ouverte — cadrez ce que vous voulez me montrer, puis dites-moi ou appuyez sur Analyser.', 'text-cyan-300/80');
         } catch (e: any) {
             announce(
                 e?.name === 'NotAllowedError'
@@ -612,6 +683,12 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         void analyseVisual(base64, 'image/jpeg', "Voici ce que l'utilisateur me montre avec sa caméra.");
     }, [analyseVisual, announce, closeCamera]);
 
+    // Les commandes vocales « ouvre/ferme la caméra » (routées tôt dans
+    // handleCommand, défini avant ces callbacks) passent par cette ref.
+    useEffect(() => {
+        cameraControlRef.current = { open: () => { void openCamera(); }, close: closeCamera };
+    }, [openCamera, closeCamera]);
+
     // Attacher le flux au <video> APRÈS le rendu du panneau — un
     // `setTimeout(0)` pouvait s'exécuter avant le commit React (rendu
     // asynchrone), laissant `videoRef.current` à null et l'aperçu
@@ -632,8 +709,27 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
 
     const open = useCallback(async () => {
         setIsOpen(true);
+        // Mise à jour SYNCHRONE : l'accueil ci-dessous doit pouvoir parler
+        // avant que l'effet qui synchronise la ref ait tourné.
+        isOpenRef.current = true;
         setStatus('');
         setStatusTone('text-cyan-300/80');
+
+        // ── L'ARCHITECTE VA VERS LA PERSONNE (§1-2) ──
+        // Une fois par session de page : accueil complet à la première
+        // rencontre (et proposition de configuration), accueil léger avec le
+        // nom choisi pour une personne déjà connue. Jamais une interface
+        // froide qui attend une commande — et jamais un onboarding rejoué à
+        // chaque ouverture.
+        if (!hasGreetedRef.current) {
+            hasGreetedRef.current = true;
+            const greeting = buildArchitecteGreeting(
+                profileRef.current.privacySettings?.architecte,
+                profileRef.current.name
+            );
+            if (greeting.firstMeeting) consentOfferRef.current = true;
+            announce(greeting.text, 'text-cyan-300/80');
+        }
         // Comportement natif de l'original : l'ouverture DÉMARRE la session
         // d'écoute, elle ne se contente pas d'afficher une barre.
         setConversationalMode(true);
@@ -663,6 +759,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const close = useCallback(() => {
         if (listenWatchdog.current) { clearTimeout(listenWatchdog.current); listenWatchdog.current = null; }
         setIsOpen(false);
+        // Synchrone : dès cet instant, plus AUCUNE parole ne part (§14) —
+        // y compris une réponse encore en vol.
+        isOpenRef.current = false;
         setIsThinking(false);
         setStatus('');
         stopListening();
@@ -746,13 +845,24 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     /** Micro réellement en panne — pas simplement « pas encore démarré ». */
     const micFailed = status === MIC_TIMEOUT_MESSAGE;
 
+    // ── Voix par défaut, texte quand il apporte une vraie valeur (§16-17) ──
+    // Le panneau de transcription ne s'impose pas à chaque phrase : il
+    // apparaît quand la personne écrit, quand le fil contient une image ou un
+    // document (à VOIR), ou quand la dernière réponse est une vraie
+    // production écrite (lettre, liste, résumé long). Une simple réponse
+    // vocale reste vocale — l'interface minimale suffit.
+    const lastTurn = sessionTurns[sessionTurns.length - 1];
+    const hasRichTurns = sessionTurns.some((t) => t.kind !== 'texte');
+    const lastIsWrittenProduction = !!lastTurn && lastTurn.role === 'architecte' && lastTurn.text.length > 220;
+    const showConversationPanel = isTypingOpen || hasRichTurns || lastIsWrittenProduction;
+
     return (
         <>
         {/* Fil de conversation — LA session unique de l'Architecte : voix,
             clavier, photos et documents dans le même échange, sans jamais
             basculer vers une autre interface. Masqué pendant que la caméra
             occupe le même emplacement. */}
-        {!isCameraOpen && (sessionTurns.length > 0 || isTypingOpen) && (
+        {!isCameraOpen && showConversationPanel && (
             <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[92%] max-w-2xl rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]">
                 {sessionTurns.length > 0 && (
                     <div ref={conversationRef} className="max-h-60 overflow-y-auto p-3 space-y-2">

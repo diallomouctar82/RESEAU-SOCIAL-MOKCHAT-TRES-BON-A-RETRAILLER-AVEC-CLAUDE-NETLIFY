@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -26,6 +26,9 @@ const stopListening = vi.fn();
 const stopSpeaking = vi.fn();
 const startListening = vi.fn(async () => true);
 const setConversationalMode = vi.fn();
+// Nommé (et non inline) : les tests Boucle 1 vérifient CE QUI est prononcé —
+// l'accueil, et surtout ce qui ne doit JAMAIS l'être barre fermée (§14).
+const speak = vi.fn(async (_texte: string) => {});
 // Mutable pour simuler, test par test, un signal d'erreur du moteur vocal
 // (`vi.hoisted` : le bloc `vi.mock` est hissé au-dessus des `const`).
 const voiceState = vi.hoisted(() => ({ error: null as string | null }));
@@ -40,7 +43,7 @@ vi.mock('../hooks/useVoiceAssistant', () => ({
         error: voiceState.error,
         startListening,
         stopListening,
-        speak: vi.fn(async () => {}),
+        speak,
         stopSpeaking,
         setConversationalMode,
     }),
@@ -60,12 +63,22 @@ vi.mock('../services/architecte/searchCapabilityHandlers', () => ({
 vi.mock('../services/aiGateway', () => ({
     analyzeImage: vi.fn(async () => 'Réponse de test'),
     generateText: vi.fn(async () => 'Réponse de test'),
+    // Le cerveau (`architecteBrain`) passe par ici pour toute commande non
+    // déterministe : les tests Boucle 1 le contrôlent (réponse différée pour
+    // le scénario « fermé pendant que la réponse est en vol »).
+    generateJSON: vi.fn(async () => ({ type: 'NOTIFICATION', explanation: 'Réponse de test.' })),
 }));
 
 import { ArchitecteFloatingBar } from '../components/architecte/ArchitecteFloatingBar';
-import { addSessionTurn, clearSession } from '../services/architecte/architecteSession';
+import { addSessionTurn, clearSession, getSessionTurns } from '../services/architecte/architecteSession';
+import { generateJSON } from '../services/aiGateway';
 
 const PROFIL: any = { id: 'u-test', name: 'Preuve Lazarus', level: 3 };
+/** Personne déjà connue : fiche de consentement présente (accueil léger, §2/§22). */
+const PROFIL_CONNU: any = {
+    id: 'u-test', name: 'Preuve Lazarus', level: 3,
+    privacySettings: { architecte: { callName: 'Mamadou', scope: 'limite', autoPrepare: false, consentAt: '2026-08-30T00:00:00Z' } },
+};
 
 function monter(props: Partial<React.ComponentProps<typeof ArchitecteFloatingBar>> = {}) {
     return render(
@@ -239,5 +252,143 @@ describe('Démontage', () => {
         // interromprait la session vocale d'un autre écran.
         expect(stopListening).not.toHaveBeenCalled();
         expect(stopSpeaking).not.toHaveBeenCalled();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// BOUCLE 1 — comportement humain de l'Architecte.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Ouvre la saisie clavier et envoie un message — même session que la voix. */
+async function ecrire(texte: string) {
+    fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
+    const input = await screen.findByLabelText("Saisie clavier de l'Architecte");
+    fireEvent.change(input, { target: { value: texte } });
+    fireEvent.submit(input.closest('form')!);
+}
+
+describe('Boucle 1 — accueil différencié (§1-2)', () => {
+    it("première rencontre : l'Architecte se présente, souhaite la bienvenue et propose la fiche", async () => {
+        monter(); // PROFIL sans fiche de consentement
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
+        expect(speak).toHaveBeenCalledWith(expect.stringContaining('Voulez-vous'));
+    });
+
+    it('personne connue : accueil léger avec le nom choisi — jamais un onboarding rejoué', async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?");
+        expect(speak).not.toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
+    });
+
+    it("l'accueil se fait UNE fois par session de page — fermer puis rouvrir ne le rejoue pas", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        const greetings = () => speak.mock.calls.filter(([m]) => String(m).startsWith('Bonjour Mamadou')).length;
+        expect(greetings()).toBe(1);
+
+        fireEvent.click(screen.getByLabelText('Fermer'));
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        expect(greetings()).toBe(1);
+    });
+
+    it("un « oui » court après l'accueil de première rencontre démarre la fiche de consentement", async () => {
+        monter();
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        await ecrire('oui');
+
+        const matches = await screen.findAllByText(/Commençons votre fiche/);
+        expect(matches.length).toBeGreaterThan(0);
+        // Déterministe de bout en bout : aucun appel au modèle.
+        expect(generateJSON).not.toHaveBeenCalled();
+    });
+});
+
+describe('Boucle 1 — fermé signifie RÉELLEMENT silencieux (§14)', () => {
+    it("une réponse arrivée APRÈS la fermeture reste dans le fil mais n'est JAMAIS prononcée", async () => {
+        let livrerReponse!: (v: any) => void;
+        vi.mocked(generateJSON).mockImplementationOnce(
+            () => new Promise((res) => { livrerReponse = res; })
+        );
+
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        await ecrire('Emmène-moi au campus');
+        await waitFor(() => expect(generateJSON).toHaveBeenCalled());
+
+        // La personne ferme la barre pendant que la réponse est en vol.
+        fireEvent.click(screen.getByLabelText('Fermer'));
+        speak.mockClear();
+        livrerReponse({ type: 'NOTIFICATION', explanation: 'Réponse arrivée après fermeture.' });
+
+        // La réponse est bien CONSERVÉE dans la session…
+        await waitFor(() =>
+            expect(getSessionTurns().map((t) => t.text)).toContain('Réponse arrivée après fermeture.')
+        );
+        // …mais l'Architecte ne monologue pas en arrière-plan.
+        expect(speak).not.toHaveBeenCalled();
+    });
+});
+
+describe('Boucle 1 — voix par défaut, texte quand il apporte une valeur (§16-17)', () => {
+    it("une simple conversation vocale n'ouvre PAS le panneau de texte", async () => {
+        addSessionTurn({ role: 'utilisateur', kind: 'texte', text: 'Bonjour Architecte' });
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        // Les tours existent en session mais ne s'affichent pas : la voix suffit.
+        expect(screen.queryByText('Bonjour Architecte')).toBeNull();
+    });
+
+    it('une vraie production écrite (lettre, texte long) fait apparaître le panneau', async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        // `.trim()` : Testing Library normalise les blancs du DOM — un espace
+        // final dans la chaîne attendue ferait échouer la comparaison exacte.
+        const lettre = ('Voici votre lettre de motivation : ' +
+            'Madame, Monsieur, je vous adresse ma candidature pour le poste proposé. '.repeat(4)).trim();
+        addSessionTurn({ role: 'architecte', kind: 'texte', text: lettre });
+
+        expect(await screen.findByText(lettre)).toBeInTheDocument();
+    });
+});
+
+describe('Boucle 1 — outils proposés et pilotés à la voix (§18-19)', () => {
+    it('« Ouvre la caméra » est routé sans modèle — et son indisponibilité est dite honnêtement', async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        await ecrire('Ouvre la caméra');
+
+        // jsdom n'a pas de `mediaDevices` : la vérité, pas une simulation.
+        const matches = await screen.findAllByText(/ne donne pas accès à la caméra/);
+        expect(matches.length).toBeGreaterThan(0);
+        expect(generateJSON).not.toHaveBeenCalled();
+    });
+
+    it("une demande de fichier explique le vrai geste requis — le navigateur exige un appui réel", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        await ecrire('joins un fichier à la conversation');
+
+        const matches = await screen.findAllByText(/Appuyez sur le bouton Fichier/);
+        expect(matches.length).toBeGreaterThan(0);
+        expect(generateJSON).not.toHaveBeenCalled();
     });
 });

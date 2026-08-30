@@ -425,3 +425,57 @@ Ordre de routage d'une commande dans la barre — chaque étage est
 déterministe, le modèle n'arrive qu'en dernier :
 consentement actif → déclencheur consentement → recherche Internet →
 livrable → question de vision → cerveau (`runArchitecteCommand`).
+
+---
+
+## 18. Le comportement humain — Boucle 1 (équipes A/B/C/D)
+
+Chantier du 30/08/2026 : figer l'identité comportementale AVANT toute
+optimisation technique. Principe directeur, verbatim de la mission : « Ce
+n'est pas l'utilisateur qui doit apprendre à utiliser l'Architecte. C'est
+l'Architecte qui doit comprendre l'utilisateur et l'accompagner. »
+
+### Équipe A — comportement
+
+| Comportement | Mécanisme | Où |
+|---|---|---|
+| **Identité unique** | Le prompt impose « UNE SEULE IDENTITÉ » ; « Qui es-tu ? » reçoit une réponse stable et DÉTERMINISTE (`describeArchitecteIdentity`) — jamais le modèle. Les textes « Diallo OS »/« Cabinet Famille Diallo » visibles ont été unifiés. | `architecteBrain.ts`, `DialloOS.tsx` |
+| **Accueil différencié** | À l'ouverture, l'Architecte parle EN PREMIER (`buildArchitecteGreeting`) : accueil complet + proposition de fiche à la première rencontre (marqueur : `privacy_settings.architecte` absent), accueil léger « Bonjour {nom}. Que puis-je faire pour vous aujourd'hui ? » ensuite. Une fois par session de page (`hasGreetedRef`), jamais un onboarding rejoué. | `ArchitecteFloatingBar.tsx::open()` |
+| **Fiche proposée, pas cachée** | L'offre est faite dans l'accueil ; un « oui » court (`isAffirmativeReply`, borné aux réponses brèves) démarre la fiche. « Appelez-moi X » et autres tournures de politesse (tu/vous) sont nettoyées — défaut réel trouvé par la preuve navigateur, corrigé. | `consentFlow.ts` |
+| **Besoin flou** | « Je ne sais pas trop » (énoncé PUR, sans sujet) → clarification stable par familles (`isVagueNeed`), sans appel au modèle ; les formulations plus riches passent au cerveau, encadrées par la directive BESOIN FLOU. | `architecteBrain.ts` |
+| **Mémoire de la relation** | Le nom choisi est injecté au prompt (« ne le redemande jamais »), utilisé dans l'accueil, l'identité et la clarification. | `RunArchitecteOptions.callName` |
+| **Rythme et ton** | Directives de conduite au prompt : pressé/direct → bref ; hésitant/débutant → accompagné ; expert → sans explications élémentaires ; bavard → laisser la place. Jamais de diagnostic psychologique, jamais d'émotions prétendues réelles. | prompt, RÈGLES DE CONDUITE |
+
+### Équipe B — expérience conversationnelle
+
+| Comportement | Mécanisme |
+|---|---|
+| **Fermé = silencieux (réel)** | `isOpenRef` synchrone : `close()` coupe la synthèse ET aucune réponse arrivée APRÈS la fermeture n'est prononcée — elle reste dans le fil. Testé DOM. |
+| **Interruption naturelle (barge-in)** | Une vraie phrase (≥ 12 caractères) prononcée pendant que l'IA parle coupe `stopSpeaking()` et est entendue ; un fragment court (écho de la synthèse) est ignoré. Testé unitairement. |
+| **Respiration par ponctuation** | Le repli navigateur découpe par phrases (existant conservé) ; la pause inter-phrase suit désormais la ponctuation terminale (`breathAfterPhrase` : question > point > articulation > virgule) au lieu d'un 120 ms uniforme. |
+| **Identité vocale stable** | `sessionEngineLock` : une fois le repli navigateur utilisé dans une session conversationnelle, la session y RESTE (au pire UNE bascule, jamais un aller-retour HD↔système phrase après phrase). Le verrou saute à chaque nouvelle session et sur choix explicite du moteur. |
+| **Pas de caricature** | Aucune hésitation fabriquée, aucun rire programmé : le naturel vient de la ponctuation, des pauses, du rythme et de l'interruption. |
+
+### Équipe C — orchestration des outils
+
+| Comportement | Mécanisme |
+|---|---|
+| **Texte quand il a une valeur** | `showConversationPanel` : le panneau n'apparaît que si la personne écrit, si le fil contient une image/un document, ou si la dernière réponse est une vraie production écrite (> 220 caractères). Une conversation vocale ordinaire garde l'interface légère. |
+| **Production écrite complète** | Directive PRODUCTION ÉCRITE : « écris-moi une lettre » → le texte FINAL dans la réponse (jamais « je vais la préparer ») — qui déclenche mécaniquement le panneau. |
+| **Caméra à la voix** | « Ouvre/ferme la caméra » routé déterministiquement (jamais le modèle) vers la vraie caméra ; confirmation APRÈS ouverture réelle. |
+| **Fichier honnête** | « joins un fichier » → guidage vers le bouton Fichier (le navigateur exige un vrai appui — dit tel quel, jamais simulé). |
+| **Proposition contextuelle** | Directive OUTILS AU BON MOMENT : problème visible → proposer la caméra ; document à vérifier → proposer le Fichier. Jamais un outil imposé que la tâche n'exige pas. |
+
+### Équipe D — preuves
+
+131 tests unitaires/DOM au total dont 26 comportementaux nouveaux
+(85 dans `tests/` : brain/session 19, voiceEngine 10, barre 20, consentement
+6, extracteur 7, livrables 5, recherche 6, sync 12 — plus les 46 tests bus/
+capacités hors vitest). Parcours navigateur réel (compte éphémère, gateway
+réelle, fake media) : première rencontre, « oui » → fiche remplie →
+écriture vérifiée EN BASE (`callName='Preuve'` nettoyé), retour reconnu,
+besoin flou, capacités, identité, objectif → chemin, interface légère,
+lettre → panneau conservé, caméra à la demande — captures dans le journal de
+preuve. Les scénarios purement audio (barge-in au micro réel, fermeture
+pendant la synthèse) sont couverts par les tests unitaires/DOM — un
+navigateur headless n'a pas de service de reconnaissance vocale.

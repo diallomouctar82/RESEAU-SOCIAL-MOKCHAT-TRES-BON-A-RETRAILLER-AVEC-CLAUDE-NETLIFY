@@ -142,6 +142,15 @@ export class VoiceEngine {
     private isElevenLabsAvailable: boolean = true;
     private preferredEngine: 'auto' | 'elevenlabs' | 'browser' = 'auto';
     private currentActiveEngine: 'elevenlabs' | 'browser_native' = 'elevenlabs';
+    // IDENTITÉ VOCALE STABLE (Équipe B §9) : en session conversationnelle,
+    // une fois le repli navigateur utilisé, on y RESTE jusqu'à la fin de la
+    // session. Sans ce verrou, chaque réponse retentait le fournisseur HD :
+    // selon sa disponibilité du moment, la voix alternait phrase après
+    // phrase entre deux identités sonores — la « succession de voix »
+    // constatée en usage réel. Une seule bascule par session au pire, jamais
+    // un aller-retour. Le verrou saute à chaque nouvelle session (ouverture/
+    // fermeture de la barre) et si la personne change son moteur préféré.
+    private sessionEngineLock: 'browser_native' | null = null;
 
     // Browser Native Speech Queue fallback
     private speechQueue: string[] = [];
@@ -176,6 +185,8 @@ export class VoiceEngine {
 
     public setPreferredEngine(engine: 'auto' | 'elevenlabs' | 'browser') {
         this.preferredEngine = engine;
+        // Choix explicite de la personne : il prime sur le verrou de session.
+        this.sessionEngineLock = null;
         if (typeof window !== 'undefined') {
             try {
                 localStorage.setItem('lmav_tts_engine_preference', engine);
@@ -208,9 +219,6 @@ export class VoiceEngine {
             };
 
             this.recognition.onresult = (event: any) => {
-                // Si l'assistant est en train de parler, ignorer pour éviter l'écho acoustique
-                if (this.isSpeaking) return;
-
                 let interimTranscript = '';
                 let finalTranscript = '';
 
@@ -224,6 +232,21 @@ export class VoiceEngine {
                 }
 
                 const currentText = (finalTranscript || interimTranscript).trim();
+
+                // INTERRUPTION NATURELLE (barge-in, Boucle 1 §15) : si la
+                // personne parle vraiment pendant que l'IA parle, l'IA se
+                // tait immédiatement et écoute — une conversation n'est pas
+                // une succession de monologues. L'ancien comportement JETAIT
+                // cette parole (`if (isSpeaking) return`). Le seuil de
+                // longueur écarte les fragments d'écho de la voix de
+                // synthèse captés par le micro.
+                if (this.isSpeaking) {
+                    if (currentText.length >= 12) {
+                        this.stopSpeaking();
+                    } else {
+                        return;
+                    }
+                }
 
                 if (currentText) {
                     // De l'audio réel arrive : le micro fonctionne, les échecs
@@ -307,6 +330,10 @@ export class VoiceEngine {
 
     public setConversationalMode(enabled: boolean) {
         this.isConversationalMode = enabled;
+        // Nouvelle session = nouvelle chance pour le moteur HD ; fin de
+        // session = plus rien à verrouiller. Dans les deux cas, le verrou
+        // d'identité vocale ne survit jamais à la session qui l'a posé.
+        this.sessionEngineLock = null;
         if (!enabled) {
             if (this.vadSilenceTimer) clearTimeout(this.vadSilenceTimer);
         }
@@ -527,6 +554,14 @@ export class VoiceEngine {
             return;
         }
 
+        // Identité vocale stable (Équipe B §9) : la session a déjà basculé
+        // sur la voix navigateur — on n'alterne pas entre deux voix au gré
+        // de la disponibilité du fournisseur HD.
+        if (this.isConversationalMode && this.sessionEngineLock === 'browser_native') {
+            this.fallbackToBrowserSpeech(cleanedText, options);
+            return;
+        }
+
         // Essayer d'abord la synthèse vocale ElevenLabs HD
         try {
             const success = await this.speakWithElevenLabs(cleanedText, effectiveVoiceId, options);
@@ -651,6 +686,9 @@ export class VoiceEngine {
         const phrases = this.splitIntoAcousticPhrases(text);
         if (phrases.length === 0) return;
 
+        // La session parle désormais avec CETTE voix — et la garde (§9).
+        if (this.isConversationalMode) this.sessionEngineLock = 'browser_native';
+
         if (this.isListening && this.recognition) {
             try { this.recognition.stop(); } catch (e) {}
         }
@@ -721,12 +759,17 @@ export class VoiceEngine {
             utterance.voice = bestVoice;
         }
 
+        // RESPIRATION (Équipe B §2) : la pause entre deux phrases suit la
+        // ponctuation réellement écrite — une virgule ne respire pas comme un
+        // point, une question laisse à l'autre le temps d'exister. L'ancienne
+        // pause unique (120 ms partout) donnait la lecture d'un seul bloc.
+        const breath = VoiceEngine.breathAfterPhrase(phrase);
         utterance.onend = () => {
             setTimeout(() => {
                 if (this.isProcessingQueue) {
                     this.processNextInQueue(options);
                 }
-            }, 120);
+            }, breath);
         };
 
         utterance.onerror = (e) => {
@@ -738,6 +781,20 @@ export class VoiceEngine {
 
         this.currentUtterance = utterance;
         window.speechSynthesis.speak(utterance);
+    }
+
+    /**
+     * Durée de la respiration après une phrase, selon sa ponctuation
+     * terminale. Valeurs courtes et sobres : le but est un rythme naturel,
+     * pas une théâtralisation — et jamais de fausses hésitations fabriquées.
+     */
+    static breathAfterPhrase(phrase: string): number {
+        const trimmed = phrase.trim();
+        if (/\?$/.test(trimmed)) return 320;   // une question laisse la place à l'autre
+        if (/!$/.test(trimmed)) return 280;
+        if (/\.$/.test(trimmed)) return 250;   // fin d'idée
+        if (/[;:]$/.test(trimmed)) return 190; // articulation
+        return 130;                            // virgule ou coupe de longueur
     }
 
     private selectBestFrenchVoice(preferredName?: string): SpeechSynthesisVoice | null {
