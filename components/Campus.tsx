@@ -46,7 +46,9 @@ import {
     Zap,
     Layers,
     ShieldCheck,
-    CheckCircle2
+    CheckCircle2,
+    Search,
+    X
 } from 'lucide-react';
 import { 
     Course, 
@@ -451,13 +453,17 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
               content: `### ${comp.title}\n\nCe cours officiel de **${subject.name}** (${studentProfile.selectedLevelName}) est enseigné selon les standards académiques d'excellence du Professeur Diallo.\n\n#### Démarche d'Apprentissage :\n1. Maîtriser les définitions fondamentales et théorèmes clés.\n2. Étudier attentivement les exemples résolus et les démonstrations formelles.\n3. Effectuer l'exercice pratique guidé et valider votre compréhension via le mini-quiz.`
           }));
 
+      const chapterTotalHours = (chapter.competencies || []).reduce(
+          (sum: number, comp: any) => sum + (comp.officialHoursEstimated || 2), 0
+      ) || 2;
+
       const customCourse: Course = {
           id: `curr-${subject.id}-${chapter.id}`,
           title: `${subject.name} : ${chapter.title}`,
           description: chapter.description || `Programme officiel ${studentProfile.selectedCountryName} encadré par Professeur Diallo.`,
           institution: `Programme National Officiel • ${studentProfile.selectedCountryName}`,
           level: studentProfile.selectedLevelName as any,
-          instructor: 'Professeur Diallo',
+          duration: `${chapterTotalHours}h`,
           thumbnailUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
           lessons: lessonsList
       };
@@ -556,8 +562,8 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                           <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
                               <ShieldCheck size={14} /> Référentiel Actif : {studentProfile.selectedCountryName} ({studentProfile.selectedLevelName})
                           </span>
-                          <span className="bg-white/10 text-slate-300 px-3 py-1 rounded-full text-xs font-medium">
-                              🎯 Objectif : {studentProfile.targetExamOrGoal}
+                          <span className="bg-white/10 text-slate-300 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5">
+                              <Target size={12} className="text-slate-400" /> Objectif : {studentProfile.targetExamOrGoal}
                           </span>
                       </div>
                       <h2 className="text-2xl sm:text-3xl font-black leading-tight">
@@ -712,15 +718,15 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                                   <div className="flex items-start justify-between">
                                       <div>
                                           <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">
-                                              <span>{subject.officialCode}</span>
+                                              <span>{subject.code}</span>
                                               {subject.coefficient && (
                                                   <span className="bg-indigo-50 px-2 py-0.5 rounded text-indigo-700 font-bold">
                                                       Coeff. {subject.coefficient}
                                                   </span>
                                               )}
-                                              {subject.weeklyHours && (
+                                              {subject.hoursPerWeek && (
                                                   <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
-                                                      {subject.weeklyHours}h/sem
+                                                      {subject.hoursPerWeek}h/sem
                                                   </span>
                                               )}
                                           </div>
@@ -740,8 +746,8 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                                               <div>
                                                   <div className="text-xs font-bold text-slate-900">{chapter.title}</div>
                                                   <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{chapter.description}</div>
-                                                  <div className="text-[10px] text-emerald-600 font-medium mt-1">
-                                                      🎯 {chapter.competencies.length} compétences cibles
+                                                  <div className="text-[10px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                                                      <Target size={11} /> {chapter.competencies.length} compétences cibles
                                                   </div>
                                               </div>
                                               <button 
@@ -793,9 +799,10 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                               {searchQuery && (
                                   <button
                                       onClick={() => setSearchQuery('')}
-                                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold"
+                                      aria-label="Effacer la recherche"
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
                                   >
-                                      ✕
+                                      <X size={14} />
                                   </button>
                               )}
                           </div>
@@ -817,13 +824,13 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                       {[
                           { id: 'All', label: 'Tous les domaines' },
-                          { id: 'Tech & IA', label: '💻 Tech & IA' },
-                          { id: 'Business & Commerce', label: '📊 Business & Finance' },
-                          { id: 'Droit & Gouvernance', label: '⚖️ Droit & Gouvernance' },
-                          { id: 'Santé & Sciences', label: '🧬 Santé & Médecine' },
-                          { id: 'Fondamentaux & Langues', label: '📚 Fondamentaux' },
-                          { id: 'Ingénierie & Métiers', label: '⚡ Ingénierie' },
-                          { id: 'Doctorat & Recherche', label: '🎓 Recherche & Doctorat' }
+                          { id: 'Tech & IA', label: 'Tech & IA' },
+                          { id: 'Business & Commerce', label: 'Business & Finance' },
+                          { id: 'Droit & Gouvernance', label: 'Droit & Gouvernance' },
+                          { id: 'Santé & Sciences', label: 'Santé & Médecine' },
+                          { id: 'Fondamentaux & Langues', label: 'Fondamentaux' },
+                          { id: 'Ingénierie & Métiers', label: 'Ingénierie' },
+                          { id: 'Doctorat & Recherche', label: 'Recherche & Doctorat' }
                       ].map(cat => (
                           <button
                               key={cat.id}
@@ -916,7 +923,11 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                                               )}
                                               <div className="absolute bottom-3 left-3 right-3 text-white font-bold text-xs flex items-center justify-between bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-xl">
                                                   <span className="flex items-center gap-1.5 truncate"><School size={12} /> {course.institution}</span>
-                                                  <span className="text-[10px] text-amber-300 shrink-0 font-mono">⭐ {(course as any).rating || '4.9'}</span>
+                                                  {typeof (course as any).rating === 'number' && (
+                                                      <span className="text-[10px] text-amber-300 shrink-0 font-mono flex items-center gap-1">
+                                                          <Star size={10} className="fill-amber-300" /> {(course as any).rating.toFixed(2)}
+                                                      </span>
+                                                  )}
                                               </div>
                                           </div>
 
@@ -925,8 +936,8 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                                                   <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
                                                       {(course as any).category || 'Académique'}
                                                   </span>
-                                                  <span className="text-[11px] font-medium text-slate-400">
-                                                      ⏱️ {course.duration || '40 heures'}
+                                                  <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                                                      <Clock size={11} /> {course.duration || '40 heures'}
                                                   </span>
                                               </div>
 
@@ -1029,9 +1040,9 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
   if (currentView === 'education-map') {
       return (
           <div className="p-4 sm:p-8 max-w-6xl mx-auto animate-fade-up">
-              <button 
-                  onClick={() => setCurrentView('catalog')} 
-                  className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold text-xs mb-6"
+              <button
+                  onClick={() => setCurrentView('catalog')}
+                  className="flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-bold text-xs mb-6 -ml-2.5 px-2.5 py-2 rounded-lg transition-colors"
               >
                   <ChevronLeft size={16} /> Retour au Campus
               </button>
@@ -1074,7 +1085,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
               )}
 
               <div className="flex items-center justify-between">
-                  <button onClick={() => setCurrentView('catalog')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-xs">
+                  <button onClick={() => setCurrentView('catalog')} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 font-bold text-xs -ml-2.5 px-2.5 py-2 rounded-lg transition-colors">
                       <ChevronLeft size={16} /> Retour au Campus
                   </button>
                   <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
@@ -1143,7 +1154,7 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
                               </div>
 
                               <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-indigo-600 group-hover:text-indigo-700">
-                                  <span className="flex items-center gap-1.5"><Printer size={14} /> Voir le Diplôme Officiel & QR Code</span>
+                                  <span className="flex items-center gap-1.5"><Printer size={14} /> Voir le Diplôme Officiel</span>
                                   <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                               </div>
                           </div>
@@ -1162,17 +1173,25 @@ export const Campus: React.FC<CampusProps> = ({ onExamPass }) => {
               <CampusCertifyingExamView
                   formation={certifyingFormation}
                   userProfile={userProfile}
-                  onFinishExam={(cert) => {
-                      setCertificates(prev => [cert, ...prev]);
-                      setEarnedCertificate(cert);
-                      if (onExamPass) {
-                          onExamPass(cert.courseTitle, cert.grade);
+                  onFinishExam={(cert, score, examPassed) => {
+                      if (examPassed && cert) {
+                          setCertificates(prev => [cert, ...prev]);
+                          setEarnedCertificate(cert);
+                          if (onExamPass) {
+                              onExamPass(cert.courseTitle, cert.grade);
+                          }
+                          addNotification(
+                              "Diplôme Décerné !",
+                              `Félicitations ! Vous avez validé ${cert.courseTitle} avec la note de ${cert.grade}/20.`,
+                              "success"
+                          );
+                      } else {
+                          addNotification(
+                              "Examen non validé",
+                              `Note obtenue : ${score.toFixed(1)}/20. Révisez les modules concernés et retentez l'épreuve quand vous êtes prêt.`,
+                              "info"
+                          );
                       }
-                      addNotification(
-                          "Diplôme Décerné !",
-                          `Félicitations ! Vous avez validé ${cert.courseTitle} avec la note de ${cert.grade}/20.`,
-                          "success"
-                      );
                   }}
                   onViewCertificate={(cert) => {
                       setSelectedDiplomaForViewing(cert);

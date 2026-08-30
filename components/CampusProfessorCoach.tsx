@@ -40,7 +40,12 @@ import {
     Check,
     Radio,
     Headphones,
-    Waves
+    Waves,
+    GraduationCap,
+    Lightbulb,
+    ListOrdered,
+    MapPin,
+    Languages
 } from 'lucide-react';
 import { Avatar3D } from './Avatar3D';
 import { VoiceSettingsModal } from './VoiceSettingsModal';
@@ -292,15 +297,19 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                         // Détection de mouvement optique
-                        const motion = multimodalVisionService.detectMotion(video, canvas);
+                        const motion = multimodalVisionService.detectMotion(video);
                         setMotionLevel(motion.motionLevel);
 
-                        // Dessiner les zones de mouvement
+                        // Dessiner les zones de mouvement (BoundingBox exprimée en 0-1000e du cadre)
                         if (motion.hasMotion && motion.activeZones.length > 0) {
                             ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
                             ctx.lineWidth = 2;
                             motion.activeZones.forEach(z => {
-                                ctx.strokeRect(z.x, z.y, z.width, z.height);
+                                const zx = (z.xmin / 1000) * canvas.width;
+                                const zy = (z.ymin / 1000) * canvas.height;
+                                const zw = ((z.xmax - z.xmin) / 1000) * canvas.width;
+                                const zh = ((z.ymax - z.ymin) / 1000) * canvas.height;
+                                ctx.strokeRect(zx, zy, zw, zh);
                             });
                         }
 
@@ -356,24 +365,9 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                 }
             }
 
-            // Détection pédagogique d'objets simulée ou assistée
-            const detectedMockObjects: DetectedVisualEntity[] = [
-                {
-                    label: 'Cahier d’exercices',
-                    confidence: 0.94,
-                    box: { x: 0.2, y: 0.3, w: 0.6, h: 0.5 },
-                    category: 'cahier'
-                },
-                {
-                    label: 'Équation manuscrite',
-                    confidence: 0.89,
-                    box: { x: 0.25, y: 0.45, w: 0.5, h: 0.25 },
-                    category: 'feuille_examen'
-                }
-            ];
-            setDetectedEntities(detectedMockObjects);
-
-            // Message utilisateur avec snapshot
+            // Message utilisateur avec snapshot (l'analyse réelle du contenu est faite par
+            // Professeur Diallo ci-dessous via l'IA multimodale — aucune détection d'objets
+            // n'est simulée ici pour ne jamais afficher un résultat de vision inventé)
             const userMsg = "Professeur Diallo, pouvez-vous analyser ce que je vous montre à la caméra ?";
             setMessages(prev => [
                 ...prev,
@@ -381,8 +375,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                     role: 'user',
                     text: userMsg,
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    attachment: snapshotBase64 ? { type: 'image', name: 'Capture Caméra • Exercice en cours', url: snapshotBase64 } : undefined,
-                    detectedObjects: ['Cahier de notes', 'Équation manuscrite', 'Calculatrice']
+                    attachment: snapshotBase64 ? { type: 'image', name: 'Capture Caméra • Exercice en cours', url: snapshotBase64 } : undefined
                 }
             ]);
 
@@ -616,8 +609,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
             {/* Header Coach avec Actions Multimodales Complètes */}
             <div className="bg-slate-900 text-white p-4 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-black text-lg">
-                        👨‍🏫
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                        <GraduationCap size={20} />
                     </div>
                     <div>
                         <div className="font-bold text-sm flex items-center gap-2">
@@ -650,7 +643,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                     {isCameraActive ? (
                         <button
                             onClick={stopCamera}
-                            className="px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/30 transition-all"
+                            aria-label="Arrêter la caméra"
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/30 transition-all min-h-[36px]"
                             title="Arrêter la caméra"
                         >
                             <CameraOff size={14} />
@@ -659,7 +653,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                     ) : (
                         <button
                             onClick={() => startCamera('user')}
-                            className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-700 hover:text-white transition-all"
+                            aria-label="Activer la caméra pour montrer un exercice ou un objet"
+                            className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-700 hover:text-white transition-all min-h-[36px]"
                             title="Activer la caméra pour montrer un exercice ou un objet"
                         >
                             <Camera size={14} />
@@ -670,9 +665,10 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                     {/* Microphone Vocal Manuel */}
                     <button
                         onClick={toggleListening}
-                        className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                            isListening 
-                                ? 'bg-rose-500 text-white animate-pulse shadow-lg shadow-rose-500/30' 
+                        aria-label={isListening ? "Arrêter l'écoute vocale" : "Parler au Professeur Diallo (Vocal)"}
+                        className={`p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            isListening
+                                ? 'bg-rose-500 text-white animate-pulse shadow-lg shadow-rose-500/30'
                                 : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
                         }`}
                         title={isListening ? "Arrêter l'écoute vocale" : "Parler au Professeur Diallo (Vocal)"}
@@ -683,7 +679,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                     {/* Synthèse Vocale Lecture */}
                     <button
                         onClick={() => setAudioEnabled(!audioEnabled)}
-                        className={`p-2 rounded-xl text-xs font-bold transition-all ${
+                        aria-label={audioEnabled ? 'Synthèse vocale activée' : 'Activer la voix de Professeur Diallo'}
+                        className={`p-2.5 rounded-xl text-xs font-bold transition-all ${
                             audioEnabled ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400 hover:text-white'
                         }`}
                         title={audioEnabled ? 'Synthèse vocale activée' : 'Activer la voix de Professeur Diallo'}
@@ -743,7 +740,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                                 {/* Switch Caméra */}
                                 <button
                                     onClick={toggleCameraFacing}
-                                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 text-white transition-all text-[10px]"
+                                    aria-label="Retourner la caméra"
+                                    className="absolute top-2 right-2 p-2.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 text-white transition-all text-[10px]"
                                     title="Retourner la caméra"
                                 >
                                     <FlipHorizontal size={12} />
@@ -758,7 +756,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                                     className="w-full py-2 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
                                 >
                                     <Scan size={14} className={isScanningVisual ? 'animate-spin' : ''} />
-                                    <span>{isScanningVisual ? 'Analyse en cours...' : '📸 Scanner mon exercice'}</span>
+                                    <span>{isScanningVisual ? 'Analyse en cours...' : 'Scanner mon exercice'}</span>
                                 </button>
 
                                 <div className="p-2 bg-slate-800/80 rounded-xl border border-slate-700 text-[10px] text-slate-300 space-y-1">
@@ -813,8 +811,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                                         </span>
                                     </div>
                                 ) : (
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 py-1 bg-slate-800 rounded-full border border-slate-700 inline-block">
-                                        {avatarState === 'speaking' ? '🗣️ Enseigne...' : avatarState === 'thinking' ? '🧠 Réfléchit...' : '👂 En attente'}
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 py-1 bg-slate-800 rounded-full border border-slate-700 inline-flex items-center gap-1.5">
+                                        {avatarState === 'speaking' ? (<><Volume2 size={11} className="text-emerald-400" /> Enseigne...</>) : avatarState === 'thinking' ? (<><BrainCircuit size={11} className="text-indigo-400" /> Réfléchit...</>) : (<><Mic size={11} /> En attente</>)}
                                     </span>
                                 )}
                             </div>
@@ -909,30 +907,30 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                             <button
                                 onClick={() => handleExplainOtherwise('analogie_simple')}
                                 disabled={isGenerating || isExplainingOtherwise}
-                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50 flex items-center gap-1"
                             >
-                                💡 Analogie simple
+                                <Lightbulb size={11} /> Analogie simple
                             </button>
                             <button
                                 onClick={() => handleExplainOtherwise('decoupage_etapes')}
                                 disabled={isGenerating || isExplainingOtherwise}
-                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50 flex items-center gap-1"
                             >
-                                🪜 Étape par étape
+                                <ListOrdered size={11} /> Étape par étape
                             </button>
                             <button
                                 onClick={() => handleExplainOtherwise('exemple_terrain')}
                                 disabled={isGenerating || isExplainingOtherwise}
-                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50 flex items-center gap-1"
                             >
-                                🌍 Exemple local/terrain
+                                <MapPin size={11} /> Exemple local/terrain
                             </button>
                             <button
                                 onClick={() => handleExplainOtherwise('langage_facile_sans_jargon')}
                                 disabled={isGenerating || isExplainingOtherwise}
-                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                                className="px-2.5 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all disabled:opacity-50 flex items-center gap-1"
                             >
-                                🗣️ Sans jargon
+                                <Languages size={11} /> Sans jargon
                             </button>
                         </div>
                     </div>
@@ -951,7 +949,8 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                             </div>
                             <button
                                 onClick={removeAttachedDoc}
-                                className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                                aria-label="Supprimer la pièce jointe"
+                                className="p-2.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
                                 title="Supprimer la pièce jointe"
                             >
                                 <X size={16} />
@@ -974,6 +973,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
+                            aria-label="Partager un document, devoir ou photo d'exercice"
                             className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
                             title="Partager un document, devoir ou photo d'exercice"
                         >
@@ -994,9 +994,10 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                         <button
                             type="button"
                             onClick={toggleListening}
+                            aria-label={isListening ? "Arrêter l'écoute" : "Dicter votre question"}
                             className={`p-2.5 rounded-xl transition-all ${
-                                isListening 
-                                    ? 'bg-rose-500 text-white animate-pulse' 
+                                isListening
+                                    ? 'bg-rose-500 text-white animate-pulse'
                                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                             }`}
                             title={isListening ? "Arrêter l'écoute" : "Dicter votre question"}
@@ -1008,6 +1009,7 @@ export const CampusProfessorCoach: React.FC<CampusProfessorCoachProps> = ({
                         <button
                             onClick={() => handleSendMessage()}
                             disabled={(!inputText.trim() && !attachedDoc) || isGenerating}
+                            aria-label="Envoyer"
                             className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all disabled:opacity-40 shadow-sm"
                             title="Envoyer"
                         >

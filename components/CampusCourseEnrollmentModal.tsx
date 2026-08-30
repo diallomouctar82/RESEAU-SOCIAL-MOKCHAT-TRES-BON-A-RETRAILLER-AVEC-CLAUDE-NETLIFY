@@ -64,8 +64,9 @@ export const CampusCourseEnrollmentModal: React.FC<CampusCourseEnrollmentModalPr
                     <div className="absolute inset-0 opacity-20 bg-cover bg-center" style={{ backgroundImage: `url(${formation.thumbnailUrl})` }}></div>
                     <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-transparent"></div>
                     
-                    <button 
+                    <button
                         onClick={onClose}
+                        aria-label="Fermer"
                         className="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all backdrop-blur"
                     >
                         <X size={18} />
@@ -113,7 +114,7 @@ export const CampusCourseEnrollmentModal: React.FC<CampusCourseEnrollmentModalPr
                 <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 shrink-0 overflow-x-auto">
                     {[
                         { id: 'overview', label: 'Présentation & Compétences', icon: BookOpen },
-                        { id: 'syllabus', label: `Syllabus (${formation.modulesList?.length || 1} Modules)`, icon: Layers },
+                        { id: 'syllabus', label: `Syllabus (${formation.modulesList?.length || 0} Modules)`, icon: Layers },
                         { id: 'faculty', label: 'Corps Professoral & Mentors', icon: UserCheck },
                         { id: 'certification', label: 'Modalités & Diplôme Officiel', icon: Award }
                     ].map(tab => {
