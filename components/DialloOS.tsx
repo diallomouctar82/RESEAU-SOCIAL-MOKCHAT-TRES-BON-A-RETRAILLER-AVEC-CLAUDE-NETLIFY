@@ -6,7 +6,9 @@ import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { describeCapabilitiesForHumans } from '../services/architecte/capabilityRegistry';
+import { describeCapabilitiesForHumans, getCapability } from '../services/architecte/capabilityRegistry';
+import { executeCapability, listExecutableCapabilities } from '../services/architecte/capabilityBus';
+import { registerTaskCapabilities } from '../services/architecte/taskCapabilityHandlers';
 
 // LOOP 16/17 (Capability Registry plateforme, mission Architecte MOCnet) :
 // « qu'est-ce que tu peux faire ? » est traité de façon 100% déterministe,
@@ -33,21 +35,22 @@ interface DialloOSProps {
 
 type AIAction = {
     type: 'NAVIGATE' | 'NOTIFICATION' | 'EXECUTE';
+    /** Pour NAVIGATE : identifiant de module. Pour EXECUTE : conservé pour `create_dossier` (cas historique). */
     target?: string;
+    /** Pour EXECUTE : identifiant de capacité du registre plateforme (ex. `task.item.create`). */
+    capabilityId?: string;
     payload?: any;
     explanation: string;
 };
 
-// Sous-ensemble VOLONTAIREMENT restreint de capacités réellement exécutables
-// depuis Diallo OS, sans dépendre de l'état interne d'un écran déjà monté.
-// Toute cible EXECUTE hors de cette liste est explicitement refusée (voir
-// handleExecute plus bas) plutôt que silencieusement ignorée ou faussement
-// présentée comme réussie. Étendre cette liste = ajouter une entrée ici ET
-// un cas dans handleExecute ; ce n'est PAS un routeur générique vers le
-// registre de capacités (chantier explicitement hors périmètre).
-const EXECUTABLE_TARGETS = new Set(['create_dossier']);
+// Cas d'exécution historique, antérieur au bus de capacités : `create_dossier`
+// écrit directement dans `dossiers` depuis ce composant (voir
+// createRealDossier plus bas). Conservé tel quel — il fonctionne, il est
+// testé, et le migrer vers le bus n'apporterait rien à l'utilisateur.
+// Toute AUTRE exécution passe désormais par le registre + le bus.
+const LEGACY_EXECUTABLE_TARGETS = new Set(['create_dossier']);
 
-type ExecutionPhase = 'running' | 'done' | 'failed' | 'unsupported';
+type ExecutionPhase = 'running' | 'done' | 'failed' | 'unsupported' | 'denied' | 'cancelled';
 interface ExecutionState {
     phase: ExecutionPhase;
     message: string;
@@ -109,6 +112,18 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         }
     }, [isOpen]);
 
+    // Les 7 capacités `task.*` n'ont besoin d'AUCUN état d'écran — elles
+    // n'opèrent que sur la table `tasks`. L'Architecte les porte donc
+    // lui-même : elles deviennent exécutables partout dans l'application,
+    // au lieu de rester déclarées mais inutilisables faute d'écran Tâches
+    // (limite documentée depuis la LOOP 15/17). Les domaines Live/Contenu/
+    // Social, eux, dépendent réellement de l'état de leur écran et
+    // s'enregistrent depuis celui-ci.
+    useEffect(() => {
+        if (!userProfile.id) return;
+        return registerTaskCapabilities(userProfile.id);
+    }, [userProfile.id]);
+
     const { isListening, startListening, stopListening, speak } = useVoiceAssistant({
         lang: 'fr-FR',
         onFinalTranscript: (transcript) => {
@@ -134,6 +149,16 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             setIsThinking(false);
             return;
         }
+
+        // Catalogue construit à l'instant T à partir des handlers RÉELLEMENT
+        // enregistrés — pas les 42 capacités théoriques du registre. Le modèle
+        // ne peut donc pas proposer une action qui échouerait aussitôt faute
+        // d'écran ouvert : ce qui est offert est ce qui est faisable, ici et
+        // maintenant.
+        const executable = listExecutableCapabilities();
+        const executableCatalogue = executable.length > 0
+            ? executable.map((c) => `            - capabilityId: "${c.id}" — ${c.description}`).join('\n')
+            : '            (aucune capacité exécutable dans le contexte actuel — n\'utilise pas "capabilityId")';
 
         try {
             // SYSTEM PROMPT FOR OS CONTROL
@@ -167,14 +192,27 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             Exemple User: "Je veux partir travailler au Canada"
             Réponse JSON: { "type": "NAVIGATE", "target": "world", "explanation": "Activation du simulateur de mobilité vers le Canada.", "payload": { "country": "Canada", "intent": "work" } }
 
-            Tu peux aussi déclencher UNE action réelle avec le type "EXECUTE" (écriture réelle, pas une simulation), mais UNIQUEMENT pour cette cible précise :
+            Tu peux aussi déclencher une action RÉELLE (écriture réelle, jamais une simulation) avec le type "EXECUTE".
+
+            1) Cas particulier, avec "target" :
             - target: "create_dossier" — ouvre un vrai dossier de suivi pour la personne.
               payload attendu : { "titre": "Titre court et explicite", "categorie": "emploi|logement|sante|juridique|education|voyage|administration", "description": "Objectif en une phrase (optionnel)" }
-              N'utilise "EXECUTE"/"create_dossier" QUE si la personne demande explicitement d'ouvrir, créer ou démarrer un dossier/suivi pour sa démarche (ex: "ouvre-moi un dossier pour chercher un emploi au Canada", "crée un suivi pour mon logement"). Dans le doute, préfère "NAVIGATE" vers le module concerné.
-              Aucune autre valeur de "target" n'est exécutable avec "EXECUTE" pour l'instant : ne l'utilise jamais pour autre chose que "create_dossier".
+              N'utilise "create_dossier" QUE si la personne demande explicitement d'ouvrir, créer ou démarrer un dossier/suivi pour sa démarche (ex: "ouvre-moi un dossier pour chercher un emploi au Canada"). Dans le doute, préfère "NAVIGATE".
 
             Exemple User: "Ouvre-moi un dossier pour chercher un emploi au Canada"
             Réponse JSON: { "type": "EXECUTE", "target": "create_dossier", "explanation": "Ouverture d'un dossier de suivi pour votre recherche d'emploi au Canada.", "payload": { "titre": "Recherche d'emploi au Canada", "categorie": "emploi", "description": "Trouver un emploi et préparer les démarches d'installation au Canada." } }
+
+            2) Capacités enregistrées, avec "capabilityId" (JAMAIS "target") :
+${executableCatalogue}
+
+            Règles absolues pour "capabilityId" :
+            - N'utilise QUE l'un des identifiants listés ci-dessus, copié à l'identique. N'en invente jamais un autre, même s'il te semble logique : un identifiant absent de cette liste sera refusé.
+            - Si la demande ne correspond à aucun identifiant listé, n'utilise PAS "EXECUTE" — préfère "NAVIGATE" vers le module concerné.
+            - N'invente jamais un titre de tâche existante, ni une date : si la personne n'a pas énoncé d'échéance, omets simplement dueAt.
+            - Date et heure actuelles (ISO 8601) pour convertir toute date relative : ${new Date().toISOString()}
+
+            Exemple User: "Rappelle-moi d'appeler le notaire demain"
+            Réponse JSON: { "type": "EXECUTE", "capabilityId": "task.item.create", "explanation": "Création de la tâche.", "payload": { "task": { "title": "Appeler le notaire", "dueAt": "<date ISO de demain>" } } }
             `;
 
             const result = (await generateJSON<AIAction>(`Commande utilisateur : "${command}"`, {
@@ -202,16 +240,9 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                     onNavigate(result.target!, result.payload);
                     onClose();
                 }, 2000);
-            } else if (result.type === 'EXECUTE' && result.target) {
-                if (!EXECUTABLE_TARGETS.has(result.target)) {
-                    // Honnêteté : jamais prétendre avoir exécuté une capacité
-                    // hors du périmètre réellement câblé — on le dit clairement
-                    // plutôt que de rester silencieux ou de simuler un succès.
-                    setExecution({
-                        phase: 'unsupported',
-                        message: `Cette action ("${result.target}") n'est pas encore exécutable directement depuis Diallo OS.`,
-                    });
-                } else if (result.target === 'create_dossier') {
+            } else if (result.type === 'EXECUTE') {
+                // Chemin historique : dossier de suivi, écrit directement ici.
+                if (result.target && LEGACY_EXECUTABLE_TARGETS.has(result.target)) {
                     setExecution({ phase: 'running', message: 'Ouverture du dossier en cours...' });
                     const outcome = await createRealDossier(userProfile.id, result.payload || {});
                     // Comparaison explicite (`=== true`), pas une simple
@@ -224,6 +255,45 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                     } else {
                         setExecution({ phase: 'failed', message: outcome.error });
                     }
+                } else if (result.capabilityId) {
+                    // Chemin général : registre de capacités + bus d'exécution.
+                    const capability = getCapability(result.capabilityId);
+
+                    // Confirmation proportionnelle au risque, AVANT toute
+                    // écriture — jamais contournable, même si le modèle a
+                    // formulé la demande comme une évidence (règle transversale
+                    // de la mission : « la sécurité reste supérieure à la
+                    // préférence »).
+                    if (capability?.confirmationRequired) {
+                        const confirmed = window.confirm(
+                            `${capability.description}\n\nCette action est ${capability.riskLevel === 'high' ? 'sensible' : 'à confirmer'}. Voulez-vous que je la fasse ?`
+                        );
+                        if (!confirmed) {
+                            setExecution({ phase: 'cancelled', message: "Action annulée — rien n'a été modifié." });
+                            return;
+                        }
+                    }
+
+                    setExecution({ phase: 'running', message: 'Exécution en cours...' });
+                    const outcome = await executeCapability(result.capabilityId, result.payload || {});
+                    // Le statut affiché est celui réellement renvoyé par le bus,
+                    // jamais une confirmation anticipée : `unavailable` signifie
+                    // que l'écran porteur n'est pas ouvert, `denied` que la
+                    // permission manque — ni l'un ni l'autre n'est un succès.
+                    const phase: ExecutionPhase =
+                        outcome.status === 'done' ? 'done'
+                        : outcome.status === 'denied' ? 'denied'
+                        : outcome.status === 'failed' ? 'failed'
+                        : 'unsupported';
+                    setExecution({ phase, message: outcome.message });
+                    if (viaVoice) speak(outcome.message);
+                } else {
+                    // Le modèle a demandé une exécution sans désigner de
+                    // capacité réelle : on le dit, on n'invente rien.
+                    setExecution({
+                        phase: 'unsupported',
+                        message: "Je n'ai pas identifié d'action réelle correspondante — reformulez, ou dites-moi où vous voulez aller.",
+                    });
                 }
             }
 
@@ -305,12 +375,14 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                         <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg border ${
                                             execution.phase === 'running' ? 'text-brand-300 bg-white/5 border-white/10' :
                                             execution.phase === 'done' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' :
-                                            execution.phase === 'failed' ? 'text-red-300 bg-red-500/10 border-red-500/30' :
+                                            execution.phase === 'failed' || execution.phase === 'denied' ? 'text-red-300 bg-red-500/10 border-red-500/30' :
+                                            execution.phase === 'cancelled' ? 'text-slate-300 bg-white/5 border-white/10' :
                                             'text-amber-300 bg-amber-500/10 border-amber-500/30'
                                         }`}>
                                             {execution.phase === 'running' && <Loader2 size={14} className="animate-spin" />}
                                             {execution.phase === 'done' && <CheckCircle2 size={14} />}
-                                            {(execution.phase === 'failed' || execution.phase === 'unsupported') && <AlertTriangle size={14} />}
+                                            {execution.phase === 'cancelled' && <X size={14} />}
+                                            {(execution.phase === 'failed' || execution.phase === 'unsupported' || execution.phase === 'denied') && <AlertTriangle size={14} />}
                                             <span>{execution.message}</span>
                                         </div>
                                     </div>
