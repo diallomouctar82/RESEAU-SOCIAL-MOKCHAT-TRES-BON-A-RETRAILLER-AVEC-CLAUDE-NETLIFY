@@ -47,8 +47,20 @@ export const elevenlabsAdapter: ProviderAdapter = {
             clearTimeout(timeout);
         }
 
-        if (res.status === 401 || res.status === 403) throw new AdapterError('Clé API invalide ou refusée.', 'auth');
-        if (res.status === 429) throw new AdapterError('Quota ou limite de débit dépassé.', 'rate_limited');
+        // Diagnostic Équipe V (30/08/2026) : ElevenLabs renvoie des 401 pour
+        // des raisons très différentes (clé invalide, quota gratuit épuisé,
+        // activité jugée inhabituelle) — notre libellé uniforme masquait la
+        // vraie cause dans ai_call_log et rendait le problème indiagnosticable
+        // (56 échecs « auth » le 30/08 sans qu'on sache pourquoi). On joint
+        // désormais le détail du fournisseur, tronqué.
+        if (res.status === 401 || res.status === 403) {
+            const detail = await res.text().catch(() => '');
+            throw new AdapterError(`Clé API invalide ou refusée.${detail ? ` Détail fournisseur : ${detail.slice(0, 180)}` : ''}`, 'auth');
+        }
+        if (res.status === 429) {
+            const detail = await res.text().catch(() => '');
+            throw new AdapterError(`Quota ou limite de débit dépassé.${detail ? ` Détail fournisseur : ${detail.slice(0, 180)}` : ''}`, 'rate_limited');
+        }
         if (res.status >= 500) throw new AdapterError(`Erreur serveur du fournisseur (${res.status}).`, 'server_error');
         if (!res.ok) {
             const text = await res.text().catch(() => '');
