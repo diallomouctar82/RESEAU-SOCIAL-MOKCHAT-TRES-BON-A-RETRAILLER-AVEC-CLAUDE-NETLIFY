@@ -475,17 +475,35 @@ export const supabaseService = {
     },
     /**
      * LOOP 05/17 (découverte) : `query` filtre réellement par nom/titre
-     * (recherche de personnes) — absent, se comporte exactement comme
-     * avant (liste des profils, pour l'écran principal du fil).
+     * (recherche de personnes) — absent, liste l'annuaire pour l'écran
+     * principal du fil.
+     *
+     * CORRECTIF DÉCOUVERTE (30 août 2026) : cette méthode interrogeait
+     * `profiles` en direct, donc soumise à `profiles_select_visible`, qui
+     * exige `profileVisibility='public'` OU une amitié déjà acceptée. Or
+     * `'network'` est la valeur réelle par défaut à l'inscription — d'où un
+     * blocage circulaire vérifié en base : pour voir quelqu'un il fallait
+     * déjà être son ami, et pour devenir son ami il fallait d'abord pouvoir
+     * le trouver. Un utilisateur réel ne voyait donc QUE lui-même (mesuré :
+     * 1 profil visible sur 6), tandis qu'un admin les voyait tous —
+     * `is_admin()` court-circuite la policy, ce qui masquait le problème
+     * côté administration.
+     *
+     * Passe désormais par `discover_profiles(term)` (SECURITY DEFINER) qui
+     * n'expose QUE des champs d'annuaire (nom, titre, avatar, bio, ville,
+     * pays, rôle, compteurs publics) — jamais email/téléphone/crédits/
+     * permissions/admin_notes —, exclut les profils explicitement `private`
+     * et toute personne impliquée dans un blocage avec l'appelant. Même
+     * patron que `search_profiles_minimal` (recherche universelle) et
+     * `get_my_conversation_participant_profiles` (messagerie), déjà en
+     * place pour exactement cette raison : élargir la découverte sans
+     * assouplir la RLS de `profiles` elle-même.
      */
     async searchProfiles(query?: string): Promise<any[]> {
         if (!isSupabaseConfigured) return [];
-        let q = supabase.from('profiles').select('*').limit(100);
-        if (query && query.trim()) {
-            const term = `%${query.trim()}%`;
-            q = q.or(`name.ilike.${term},title.ilike.${term}`);
-        }
-        const { data, error } = await q;
+        const { data, error } = await supabase.rpc('discover_profiles', {
+            term: query && query.trim() ? query.trim() : null
+        });
         if (error || !data) return [];
         return data;
     },
