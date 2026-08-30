@@ -470,8 +470,14 @@ export const supabaseService = {
             .select('*, author:profiles!posts_author_id_fkey(name, avatar_url, title), post_documents!post_documents_post_id_fkey(*)')
             .eq('status', 'published')
             .order('created_at', { ascending: false });
-        if (error || !data) return [];
-        return data;
+        // LOOP F4 (persistance des publications) : une ERREUR de lecture doit
+        // rester distinguable d'un fil légitimement vide — l'ancien
+        // `return []` silencieux faisait basculer le fil sur le cache
+        // IndexedDB (posts fantômes pré-correctif, copies périmées) au gré
+        // des aléas réseau : c'était le mécanisme réel des « publications
+        // qui disparaissent puis reviennent ». Seul appelant : SocialFeed.
+        if (error) throw error;
+        return data ?? [];
     },
     /**
      * LOOP 05/17 (découverte) : `query` filtre réellement par nom/titre
