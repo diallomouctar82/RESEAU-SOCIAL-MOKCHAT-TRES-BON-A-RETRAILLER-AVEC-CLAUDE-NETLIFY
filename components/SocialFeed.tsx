@@ -2727,7 +2727,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       {/* Member Personal Space Profile Modal */}
       {selectedMemberForProfile && (
         <MemberProfileModal
-          member={selectedMemberForProfile}
+          // État VIVANT, pas un instantané : la fiche recevait l'objet figé au
+          // moment de l'ouverture — après « Accepter » ou « Suivre », ses
+          // boutons affichaient encore l'ancien état (constaté par la preuve
+          // navigateur du 30/08/2026, capture O5-echec) alors que la liste et
+          // la base étaient à jour. On relit le membre dans la liste courante
+          // à chaque rendu ; l'instantané ne sert que de repli (membre absent
+          // de la page de liste actuelle).
+          member={members.find((m) => m.id === selectedMemberForProfile.id) ?? selectedMemberForProfile}
           currentUser={currentUser}
           isOpen={!!selectedMemberForProfile}
           onClose={() => setSelectedMemberForProfile(null)}
