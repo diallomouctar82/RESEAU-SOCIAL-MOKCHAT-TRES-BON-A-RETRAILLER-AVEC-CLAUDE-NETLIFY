@@ -249,15 +249,33 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     });
   };
 
+  // Marque réellement la sortie côté base (live_speakers.left_at IS NOT
+  // NULL). Appelée à la fois par handleEndLive (immédiat, au clic sur
+  // "Quitter le Live" — voir plus bas) et par le nettoyage de l'effet de
+  // présence juste en dessous (démontage du composant : fermeture de la
+  // modale "Et Maintenant ?", navigation ailleurs, fermeture d'onglet...).
+  // hasLeftSessionRef évite le double aller-retour réseau si les deux se
+  // déclenchent pour la même session — leaveLiveSession() n'est de toute
+  // façon pas dangereuse à ré-appeler (elle ne fait que rafraîchir
+  // `left_at`, aucune erreur si la ligne est déjà marquée sortie), mais un
+  // seul appel suffit.
+  const hasLeftSessionRef = useRef(false);
+  const leaveRealSession = () => {
+    if (hasLeftSessionRef.current || !realSessionId) return;
+    hasLeftSessionRef.current = true;
+    leaveLiveSession(realSessionId, userProfile.id).catch(() => {});
+  };
+
   // Une fois la session réelle confirmée, s'y inscrire comme participant
   // (spectateur ou hôte) — nécessaire pour can_view_live_session()/
   // is_live_host() côté RLS et pour apparaître dans le roster live_speakers.
   useEffect(() => {
     if (!realSessionId) return;
+    hasLeftSessionRef.current = false; // nouvelle session réelle confirmée : on repart d'un état "présent".
     joinLiveSession(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, isHost ? 'host' : 'viewer')
       .catch((err) => console.error('SocialLive: échec pour rejoindre la session', err));
     return () => {
-      leaveLiveSession(realSessionId, userProfile.id).catch(() => {});
+      leaveRealSession();
     };
   }, [realSessionId]);
 
@@ -1094,12 +1112,47 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
   };
 
+  // Lien de partage réel de ce Live — realSessionId est l'identifiant réel
+  // de la ligne live_sessions (jamais le liveId reçu en prop : pour un Live
+  // tout juste créé depuis LiveCreationModal, ce dernier est un id
+  // purement client `live-<timestamp>` sans aucune ligne correspondante en
+  // base tant que l'effet de provisionnement ci-dessus n'a pas confirmé/créé
+  // la vraie session). Ce lien ne contourne aucun contrôle d'accès : ouvrir
+  // "?live=<id>" depuis App.tsx rejoue exactement le même chemin
+  // (handleOpenLive) qu'un clic interne, donc les mêmes vérifications
+  // (RLS Supabase can_view_live_session()/is_live_host(), et la logique de
+  // ce composant) s'appliquent normalement — y compris pour refuser l'accès
+  // à une session privée dont le destinataire ne fait pas partie.
+  const handleCopyLiveLink = async () => {
+    if (!realSessionId) {
+      addNotification("Lien pas encore prêt", "La session réelle est en cours de préparation — réessayez dans un instant.", "alert");
+      return;
+    }
+    const shareUrl = `${window.location.origin}${window.location.pathname}?live=${realSessionId}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      addNotification("Lien copié 🔗", "Le lien d'accès direct à ce Live a été copié dans le presse-papiers.", "success");
+    } catch (err) {
+      addNotification("Copie impossible", "Impossible de copier le lien automatiquement — réessayez.", "alert");
+    }
+  };
+
   // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard — génère un
   // vrai compte-rendu à partir du chat réel (LOOP 03/17, connexion
   // Contenu↔Live), même principe que handleRequestCatchup : jamais inventé,
   // honnête si aucun message n'a été échangé.
+  //
+  // Sortie réellement immédiate (corrigé le 2026-08-30) : stopLocalMedia()
+  // coupait déjà le transport LiveKit à l'instant du clic, mais la présence
+  // en base (live_speakers.left_at) n'était marquée qu'au DÉMONTAGE du
+  // composant — c.-à-d. seulement quand l'utilisateur fermait ensuite la
+  // modale "Et Maintenant ?". leaveRealSession() rend la sortie cohérente
+  // avec la vidéo : marquée dès ce clic, la modale n'étant plus qu'un écran
+  // de suivi affiché après coup (voir leaveRealSession ci-dessus pour
+  // l'idempotence).
   const handleEndLive = () => {
     stopLocalMedia();
+    leaveRealSession();
     setShowPostContinuityModal(true);
     setLiveEndSummary(null);
 
@@ -1443,6 +1496,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             >
               <Headphones size={14} />
               <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
+            </button>
+
+            {/* Copier le lien direct de ce Live — realSessionId est l'id réel
+                de la session (voir handleCopyLiveLink). Toujours visible :
+                partager un Live est une action aussi essentielle que le
+                SOS/Fact-Check qui l'entourent, pas un réglage secondaire. */}
+            <button
+              onClick={handleCopyLiveLink}
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              title="Copier le lien direct de ce Live"
+            >
+              <Share2 size={14} />
+              <span className="hidden sm:inline">Copier le lien</span>
             </button>
 
             {/* SOS Help Button — neutre au repos, ne s'allume qu'au survol/usage
