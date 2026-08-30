@@ -153,9 +153,10 @@ export const CampusDiagnosticModal: React.FC<CampusDiagnosticModalProps> = ({
                             Référentiel : <span className="text-white font-bold">{profile.selectedCountryName}</span> • {profile.selectedLevelName}
                         </p>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
+                        aria-label="Fermer"
+                        className="p-2.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
                     >
                         <X size={20} />
                     </button>
@@ -209,53 +210,37 @@ export const CampusDiagnosticModal: React.FC<CampusDiagnosticModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* Liste des Compétences du Référentiel */}
+                            {/* Liste des Compétences du Référentiel — reflète le masteryRegistry réel de l'apprenant */}
                             <div className="space-y-3">
                                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">État des Compétences Clés du Programme :</h4>
-                                
-                                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">Limites, Continuité et Théorème des Valeurs Intermédiaires</div>
-                                            <div className="text-[10px] text-emerald-700 font-mono">MATH-SM-01 • Maîtrise validée à 85%</div>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg">Maîtrisée</span>
-                                </div>
 
-                                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <Clock size={18} className="text-amber-600 shrink-0" />
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">Arithmétique, Divisibilité & Théorème de Gauss/Bézout</div>
-                                            <div className="text-[10px] text-amber-700 font-mono">MATH-SM-03 • En cours d'acquisition (50%)</div>
-                                        </div>
+                                {profile.masteryRegistry.length === 0 ? (
+                                    <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500 text-center">
+                                        Aucune compétence évaluée pour le moment. Lancez le test de diagnostic ci-dessous pour démarrer votre cartographie.
                                     </div>
-                                    <span className="text-[10px] font-bold px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg">En consolidation</span>
-                                </div>
-
-                                <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <AlertTriangle size={18} className="text-rose-600 shrink-0" />
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">Calcul Intégral & Équations Différentielles du 1er et 2nd Ordre</div>
-                                            <div className="text-[10px] text-rose-700 font-mono">MATH-SM-04 • Lacune diagnostiquée (20%)</div>
+                                ) : profile.masteryRegistry.map((item) => {
+                                    const isReinforce = item.isFragile || ['non_aborde', 'decouverte', 'en_apprentissage'].includes(item.stage);
+                                    const isMastered = !isReinforce && ['maitrise', 'consolide'].includes(item.stage);
+                                    const bucket = isReinforce ? 'reinforce' : isMastered ? 'mastered' : 'progress';
+                                    const style = {
+                                        reinforce: { wrap: 'bg-rose-50/70 border-rose-200', icon: AlertTriangle, iconColor: 'text-rose-600', text: 'text-rose-700', badgeBg: 'bg-rose-100 text-rose-800', badgeLabel: 'À renforcer' },
+                                        progress: { wrap: 'bg-amber-50/70 border-amber-200', icon: Clock, iconColor: 'text-amber-600', text: 'text-amber-700', badgeBg: 'bg-amber-100 text-amber-800', badgeLabel: 'En consolidation' },
+                                        mastered: { wrap: 'bg-emerald-50/70 border-emerald-200', icon: CheckCircle2, iconColor: 'text-emerald-600', text: 'text-emerald-700', badgeBg: 'bg-emerald-100 text-emerald-800', badgeLabel: 'Maîtrisée' }
+                                    }[bucket];
+                                    const Icon = style.icon;
+                                    return (
+                                        <div key={item.competencyId} className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${style.wrap}`}>
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <Icon size={18} className={`${style.iconColor} shrink-0`} />
+                                                <div className="min-w-0">
+                                                    <div className="text-xs font-bold text-slate-900 truncate">{item.competencyTitle}</div>
+                                                    <div className={`text-[10px] font-mono ${style.text}`}>{item.competencyId} • {item.subjectName} ({item.confidenceScore}%)</div>
+                                                </div>
+                                            </div>
+                                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${style.badgeBg}`}>{style.badgeLabel}</span>
                                         </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg">À renforcer</span>
-                                </div>
-
-                                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">Lois de Newton & Mouvements dans un Champ de Pesanteur</div>
-                                            <div className="text-[10px] text-emerald-700 font-mono">PHYS-SM-01 • Maîtrise validée à 90%</div>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg">Maîtrisée</span>
-                                </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

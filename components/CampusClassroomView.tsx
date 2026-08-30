@@ -223,7 +223,8 @@ export const CampusClassroomView: React.FC<CampusClassroomViewProps> = ({
                 <div className="flex items-center gap-3">
                     <button
                         onClick={onBackToCatalog}
-                        className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"
+                        aria-label="Retour au Catalogue"
+                        className="p-2.5 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"
                         title="Retour au Catalogue"
                     >
                         <ArrowLeft size={18} />
@@ -278,7 +279,7 @@ export const CampusClassroomView: React.FC<CampusClassroomViewProps> = ({
 
                     <button
                         onClick={handleStartExamAction}
-                        className="px-4 py-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white rounded-xl text-xs font-black transition-all shadow flex items-center gap-1.5"
+                        className="px-4 py-2 bg-slate-900 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition-all shadow flex items-center gap-1.5"
                     >
                         <Award size={15} /> Passer l'Examen Certifiant
                     </button>
@@ -345,8 +346,8 @@ export const CampusClassroomView: React.FC<CampusClassroomViewProps> = ({
                                             <div className="space-y-4">
                                                 {/* Bannière Pédagogique Professeur Diallo */}
                                                 <div className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-                                                        🎓
+                                                    <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                                        <GraduationCap size={18} />
                                                     </div>
                                                     <div className="text-xs text-indigo-950">
                                                         <span className="font-bold">Encadrement Académique :</span> Cours rédigé et structuré selon les standards officiels d'excellence du Professeur Diallo.
@@ -655,7 +656,7 @@ export const CampusClassroomView: React.FC<CampusClassroomViewProps> = ({
                     <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-2">
                         <button
                             onClick={handleStartExamAction}
-                            className="w-full py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow"
+                            className="w-full py-3 bg-slate-900 hover:bg-amber-600 text-white rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow"
                         >
                             <Award size={15} /> Passer l'Examen Certifiant
                         </button>

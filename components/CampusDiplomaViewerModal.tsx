@@ -2,18 +2,14 @@
 // 🎓 MODAL DE VISUALISATION & DÉLIVRANCE DE DIPLÔME OFFICIEL — LE MONDE À VOUS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-import React from 'react';
-import { 
-    X, 
-    Printer, 
-    Download, 
-    Share2, 
-    ShieldCheck, 
-    Award, 
-    CheckCircle2, 
-    QrCode, 
+import React, { useState } from 'react';
+import {
+    X,
+    Printer,
+    ShieldCheck,
+    Award,
     Copy,
-    ExternalLink,
+    Check,
     Lock
 } from 'lucide-react';
 import { Certificate, UserProfile } from '../types';
@@ -29,12 +25,19 @@ export const CampusDiplomaViewerModal: React.FC<CampusDiplomaViewerModalProps> =
     userProfile,
     onClose
 }) => {
+    const [serialCopied, setSerialCopied] = useState(false);
+
     const handlePrint = () => {
         window.print();
     };
 
     const handleCopySerial = () => {
-        navigator.clipboard.writeText(certificate.serialNumber);
+        navigator.clipboard.writeText(certificate.serialNumber).then(() => {
+            setSerialCopied(true);
+            setTimeout(() => setSerialCopied(false), 2000);
+        }).catch(() => {
+            // Presse-papiers indisponible (permissions navigateur) : pas de faux positif visuel.
+        });
     };
 
     return (
@@ -50,13 +53,15 @@ export const CampusDiplomaViewerModal: React.FC<CampusDiplomaViewerModalProps> =
                     <div className="flex items-center gap-3">
                         <button
                             onClick={handlePrint}
+                            aria-label="Imprimer ou exporter en PDF"
                             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 backdrop-blur"
                         >
                             <Printer size={14} /> Imprimer / PDF
                         </button>
                         <button
                             onClick={onClose}
-                            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all backdrop-blur"
+                            aria-label="Fermer"
+                            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all backdrop-blur"
                         >
                             <X size={18} />
                         </button>
@@ -142,6 +147,14 @@ export const CampusDiplomaViewerModal: React.FC<CampusDiplomaViewerModalProps> =
                         <div className="flex items-center gap-1.5">
                             <Lock size={12} className="text-emerald-600" />
                             <span>Hash / N° de Série : {certificate.serialNumber}</span>
+                            <button
+                                onClick={handleCopySerial}
+                                aria-label="Copier le numéro de série"
+                                className="p-1.5 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors print:hidden"
+                                title="Copier le numéro de série"
+                            >
+                                {serialCopied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                            </button>
                         </div>
                         <div className="text-slate-500">
                             Vérifiable sur la plateforme Le Monde à Vous (MokTrust Verified)
