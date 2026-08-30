@@ -113,6 +113,12 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         room.on(RoomEvent.Disconnected, (reason) => {
             events.onDisconnected?.(reason !== undefined ? String(reason) : undefined);
         });
+        // Équipe F3 : lecture audio bloquée par la politique d'autoplay du
+        // navigateur (aucun geste utilisateur) — remonté à l'UI pour afficher
+        // un bouton « Activer le son » au lieu d'un silence inexpliqué.
+        room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+            events.onAudioPlaybackChanged?.(room.canPlaybackAudio);
+        });
 
         await room.connect(params.serverUrl, params.token);
     }
@@ -147,6 +153,14 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
 
     async setLocalMetadata(metadata: string): Promise<void> {
         await this.requireLocalParticipant().setMetadata(metadata);
+    }
+
+    async startAudio(): Promise<void> {
+        await this.room?.startAudio();
+    }
+
+    canPlaybackAudio(): boolean {
+        return this.room?.canPlaybackAudio ?? true;
     }
 
     getLocalParticipant(): LiveParticipantHandle | null {

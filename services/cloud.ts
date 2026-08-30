@@ -206,6 +206,26 @@ class CloudService {
         store.put(post);
     }
 
+    /**
+     * LOOP F4 (persistance des publications) : remplace intégralement le
+     * cache local par la vérité serveur après un fetch RÉUSSI. Purge du même
+     * geste les posts fantômes pré-correctif (ids non-UUID `post-<ts>` qui
+     * n'ont jamais existé côté serveur) et les copies de posts supprimés —
+     * le repli hors-ligne montre ainsi la même liste que le serveur, fin de
+     * l'alternance « apparaît/disparaît » au gré des aléas réseau.
+     */
+    async replaceAllPosts(posts: Post[]): Promise<void> {
+        if (!this.db) await this.init();
+        return new Promise((resolve, reject) => {
+            const transaction = this.db!.transaction([STORES.POSTS], 'readwrite');
+            const store = transaction.objectStore(STORES.POSTS);
+            store.clear();
+            posts.forEach((p) => store.put(p));
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+        });
+    }
+
     // --- LMS METHODS (Persistent) ---
 
     async getAllCourses(): Promise<Course[]> {

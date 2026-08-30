@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
   Check, CheckCheck, Play, Pause, Download, FileText, Reply, Smile,
-  MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2, Languages
+  MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2, Languages, AlertCircle
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
   isMe: boolean;
+  currentUserId?: string;
   isGroup?: boolean;
   participantAvatar?: string;
   onReply: (message: ChatMessage) => void;
@@ -29,6 +30,7 @@ const COMMON_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💡', '🛡�
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   message,
   isMe,
+  currentUserId,
   isGroup,
   participantAvatar,
   onReply,
@@ -193,8 +195,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <button
                 type="button"
                 onClick={() => onToggleAudio(message.id, message.mediaUrl)}
-                className={`w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 flex-shrink-0 ${isMe ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white'}`}
-                title={isAudioPlaying ? 'Mettre en pause' : 'Écouter le vocal'}
+                disabled={!message.mediaUrl}
+                className={`w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${isMe ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white'}`}
+                title={!message.mediaUrl ? 'Audio indisponible' : isAudioPlaying ? 'Mettre en pause' : 'Écouter le vocal'}
               >
                 {isAudioPlaying ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
               </button>
@@ -215,9 +218,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 </div>
 
                 <div className={`flex justify-between text-[10px] font-medium ${isMe ? 'text-indigo-100' : 'text-slate-500'}`}>
-                  <span>{message.audioDuration ? `${Math.floor(message.audioDuration / 60)}:${(message.audioDuration % 60).toString().padStart(2, '0')}` : '0:15'}</span>
+                  <span>{message.audioDuration ? `${Math.floor(message.audioDuration / 60)}:${(Math.round(message.audioDuration) % 60).toString().padStart(2, '0')}` : '--:--'}</span>
                   <span className="flex items-center gap-1">
-                    <Volume2 size={11} /> Vocal HD
+                    <Volume2 size={11} /> {message.mediaUrl ? 'Vocal' : 'Audio indisponible'}
                   </span>
                 </div>
               </div>
@@ -230,7 +233,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             {message.isEdited && <span>(modifié)</span>}
             <span>{formattedTime}</span>
             {isMe && (
-              message.status === 'read' ? (
+              message.status === 'failed' ? (
+                <span className="flex items-center gap-0.5 text-rose-300 font-bold" title="Échec de l'envoi">
+                  <AlertCircle size={12} /> Échec
+                </span>
+              ) : message.status === 'read' ? (
                 <CheckCheck size={13} className="text-blue-300" title="Lu" />
               ) : message.status === 'delivered' ? (
                 <CheckCheck size={13} className="text-slate-300" title="Distribué" />
@@ -247,9 +254,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
         {/* Reaction Badges Container */}
         {message.reactions && Object.keys(message.reactions).length > 0 && (
           <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-            {Object.entries(message.reactions).map(([emoji, users]) => {
-              if (!users || users.length === 0) return null;
-              const hasReacted = isMe;
+            {Object.entries(message.reactions).map(([emoji, rawUsers]) => {
+              const users = (rawUsers as string[] | undefined) || [];
+              if (users.length === 0) return null;
+              const hasReacted = currentUserId ? users.includes(currentUserId) : false;
               return (
                 <button
                   key={emoji}

@@ -55,6 +55,28 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [stories, setStories] = useState<Story[]>(STORIES);
   const [reels, setReels] = useState<Reel[]>(REELS);
   const [lives, setLives] = useState<LiveStream[]>(ACTIVE_LIVES);
+
+  // Équipe F3 : le fil ne listait QUE des cartes de démonstration (ids
+  // factices 'live1'…) — un spectateur cliquant dessus n'ouvrait jamais une
+  // session réelle, donc n'entendait jamais le présentateur. Les sessions
+  // réellement EN DIRECT passent devant ; les cartes de démonstration
+  // restent derrière (elles s'ouvrent en « Aperçu », bannière honnête côté
+  // studio).
+  useEffect(() => {
+    if (!supabaseService.isConfigured()) return;
+    let cancelled = false;
+    import('../services/live/liveSessionService')
+      .then(({ fetchActiveLiveSessions }) => fetchActiveLiveSessions())
+      .then((real) => {
+        if (cancelled || real.length === 0) return;
+        setLives((prev) => {
+          const demo = prev.filter((l) => !real.some((r) => r.id === l.id));
+          return [...real, ...demo];
+        });
+      })
+      .catch(() => { /* lecture impossible : les cartes de démonstration restent */ });
+    return () => { cancelled = true; };
+  }, []);
   const [members, setMembers] = useState<MemberProfile[]>(MOCK_MEMBERS);
   const [friendships, setFriendships] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
@@ -202,9 +224,21 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       setIsLoadingPosts(true);
       try {
         // 1. Fetch Posts from Supabase if connected, else IndexedDB
+        // LOOP F4 : distinguer un fetch en ÉCHEC (→ repli cache local,
+        // honnête hors-ligne) d'un fil légitimement vide (→ vérité serveur).
         let fetched: Post[] = [];
+        let serverFetchSucceeded = false;
         if (supabaseService.isConfigured()) {
-          const remotePosts = await supabaseService.getPosts();
+          try {
+          // Délai de garde : sur un réseau semi-mort (mobile), la requête
+          // peut PENDRE sans jamais résoudre ni rejeter — l'effet restait
+          // alors suspendu et le fil figé sur son état initial. Au-delà de
+          // 12 s, on traite la lecture comme échouée → repli cache.
+          const remotePosts = await Promise.race([
+            supabaseService.getPosts(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('délai de lecture du fil dépassé')), 12000)),
+          ]);
+          serverFetchSucceeded = true;
           if (remotePosts && remotePosts.length > 0) {
             const postIds = remotePosts.map(rp => rp.id);
             const [remoteComments, remoteReactions] = await Promise.all([
@@ -283,9 +317,19 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
             setUserReactions(prev => ({ ...prev, ...initialReactions }));
           }
+          } catch (err) {
+            // Lecture serveur échouée (réseau instable) : on le SAIT désormais
+            // (getPosts lève au lieu de renvoyer [] en silence) — repli cache.
+            console.warn('Flux : lecture serveur échouée, repli sur le cache local', err);
+          }
         }
 
-        if (fetched.length === 0) {
+        if (serverFetchSucceeded) {
+          // Vérité serveur : synchroniser le cache local pour que le repli
+          // hors-ligne montre la MÊME liste — purge les posts fantômes
+          // pré-correctif (ids non-UUID) et les copies de posts supprimés.
+          cloudService.replaceAllPosts(fetched).catch(() => {});
+        } else if (fetched.length === 0) {
           fetched = await cloudService.getAllPosts();
         }
 

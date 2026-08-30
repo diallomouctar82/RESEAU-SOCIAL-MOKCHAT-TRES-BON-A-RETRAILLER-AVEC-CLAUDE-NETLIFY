@@ -47,6 +47,13 @@ export interface LiveTransportEvents {
     onLocalTrackPublished?: (track: LiveTrackHandle) => void;
     onLocalTrackUnpublished?: (kind: LiveTrackKind) => void;
     onActiveSpeakersChanged?: (identities: string[]) => void;
+    /**
+     * Équipe F3 : le navigateur peut BLOQUER la lecture audio tant qu'aucun
+     * geste utilisateur n'a eu lieu (politique d'autoplay). false = le son
+     * est bloqué — l'UI doit proposer un bouton « Activer le son » qui
+     * appelle `startAudio()` dans le handler de clic.
+     */
+    onAudioPlaybackChanged?: (canPlay: boolean) => void;
     /** Canal de données temps réel — utilisé par les LOOPs suivantes pour chat/réactions/demandes de parole en complément des tables persistées. */
     onDataReceived?: (payload: Uint8Array, fromIdentity: string | undefined) => void;
     onDisconnected?: (reason?: string) => void;
@@ -76,6 +83,10 @@ export interface LiveTransportProvider {
     stopScreenShare(): Promise<void>;
     sendData(payload: Uint8Array, options?: SendDataOptions): Promise<void>;
     setLocalMetadata(metadata: string): Promise<void>;
+    /** Équipe F3 : à appeler DANS un handler de geste utilisateur pour débloquer la lecture audio refusée par la politique d'autoplay. */
+    startAudio(): Promise<void>;
+    /** true si le navigateur autorise actuellement la lecture audio des pistes distantes. */
+    canPlaybackAudio(): boolean;
     getLocalParticipant(): LiveParticipantHandle | null;
     getRemoteParticipants(): LiveParticipantHandle[];
     getConnectionState(): LiveConnectionState;

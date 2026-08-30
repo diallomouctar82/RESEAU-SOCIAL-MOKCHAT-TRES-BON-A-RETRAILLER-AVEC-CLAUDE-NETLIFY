@@ -13,6 +13,8 @@ export interface RemoteParticipantMedia {
     videoTrack?: LiveTrackHandle;
     audioTrack?: LiveTrackHandle;
     screenShareTrack?: LiveTrackHandle;
+    /** Équipe F3 : le SON d'un partage d'écran (onglet avec vidéo, extrait…) — souscrit par LiveKit mais jeté avant ce champ. */
+    screenShareAudioTrack?: LiveTrackHandle;
 }
 
 export interface UseLiveTransportOptions {
@@ -38,6 +40,10 @@ export interface UseLiveTransportResult {
     localScreenShareTrack: LiveTrackHandle | null;
     localIsSpeaking: boolean;
     remoteParticipants: RemoteParticipantMedia[];
+    /** Équipe F3 : true quand le navigateur bloque la lecture audio (autoplay sans geste) — afficher un bouton qui appelle startAudio(). */
+    audioPlaybackBlocked: boolean;
+    /** À appeler DANS un handler de clic pour débloquer la lecture audio. */
+    startAudio: () => Promise<void>;
     setCameraEnabled: (enabled: boolean) => Promise<void>;
     setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
     startScreenShare: () => Promise<void>;
@@ -54,6 +60,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     const [localScreenShareTrack, setLocalScreenShareTrack] = useState<LiveTrackHandle | null>(null);
     const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantMedia[]>([]);
+    const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
 
     useEffect(() => {
         if (!enabled || !roomName) return;
@@ -65,8 +72,22 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             setRemoteParticipants((prev) => {
                 const idx = prev.findIndex((p) => p.participant.identity === identity);
                 if (idx === -1) {
-                    if (!patch.participant) return prev; // piste orpheline arrivée avant le handle participant — ignorée, un futur onParticipantConnected/snapshot la complètera
-                    return [...prev, { participant: patch.participant, ...patch } as RemoteParticipantMedia];
+                    // Équipe F3 : une piste peut arriver AVANT le handle
+                    // participant — l'ancienne version la jetait (« un futur
+                    // snapshot la complètera » : faux, le snapshot ne remonte
+                    // jamais les pistes déjà souscrites) → tuile muette et
+                    // noire jusqu'au rechargement. On crée une entrée
+                    // provisoire, complétée quand le handle réel arrive.
+                    const participant: LiveParticipantHandle = patch.participant ?? {
+                        identity,
+                        name: identity,
+                        isLocal: false,
+                        isSpeaking: false,
+                        audioEnabled: true,
+                        videoEnabled: true,
+                        isScreenSharing: false,
+                    };
+                    return [...prev, { ...patch, participant } as RemoteParticipantMedia];
                 }
                 const next = [...prev];
                 next[idx] = { ...next[idx], ...patch };
@@ -89,11 +110,13 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         if (track.kind === 'video') upsertRemote(track.participantIdentity, { videoTrack: track });
                         else if (track.kind === 'audio') upsertRemote(track.participantIdentity, { audioTrack: track });
                         else if (track.kind === 'screen_share') upsertRemote(track.participantIdentity, { screenShareTrack: track });
+                        else if (track.kind === 'screen_share_audio') upsertRemote(track.participantIdentity, { screenShareAudioTrack: track });
                     },
                     onTrackUnsubscribed: (identity, kind) => {
                         if (kind === 'video') upsertRemote(identity, { videoTrack: undefined });
                         else if (kind === 'audio') upsertRemote(identity, { audioTrack: undefined });
                         else if (kind === 'screen_share') upsertRemote(identity, { screenShareTrack: undefined });
+                        else if (kind === 'screen_share_audio') upsertRemote(identity, { screenShareAudioTrack: undefined });
                     },
                     onLocalTrackPublished: (track) => {
                         if (track.kind === 'video') setLocalVideoTrack(track);
@@ -107,6 +130,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         const localId = provider.getLocalParticipant()?.identity;
                         setLocalIsSpeaking(!!localId && identities.includes(localId));
                     },
+                    onAudioPlaybackChanged: (canPlay) => setAudioPlaybackBlocked(!canPlay),
                     onDisconnected: () => setConnectionState('disconnected'),
                 });
                 if (cancelled) return;
@@ -159,6 +183,14 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     const disconnect = useCallback(async () => {
         await providerRef.current?.disconnect();
     }, []);
+    const startAudio = useCallback(async () => {
+        try {
+            await providerRef.current?.startAudio();
+            setAudioPlaybackBlocked(!(providerRef.current?.canPlaybackAudio() ?? true));
+        } catch {
+            // le navigateur a encore refusé — l'état bloqué reste affiché
+        }
+    }, []);
 
     return {
         connectionState,
@@ -167,6 +199,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         localScreenShareTrack,
         localIsSpeaking,
         remoteParticipants,
+        audioPlaybackBlocked,
+        startAudio,
         setCameraEnabled,
         setMicrophoneEnabled,
         startScreenShare,

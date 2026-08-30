@@ -1111,7 +1111,7 @@ export interface ChatMessage {
     audioDuration?: number; // seconds
     timestamp: Date | string;
     isRead: boolean;
-    status?: 'sending' | 'sent' | 'delivered' | 'read';
+    status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
     reactions?: Record<string, string[]>; // { '👍': ['user-1', 'user-2'] }
     replyTo?: {
         id: string;

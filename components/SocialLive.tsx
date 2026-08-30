@@ -33,7 +33,7 @@ import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
+import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
@@ -55,17 +55,18 @@ interface SocialLiveProps {
 }
 
 /**
- * Tuile vidéo d'un participant distant réel (LOOP 04/14) — piste vidéo +
- * piste audio (élément séparé, on ne veut jamais couper le son d'un autre
- * participant) attachées via callback ref dès qu'elles sont disponibles.
+ * Tuile vidéo d'un participant distant réel (LOOP 04/14). Équipe F3 : la
+ * tuile ne porte plus l'AUDIO — il vit dans <RemoteAudioSink>, monté au
+ * niveau de la scène quel que soit le mode d'affichage (l'ancien montage
+ * dans la tuile coupait le son de TOUT LE MONDE dès qu'on quittait le mode
+ * caméra : partage d'écran, tableau blanc, conseil…). Les callback refs
+ * font désormais un vrai detach() au démontage (fuite/écho sinon).
  */
 const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ media }) => {
   const videoRef = useCallback((el: HTMLVideoElement | null) => {
-    if (el && media.videoTrack) media.videoTrack.attach(el);
+    if (el) media.videoTrack?.attach(el);
+    else media.videoTrack?.detach();
   }, [media.videoTrack]);
-  const audioRef = useCallback((el: HTMLAudioElement | null) => {
-    if (el && media.audioTrack) media.audioTrack.attach(el);
-  }, [media.audioTrack]);
 
   return (
     <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center">
@@ -76,13 +77,38 @@ const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ me
           {media.participant.name.charAt(0).toUpperCase()}
         </div>
       )}
-      <audio ref={audioRef} autoPlay />
       <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
         {media.participant.isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>}
         <span className="text-xs font-bold text-white">{media.participant.name}</span>
       </div>
     </div>
   );
+};
+
+/**
+ * Équipe F3 — puits audio de la scène : UN élément <audio> par piste audio
+ * distante (micro + son de partage d'écran), monté une seule fois et
+ * INDÉPENDANT du mode d'affichage (caméra, écran, tableau blanc, conseil,
+ * réunion, commerce, masterclass) — tous les spectateurs entendent le
+ * présentateur en permanence. Detach réel au démontage.
+ */
+const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[] }> = ({ participants }) => (
+  <>
+    {participants.map((media) => (
+      <React.Fragment key={media.participant.identity}>
+        {media.audioTrack && <SinkAudioElement track={media.audioTrack} />}
+        {media.screenShareAudioTrack && <SinkAudioElement track={media.screenShareAudioTrack} />}
+      </React.Fragment>
+    ))}
+  </>
+);
+
+const SinkAudioElement: React.FC<{ track: NonNullable<RemoteParticipantMedia['audioTrack']> }> = ({ track }) => {
+  const ref = useCallback((el: HTMLAudioElement | null) => {
+    if (el) track.attach(el);
+    else track.detach();
+  }, [track]);
+  return <audio ref={ref} autoPlay />;
 };
 
 export const SocialLive: React.FC<SocialLiveProps> = ({ 
@@ -139,7 +165,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // via des callback refs (voir localVideoTrackRef/screenShareTrackRef).
 
   // 3. Stage & Participants
-  const isHost = liveData.hostName === userProfile.name || userProfile.role === 'admin';
+  // Équipe F3 : l'identité de l'hôte se juge sur l'ID RÉEL de la session
+  // (live_sessions.host_id) dès qu'il est connu — le repli par nom
+  // d'affichage (homonymes !) ne sert qu'avant la résolution en base.
+  const [realHostId, setRealHostId] = useState<string | undefined>(liveData.hostId);
+  const isHost = realHostId && userProfile.id
+    ? realHostId === userProfile.id || userProfile.role === 'admin'
+    : liveData.hostName === userProfile.name || userProfile.role === 'admin';
   const [stageParticipants, setStageParticipants] = useState<LiveStageParticipant[]>([
     {
       id: 'spk-host',
@@ -223,6 +255,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           setRealSessionId(created.id);
           setRealHostId(created.hostId);
           setVisualUniverse(created.visualUniverse || 'crystal');
+          // Équipe F3 : un direct qui démarre TOUT DE SUITE doit porter son
+          // started_at réel — `startLiveSession` existait mais n'avait AUCUN
+          // appelant, donc started_at restait null et fetchActiveLiveSessions
+          // (filtre `started_at not null`) ne listait jamais le live aux
+          // spectateurs. Un live programmé, lui, ne démarre pas ici.
+          if (!liveData.isScheduled) {
+            startLiveSession(created.id).catch((err) => console.warn('SocialLive: started_at non écrit', err));
+          }
         }
       } catch (err) {
         console.error('SocialLive: échec de création de la session réelle', err);
@@ -300,12 +340,21 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const visionCaptureVideoElRef = useRef<HTMLVideoElement | null>(null);
   const localVideoTrackRef = useCallback((el: HTMLVideoElement | null) => {
     visionCaptureVideoElRef.current = el;
-    if (el && liveTransport.localVideoTrack) liveTransport.localVideoTrack.attach(el);
+    if (el) liveTransport.localVideoTrack?.attach(el);
+    else liveTransport.localVideoTrack?.detach(); // Équipe F3 : sans detach, l'élément retiré du DOM continuait de jouer (fuite/écho)
   }, [liveTransport.localVideoTrack]);
 
+  // Équipe F3 : la scène « partage d'écran » n'attachait QUE le partage
+  // LOCAL — l'écran partagé par le PRÉSENTATEUR (piste distante) n'était
+  // jamais affiché chez un spectateur. Repli sur la première piste d'écran
+  // distante quand aucun partage local n'est actif.
   const screenShareTrackRef = useCallback((el: HTMLVideoElement | null) => {
-    if (el && liveTransport.localScreenShareTrack) liveTransport.localScreenShareTrack.attach(el);
-  }, [liveTransport.localScreenShareTrack]);
+    const track = liveTransport.localScreenShareTrack
+      ?? liveTransport.remoteParticipants.find((p) => p.screenShareTrack)?.screenShareTrack
+      ?? null;
+    if (el) track?.attach(el);
+    else track?.detach();
+  }, [liveTransport.localScreenShareTrack, liveTransport.remoteParticipants]);
 
   // 4. View Mode: Video Stage / Screen Share / Whiteboard / Documents / Meeting / Commerce / Masterclass
   const [mainStageMode, setMainStageMode] = useState<'camera' | 'screen' | 'whiteboard' | 'document' | 'council' | 'meeting' | 'commerce' | 'masterclass'>('camera');
@@ -488,7 +537,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // (LOOP 02/14), diffusés via Supabase Realtime dès que la session réelle
   // (realSessionId) est confirmée.
   const [messages, setMessages] = useState<LiveChatMessage[]>([]);
-  const [realHostId, setRealHostId] = useState<string | undefined>(liveData.hostId);
+  // realHostId : déclaré plus haut (section 3) pour servir au calcul d'isHost.
   const [chatInput, setChatInput] = useState('');
   const [showGifts, setShowGifts] = useState(false);
   const [activeGiftAnim, setActiveGiftAnim] = useState<{ icon: string; id: number } | null>(null);
@@ -808,16 +857,29 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     liveTransport.disconnect();
   };
 
-  // Toggle Mic
+  // Toggle Mic — Équipe F3 : un SPECTATEUR (canPublish=false) déclenchait un
+  // rejet LiveKit non géré (promesse non attrapée) pendant que l'UI
+  // prétendait avoir agi. Publication réservée à la scène ; échec réel
+  // remonté au lieu d'un faux état.
   const toggleMic = () => {
-    liveTransport.setMicrophoneEnabled(isMicMuted);
-    setIsMicMuted(!isMicMuted);
+    if (!isUserOnStage) {
+      addNotification('Micro', 'Levez la main pour monter sur scène avant de parler.', 'info');
+      return;
+    }
+    const next = !isMicMuted;
+    setIsMicMuted(next);
+    liveTransport.setMicrophoneEnabled(!next).catch(() => setIsMicMuted(!next));
   };
 
-  // Toggle Camera
+  // Toggle Camera — même garde que le micro.
   const toggleVideo = () => {
-    liveTransport.setCameraEnabled(isVideoMuted);
-    setIsVideoMuted(!isVideoMuted);
+    if (!isUserOnStage) {
+      addNotification('Caméra', 'Levez la main pour monter sur scène avant de diffuser.', 'info');
+      return;
+    }
+    const next = !isVideoMuted;
+    setIsVideoMuted(next);
+    liveTransport.setCameraEnabled(!next).catch(() => setIsVideoMuted(!next));
   };
 
   // Real Screen Share — publié via l'adaptateur LiveKit, visible par tous les
@@ -1110,17 +1172,27 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     addNotification("Commande Initiée 🛍️", `Fiche de commande pour "${prod.title}" transmise à ${prod.sellerName}.`, "success");
   };
 
-  // Audio-Only Mode Toggle (Data Saver)
+  // Audio-Only Mode Toggle (Data Saver) — Équipe F3 : chez un SPECTATEUR
+  // (canPublish=false), l'ancien code appelait setCameraEnabled → rejet
+  // LiveKit non géré, pendant que la notification promettait une économie de
+  // données jamais réalisée. Honnête désormais : la publication caméra n'est
+  // touchée que sur scène ; le libellé dit ce qui se passe réellement.
   const handleToggleAudioOnly = () => {
     setIsAudioOnlyMode(!isAudioOnlyMode);
     if (!isAudioOnlyMode) {
-      liveTransport.setCameraEnabled(false);
-      setIsVideoMuted(true);
-      addNotification("Mode Audio Seul 🎧", "Flux vidéo coupé pour économiser jusqu'à 85% de données mobiles.", "info");
+      if (isUserOnStage) {
+        liveTransport.setCameraEnabled(false).catch(() => {});
+        setIsVideoMuted(true);
+      }
+      addNotification("Mode Audio Seul 🎧", isUserOnStage
+        ? "Votre caméra est coupée — vous continuez d'être entendu."
+        : "Affichage allégé — le son du direct continue.", "info");
     } else {
-      liveTransport.setCameraEnabled(true);
-      setIsVideoMuted(false);
-      addNotification("Vidéo Réactivée 📹", "Flux visuel HD rétabli.", "info");
+      if (isUserOnStage) {
+        liveTransport.setCameraEnabled(true).catch(() => {});
+        setIsVideoMuted(false);
+      }
+      addNotification("Vidéo Réactivée 📹", isUserOnStage ? "Votre caméra est rétablie." : "Affichage complet rétabli.", "info");
     }
   };
 
@@ -1722,6 +1794,34 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               (pas de survol persistant en tactile). */}
           <div className="flex-1 relative flex items-center justify-center overflow-hidden" onClick={handleStageTap}>
 
+            {/* Équipe F3 : audio de scène PERMANENT (indépendant du mode
+                d'affichage) + états honnêtes du transport — plus jamais un
+                silence ou une panne inexpliqués. */}
+            <RemoteAudioSink participants={liveTransport.remoteParticipants} />
+            {liveTransport.audioPlaybackBlocked && (
+              <button
+                onClick={(e) => { e.stopPropagation(); void liveTransport.startAudio(); }}
+                className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow-xl flex items-center gap-2"
+              >
+                <Volume2 size={14} /> Activer le son
+              </button>
+            )}
+            {realSessionId && liveTransport.error && (
+              <div className="absolute top-4 right-4 z-30 px-3 py-1.5 rounded-xl bg-rose-600/90 text-white text-[11px] font-bold shadow-lg">
+                Diffusion interrompue — reconnexion nécessaire
+              </div>
+            )}
+            {realSessionId && !liveTransport.error && liveTransport.connectionState !== 'connected' && (
+              <div className="absolute top-4 right-4 z-30 px-3 py-1.5 rounded-xl bg-amber-500/90 text-slate-950 text-[11px] font-bold shadow-lg animate-pulse">
+                Connexion au direct…
+              </div>
+            )}
+            {!realSessionId && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-xl bg-slate-800/95 border border-white/15 text-slate-200 text-[11px] font-bold shadow-lg">
+                Aperçu — ce direct de démonstration n'est pas diffusé en temps réel
+              </div>
+            )}
+
             {/* MODE 1: CAMERA & MULTI-SPEAKER STAGE — Équipe I (LOOP I2) :
                 quand de VRAIS participants distants sont là, ce sont les
                 humains qui remplissent la grille (vraie sensation de
@@ -1732,7 +1832,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {mainStageMode === 'camera' && (
               <div className="w-full h-full p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950">
 
-                {/* Slot 1: Presenter / Host Stream */}
+                {/* Slot 1 : MA caméra — UNIQUEMENT quand je suis sur scène.
+                    Équipe F3 : un SPECTATEUR voyait ici sa propre caméra
+                    morte étiquetée « {hôte} (Hôte) » avec une barre de niveau
+                    pilotée par SON micro — il croyait le direct cassé. Le
+                    présentateur réel lui arrive par sa tuile distante. */}
+                {isUserOnStage && (
                 <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center group">
                   <video
                     ref={localVideoTrackRef}
@@ -1748,7 +1853,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   {/* Speaker Label & Audio Wave */}
                   <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span className="text-xs font-bold text-white">{liveData.hostName} (Hôte)</span>
+                    <span className="text-xs font-bold text-white">{isHost ? `${liveData.hostName} (Hôte)` : `${userProfile.name} (Sur scène)`}</span>
                     <div className="w-12 h-2 bg-slate-800 rounded-full overflow-hidden ml-1">
                       <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${audioVolume}%` }} />
                     </div>
@@ -1756,7 +1861,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
                   {/* Host Quick Controls */}
                   <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
+                    <button
                       onClick={handleTriggerVisionAnalysis}
                       disabled={isVisionAnalyzing}
                       className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg shadow-md flex items-center gap-1"
@@ -1765,6 +1870,18 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     </button>
                   </div>
                 </div>
+                )}
+
+                {/* Spectateur, présentateur pas encore connecté au transport :
+                    attente honnête plutôt qu'une fausse tuile. */}
+                {!isUserOnStage && liveTransport.remoteParticipants.length === 0 && (
+                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex flex-col items-center justify-center gap-3">
+                    <img src={liveData.hostAvatar} className="w-20 h-20 rounded-full object-cover opacity-80" alt={liveData.hostName} />
+                    <span className="text-xs font-bold text-slate-300">
+                      {realSessionId ? `En attente du direct de ${liveData.hostName}…` : `Aperçu de « ${liveData.title} »`}
+                    </span>
+                  </div>
+                )}
 
                 {/* Slot 2: copilote IA en pleine cellule UNIQUEMENT quand
                     aucun humain distant n'est sur scène — sinon il cède la
