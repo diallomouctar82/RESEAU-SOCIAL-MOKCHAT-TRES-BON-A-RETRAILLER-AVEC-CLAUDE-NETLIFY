@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2 } from 'lucide-react';
+import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { generateJSON } from '../services/aiGateway';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
@@ -37,11 +38,69 @@ type AIAction = {
     explanation: string;
 };
 
+// Sous-ensemble VOLONTAIREMENT restreint de capacités réellement exécutables
+// depuis Diallo OS, sans dépendre de l'état interne d'un écran déjà monté.
+// Toute cible EXECUTE hors de cette liste est explicitement refusée (voir
+// handleExecute plus bas) plutôt que silencieusement ignorée ou faussement
+// présentée comme réussie. Étendre cette liste = ajouter une entrée ici ET
+// un cas dans handleExecute ; ce n'est PAS un routeur générique vers le
+// registre de capacités (chantier explicitement hors périmètre).
+const EXECUTABLE_TARGETS = new Set(['create_dossier']);
+
+type ExecutionPhase = 'running' | 'done' | 'failed' | 'unsupported';
+interface ExecutionState {
+    phase: ExecutionPhase;
+    message: string;
+}
+
+/**
+ * Ouvre réellement un dossier de suivi dans Supabase (table `dossiers`) —
+ * même schéma et mêmes colonnes que l'outil serveur `create_dossier` de
+ * l'orchestrateur IA (voir supabase/functions/ai-gateway/tools/actions.ts).
+ * Écriture directe depuis le client, protégée par la policy RLS
+ * `dossiers_insert_own` (with_check: owner_id = auth.uid()) : ni simulation
+ * ni mock — le succès/échec renvoyé ici est celui réellement produit par
+ * Supabase, jamais une confirmation optimiste affichée par avance.
+ */
+async function createRealDossier(
+    ownerId: string,
+    payload: { titre?: string; categorie?: string; description?: string }
+): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
+    if (!isSupabaseConfigured) {
+        return { ok: false, error: "Supabase n'est pas configuré dans cet environnement : aucun dossier réel ne peut être créé." };
+    }
+    const titre = typeof payload?.titre === 'string' ? payload.titre.trim() : '';
+    if (!titre) {
+        return { ok: false, error: "Titre manquant : impossible d'ouvrir le dossier." };
+    }
+    try {
+        const { data, error } = await supabase
+            .from('dossiers')
+            .insert({
+                owner_id: ownerId,
+                title: titre,
+                objective: typeof payload?.description === 'string' ? payload.description : null,
+                category: typeof payload?.categorie === 'string' ? payload.categorie : null,
+                status: 'active',
+            })
+            .select('id, title')
+            .maybeSingle();
+
+        if (error || !data) {
+            return { ok: false, error: error?.message || 'La création du dossier a échoué.' };
+        }
+        return { ok: true, title: data.title as string };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || 'La création du dossier a échoué (erreur réseau).' };
+    }
+}
+
 export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate, userProfile }) => {
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
     const [aiResponse, setAiResponse] = useState<string | null>(null);
     const [activeAction, setActiveAction] = useState<AIAction | null>(null);
+    const [execution, setExecution] = useState<ExecutionState | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -65,6 +124,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         setIsThinking(true);
         setAiResponse(null);
         setActiveAction(null);
+        setExecution(null);
 
         const normalizedCommand = command.trim().toLowerCase();
         if (DISCOVERY_PHRASES.some((phrase) => normalizedCommand.includes(phrase))) {
@@ -106,6 +166,15 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
 
             Exemple User: "Je veux partir travailler au Canada"
             Réponse JSON: { "type": "NAVIGATE", "target": "world", "explanation": "Activation du simulateur de mobilité vers le Canada.", "payload": { "country": "Canada", "intent": "work" } }
+
+            Tu peux aussi déclencher UNE action réelle avec le type "EXECUTE" (écriture réelle, pas une simulation), mais UNIQUEMENT pour cette cible précise :
+            - target: "create_dossier" — ouvre un vrai dossier de suivi pour la personne.
+              payload attendu : { "titre": "Titre court et explicite", "categorie": "emploi|logement|sante|juridique|education|voyage|administration", "description": "Objectif en une phrase (optionnel)" }
+              N'utilise "EXECUTE"/"create_dossier" QUE si la personne demande explicitement d'ouvrir, créer ou démarrer un dossier/suivi pour sa démarche (ex: "ouvre-moi un dossier pour chercher un emploi au Canada", "crée un suivi pour mon logement"). Dans le doute, préfère "NAVIGATE" vers le module concerné.
+              Aucune autre valeur de "target" n'est exécutable avec "EXECUTE" pour l'instant : ne l'utilise jamais pour autre chose que "create_dossier".
+
+            Exemple User: "Ouvre-moi un dossier pour chercher un emploi au Canada"
+            Réponse JSON: { "type": "EXECUTE", "target": "create_dossier", "explanation": "Ouverture d'un dossier de suivi pour votre recherche d'emploi au Canada.", "payload": { "titre": "Recherche d'emploi au Canada", "categorie": "emploi", "description": "Trouver un emploi et préparer les démarches d'installation au Canada." } }
             `;
 
             const result = (await generateJSON<AIAction>(`Commande utilisateur : "${command}"`, {
@@ -114,6 +183,14 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             
             setAiResponse(result.explanation);
             setActiveAction(result);
+            // La classification est terminée : on arrête l'indicateur "en
+            // réflexion" ici plutôt que d'attendre le `finally`, pour que
+            // l'avancement réel d'une action EXECUTE (ci-dessous) reste
+            // visible pendant son exécution au lieu d'être masqué par
+            // l'animation de réflexion. Sans effet observable sur NAVIGATE :
+            // aucun `await` ne séparait ce point du `finally` auparavant, qui
+            // continue de plus de l'appeler (filet de sécurité inchangé).
+            setIsThinking(false);
 
             if (viaVoice && result.explanation) {
                 speak(result.explanation);
@@ -125,6 +202,29 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                     onNavigate(result.target!, result.payload);
                     onClose();
                 }, 2000);
+            } else if (result.type === 'EXECUTE' && result.target) {
+                if (!EXECUTABLE_TARGETS.has(result.target)) {
+                    // Honnêteté : jamais prétendre avoir exécuté une capacité
+                    // hors du périmètre réellement câblé — on le dit clairement
+                    // plutôt que de rester silencieux ou de simuler un succès.
+                    setExecution({
+                        phase: 'unsupported',
+                        message: `Cette action ("${result.target}") n'est pas encore exécutable directement depuis Diallo OS.`,
+                    });
+                } else if (result.target === 'create_dossier') {
+                    setExecution({ phase: 'running', message: 'Ouverture du dossier en cours...' });
+                    const outcome = await createRealDossier(userProfile.id, result.payload || {});
+                    // Comparaison explicite (`=== true`), pas une simple
+                    // troncature de vérité : dans cet environnement TS, un
+                    // `if (outcome.ok)` bare ne discrimine pas correctement
+                    // cette union par ailleurs standard (vérifié isolément,
+                    // indépendamment de la config du projet).
+                    if (outcome.ok === true) {
+                        setExecution({ phase: 'done', message: `Dossier « ${outcome.title} » créé avec succès.` });
+                    } else {
+                        setExecution({ phase: 'failed', message: outcome.error });
+                    }
+                }
             }
 
         } catch (e) {
@@ -190,12 +290,28 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                 <h3 className="text-2xl font-bold text-white leading-relaxed">
                                     "{aiResponse}"
                                 </h3>
-                                {activeAction?.target && (
+                                {activeAction?.type === 'NAVIGATE' && activeAction?.target && (
                                     <div className="flex justify-center mt-4">
                                         <div className="flex items-center gap-2 text-sm text-slate-400 bg-white/5 px-4 py-2 rounded-lg">
                                             <span>Redirection vers :</span>
                                             <span className="font-bold text-white uppercase">{activeAction.target}</span>
                                             <ArrowRight size={14} className="animate-pulse" />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {execution && (
+                                    <div className="flex justify-center mt-4">
+                                        <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg border ${
+                                            execution.phase === 'running' ? 'text-brand-300 bg-white/5 border-white/10' :
+                                            execution.phase === 'done' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' :
+                                            execution.phase === 'failed' ? 'text-red-300 bg-red-500/10 border-red-500/30' :
+                                            'text-amber-300 bg-amber-500/10 border-amber-500/30'
+                                        }`}>
+                                            {execution.phase === 'running' && <Loader2 size={14} className="animate-spin" />}
+                                            {execution.phase === 'done' && <CheckCircle2 size={14} />}
+                                            {(execution.phase === 'failed' || execution.phase === 'unsupported') && <AlertTriangle size={14} />}
+                                            <span>{execution.message}</span>
                                         </div>
                                     </div>
                                 )}
