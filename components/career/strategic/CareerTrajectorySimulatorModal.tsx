@@ -19,7 +19,8 @@ import {
   Send,
   Zap
 } from 'lucide-react';
-import { CareerTrajectorySimulation, WhatIfScenario, CareerGraphNode } from '../../types';
+import { CareerTrajectorySimulation, WhatIfScenario, CareerGraphNode } from '../../../types';
+import { generateJSON } from '../../../services/aiGateway';
 
 interface CareerTrajectorySimulatorModalProps {
   isOpen: boolean;
@@ -50,28 +51,69 @@ export const CareerTrajectorySimulatorModal: React.FC<CareerTrajectorySimulatorM
 
   const selectedTrajectory = trajectories.find(t => t.id === selectedTrajectoryId) || trajectories[0];
 
-  const handleSimulateCustom = (e: React.FormEvent) => {
+  const handleSimulateCustom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customQuestion.trim()) return;
 
     setIsSimulating(true);
-    setTimeout(() => {
+
+    // Fallback conservateur si l'IA est indisponible : identique à l'ancien
+    // comportement (garanti), mais désormais utilisé seulement en secours.
+    const buildFallback = (): WhatIfScenario => ({
+      id: `custom_${Date.now()}`,
+      promptQuestion: customQuestion,
+      category: 'specialisation',
+      impactOnPointB: `Hypothèse testée : recalcule un gain de 4 à 8 mois en augmentant l'adéquation sectorielle de +28%.`,
+      newTrajectoryUnlocked: 'Trajectoire Hybride Personnalisée',
+      timeframeImpact: 'Optimisation de -4 mois estimée',
+      marketOpeningsBonusPercent: 35,
+      financialImpactEstimate: '+15k€ à +30k€ potentiel selon le degré d\'engagement',
+      riskAssessment: 'Niveau de risque modéré : nécessite un temps d\'apprentissage dédié de 5h/semaine.',
+      suggestedFirstStep: 'Découper cet objectif en un module d\'entraînement de 30 jours et valider une preuve concrète.'
+    });
+
+    try {
+      const prompt = `Tu es le Simulateur Stratégique de Carrière de Le Monde à Vous.
+Trajectoire actuellement à l'étude : "${selectedTrajectory?.title || 'Non définie'}" — ${selectedTrajectory?.summary || ''}.
+Hypothèse posée par l'utilisateur : "${customQuestion}"
+
+Analyse cette hypothèse avec rigueur et nuance (jamais comme une certitude ou une promesse figée).
+Réponds en JSON strict avec exactement ces clés :
+{
+  "impactOnPointB": "Impact concret sur l'objectif Point B en 1-2 phrases...",
+  "newTrajectoryUnlocked": "Nom court de la trajectoire ou variante débloquée...",
+  "timeframeImpact": "Effet estimé sur le délai (ex: -2 mois, +3 mois, neutre)...",
+  "marketOpeningsBonusPercent": 20,
+  "financialImpactEstimate": "Estimation financière indicative...",
+  "riskAssessment": "Niveau de risque et ce qu'il implique concrètement...",
+  "suggestedFirstStep": "Premier pas concret et actionnable..."
+}`;
+
+      const parsed = await generateJSON<Partial<WhatIfScenario>>(prompt);
+      const fallback = buildFallback();
+
       const newScenario: WhatIfScenario = {
-        id: `custom_${Date.now()}`,
+        id: fallback.id,
         promptQuestion: customQuestion,
         category: 'specialisation',
-        impactOnPointB: `Hypothèse testée : recalcule un gain de 4 à 8 mois en augmentant l'adéquation sectorielle de +28%.`,
-        newTrajectoryUnlocked: 'Trajectoire Hybride Personnalisée',
-        timeframeImpact: 'Optimisation de -4 mois estimée',
-        marketOpeningsBonusPercent: 35,
-        financialImpactEstimate: '+15k€ à +30k€ potentiel selon le degré d\'engagement',
-        riskAssessment: 'Niveau de risque modéré : nécessite un temps d\'apprentissage dédié de 5h/semaine.',
-        suggestedFirstStep: 'Découper cet objectif en un module d\'entraînement de 30 jours et valider une preuve concrète.'
+        impactOnPointB: parsed?.impactOnPointB || fallback.impactOnPointB,
+        newTrajectoryUnlocked: parsed?.newTrajectoryUnlocked || fallback.newTrajectoryUnlocked,
+        timeframeImpact: parsed?.timeframeImpact || fallback.timeframeImpact,
+        marketOpeningsBonusPercent: parsed?.marketOpeningsBonusPercent ?? fallback.marketOpeningsBonusPercent,
+        financialImpactEstimate: parsed?.financialImpactEstimate || fallback.financialImpactEstimate,
+        riskAssessment: parsed?.riskAssessment || fallback.riskAssessment,
+        suggestedFirstStep: parsed?.suggestedFirstStep || fallback.suggestedFirstStep
       };
-      setScenariosList([newScenario, ...scenariosList]);
+
+      setScenariosList(prev => [newScenario, ...prev]);
       setCustomQuestion('');
+    } catch (err) {
+      console.error('What-if simulation error', err);
+      setScenariosList(prev => [buildFallback(), ...prev]);
+      setCustomQuestion('');
+    } finally {
       setIsSimulating(false);
-    }, 600);
+    }
   };
 
   return (
@@ -79,7 +121,7 @@ export const CareerTrajectorySimulatorModal: React.FC<CareerTrajectorySimulatorM
       <div className="bg-slate-900 border border-slate-700/70 rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-purple-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-purple-600/20 border border-purple-500/30 rounded-2xl text-purple-400">
               <GitFork size={24} />
@@ -98,7 +140,7 @@ export const CareerTrajectorySimulatorModal: React.FC<CareerTrajectorySimulatorM
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X size={20} />
           </button>
@@ -307,7 +349,7 @@ export const CareerTrajectorySimulatorModal: React.FC<CareerTrajectorySimulatorM
             <div className="space-y-6 animate-fade-up">
               
               {/* Input Interactive Form */}
-              <form onSubmit={handleSimulateCustom} className="bg-gradient-to-r from-indigo-950/50 to-purple-950/50 border border-indigo-500/30 rounded-2xl p-5 space-y-3">
+              <form onSubmit={handleSimulateCustom} className="bg-slate-900/60 border border-indigo-500/30 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-bold text-indigo-300">
                   <Sparkles size={16} className="text-indigo-400" />
                   <span>Posez une hypothèse d'évolution : « Et si... ? »</span>

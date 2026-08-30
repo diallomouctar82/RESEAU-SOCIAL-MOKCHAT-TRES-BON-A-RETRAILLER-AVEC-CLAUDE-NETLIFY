@@ -141,12 +141,69 @@ export const generateJSON = async <T = any>(
     });
     if (data?.result?.json !== undefined) return data.result.json as T;
     const text = data?.result?.text ?? '';
-    try {
-        return JSON.parse(text) as T;
-    } catch {
+    const parsed = parseLooseJson<T>(text);
+    if (parsed === undefined) {
         throw new Error("Réponse du fournisseur IA non conforme au format JSON attendu.");
     }
+    return parsed;
 };
+
+/**
+ * Extraction JSON tolérante — idée reprise (et durcie) du dépôt historique
+ * `ARCHITECTE-BON-INSPIRATION-POUR-MOKNET-2026` (`services/geminiService.ts::cleanJson`),
+ * seul élément de son Architecte réellement supérieur à l'existant ici.
+ *
+ * Problème réel qu'elle corrige : `JSON.parse(text)` échouait dès qu'un
+ * fournisseur encadrait sa réponse d'une clôture markdown (```json ... ```) ou
+ * d'une phrase d'introduction — comportement courant, en particulier sur les
+ * fournisseurs de repli qui n'honorent pas `jsonMode`. Comme les 5 registres
+ * de l'Architecte (Live, Contenu, Social, Tâches, Recherche) et DialloOS
+ * passent TOUS par `generateJSON`, une simple clôture markdown faisait échouer
+ * la commande entière : l'utilisateur voyait « je n'ai pas compris » alors que
+ * le modèle avait parfaitement répondu.
+ *
+ * Strictement additive : le chemin nominal (JSON déjà valide) est tenté en
+ * premier et se comporte exactement comme avant — aucune réponse qui
+ * fonctionnait ne change de résultat. Renvoie `undefined` (jamais un objet
+ * inventé) quand rien d'exploitable n'est trouvé, pour que l'appelant garde
+ * la main sur l'échec.
+ */
+export function parseLooseJson<T = any>(raw: string): T | undefined {
+    if (typeof raw !== 'string' || !raw.trim()) return undefined;
+
+    // 1. Chemin nominal, inchangé.
+    try {
+        return JSON.parse(raw) as T;
+    } catch { /* on tente les formes tolérantes ci-dessous */ }
+
+    // 2. Retrait d'une clôture markdown (```json ... ``` ou ``` ... ```).
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fenced?.[1]) {
+        try {
+            return JSON.parse(fenced[1]) as T;
+        } catch { /* continue */ }
+    }
+
+    // 3. Découpe entre la première et la dernière accolade/crochet — couvre
+    //    le cas « phrase d'introduction + objet JSON ». On retient la forme
+    //    (objet ou tableau) qui commence le plus tôt dans le texte.
+    const candidates: Array<[number, number]> = [];
+    const objStart = raw.indexOf('{');
+    const objEnd = raw.lastIndexOf('}');
+    if (objStart !== -1 && objEnd > objStart) candidates.push([objStart, objEnd]);
+    const arrStart = raw.indexOf('[');
+    const arrEnd = raw.lastIndexOf(']');
+    if (arrStart !== -1 && arrEnd > arrStart) candidates.push([arrStart, arrEnd]);
+
+    candidates.sort((a, b) => a[0] - b[0]);
+    for (const [start, end] of candidates) {
+        try {
+            return JSON.parse(raw.slice(start, end + 1)) as T;
+        } catch { /* candidat suivant */ }
+    }
+
+    return undefined;
+}
 
 /** Analyse d'une image (vision/OCR) : image + question -> texte (ou JSON si jsonMode). */
 export const analyzeImage = async (

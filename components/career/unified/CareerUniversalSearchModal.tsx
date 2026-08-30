@@ -30,18 +30,45 @@ export const CareerUniversalSearchModal: React.FC<CareerUniversalSearchModalProp
 
   if (!isOpen) return null;
 
-  const mockIndex = [
-    { id: '1', title: 'Candidature OmniLogistics International', category: 'Candidature / Dossier', tab: 'pipeline', desc: 'Dossier de conquête transmis, entretien de closing à 14h30.' },
-    { id: '2', title: 'CV Maître Bilingue (Français / Anglais)', category: 'Documents & Preuves', tab: 'twin', desc: 'CV certifié Mok Trust avec références vérifiées.' },
-    { id: '3', title: 'Contact Saliou Kéita (VP Supply Chain)', category: 'Réseau & ICP', tab: 'network', desc: 'Dernier contact il y a 5 jours, mandat pilote en négociation.' },
-    { id: '4', title: 'Module Campus : Négociation B2B Grands Comptes', category: 'Formation & Compétences', tab: 'campus', desc: 'Validé à 94/100 avec simulation d\'objections.' },
-    { id: '5', title: 'Boussole Stratégique 4D & Trajectoire Export', category: 'Stratégie', tab: 'strategic', desc: 'Horizon 18 mois, Point B : Direction Commerciale.' },
-    { id: '6', title: 'Antisèche Flash Négociation Salariale', category: 'Coach 3D / Préparation', tab: 'simulator', desc: 'Arguments chocs pour prétentions 68k€ + variable.' }
-  ];
+  // Index de recherche construit à partir du véritable journal de parcours de l'utilisateur
+  // (plus de contenu fictif déconnecté des données réelles de l'application).
+  const TYPE_TAB_MAP: Record<CareerJournalEntry['type'], string> = {
+    decision: 'strategic',
+    formation: 'campus',
+    competence: 'twin',
+    opportunite: 'hunter',
+    candidature: 'pipeline',
+    rencontre: 'network',
+    resultat: 'twin',
+    echec_utile: 'strategic',
+    pivot_strategie: 'strategic',
+    realisation: 'gps'
+  };
 
-  const filtered = query.trim() === '' 
-    ? mockIndex 
-    : mockIndex.filter(item => 
+  const TYPE_LABEL_MAP: Record<CareerJournalEntry['type'], string> = {
+    decision: 'Décision Stratégique',
+    formation: 'Formation & Compétences',
+    competence: 'Compétence Certifiée',
+    opportunite: 'Opportunité',
+    candidature: 'Candidature / Dossier',
+    rencontre: 'Réseau & Contact',
+    resultat: 'Résultat Certifié',
+    echec_utile: 'Retour d\'Expérience',
+    pivot_strategie: 'Pivot Stratégique',
+    realisation: 'Réalisation'
+  };
+
+  const searchIndex = journal.map(entry => ({
+    id: entry.id,
+    title: entry.title,
+    category: TYPE_LABEL_MAP[entry.type] || 'Parcours',
+    tab: TYPE_TAB_MAP[entry.type] || 'gps',
+    desc: entry.description
+  }));
+
+  const filtered = query.trim() === ''
+    ? searchIndex
+    : searchIndex.filter(item =>
         item.title.toLowerCase().includes(query.toLowerCase()) || 
         item.desc.toLowerCase().includes(query.toLowerCase()) ||
         item.category.toLowerCase().includes(query.toLowerCase())
@@ -63,11 +90,11 @@ export const CareerUniversalSearchModal: React.FC<CareerUniversalSearchModalProp
             autoFocus
           />
           {query && (
-            <button onClick={() => setQuery('')} className="p-1 text-slate-400 hover:text-slate-600">
+            <button onClick={() => setQuery('')} className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors" aria-label="Effacer la recherche">
               <X size={18} />
             </button>
           )}
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
+          <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-500 transition-colors" aria-label="Fermer la recherche">
             <X size={20} />
           </button>
         </div>

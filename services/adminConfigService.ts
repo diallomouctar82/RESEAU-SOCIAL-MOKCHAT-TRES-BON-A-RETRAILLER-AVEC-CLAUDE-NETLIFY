@@ -66,7 +66,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
     assignedExpertId: '8',
-    notes: 'Chef de Projet & Coordinateur Stratégique.'
+    notes: 'Chef de Projet & Coordinateur Stratégique.',
+    isDemoSeed: true
   },
   {
     id: 'u-expert-jur',
@@ -82,7 +83,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&h=120&fit=crop',
     assignedExpertId: '1',
-    notes: 'Juriste Émérite & Droit International.'
+    notes: 'Juriste Émérite & Droit International.',
+    isDemoSeed: true
   },
   {
     id: 'u-expert-prof',
@@ -98,7 +100,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop',
     assignedExpertId: '3',
-    notes: 'Doyen Campus & Pédagogie d’Excellence.'
+    notes: 'Doyen Campus & Pédagogie d’Excellence.',
+    isDemoSeed: true
   },
   {
     id: 'u-citoyen-1',
@@ -113,7 +116,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access', 'create_dossiers', 'generate_letters'],
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=120&h=120&fit=crop',
-    notes: 'Dossier expatriation Canada en cours.'
+    notes: 'Dossier expatriation Canada en cours.',
+    isDemoSeed: true
   },
   {
     id: 'u-partner-1',
@@ -128,7 +132,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access', 'b2b_market', 'rfq_submit', 'trade_negotiate'],
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop',
-    notes: 'Fournisseur vérifié Marché Mondial B2B.'
+    notes: 'Fournisseur vérifié Marché Mondial B2B.',
+    isDemoSeed: true
   },
   {
     id: 'u-citoyen-2',
@@ -143,7 +148,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access', 'create_dossiers'],
     kycVerified: true,
     avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&h=120&fit=crop',
-    notes: 'Parcours Campus Master Data & IA.'
+    notes: 'Parcours Campus Master Data & IA.',
+    isDemoSeed: true
   },
   {
     id: 'u-citoyen-3',
@@ -158,7 +164,8 @@ const INITIAL_USERS: AdminUserRecord[] = [
     permissions: ['standard_access'],
     kycVerified: false,
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop',
-    notes: 'Compte suspendu pour tentative d’usurpation.'
+    notes: 'Compte suspendu pour tentative d’usurpation.',
+    isDemoSeed: true
   }
 ];
 
@@ -2132,34 +2139,16 @@ export class AdminConfigService {
 
       const cloudProfiles = await supabaseService.fetchAdminProfiles();
       if (!cloudProfiles || cloudProfiles.length === 0) {
-        // Pousser les utilisateurs locaux vers Supabase s'il est vide
-        for (const localUser of this.users) {
-          try {
-            await supabaseService.upsertProfile({
-              id: localUser.id,
-              email: localUser.email,
-              name: localUser.name,
-              role: localUser.role as any,
-              country: localUser.country,
-              city: localUser.city || 'Paris',
-              title: localUser.title,
-              bio: localUser.bio,
-              avatar_url: localUser.avatarUrl,
-              citizenship_id: localUser.citizenshipId,
-              credits: localUser.credits,
-              xp: localUser.xp || 50,
-              level: localUser.level || 1,
-              is_verified: localUser.kycVerified
-            });
-          } catch (err: any) {
-            errors.push(`Erreur push profil ${localUser.email}: ${err?.message}`);
-          }
-        }
+        // `this.users` (INITIAL_USERS) contient uniquement des personas de
+        // démonstration (isDemoSeed) avec des ids non-UUID — jamais de vrais
+        // comptes à pousser vers `profiles` (colonne `id` de type uuid, tout
+        // upsert échouerait). Rien à synchroniser tant qu'aucun vrai profil
+        // n'existe côté Supabase ; ce n'est pas un échec.
         return {
           success: true,
           totalUsers: this.users.length,
           newUsersCount: 0,
-          errors
+          errors: []
         };
       }
 
@@ -3318,6 +3307,35 @@ export class AdminConfigService {
     this.notifications.unshift(newNotif);
     this.addLog('info', 'admin', `Diffusion d’une alerte générale : ${newNotif.title} (Cible: ${newNotif.targetAudience})`, 'Super-Admin');
     this.notify();
+
+    // LOOP 08/17 (moteur de notifications) : jusqu'ici cette méthode
+    // n'écrivait que dans ce tableau en mémoire (persistance localStorage
+    // propre à ce navigateur) — un admin croyait diffuser une alerte à
+    // toute la communauté, mais AUCUN autre utilisateur ne recevait jamais
+    // rien. Écriture réelle en tâche de fond dans la même table
+    // `notifications` que les autres notifications (pas un second
+    // mécanisme) — best-effort, ne bloque jamais le retour synchrone
+    // ci-dessus dont dépend le reste de cette classe (même patron que le
+    // reste du dépôt : optimiste localement, écriture réelle en arrière-plan).
+    const typeMap: Record<BroadcastNotification['priority'], 'success' | 'info' | 'warning' | 'alert'> = {
+      info: 'info', warning: 'warning', urgent: 'alert', maintenance: 'warning',
+    };
+    const priorityMap: Record<BroadcastNotification['priority'], 'low' | 'normal' | 'high'> = {
+      info: 'low', warning: 'normal', urgent: 'high', maintenance: 'high',
+    };
+    supabaseService.broadcastNotification({
+      title: newNotif.title,
+      message: newNotif.message,
+      type: typeMap[newNotif.priority],
+      priority: priorityMap[newNotif.priority],
+      targetAudience: newNotif.targetAudience,
+    }).then((count) => {
+      if (count > 0) this.addLog('info', 'admin', `Alerte "${newNotif.title}" réellement livrée à ${count} compte(s) réel(s).`, 'Super-Admin');
+    }).catch((err) => {
+      console.warn('Erreur diffusion réelle de la notification:', err);
+      this.addLog('warning', 'admin', `La diffusion réelle de "${newNotif.title}" a échoué — visible uniquement dans cette console admin.`, 'Super-Admin');
+    });
+
     return newNotif;
   }
 

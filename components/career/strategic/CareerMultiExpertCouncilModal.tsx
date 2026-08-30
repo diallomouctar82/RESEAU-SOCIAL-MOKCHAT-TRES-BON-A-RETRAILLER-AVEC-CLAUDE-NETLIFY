@@ -13,7 +13,7 @@ import {
   MessageSquare, 
   ShieldCheck
 } from 'lucide-react';
-import { MultiExpertCareerCouncil } from '../../types';
+import { MultiExpertCareerCouncil } from '../../../types';
 
 interface CareerMultiExpertCouncilModalProps {
   isOpen: boolean;
@@ -49,7 +49,7 @@ export const CareerMultiExpertCouncilModal: React.FC<CareerMultiExpertCouncilMod
       <div className="bg-slate-900 border border-slate-700/70 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl text-indigo-400">
               <Users size={24} />
@@ -68,7 +68,7 @@ export const CareerMultiExpertCouncilModal: React.FC<CareerMultiExpertCouncilMod
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X size={20} />
           </button>
@@ -78,7 +78,7 @@ export const CareerMultiExpertCouncilModal: React.FC<CareerMultiExpertCouncilMod
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-200">
           
           {/* Top Session Theme & Harmonized Synthesis */}
-          <div className="bg-gradient-to-br from-indigo-950/60 to-slate-800/80 border border-indigo-500/40 rounded-2xl p-5 space-y-3">
+          <div className="bg-slate-800/80 border border-indigo-500/40 rounded-2xl p-5 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">
                 Thématique du Conseil : {council.sessionTheme}

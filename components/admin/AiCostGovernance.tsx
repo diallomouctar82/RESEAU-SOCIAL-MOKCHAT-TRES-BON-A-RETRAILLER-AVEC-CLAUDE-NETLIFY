@@ -154,7 +154,7 @@ export const AiCostGovernance: React.FC = () => {
                     <div className="flex flex-col justify-end gap-2">
                         <button
                             onClick={() => setEnforced(!enforced)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-950 ${
                                 enforced
                                     ? 'bg-red-500/15 border-red-500/40 text-red-300'
                                     : 'bg-slate-800 border-slate-700 text-slate-400'
@@ -166,7 +166,7 @@ export const AiCostGovernance: React.FC = () => {
                         <button
                             onClick={save}
                             disabled={saving}
-                            className="px-3 py-2 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold hover:bg-emerald-400 transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            className="px-3 py-2 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold hover:bg-emerald-400 transition disabled:opacity-50 flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-950"
                         >
                             {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                             Enregistrer
@@ -190,8 +190,9 @@ export const AiCostGovernance: React.FC = () => {
                     </span>
                     <button
                         onClick={load}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                        className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                         title="Rafraîchir"
+                        aria-label="Rafraîchir le journal des décisions"
                     >
                         <RefreshCw size={14} />
                     </button>

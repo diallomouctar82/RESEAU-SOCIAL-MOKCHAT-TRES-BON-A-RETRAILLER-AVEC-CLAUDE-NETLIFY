@@ -42,8 +42,13 @@ export const QuickActionZone: React.FC<QuickActionZoneProps> = ({
             onClick={() => {
               if (act.id === 'ask-diallo' && onOpenDialloOS) {
                 onOpenDialloOS();
-              } else if (act.id === 'search-all' && onOpenSearch) {
-                onOpenSearch();
+              } else if (act.id === 'search-all') {
+                // 'search' n'est pas un onglet réel : sans onOpenSearch, ne
+                // rien faire plutôt que de naviguer vers un onglet
+                // inexistant (App.tsx n'a aucune branche 'search'), ce qui
+                // vidait toute la zone de contenu — chrome affiché, écran
+                // blanc en dessous.
+                onOpenSearch?.();
               } else {
                 onActionClick(act.tabTarget);
               }

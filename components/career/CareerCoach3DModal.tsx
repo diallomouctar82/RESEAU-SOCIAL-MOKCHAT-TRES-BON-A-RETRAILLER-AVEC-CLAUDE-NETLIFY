@@ -20,9 +20,11 @@ import {
   Target
 } from 'lucide-react';
 import { Avatar3D } from '../Avatar3D';
-import { generateText, generateJSON, generateSpeech } from '../../services/aiGateway';
+import { generateText, generateJSON } from '../../services/aiGateway';
 import { Coach3DSimulationSession } from '../../types';
 import { MOCK_COACH_SESSIONS } from './careerDefaults';
+import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
+import { ELEVENLABS_CURATED_VOICES } from '../../services/voiceEngine';
 
 interface CareerCoach3DModalProps {
   userName: string;
@@ -33,6 +35,30 @@ interface CareerCoach3DModalProps {
 }
 
 type SimulationMode = 'interview' | 'pitch' | 'sales_nego' | 'salary_nego' | 'public_speaking';
+
+// Mappe chaque mode de simulation vers une voix ElevenLabs cohérente avec le
+// persona joué par le Coach 3D (au lieu d'une voix unique fixe pour tous les modes).
+const getVoiceIdForSimulationMode = (mode: SimulationMode): string => {
+  switch (mode) {
+    case 'interview':
+    case 'salary_nego':
+      // Décideur RH/rémunération de haut niveau (Directeur RH, VP Rémunérations).
+      return ELEVENLABS_CURATED_VOICES['directeur'].id;
+    case 'sales_nego':
+      // Directeur des Achats Grand Compte en négociation B2B -> voix "Marchés Mondiaux & B2B".
+      return ELEVENLABS_CURATED_VOICES['finance'].id;
+    case 'pitch':
+      // Investisseur VC/Business Angel évaluant une levée de fonds -> voix
+      // positionnée "Emploi & Entrepreneuriat" (thème du pitch, plutôt que "finance"
+      // déjà utilisé pour la négociation B2B).
+      return ELEVENLABS_CURATED_VOICES['emploi'].id;
+    case 'public_speaking':
+      // Coach d'éloquence : structure d'argumentation et méthode -> voix "Sciences & Méthodologie".
+      return ELEVENLABS_CURATED_VOICES['professor_alt'].id;
+    default:
+      return ELEVENLABS_CURATED_VOICES['directeur'].id;
+  }
+};
 
 export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
   userName,
@@ -48,8 +74,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
   const [currentQuestion, setCurrentQuestion] = useState<string>('');
   const [userAnswer, setUserAnswer] = useState<string>('');
   const [isThinking, setIsThinking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  
+
   // Evaluation State
   const [lastEvaluation, setLastEvaluation] = useState<{
     score: number;
@@ -63,7 +88,16 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
   const [turnCount, setTurnCount] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
-  const speechRecognitionRef = useRef<any>(null);
+
+  // Moteur vocal partagé (reconnaissance + synthèse) — voix résolue selon le
+  // persona du mode de simulation actif, au lieu d'une voix fixe pour tous les modes.
+  const { isListening, isSupported, startListening, stopListening, speak } = useVoiceAssistant({
+    voiceId: getVoiceIdForSimulationMode(selectedMode),
+    lang: 'fr-FR',
+    onFinalTranscript: (text) => {
+      setUserAnswer(prev => prev ? `${prev} ${text}` : text);
+    },
+  });
 
   useEffect(() => {
     // Cleanup AudioContext on unmount
@@ -71,9 +105,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
-      if (speechRecognitionRef.current) {
-        speechRecognitionRef.current.stop();
-      }
+      stopListening();
     };
   }, []);
 
@@ -112,63 +144,31 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
     }
   };
 
-  // TTS Speech Engine
+  // TTS Speech Engine (moteur vocal partagé — voix résolue selon le persona actif)
   const speakText = async (text: string) => {
     setAvatarState('speaking');
     try {
-      const base64 = await generateSpeech(text, { voiceId: 'Fenrir' });
-      if (base64) {
-        const audio = new Audio(`data:audio/mpeg;base64,${base64}`);
-        audio.onended = () => setAvatarState('idle');
-        audio.onerror = () => setAvatarState('idle');
-        await audio.play();
-      } else {
-        setAvatarState('idle');
-      }
+      await speak(text);
     } catch (e) {
       console.warn("TTS Error", e);
+    } finally {
       setAvatarState('idle');
     }
   };
 
-  // Start Voice Recognition (Web Speech API)
+  // Start Voice Recognition (moteur vocal partagé)
   const toggleSpeechRecognition = () => {
     if (isListening) {
-      if (speechRecognitionRef.current) speechRecognitionRef.current.stop();
-      setIsListening(false);
+      stopListening();
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!isSupported) {
       alert("La reconnaissance vocale n'est pas supportée sur ce navigateur.");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event: any) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        transcript += event.results[i][0].transcript;
-      }
-      setUserAnswer(prev => prev ? `${prev} ${transcript}` : transcript);
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    speechRecognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
+    startListening('fr-FR');
   };
 
   // Start Simulation Session
@@ -207,9 +207,8 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
   // Submit Answer & Evaluate
   const handleSubmitAnswer = async () => {
     if (!userAnswer.trim()) return;
-    if (isListening && speechRecognitionRef.current) {
-      speechRecognitionRef.current.stop();
-      setIsListening(false);
+    if (isListening) {
+      stopListening();
     }
 
     setIsThinking(true);
@@ -312,7 +311,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
           </div>
           <button 
             onClick={onClose} 
-            className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            className="p-3 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
           >
             <X size={20} />
           </button>
@@ -377,7 +376,7 @@ export const CareerCoach3DModal: React.FC<CareerCoach3DModalProps> = ({
             <div className="pt-4 flex justify-end">
               <button
                 onClick={handleStartSimulation}
-                className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-600/30 flex items-center gap-2 transition-all"
+                className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-600/30 flex items-center gap-2 transition-all"
               >
                 <Video size={18} /> Démarrer la session en direct
               </button>

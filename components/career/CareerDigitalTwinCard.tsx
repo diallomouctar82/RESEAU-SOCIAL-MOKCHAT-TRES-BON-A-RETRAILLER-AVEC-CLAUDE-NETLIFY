@@ -45,14 +45,11 @@ export const CareerDigitalTwinCard: React.FC<CareerDigitalTwinCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-xl relative overflow-hidden space-y-6">
-      {/* Background Glow */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-transparent rounded-full blur-2xl pointer-events-none" />
-
+    <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-xl space-y-6">
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-slate-100">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-500/30">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-500/30">
             {userName.charAt(0)}
           </div>
           <div>
@@ -159,7 +156,7 @@ export const CareerDigitalTwinCard: React.FC<CareerDigitalTwinCardProps> = ({
                   <span className="text-xs font-black text-indigo-600">{skill.level}%</span>
                 </div>
                 <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div className="bg-gradient-to-r from-indigo-500 to-blue-500 h-full rounded-full" style={{ width: `${skill.level}%` }} />
+                  <div className="bg-blue-600 h-full rounded-full" style={{ width: `${skill.level}%` }} />
                 </div>
                 <div className="flex justify-between items-center text-[10px] text-slate-400">
                   <span>{skill.endorsedCount} recommandations pairs</span>

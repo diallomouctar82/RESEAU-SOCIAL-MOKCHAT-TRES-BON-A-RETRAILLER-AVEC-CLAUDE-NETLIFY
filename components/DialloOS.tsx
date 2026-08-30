@@ -1,9 +1,22 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2 } from 'lucide-react';
-import { generateJSON } from '../services/aiGateway';
+import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
+import { describeCapabilitiesForHumans } from '../services/architecte/capabilityRegistry';
+import {
+    isDiscoveryCommand,
+    runArchitecteCommand,
+    type ArchitecteAction,
+} from '../services/architecte/architecteBrain';
+
+// « Qu'est-ce que tu peux faire ? » reste traité de façon 100% déterministe,
+// sans appel LLM — la réponse ne peut donc jamais contenir une capacité
+// inventée. La liste des formulations reconnues vit désormais dans le cerveau
+// partagé (`isDiscoveryCommand`), pour que la barre flottante vocale réponde
+// exactement comme ce modal.
 
 interface DialloOSProps {
     isOpen: boolean;
@@ -12,19 +25,67 @@ interface DialloOSProps {
     userProfile: UserProfile;
 }
 
-type AIAction = {
-    type: 'NAVIGATE' | 'NOTIFICATION' | 'EXECUTE';
-    target?: string;
-    payload?: any;
-    explanation: string;
-};
+// Cas d'exécution historique, antérieur au bus de capacités : `create_dossier`
+// écrit directement dans `dossiers` depuis ce composant (voir
+// createRealDossier plus bas). Conservé tel quel — il fonctionne, il est
+// testé, et le migrer vers le bus n'apporterait rien à l'utilisateur.
+// Toute AUTRE exécution passe désormais par le registre + le bus.
+const LEGACY_EXECUTABLE_TARGETS = new Set(['create_dossier']);
+
+type ExecutionPhase = 'running' | 'done' | 'failed' | 'unsupported' | 'denied' | 'cancelled';
+interface ExecutionState {
+    phase: ExecutionPhase;
+    message: string;
+}
+
+/**
+ * Ouvre réellement un dossier de suivi dans Supabase (table `dossiers`) —
+ * même schéma et mêmes colonnes que l'outil serveur `create_dossier` de
+ * l'orchestrateur IA (voir supabase/functions/ai-gateway/tools/actions.ts).
+ * Écriture directe depuis le client, protégée par la policy RLS
+ * `dossiers_insert_own` (with_check: owner_id = auth.uid()) : ni simulation
+ * ni mock — le succès/échec renvoyé ici est celui réellement produit par
+ * Supabase, jamais une confirmation optimiste affichée par avance.
+ */
+async function createRealDossier(
+    ownerId: string,
+    payload: { titre?: string; categorie?: string; description?: string }
+): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
+    if (!isSupabaseConfigured) {
+        return { ok: false, error: "Supabase n'est pas configuré dans cet environnement : aucun dossier réel ne peut être créé." };
+    }
+    const titre = typeof payload?.titre === 'string' ? payload.titre.trim() : '';
+    if (!titre) {
+        return { ok: false, error: "Titre manquant : impossible d'ouvrir le dossier." };
+    }
+    try {
+        const { data, error } = await supabase
+            .from('dossiers')
+            .insert({
+                owner_id: ownerId,
+                title: titre,
+                objective: typeof payload?.description === 'string' ? payload.description : null,
+                category: typeof payload?.categorie === 'string' ? payload.categorie : null,
+                status: 'active',
+            })
+            .select('id, title')
+            .maybeSingle();
+
+        if (error || !data) {
+            return { ok: false, error: error?.message || 'La création du dossier a échoué.' };
+        }
+        return { ok: true, title: data.title as string };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || 'La création du dossier a échoué (erreur réseau).' };
+    }
+}
 
 export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate, userProfile }) => {
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
-    const [isListening, setIsListening] = useState(false);
     const [aiResponse, setAiResponse] = useState<string | null>(null);
-    const [activeAction, setActiveAction] = useState<AIAction | null>(null);
+    const [activeAction, setActiveAction] = useState<ArchitecteAction | null>(null);
+    const [execution, setExecution] = useState<ExecutionState | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -33,78 +94,85 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         }
     }, [isOpen]);
 
-    const handleVoiceInput = () => {
-        if (isListening) return;
-        setIsListening(true);
-        try {
-            const recognition = new (window as any).webkitSpeechRecognition();
-            recognition.lang = 'fr-FR';
-            recognition.start();
-            recognition.onresult = (event: any) => {
-                const transcript = event.results[0][0].transcript;
-                setInput(transcript);
-                handleExecute(transcript);
-                setIsListening(false);
-            };
-            recognition.onerror = () => setIsListening(false);
-        } catch (e) {
-            console.error("Voice not supported");
-            setIsListening(false);
-        }
-    };
+    // Les capacités portées par l'Architecte lui-même (Tâches, Paramètres,
+    // Appareil — aucune ne dépend d'un état d'écran) sont enregistrées UNE
+    // SEULE FOIS, depuis `ArchitecteFloatingBar`, qui est toujours montée.
+    // Les enregistrer ici aussi créerait deux inscriptions concurrentes du
+    // même identifiant, susceptibles de se désenregistrer mutuellement au
+    // démontage. Les domaines Live/Contenu/Social, eux, dépendent réellement
+    // de l'état de leur écran et s'enregistrent depuis celui-ci.
 
-    const handleExecute = async (overrideInput?: string) => {
+    const { isListening, startListening, stopListening, speak } = useVoiceAssistant({
+        lang: 'fr-FR',
+        onFinalTranscript: (transcript) => {
+            setInput(transcript);
+            handleExecute(transcript, true);
+        },
+    });
+
+    const handleExecute = async (overrideInput?: string, viaVoice: boolean = false) => {
         const command = overrideInput || input;
         if (!command.trim()) return;
 
         setIsThinking(true);
         setAiResponse(null);
         setActiveAction(null);
+        setExecution(null);
+
+        if (isDiscoveryCommand(command)) {
+            const summary = describeCapabilitiesForHumans();
+            setAiResponse(summary);
+            if (viaVoice) speak(summary);
+            setIsThinking(false);
+            return;
+        }
 
         try {
-            // SYSTEM PROMPT FOR OS CONTROL
-            const systemPrompt = `Tu es Diallo OS, le système d'exploitation intelligent de l'application 'Le Monde à Vous'.
-            L'utilisateur est : ${userProfile.name}, Niveau ${userProfile.level}.
-            
-            Ta mission : Analyser la demande de l'utilisateur et déterminer l'action UI à effectuer dans l'application.
-            
-            Les modules disponibles (target) sont :
-            - 'home' (Dashboard)
-            - 'social' (Réseau, Feed)
-            - 'world' (Mobilité, Visas, Simulation voyage)
-            - 'career' (Emploi, CV, Recrutement)
-            - 'campus' (Formation, Cours)
-            - 'wallet' (Banque, Transfert)
-            - 'legal' (Juridique, Documents)
-            - 'health' (Santé, SOS)
-            - 'housing' (Logement)
-            - 'chat' (Experts IA)
-            - 'live' (Appel direct)
-            - 'studio' (Création contenu)
+            // Le prompt, les garde-fous anti-hallucination, la confirmation
+            // proportionnelle au risque et les statuts d'exécution vivent
+            // désormais dans le cerveau partagé — le modal (saisie clavier) et
+            // la barre flottante (voix) sont deux incarnations d'une seule
+            // logique, jamais deux implémentations qui pourraient diverger.
+            const outcome = await runArchitecteCommand(command, {
+                userName: userProfile.name,
+                userLevel: userProfile.level,
+                confirm: (message) => window.confirm(message),
+                runLegacyTarget: async (target, payload) => {
+                    if (!LEGACY_EXECUTABLE_TARGETS.has(target)) {
+                        return { ok: false, message: "Cette action directe n'est pas reconnue." };
+                    }
+                    const res = await createRealDossier(userProfile.id, payload);
+                    // Comparaison explicite (`=== true`), pas une simple
+                    // troncature de vérité : dans cet environnement TS, un
+                    // `if (res.ok)` bare ne discrimine pas correctement cette
+                    // union par ailleurs standard.
+                    return res.ok === true
+                        ? { ok: true, message: `Dossier « ${res.title} » créé avec succès.` }
+                        : { ok: false, message: res.error };
+                },
+                onPhase: (phase, message) => setExecution({ phase, message }),
+            });
 
-            Réponds UNIQUEMENT en JSON strict au format suivant :
-            {
-                "type": "NAVIGATE",
-                "target": "id_du_module",
-                "explanation": "Court texte futuriste expliquant l'action (ex: 'Initialisation du protocole de recherche de logement...')",
-                "payload": { "searchQuery": "..." } // Optionnel, données contextuelles
+            setAiResponse(outcome.spoken);
+            if (outcome.action) setActiveAction(outcome.action);
+            // La classification est terminée : on arrête l'indicateur « en
+            // réflexion » ici plutôt que dans le `finally`, pour que
+            // l'avancement réel d'une exécution reste visible au lieu d'être
+            // masqué par l'animation de réflexion.
+            setIsThinking(false);
+
+            if (viaVoice && outcome.spoken) speak(outcome.spoken);
+
+            if (outcome.execution) {
+                setExecution(outcome.execution);
+                if (viaVoice) speak(outcome.execution.message);
             }
 
-            Exemple User: "Je veux partir travailler au Canada"
-            Réponse JSON: { "type": "NAVIGATE", "target": "world", "explanation": "Activation du simulateur de mobilité vers le Canada.", "payload": { "country": "Canada", "intent": "work" } }
-            `;
-
-            const result = (await generateJSON<AIAction>(`Commande utilisateur : "${command}"`, {
-                systemInstruction: systemPrompt
-            })) || ({} as AIAction);
-            
-            setAiResponse(result.explanation);
-            setActiveAction(result);
-
-            // Execute Navigation with delay for effect
-            if (result.type === 'NAVIGATE' && result.target) {
+            if (outcome.action?.type === 'NAVIGATE' && outcome.action.target) {
+                const target = outcome.action.target;
+                const payload = outcome.action.payload;
                 setTimeout(() => {
-                    onNavigate(result.target!, result.payload);
+                    onNavigate(target, payload);
                     onClose();
                 }, 2000);
             }
@@ -144,7 +212,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                             className="flex-1 bg-transparent text-xl font-medium text-white placeholder-slate-500 outline-none"
                         />
                         
-                        <button onClick={handleVoiceInput} className="text-slate-400 hover:text-white transition-colors">
+                        <button onClick={() => (isListening ? stopListening() : startListening())} className="text-slate-400 hover:text-white transition-colors">
                             <Mic size={24} className={isListening ? 'text-red-500' : ''} />
                         </button>
                         
@@ -172,12 +240,30 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                 <h3 className="text-2xl font-bold text-white leading-relaxed">
                                     "{aiResponse}"
                                 </h3>
-                                {activeAction?.target && (
+                                {activeAction?.type === 'NAVIGATE' && activeAction?.target && (
                                     <div className="flex justify-center mt-4">
                                         <div className="flex items-center gap-2 text-sm text-slate-400 bg-white/5 px-4 py-2 rounded-lg">
                                             <span>Redirection vers :</span>
                                             <span className="font-bold text-white uppercase">{activeAction.target}</span>
                                             <ArrowRight size={14} className="animate-pulse" />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {execution && (
+                                    <div className="flex justify-center mt-4">
+                                        <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg border ${
+                                            execution.phase === 'running' ? 'text-brand-300 bg-white/5 border-white/10' :
+                                            execution.phase === 'done' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' :
+                                            execution.phase === 'failed' || execution.phase === 'denied' ? 'text-red-300 bg-red-500/10 border-red-500/30' :
+                                            execution.phase === 'cancelled' ? 'text-slate-300 bg-white/5 border-white/10' :
+                                            'text-amber-300 bg-amber-500/10 border-amber-500/30'
+                                        }`}>
+                                            {execution.phase === 'running' && <Loader2 size={14} className="animate-spin" />}
+                                            {execution.phase === 'done' && <CheckCircle2 size={14} />}
+                                            {execution.phase === 'cancelled' && <X size={14} />}
+                                            {(execution.phase === 'failed' || execution.phase === 'unsupported' || execution.phase === 'denied') && <AlertTriangle size={14} />}
+                                            <span>{execution.message}</span>
                                         </div>
                                     </div>
                                 )}

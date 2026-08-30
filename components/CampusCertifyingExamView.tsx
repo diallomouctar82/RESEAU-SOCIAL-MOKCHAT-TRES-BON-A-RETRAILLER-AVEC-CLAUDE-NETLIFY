@@ -19,7 +19,8 @@ import {
     Check, 
     X,
     Trophy,
-    HelpCircle
+    HelpCircle,
+    Flag
 } from 'lucide-react';
 import { QuizQuestion, Certificate, UserProfile } from '../types';
 import { CertifyingFormation } from '../services/formationsRegistry';
@@ -178,7 +179,7 @@ export const CampusCertifyingExamView: React.FC<CampusCertifyingExamViewProps> =
                 
                 <button
                     onClick={onBackToClassroom}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1.5 transition-colors"
+                    className="text-xs font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors -ml-2.5 px-2.5 py-2 rounded-lg"
                 >
                     <ArrowLeft size={14} /> Retour à la Salle de Classe
                 </button>
@@ -350,7 +351,7 @@ export const CampusCertifyingExamView: React.FC<CampusCertifyingExamViewProps> =
                                         onClick={() => onViewCertificate(generatedCertificate)}
                                         className="px-6 py-3 bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-700 hover:to-indigo-700 text-white rounded-2xl font-black text-xs shadow transition-all flex items-center gap-2"
                                     >
-                                        <Printer size={15} /> Voir mon Diplôme Officiel & QR Code
+                                        <Printer size={15} /> Voir mon Diplôme Officiel
                                     </button>
                                 )}
                                 <button
@@ -464,14 +465,16 @@ export const CampusCertifyingExamView: React.FC<CampusCertifyingExamViewProps> =
                         </h2>
                         <button
                             onClick={() => handleToggleFlag(currentQ.id)}
-                            className={`p-2 rounded-xl text-xs font-bold shrink-0 transition-colors ${
+                            aria-label="Marquer pour relecture"
+                            aria-pressed={flaggedQuestions.includes(currentQ.id)}
+                            className={`p-2.5 rounded-xl text-xs font-bold shrink-0 transition-colors ${
                                 flaggedQuestions.includes(currentQ.id)
                                 ? 'bg-amber-100 text-amber-700'
                                 : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                             }`}
                             title="Marquer pour relecture"
                         >
-                            🚩
+                            <Flag size={14} className={flaggedQuestions.includes(currentQ.id) ? 'fill-amber-500' : ''} />
                         </button>
                     </div>
 

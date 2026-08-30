@@ -83,22 +83,28 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                         </p>
                     </div>
                     
-                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                        <button 
+                    <div role="tablist" aria-label="Sections Logement" className="flex flex-wrap gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                        <button
+                          role="tab"
+                          aria-selected={activeTab === 'search'}
                           onClick={() => setActiveTab('search')}
-                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'search' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
+                          className={`min-h-11 px-4 py-2.5 rounded-lg font-bold text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-600 ${activeTab === 'search' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900 hover:bg-white'}`}
                         >
                             Recherche
                         </button>
-                        <button 
+                        <button
+                          role="tab"
+                          aria-selected={activeTab === 'scam-check'}
                           onClick={() => setActiveTab('scam-check')}
-                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'scam-check' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
+                          className={`min-h-11 px-4 py-2.5 rounded-lg font-bold text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-600 ${activeTab === 'scam-check' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900 hover:bg-white'}`}
                         >
                             Anti-Arnaque
                         </button>
-                        <button 
+                        <button
+                          role="tab"
+                          aria-selected={activeTab === 'dossier'}
                           onClick={() => setActiveTab('dossier')}
-                          className={`px-4 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'dossier' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
+                          className={`min-h-11 px-4 py-2.5 rounded-lg font-bold text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-600 ${activeTab === 'dossier' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900 hover:bg-white'}`}
                         >
                             Mon Dossier
                         </button>
@@ -114,9 +120,9 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2 space-y-4">
                                 {HOUSING_LISTINGS.map(house => (
-                                    <div key={house.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row hover:shadow-md transition-shadow group cursor-pointer">
+                                    <div key={house.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row hover:shadow-md transition-shadow">
                                         <div className="md:w-48 h-48 md:h-auto bg-gray-200 relative">
-                                            <img src={house.imageUrl} className="w-full h-full object-cover" />
+                                            <img src={house.imageUrl} alt={house.title} className="w-full h-full object-cover" />
                                             <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded font-bold uppercase">
                                                 {house.type}
                                             </div>
@@ -124,7 +130,7 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                                         <div className="p-6 flex-1 flex flex-col justify-between">
                                             <div>
                                                 <div className="flex justify-between items-start">
-                                                    <h3 className="text-xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">{house.title}</h3>
+                                                    <h3 className="text-xl font-bold text-gray-900">{house.title}</h3>
                                                     <span className="font-bold text-orange-600 text-lg">{house.price} {house.currency}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
@@ -155,12 +161,17 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                                     </h3>
                                     <p className="text-sm text-gray-500 mb-4">Estimez vos droits (APL, CAF) en fonction de votre situation.</p>
                                     <div className="bg-green-50 p-4 rounded-xl text-center border border-green-100 mb-4">
-                                        <div className="text-xs font-bold text-green-600 uppercase">Estimation</div>
+                                        <div className="text-xs font-bold text-green-600 uppercase">Exemple indicatif</div>
                                         <div className="text-3xl font-black text-green-700">~240 €</div>
-                                        <div className="text-[10px] text-green-500">par mois</div>
+                                        <div className="text-[10px] text-green-500">par mois, pour un profil type</div>
                                     </div>
-                                    <button className="w-full bg-slate-900 text-white py-2 rounded-lg text-sm font-bold">
-                                        Détails du calcul
+                                    <button
+                                        type="button"
+                                        disabled
+                                        title="Bientôt disponible"
+                                        className="w-full min-h-11 bg-slate-200 text-slate-500 py-2 rounded-lg text-sm font-bold cursor-not-allowed"
+                                    >
+                                        Simulation personnalisée — Bientôt disponible
                                     </button>
                                 </div>
                             </div>
@@ -186,10 +197,10 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                                     placeholder="Ex: Superbe appartement pas cher, contactez-moi uniquement par mail..."
                                 />
 
-                                <button 
+                                <button
                                     onClick={handleScamCheck}
                                     disabled={!adText || isScanning}
-                                    className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${!adText || isScanning ? 'bg-gray-200 text-gray-400' : 'bg-red-600 text-white hover:bg-red-700 shadow-lg'}`}
+                                    className={`w-full min-h-11 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-600 ${!adText || isScanning ? 'bg-gray-200 text-gray-400' : 'bg-red-600 text-white hover:bg-red-700 shadow-lg'}`}
                                 >
                                     {isScanning ? <Loader2 className="animate-spin" /> : <AlertOctagon />}
                                     {isScanning ? 'Analyse en cours...' : 'Vérifier l\'Annonce'}
@@ -233,28 +244,28 @@ export const HousingCenter: React.FC<HousingCenterProps> = ({ userProfile }) => 
                                 
                                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
                                     <div className="flex items-center gap-4 mb-4">
-                                        <img src={userProfile.avatarUrl} className="w-12 h-12 rounded-full" />
+                                        <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-12 h-12 rounded-full" />
                                         <div>
                                             <div className="font-bold">{userProfile.name}</div>
                                             <div className="text-xs text-gray-500">{userProfile.title}</div>
                                         </div>
                                     </div>
                                     <div className="space-y-2 text-sm text-gray-600">
-                                        <div className="flex justify-between">
-                                            <span>Revenus (estimés)</span>
-                                            <span className="font-bold">2800 € / mois</span>
+                                        <div className="flex justify-between items-center">
+                                            <span>Revenus</span>
+                                            <span className="font-bold text-amber-700 text-xs bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">À renseigner</span>
                                         </div>
-                                        <div className="flex justify-between">
+                                        <div className="flex justify-between items-center">
                                             <span>Garant</span>
-                                            <span className="font-bold text-green-600">Oui (Visale)</span>
+                                            <span className="font-bold text-amber-700 text-xs bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">À renseigner</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button 
+                                <button
                                     onClick={handleGenerateDossier}
                                     disabled={isGeneratingDossier}
-                                    className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"
+                                    className="w-full min-h-11 bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900 disabled:opacity-70"
                                 >
                                     {isGeneratingDossier ? <Loader2 className="animate-spin" /> : <Sparkles />}
                                     {isGeneratingDossier ? 'Rédaction...' : 'Générer ma Lettre'}

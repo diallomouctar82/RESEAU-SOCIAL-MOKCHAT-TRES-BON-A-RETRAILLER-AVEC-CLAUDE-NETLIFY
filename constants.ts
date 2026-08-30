@@ -368,12 +368,20 @@ export const USER_PROFILE: UserProfile = {
     avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&fit=crop',
     preferredLanguage: 'fr',
     twoFactorEnabled: true,
-    skills: [{ name: 'React', progress: 85 }, { name: 'Node.js', progress: 70 }, { name: 'Anglais', progress: 60 }],
-    badges: [
-        { id: 'b1', name: 'Pionnier', icon: '🚀', description: 'Membre fondateur' },
-        { id: 'b2', name: 'Polyglotte', icon: '🗣️', description: 'Parle 3 langues' }
-    ],
+    skills: [],
+    badges: [],
     interests: ['Tech', 'Voyage', 'Entrepreneuriat'],
+    privacySettings: {
+        profileVisibility: 'public',
+        allowMessagesFrom: 'all',
+        showOnlineStatus: true,
+        allowTagging: true,
+        showActivityFeed: true,
+        allowFriendRequestsFrom: 'all',
+        showFollowersList: true,
+        showFollowingList: true,
+        notificationsMuted: false
+    },
     shop: {
         id: 's1',
         name: 'Diallo Tech Solutions',
@@ -859,74 +867,13 @@ export const DEFAULT_DOSSIERS: DossierParcours[] = [
     }
 ];
 
-export const INITIAL_ACTIVE_MEMORIES: ActiveMemoryItem[] = [
-    {
-        id: 'mem-1',
-        category: 'objective',
-        key: 'Objectif Principal Projet',
-        value: 'Lancer l’unité de transformation agroalimentaire avec 85 000€ d’ici septembre 2025.',
-        agentId: '8',
-        dossierId: 'dossier-agro-1',
-        timestamp: '15/01/2025',
-        verified: true,
-        confidence: 0.98
-    },
-    {
-        id: 'mem-2',
-        category: 'decision',
-        key: 'Forme Juridique Retenue',
-        value: 'Société par Actions Simplifiée (SAS) avec capital variable.',
-        agentId: '2',
-        dossierId: 'dossier-agro-1',
-        timestamp: '20/01/2025',
-        verified: true,
-        confidence: 0.95
-    },
-    {
-        id: 'mem-3',
-        category: 'step',
-        key: 'Statut du Budget Prévisionnel',
-        value: 'Budget sur 3 ans validé et équilibré avec besoin en fonds de roulement de 18 000€.',
-        agentId: '8',
-        dossierId: 'dossier-agro-1',
-        timestamp: '22/02/2025',
-        verified: true,
-        confidence: 0.96
-    },
-    {
-        id: 'mem-4',
-        category: 'difficulty',
-        key: 'Goulot d’étranglement identifié',
-        value: 'Délais de livraison des machines de séchage solaire (6 à 8 semaines estimées).',
-        agentId: '8',
-        dossierId: 'dossier-agro-1',
-        timestamp: '24/02/2025',
-        verified: true,
-        confidence: 0.90
-    },
-    {
-        id: 'mem-5',
-        category: 'skill',
-        key: 'Compétence Validée',
-        value: 'Rédaction de note de cadrage et théorie du changement maîtrisées (Score: 92/100).',
-        agentId: '8',
-        dossierId: 'dossier-agro-1',
-        timestamp: '18/02/2025',
-        verified: true,
-        confidence: 0.97
-    },
-    {
-        id: 'mem-6',
-        category: 'preference',
-        key: 'Rythme d’apprentissage',
-        value: 'Préférence pour des séances courtes et pratiques de 30 minutes avec vérification immédiate.',
-        agentId: '4',
-        dossierId: 'dossier-edu-1',
-        timestamp: '10/01/2025',
-        verified: true,
-        confidence: 0.99
-    }
-];
+// LOOP 12/17 (mémoire contextuelle, fondation) : `INITIAL_ACTIVE_MEMORIES`
+// (un scénario agroalimentaire fictif à 6 lignes) a été supprimé — il était
+// injecté comme mémoire de départ dans le compte de CHAQUE nouvel
+// utilisateur réel (`services/memory.ts::getActiveMemories`), présentant un
+// projet inventé comme si c'était le sien. La mémoire active est désormais
+// réellement persistée par utilisateur (table `user_memory`) et démarre
+// honnêtement vide tant que l'utilisateur n'a rien mémorisé lui-même.
 
 export const INITIAL_COMPETENCIES: CompetencyRecord[] = [
     { id: 'comp-1', name: 'Ingénierie de Projet & Cadre Logique', category: 'Méthodologie', level: 4, maxLevel: 5, status: 'certified', certifiedDate: '18/02/2025', evidence: 'Note de cadrage validée par Directeur Diallo' },

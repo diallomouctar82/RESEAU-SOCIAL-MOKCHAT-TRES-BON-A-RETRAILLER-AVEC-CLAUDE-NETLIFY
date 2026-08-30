@@ -22,6 +22,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { UserProfile } from '../../types';
+import { SUPPORTED_LANGUAGES } from '../../constants';
 
 interface UnifiedSettingsModalProps {
   isOpen: boolean;
@@ -42,7 +43,6 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
   const [textSize, setTextSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
   const [highContrast, setHighContrast] = useState(false);
   const [autoVoiceTTS, setAutoVoiceTTS] = useState(true);
-  const [reduceMotion, setReduceMotion] = useState(false);
 
   // Connectors States
   const [connectors, setConnectors] = useState({
@@ -84,9 +84,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
             <nav className="space-y-1.5" aria-label="Sections des paramètres">
               <button
                 onClick={() => setActiveSection('accessibility')}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
-                  activeSection === 'accessibility' 
-                    ? 'bg-blue-600 text-white shadow-xs' 
+                aria-current={activeSection === 'accessibility' ? 'true' : undefined}
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
+                  activeSection === 'accessibility'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -95,9 +96,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
               <button
                 onClick={() => setActiveSection('connectors')}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
-                  activeSection === 'connectors' 
-                    ? 'bg-blue-600 text-white shadow-xs' 
+                aria-current={activeSection === 'connectors' ? 'true' : undefined}
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
+                  activeSection === 'connectors'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -106,9 +108,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
               <button
                 onClick={() => setActiveSection('account')}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
-                  activeSection === 'account' 
-                    ? 'bg-blue-600 text-white shadow-xs' 
+                aria-current={activeSection === 'account' ? 'true' : undefined}
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
+                  activeSection === 'account'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -117,9 +120,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
               <button
                 onClick={() => setActiveSection('privacy')}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
-                  activeSection === 'privacy' 
-                    ? 'bg-blue-600 text-white shadow-xs' 
+                aria-current={activeSection === 'privacy' ? 'true' : undefined}
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
+                  activeSection === 'privacy'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -128,9 +132,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
               <button
                 onClick={() => setActiveSection('notifications')}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left ${
-                  activeSection === 'notifications' 
-                    ? 'bg-blue-600 text-white shadow-xs' 
+                aria-current={activeSection === 'notifications' ? 'true' : undefined}
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
+                  activeSection === 'notifications'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -159,7 +164,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
               aria-label="Fermer les paramètres"
             >
               <X size={18} />
@@ -187,9 +192,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                       <button
                         key={size}
                         onClick={() => setTextSize(size)}
-                        className={`p-3 rounded-xl border text-xs font-bold transition-all ${
-                          textSize === size 
-                            ? 'border-blue-600 bg-blue-50 text-blue-950 ring-2 ring-blue-500/20' 
+                        aria-pressed={textSize === size}
+                        className={`p-3 min-h-[44px] rounded-xl border text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
+                          textSize === size
+                            ? 'border-blue-600 bg-blue-50 text-blue-950 ring-2 ring-blue-500/20'
                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                         }`}
                       >
@@ -214,13 +220,18 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                   </div>
                   <button
                     onClick={() => setAutoVoiceTTS(!autoVoiceTTS)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${
-                      autoVoiceTTS ? 'bg-blue-600' : 'bg-slate-300'
-                    }`}
+                    role="switch"
+                    aria-checked={autoVoiceTTS}
+                    aria-label="Lecture Audio Automatique (Diallo Voice)"
+                    className="p-2.5 -m-2.5 rounded-full shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
-                    <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
-                      autoVoiceTTS ? 'right-0.5' : 'left-0.5'
-                    }`} />
+                    <span className={`w-12 h-6 rounded-full transition-colors relative block ${
+                      autoVoiceTTS ? 'bg-blue-600' : 'bg-slate-300'
+                    }`}>
+                      <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                        autoVoiceTTS ? 'right-0.5' : 'left-0.5'
+                      }`} />
+                    </span>
                   </button>
                 </div>
 
@@ -237,13 +248,18 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                   </div>
                   <button
                     onClick={() => setHighContrast(!highContrast)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${
-                      highContrast ? 'bg-blue-600' : 'bg-slate-300'
-                    }`}
+                    role="switch"
+                    aria-checked={highContrast}
+                    aria-label="Contraste Élevé & Bordures Renforcées"
+                    className="p-2.5 -m-2.5 rounded-full shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
-                    <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
-                      highContrast ? 'right-0.5' : 'left-0.5'
-                    }`} />
+                    <span className={`w-12 h-6 rounded-full transition-colors relative block ${
+                      highContrast ? 'bg-blue-600' : 'bg-slate-300'
+                    }`}>
+                      <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                        highContrast ? 'right-0.5' : 'left-0.5'
+                      }`} />
+                    </span>
                   </button>
                 </div>
 
@@ -287,9 +303,9 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
                       <button
                         onClick={() => toggleConnector(item.key as any)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                          isConnected 
-                            ? 'border border-slate-200 text-slate-600 hover:bg-slate-50' 
+                        className={`px-3.5 py-1.5 min-h-[44px] rounded-xl text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
+                          isConnected
+                            ? 'border border-slate-200 text-slate-600 hover:bg-slate-50'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
                       >
@@ -306,9 +322,9 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
               <div className="space-y-4">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
                   <div className="flex items-center gap-4">
-                    <img 
-                      src={userProfile.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"} 
-                      alt="Avatar" 
+                    <img
+                      src={userProfile.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                      alt="Avatar"
                       className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-xs"
                     />
                     <div>
@@ -318,6 +334,33 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                         {userProfile.role || 'Membre Titulaire'}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                {/* LOOP 13/17 (mémoire contextuelle, préférence durable) :
+                    `profiles.preferred_language` existe et est déjà lu
+                    (ex. MoocChatFloating.tsx) mais n'avait jusqu'ici aucun
+                    écran pour l'écrire — ce sélecteur est le premier. */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Languages size={18} className="text-blue-600" />
+                    <span className="text-sm font-bold text-slate-900">Langue Préférée</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => onUpdateProfile?.({ preferredLanguage: lang.code })}
+                        aria-pressed={userProfile.preferredLanguage === lang.code}
+                        className={`px-3 py-2 min-h-[44px] rounded-xl border text-xs font-semibold flex items-center gap-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
+                          userProfile.preferredLanguage === lang.code
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-blue-300'
+                        }`}
+                      >
+                        <span>{lang.flag}</span> {lang.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -335,11 +378,43 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
 
             {/* NOTIFICATIONS PANEL */}
             {activeSection === 'notifications' && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4 text-xs text-slate-600 leading-relaxed">
-                <h4 className="text-sm font-bold text-slate-900">Canaux de Notification</h4>
-                <p>
-                  Seules les alertes critiques (délais consulaires, échéances d'examens, paiements séquestres) génèrent des notifications prioritaires pour protéger votre concentration.
-                </p>
+              <div className="space-y-4">
+                {/* LOOP 09/17 (notifications, orchestration proactive) : ce
+                    panneau affichait un texte statique prétendant déjà
+                    filtrer les alertes par criticité — aucun réglage
+                    n'existait nulle part. Premier réglage réel, persisté
+                    sur `profiles.privacy_settings`. */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Bell size={18} className="text-blue-600" />
+                      <span className="text-sm font-bold text-slate-900">Mode Silencieux</span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Éteint le badge rouge de la cloche pour réduire l'interruption. Chaque notification continue d'arriver normalement dans le panneau — rien n'est masqué ni supprimé.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onUpdateProfile?.({
+                      privacySettings: {
+                        ...userProfile.privacySettings,
+                        notificationsMuted: !userProfile.privacySettings?.notificationsMuted,
+                      },
+                    })}
+                    role="switch"
+                    aria-checked={!!userProfile.privacySettings?.notificationsMuted}
+                    aria-label="Mode Silencieux"
+                    className="p-2.5 -m-2.5 rounded-full shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                  >
+                    <span className={`w-12 h-6 rounded-full transition-colors relative block ${
+                      userProfile.privacySettings?.notificationsMuted ? 'bg-blue-600' : 'bg-slate-300'
+                    }`}>
+                      <span className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                        userProfile.privacySettings?.notificationsMuted ? 'right-0.5' : 'left-0.5'
+                      }`} />
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -349,7 +424,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
           <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
             <button
               onClick={onClose}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-xs"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 py-2.5 min-h-[44px] rounded-xl transition-all shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
             >
               Enregistrer & Fermer
             </button>

@@ -67,10 +67,10 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
     };
 
     return (
-        <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-800 relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-brand-900 text-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-800 relative overflow-hidden">
             {/* Ambient background glows */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600 rounded-full blur-[120px] opacity-25 pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-600 rounded-full blur-[100px] opacity-15 pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-brand-600 rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-slate-800/40 rounded-full blur-[100px] pointer-events-none"></div>
 
             <div className="relative z-10 space-y-6">
                 
@@ -78,7 +78,7 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
                     <div>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full flex items-center gap-1.5">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider bg-brand-500/20 text-blue-300 border border-brand-500/30 px-3 py-1 rounded-full flex items-center gap-1.5">
                                 <Sparkles size={12} className="text-amber-400" />
                                 Moteur d'Orchestration Diallo OS
                             </span>
@@ -88,7 +88,7 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                             {parcours.scopeMode && (
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase border ${
                                     parcours.scopeMode === 'family' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
-                                    parcours.scopeMode === 'organization' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' :
+                                    parcours.scopeMode === 'organization' ? 'bg-brand-500/20 text-blue-300 border-brand-500/40' :
                                     'bg-slate-800 text-slate-400 border-slate-700'
                                 }`}>
                                     {parcours.scopeMode === 'family' ? 'Mode Famille' : parcours.scopeMode === 'organization' ? 'Mode Organisation' : 'Mode Individuel'}
@@ -108,14 +108,14 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             onClick={onConveneCouncil}
-                            className="bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                            className="bg-brand-600/30 hover:bg-brand-600/50 text-blue-200 border border-brand-500/40 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                         >
                             <Users size={15} /> Réunir le Conseil
                         </button>
 
                         <button
                             onClick={onTriggerPlanB}
-                            className="bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                            className="bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                         >
                             <ShieldAlert size={15} /> Plan B & Pivot
                         </button>
@@ -129,16 +129,16 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                     <div className="bg-slate-900/70 backdrop-blur border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                                <span className="flex items-center gap-1.5 text-indigo-300">
+                                <span className="flex items-center gap-1.5 text-blue-300">
                                     <MapPin size={14} /> 1. Où nous en sommes
                                 </span>
-                                <span className="text-indigo-400 font-extrabold text-sm">{parcours.progress}%</span>
+                                <span className="text-blue-400 font-extrabold text-sm">{parcours.progress}%</span>
                             </div>
                             
                             {/* Progress bar */}
                             <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
                                 <div 
-                                    className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-700" 
+                                    className="h-full bg-gradient-to-r from-brand-500 to-emerald-400 transition-all duration-700"
                                     style={{ width: `${parcours.progress}%` }}
                                 />
                             </div>
@@ -208,7 +208,7 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                     </div>
 
                     {/* Quadrant 4: Prochaine Action Immédiate (HERO CALL TO ACTION) */}
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-4 rounded-2xl flex flex-col justify-between shadow-xl text-white">
+                    <div className="bg-gradient-to-br from-brand-600 to-brand-900 p-4 rounded-2xl flex flex-col justify-between shadow-xl text-white">
                         <div>
                             <div className="flex items-center text-xs font-extrabold uppercase tracking-wider text-amber-300 mb-1.5 gap-1.5">
                                 <Zap size={14} className="fill-current" /> 4. Prochaine Action Directe
@@ -228,7 +228,7 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                                     onNextActionClick();
                                 }
                             }}
-                            className="w-full bg-white text-indigo-900 hover:bg-indigo-50 font-black text-xs py-2.5 px-3 rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
+                            className="w-full min-h-11 bg-white text-brand-900 hover:bg-brand-50 font-black text-xs py-2.5 px-3 rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-700"
                         >
                             <span>{currentStep?.gatewayActionLabel || "Exécuter maintenant"}</span>
                             <ArrowRight size={14} />
@@ -253,9 +253,9 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                                         className="relative group focus:outline-none"
                                     >
                                         <img 
-                                            src={ag.avatar} 
+                                            src={ag.avatarUrl}
                                             alt={ag.name}
-                                            className="w-8 h-8 rounded-full border-2 border-slate-900 object-cover group-hover:scale-110 group-hover:border-indigo-400 transition-transform shadow-md" 
+                                            className="w-8 h-8 rounded-full border-2 border-slate-900 object-cover group-hover:scale-110 group-hover:border-blue-400 transition-transform shadow-md" 
                                         />
                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-20 border border-slate-700">
                                             {ag.name}
@@ -272,7 +272,7 @@ export const ParcoursDiagnosticHero: React.FC<ParcoursDiagnosticHeroProps> = ({
                             onClick={() => onOpenExpertHotline && onOpenExpertHotline(leadAgent.id)}
                             className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
                         >
-                            <MessageSquare size={13} className="text-indigo-400" />
+                            <MessageSquare size={13} className="text-blue-400" />
                             Direct avec {leadAgent.name}
                         </button>
                     </div>

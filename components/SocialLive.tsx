@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, Users, Send, Bot, Settings, Signal, Wifi, Activity, Check, Heart, 
   Sparkles, Zap, MessageSquare, Mic, MicOff, Video, VideoOff, Layout, 
@@ -8,14 +8,17 @@ import {
   Camera, Lock, Globe, Flame, AlertCircle, CheckCircle2, CheckCircle, Sliders, ExternalLink,
   ShoppingBag, ShieldAlert, CheckSquare, Bell, Calendar, Clock, Bookmark,
   Compass, Copy, EyeOff, Headphones, GraduationCap, LifeBuoy, FileCheck,
-  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX
+  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand, MoreHorizontal
 } from 'lucide-react';
-import { generateText } from '../services/aiGateway';
-import { 
-  LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc, 
+import { generateText, analyzeImage } from '../services/aiGateway';
+import { supabaseService } from '../services/supabaseClient';
+import {
+  LiveStream, LiveStageParticipant, LiveQuestion, LivePoll, LiveDoc,
   LiveActionItem, LiveReplayData, LiveQualityMode, Agent, LiveType,
   LiveCommerceProduct, LiveAgendaItem, LiveDecision, LivePersonalNote,
-  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes
+  LiveSourceCard, LiveAttendanceRecord, LiveMeetingMinutes, LiveChatMessage,
+  LiveVisualUniverse, LiveSolidarityCause, LiveSolidarityLedgerEntry,
+  LiveSolidarityProof, LiveSolidarityUpdate, SolidarityCauseVisibility
 } from '../types';
 import { AGENTS, USER_PROFILE, LIVE_GIFTS, TRIBES } from '../constants';
 import { Avatar3D } from './Avatar3D';
@@ -28,6 +31,21 @@ import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
 import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
+import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
+import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
+import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState } from '../services/live/liveMaterialSystem';
+import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
+import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
+import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
+import {
+  createSolidarityCause, fetchActiveSolidarityCause, subscribeToSolidarityCause, updateSolidarityCauseVisibility,
+  fetchSolidarityLedger, fetchSolidarityProofs, addSolidarityProof, subscribeToSolidarityProofs,
+  fetchSolidarityUpdates, addSolidarityUpdate, subscribeToSolidarityUpdates,
+  detectSolidarityAnomalies, SolidarityAnomalyCheck,
+} from '../services/live/liveSolidarityService';
+import { multimodalVisionService } from '../services/multimodalVision';
 
 interface SocialLiveProps {
   liveId: string;
@@ -35,6 +53,37 @@ interface SocialLiveProps {
   initialData?: LiveStream;
   onNavigateToTab?: (tab: string) => void;
 }
+
+/**
+ * Tuile vidéo d'un participant distant réel (LOOP 04/14) — piste vidéo +
+ * piste audio (élément séparé, on ne veut jamais couper le son d'un autre
+ * participant) attachées via callback ref dès qu'elles sont disponibles.
+ */
+const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ media }) => {
+  const videoRef = useCallback((el: HTMLVideoElement | null) => {
+    if (el && media.videoTrack) media.videoTrack.attach(el);
+  }, [media.videoTrack]);
+  const audioRef = useCallback((el: HTMLAudioElement | null) => {
+    if (el && media.audioTrack) media.audioTrack.attach(el);
+  }, [media.audioTrack]);
+
+  return (
+    <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center">
+      {media.videoTrack ? (
+        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-xl font-bold text-white">
+          {media.participant.name.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <audio ref={audioRef} autoPlay />
+      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+        {media.participant.isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>}
+        <span className="text-xs font-bold text-white">{media.participant.name}</span>
+      </div>
+    </div>
+  );
+};
 
 export const SocialLive: React.FC<SocialLiveProps> = ({ 
   liveId, 
@@ -85,11 +134,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [networkQuality, setNetworkQuality] = useState<LiveQualityMode>(liveData.qualityMode || 'auto');
   const [networkLatency, setNetworkLatency] = useState(42); // ms
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  // Le vrai flux (caméra/micro/écran) transite par useLiveTransport (LOOP 04/14,
+  // adaptateur LiveKit) — ces refs ne servent plus qu'à recevoir la piste
+  // via des callback refs (voir localVideoTrackRef/screenShareTrackRef).
 
   // 3. Stage & Participants
   const isHost = liveData.hostName === userProfile.name || userProfile.role === 'admin';
@@ -118,9 +165,198 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   const [stageInvitation, setStageInvitation] = useState<{ inviterName: string } | null>(null);
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
+  // Consentement caméra/micro/vision (LOOP 12/16) — au-delà du simple
+  // toggle mic/caméra existant : avant toute publication réelle de média,
+  // la personne qui monte sur scène voit explicitement ce qui sera capturé
+  // et peut refuser (repli : spectateur, jamais de caméra/micro publiés
+  // sans ce choix explicite).
+  const [hasMediaConsent, setHasMediaConsent] = useState(false);
+  const [showMediaConsentModal, setShowMediaConsentModal] = useState(isHost);
+  const handleAcceptMediaConsent = () => { setHasMediaConsent(true); setShowMediaConsentModal(false); };
+  const handleDeclineMediaConsent = () => { setIsUserOnStage(false); setShowMediaConsentModal(false); };
+
+  // Provisionnement de la session réelle (LOOP 05/14) — la plupart des points
+  // d'entrée du LIVE (SocialFeed, Trade*, StoryViewer...) ouvrent encore ce
+  // composant avec un liveId/LiveStream purement client (aucune ligne
+  // live_sessions correspondante), hérité d'avant cette mission. Le transport
+  // (LOOP 04) et le temps réel (chat/réactions/mains levées, ce LOOP)
+  // dépendent tous deux de RLS sur une vraie ligne live_sessions — on
+  // l'assure ici : on réutilise la session si elle existe déjà (ex. un autre
+  // participant l'a déjà créée), sinon l'hôte la crée à la volée. Un
+  // spectateur qui arrive sur une session encore inexistante ne peut rien
+  // créer (RLS le lui interdit de toute façon) — dégradation gracieuse :
+  // pas de transport tant qu'aucune session réelle n'est confirmée.
+  const [realSessionId, setRealSessionId] = useState<string | null>(null);
+  // Univers visuel actif (LOOP 08/14) — réglage de session, pas un état
+  // local par spectateur : initialisé depuis la ligne réelle, puis tenu à
+  // jour pour tout le monde via subscribeToLiveSessionUniverse ci-dessous.
+  const [visualUniverse, setVisualUniverse] = useState<LiveVisualUniverse>('crystal');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const existing = await fetchLiveSession(liveId);
+      if (cancelled) return;
+      if (existing) {
+        setRealSessionId(existing.id);
+        setRealHostId(existing.hostId);
+        setVisualUniverse(existing.visualUniverse || 'crystal');
+        return;
+      }
+      if (!isHost) return; // spectateur sur une session pas encore créée : rien à faire, transport désactivé.
+      try {
+        const created = await createLiveSession(userProfile.id, userProfile.name, userProfile.avatarUrl, {
+          title: liveData.title,
+          description: liveData.description,
+          type: liveData.type,
+          isPrivate: liveData.isPrivate,
+          isQuestionsEnabled: liveData.isQuestionsEnabled,
+          isScreenShareEnabled: liveData.isScreenShareEnabled,
+          tribeId: liveData.tribeId,
+          tribeName: liveData.tribeName,
+          language: liveData.language,
+          isScheduled: liveData.isScheduled,
+          scheduledFor: liveData.scheduledFor,
+          timezone: liveData.timezone,
+        });
+        if (!cancelled) {
+          setRealSessionId(created.id);
+          setRealHostId(created.hostId);
+          setVisualUniverse(created.visualUniverse || 'crystal');
+        }
+      } catch (err) {
+        console.error('SocialLive: échec de création de la session réelle', err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveId]);
+
+  // Diffuse à tous les participants le choix d'univers visuel de l'hôte —
+  // vérifié réel via Realtime (postgres_changes UPDATE sur live_sessions).
+  useEffect(() => {
+    if (!realSessionId) return;
+    const unsub = subscribeToLiveSessionUniverse(realSessionId, setVisualUniverse);
+    return unsub;
+  }, [realSessionId]);
+
+  /** Hôte uniquement (RLS live_sessions_update_host) — s'applique à tous les spectateurs. */
+  /** Retourne la promesse de l'écriture réelle (LOOP 13/16, « Architecte ») — un appelant qui a besoin de savoir si l'action a VRAIMENT réussi (ex. confirmation vocale) peut l'attendre, au lieu de confirmer avant que la base ne l'ait confirmé. */
+  const handleChangeVisualUniverse = (universe: LiveVisualUniverse): Promise<void> => {
+    if (!realSessionId || !isHost) return Promise.reject(new Error('Action non autorisée.'));
+    setVisualUniverse(universe);
+    return updateVisualUniverse(realSessionId, universe).catch((err) => {
+      console.error('SocialLive: échec du changement d\'univers visuel', err);
+      throw err;
+    });
+  };
+
+  // Marque réellement la sortie côté base (live_speakers.left_at IS NOT
+  // NULL). Appelée à la fois par handleEndLive (immédiat, au clic sur
+  // "Quitter le Live" — voir plus bas) et par le nettoyage de l'effet de
+  // présence juste en dessous (démontage du composant : fermeture de la
+  // modale "Et Maintenant ?", navigation ailleurs, fermeture d'onglet...).
+  // hasLeftSessionRef évite le double aller-retour réseau si les deux se
+  // déclenchent pour la même session — leaveLiveSession() n'est de toute
+  // façon pas dangereuse à ré-appeler (elle ne fait que rafraîchir
+  // `left_at`, aucune erreur si la ligne est déjà marquée sortie), mais un
+  // seul appel suffit.
+  const hasLeftSessionRef = useRef(false);
+  const leaveRealSession = () => {
+    if (hasLeftSessionRef.current || !realSessionId) return;
+    hasLeftSessionRef.current = true;
+    leaveLiveSession(realSessionId, userProfile.id).catch(() => {});
+  };
+
+  // Une fois la session réelle confirmée, s'y inscrire comme participant
+  // (spectateur ou hôte) — nécessaire pour can_view_live_session()/
+  // is_live_host() côté RLS et pour apparaître dans le roster live_speakers.
+  useEffect(() => {
+    if (!realSessionId) return;
+    hasLeftSessionRef.current = false; // nouvelle session réelle confirmée : on repart d'un état "présent".
+    joinLiveSession(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, isHost ? 'host' : 'viewer')
+      .catch((err) => console.error('SocialLive: échec pour rejoindre la session', err));
+    return () => {
+      leaveRealSession();
+    };
+  }, [realSessionId]);
+
+  // Transport vidéo réel (LOOP 04/14) — une room LiveKit par session LIVE
+  // réelle, publication activée seulement si l'utilisateur est réellement
+  // sur scène (cohérent avec le jeton émis côté serveur) ET a donné son
+  // consentement explicite (LOOP 12/16) — jamais de getUserMedia déclenché
+  // avant ce choix. Désactivé tant que la session réelle n'est pas
+  // confirmée (voir ci-dessus).
+  const liveTransport = useLiveTransport({
+    roomName: realSessionId || '',
+    participantName: userProfile.name,
+    canPublish: isUserOnStage && hasMediaConsent,
+    enabled: !!realSessionId,
+  });
+
+  // Référence conservée pour la capture de frame réelle (LOOP 11/14, Vision
+  // IA) — le ref-callback ci-dessous attache la vraie piste LiveKit, on garde
+  // aussi le nœud DOM pour pouvoir en extraire une image à la demande.
+  const visionCaptureVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const localVideoTrackRef = useCallback((el: HTMLVideoElement | null) => {
+    visionCaptureVideoElRef.current = el;
+    if (el && liveTransport.localVideoTrack) liveTransport.localVideoTrack.attach(el);
+  }, [liveTransport.localVideoTrack]);
+
+  const screenShareTrackRef = useCallback((el: HTMLVideoElement | null) => {
+    if (el && liveTransport.localScreenShareTrack) liveTransport.localScreenShareTrack.attach(el);
+  }, [liveTransport.localScreenShareTrack]);
 
   // 4. View Mode: Video Stage / Screen Share / Whiteboard / Documents / Meeting / Commerce / Masterclass
   const [mainStageMode, setMainStageMode] = useState<'camera' | 'screen' | 'whiteboard' | 'document' | 'council' | 'meeting' | 'commerce' | 'masterclass'>('camera');
+
+  // Trois niveaux d'interface (LOOP 06/14, prompt 4/7) : Essentiel (toujours
+  // là — live/titre/quitter, mic/vidéo, demande de parole) ne dépend jamais
+  // de controlsVisible ; Contextuel (chrome secondaire : sélecteur de scène,
+  // outils rapides, ponts de transformation) s'efface au repos et
+  // réapparaît à la moindre activité — souris (desktop) ou tap (mobile, pas
+  // de survol persistant en tactile) ; Avancé (changer la scène pour tout le
+  // monde, salle d'attente, invoquer un expert) est réservé à qui est
+  // réellement sur scène, jamais affiché à un simple spectateur.
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    // Souris/clavier (desktop) : signal continu, force la réapparition —
+    // c'est le comportement attendu du survol. Le tactile n'a pas
+    // d'équivalent continu (un tap est ponctuel) : on se contente d'y
+    // repousser l'horloge d'inactivité, sans forcer l'affichage — sinon
+    // chaque tap entrerait en conflit avec le geste explicite de
+    // handleStageTap (qui, lui, doit pouvoir masquer le chrome).
+    const markActiveVisible = () => { lastActivityRef.current = Date.now(); setControlsVisible(true); };
+    const markActiveSilent = () => { lastActivityRef.current = Date.now(); };
+    window.addEventListener('mousemove', markActiveVisible);
+    window.addEventListener('keydown', markActiveVisible);
+    window.addEventListener('touchstart', markActiveSilent);
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivityRef.current > 4000) setControlsVisible(false);
+    }, 1000);
+    return () => {
+      window.removeEventListener('mousemove', markActiveVisible);
+      window.removeEventListener('keydown', markActiveVisible);
+      window.removeEventListener('touchstart', markActiveSilent);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Geste mobile (prompt 4/7, "gestes limités et découvrables") : tap sur la
+  // scène = équivalent tactile du survol souris, bascule l'affichage du
+  // chrome contextuel au lieu de ne réagir qu'à l'inactivité.
+  const handleStageTap = (e: React.MouseEvent) => {
+    // Ignore les clics sur un contrôle réel à l'intérieur de la scène (Vision
+    // IA, tuiles participants...) — seul un tap sur le fond vide doit
+    // basculer la visibilité du chrome contextuel.
+    if (e.target !== e.currentTarget) return;
+    if (controlsVisible) { lastActivityRef.current = 0; setControlsVisible(false); }
+    else { lastActivityRef.current = Date.now(); setControlsVisible(true); }
+  };
+
+  const contextualChromeClass = `transition-opacity duration-500 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`;
   
   // 5. Diallo OS Copilot & Real-Time Multilingual Subtitles
   const [subtitlesMode, setSubtitlesMode] = useState<'off' | 'original' | 'translated' | 'bilingual'>('bilingual');
@@ -131,6 +367,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     translated: 'We are now covering the structure of the financing plan...'
   });
   const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
+  // Grammaire d'états de l'avatar (LOOP 10/14) — piloté par les vrais signaux
+  // du copilote vocal (voir dispatchVoiceAction plus bas), pas un état
+  // décoratif : c'est aussi le même langage visuel que "l'Architecte" décrit
+  // (disponible/écoute/compréhension/exécution/confirmation/succès/erreur).
+  const [avatarGrammarState, setAvatarGrammarState] = useState<AvatarGrammarState>('repos');
   const [copilotInsight, setCopilotInsight] = useState<string | null>(null);
   const [showCatchupSummary, setShowCatchupSummary] = useState(false);
   const [catchupDigest, setCatchupDigest] = useState<string | null>(null);
@@ -143,7 +384,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [isAudioOnlyMode, setIsAudioOnlyMode] = useState(false);
 
   // 7. Interactive Sidebar Tabs
-  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant'>('chat');
+  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant' | 'solidarity'>('chat');
+  // Onglets secondaires repliés dans "Plus" (décongestion mobile — cf. audit UX) :
+  // évite d'afficher 10 onglets sur une seule barre défilante.
+  const [showMoreTabs, setShowMoreTabs] = useState(false);
   
   // 8. Personal & Collective Memory
   const [personalNotes, setPersonalNotes] = useState<LivePersonalNote[]>([
@@ -222,21 +466,258 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // 10. Modals State
   const [showWaitingRoomModal, setShowWaitingRoomModal] = useState(false);
   const [showPostContinuityModal, setShowPostContinuityModal] = useState(false);
+  // Compte-rendu réel de fin de Live (LOOP 03/17, connexion Contenu↔Live) —
+  // null tant que la génération est en cours, voir handleEndLive.
+  const [liveEndSummary, setLiveEndSummary] = useState<string | null>(null);
   const [showFactCheckModal, setShowFactCheckModal] = useState(false);
   const [showInstantHelpModal, setShowInstantHelpModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedAgentForBooking, setSelectedAgentForBooking] = useState<Agent>(AGENTS[0]);
   
-  // Chat & Gifts
-  const [messages, setMessages] = useState<{ user: string; avatar?: string; text: string; isAi?: boolean; isHost?: boolean; timestamp?: string }[]>([
-    { user: "Diallo OS", text: `Bienvenue dans la session intelligente "${liveData.title}". Sous-titres bilingues et copilote IA actifs.`, isAi: true, timestamp: "12:00" },
-    { user: "Amadou Diallo", text: "Bonjour à tous ! Hâte d'écouter les conseils sur les financements transfrontaliers.", timestamp: "12:01" },
-    { user: "Fatou Diop", text: "Est-ce que l'enregistrement sera exportable vers le Campus après le direct ?", timestamp: "12:02" }
-  ]);
+  // Chat & Réactions — réels (LOOP 05/14), tables live_messages/live_reactions
+  // (LOOP 02/14), diffusés via Supabase Realtime dès que la session réelle
+  // (realSessionId) est confirmée.
+  const [messages, setMessages] = useState<LiveChatMessage[]>([]);
+  const [realHostId, setRealHostId] = useState<string | undefined>(liveData.hostId);
   const [chatInput, setChatInput] = useState('');
   const [showGifts, setShowGifts] = useState(false);
   const [activeGiftAnim, setActiveGiftAnim] = useState<{ icon: string; id: number } | null>(null);
-  const [likesCount, setLikesCount] = useState(184);
+  const [likesCount, setLikesCount] = useState(0);
+
+  useEffect(() => {
+    if (!realSessionId) return;
+    let cancelled = false;
+    fetchRecentLiveMessages(realSessionId).then((msgs) => { if (!cancelled) setMessages(msgs); });
+    fetchLiveReactionCount(realSessionId).then((count) => { if (!cancelled) setLikesCount(count); });
+
+    const unsubMessages = subscribeToLiveMessages(realSessionId, (m) => {
+      setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+    });
+    const unsubReactions = subscribeToLiveReactions(realSessionId, () => {
+      setLikesCount((prev) => prev + 1);
+    });
+    return () => { cancelled = true; unsubMessages(); unsubReactions(); };
+  }, [realSessionId]);
+
+  // Demandes de parole (LOOP 05/14) — is_hand_raised sur live_speakers
+  // (LOOP 02-03/14), pas de table séparée. Un spectateur lève/baisse sa
+  // propre main ; l'hôte/modérateur voit la liste en direct et promeut.
+  const [isHandRaisedByMe, setIsHandRaisedByMe] = useState(false);
+  const [raisedHands, setRaisedHands] = useState<{ id: string; name: string }[]>([]);
+
+  const handleToggleHandRaise = () => {
+    if (!realSessionId) return;
+    const next = !isHandRaisedByMe;
+    setIsHandRaisedByMe(next);
+    setHandRaised(realSessionId, userProfile.id, next).catch(() => setIsHandRaisedByMe(!next));
+  };
+
+  useEffect(() => {
+    if (!realSessionId || !isHost) return; // seul l'hôte a besoin de la liste agrégée des mains levées
+    let cancelled = false;
+    const refresh = () => {
+      fetchActiveParticipants(realSessionId).then((participants) => {
+        if (cancelled) return;
+        setRaisedHands(participants.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
+      });
+    };
+    refresh();
+    const unsub = subscribeToLiveSpeakerChanges(realSessionId, (row) => {
+      const participantId = row.user_id;
+      if (!participantId || row.left_at) return;
+      setRaisedHands((prev) => {
+        const withoutThis = prev.filter(p => p.id !== participantId);
+        return row.is_hand_raised ? [...withoutThis, { id: participantId, name: row.name }] : withoutThis;
+      });
+    });
+    // Filet de sécurité : les mises à jour live_speakers ne sont pas
+    // toujours livrées par Realtime dans cet environnement (constaté en
+    // testant ce LOOP — contrairement à live_messages/live_reactions,
+    // confirmées fonctionnelles) ; ce polling garantit que la fonctionnalité
+    // reste réellement utilisable en attendant d'en identifier la cause.
+    const pollInterval = setInterval(refresh, 4000);
+    return () => { cancelled = true; unsub(); clearInterval(pollInterval); };
+  }, [realSessionId, isHost]);
+
+  /** Retourne la promesse des deux écritures réelles (LOOP 13/16) — voir handleChangeVisualUniverse. */
+  const handlePromoteToSpeaker = (participantId: string): Promise<void> => {
+    if (!realSessionId) return Promise.reject(new Error('Session non prête.'));
+    setRaisedHands((prev) => prev.filter(p => p.id !== participantId));
+    return Promise.all([
+      updateParticipantRole(realSessionId, participantId, 'speaker'),
+      setHandRaised(realSessionId, participantId, false),
+    ]).then(() => {});
+  };
+
+  // Notices système/IA (analyse Vision, arrivée d'un expert...) : purement
+  // locales à cet onglet, pas persistées ni diffusées — contrairement au chat
+  // saisi par un vrai utilisateur (handleSendMessage), qui lui passe par
+  // live_messages. Même forme (LiveChatMessage) pour un rendu unifié.
+  const pushLocalSystemMessage = (authorName: string, text: string) => {
+    setMessages(prev => [...prev, {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      sessionId: realSessionId || '',
+      authorId: undefined,
+      authorName,
+      authorAvatar: '',
+      text,
+      createdAt: new Date().toISOString(),
+    }]);
+  };
+
+  /**
+   * Live Solidaire (complément reçu pendant LOOP 05/14, cause créée depuis
+   * LOOP 09/14) — jusqu'ici la cause n'avait aucun lecteur une fois créée
+   * (ledger/preuves/mises à jour migrés en LOOP 09 mais jamais consommés).
+   * LOOP 14/16 les branche réellement : aucun mouvement réel de fonds n'a
+   * lieu ici (le ledger est une saisie déclarative de l'organisateur, pas
+   * un prestataire de paiement), mais toutes les écritures/preuves/mises à
+   * jour affichées sont réellement persistées et diffusées en temps réel.
+   */
+  const [activeSolidarityCause, setActiveSolidarityCause] = useState<LiveSolidarityCause | null>(null);
+  const [solidarityLedger, setSolidarityLedger] = useState<LiveSolidarityLedgerEntry[]>([]);
+  const [solidarityProofs, setSolidarityProofs] = useState<LiveSolidarityProof[]>([]);
+  const [solidarityUpdates, setSolidarityUpdates] = useState<LiveSolidarityUpdate[]>([]);
+  const [isCapturingSolidarityProof, setIsCapturingSolidarityProof] = useState(false);
+  const [solidarityUpdateInput, setSolidarityUpdateInput] = useState('');
+  const [solidarityAnomalyCheck, setSolidarityAnomalyCheck] = useState<SolidarityAnomalyCheck | null>(null);
+  const [isCheckingSolidarityAnomalies, setIsCheckingSolidarityAnomalies] = useState(false);
+
+  useEffect(() => {
+    if (!realSessionId) return;
+    let cancelled = false;
+    fetchActiveSolidarityCause(realSessionId).then((cause) => { if (!cancelled) setActiveSolidarityCause(cause); });
+    const unsub = subscribeToSolidarityCause(realSessionId, (cause) => {
+      if (cancelled) return;
+      setActiveSolidarityCause((prev) => (cause.status === 'active' || prev?.id === cause.id) ? cause : prev);
+    });
+    return () => { cancelled = true; unsub(); };
+  }, [realSessionId]);
+
+  useEffect(() => {
+    const causeId = activeSolidarityCause?.id;
+    if (!causeId) {
+      setSolidarityLedger([]); setSolidarityProofs([]); setSolidarityUpdates([]); setSolidarityAnomalyCheck(null);
+      return;
+    }
+    let cancelled = false;
+    fetchSolidarityLedger(causeId).then((rows) => { if (!cancelled) setSolidarityLedger(rows); });
+    fetchSolidarityProofs(causeId).then((rows) => { if (!cancelled) setSolidarityProofs(rows); });
+    fetchSolidarityUpdates(causeId).then((rows) => { if (!cancelled) setSolidarityUpdates(rows); });
+    const unsubProofs = subscribeToSolidarityProofs(causeId, (p) => {
+      setSolidarityProofs((prev) => (prev.some((x) => x.id === p.id) ? prev : [p, ...prev]));
+    });
+    const unsubUpdates = subscribeToSolidarityUpdates(causeId, (u) => {
+      setSolidarityUpdates((prev) => (prev.some((x) => x.id === u.id) ? prev : [u, ...prev]));
+    });
+    return () => { cancelled = true; unsubProofs(); unsubUpdates(); };
+  }, [activeSolidarityCause?.id]);
+
+  const solidarityCollected = solidarityLedger.filter((e) => e.entryType === 'collected').reduce((sum, e) => sum + e.amount, 0);
+  const solidarityUsed = solidarityLedger.filter((e) => e.entryType === 'used').reduce((sum, e) => sum + e.amount, 0);
+
+  /** Niveaux de visibilité basiques (LOOP 14/16) — organisateur seulement ; la vraie garantie reste la policy RLS, ceci n'est qu'un contrôle d'UI. */
+  const handleToggleSolidarityVisibility = () => {
+    if (!activeSolidarityCause || !isHost) return;
+    const previous = activeSolidarityCause.visibility;
+    const next: SolidarityCauseVisibility = previous === 'organizer_only' ? 'live_participants' : 'organizer_only';
+    setActiveSolidarityCause({ ...activeSolidarityCause, visibility: next });
+    updateSolidarityCauseVisibility(activeSolidarityCause.id, next).catch((err) => {
+      console.error('SocialLive: échec de mise à jour de la visibilité de la cause solidaire', err);
+      setActiveSolidarityCause((prev) => (prev ? { ...prev, visibility: previous } : prev));
+      addNotification('Visibilité non enregistrée', "Le changement n'a pas pu être sauvegardé — réessayez.", 'alert');
+    });
+  };
+
+  /**
+   * Preuve de dépense via vision (LOOP 14/16) — réutilise la vraie capture
+   * de frame et le vrai appel d'analyse d'image déjà branchés pour Vision
+   * IA (LOOP 11/14), jamais un montant/une description inventés : si
+   * l'analyse ne parvient pas à lire le justificatif, la preuve est quand
+   * même enregistrée (la photo est réelle) mais le champ montant reste vide
+   * plutôt que d'être deviné.
+   */
+  const handleCaptureSolidarityProof = async () => {
+    if (!activeSolidarityCause || !isHost) return;
+    const videoEl = visionCaptureVideoElRef.current;
+    if (!videoEl || videoEl.videoWidth === 0) {
+      pushLocalSystemMessage('Preuve de dépense', 'Aucune image de caméra disponible pour capturer un justificatif.');
+      return;
+    }
+    setIsCapturingSolidarityProof(true);
+    try {
+      const frame = multimodalVisionService.captureFrame(videoEl);
+      if (!frame) throw new Error('Capture de frame impossible.');
+      const base64Data = frame.includes(',') ? frame.split(',')[1] : frame;
+      const extractionPrompt = `Cette image montre potentiellement un reçu, une facture ou un justificatif de dépense pour une mission de solidarité. Extrais, si réellement lisible, le montant total et une courte description de la dépense. Réponds UNIQUEMENT en JSON strict : { "amount": nombre ou null, "description": "courte description ou null" }. N'invente jamais un montant que tu ne peux pas lire : renvoie null dans ce cas.`;
+      let extracted: { amount?: number | null; description?: string | null } = {};
+      try {
+        const raw = await analyzeImage(base64Data, 'image/jpeg', extractionPrompt, { jsonMode: true });
+        extracted = JSON.parse(raw);
+      } catch {
+        extracted = {};
+      }
+
+      const proof = await addSolidarityProof({
+        causeId: activeSolidarityCause.id,
+        stepLabel: 'Dépense capturée en direct',
+        expenseDescription: extracted.description || undefined,
+        amount: typeof extracted.amount === 'number' ? extracted.amount : undefined,
+        proofType: 'receipt',
+        documentUrl: frame,
+        createdBy: userProfile.id,
+      });
+      setSolidarityProofs((prev) => (prev.some((x) => x.id === proof.id) ? prev : [proof, ...prev]));
+      setAvatarGrammarState('succes');
+      pushLocalSystemMessage(
+        'Preuve de dépense',
+        typeof extracted.amount === 'number'
+          ? `Justificatif enregistré : ${extracted.amount} ${activeSolidarityCause.currency} — ${extracted.description || 'sans description lisible'}.`
+          : "Justificatif photo enregistré — le montant n'a pas pu être lu automatiquement, précisez-le dans une mise à jour si besoin."
+      );
+    } catch {
+      setAvatarGrammarState('erreur');
+      pushLocalSystemMessage('Preuve de dépense', "La capture ou l'enregistrement du justificatif a échoué — réessayez.");
+    } finally {
+      setIsCapturingSolidarityProof(false);
+    }
+  };
+
+  /** Mise à jour de mission déclenchée par l'organisateur (LOOP 14/16). */
+  const handlePostSolidarityUpdate = () => {
+    const text = solidarityUpdateInput.trim();
+    if (!text || !activeSolidarityCause || !isHost) return;
+    setSolidarityUpdateInput('');
+    addSolidarityUpdate(activeSolidarityCause.id, userProfile.id, text)
+      .then((update) => setSolidarityUpdates((prev) => (prev.some((x) => x.id === update.id) ? prev : [update, ...prev])))
+      .catch((err) => {
+        console.error('SocialLive: échec de publication de la mise à jour solidaire', err);
+        addNotification('Mise à jour non publiée', "La publication a échoué — réessayez.", 'alert');
+      });
+  };
+
+  /**
+   * IA de détection d'anomalie (LOOP 14/16) — relit les lignes réelles du
+   * ledger/preuves avant de vérifier, jamais sur un état local pouvant être
+   * périmé. `checked: false` (IA indisponible) est affiché honnêtement,
+   * jamais confondu avec "rien à signaler".
+   */
+  const handleCheckSolidarityAnomalies = async () => {
+    if (!activeSolidarityCause) return;
+    setIsCheckingSolidarityAnomalies(true);
+    try {
+      const [freshLedger, freshProofs] = await Promise.all([
+        fetchSolidarityLedger(activeSolidarityCause.id),
+        fetchSolidarityProofs(activeSolidarityCause.id),
+      ]);
+      setSolidarityLedger(freshLedger);
+      setSolidarityProofs(freshProofs);
+      const result = await detectSolidarityAnomalies(activeSolidarityCause, freshLedger, freshProofs);
+      setSolidarityAnomalyCheck(result);
+    } finally {
+      setIsCheckingSolidarityAnomalies(false);
+    }
+  };
 
   // Questions (Q&R Zone)
   const [questions, setQuestions] = useState<LiveQuestion[]>([
@@ -305,133 +786,91 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [summonSearchQuery, setSummonSearchQuery] = useState('');
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
 
-  // 9. Initialize Real Webcam & Mic
+  // 9. Real Webcam & Mic — publiés/abonnés via useLiveTransport (LOOP 04/14),
+  // plus de getUserMedia direct ici. L'indicateur de parole (barre audio du
+  // slot présentateur) reflète maintenant un signal réel (RoomEvent.ActiveSpeakersChanged),
+  // pas une simulation.
   useEffect(() => {
-    startLocalMedia();
-    return () => {
-      stopLocalMedia();
-    };
-  }, []);
-
-  const startLocalMedia = async () => {
-    try {
-      if (!navigator?.mediaDevices?.getUserMedia) {
-        console.warn("getUserMedia not available in this environment");
-        return;
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-
-      // Audio Level Analyzer
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        const ctx = new AudioContextClass();
-        audioContextRef.current = ctx;
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
-        source.connect(analyser);
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const checkVolume = () => {
-          if (!localStreamRef.current || !analyser) return;
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-          setAudioVolume(Math.min(100, Math.round((sum / bufferLength) * 2)));
-          requestAnimationFrame(checkVolume);
-        };
-        checkVolume();
-      }
-    } catch (e) {
-      console.warn("Real media permission fallback", e);
-    }
-  };
+    setAudioVolume(liveTransport.localIsSpeaking ? 100 : 15);
+  }, [liveTransport.localIsSpeaking]);
 
   const stopLocalMedia = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(t => t.stop());
-      localStreamRef.current = null;
-    }
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach(t => t.stop());
-      screenStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
+    liveTransport.disconnect();
   };
 
   // Toggle Mic
   const toggleMic = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(t => t.enabled = isMicMuted);
-    }
+    liveTransport.setMicrophoneEnabled(isMicMuted);
     setIsMicMuted(!isMicMuted);
   };
 
   // Toggle Camera
   const toggleVideo = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach(t => t.enabled = isVideoMuted);
-    }
+    liveTransport.setCameraEnabled(isVideoMuted);
     setIsVideoMuted(!isVideoMuted);
   };
 
-  // Real Screen Share
+  // Real Screen Share — publié via l'adaptateur LiveKit, visible par tous les
+  // participants de la room (plus un aperçu purement local).
   const handleToggleScreenShare = async () => {
     if (isScreenSharing) {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach(t => t.stop());
-        screenStreamRef.current = null;
-      }
+      await liveTransport.stopScreenShare();
       setIsScreenSharing(false);
       setMainStageMode('camera');
     } else {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        screenStreamRef.current = stream;
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = stream;
-        }
+        await liveTransport.startScreenShare();
         setIsScreenSharing(true);
         setMainStageMode('screen');
-
-        stream.getVideoTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          setMainStageMode('camera');
-        };
       } catch (e) {
         console.warn("Screen share cancelled", e);
       }
     }
   };
 
-  // Multimodal Vision IA Snapshot & Analysis
+  // Le partage d'écran peut s'arrêter depuis le contrôle natif du navigateur
+  // ("Arrêter le partage") sans passer par handleToggleScreenShare — la
+  // piste locale disparaît alors (onLocalTrackUnpublished) sans que l'état
+  // d'affichage local ne le sache : on le resynchronise ici.
+  useEffect(() => {
+    if (isScreenSharing && !liveTransport.localScreenShareTrack) {
+      setIsScreenSharing(false);
+      setMainStageMode('camera');
+    }
+  }, [liveTransport.localScreenShareTrack]);
+
+  /**
+   * Vision IA du LIVE (LOOP 11/14) — réutilise le vrai moteur multimodal
+   * (services/multimodalVision.ts, déjà branché ailleurs dans l'app :
+   * CampusProfessorCoach, MultimodalCameraHUD) au lieu d'un texte LLM
+   * générique sans image (ancien comportement de ce bouton — vérifié par
+   * audit : `generateText` seul, avec un texte de repli inventé affiché
+   * comme un vrai résultat en cas d'échec). Capture une vraie frame de la
+   * caméra locale, l'envoie réellement en analyse image, et ne présente
+   * jamais un échec comme une analyse réussie. Reconnaissance de personnes
+   * désactivée ici (allowPersonRecognition=false) : aucun écran de
+   * consentement caméra/vision dédié dans le LIVE avant la LOOP 12/16.
+   */
   const handleTriggerVisionAnalysis = async () => {
+    const videoEl = visionCaptureVideoElRef.current;
+    if (!videoEl || videoEl.videoWidth === 0) {
+      pushLocalSystemMessage('Vision IA', "Aucune image de caméra disponible à analyser pour le moment.");
+      return;
+    }
     setIsVisionAnalyzing(true);
     try {
-      const prompt = `Tu es Diallo OS en analyse Vision IA pendant le Live "${liveData.title}".
-      L'intervenant présente un document / schéma / objet à la caméra.
-      Décris précisément ce que tu observes, les points clés administratifs ou techniques, et le conseil immédiat pour la salle.`;
-
-      const response = await generateText(prompt);
-
-      const resultText = response || "Document analysé : Modèle de pacte d'associés conforme aux normes OHADA.";
+      const frame = multimodalVisionService.captureFrame(videoEl);
+      if (!frame) throw new Error('Capture de frame impossible.');
+      const analysis = await multimodalVisionService.analyzeFrame(frame, undefined, false);
+      const resultText = analysis.executiveSummary || analysis.scene.summary;
       setVisionAnalysisResult(resultText);
-      setMessages(prev => [...prev, {
-        user: "Vision IA Diallo",
-        text: `👁️ Analyse visuelle du document partagé : ${resultText}`,
-        isAi: true
-      }]);
+      const prefix = analysis.degraded ? '⚠️ Analyse en mode dégradé (IA indisponible)' : '👁️ Analyse visuelle';
+      pushLocalSystemMessage('Vision IA Diallo', `${prefix} : ${resultText}`);
     } catch (e) {
-      setVisionAnalysisResult("Document analysé : Tableau prévisionnel de trésorerie avec équilibre d'exploitation à M+6.");
+      // Dégradation honnête (prompt 5/7) : jamais un résultat inventé
+      // présenté comme une vraie analyse quand celle-ci a réellement échoué.
+      setVisionAnalysisResult(null);
+      pushLocalSystemMessage('Vision IA', "L'analyse visuelle a échoué — réessayez dans un instant.");
     } finally {
       setIsVisionAnalyzing(false);
     }
@@ -463,7 +902,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setAiCopilotState('speaking');
 
     const welcomeMsg = `L'expert ${agent.name} (${agent.specialty}) a rejoint la scène en direct ! Posez vos questions spécialisées.`;
-    setMessages(prev => [...prev, { user: "Diallo OS", text: `⚡ ${welcomeMsg}`, isAi: true }]);
+    pushLocalSystemMessage("Diallo OS", `⚡ ${welcomeMsg}`);
     addNotification("Expert sur Scène ⚖️", `${agent.name} a rejoint le Live pour vous conseiller.`, "success");
 
     setTimeout(() => setAiCopilotState('idle'), 4000);
@@ -490,27 +929,36 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     ];
     setStageParticipants(newParticipants);
 
-    setMessages(prev => [...prev, {
-      user: "Diallo OS",
-      text: "🏛️ Le Conseil des Experts est réuni en direct : Projet, Juridique, Finance et Mobilité délibèrent conjointement sur votre dossier.",
-      isAi: true
-    }]);
+    pushLocalSystemMessage("Diallo OS", "🏛️ Le Conseil des Experts est réuni en direct : Projet, Juridique, Finance et Mobilité délibèrent conjointement sur votre dossier.");
 
     addNotification("Conseil Réuni 🏛️", "Table ronde multi-experts activée sur la scène Live.", "info");
   };
 
-  // "Ce que vous avez manqué" (Catchup Summary)
+  /**
+   * "Ce que vous avez manqué" (LOOP 11/14) — nourri du vrai chat
+   * (`messages`, réel depuis le LOOP 05/14 : live_messages via Supabase),
+   * pas seulement du titre du LIVE (ancien comportement, vérifié par audit :
+   * `generateText` ne recevait que `liveData.title`). Sans transcript
+   * réel, le résumé le dit honnêtement plutôt que d'en inventer un.
+   */
   const handleRequestCatchup = async () => {
     setShowCatchupSummary(true);
-    setCatchupDigest("Génération du résumé des 20 premières minutes par Diallo OS...");
+
+    if (messages.length === 0) {
+      setCatchupDigest("Aucun message n'a encore été échangé dans ce direct — rien à résumer pour l'instant.");
+      return;
+    }
+
+    setCatchupDigest("Génération du résumé à partir du chat réel par Diallo OS...");
+    const transcript = messages.slice(-60).map((m) => `${m.authorName}: ${m.text}`).join('\n');
 
     try {
       const response = await generateText(
-        `Résume en 3 puces percutantes ce qui s'est dit au début du Live "${liveData.title}". Mets en avant les points clés pour un spectateur qui arrive en retard.`
+        `Voici le chat réel du LIVE "${liveData.title}" (messages les plus récents en dernier) :\n\n${transcript}\n\nRésume en 3 puces percutantes ce qui s'est dit, à l'attention d'un spectateur qui arrive en retard. Base-toi uniquement sur ce chat, n'invente rien.`
       );
-      setCatchupDigest(response || "1. Présentation des différents types de subventions.\n2. Explication des critères bancaires.\n3. Analyse des garanties diaspora.");
+      setCatchupDigest(response || "Le résumé n'a pas pu être généré pour le moment — réessayez dans un instant.");
     } catch (e) {
-      setCatchupDigest("• Cadrage initial du besoin de financement (amorçage vs croissance)\n• Rôle de l'Expert Projet Diallo dans la constitution du dossier\n• 2 questions clés du public déjà traitées sur l'imposition transfrontalière.");
+      setCatchupDigest("Le résumé n'a pas pu être généré (service IA temporairement indisponible) — réessayez dans un instant.");
     }
   };
 
@@ -538,22 +986,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   // Send Public Message
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    const newMsg = {
-      user: userProfile.name,
-      avatar: userProfile.avatarUrl,
-      text: chatInput.trim(),
-      isHost: isHost,
-      timestamp: 'À l\'instant'
-    };
-    setMessages(prev => [...prev, newMsg]);
-    setChatInput('');
+  /** overrideText : envoi programmatique (commande vocale) sans passer par le champ de saisie. */
+  const handleSendMessage = (overrideText?: string) => {
+    const raw = overrideText ?? chatInput;
+    if (!raw.trim() || !realSessionId) return;
+    const text = raw.trim();
+    if (overrideText === undefined) setChatInput('');
+    sendLiveMessage(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, text)
+      .then((sent) => setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent])))
+      .catch((err) => console.error('SocialLive: échec envoi message', err));
 
     // Trigger AI reaction if question
-    if (chatInput.toLowerCase().includes('comment') || chatInput.toLowerCase().includes('pourquoi') || chatInput.toLowerCase().includes('expert')) {
+    if (text.toLowerCase().includes('comment') || text.toLowerCase().includes('pourquoi') || text.toLowerCase().includes('expert')) {
       setTimeout(() => {
-        setCopilotInsight(`L'Expert IA peut apporter une réponse détaillée à : "${newMsg.text}"`);
+        setCopilotInsight(`L'Expert IA peut apporter une réponse détaillée à : "${text}"`);
       }, 1000);
     }
   };
@@ -658,31 +1104,352 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const handleToggleAudioOnly = () => {
     setIsAudioOnlyMode(!isAudioOnlyMode);
     if (!isAudioOnlyMode) {
-      if (localStreamRef.current) {
-        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = false);
-      }
+      liveTransport.setCameraEnabled(false);
       setIsVideoMuted(true);
       addNotification("Mode Audio Seul 🎧", "Flux vidéo coupé pour économiser jusqu'à 85% de données mobiles.", "info");
     } else {
-      if (localStreamRef.current) {
-        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = true);
-      }
+      liveTransport.setCameraEnabled(true);
       setIsVideoMuted(false);
       addNotification("Vidéo Réactivée 📹", "Flux visuel HD rétabli.", "info");
     }
   };
 
-  // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard
-  const handleEndLive = () => {
-    stopLocalMedia();
-    setShowPostContinuityModal(true);
+  // Lien de partage réel de ce Live — realSessionId est l'identifiant réel
+  // de la ligne live_sessions (jamais le liveId reçu en prop : pour un Live
+  // tout juste créé depuis LiveCreationModal, ce dernier est un id
+  // purement client `live-<timestamp>` sans aucune ligne correspondante en
+  // base tant que l'effet de provisionnement ci-dessus n'a pas confirmé/créé
+  // la vraie session). Ce lien ne contourne aucun contrôle d'accès : ouvrir
+  // "?live=<id>" depuis App.tsx rejoue exactement le même chemin
+  // (handleOpenLive) qu'un clic interne, donc les mêmes vérifications
+  // (RLS Supabase can_view_live_session()/is_live_host(), et la logique de
+  // ce composant) s'appliquent normalement — y compris pour refuser l'accès
+  // à une session privée dont le destinataire ne fait pas partie.
+  const handleCopyLiveLink = async () => {
+    if (!realSessionId) {
+      addNotification("Lien pas encore prêt", "La session réelle est en cours de préparation — réessayez dans un instant.", "alert");
+      return;
+    }
+    const shareUrl = `${window.location.origin}${window.location.pathname}?live=${realSessionId}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      addNotification("Lien copié 🔗", "Le lien d'accès direct à ce Live a été copié dans le presse-papiers.", "success");
+    } catch (err) {
+      addNotification("Copie impossible", "Impossible de copier le lien automatiquement — réessayez.", "alert");
+    }
   };
 
+  // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard — génère un
+  // vrai compte-rendu à partir du chat réel (LOOP 03/17, connexion
+  // Contenu↔Live), même principe que handleRequestCatchup : jamais inventé,
+  // honnête si aucun message n'a été échangé.
+  //
+  // Sortie réellement immédiate (corrigé le 2026-08-30) : stopLocalMedia()
+  // coupait déjà le transport LiveKit à l'instant du clic, mais la présence
+  // en base (live_speakers.left_at) n'était marquée qu'au DÉMONTAGE du
+  // composant — c.-à-d. seulement quand l'utilisateur fermait ensuite la
+  // modale "Et Maintenant ?". leaveRealSession() rend la sortie cohérente
+  // avec la vidéo : marquée dès ce clic, la modale n'étant plus qu'un écran
+  // de suivi affiché après coup (voir leaveRealSession ci-dessus pour
+  // l'idempotence).
+  const handleEndLive = () => {
+    stopLocalMedia();
+    leaveRealSession();
+    setShowPostContinuityModal(true);
+    setLiveEndSummary(null);
+
+    if (messages.length === 0) {
+      setLiveEndSummary("Aucun message n'a été échangé pendant ce direct — pas assez de matière pour un compte-rendu.");
+      return;
+    }
+
+    const transcript = messages.slice(-80).map((m) => `${m.authorName}: ${m.text}`).join('\n');
+    generateText(
+      `Voici le chat réel du LIVE "${liveData.title}" animé par ${userProfile.name} (messages les plus récents en dernier) :\n\n${transcript}\n\nRédige un compte-rendu structuré en 3 parties courtes (1. POINTS CLÉS ABORDÉS, 2. DÉCISIONS & ENGAGEMENTS, 3. PROCHAINES ÉTAPES), à partir UNIQUEMENT de ce chat réel. N'invente aucun fait, nom ou décision absent de ce texte — si une partie n'a rien de réel à contenir, écris "Rien de notable dans ce direct." pour cette partie plutôt que d'inventer.`
+    ).then((response) => {
+      setLiveEndSummary(response || "Le résumé n'a pas pu être généré pour le moment — réessayez.");
+    }).catch(() => {
+      setLiveEndSummary("Le résumé n'a pas pu être généré (service IA temporairement indisponible).");
+    });
+  };
+
+  // Publier le compte-rendu sur le fil social — crée un vrai brouillon
+  // (jamais publié automatiquement), avec la provenance réelle vers ce Live
+  // (source_type/source_id, LOOP 01/17). Retourne le succès réel.
+  const handlePublishLiveSummaryToFeed = async (): Promise<boolean> => {
+    if (!liveEndSummary || !supabaseService.isConfigured() || !userProfile.id) return false;
+    try {
+      const inserted = await supabaseService.createPost({
+        author_id: userProfile.id,
+        content: liveEndSummary,
+        category: 'Live',
+        tags: [],
+        visibility: 'public',
+        status: 'draft',
+        format: 'live_extract',
+        source_type: 'live_session',
+        source_id: realSessionId || undefined,
+      });
+      return !!inserted;
+    } catch (err) {
+      console.warn('Could not create post from Live summary', err);
+      return false;
+    }
+  };
+
+  // Voix native branchée sur le LIVE (LOOP 09/14, prompts 2/7 et 4/7) —
+  // réutilise useVoiceAssistant.ts (moteur déjà réel, partagé avec
+  // DialloOS/CareerCoach3D/etc.), pas un second moteur vocal pour le LIVE.
+  const [pendingVoiceClarification, setPendingVoiceClarification] = useState<{ originalUtterance: string; question: string } | null>(null);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  useEffect(() => {
+    if (!voiceFeedback) return;
+    const timer = setTimeout(() => setVoiceFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [voiceFeedback]);
+
+  // Renvoie le résultat RÉEL (LOOP Architecte — pont d'exécution) : le bus de
+  // capacités doit rapporter `done`/`failed` selon ce qui s'est vraiment
+  // passé. Les appelants existants (transcription vocale du LIVE) ignorent la
+  // valeur — comportement inchangé pour eux.
+  const dispatchVoiceAction = async (action: LiveVoiceAction, originalUtterance: string): Promise<boolean> => {
+    // Grammaire d'états (LOOP 10/14) : 'action' = impulsion "je m'exécute
+    // réellement", remplacée juste après par le statut final (succès/erreur/
+    // incertitude) — jamais un état sans rapport avec ce qui s'est vraiment
+    // passé (cf. complément « Architecte » : ne jamais présenter une action
+    // non exécutée comme terminée).
+    if (action.type !== 'UNKNOWN' && action.type !== 'ASK_CLARIFICATION') setAvatarGrammarState('action');
+    const say = (text?: string, grammar: AvatarGrammarState = 'succes') => {
+      if (!text) return;
+      setVoiceFeedback(text);
+      setAvatarGrammarState(grammar);
+      voiceAssistant.speak(text, { onEnd: () => setAvatarGrammarState('repos') }).catch(() => {});
+    };
+    // Permission vérifiée une seule fois ici, contre le registre de
+    // capacités (LOOP 11/14) — jamais un `if (!isHost)` dispersé par cas
+    // (source unique de vérité entre le prompt LLM et l'exécution réelle).
+    if (!isVoiceCapabilityAllowed(action.type, { isHost, isUserOnStage })) {
+      say("Cette action n'est pas autorisée pour ton rôle actuel.", 'erreur');
+      return false;
+    }
+    switch (action.type) {
+      case 'TOGGLE_MIC':
+        toggleMic();
+        say(action.spokenConfirmation);
+        break;
+      case 'TOGGLE_VIDEO':
+        toggleVideo();
+        say(action.spokenConfirmation);
+        break;
+      case 'TOGGLE_SCREEN_SHARE':
+        handleToggleScreenShare();
+        say(action.spokenConfirmation);
+        break;
+      case 'RAISE_HAND':
+        handleToggleHandRaise();
+        say(action.spokenConfirmation);
+        break;
+      case 'GIVE_FLOOR': {
+        // Résolution de référence naturelle (LOOP 13/16, « Architecte ») :
+        // le LLM résout déjà "elle"/"le dernier"/"la dernière main levée"
+        // vers un nom via le contexte (ordre chronologique de levée
+        // fourni dans le prompt) — ici on ne fait que retrouver ce nom
+        // dans la liste réelle, ou prendre l'unique main levée si le nom
+        // est absent/non trouvé et qu'il n'y en a qu'une (jamais deviner
+        // s'il y a une ambiguïté réelle entre plusieurs personnes).
+        const wanted = action.payload?.participantName?.toLowerCase();
+        const target = wanted
+          ? raisedHands.find((p) => p.name.toLowerCase().includes(wanted))
+          : (raisedHands.length === 1 ? raisedHands[0] : undefined);
+        if (!target) { say("Je ne trouve pas cette main levée.", 'erreur'); break; }
+        // Statut d'exécution explicite (« Architecte », point 166) : ne
+        // jamais dire "c'est fait" avant que l'écriture réelle n'ait
+        // réussi — l'impulsion "action" reste affichée pendant l'attente.
+        try {
+          await handlePromoteToSpeaker(target.id);
+          say(action.spokenConfirmation || `La parole est donnée à ${target.name}.`);
+        } catch {
+          say(`Je n'ai pas pu donner la parole à ${target.name} — réessayez.`, 'erreur');
+        }
+        break;
+      }
+      case 'OPEN_TAB': {
+        const validTabs = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant', 'solidarity'];
+        if (action.payload?.tabId && validTabs.includes(action.payload.tabId)) {
+          setActiveSideTab(action.payload.tabId as typeof activeSideTab);
+        }
+        say(action.spokenConfirmation);
+        break;
+      }
+      case 'SEND_CHAT_MESSAGE':
+        if (action.payload?.text) handleSendMessage(action.payload.text);
+        say(action.spokenConfirmation);
+        break;
+      case 'REQUEST_SUMMARY':
+        handleRequestCatchup();
+        say(action.spokenConfirmation);
+        break;
+      case 'SET_SUBTITLES_MODE':
+        if (action.payload?.mode) setSubtitlesMode(action.payload.mode);
+        say(action.spokenConfirmation);
+        break;
+      case 'TOGGLE_AUDIO_ONLY':
+        handleToggleAudioOnly();
+        say(action.spokenConfirmation);
+        break;
+      case 'CHANGE_VISUAL_UNIVERSE': {
+        if (!action.payload?.universe) { say("Je ne sais pas vers quel univers basculer.", 'erreur'); break; }
+        try {
+          await handleChangeVisualUniverse(action.payload.universe);
+          say(action.spokenConfirmation);
+        } catch {
+          say("Le changement d'univers n'a pas pu être enregistré — réessayez.", 'erreur');
+        }
+        break;
+      }
+      case 'SUMMON_EXPERT':
+        setShowSummonExpertModal(true);
+        say(action.spokenConfirmation);
+        break;
+      case 'CREATE_SOLIDARITY_CAUSE': {
+        if (!realSessionId) { say("La session n'est pas encore prête.", 'erreur'); break; }
+        const payload = action.payload;
+        if (!payload?.title || !payload?.beneficiaryDescription) { say("Il manque le sujet de la mission.", 'erreur'); break; }
+        // Jamais confiance aveugle dans la sortie du LLM pour une valeur
+        // contrainte en base (CHECK constraint) — validé ici, pas seulement
+        // demandé dans le prompt (ex. observé en test réel : "family" au
+        // lieu de "person").
+        const validBeneficiaryTypes = ['person', 'community', 'project', 'medical', 'complex'] as const;
+        const beneficiaryType = validBeneficiaryTypes.includes(payload.beneficiaryType as any) ? payload.beneficiaryType! : 'person';
+        createSolidarityCause({
+          liveSessionId: realSessionId,
+          organizerId: userProfile.id,
+          title: payload.title,
+          beneficiaryDescription: payload.beneficiaryDescription,
+          beneficiaryType,
+          targetAmount: payload.targetAmount,
+        })
+          .then((cause) => {
+            setActiveSolidarityCause(cause); // rend la cause immédiatement visible dans l'onglet "Solidaire" (LOOP 14/16), pas seulement dans le chat.
+            pushLocalSystemMessage('Diallo OS', `Mission solidaire lancée : "${payload.title}".`);
+            setAvatarGrammarState('succes'); // confirmation finale une fois la ligne réellement persistée, pas seulement au moment de la parler.
+          })
+          .catch((err) => { console.error('SocialLive: échec création mission solidaire', err); setAvatarGrammarState('erreur'); });
+        say(action.spokenConfirmation);
+        break;
+      }
+      case 'ADD_SOLIDARITY_UPDATE': {
+        if (!activeSolidarityCause) { say("Il n'y a pas de mission solidaire active sur ce direct.", 'erreur'); break; }
+        const updateText = action.payload?.updateText;
+        if (!updateText) { say("Je n'ai pas compris le contenu de la mise à jour.", 'erreur'); break; }
+        try {
+          const update = await addSolidarityUpdate(activeSolidarityCause.id, userProfile.id, updateText);
+          setSolidarityUpdates((prev) => (prev.some((x) => x.id === update.id) ? prev : [update, ...prev]));
+          say(action.spokenConfirmation);
+        } catch {
+          say("La mise à jour n'a pas pu être publiée — réessayez.", 'erreur');
+        }
+        break;
+      }
+      case 'DISCOVER_CAPABILITIES':
+        // « Architecte » — commande de découverte contextuelle : le résumé
+        // vient déjà du LLM à partir du registre réel filtré par rôle
+        // (voir buildSystemInstruction), jamais une liste technique brute.
+        say(action.spokenConfirmation);
+        break;
+      case 'ASK_CLARIFICATION':
+        if (action.payload?.question) {
+          setPendingVoiceClarification({ originalUtterance, question: action.payload.question });
+          say(action.payload.question, 'incertitude');
+        }
+        break;
+      case 'UNKNOWN':
+      default:
+        say(action.spokenConfirmation, 'incertitude');
+        break;
+    }
+    // Aucun cas ci-dessus n'a interrompu : l'action a bien été effectuée.
+    return true;
+  };
+
+  // --- Pont d'exécution de l'Architecte (LOOP Architecte) ---
+  // Le LIVE déclare ses capacités TANT QU'UNE SESSION EST OUVERTE. En dehors,
+  // elles ne sont volontairement pas enregistrées et le bus répond
+  // « indisponible » avec son explication : « donner la parole » n'a aucun
+  // sens sans direct en cours, et le dire est la réponse juste — pas une
+  // lacune à masquer.
+  //
+  // Les identifiants et leur type d'action sont lus DEPUIS le registre plutôt
+  // que recopiés ici : une capacité ajoutée au registre LIVE devient
+  // automatiquement pilotable, sans risque de divergence entre les deux.
+  //
+  // Le second argument fournit le contexte de permission réel (hôte / sur
+  // scène) — l'Architecte, appelé depuis n'importe quel écran, ne peut pas le
+  // connaître, et sans lui toute capacité liée à un rôle serait refusée à
+  // tort. `dispatchVoiceAction` refait de toute façon sa propre vérification
+  // autoritaire en interne : c'est une double barrière, jamais un
+  // contournement.
+  useEffect(() => {
+    const liveCaps = getCapabilitiesByDomain('live');
+    const entries = Object.fromEntries(
+      liveCaps.map((cap) => [
+        cap.id,
+        async (payload: any) => {
+          const ok = await dispatchVoiceAction(
+            { type: cap.actionType, payload, spokenConfirmation: '' } as any,
+            ''
+          );
+          return ok
+            ? { ok: true, message: cap.description }
+            : { ok: false, message: "Cette action n'a pas pu être effectuée dans ce direct." };
+        },
+      ])
+    );
+    return registerCapabilityHandlers(entries, () => ({ isHost, isUserOnStage }));
+  });
+
+
+  const handleVoiceTranscript = (transcript: string) => {
+    const trimmed = transcript.trim();
+    if (!trimmed) return;
+    let promptText = trimmed;
+    let originalUtterance = trimmed;
+    const isFollowUp = !!pendingVoiceClarification;
+    if (pendingVoiceClarification) {
+      promptText = `Demande initiale : "${pendingVoiceClarification.originalUtterance}". Question posée : "${pendingVoiceClarification.question}". Réponse de l'utilisateur : "${trimmed}".`;
+      originalUtterance = pendingVoiceClarification.originalUtterance;
+      setPendingVoiceClarification(null);
+    }
+    // 'comprehension' pour la réponse à une clarification (on assemble une
+    // information partielle), 'reflexion' pour une commande fraîche — deux
+    // étapes de traitement réellement distinctes, pas un simple habillage.
+    setAvatarGrammarState(isFollowUp ? 'comprehension' : 'reflexion');
+    interpretLiveVoiceCommand(promptText, {
+      liveTitle: liveData.title,
+      isHost,
+      isUserOnStage,
+      raisedHandNames: raisedHands.map((h) => h.name),
+      subtitlesMode,
+    }).then((action) => dispatchVoiceAction(action, originalUtterance));
+  };
+
+  const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleVoiceTranscript });
+
+  // Reflète l'écoute/la parole réelles du moteur vocal dans la grammaire de
+  // l'avatar — les autres états (réflexion/action/succès/erreur/incertitude)
+  // sont posés explicitement au fil du traitement de la commande ci-dessus.
+  useEffect(() => {
+    if (voiceAssistant.isListening) setAvatarGrammarState('ecoute');
+  }, [voiceAssistant.isListening]);
+  useEffect(() => {
+    if (voiceAssistant.isSpeaking) setAvatarGrammarState('reponse');
+  }, [voiceAssistant.isSpeaking]);
+
   return (
-    <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
+    <div data-live-universe={visualUniverse} className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
       
-      {/* 1. TOP HEADER BAR */}
-      <div className="h-16 bg-slate-900/90 backdrop-blur-xl border-b border-white/10 px-4 flex items-center justify-between z-30">
+      {/* 1. TOP HEADER BAR — matière verre/eau/lumière (LOOP 07/14), surface de référence */}
+      <div className={`h-16 ${glassSurfaceClass('primary')} px-4 flex items-center justify-between z-30`}>
         
         {/* Left: Live Indicator, Title & Badges */}
         <div className="flex items-center gap-3 min-w-0">
@@ -699,20 +1466,24 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {liveData.type || 'Public'}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
               <span className="flex items-center gap-1"><Users size={11} /> {liveData.viewers.toLocaleString()} en direct</span>
-              <span>•</span>
-              <span className="flex items-center gap-1"><Shield size={11} className="text-emerald-400" /> Diallo OS Copilote</span>
-              <span>•</span>
-              <span className="flex items-center gap-1 font-mono text-emerald-400">
-                <Wifi size={11} /> {networkQuality.toUpperCase()} ({networkLatency}ms)
+              <span
+                className="flex items-center gap-1 text-slate-500 cursor-default"
+                title={`Diallo OS Copilote actif · Réseau ${networkQuality.toUpperCase()} (${networkLatency}ms)`}
+              >
+                <span aria-hidden="true">•</span>
+                <Shield size={11} />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Center: Stage Mode Selectors */}
-        <div className="hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-xl">
+        {/* Center: Stage Mode Selectors — Avancé : change la scène pour TOUS
+            les spectateurs, réservé à qui est réellement sur scène. */}
+        {isUserOnStage && (
+        <div className={`hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-xl ${contextualChromeClass}`}>
           <button
             onClick={() => setMainStageMode('camera')}
             className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'camera' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
@@ -756,61 +1527,98 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             <Award size={13} /> Conseil
           </button>
         </div>
+        )}
 
-        {/* Right: Quick Tools, Summon Expert, Subtitles & Close */}
+        {/* Right: Quick Tools (Contextuel, s'efface au repos), Summon Expert
+            (Avancé, sur scène uniquement), et Quitter (Essentiel, toujours visible) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Audio Only Mode (Low Data) */}
-          <button
-            onClick={handleToggleAudioOnly}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-white/10 hover:text-white'}`}
-            title="Mode Audio Seul (Économie de bande passante 85%)"
-          >
-            <Headphones size={14} />
-            <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
-          </button>
+          <div className={`flex items-center gap-1.5 sm:gap-2 ${contextualChromeClass}`}>
+            {/* Audio Only Mode (Low Data) — personnel, utile à tout spectateur */}
+            <button
+              onClick={handleToggleAudioOnly}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 hover:text-white'}`}
+              title="Mode Audio Seul (Économie de bande passante 85%)"
+            >
+              <Headphones size={14} />
+              <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
+            </button>
 
-          {/* SOS Help Button */}
-          <button
-            onClick={() => setShowInstantHelpModal(true)}
-            className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
-            title="Besoin d'aide immédiate ou modération"
-          >
-            <LifeBuoy size={14} />
-            <span className="hidden sm:inline">SOS Aide</span>
-          </button>
+            {/* Copier le lien direct de ce Live — realSessionId est l'id réel
+                de la session (voir handleCopyLiveLink). Toujours visible :
+                partager un Live est une action aussi essentielle que le
+                SOS/Fact-Check qui l'entourent, pas un réglage secondaire. */}
+            <button
+              onClick={handleCopyLiveLink}
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              title="Copier le lien direct de ce Live"
+            >
+              <Share2 size={14} />
+              <span className="hidden sm:inline">Copier le lien</span>
+            </button>
 
-          {/* Fact-Check Sources */}
-          <button
-            onClick={() => setShowFactCheckModal(true)}
-            className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/40 text-sky-300 border border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
-            title="Vérificateur de sources et déclarations"
-          >
-            <FileCheck size={14} />
-            <span className="hidden xl:inline">Fact-Check</span>
-          </button>
+            {/* SOS Help Button — neutre au repos, ne s'allume qu'au survol/usage
+                (une couleur d'alerte affichée en permanence perd son sens d'alerte) */}
+            <button
+              onClick={() => setShowInstantHelpModal(true)}
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-rose-600/30 text-slate-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              title="Besoin d'aide immédiate ou modération"
+            >
+              <LifeBuoy size={14} />
+              <span className="hidden sm:inline">SOS Aide</span>
+            </button>
 
-          {/* Waiting Room Briefing */}
-          <button
-            onClick={() => setShowWaitingRoomModal(true)}
-            className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
-            title="Paramètres de scène & Salle d'attente"
-          >
-            <Sliders size={14} />
-          </button>
+            {/* Fact-Check Sources */}
+            <button
+              onClick={() => setShowFactCheckModal(true)}
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-sky-600/30 text-slate-300 hover:text-sky-200 border border-white/10 hover:border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
+              title="Vérificateur de sources et déclarations"
+            >
+              <FileCheck size={14} />
+              <span className="hidden xl:inline">Fact-Check</span>
+            </button>
 
-          <button
-            onClick={() => setShowSummonExpertModal(true)}
-            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
-          >
-            <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
-          </button>
+            {isUserOnStage && (
+              <button
+                onClick={() => setShowWaitingRoomModal(true)}
+                className="px-2.5 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
+                title="Paramètres de scène & Salle d'attente"
+              >
+                <Sliders size={14} />
+              </button>
+            )}
 
-          <button
-            onClick={handleRequestCatchup}
-            className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
-          >
-            <Sparkles size={14} /> Résumé
-          </button>
+            {/* Univers visuel (LOOP 08/14) — Avancé, hôte uniquement : change
+                l'expérience pour TOUS les spectateurs (voir handleChangeVisualUniverse). */}
+            {isHost && (
+              <div className="hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10">
+                {LIVE_VISUAL_UNIVERSES.map((universe) => (
+                  <button
+                    key={universe.id}
+                    onClick={() => handleChangeVisualUniverse(universe.id)}
+                    className={`w-5 h-5 rounded-full transition-all ${glassSurfaceClass('surface')} ${visualUniverse === universe.id ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                    data-live-universe={universe.id}
+                    title={`${universe.label} — ${universe.description}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {isUserOnStage && (
+              <button
+                onClick={() => setShowSummonExpertModal(true)}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+              >
+                <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
+              </button>
+            )}
+
+            <button
+              onClick={handleRequestCatchup}
+              className="px-3 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
+            >
+              <Sparkles size={14} /> Résumé
+            </button>
+          </div>
 
           <button
             onClick={handleEndLive}
@@ -884,9 +1692,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         {/* A. LEFT MAIN STAGE (70%) */}
         <div className="flex-1 relative bg-slate-950 flex flex-col overflow-hidden">
           
-          {/* Active Stage View Switcher */}
-          <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-            
+          {/* Active Stage View Switcher — tap = geste mobile équivalent au
+              survol souris pour révéler/masquer le chrome contextuel
+              (pas de survol persistant en tactile). */}
+          <div className="flex-1 relative flex items-center justify-center overflow-hidden" onClick={handleStageTap}>
+
             {/* MODE 1: CAMERA & MULTI-SPEAKER STAGE */}
             {mainStageMode === 'camera' && (
               <div className="w-full h-full p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950">
@@ -894,7 +1704,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Slot 1: Presenter / Host Stream */}
                 <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center group">
                   <video
-                    ref={localVideoRef}
+                    ref={localVideoTrackRef}
                     autoPlay
                     playsInline
                     muted
@@ -931,6 +1741,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     <Avatar3D
                       avatarId={aiAgent.id}
                       state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
+                      grammarState={avatarGrammarState}
                       className="w-full h-full"
                     />
 
@@ -952,6 +1763,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   </div>
                 )}
 
+                {/* Participants distants réels (LOOP 04/14) — publication/abonnement LiveKit, pas de simulation. */}
+                {liveTransport.remoteParticipants.map((media) => (
+                  <RemoteParticipantTile key={media.participant.identity} media={media} />
+                ))}
+
               </div>
             )}
 
@@ -959,7 +1775,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {mainStageMode === 'screen' && (
               <div className="w-full h-full relative bg-black p-2 flex items-center justify-center">
                 <video
-                  ref={screenVideoRef}
+                  ref={screenShareTrackRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-contain rounded-2xl"
@@ -968,7 +1784,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* PIP Speaker Thumbnail */}
                 <div className="absolute bottom-4 right-4 w-44 aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900">
                   <video
-                    ref={localVideoRef}
+                    ref={localVideoTrackRef}
                     autoPlay
                     playsInline
                     muted
@@ -1018,7 +1834,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Left (1 col): Video & Speaker */}
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
-                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
                     {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
                     <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded-lg text-[10px] font-bold text-white flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-400"></span> {liveData.hostName}
@@ -1125,7 +1941,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Presenter Stage */}
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
-                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
                     {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
                     <div className="absolute top-3 left-3 bg-red-600 px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow-md">
                       <ShoppingBag size={12} /> SHOPPING DIRECT
@@ -1191,7 +2007,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
-                    <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
+                    <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
                     {isVideoMuted && <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />}
                     <div className="absolute top-3 left-3 bg-purple-600 px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow-md">
                       <GraduationCap size={12} /> MASTERCLASS OFFICIELLE
@@ -1271,7 +2087,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
           {/* REAL-TIME BILINGUAL SUBTITLES BAR (DIALLO OS) */}
           {subtitlesMode !== 'off' && (
-            <div className="h-16 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 px-6 flex items-center justify-between z-20">
+            <div className={`h-16 ${glassSurfaceClass('primary')} px-6 flex items-center justify-between z-20`}>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 bg-indigo-600/30 text-indigo-400 rounded-xl border border-indigo-500/30 flex-shrink-0">
                   <Globe size={16} />
@@ -1318,8 +2134,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             </div>
           )}
 
-          {/* BOTTOM CONTROLS DOCK */}
-          <div className="h-16 bg-slate-900 border-t border-white/10 px-6 flex items-center justify-between z-20">
+          {/* BOTTOM CONTROLS DOCK — matière verre/eau/lumière (LOOP 07/14) */}
+          <div className={`h-16 ${glassSurfaceClass('primary')} px-6 flex items-center justify-between z-20`}>
             
             {/* Media Toggles */}
             <div className="flex items-center gap-2">
@@ -1346,36 +2162,79 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               >
                 <Layout size={18} />
               </button>
+
+              {/* Commandes vocales (LOOP 09/14) — voix native, essentiel : toujours accessible. */}
+              {voiceAssistant.isSupported && (
+                <button
+                  onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : voiceAssistant.startListening())}
+                  className={`p-3 rounded-2xl transition-all shadow-md ${voiceAssistant.isListening ? `${liveMaterialClass('voice')} text-white` : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                  title={voiceAssistant.isListening ? "Arrêter l'écoute des commandes vocales" : 'Activer les commandes vocales'}
+                >
+                  <Command size={18} />
+                </button>
+              )}
+
+              {voiceFeedback && (
+                <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-indigo-100 ${glassSurfaceClass('surface')}`}>
+                  <Sparkles size={12} /> {voiceFeedback}
+                </div>
+              )}
+
+              {!isHost && (
+                <button
+                  onClick={handleToggleHandRaise}
+                  className={`p-3 rounded-2xl transition-all shadow-md ${isHandRaisedByMe ? 'bg-amber-500 text-white' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                  title={isHandRaisedByMe ? "Baisser la main" : "Demander la parole"}
+                >
+                  <Hand size={18} />
+                </button>
+              )}
+
+              {isHost && raisedHands.length > 0 && (
+                <div className="flex items-center gap-1.5 pl-2 ml-1 border-l border-white/10">
+                  <Hand size={14} className="text-amber-400" />
+                  {raisedHands.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => handlePromoteToSpeaker(p.id).catch(() => {})}
+                      title={`Inviter ${p.name} sur scène`}
+                      className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-white text-amber-300 text-[10px] font-bold rounded-lg transition-colors"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Center Transformation Bridges */}
-            <div className="flex items-center gap-2">
+            {/* Center Transformation Bridges — Contextuel, s'efface au repos */}
+            <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
               <button
                 onClick={handleTransformToParcours}
-                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all"
+                className="px-3 sm:px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all"
               >
-                <ListTodo size={14} /> Transformer en Parcours
+                <ListTodo size={14} /> <span className="hidden sm:inline">Transformer en Parcours</span>
               </button>
 
               <button
                 onClick={handleBookPrivateSession}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-white/10 flex items-center gap-1.5 transition-all"
+                className="px-3 sm:px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-white/10 flex items-center gap-1.5 transition-all"
               >
-                <Lock size={14} /> Continuer en Privé
+                <Lock size={14} /> <span className="hidden sm:inline">Continuer en Privé</span>
               </button>
 
               {liveData.tribeName && (
                 <button
                   onClick={handleJoinTribe}
-                  className="px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
+                  className="px-3 sm:px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1.5 transition-all"
                 >
-                  <Flame size={14} /> Rejoindre la Tribu
+                  <Flame size={14} /> <span className="hidden sm:inline">Rejoindre la Tribu</span>
                 </button>
               )}
             </div>
 
-            {/* Right: Likes & Gifts */}
-            <div className="flex items-center gap-2">
+            {/* Right: Likes & Gifts — Contextuel, s'efface au repos */}
+            <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
               <button
                 onClick={() => setShowGifts(!showGifts)}
                 className="p-3 bg-pink-600/20 hover:bg-pink-600 text-pink-400 hover:text-white rounded-2xl border border-pink-500/30 transition-all"
@@ -1385,7 +2244,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </button>
 
               <button
-                onClick={() => setLikesCount(prev => prev + 1)}
+                // Pas d'incrément optimiste ici : la table est append-only et
+                // le compteur ne fait que suivre les événements Realtime
+                // (y compris ceux qu'on envoie soi-même, rediffusés) — un
+                // incrément local en plus doublerait le compte de son propre tap.
+                onClick={() => { if (realSessionId) sendLiveReaction(realSessionId, userProfile.id, 'heart').catch(() => {}); }}
                 className="p-3 bg-gradient-to-tr from-pink-500 to-red-500 rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform flex items-center gap-1"
               >
                 <Heart size={18} fill="white" />
@@ -1397,34 +2260,79 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
         </div>
 
-        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) */}
-        <div className="w-full md:w-96 bg-slate-900 border-l border-white/10 flex flex-col h-1/2 md:h-full z-20">
-          
-          {/* Sidebar Tabs */}
-          <div className="flex border-b border-white/10 bg-black/40 p-1 overflow-x-auto">
+        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) — matière verre/eau/lumière (LOOP 07/14) */}
+        <div className={`w-full md:w-96 ${glassSurfaceClass('surface')} border-l flex flex-col h-1/2 md:h-full z-20`}>
+
+          {/* Sidebar Tabs — Essentiel (4 onglets toujours visibles) + le reste
+              replié dans "Plus" (10 onglets sur une seule barre défilante
+              étaient illisibles et se coupaient sur petit écran — audit UX). */}
+          <div className="flex items-stretch gap-1 border-b border-white/10 bg-black/40 p-1">
             {[
               { id: 'chat', label: 'Chat', icon: MessageSquare },
               { id: 'qa', label: 'Q&A', icon: HelpCircle },
-              { id: 'notes', label: 'Mémoire', icon: BookOpen },
               { id: 'decisions', label: 'Décisions', icon: Award },
               { id: 'agenda', label: 'Agenda', icon: CheckSquare },
-              { id: 'products', label: 'Boutique', icon: ShoppingBag },
-              { id: 'polls', label: 'Sondage', icon: PieChart },
-              { id: 'docs', label: 'Docs', icon: FileText },
-              { id: 'assistant', label: 'IA Perso', icon: Bot }
             ].map(t => {
               const Icon = t.icon;
               return (
                 <button
                   key={t.id}
-                  onClick={() => setActiveSideTab(t.id as any)}
-                  className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors whitespace-nowrap ${activeSideTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
+                  className={`flex-1 min-w-0 px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   <Icon size={13} />
-                  <span>{t.label}</span>
+                  <span className="truncate w-full text-center">{t.label}</span>
                 </button>
               );
             })}
+
+            {(() => {
+              const moreTabs = [
+                { id: 'notes', label: 'Mémoire', icon: BookOpen },
+                { id: 'products', label: 'Boutique', icon: ShoppingBag },
+                { id: 'polls', label: 'Sondage', icon: PieChart },
+                { id: 'docs', label: 'Docs', icon: FileText },
+                { id: 'assistant', label: 'IA Perso', icon: Bot },
+                { id: 'solidarity', label: 'Solidaire', icon: Heart },
+              ] as const;
+              const activeMore = moreTabs.find(t => t.id === activeSideTab);
+              const MoreIcon = activeMore ? activeMore.icon : MoreHorizontal;
+              return (
+                <div className="relative flex-1 min-w-0">
+                  <button
+                    onClick={() => setShowMoreTabs(v => !v)}
+                    aria-expanded={showMoreTabs}
+                    aria-haspopup="menu"
+                    className={`w-full h-full px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeMore || showMoreTabs ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <MoreIcon size={13} />
+                    <span className="truncate w-full text-center">{activeMore ? activeMore.label : 'Plus'}</span>
+                  </button>
+
+                  {showMoreTabs && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setShowMoreTabs(false)} aria-hidden="true"></div>
+                      <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-48 bg-slate-900 border border-white/10 rounded-xl shadow-xl shadow-black/50 p-1.5 grid grid-cols-2 gap-1">
+                        {moreTabs.map(t => {
+                          const Icon = t.icon;
+                          return (
+                            <button
+                              key={t.id}
+                              role="menuitem"
+                              onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
+                              className={`px-2 py-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'}`}
+                            >
+                              <Icon size={14} />
+                              <span>{t.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Sidebar Body */}
@@ -1436,7 +2344,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {copilotInsight && (
                   <div 
                     onClick={() => {
-                      setMessages(prev => [...prev, { user: aiAgent?.name || "Directeur Diallo", text: copilotInsight, isAi: true }]);
+                      pushLocalSystemMessage(aiAgent?.name || "Directeur Diallo", copilotInsight);
                       setCopilotInsight(null);
                     }}
                     className="p-3 bg-indigo-600/30 border border-indigo-500/40 rounded-2xl text-xs font-bold text-indigo-200 flex items-center justify-between cursor-pointer hover:bg-indigo-600/40 transition-colors animate-fade-down"
@@ -1446,27 +2354,31 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   </div>
                 )}
 
-                {messages.map((msg, i) => (
-                  <div 
-                    key={i} 
-                    className={`flex items-start gap-2.5 p-2 rounded-2xl transition-all ${msg.isAi ? 'bg-indigo-950/40 border border-indigo-500/20' : 'hover:bg-white/5'}`}
+                {messages.map((msg) => {
+                  const isAiMsg = !msg.authorId;
+                  const isHostMsg = !!msg.authorId && msg.authorId === realHostId;
+                  return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start gap-2.5 p-2 rounded-2xl transition-all ${isAiMsg ? 'bg-indigo-950/40 border border-indigo-500/20' : 'hover:bg-white/5'}`}
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${msg.isAi ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
-                      {msg.isAi ? <Bot size={16} /> : msg.user.charAt(0)}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAiMsg ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                      {isAiMsg ? <Bot size={16} /> : msg.authorName.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className={`text-xs font-extrabold truncate ${msg.isAi ? 'text-indigo-300' : 'text-slate-300'}`}>
-                          {msg.user}
+                        <span className={`text-xs font-extrabold truncate ${isAiMsg ? 'text-indigo-300' : 'text-slate-300'}`}>
+                          {msg.authorName}
                         </span>
-                        {msg.isHost && (
+                        {isHostMsg && (
                           <span className="px-1.5 py-0.2 bg-red-600/30 text-red-300 text-[9px] font-black rounded uppercase">Hôte</span>
                         )}
                       </div>
                       <p className="text-xs text-slate-200 leading-relaxed break-words">{msg.text}</p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -1758,6 +2670,120 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </div>
             )}
 
+            {/* 10. LIVE SOLIDAIRE (LOOP 14/16) */}
+            {activeSideTab === 'solidarity' && (
+              <div className="space-y-3">
+                {!activeSolidarityCause && (
+                  <div className="p-4 bg-rose-950/30 border border-rose-500/20 rounded-2xl text-center space-y-2">
+                    <Heart size={22} className="mx-auto text-rose-400" />
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Aucune mission solidaire active pour ce direct. {isHost ? 'Dites par exemple « Lance-moi un Live Solidaire pour aider... » pour en créer une.' : "L'organisateur peut en lancer une par la voix."}
+                    </p>
+                  </div>
+                )}
+
+                {activeSolidarityCause && (
+                  <>
+                    <div className="p-3 bg-rose-950/30 border border-rose-500/20 rounded-2xl space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h5 className="text-xs font-extrabold text-white leading-snug">{activeSolidarityCause.title}</h5>
+                        <span className="px-2 py-0.5 bg-rose-600/30 text-rose-200 text-[9px] font-black rounded uppercase whitespace-nowrap">
+                          {activeSolidarityCause.beneficiaryType}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">{activeSolidarityCause.beneficiaryDescription}</p>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1 text-[10px]">
+                        <div className="bg-black/20 rounded-xl p-2">
+                          <div className="text-slate-400 uppercase font-bold">Collecté (déclaré)</div>
+                          <div className="text-white font-extrabold">{solidarityCollected} {activeSolidarityCause.currency}</div>
+                        </div>
+                        <div className="bg-black/20 rounded-xl p-2">
+                          <div className="text-slate-400 uppercase font-bold">Utilisé (déclaré)</div>
+                          <div className="text-white font-extrabold">{solidarityUsed} {activeSolidarityCause.currency}</div>
+                        </div>
+                      </div>
+                      {typeof activeSolidarityCause.targetAmount === 'number' && (
+                        <div className="text-[10px] text-slate-400">Objectif : {activeSolidarityCause.targetAmount} {activeSolidarityCause.currency}</div>
+                      )}
+
+                      {isHost && (
+                        <button
+                          onClick={handleToggleSolidarityVisibility}
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300 hover:text-white pt-1"
+                          title="Basculer la visibilité de la mission"
+                        >
+                          {activeSolidarityCause.visibility === 'organizer_only' ? <Lock size={12} /> : <Globe size={12} />}
+                          {activeSolidarityCause.visibility === 'organizer_only' ? 'Strictement privée (organisateur uniquement)' : 'Visible par les participants du direct'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isHost && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCaptureSolidarityProof}
+                          disabled={isCapturingSolidarityProof}
+                          className="flex-1 px-2.5 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-[10px] font-bold rounded-xl flex items-center justify-center gap-1.5"
+                        >
+                          <Camera size={13} /> {isCapturingSolidarityProof ? 'Analyse...' : 'Preuve de dépense'}
+                        </button>
+                        <button
+                          onClick={handleCheckSolidarityAnomalies}
+                          disabled={isCheckingSolidarityAnomalies}
+                          className="flex-1 px-2.5 py-2 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-slate-200 text-[10px] font-bold rounded-xl flex items-center justify-center gap-1.5"
+                        >
+                          <AlertTriangle size={13} /> {isCheckingSolidarityAnomalies ? 'Vérification...' : 'Vérifier'}
+                        </button>
+                      </div>
+                    )}
+
+                    {solidarityAnomalyCheck && (
+                      <div className="p-2.5 bg-amber-950/30 border border-amber-500/20 rounded-2xl space-y-1.5">
+                        {!solidarityAnomalyCheck.checked && (
+                          <p className="text-[10px] text-amber-300">Vérification indisponible pour le moment (IA injoignable) — réessayez dans un instant.</p>
+                        )}
+                        {solidarityAnomalyCheck.checked && solidarityAnomalyCheck.questions.length === 0 && (
+                          <p className="text-[10px] text-emerald-300">Rien à signaler sur les lignes actuellement enregistrées.</p>
+                        )}
+                        {solidarityAnomalyCheck.questions.map((q, idx) => (
+                          <p key={idx} className="text-[10px] text-amber-200 flex items-start gap-1.5">
+                            <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" /> {q}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    {solidarityProofs.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preuves ({solidarityProofs.length})</span>
+                        {solidarityProofs.map((p) => (
+                          <div key={p.id} className="p-2 bg-slate-950/40 rounded-xl border border-white/5 flex items-center gap-2.5">
+                            {p.documentUrl && <img src={p.documentUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[10px] font-bold text-white truncate">{p.expenseDescription || p.stepLabel}</div>
+                              <div className="text-[9px] text-slate-400">{typeof p.amount === 'number' ? `${p.amount} ${activeSolidarityCause.currency}` : 'Montant non lu'}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {solidarityUpdates.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mises à jour</span>
+                        {solidarityUpdates.map((u) => (
+                          <div key={u.id} className="p-2.5 bg-slate-950/40 rounded-xl border border-white/5 text-[11px] text-slate-200 leading-relaxed">
+                            {u.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
           </div>
 
           {/* Sidebar Footer Input Bar */}
@@ -1846,6 +2872,25 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   onClick={handleAskPrivateAssistant}
                   disabled={isAssistantThinking}
                   className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors disabled:opacity-40"
+                >
+                  <Send size={14} />
+                </button>
+              </div>
+            )}
+
+            {activeSideTab === 'solidarity' && activeSolidarityCause && isHost && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={solidarityUpdateInput}
+                  onChange={(e) => setSolidarityUpdateInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePostSolidarityUpdate()}
+                  placeholder="Publier une mise à jour de la mission..."
+                  className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                />
+                <button
+                  onClick={handlePostSolidarityUpdate}
+                  className="p-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl transition-colors"
                 >
                   <Send size={14} />
                 </button>
@@ -1948,6 +2993,42 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         </div>
       )}
 
+      {/* CONSENTEMENT CAMÉRA/MICRO/VISION (LOOP 12/16) — au-delà du simple
+          toggle mic/caméra : personne ne publie de média réel avant ce choix
+          explicite (voir canPublish plus haut). Essentiel, jamais soumis à
+          l'effacement contextuel, au-dessus de toute autre modale. */}
+      {showMediaConsentModal && (
+        <div className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-scale-in">
+            <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+              <Camera size={18} /> Avant de rejoindre la scène
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              En rejoignant la scène de ce direct, votre caméra et votre micro seront diffusés en direct à l'ensemble des participants.
+            </p>
+            <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
+              <li>Caméra : votre image vidéo sera visible par tous les participants du direct.</li>
+              <li>Micro : votre voix sera diffusée en direct.</li>
+              <li>Vision IA : un intervenant peut déclencher manuellement une analyse ponctuelle d'une image partagée (jamais automatique, jamais une reconnaissance faciale fiable).</li>
+            </ul>
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={handleAcceptMediaConsent}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Autoriser caméra et micro
+              </button>
+              <button
+                onClick={handleDeclineMediaConsent}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Continuer sans caméra ni micro (spectateur)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 5. WAITING ROOM BRIEFING MODAL */}
       <LiveWaitingRoomModal
         isOpen={showWaitingRoomModal}
@@ -1968,6 +3049,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         }}
         liveStream={liveData}
         userProfile={userProfile}
+        realSummary={liveEndSummary}
+        onPublishToFeed={handlePublishLiveSummaryToFeed}
         onNavigateToTab={(tab) => {
           setShowPostContinuityModal(false);
           onClose();

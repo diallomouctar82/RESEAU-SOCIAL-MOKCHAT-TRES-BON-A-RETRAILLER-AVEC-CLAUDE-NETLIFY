@@ -37,7 +37,7 @@ export const CareerEcosystem360Modal: React.FC<CareerEcosystem360ModalProps> = (
       <div className="bg-slate-900 border border-slate-700/80 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-white">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <Compass size={24} />
@@ -54,7 +54,7 @@ export const CareerEcosystem360Modal: React.FC<CareerEcosystem360ModalProps> = (
           
           <button 
             onClick={onClose}
-            className="p-2.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-3 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
             <X size={20} />
           </button>

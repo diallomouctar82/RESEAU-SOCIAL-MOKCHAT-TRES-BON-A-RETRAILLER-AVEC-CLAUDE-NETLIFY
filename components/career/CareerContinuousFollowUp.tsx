@@ -1,31 +1,32 @@
 import React, { useState } from 'react';
-import { 
-  BriefcaseBusiness, 
-  Sparkles, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  Send, 
-  Mail, 
-  Video, 
-  DollarSign, 
-  FileText, 
-  Plus, 
-  Trash2, 
-  ArrowRight, 
-  Award, 
-  TrendingUp, 
-  ShieldCheck, 
-  BellRing, 
+import {
+  BriefcaseBusiness,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Send,
+  Mail,
+  Video,
+  DollarSign,
+  FileText,
+  Plus,
+  Trash2,
+  ArrowRight,
+  Award,
+  TrendingUp,
+  BellRing,
   RotateCcw,
   ChevronRight,
   ExternalLink,
   Building2,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { CareerMissionPlan, CareerSmartReminder, CareerActionItem, RadarOpportunityItem } from '../../types';
 import { CareerResponseAnalyzerModal } from './conquest/CareerResponseAnalyzerModal';
+import { StatusBadge } from '../ui/StatusBadge';
 
 interface OpportunityItem {
   id: string;
@@ -115,7 +116,7 @@ export const CareerContinuousFollowUp: React.FC<CareerContinuousFollowUpProps> =
       
       {/* 🔔 PROACTIVE AI REMINDER BANNER */}
       {missionPlan.smartReminders.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-transparent border border-amber-300/60 rounded-3xl p-5 md:p-6 shadow-sm">
+        <div className="bg-amber-50/60 border border-amber-300/60 rounded-3xl p-5 md:p-6 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2 text-amber-800 font-bold text-xs uppercase tracking-wider">
               <BellRing size={16} className="text-amber-600 animate-bounce" />
@@ -428,9 +429,7 @@ export const CareerContinuousFollowUp: React.FC<CareerContinuousFollowUpProps> =
                     <span className="text-xs text-slate-500">{exp.company} • {exp.duration}</span>
                   </div>
                   {exp.verified && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <ShieldCheck size={12} /> Vérifié
-                    </span>
+                    <StatusBadge status="verified" label="Vérifié" size="sm" />
                   )}
                 </div>
                 <div className="space-y-1 pt-1">
@@ -456,7 +455,9 @@ export const CareerContinuousFollowUp: React.FC<CareerContinuousFollowUpProps> =
                 <Award size={22} />
                 <h3 className="text-lg font-black text-slate-900">Enregistrer un Résultat Certifié</h3>
               </div>
-              <button onClick={() => setShowOutcomeModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setShowOutcomeModal(false)} className="p-3 -m-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors" aria-label="Fermer">
+                <X size={18} />
+              </button>
             </div>
 
             <form onSubmit={handleCreateOutcome} className="space-y-4">

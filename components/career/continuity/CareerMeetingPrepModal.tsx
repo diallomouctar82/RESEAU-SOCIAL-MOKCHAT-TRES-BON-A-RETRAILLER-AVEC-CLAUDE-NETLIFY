@@ -11,7 +11,8 @@ import {
   Video, 
   Sparkles, 
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 import { CareerScheduledMeeting, CareerLiveDossier } from '../../../types';
 
@@ -37,7 +38,7 @@ export const CareerMeetingPrepModal: React.FC<CareerMeetingPrepModalProps> = ({
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[90vh] flex flex-col">
         
         {/* HEADER */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex justify-between items-start">
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
@@ -52,11 +53,12 @@ export const CareerMeetingPrepModal: React.FC<CareerMeetingPrepModalProps> = ({
               <Briefcase size={13} /> {meeting.entityName} — Interlocuteur : <span className="text-white font-bold">{meeting.interlocutor.name}</span> ({meeting.interlocutor.role})
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
+            aria-label="Fermer"
+            className="text-slate-400 hover:text-white p-3 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MemberProfile, Post, Story, Reel, LiveStream, UserProfile } from '../types';
-import { X, UserPlus, UserCheck, MessageSquare, Shield, Globe, Lock, Users, MapPin, Calendar, Award, Sparkles, Play, Video, Eye, Radio, FileText, CheckCircle2, Sliders, Bell, Share2, Heart, MessageCircle } from 'lucide-react';
+import { X, UserPlus, UserCheck, MessageSquare, Shield, Globe, Lock, Users, MapPin, Calendar, Award, Sparkles, Play, Video, Eye, Radio, FileText, CheckCircle2, Sliders, Bell, Share2, Heart, MessageCircle, Rss, Ban } from 'lucide-react';
 
 interface MemberProfileModalProps {
   member: MemberProfile;
@@ -11,7 +11,11 @@ interface MemberProfileModalProps {
   stories: Story[];
   reels: Reel[];
   lives: LiveStream[];
+  onFriendAction: (memberId: string, action: 'send' | 'cancel' | 'accept' | 'decline' | 'remove') => void;
+  /** LOOP 04/17 : abonnement unilatéral, distinct de l'amitié. */
   onToggleFollow: (memberId: string) => void;
+  onBlockUser: (memberId: string) => void;
+  onUnblockUser: (memberId: string) => void;
   onStartChatWithMember: (member: MemberProfile) => void;
   onUpdatePrivacySettings?: (newSettings: MemberProfile['privacySettings']) => void;
 }
@@ -25,7 +29,10 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   stories,
   reels,
   lives,
+  onFriendAction,
   onToggleFollow,
+  onBlockUser,
+  onUnblockUser,
   onStartChatWithMember,
   onUpdatePrivacySettings
 }) => {
@@ -121,29 +128,78 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             {/* Actions Buttons */}
             <div className="flex items-center gap-2 pt-2 sm:pt-0">
               {!isMe ? (
+                member.isBlockedByMe ? (
+                  <button
+                    onClick={() => onUnblockUser(member.id)}
+                    className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold border border-red-200 transition-all flex items-center gap-2"
+                  >
+                    <Ban size={16} /> Débloquer {member.name}
+                  </button>
+                ) : (
                 <>
+                  {member.friendshipStatus === 'pending_received' ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onFriendAction(member.id, 'accept')}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        <UserCheck size={16} /> Accepter
+                      </button>
+                      <button
+                        onClick={() => onFriendAction(member.id, 'decline')}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                      >
+                        Refuser
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => onFriendAction(
+                        member.id,
+                        member.friendshipStatus === 'friends' ? 'remove' : member.friendshipStatus === 'pending_sent' ? 'cancel' : 'send'
+                      )}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${member.friendshipStatus === 'friends' || member.friendshipStatus === 'pending_sent' ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white'}`}
+                    >
+                      {member.friendshipStatus === 'friends' ? (
+                        <>
+                          <UserCheck size={16} /> Amis
+                        </>
+                      ) : member.friendshipStatus === 'pending_sent' ? (
+                        <>
+                          <UserCheck size={16} /> Demande envoyée
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={16} /> Ajouter en ami
+                        </>
+                      )}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => onToggleFollow(member.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${member.isFollowing ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white'}`}
+                    title={member.isFollowing ? 'Ne plus suivre' : 'Suivre'}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${member.isFollowing ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'}`}
                   >
-                    {member.isFollowing ? (
-                      <>
-                        <UserCheck size={16} /> Abonné(e)
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={16} /> S'abonner
-                      </>
-                    )}
+                    <Rss size={16} /> {member.isFollowing ? 'Abonné(e)' : 'Suivre'}
                   </button>
-                  
+
                   <button
                     onClick={() => { onClose(); onStartChatWithMember(member); }}
                     className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200 transition-all flex items-center gap-2"
                   >
                     <MessageSquare size={16} /> Mooc Chat
                   </button>
+
+                  <button
+                    onClick={() => onBlockUser(member.id)}
+                    title="Bloquer cette personne"
+                    className="p-2.5 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all"
+                  >
+                    <Ban size={16} />
+                  </button>
                 </>
+                )
               ) : (
                 <button
                   onClick={() => setActiveTab('privacy')}
@@ -171,8 +227,16 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
 
           {/* Metrics Counters */}
           <div className="flex items-center gap-6 py-2 border-t border-slate-100 text-xs text-slate-600">
-            <div><strong className="text-slate-900 font-black text-sm">{member.followersCount}</strong> abonnés</div>
-            <div><strong className="text-slate-900 font-black text-sm">{member.followingCount}</strong> abonnements</div>
+            {isMe || member.privacySettings.showFollowersList !== false ? (
+              <div><strong className="text-slate-900 font-black text-sm">{member.followersCount}</strong> abonnés</div>
+            ) : (
+              <div className="flex items-center gap-1 text-slate-400"><Lock size={11} /> Abonnés masqués</div>
+            )}
+            {isMe || member.privacySettings.showFollowingList !== false ? (
+              <div><strong className="text-slate-900 font-black text-sm">{member.followingCount}</strong> abonnements</div>
+            ) : (
+              <div className="flex items-center gap-1 text-slate-400"><Lock size={11} /> Abonnements masqués</div>
+            )}
             <div><strong className="text-slate-900 font-black text-sm">{member.postsCount || memberPosts.length}</strong> publications</div>
             <div><strong className="text-slate-900 font-black text-sm">{member.reelsCount || memberReels.length}</strong> reels</div>
             <div><strong className="text-slate-900 font-black text-sm">{member.livesCount || memberLives.length}</strong> lives</div>
@@ -417,6 +481,19 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                 </select>
               </div>
 
+              {/* Friend Requests Permission — LOOP 04/17 */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Autoriser les demandes d'amis depuis :</label>
+                <select
+                  value={privacySettings.allowFriendRequestsFrom ?? 'all'}
+                  onChange={(e) => handlePrivacyChange('allowFriendRequestsFrom', e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="all">Tous les membres de la communauté</option>
+                  <option value="none">Désactiver la réception de nouvelles demandes</option>
+                </select>
+              </div>
+
               {/* Toggles */}
               <div className="space-y-3 pt-2 border-t border-slate-100">
                 <label className="flex items-center justify-between cursor-pointer">
@@ -445,6 +522,26 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                     type="checkbox"
                     checked={privacySettings.showActivityFeed}
                     onChange={(e) => handlePrivacyChange('showActivityFeed', e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-xs font-semibold text-slate-700">Afficher ma liste d'abonnés sur mon profil</span>
+                  <input
+                    type="checkbox"
+                    checked={privacySettings.showFollowersList ?? true}
+                    onChange={(e) => handlePrivacyChange('showFollowersList', e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-xs font-semibold text-slate-700">Afficher ma liste d'abonnements sur mon profil</span>
+                  <input
+                    type="checkbox"
+                    checked={privacySettings.showFollowingList ?? true}
+                    onChange={(e) => handlePrivacyChange('showFollowingList', e.target.checked)}
                     className="w-4 h-4 text-indigo-600 rounded"
                   />
                 </label>

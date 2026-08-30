@@ -76,10 +76,12 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
           <span className="hidden sm:inline">Diallo,</span> Retiens ceci
         </button>
 
-        {/* Essential Quick Action Shortcuts */}
+        {/* Raccourcis rapides — repliés sous "Actions" sur mobile (même liste,
+            juste déplacée) : les afficher tous en permanence sur un petit
+            écran est ce qui rendait cette barre illisible (audit UX). */}
         <button
           onClick={() => onCreateTask && onCreateTask()}
-          className="p-2 hover:bg-white/10 text-slate-300 hover:text-emerald-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
+          className="hidden sm:flex p-2 hover:bg-white/10 text-slate-300 hover:text-emerald-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Créer une tâche issue du Live"
         >
           <CheckSquare size={15} />
@@ -88,7 +90,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         <button
           onClick={() => onBookAppointment && onBookAppointment()}
-          className="p-2 hover:bg-white/10 text-slate-300 hover:text-indigo-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
+          className="hidden sm:flex p-2 hover:bg-white/10 text-slate-300 hover:text-indigo-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Prendre rendez-vous avec l'intervenant"
         >
           <Calendar size={15} />
@@ -97,7 +99,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         <button
           onClick={() => onAddToParcours && onAddToParcours()}
-          className="p-2 hover:bg-white/10 text-slate-300 hover:text-amber-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
+          className="hidden md:flex p-2 hover:bg-white/10 text-slate-300 hover:text-amber-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Ajouter au parcours projet"
         >
           <Compass size={15} />
@@ -106,7 +108,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         <button
           onClick={() => onVerifyFact && onVerifyFact()}
-          className="p-2 hover:bg-white/10 text-slate-300 hover:text-cyan-400 rounded-xl transition-colors text-xs font-semibold flex items-center gap-1"
+          className="hidden lg:flex p-2 hover:bg-white/10 text-slate-300 hover:text-cyan-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Vérifier une information (Fiche Source)"
         >
           <ShieldCheck size={15} />

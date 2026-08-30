@@ -49,5 +49,21 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
         skills: skills || [],
         badges: (badges || []).map((b) => ({ id: b.id, name: b.name, icon: b.icon || '', description: b.description || '' })),
         interests: profile.interests || [],
+        // LOOP 09/17 : fusion (pas un `||` qui remplace tout le bloc) — un
+        // profil réel déjà doté d'un `privacy_settings` ancien (avant l'ajout
+        // d'un nouveau champ comme `notificationsMuted`) doit quand même
+        // recevoir la valeur par défaut de ce champ, jamais `undefined`.
+        privacySettings: {
+            profileVisibility: 'public',
+            allowMessagesFrom: 'all',
+            showOnlineStatus: true,
+            allowTagging: true,
+            showActivityFeed: true,
+            allowFriendRequestsFrom: 'all',
+            showFollowersList: true,
+            showFollowingList: true,
+            notificationsMuted: false,
+            ...(profile.privacy_settings || {}),
+        },
     };
 };

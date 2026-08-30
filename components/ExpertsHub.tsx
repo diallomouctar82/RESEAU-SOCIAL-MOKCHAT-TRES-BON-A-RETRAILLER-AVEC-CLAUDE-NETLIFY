@@ -45,7 +45,7 @@ import {
     SlidersHorizontal,
     Globe2
 } from 'lucide-react';
-import { AGENTS, DEFAULT_DOSSIERS, INITIAL_ACTIVE_MEMORIES, INITIAL_COMPETENCIES } from '../constants';
+import { AGENTS, DEFAULT_DOSSIERS, INITIAL_COMPETENCIES } from '../constants';
 import { Agent, DossierParcours, DossierStep, DossierTask, DossierDeliverable, DossierCategory, ActiveMemoryItem, CompetencyRecord, UserProfile } from '../types';
 import { dossierService } from '../services/dossierService';
 import { memoryService } from '../services/memory';
@@ -112,6 +112,17 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
 
     useEffect(() => {
         loadAllData();
+    }, []);
+
+    // LOOP 13/17 (mémoire contextuelle, multi-appareils) : un ajout/une
+    // modification/une suppression de mémoire sur un autre appareil déjà
+    // ouvert apparaît désormais ici en direct, au lieu de rester invisible
+    // jusqu'au rechargement complet de la page.
+    useEffect(() => {
+        const unsubscribe = memoryService.subscribeToChanges(() => {
+            memoryService.getActiveMemories().then(setMemories);
+        });
+        return unsubscribe;
     }, []);
 
     const loadAllData = async () => {

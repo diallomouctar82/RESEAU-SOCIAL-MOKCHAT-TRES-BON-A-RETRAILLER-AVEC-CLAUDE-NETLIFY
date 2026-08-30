@@ -32,15 +32,15 @@ import {
   Clock,
   Layers,
   Compass,
-  Palette,
   Lock,
   User,
   Shield,
   HelpCircle,
   FolderKanban
 } from 'lucide-react';
-import { Notification, UserProfile, Language } from '../types';
+import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
+import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
 import { MAIN_NAV_ITEMS, NavItemDef } from './navigation/NavigationItems';
@@ -67,6 +67,28 @@ interface LayoutProps {
   onMarkRead: (id: string) => void;
   userProfile: UserProfile;
   onLogout?: () => void;
+  // Remonté à App.tsx : Dashboard a aussi besoin d'ouvrir la recherche
+  // universelle depuis sa zone d'actions rapides, ce qu'un état purement
+  // interne à Layout ne permettait pas.
+  isSearchModalOpen: boolean;
+  onOpenSearch: () => void;
+  onCloseSearch: () => void;
+  // Idem : Dashboard doit pouvoir ouvrir "Mon Cap" depuis son EditorialHero.
+  isGoalModalOpen: boolean;
+  onOpenGoalModal: () => void;
+  onCloseGoalModal: () => void;
+  // LOOP 06/17 (messagerie, fondation) : idem — SocialFeed (enfant profond)
+  // doit pouvoir ouvrir une vraie conversation dans <MoocChatFloating>,
+  // montée ici et non dans App.tsx.
+  pendingDirectChatMember?: MemberProfile;
+  onConsumePendingDirectChatMember?: () => void;
+  // LOOP 09/17 (notifications, orchestration proactive) : jusqu'ici jamais
+  // fourni à <UnifiedSettingsModal>, rendant son bouton "Enregistrer" inerte
+  // pour tout ce que ce modal peut modifier (dont le nouveau mode silencieux).
+  // Renvoie `true` seulement si la persistance a réellement abouti : la barre
+  // flottante de l'Architecte annonce vocalement ce qu'elle vient de faire et
+  // ne doit jamais confirmer un réglage qui n'a pas été enregistré.
+  onUpdateProfile?: (updated: Partial<UserProfile>) => Promise<boolean>;
 }
 
 const NEWS_ITEMS = [
@@ -79,14 +101,23 @@ const NEWS_ITEMS = [
 
 const DEFAULT_FAVORITES = ['career', 'campus', 'housing', 'shop'];
 
-export const Layout: React.FC<LayoutProps> = ({ 
-  children, 
-  activeTab, 
-  onTabChange, 
-  notifications, 
-  onMarkRead, 
-  userProfile, 
-  onLogout 
+export const Layout: React.FC<LayoutProps> = ({
+  children,
+  activeTab,
+  onTabChange,
+  notifications,
+  onMarkRead,
+  userProfile,
+  onLogout,
+  isSearchModalOpen,
+  onOpenSearch,
+  onCloseSearch,
+  isGoalModalOpen,
+  onOpenGoalModal,
+  onCloseGoalModal,
+  pendingDirectChatMember,
+  onConsumePendingDirectChatMember,
+  onUpdateProfile,
 }) => {
   const { currentPalette, paletteId } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -96,10 +127,8 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
-  // Modals state
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  // Modals state (isSearchModalOpen vient désormais de App.tsx — voir LayoutProps)
   const [isTransversalModalOpen, setIsTransversalModalOpen] = useState(false);
-  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [isGuidedModeOpen, setIsGuidedModeOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannerContext, setScannerContext] = useState<ScannerContext>('general');
@@ -178,13 +207,13 @@ export const Layout: React.FC<LayoutProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsSearchModalOpen(prev => !prev);
+        if (isSearchModalOpen) onCloseSearch(); else onOpenSearch();
       } else if (e.key === 'Escape') {
-        setIsSearchModalOpen(false);
+        onCloseSearch();
         setIsNotifOpen(false);
         setIsProfileMenuOpen(false);
         setIsTransversalModalOpen(false);
-        setIsGoalModalOpen(false);
+        onCloseGoalModal();
         setIsGuidedModeOpen(false);
         setIsScannerOpen(false);
         setIsBilingualModalOpen(false);
@@ -195,7 +224,7 @@ export const Layout: React.FC<LayoutProps> = ({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isSearchModalOpen, onOpenSearch, onCloseSearch, onCloseGoalModal]);
 
   const handleOpenDialloOSWithPrompt = (prompt?: string) => {
     setDialloInitialPrompt(prompt);
@@ -230,7 +259,7 @@ export const Layout: React.FC<LayoutProps> = ({
           {/* Central Universal Search Bar / Command Palette Trigger */}
           <div className="flex-1 max-w-xl flex items-center gap-2">
             <button 
-              onClick={() => setIsSearchModalOpen(true)}
+              onClick={onOpenSearch}
               className="flex-1 bg-slate-100/90 hover:bg-white hover:ring-2 ring-brand-200 text-slate-500 hover:text-brand-700 flex items-center justify-between px-4 py-2 rounded-full border border-slate-200/60 hover:border-brand-300 transition-all group shadow-inner"
             >
               <div className="flex items-center gap-2.5">
@@ -255,7 +284,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
             {/* Quick Goal Compass Trigger */}
             <button
-              onClick={() => setIsGoalModalOpen(true)}
+              onClick={onOpenGoalModal}
               className="hidden lg:flex px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold items-center gap-1.5 transition shrink-0 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Définir ou changer mon cap"
             >
@@ -285,7 +314,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
             {/* Diallo OS Micro Trigger */}
             <button
-              onClick={() => setIsSearchModalOpen(true)}
+              onClick={onOpenSearch}
               className="p-2 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-600 transition shrink-0 shadow-xs"
               title="Commande vocale de navigation"
               aria-label="Commande vocale"
@@ -322,16 +351,10 @@ export const Layout: React.FC<LayoutProps> = ({
               <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-extrabold">Tous Comptes</span>
             </button>
 
-            {/* Brand Color Lab (10 Palettes) Trigger */}
-            <button
-              onClick={() => setIsColorLabOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
-              title="Ouvrir le Laboratoire des 10 Palettes Chromatiques"
-            >
-              <Palette size={14} className="text-white" />
-              <span className="hidden md:inline">Nuancier</span>
-              <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.2 rounded font-extrabold">10</span>
-            </button>
+            {/* Brand Color Lab (10 palettes) : sélecteur masqué (Chantier 3 Phase 2 —
+                un thème unique et cohérent, palette-10, est désormais figé comme
+                référence). Le Color Lab et les 10 palettes restent dans le code
+                (ThemeContext/DesignTokens) pour rouvrir la question plus tard. */}
 
             {/* Bilingual Mode Trigger */}
             <button
@@ -394,7 +417,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 text-slate-600 transition-colors relative shadow-xs"
               >
                 <Bell size={16} />
-                {unreadCount > 0 && (
+                {unreadCount > 0 && !userProfile.privacySettings?.notificationsMuted && (
                   <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
                 )}
               </button>
@@ -419,7 +442,12 @@ export const Layout: React.FC<LayoutProps> = ({
                             <div className="flex gap-2.5">
                               <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
                               <div>
-                                <div className="font-semibold text-xs text-slate-800">{notif.title}</div>
+                                <div className="font-semibold text-xs text-slate-800 flex items-center gap-1.5">
+                          <span>{notif.title}</span>
+                          {notif.priority === 'high' && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-bold uppercase tracking-wide">Important</span>
+                          )}
+                        </div>
                                 <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{notif.message}</p>
                               </div>
                             </div>
@@ -467,9 +495,6 @@ export const Layout: React.FC<LayoutProps> = ({
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>
-                    <button onClick={() => {setIsColorLabOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-900 rounded-xl text-xs flex items-center gap-2 font-bold">
-                      <Palette size={14} className="text-blue-600" /> Nuancier 10 Palettes
-                    </button>
                     <button onClick={() => {setIsShowcaseModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Layers size={14} /> Galerie Design System
                     </button>
@@ -509,7 +534,7 @@ export const Layout: React.FC<LayoutProps> = ({
         <div className="flex items-center gap-2">
           {/* Quick Search trigger */}
           <button 
-            onClick={() => setIsSearchModalOpen(true)}
+            onClick={onOpenSearch}
             className="p-1.5 rounded-full bg-slate-100 text-slate-600"
           >
             <Search size={16} />
@@ -549,7 +574,7 @@ export const Layout: React.FC<LayoutProps> = ({
             {!isSidebarCollapsed && (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsGoalModalOpen(true)}
+                  onClick={onOpenGoalModal}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition shadow-2xs text-white"
                   style={{ backgroundColor: currentPalette.colors.sidebarActiveBg }}
                 >
@@ -825,7 +850,6 @@ export const Layout: React.FC<LayoutProps> = ({
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
               return (
                 <ContextActionBar
-                  activeTabId={activeTab}
                   activeTabLabel={currentItem?.label || activeTab}
                   pillarLabel={currentItem?.category || 'Espace LMAV'}
                   description={currentItem?.description}
@@ -835,7 +859,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     setIsDialloOSOpen(true);
                   }}
                   onOpenTransversal={() => setIsTransversalModalOpen(true)}
-                  onOpenSearch={() => setIsSearchModalOpen(true)}
+                  onOpenSearch={onOpenSearch}
                 />
               );
             })()}
@@ -859,7 +883,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-black text-slate-900">Espaces & Piliers de Vie</h2>
                   <button
-                    onClick={() => { setIsGoalModalOpen(true); setIsMobileMenuExpanded(false); }}
+                    onClick={() => { onOpenGoalModal(); setIsMobileMenuExpanded(false); }}
                     className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold border border-indigo-200"
                   >
                     Mon Cap
@@ -881,7 +905,55 @@ export const Layout: React.FC<LayoutProps> = ({
                 </div>
                 <ChevronRight size={14} className="text-slate-400" />
               </button>
-              
+
+              {/* Outils rapides — desktop-only jusqu'ici (Notifications,
+                  Scanner, Bilingue, Guide-moi n'avaient aucun déclencheur
+                  mobile). */}
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                <button
+                  onClick={() => { setIsNotifOpen(true); setIsMobileMenuExpanded(false); }}
+                  className="relative flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Bell size={16} />
+                  {unreadCount > 0 && !userProfile.privacySettings?.notificationsMuted && (
+                    <span className="absolute top-1.5 right-1/2 translate-x-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                  )}
+                  <span className="text-[9px] font-bold">Notifications</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const ctxMap: Record<string, ScannerContext> = {
+                      languages: 'languages',
+                      'admin-procedures': 'procedures',
+                      health: 'health',
+                      shop: 'shop',
+                      studio: 'studio'
+                    };
+                    setScannerContext(ctxMap[activeTab] || 'general');
+                    setIsScannerOpen(true);
+                    setIsMobileMenuExpanded(false);
+                  }}
+                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Search size={16} />
+                  <span className="text-[9px] font-bold">Scanner</span>
+                </button>
+                <button
+                  onClick={() => { setIsBilingualModalOpen(true); setIsMobileMenuExpanded(false); }}
+                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Languages size={16} />
+                  <span className="text-[9px] font-bold">Bilingue</span>
+                </button>
+                <button
+                  onClick={() => { setIsGuidedModeOpen(true); setIsMobileMenuExpanded(false); }}
+                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                >
+                  <Compass size={16} />
+                  <span className="text-[9px] font-bold">Guide-moi</span>
+                </button>
+              </div>
+
               <div className="space-y-4 overflow-y-auto flex-1">
                 {categoryOrder.map((category) => {
                   const items = groupedNavItems[category] || [];
@@ -916,7 +988,10 @@ export const Layout: React.FC<LayoutProps> = ({
                 <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
                   <Shield size={14} /> Super-Admin (IA & Comptes)
                 </button>
-                <button onClick={() => {onTabChange('settings'); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                {/* Ouvre la même UnifiedSettingsModal que le desktop — le
+                    tab 'settings'/Settings.tsx était une implémentation
+                    séparée, propre au mobile, sans équivalent desktop. */}
+                <button onClick={() => {setIsSettingsModalOpen(true); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
                   <Settings size={14} /> Paramètres
                 </button>
                 {onLogout && (
@@ -974,18 +1049,92 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
         </div>
-        
+
+        {/* ─── L'ARCHITECTE — PRÉSENCE FLOTTANTE PERMANENTE ───
+             Remplace l'ancien déclencheur desktop-only (bord droit,
+             mi-hauteur) : celui-ci n'existait pas sur mobile, où le seul
+             point d'entrée était le bouton central du dock, noyé parmi
+             quatre autres. La barre flottante est présente sur les DEUX
+             formats, toujours visible, et démarre l'écoute dès l'appui.
+
+             Présentation et comportement natif repris fidèlement de
+             l'Architecte historique (dépôt
+             ARCHITECTE-BON-INSPIRATION-POUR-MOKNET-2026,
+             components/PlatformGuide.tsx) — voir l'en-tête du composant pour
+             le détail de ce qui est conforme et de ce qui est amélioré.
+
+             Position bas-droite volontairement au-dessus de
+             <MoocChatFloating /> (fixed bottom-6 right-6) pour ne pas le
+             recouvrir ; la pastille reste déplaçable si l'utilisateur veut
+             la mettre ailleurs. */}
+        <ArchitecteFloatingBar
+          userProfile={userProfile}
+          onNavigate={onTabChange}
+          onUpdateProfile={onUpdateProfile ?? (async () => false)}
+          onOpenTyped={() => setIsDialloOSOpen(true)}
+        />
+
         {/* ─── MODALS & ORCHESTRATION OVERLAYS ─── */}
-        <DialloOS 
+        <DialloOS
           isOpen={isDialloOSOpen}
           onClose={() => { setIsDialloOSOpen(false); setDialloInitialPrompt(undefined); }}
           onNavigate={onTabChange}
           userProfile={userProfile}
         />
 
+        {/* Notifications — panneau mobile. Le panneau desktop (ci-dessus,
+            dans le header) est positionné en absolu par rapport à un
+            conteneur masqué sur mobile (hidden md:block) : sans cet
+            équivalent, activer isNotifOpen depuis le tiroir mobile n'aurait
+            eu aucun effet visible. */}
+        {isNotifOpen && (
+          <div className="md:hidden fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/50" onClick={() => setIsNotifOpen(false)}>
+            <div
+              className="w-full max-h-[75vh] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-fade-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-slate-50/70 shrink-0">
+                <span className="font-bold text-sm text-slate-800">Notifications</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-slate-200/80 px-2 py-0.5 rounded-full text-slate-600 font-bold">{unreadCount} nouvelles</span>
+                  <button onClick={() => setIsNotifOpen(false)} className="p-1 rounded-full bg-slate-100 text-slate-500">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto divide-y divide-slate-50">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-xs">Rien à signaler</div>
+                ) : (
+                  notifications.map(notif => (
+                    <div
+                      key={notif.id}
+                      className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.read ? 'bg-blue-50/30' : ''}`}
+                      onClick={() => onMarkRead(notif.id)}
+                    >
+                      <div className="flex gap-2.5">
+                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'alert' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                        <div>
+                          <div className="font-semibold text-xs text-slate-800 flex items-center gap-1.5">
+                          <span>{notif.title}</span>
+                          {notif.priority === 'high' && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-bold uppercase tracking-wide">Important</span>
+                          )}
+                        </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{notif.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <UniversalSearchModal
           isOpen={isSearchModalOpen}
-          onClose={() => setIsSearchModalOpen(false)}
+          onClose={onCloseSearch}
           onNavigate={onTabChange}
           onOpenDialloOS={handleOpenDialloOSWithPrompt}
         />
@@ -999,7 +1148,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
         <GoalOrientationModal
           isOpen={isGoalModalOpen}
-          onClose={() => setIsGoalModalOpen(false)}
+          onClose={onCloseGoalModal}
           onNavigate={onTabChange}
           onOpenDialloOS={handleOpenDialloOSWithPrompt}
         />
@@ -1009,7 +1158,6 @@ export const Layout: React.FC<LayoutProps> = ({
           isOpen={isGuidedModeOpen}
           onClose={() => setIsGuidedModeOpen(false)}
           onNavigate={onTabChange}
-          onOpenDialloOS={handleOpenDialloOSWithPrompt}
         />
 
         {/* Universal OCR / Document / Camera Scanner (Req 103-105) */}
@@ -1032,6 +1180,7 @@ export const Layout: React.FC<LayoutProps> = ({
           isOpen={isSettingsModalOpen}
           onClose={() => setIsSettingsModalOpen(false)}
           userProfile={userProfile}
+          onUpdateProfile={onUpdateProfile}
         />
 
         {/* Brand Color Lab — 10 Palettes Chromatiques */}
@@ -1047,8 +1196,10 @@ export const Layout: React.FC<LayoutProps> = ({
         />
 
         {/* Floating Mooc Chat */}
-        <MoocChatFloating 
-          currentUser={userProfile} 
+        <MoocChatFloating
+          currentUser={userProfile}
+          pendingDirectChatMember={pendingDirectChatMember}
+          onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
         />
 
       </div>

@@ -20,6 +20,7 @@ import {
 import { OfficialDocumentTemplate, OfficialSignature, OfficialStamp } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { OfficialLetterPreviewModal } from './OfficialLetterPreviewModal';
+import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 
 interface AdminTemplatesAndStampsTabProps {
   templates: OfficialDocumentTemplate[];
@@ -90,11 +91,17 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
     onReload();
   };
 
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<{ id: string; title: string } | null>(null);
+
   const handleDeleteTemplate = (id: string, title: string) => {
-    if (window.confirm(`Supprimer définitivement le modèle "${title}" ?`)) {
-      adminConfigService.deleteTemplate(id);
-      onReload();
-    }
+    setConfirmDeleteTemplate({ id, title });
+  };
+
+  const confirmDeleteTemplateAction = () => {
+    if (!confirmDeleteTemplate) return;
+    adminConfigService.deleteTemplate(confirmDeleteTemplate.id);
+    setConfirmDeleteTemplate(null);
+    onReload();
   };
 
   const handleSaveSignature = () => {
@@ -125,10 +132,10 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 gap-1">
           <button
             onClick={() => setSection('templates')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               section === 'templates' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -137,7 +144,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
           </button>
           <button
             onClick={() => setSection('signatures')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               section === 'signatures' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -146,7 +153,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
           </button>
           <button
             onClick={() => setSection('stamps')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               section === 'stamps' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -163,7 +170,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
             <p className="text-xs font-bold text-slate-600">Bibliothèque des Actes, Recours et Contrats certifiés :</p>
             <button
               onClick={() => setIsAddTemplateOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
             >
               <Plus size={15} />
               Nouveau Modèle de Lettre
@@ -206,22 +213,24 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setPreviewTemplate(tpl)}
-                      className="px-3.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                      className="px-3.5 py-2 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                     >
                       <Eye size={13} />
                       Aperçu Live & Export
                     </button>
                     <button
                       onClick={() => setEditingTemplate({ ...tpl })}
-                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       title="Éditer le modèle"
+                      aria-label="Éditer le modèle"
                     >
                       <Edit size={14} />
                     </button>
                     <button
                       onClick={() => handleDeleteTemplate(tpl.id, tpl.title)}
-                      className="p-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-lg text-slate-600 transition"
+                      className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-lg text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       title="Supprimer le modèle"
+                      aria-label="Supprimer le modèle"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -266,7 +275,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
 
                 <button
                   onClick={() => setEditingSignature({ ...sig })}
-                  className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition text-center"
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   Modifier Titre & Clé
                 </button>
@@ -316,7 +325,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
 
                 <button
                   onClick={() => setEditingStamp({ ...stamp })}
-                  className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   Ajuster Devise & Couleur
                 </button>
@@ -338,7 +347,11 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Configurez le corps, les en-têtes et les variables dynamiques.</p>
               </div>
-              <button onClick={() => setEditingTemplate(null)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setEditingTemplate(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -351,7 +364,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                     type="text"
                     value={editingTemplate.title}
                     onChange={(e) => setEditingTemplate({ ...editingTemplate, title: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -360,7 +373,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   <select
                     value={editingTemplate.category}
                     onChange={(e) => setEditingTemplate({ ...editingTemplate, category: e.target.value as any })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="letter">Lettre Officielle & Institutionnelle</option>
                     <option value="procedure">Procédure & Recours Administratif</option>
@@ -377,7 +390,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingTemplate.headerTitle}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, headerTitle: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -387,7 +400,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingTemplate.headerSubtitle}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, headerSubtitle: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -397,7 +410,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingTemplate.watermarkText}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, watermarkText: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -419,7 +432,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   <select
                     value={editingTemplate.defaultSignerId}
                     onChange={(e) => setEditingTemplate({ ...editingTemplate, defaultSignerId: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {signatures.map(sig => (
                       <option key={sig.id} value={sig.id}>{sig.signerName} ({sig.signerTitle})</option>
@@ -432,7 +445,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   <select
                     value={editingTemplate.defaultStampId}
                     onChange={(e) => setEditingTemplate({ ...editingTemplate, defaultStampId: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {stamps.map(st => (
                       <option key={st.id} value={st.id}>{st.title}</option>
@@ -445,13 +458,13 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setEditingTemplate(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Annuler
               </button>
               <button
                 onClick={handleSaveTemplate}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Check size={14} />
                 Enregistrer le Modèle
@@ -467,7 +480,13 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900">Édition Signature Numérique</h3>
-              <button onClick={() => setEditingSignature(null)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+              <button
+                onClick={() => setEditingSignature(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -477,7 +496,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingSignature.signerName}
                   onChange={(e) => setEditingSignature({ ...editingSignature, signerName: e.target.value })}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -487,7 +506,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingSignature.signerTitle}
                   onChange={(e) => setEditingSignature({ ...editingSignature, signerTitle: e.target.value })}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -503,8 +522,8 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button onClick={() => setEditingSignature(null)} className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold">Annuler</button>
-              <button onClick={handleSaveSignature} className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow">Enregistrer</button>
+              <button onClick={() => setEditingSignature(null)} className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Annuler</button>
+              <button onClick={handleSaveSignature} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1">Enregistrer</button>
             </div>
           </div>
         </div>
@@ -516,7 +535,13 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900">Édition Cachet & Sceau</h3>
-              <button onClick={() => setEditingStamp(null)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+              <button
+                onClick={() => setEditingStamp(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -526,7 +551,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingStamp.institution}
                   onChange={(e) => setEditingStamp({ ...editingStamp, institution: e.target.value })}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -536,7 +561,7 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="text"
                   value={editingStamp.motto}
                   onChange={(e) => setEditingStamp({ ...editingStamp, motto: e.target.value })}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -546,18 +571,30 @@ export const AdminTemplatesAndStampsTab: React.FC<AdminTemplatesAndStampsTabProp
                   type="color"
                   value={editingStamp.color}
                   onChange={(e) => setEditingStamp({ ...editingStamp, color: e.target.value })}
-                  className="w-full h-9 p-1 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
+                  className="w-full h-9 p-1 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button onClick={() => setEditingStamp(null)} className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold">Annuler</button>
-              <button onClick={handleSaveStamp} className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow">Enregistrer</button>
+              <button onClick={() => setEditingStamp(null)} className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Annuler</button>
+              <button onClick={handleSaveStamp} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1">Enregistrer</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirmation de suppression de modèle */}
+      <SmartConfirmModal
+        isOpen={!!confirmDeleteTemplate}
+        onClose={() => setConfirmDeleteTemplate(null)}
+        onConfirm={confirmDeleteTemplateAction}
+        title={`Supprimer le modèle « ${confirmDeleteTemplate?.title || ''} » ?`}
+        description="Ce modèle de lettre officielle sera définitivement supprimé de la bibliothèque."
+        actionType="delete"
+        riskLevel="high"
+        confirmLabel="Supprimer définitivement"
+      />
 
       {/* Live Preview Modal for Template */}
       {previewTemplate && (

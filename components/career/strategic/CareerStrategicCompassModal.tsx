@@ -15,7 +15,7 @@ import {
   Clock,
   Gauge
 } from 'lucide-react';
-import { StrategicCareerCompass, CareerPaceMode } from '../../types';
+import { StrategicCareerCompass, CareerPaceMode } from '../../../types';
 
 interface CareerStrategicCompassModalProps {
   isOpen: boolean;
@@ -63,7 +63,7 @@ export const CareerStrategicCompassModal: React.FC<CareerStrategicCompassModalPr
       <div className="bg-slate-900 border border-slate-700/70 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl text-indigo-400">
               <Compass size={24} className="animate-spin-slow" />
@@ -82,7 +82,7 @@ export const CareerStrategicCompassModal: React.FC<CareerStrategicCompassModalPr
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X size={20} />
           </button>
@@ -213,7 +213,7 @@ export const CareerStrategicCompassModal: React.FC<CareerStrategicCompassModalPr
             </div>
 
             {/* DIMENSION 4: CE QUE JE DOIS FAIRE MAINTENANT */}
-            <div className="bg-gradient-to-br from-indigo-900/40 to-slate-800/80 border border-indigo-500/50 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between hover:border-indigo-400 transition-all shadow-lg shadow-indigo-950/50">
+            <div className="bg-slate-800/80 border border-indigo-500/50 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between hover:border-indigo-400 transition-all shadow-lg shadow-indigo-950/50">
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
               <div>
                 <div className="flex items-center justify-between mb-3">

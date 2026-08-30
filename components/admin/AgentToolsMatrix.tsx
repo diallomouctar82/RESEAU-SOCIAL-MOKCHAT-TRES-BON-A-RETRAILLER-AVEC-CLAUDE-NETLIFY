@@ -127,7 +127,7 @@ export const AgentToolsMatrix: React.FC = () => {
                             <button
                                 onClick={() => toggleGlobal(row, !row.toolEnabled)}
                                 disabled={saving === row.toolId}
-                                className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${
+                                className={`shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-950 disabled:opacity-50 ${
                                     row.toolEnabled
                                         ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
                                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
@@ -147,7 +147,7 @@ export const AgentToolsMatrix: React.FC = () => {
                                         key={agent.id}
                                         onClick={() => toggleGrant(row, agent.id, !granted)}
                                         disabled={saving === key}
-                                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                                        className={`p-2.5 rounded-xl border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-950 disabled:opacity-50 ${
                                             granted
                                                 ? 'bg-blue-600/20 border-blue-500/50 text-white'
                                                 : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'

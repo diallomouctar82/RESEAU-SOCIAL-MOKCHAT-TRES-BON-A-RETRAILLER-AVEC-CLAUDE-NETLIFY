@@ -41,6 +41,7 @@ import {
 import { AdminUserRecord, SystemAuditLog } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { supabaseService } from '../../services/supabaseClient';
+import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 
 interface AdminUsersTabProps {
   users: AdminUserRecord[];
@@ -71,6 +72,11 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
   const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
   const [selectedKyc, setSelectedKyc] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'joined' | 'login' | 'credits' | 'name'>('joined');
+  // Les personas de démonstration fournies avec la plateforme (INITIAL_USERS
+  // dans adminConfigService.ts) restent mélangées aux vrais comptes tant que
+  // le sync Supabase ne les a pas recouvertes par email — masquées par
+  // défaut pour que cet écran reflète les comptes réels en priorité.
+  const [hideDemoSeed, setHideDemoSeed] = useState(true);
 
   // Cloud Sync & Diagnosis state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -87,6 +93,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
   const [creditReason, setCreditReason] = useState<string>('Bonus d’encouragement');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
 
   // New user form state
   const [newUserData, setNewUserData] = useState({
@@ -163,8 +170,9 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
     const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus;
     const matchesOrigin = selectedOrigin === 'all' || (user.origin || 'local_session') === selectedOrigin;
     const matchesKyc = selectedKyc === 'all' || (selectedKyc === 'verified' ? user.kycVerified : !user.kycVerified);
+    const matchesDemoFilter = !hideDemoSeed || !user.isDemoSeed;
 
-    return matchesSearch && matchesRole && matchesStatus && matchesOrigin && matchesKyc;
+    return matchesSearch && matchesRole && matchesStatus && matchesOrigin && matchesKyc && matchesDemoFilter;
   }).sort((a, b) => {
     if (sortBy === 'joined') return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime();
     if (sortBy === 'login') return b.lastLogin.localeCompare(a.lastLogin);
@@ -182,6 +190,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
   const totalCredits = users.reduce((acc, u) => acc + (u.credits || 0), 0);
   const expertsCount = users.filter(u => u.role === 'expert').length;
   const cloudCount = users.filter(u => u.origin === 'supabase_cloud').length;
+  const demoSeedCount = users.filter(u => u.isDemoSeed).length;
 
   const handleSaveEdit = () => {
     if (!editingUser) return;
@@ -214,10 +223,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
   };
 
   const handleDeleteUser = (id: string, name: string) => {
-    if (window.confirm(`Confirmez-vous la suppression définitive du compte de ${name} (${id}) ? Cette action est irréversible.`)) {
-      adminConfigService.deleteUser(id);
-      onReload();
-    }
+    setConfirmDeleteUser({ id, name });
+  };
+
+  const confirmDeleteUserAction = () => {
+    if (!confirmDeleteUser) return;
+    adminConfigService.deleteUser(confirmDeleteUser.id);
+    setConfirmDeleteUser(null);
+    onReload();
   };
 
   const handleToggleStatus = (user: AdminUserRecord) => {
@@ -312,7 +325,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
               <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
                 isSupabaseLive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               }`}>
-                <span className={`w-2 h-2 rounded-full ${isSupabaseLive ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
+                {isSupabaseLive ? (
+                  <span className="relative inline-flex w-2 h-2">
+                    <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-400"></span>
+                  </span>
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                )}
                 {isSupabaseLive ? 'Supabase Cloud Connecté (Temps Réel Actif)' : 'Mode Local-First Souverain'}
               </span>
               <span className="text-xs text-slate-300 font-mono flex items-center gap-1.5">
@@ -337,7 +357,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <button
               onClick={() => handleSyncCloud(false)}
               disabled={isSyncing}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2"
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950"
               title="Forcer la synchronisation avec la base Supabase"
             >
               <RefreshCw size={15} className={isSyncing ? 'animate-spin' : ''} />
@@ -347,7 +367,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <button
               onClick={handleRepairAllAccounts}
               disabled={isRepairing}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2"
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950"
               title="Scanner, réparer les anomalies et réconcilier tous les profils invisibles"
             >
               <Wrench size={15} className={isRepairing ? 'animate-spin' : ''} />
@@ -356,7 +376,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
 
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950"
             >
               <UserPlus size={15} />
               Créer un Compte
@@ -463,7 +483,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Tous les rôles ({totalCount})</option>
               <option value="super_admin">👑 Super-Administrateurs</option>
@@ -477,7 +497,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Tous statuts</option>
               <option value="active">🟢 Actif</option>
@@ -488,7 +508,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <select
               value={selectedOrigin}
               onChange={(e) => setSelectedOrigin(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Toutes origines</option>
               <option value="supabase_cloud">☁️ Supabase Cloud</option>
@@ -498,7 +518,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <select
               value={selectedKyc}
               onChange={(e) => setSelectedKyc(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Tous KYC</option>
               <option value="verified">✅ KYC Vérifié</option>
@@ -508,13 +528,23 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="joined">📅 Date Inscription</option>
               <option value="login">⏱️ Dernière Connexion</option>
               <option value="credits">🪙 Solde Crédits</option>
               <option value="name">🔤 Nom A-Z</option>
             </select>
+
+            {demoSeedCount > 0 && (
+              <button
+                onClick={() => setHideDemoSeed(prev => !prev)}
+                title="Les comptes de démonstration sont fournis avec la plateforme pour l'illustration — ce ne sont jamais de vrais membres."
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${hideDemoSeed ? 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100' : 'bg-amber-50 border-amber-300 text-amber-800'}`}
+              >
+                {hideDemoSeed ? `🎭 Comptes démo masqués (${demoSeedCount})` : `🎭 Comptes démo affichés (${demoSeedCount})`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -530,7 +560,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 <span>{selectedUserIds.length} sélectionné(s)</span>
                 <button
                   onClick={handleBatchApprove}
-                  className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] transition"
+                  className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                 >
                   Valider KYC & Activer
                 </button>
@@ -541,7 +571,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportCSV}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center gap-1.5"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               title="Exporter les utilisateurs en CSV"
             >
               <FileSpreadsheet size={14} />
@@ -550,7 +580,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
 
             <button
               onClick={handleExportJSON}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center gap-1.5"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               title="Exporter les utilisateurs en JSON"
             >
               <FileCode size={14} />
@@ -653,9 +683,9 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                         <button
                           onClick={() => handleToggleStatus(user)}
                           disabled={isSuperAdmin}
-                          className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase transition cursor-pointer flex items-center gap-1 ${
+                          className={`px-2.5 py-1 rounded-full font-bold text-[10px] uppercase transition cursor-pointer flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
                             user.status === 'active' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' :
-                            user.status === 'suspended' ? 'bg-rose-100 text-rose-800 hover:bg-rose-200' : 
+                            user.status === 'suspended' ? 'bg-rose-100 text-rose-800 hover:bg-rose-200' :
                             'bg-amber-100 text-amber-800 hover:bg-amber-200'
                           }`}
                           title="Cliquer pour basculer le statut"
@@ -666,11 +696,21 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
-                          user.origin === 'supabase_cloud' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {user.origin === 'supabase_cloud' ? '☁️ Supabase' : '💻 Local'}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+                            user.origin === 'supabase_cloud' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {user.origin === 'supabase_cloud' ? '☁️ Supabase' : '💻 Local'}
+                          </span>
+                          {user.isDemoSeed && (
+                            <span
+                              title="Compte de démonstration fourni avec la plateforme — jamais un vrai membre."
+                              className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200"
+                            >
+                              🎭 Démo
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4 font-medium text-slate-700">
@@ -681,7 +721,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                       <td className="py-3.5 px-4">
                         <button
                           onClick={() => setCreditModalUser(user)}
-                          className="font-mono font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg border border-blue-200 transition flex items-center gap-1"
+                          className="font-mono font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg border border-blue-200 transition flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                           title="Ajuster les crédits"
                         >
                           <Coins size={12} className="text-blue-500" />
@@ -695,27 +735,30 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleToggleKyc(user)}
-                            className={`p-1.5 rounded-lg transition ${user.kycVerified ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-slate-400 bg-slate-100 hover:bg-slate-200'}`}
+                            className={`p-2 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${user.kycVerified ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-slate-400 bg-slate-100 hover:bg-slate-200'}`}
                             title={user.kycVerified ? 'KYC Vérifié (cliquer pour révoquer)' : 'Valider KYC'}
+                            aria-label={user.kycVerified ? 'KYC Vérifié (cliquer pour révoquer)' : 'Valider KYC'}
                           >
                             <UserCheck size={14} />
                           </button>
 
                           <button
                             onClick={() => handleOpenHistory(user)}
-                            className="p-1.5 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-lg text-slate-600 transition"
+                            className="p-2 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-lg text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                             title="Voir l'historique et logs du compte"
+                            aria-label="Voir l'historique et logs du compte"
                           >
                             <History size={14} />
                           </button>
 
                           <button
                             onClick={() => setEditingUser({ ...user })}
-                            className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-600 transition"
+                            className="p-2 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                             title="Modifier profil & permissions RBAC"
+                            aria-label="Modifier profil & permissions RBAC"
                           >
                             <Edit size={14} />
                           </button>
@@ -723,8 +766,9 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                           {!isSuperAdmin && (
                             <button
                               onClick={() => handleDeleteUser(user.id, user.name)}
-                              className="p-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-lg text-slate-600 transition"
+                              className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-lg text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                               title="Supprimer définitivement"
+                              aria-label="Supprimer définitivement"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -752,9 +796,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Identifiant : {editingUser.id} • Passeport : {editingUser.citizenshipId || 'Non assigné'}</p>
               </div>
-              <button 
-                onClick={() => setEditingUser(null)} 
-                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+              <button
+                onClick={() => setEditingUser(null)}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
               >
                 <X size={18} />
               </button>
@@ -788,7 +833,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                   value={editingUser.title || ''}
                   onChange={(e) => setEditingUser({ ...editingUser, title: e.target.value })}
                   placeholder="ex: Avocat International, Citoyen Actif..."
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -799,7 +844,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                   value={editingUser.citizenshipId || ''}
                   onChange={(e) => setEditingUser({ ...editingUser, citizenshipId: e.target.value })}
                   placeholder="ex: LMAV-2026-XXXX-FR"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-900 outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -808,7 +853,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 <select
                   value={editingUser.role}
                   onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="super_admin">👑 Super-Administrateur Suprême</option>
                   <option value="admin">🛡️ Administrateur</option>
@@ -824,7 +869,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 <select
                   value={editingUser.status}
                   onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="active">🟢 Actif (Accès autorisé)</option>
                   <option value="pending">🟡 En attente de vérification</option>
@@ -840,7 +885,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                     type="number"
                     value={editingUser.credits}
                     onChange={(e) => setEditingUser({ ...editingUser, credits: Number(e.target.value) })}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-900 outline-none"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -853,14 +898,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                     value={editingUser.country}
                     onChange={(e) => setEditingUser({ ...editingUser, country: e.target.value })}
                     placeholder="Pays"
-                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <input
                     type="text"
                     value={editingUser.city || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, city: e.target.value })}
                     placeholder="Ville"
-                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -873,7 +918,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 onChange={(e) => setEditingUser({ ...editingUser, notes: e.target.value })}
                 rows={2}
                 placeholder="Historique particulier, notes de conformité ou motif d'attribution de privilèges..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -924,13 +969,13 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 onClick={() => setEditingUser(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Annuler
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Check size={14} />
                 Enregistrer les Modifications
@@ -955,7 +1000,11 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                   <p className="text-xs text-slate-500">{historyUser.email} • Inscrit le {historyUser.joinedAt}</p>
                 </div>
               </div>
-              <button onClick={() => setHistoryUser(null)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setHistoryUser(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -1017,7 +1066,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
             <div className="flex justify-end pt-3 border-t border-slate-100">
               <button
                 onClick={() => setHistoryUser(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Fermer
               </button>
@@ -1038,7 +1087,11 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 </h3>
                 <p className="text-xs text-slate-500">Solde actuel : <strong className="text-blue-700 font-mono">{creditModalUser.credits.toLocaleString()} Ⓒ</strong></p>
               </div>
-              <button onClick={() => setCreditModalUser(null)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setCreditModalUser(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -1050,7 +1103,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                   <button
                     type="button"
                     onClick={() => setCreditAdjustment(prev => prev - 50)}
-                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label="Diminuer de 50"
                   >
                     <Minus size={14} />
                   </button>
@@ -1058,12 +1112,13 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                     type="number"
                     value={creditAdjustment}
                     onChange={(e) => setCreditAdjustment(Number(e.target.value))}
-                    className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm font-mono font-bold text-blue-900 outline-none"
+                    className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm font-mono font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
                     type="button"
                     onClick={() => setCreditAdjustment(prev => prev + 50)}
-                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label="Augmenter de 50"
                   >
                     <Plus size={14} />
                   </button>
@@ -1080,7 +1135,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                   value={creditReason}
                   onChange={(e) => setCreditReason(e.target.value)}
                   placeholder="ex: Récompense contribution, compensation..."
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -1089,14 +1144,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
               <button
                 type="button"
                 onClick={() => setCreditModalUser(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Annuler
               </button>
               <button
                 type="button"
                 onClick={handleApplyCreditAdjustment}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Check size={14} />
                 Appliquer l'Ajustement
@@ -1118,7 +1173,12 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Le compte est instantanément persisté et synchronisé avec Supabase.</p>
               </div>
-              <button type="button" onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -1154,7 +1214,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                   <select
                     value={newUserData.role}
                     onChange={(e) => setNewUserData({ ...newUserData, role: e.target.value as any })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="citizen">Citoyen Standard</option>
                     <option value="expert">Expert Famille Diallo</option>
@@ -1169,7 +1229,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                     type="number"
                     value={newUserData.credits}
                     onChange={(e) => setNewUserData({ ...newUserData, credits: Number(e.target.value) })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-900 outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1181,7 +1241,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                     type="text"
                     value={newUserData.country}
                     onChange={(e) => setNewUserData({ ...newUserData, country: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -1191,7 +1251,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
                     type="text"
                     value={newUserData.city}
                     onChange={(e) => setNewUserData({ ...newUserData, city: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1201,13 +1261,13 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Check size={14} />
                 Créer & Synchroniser
@@ -1216,6 +1276,19 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ users, onReload })
           </form>
         </div>
       )}
+
+      {/* Confirmation de suppression de compte */}
+      <SmartConfirmModal
+        isOpen={!!confirmDeleteUser}
+        onClose={() => setConfirmDeleteUser(null)}
+        onConfirm={confirmDeleteUserAction}
+        title={`Supprimer le compte de ${confirmDeleteUser?.name || ''} ?`}
+        description={`Le compte ${confirmDeleteUser?.id || ''} sera définitivement supprimé de la plateforme.`}
+        actionType="delete"
+        riskLevel="critical"
+        dataAffectedNotice="Profil, historique d'audit, crédits et permissions associés à ce compte."
+        confirmLabel="Supprimer définitivement"
+      />
     </div>
   );
 };

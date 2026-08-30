@@ -92,10 +92,7 @@ export const CareerGoalSelector: React.FC<CareerGoalSelectorProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-xl relative overflow-hidden">
-      {/* Background Accent */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-full blur-3xl -z-10 pointer-events-none" />
-
+    <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-xl">
       {/* Header Banner */}
       <div className="max-w-3xl mb-8">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/60 text-blue-700 text-xs font-bold tracking-wide uppercase mb-3">

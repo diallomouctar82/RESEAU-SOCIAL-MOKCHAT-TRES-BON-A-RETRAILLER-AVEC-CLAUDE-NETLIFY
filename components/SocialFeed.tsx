@@ -5,8 +5,8 @@ import {
   FileText, ChevronLeft, MapPin, X, Bot, Camera, Image as ImageIcon, DollarSign, 
   Clock, Lock, Volume2, VolumeX, Music, Wand2, Zap, Globe, MessageSquare, Check, 
   Smile, Send, ChevronDown, ChevronUp, ArrowRight, Mic, Phone, PhoneCall, Paperclip, 
-  MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp, 
-  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle
+  MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp,
+  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle, Trash2, Archive
 } from 'lucide-react';
 import { 
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
@@ -24,14 +24,28 @@ import { LiveReplayModal } from './LiveReplayModal';
 import { cloudService } from '../services/cloud';
 import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
+import { interpretContentVoiceCommand, ContentVoiceAction } from '../services/content/contentVoiceCommands';
+import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
+import { interpretSocialVoiceCommand, SocialVoiceAction } from '../services/social/socialVoiceCommands';
+import { addToQueue } from '../services/architecte/syncQueue';
+import { checkNetworkStatus } from '../services/pwaService';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
   onOpenDirectChat?: (conversationId?: string, member?: MemberProfile) => void;
 }
 
+// Les posts de démonstration codés en dur (INITIAL_POSTS) restent mélangés au
+// fil réel pour la présentation ; leurs ids ('post-1', 'post-2'...) n'existent
+// pas dans la table `posts` réelle (clé uuid), donc commenter/réagir dessus ne
+// doit jamais tenter d'écrire en base — seuls les vrais posts (id uuid généré
+// par Postgres) ont des commentaires/réactions synchronisés avec Supabase.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRealPostId = (id: string) => UUID_RE.test(id);
+
 export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat }) => {
-  const { userProfile: currentUser, isSupabaseConnected } = useGlobal();
+  const { userProfile: currentUser, isSupabaseConnected, updateUserProfile } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
   const [feedFilter, setFeedFilter] = useState<'for_you' | 'following' | 'community' | 'tech' | 'legal' | 'business'>('for_you');
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,12 +56,24 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [reels, setReels] = useState<Reel[]>(REELS);
   const [lives, setLives] = useState<LiveStream[]>(ACTIVE_LIVES);
   const [members, setMembers] = useState<MemberProfile[]>(MOCK_MEMBERS);
+  const [friendships, setFriendships] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   // User Reactions & Bookmarks state
   const [userReactions, setUserReactions] = useState<{ [postId: string]: PostReactionType }>({ 'post-1': 'like', 'post-3': 'insightful' });
   const [bookmarkedPosts, setBookmarkedPosts] = useState<string[]>([]);
   const [showReactionPickerForPost, setShowReactionPickerForPost] = useState<string | null>(null);
+  // Menu "..." archiver/supprimer (LOOP 02/17, gouvernance du contenu) —
+  // un seul menu ouvert à la fois, identifié par l'id du post.
+  const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
+  // Retour visuel de la dernière commande vocale du composeur (LOOP 03/17)
+  // — toujours affiché EN PLUS d'être dit à voix haute, jamais l'un sans
+  // l'autre (l'écran reste visible pendant l'exécution).
+  const [voiceContentFeedback, setVoiceContentFeedback] = useState<string | null>(null);
+  // Découverte de personnes — LOOP 05/17.
+  const [voiceSocialFeedback, setVoiceSocialFeedback] = useState<string | null>(null);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [mutualFriendsCounts, setMutualFriendsCounts] = useState<Record<string, number>>({});
 
   // Comments State
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
@@ -61,6 +87,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [newPostVideo, setNewPostVideo] = useState<string | null>(null);
   const [newPostDocument, setNewPostDocument] = useState<PostDocument | null>(null);
+  // Fichiers bruts conservés séparément des aperçus ci-dessus (LOOP 01/17,
+  // moteur de contenu unifié) : `newPostImage` peut aussi être une URL déjà
+  // hébergée (image générée par l'IA, cf. handleApplyAIEnhancement) qui ne
+  // doit jamais être re-uploadée — seul un fichier sélectionné localement
+  // doit l'être, au moment de la publication (pas avant, pour ne pas
+  // uploader un brouillon jamais publié).
+  const [newPostImageFile, setNewPostImageFile] = useState<File | null>(null);
+  const [newPostVideoFile, setNewPostVideoFile] = useState<File | null>(null);
+  const [newPostDocumentFile, setNewPostDocumentFile] = useState<File | null>(null);
   const [newPostTags, setNewPostTags] = useState<string[]>([]);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -78,12 +113,88 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const [isCreateStoryOpen, setIsCreateStoryOpen] = useState(false);
   const [newStoryCaption, setNewStoryCaption] = useState('');
   const [newStoryImage, setNewStoryImage] = useState<string | null>(null);
+  const [newStoryImageFile, setNewStoryImageFile] = useState<File | null>(null);
 
   // File Input References
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Chargement des membres — extrait de l'effet de montage (LOOP 05/17)
+  // pour être réutilisable par la recherche de personnes (bouton/voix),
+  // pas seulement au premier chargement. `query` absent = comportement
+  // historique (liste des profils pour le fil).
+  const loadMembers = async (query?: string) => {
+    if (!supabaseService.isConfigured()) return;
+    const profiles = await supabaseService.searchProfiles(query);
+    if (!profiles || profiles.length === 0) return;
+    const rawFriendships = currentUser.id ? await supabaseService.getFriendshipsForUser(currentUser.id) : [];
+    setFriendships(rawFriendships);
+    // Abonnement (follow) et blocage — LOOP 04/17 : deux relations
+    // réelles et indépendantes de l'amitié, jamais recalculées à
+    // partir de friendshipStatus (qui ne représente que l'amitié).
+    const [followingIds, blockedIds] = currentUser.id
+      ? await Promise.all([
+          supabaseService.getFollowingIdsForUser(currentUser.id),
+          supabaseService.getBlockedUserIds(currentUser.id)
+        ])
+      : [[], []];
+
+    const mappedMembers: MemberProfile[] = profiles.map(p => {
+      const rel = rawFriendships.find((f: any) => f.requester_id === p.id || f.addressee_id === p.id);
+      let friendshipStatus: MemberProfile['friendshipStatus'] = 'none';
+      if (rel) {
+        if (rel.status === 'accepted') friendshipStatus = 'friends';
+        else if (rel.requester_id === currentUser.id) friendshipStatus = 'pending_sent';
+        else friendshipStatus = 'pending_received';
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+        title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
+        bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
+        location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
+        joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
+        isVerified: p.is_verified ?? true,
+        isFollowing: followingIds.includes(p.id),
+        isBlockedByMe: blockedIds.includes(p.id),
+        friendshipStatus,
+        friendshipId: rel?.id,
+        followersCount: p.followers_count ?? 12,
+        followingCount: p.following_count ?? 8,
+        postsCount: 5,
+        storiesCount: 2,
+        reelsCount: 1,
+        livesCount: 0,
+        skills: p.skills?.map((s: any) => s.name) || [],
+        privacySettings: p.privacy_settings || {
+          profileVisibility: 'public',
+          allowMessagesFrom: 'all',
+          showOnlineStatus: true,
+          allowTagging: true,
+          showActivityFeed: true,
+          allowFriendRequestsFrom: 'all',
+          showFollowersList: true,
+          showFollowingList: true
+        }
+      };
+    });
+    // Une recherche explicite ne mélange pas les résultats avec les
+    // membres de démonstration (MOCK_MEMBERS) — ceux-ci ne servent qu'à
+    // peupler le fil par défaut quand aucune recherche n'est en cours.
+    const mergedMembers = [...mappedMembers];
+    if (!query) {
+      MOCK_MEMBERS.forEach(mockM => {
+        if (!mergedMembers.some(m => m.name.toLowerCase() === mockM.name.toLowerCase())) {
+          mergedMembers.push(mockM);
+        }
+      });
+    }
+    setMembers(mergedMembers);
+  };
 
   // Load Cloud Data on mount
   useEffect(() => {
@@ -95,25 +206,82 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         if (supabaseService.isConfigured()) {
           const remotePosts = await supabaseService.getPosts();
           if (remotePosts && remotePosts.length > 0) {
-            fetched = remotePosts.map(rp => ({
-              id: rp.id,
-              authorId: rp.author_id,
-              authorName: rp.author_name,
-              authorAvatar: rp.author_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-              authorTitle: rp.author_role || 'Membre Communauté',
-              content: rp.content,
-              imageUrl: rp.image_url,
-              videoUrl: rp.video_url,
-              document: rp.document,
-              category: rp.category || 'Général',
-              tags: rp.tags || [],
-              visibility: rp.visibility || 'public',
-              timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              likes: rp.likes_count || 0,
-              comments: rp.comments_count || 0,
-              reactions: rp.reactions || { like: rp.likes_count || 0 },
-              commentsList: []
-            }));
+            const postIds = remotePosts.map(rp => rp.id);
+            const [remoteComments, remoteReactions] = await Promise.all([
+              supabaseService.getCommentsForPosts(postIds),
+              supabaseService.getReactionsForPosts(postIds)
+            ]);
+
+            const mapComment = (rc: any): Comment => ({
+              id: rc.id,
+              authorId: rc.author_id,
+              postId: rc.post_id,
+              parentCommentId: rc.parent_comment_id || undefined,
+              authorName: rc.author?.name || 'Membre',
+              authorAvatar: rc.author?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+              content: rc.content,
+              timestamp: new Date(rc.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              likes: rc.likes_count || 0,
+              replies: []
+            });
+
+            const initialReactions: { [postId: string]: PostReactionType } = {};
+
+            fetched = remotePosts.map(rp => {
+              const postComments = remoteComments.filter(rc => rc.post_id === rp.id).map(mapComment);
+              const topLevelComments = postComments.filter(c => !c.parentCommentId);
+              topLevelComments.forEach(c => {
+                c.replies = postComments.filter(rc => rc.parentCommentId === c.id);
+              });
+
+              const postReactions = remoteReactions.filter(rr => rr.post_id === rp.id);
+              const reactionCounts = postReactions.reduce((acc, rr) => {
+                acc[rr.type as PostReactionType] = (acc[rr.type as PostReactionType] || 0) + 1;
+                return acc;
+              }, {} as Record<PostReactionType, number>);
+              const mine = postReactions.find(rr => rr.user_id === currentUser.id);
+              if (mine) initialReactions[rp.id] = mine.type as PostReactionType;
+
+              // post_documents!post_documents_post_id_fkey renvoie un tableau
+              // (relation 1-N côté PostgREST même si l'UI n'affiche qu'un
+              // seul document par post pour l'instant) — voir LOOP 01/17.
+              const rawDoc = Array.isArray(rp.post_documents) ? rp.post_documents[0] : undefined;
+              const document: PostDocument | undefined = rawDoc ? {
+                name: rawDoc.name,
+                url: rawDoc.url,
+                size: typeof rawDoc.size === 'number' ? `${(rawDoc.size / (1024 * 1024)).toFixed(1)} MB` : String(rawDoc.size || ''),
+                type: rawDoc.type,
+                pageCount: rawDoc.page_count || undefined
+              } : undefined;
+
+              return {
+                id: rp.id,
+                authorId: rp.author_id,
+                authorName: rp.author?.name || 'Membre',
+                authorAvatar: rp.author?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+                authorTitle: rp.author?.title || 'Membre Communauté',
+                content: rp.content,
+                imageUrl: rp.image_url,
+                videoUrl: rp.video_url || undefined,
+                audioUrl: rp.audio_url || undefined,
+                document,
+                category: rp.category || 'Général',
+                tags: rp.tags || [],
+                visibility: rp.visibility || 'public',
+                status: rp.status || 'published',
+                format: rp.format || 'text',
+                scheduledAt: rp.scheduled_at || undefined,
+                sourceType: rp.source_type || undefined,
+                sourceId: rp.source_id || undefined,
+                timestamp: new Date(rp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                likes: postReactions.length,
+                comments: postComments.length,
+                reactions: reactionCounts,
+                commentsList: topLevelComments
+              };
+            });
+
+            setUserReactions(prev => ({ ...prev, ...initialReactions }));
           }
         }
 
@@ -133,45 +301,34 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           setPosts(INITIAL_POSTS);
         }
 
-        // 2. Fetch Members from Supabase if connected
+        // 2. Fetch Stories from Supabase if connected — la table `stories`
+        // existe et est RLS-protégée depuis le début du projet mais n'était
+        // jamais consommée par le client avant cette LOOP (voir handleCreateStory).
+        // `getStories()` filtre déjà `expires_at > now()` côté requête.
         if (supabaseService.isConfigured()) {
-          const profiles = await supabaseService.searchProfiles();
-          if (profiles && profiles.length > 0) {
-            const mappedMembers: MemberProfile[] = profiles.map(p => ({
-              id: p.id,
-              name: p.name,
-              avatarUrl: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
-              title: p.title || (p.role === 'admin' ? 'Administrateur' : 'Citoyen du Monde'),
-              bio: p.bio || 'Membre vérifié de la communauté Le Monde à Vous.',
-              location: `${p.city || 'Paris'}, ${p.country || 'France'}`,
-              joinedDate: p.created_at ? new Date(p.created_at).getFullYear().toString() : '2025',
-              isVerified: p.is_verified ?? true,
-              isFollowing: false,
-              followersCount: p.followers_count ?? 12,
-              followingCount: p.following_count ?? 8,
-              postsCount: 5,
-              storiesCount: 2,
-              reelsCount: 1,
-              livesCount: 0,
-              skills: p.skills?.map(s => s.name) || ['Coopération', 'Tech'],
-              privacySettings: p.privacy_settings || {
-                profileVisibility: 'public',
-                allowMessagesFrom: 'all',
-                showOnlineStatus: true,
-                allowTagging: true,
-                showActivityFeed: true
-              }
-            }));
-            // Merge with MOCK_MEMBERS
-            const mergedMembers = [...mappedMembers];
-            MOCK_MEMBERS.forEach(mockM => {
-              if (!mergedMembers.some(m => m.name.toLowerCase() === mockM.name.toLowerCase())) {
-                mergedMembers.push(mockM);
-              }
-            });
-            setMembers(mergedMembers);
+          try {
+            const remoteStories = await supabaseService.getStories();
+            if (remoteStories && remoteStories.length > 0) {
+              const mappedStories: Story[] = remoteStories.map((rs: any) => ({
+                id: rs.id,
+                author: rs.author?.name || 'Membre',
+                authorId: rs.author_id,
+                avatar: rs.author?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+                isLive: !!rs.is_live,
+                mediaUrl: rs.media_url,
+                caption: rs.caption || undefined,
+                timestamp: new Date(rs.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                viewersCount: rs.viewers_count || 0
+              }));
+              setStories(mappedStories);
+            }
+          } catch (e) {
+            console.warn('Could not fetch stories from Supabase', e);
           }
         }
+
+        // 3. Fetch Members from Supabase if connected
+        await loadMembers();
       } catch (e) {
         console.warn("Using default initial posts", e);
         setPosts(INITIAL_POSTS);
@@ -181,6 +338,27 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     };
     fetchPostsAndMembers();
   }, []);
+
+  // Recommandation explicable, sans fuite d'information privée — LOOP
+  // 05/17 : un nombre d'amis en commun (jamais leur identité) pour les
+  // suggestions actuellement affichées, borné à 4 appels.
+  useEffect(() => {
+    if (!currentUser.id) return;
+    const suggested = members.filter(m => m.id !== currentUser.id && isRealMemberId(m.id) && mutualFriendsCounts[m.id] === undefined).slice(0, 4);
+    if (suggested.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(suggested.map(async (m) => [m.id, await supabaseService.getMutualFriendsCount(currentUser.id!, m.id)] as const));
+      if (!cancelled) {
+        setMutualFriendsCounts(prev => {
+          const next = { ...prev };
+          entries.forEach(([id, count]) => { next[id] = count; });
+          return next;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [members, currentUser.id]);
 
   // Filter posts dynamically based on selected feed filter & search
   const filteredPosts = posts.filter(post => {
@@ -204,25 +382,155 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     return true; // 'for_you' & 'community' show all with high relevance
   });
 
-  // Toggle Follow on Member
-  const handleToggleFollow = (memberId: string) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id === memberId) {
-        const nextState = !m.isFollowing;
-        return {
-          ...m,
-          isFollowing: nextState,
-          followersCount: m.followersCount + (nextState ? 1 : -1)
-        };
+  // Demandes d'amis : envoi / annulation / acceptation / refus / suppression.
+  // Les membres de démonstration (MOCK_MEMBERS, ids 'u2'/'u3'/...) n'ont pas
+  // de ligne réelle dans `profiles` — leur clic reste local uniquement,
+  // exactement comme pour isRealPostId côté posts.
+  const isRealMemberId = (id: string) => UUID_RE.test(id);
+
+  const handleFriendAction = async (memberId: string, action: 'send' | 'cancel' | 'accept' | 'decline' | 'remove') => {
+    const member = members.find(m => m.id === memberId);
+    if (!member) return;
+    const canSync = supabaseService.isConfigured() && !!currentUser.id && isRealMemberId(memberId);
+
+    if (action === 'send') {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'pending_sent' } : m));
+      if (canSync) {
+        try {
+          await supabaseService.sendFriendRequest(currentUser.id!, memberId);
+          const refreshed = await supabaseService.getFriendshipsForUser(currentUser.id!);
+          setFriendships(refreshed);
+          const rel = refreshed.find((f: any) => f.requester_id === memberId || f.addressee_id === memberId);
+          setMembers(prev => prev.map(m => m.id === memberId ? {
+            ...m,
+            friendshipId: rel?.id,
+            friendshipStatus: rel?.status === 'accepted' ? 'friends' : 'pending_sent',
+            isFollowing: rel?.status === 'accepted'
+          } : m));
+        } catch (err) {
+          console.warn('Could not send friend request', err);
+          setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'none' } : m));
+        }
       }
-      return m;
-    }));
+      return;
+    }
+
+    // accept / decline / cancel / remove agissent tous sur une relation déjà
+    // existante (friendshipId) — pas d'action possible sans elle.
+    const friendshipId = member.friendshipId;
+    if (action === 'accept') {
+      const previous = members.find(m => m.id === memberId);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'friends', isFollowing: true } : m));
+      if (canSync && friendshipId) {
+        try {
+          await supabaseService.acceptFriendRequest(friendshipId);
+        } catch (err) {
+          // Une amitié affichée mais jamais enregistrée est un mensonge à
+          // deux : l'autre personne ne devient jamais votre amie et ne le
+          // saura jamais. On rétablit l'état réel plutôt que de laisser
+          // croire à une acceptation.
+          console.warn('Could not accept friend request', err);
+          setMembers(prev => prev.map(m => m.id === memberId ? {
+            ...m,
+            friendshipStatus: previous?.friendshipStatus ?? 'pending_received',
+            isFollowing: previous?.isFollowing ?? false
+          } : m));
+          alert("L'acceptation n'a pas pu être enregistrée. La demande est toujours en attente — réessayez.");
+        }
+      }
+      return;
+    }
+
+    // cancel (demande envoyée par moi), decline (demande reçue) et remove
+    // (ami existant) suppriment tous la même ligne côté base.
+    const beforeRemoval = members.find(m => m.id === memberId);
+    setMembers(prev => prev.map(m => m.id === memberId ? {
+      ...m,
+      friendshipStatus: 'none',
+      friendshipId: undefined,
+      isFollowing: false,
+      followersCount: action === 'remove' ? Math.max(0, m.followersCount - 1) : m.followersCount
+    } : m));
+    if (canSync && friendshipId) {
+      try {
+        await supabaseService.removeFriendship(friendshipId);
+      } catch (err) {
+        // Même principe : une relation retirée à l'écran mais toujours
+        // présente en base réapparaît au rechargement suivant.
+        console.warn('Could not remove friendship', err);
+        if (beforeRemoval) setMembers(prev => prev.map(m => m.id === memberId ? beforeRemoval : m));
+        alert("La modification n'a pas pu être enregistrée. Réessayez.");
+      }
+    }
+  };
+
+  // Abonnement (follow) — LOOP 04/17. Modèle unilatéral et réel, distinct
+  // de l'amitié : ne touche jamais friendshipStatus.
+  const handleToggleFollow = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (!member) return;
+    const nextFollowing = !member.isFollowing;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isFollowing: nextFollowing } : m));
+    if (supabaseService.isConfigured() && currentUser.id && isRealMemberId(memberId)) {
+      try {
+        if (nextFollowing) {
+          await supabaseService.followUser(currentUser.id, memberId);
+        } else {
+          await supabaseService.unfollowUser(currentUser.id, memberId);
+        }
+      } catch (err) {
+        console.warn('Could not update follow state', err);
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isFollowing: !nextFollowing } : m));
+        if (nextFollowing) alert("Impossible de suivre ce membre pour le moment.");
+      }
+    }
+  };
+
+  // Blocage — LOOP 04/17. Action forte et personnelle, distincte du
+  // signalement (qui remonte à la modération) : confirmée explicitement
+  // car elle met fin, dans le même geste, à toute amitié/abonnement.
+  const handleBlockUser = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (!member || !currentUser.id || !isRealMemberId(memberId)) return;
+    if (!window.confirm(`Bloquer ${member.name} ? Cela mettra fin à votre amitié et à tout abonnement mutuel, et l'empêchera de vous contacter ou de vous envoyer une demande. Vous pourrez débloquer cette personne à tout moment.`)) return;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: true, friendshipStatus: 'none', friendshipId: undefined, isFollowing: false } : m));
+    setSelectedMemberForProfile(null);
+    try {
+      await supabaseService.blockUser(currentUser.id, memberId);
+    } catch (err) {
+      // Un blocage affiché mais jamais enregistré est le plus dangereux des
+      // faux succès de cet écran : la personne peut toujours écrire, suivre
+      // et envoyer des demandes, alors que l'utilisateur se croit protégé.
+      // On rétablit l'état réel et on le dit clairement.
+      console.warn('Could not block user', err);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: false } : m));
+      alert(`Le blocage n'a PAS pu être enregistré. ${member.name} n'est donc pas bloqué(e) et peut toujours vous contacter. Réessayez.`);
+    }
+  };
+
+  const handleUnblockUser = async (memberId: string) => {
+    if (!currentUser.id || !isRealMemberId(memberId)) return;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: false } : m));
+    try {
+      await supabaseService.unblockUser(currentUser.id, memberId);
+    } catch (err) {
+      console.warn('Could not unblock user', err);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: true } : m));
+      alert("Le déblocage n'a pas pu être enregistré. La personne reste bloquée — réessayez.");
+    }
+  };
+
+  // Recherche de personnes — LOOP 05/17. Une requête vide revient à la
+  // liste par défaut (comportement historique), jamais un fil vide.
+  const runMemberSearch = (query: string) => {
+    loadMembers(query.trim() || undefined);
   };
 
   // Reactions Handler
-  const handleReaction = (postId: string, reactionType: PostReactionType) => {
+  const handleReaction = async (postId: string, reactionType: PostReactionType) => {
     const currentReaction = userReactions[postId];
     const newReactionsMap = { ...userReactions };
+    const isRemoving = currentReaction === reactionType;
 
     const postIndex = posts.findIndex(p => p.id === postId);
     if (postIndex === -1) return;
@@ -257,6 +565,27 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     newPosts[postIndex] = updatedPost;
     setPosts(newPosts);
     cloudService.savePost(updatedPost);
+
+    if (supabaseService.isConfigured() && currentUser.id && isRealPostId(postId)) {
+      try {
+        if (isRemoving) {
+          await supabaseService.removeReaction(postId, currentUser.id);
+        } else {
+          await supabaseService.setReaction(postId, currentUser.id, reactionType);
+        }
+      } catch (err) {
+        // Une réaction est une action à faible enjeu : pas d'alerte
+        // bloquante (« un like n'a pas besoin d'un accusé », principe déjà
+        // retenu pour les notifications), mais l'état local revient à la
+        // vérité serveur plutôt que d'afficher un compteur inventé qui
+        // disparaîtrait au rechargement.
+        console.warn('Could not sync reaction to Supabase', err);
+        setUserReactions(userReactions);
+        const reverted = [...posts];
+        reverted[postIndex] = post;
+        setPosts(reverted);
+      }
+    }
   };
 
   // Toggle Bookmark
@@ -269,7 +598,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   };
 
   // Comments & Replies
-  const handleAddComment = (postId: string) => {
+  const handleAddComment = async (postId: string) => {
     if (!commentInput.trim()) return;
 
     const postIndex = posts.findIndex(p => p.id === postId);
@@ -277,24 +606,49 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
     const post = posts[postIndex];
     const currentComments = post.commentsList || [];
+    const commentContent = commentInput.trim();
+    const canSyncToSupabase = supabaseService.isConfigured() && !!currentUser.id && isRealPostId(postId);
 
     if (replyingToCommentId) {
       // Add nested reply
+      const parentCommentId = replyingToCommentId;
+      const newReply: Comment = {
+        id: `reply-${Date.now()}`,
+        parentCommentId,
+        postId,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorAvatar: currentUser.avatarUrl,
+        content: commentContent,
+        timestamp: 'À l\'instant',
+        likes: 0
+      };
+
+      if (canSyncToSupabase) {
+        try {
+          const inserted = await supabaseService.createComment({
+            post_id: postId,
+            author_id: currentUser.id!,
+            content: commentContent,
+            parent_comment_id: parentCommentId
+          });
+          if (!inserted) throw new Error('createComment returned no row');
+          newReply.id = inserted.id;
+        } catch (err) {
+          // Même défaut que la publication elle-même : une réponse affichée
+          // sans avoir été enregistrée disparaît au rechargement et n'est
+          // jamais vue par personne d'autre.
+          console.warn('Could not sync reply to Supabase', err);
+          alert("Votre réponse n'a pas pu être publiée. Réessayez.");
+          return;
+        }
+      }
+
       const updatedList = currentComments.map(c => {
-        if (c.id === replyingToCommentId) {
+        if (c.id === parentCommentId) {
           return {
             ...c,
-            replies: [
-              ...(c.replies || []),
-              {
-                id: `reply-${Date.now()}`,
-                authorName: currentUser.name,
-                authorAvatar: currentUser.avatarUrl,
-                content: commentInput.trim(),
-                timestamp: 'À l\'instant',
-                likes: 0
-              }
-            ]
+            replies: [...(c.replies || []), newReply]
           };
         }
         return c;
@@ -315,13 +669,34 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       // Add top-level comment
       const newCmt: Comment = {
         id: `cmt-${Date.now()}`,
+        postId,
+        authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatarUrl,
-        content: commentInput.trim(),
+        content: commentContent,
         timestamp: 'À l\'instant',
         likes: 0,
         replies: []
       };
+
+      if (canSyncToSupabase) {
+        try {
+          const inserted = await supabaseService.createComment({
+            post_id: postId,
+            author_id: currentUser.id!,
+            content: commentContent
+          });
+          if (!inserted) throw new Error('createComment returned no row');
+          newCmt.id = inserted.id;
+        } catch (err) {
+          // Idem : ne jamais afficher un commentaire qui n'existe pas
+          // réellement côté serveur — il serait invisible pour l'auteur du
+          // post comme pour tout le monde, et disparaîtrait au rechargement.
+          console.warn('Could not sync comment to Supabase', err);
+          alert("Votre commentaire n'a pas pu être publié. Réessayez.");
+          return;
+        }
+      }
 
       const updatedPost: Post = {
         ...post,
@@ -338,27 +713,25 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setCommentInput('');
   };
 
-  // Upload Handlers
+  // Upload Handlers — aperçu local léger (objectURL) + fichier brut conservé
+  // pour un vrai upload Supabase Storage au moment de la publication
+  // (LOOP 01/17, moteur de contenu unifié). Remplace le pattern base64
+  // historique : plus léger en mémoire, et surtout l'URL finale persistée
+  // sera une vraie URL hébergée qui survit au rechargement, pas un blob/
+  // data URL local.
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setNewPostImage(reader.result as string);
-      reader.readAsDataURL(file);
+      setNewPostImageFile(file);
+      setNewPostImage(URL.createObjectURL(file));
     }
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Convert to persistent Data URL (Base64) to ensure video can be replayed after save, refresh, or session restart
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setNewPostVideo(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      setNewPostVideoFile(file);
+      setNewPostVideo(URL.createObjectURL(file));
     }
   };
 
@@ -366,11 +739,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     const file = e.target.files?.[0];
     if (file) {
       const sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
-      const url = URL.createObjectURL(file);
+      setNewPostDocumentFile(file);
       setNewPostDocument({
         name: file.name,
         size: sizeStr,
-        url: url,
+        url: URL.createObjectURL(file),
         type: file.name.endsWith('.pdf') ? 'pdf' : 'doc',
         pageCount: 1
       });
@@ -384,11 +757,102 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     if (generatedImageUrl) setNewPostImage(generatedImageUrl);
   };
 
-  // Create Post Submit
-  const handlePublishPost = async () => {
-    if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return;
+  // Create Post Submit — `asDraft` implémente la distinction absolue
+  // « préparer ≠ publier » du moteur de contenu unifié (LOOP 01/17) : un
+  // brouillon est écrit avec status='draft' et n'est jamais visible par
+  // personne d'autre que son auteur (voir la policy RLS posts_select_visible,
+  // corrigée dans cette même LOOP pour ne plus dépendre uniquement de
+  // `visibility`).
+  // Renvoie le résultat RÉEL de la publication (LOOP Architecte — pont
+  // d'exécution) : le bus de capacités doit pouvoir rapporter `done` ou
+  // `failed` selon ce qui s'est vraiment passé, jamais un succès supposé.
+  // Les appelants existants (boutons du composeur, dispatcher vocal)
+  // ignorent simplement la valeur — comportement inchangé pour eux.
+  const resetComposer = () => {
+    setNewPostContent('');
+    setNewPostImage(null);
+    setNewPostVideo(null);
+    setNewPostDocument(null);
+    setNewPostImageFile(null);
+    setNewPostVideoFile(null);
+    setNewPostDocumentFile(null);
+    setNewPostTags([]);
+    setIsComposerFocused(false);
+  };
+
+  /**
+   * Trois issues distinctes, jamais réduites à un booléen : `queued` est un
+   * état réel — la publication n'est ni partie ni perdue — et le confondre
+   * avec `published` serait exactement le faux succès que ce fichier évite
+   * partout ailleurs.
+   */
+  const handlePublishPost = async (asDraft: boolean = false): Promise<'published' | 'queued' | 'failed'> => {
+    if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return 'failed';
 
     setIsPublishing(true);
+
+    let finalImageUrl = newPostImage || undefined;
+    let finalVideoUrl = newPostVideo || undefined;
+    let finalDocument = newPostDocument || undefined;
+    const canUpload = supabaseService.isConfigured() && !!currentUser.id;
+
+    if (canUpload) {
+      // Upload réel vers Supabase Storage (LOOP 01/17) — uniquement pour les
+      // fichiers sélectionnés localement ; une image déjà hébergée (générée
+      // par l'IA via handleApplyAIEnhancement, par ex.) n'est jamais
+      // re-uploadée. Résilience (LOOP 03/17) : `newPostImage`/`newPostVideo`
+      // ne sont, à ce stade, que des objectURL locaux (voir
+      // handleImageSelect/handleVideoSelect) qui ne survivraient ni à un
+      // rechargement de page ni à un autre utilisateur — un échec d'upload
+      // doit donc annuler la publication plutôt que d'enregistrer cette
+      // référence morte comme si elle était valide (jamais de faux succès).
+      try {
+        if (newPostImageFile) {
+          const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostImageFile, 'posts');
+          if (!url) throw new Error('upload image failed');
+          finalImageUrl = url;
+        }
+        if (newPostVideoFile) {
+          const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostVideoFile, 'posts');
+          if (!url) throw new Error('upload video failed');
+          finalVideoUrl = url;
+        }
+        if (newPostDocumentFile && newPostDocument) {
+          const url = await supabaseService.uploadContentMedia(currentUser.id!, newPostDocumentFile, 'documents');
+          if (!url) throw new Error('upload document failed');
+          finalDocument = { ...newPostDocument, url };
+        }
+      } catch (err) {
+        console.warn('Could not upload post media to Supabase Storage', err);
+        alert("L'envoi du média a échoué (connexion instable ?). La publication n'a pas été enregistrée — réessayez.");
+        setIsPublishing(false);
+        return 'failed';
+      }
+    } else if (newPostImageFile || newPostVideoFile || newPostDocumentFile) {
+      // Pas de session Supabase active (mode démo/hors ligne) : repli sur le
+      // comportement historique — une Data URL base64 auto-suffisante
+      // (contrairement à un objectURL, elle survit au rechargement de page
+      // et à la persistance IndexedDB via cloudService, cf. LOOP 03/17).
+      const toDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('read failed')));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      try {
+        if (newPostImageFile) finalImageUrl = await toDataUrl(newPostImageFile);
+        if (newPostVideoFile) finalVideoUrl = await toDataUrl(newPostVideoFile);
+        if (newPostDocumentFile && newPostDocument) finalDocument = { ...newPostDocument, url: await toDataUrl(newPostDocumentFile) };
+      } catch (err) {
+        console.warn('Could not read local media file', err);
+        alert("La lecture du fichier a échoué. Réessayez.");
+        setIsPublishing(false);
+        return 'failed';
+      }
+    }
+
+    const format: string = finalVideoUrl ? 'video' : finalDocument ? 'document' : finalImageUrl ? 'image' : 'text';
+
     const newPost: Post = {
       id: `post-${Date.now()}`,
       authorId: currentUser.id || 'u1',
@@ -396,13 +860,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       authorAvatar: currentUser.avatarUrl,
       authorTitle: currentUser.title || 'Membre Communauté',
       content: newPostContent,
-      imageUrl: newPostImage || undefined,
-      videoUrl: newPostVideo || undefined,
-      document: newPostDocument || undefined,
+      imageUrl: finalImageUrl,
+      videoUrl: finalVideoUrl,
+      document: finalDocument,
       category: newPostCategory,
       tags: newPostTags.length > 0 ? newPostTags : undefined,
       visibility: newPostVisibility,
-      timestamp: 'À l\'instant',
+      status: asDraft ? 'draft' : 'published',
+      format: format as Post['format'],
+      timestamp: asDraft ? 'Brouillon' : 'À l\'instant',
       likes: 0,
       comments: 0,
       shares: 0,
@@ -410,65 +876,479 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       commentsList: []
     };
 
-    const updatedPosts = [newPost, ...posts];
-    setPosts(updatedPosts);
-
-    // Save to Supabase if connected
-    if (supabaseService.isConfigured()) {
+    if (canUpload) {
       try {
-        await supabaseService.createPost({
-          id: newPost.id,
-          author_id: currentUser.id || 'u1',
-          author_name: currentUser.name,
-          author_role: currentUser.title || 'Citoyen',
-          author_avatar: currentUser.avatarUrl,
+        const inserted = await supabaseService.createPost({
+          author_id: currentUser.id,
           content: newPost.content,
           image_url: newPost.imageUrl,
           video_url: newPost.videoUrl,
-          document: newPost.document,
           category: newPost.category,
           tags: newPost.tags || [],
           visibility: newPost.visibility,
-          likes_count: 0,
-          comments_count: 0,
-          reactions: { like: 0 }
+          status: newPost.status,
+          format: newPost.format
         });
+        if (!inserted) throw new Error('createPost returned no row');
+        newPost.id = inserted.id;
+        if (finalDocument) {
+          try {
+            await supabaseService.createPostDocument({
+              post_id: inserted.id,
+              name: finalDocument.name,
+              url: finalDocument.url,
+              size: newPostDocumentFile?.size ?? 0,
+              type: finalDocument.type,
+              page_count: finalDocument.pageCount
+            });
+          } catch (docErr) {
+            console.warn('Post created but its document could not be attached', docErr);
+          }
+        }
       } catch (err) {
+        // Hors-ligne : la publication n'est ni partie ni perdue — elle entre
+        // dans la file de synchronisation de l'Architecte et sera envoyée
+        // automatiquement au retour du réseau, avec son identifiant de tâche
+        // comme ancre d'idempotence (jamais de doublon si le rejeu croise une
+        // écriture qui avait finalement abouti).
+        //
+        // Uniquement pour un contenu SANS fichier local : un média
+        // sélectionné sur l'appareil ne peut pas être mis en file — il ne
+        // survivrait pas au rechargement de la page, et le stockage du
+        // navigateur n'est pas dimensionné pour des vidéos. On le dit
+        // franchement plutôt que de promettre un envoi qui n'aurait pas lieu.
+        const hasLocalMedia = !!(newPostImageFile || newPostVideoFile || newPostDocumentFile);
+        if (!checkNetworkStatus() && !hasLocalMedia) {
+          const queuedId = addToQueue('CREATE_POST', {
+            authorId: currentUser.id,
+            content: newPostContent,
+            visibility: newPostVisibility,
+            status: asDraft ? 'draft' : 'published',
+            category: newPostCategory,
+            tags: newPostTags,
+            format,
+          });
+          if (queuedId) {
+            alert("Vous êtes hors ligne. Votre publication est mise en attente et partira automatiquement dès le retour du réseau.");
+            resetComposer();
+            setIsPublishing(false);
+            return 'queued';
+          }
+          // `addToQueue` a renvoyé null : le stockage du navigateur a refusé
+          // d'enregistrer. On ne prétend surtout pas que c'est en attente.
+        }
+        // Ne jamais faire croire à une publication réussie si l'écriture en
+        // base a réellement échoué (ex. contrainte de visibilité) — même
+        // discipline que l'échec d'upload média ci-dessus : on annule
+        // plutôt que d'ajouter un post fantôme à l'état local/IndexedDB.
         console.warn('Could not save post to Supabase', err);
+        alert(
+          checkNetworkStatus()
+            ? "La publication a échoué (le serveur a refusé l'enregistrement). Réessayez."
+            : "Vous êtes hors ligne et cette publication n'a pas pu être mise en attente. Réessayez une fois reconnecté."
+        );
+        setIsPublishing(false);
+        return 'failed';
       }
     }
-    await cloudService.savePost(newPost);
 
-    // Reset Composer
-    setNewPostContent('');
-    setNewPostImage(null);
-    setNewPostVideo(null);
-    setNewPostDocument(null);
-    setNewPostTags([]);
-    setIsComposerFocused(false);
+    // Un brouillon n'apparaît pas dans le fil (il n'est visible que par son
+    // auteur, sur un futur écran de gestion de brouillons — LOOP 02/17) :
+    // ne l'ajoute pas à l'état local `posts` du fil principal.
+    if (!asDraft) {
+      const updatedPosts = [newPost, ...posts];
+      setPosts(updatedPosts);
+      await cloudService.savePost(newPost);
+    }
+
+    resetComposer();
     setIsPublishing(false);
+    return 'published';
   };
 
-  // Create Story Submit
-  const handleCreateStory = () => {
+  // Create Story Submit — branchement réel sur la table `stories` (LOOP
+  // 01/17, moteur de contenu unifié) : cette table existe et est RLS-
+  // protégée depuis le début du projet mais n'était jamais consommée par le
+  // client (état React local uniquement, perdu au rechargement). `expires_at`
+  // est géré par la base (default now()+24h) — aucune logique d'expiration
+  // à gérer ici côté client.
+  const handleCreateStory = async () => {
     if (!newStoryImage && !newStoryCaption) return;
+    const fallbackImage = 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&fit=crop';
+    let mediaUrl = newStoryImage || fallbackImage;
+
     const newStory: Story = {
       id: `story-${Date.now()}`,
       author: currentUser.name,
-      authorId: 'u1',
+      authorId: currentUser.id || 'u1',
       avatar: currentUser.avatarUrl,
-      mediaUrl: newStoryImage || 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&fit=crop',
+      mediaUrl,
       caption: newStoryCaption || 'Nouvelle Story Mooc',
       timestamp: 'À l\'instant',
       isLive: false,
       viewersCount: 1
     };
 
+    if (supabaseService.isConfigured() && currentUser.id) {
+      try {
+        if (newStoryImageFile) {
+          const uploaded = await supabaseService.uploadContentMedia(currentUser.id, newStoryImageFile, 'stories');
+          if (uploaded) mediaUrl = uploaded;
+        }
+        const inserted = await supabaseService.createStory({
+          author_id: currentUser.id,
+          media_url: mediaUrl,
+          caption: newStoryCaption || undefined,
+          is_live: false
+        });
+        if (inserted) {
+          newStory.id = inserted.id;
+          newStory.mediaUrl = mediaUrl;
+        }
+      } catch (err) {
+        console.warn('Could not save story to Supabase', err);
+      }
+    }
+
     setStories([newStory, ...stories]);
     setIsCreateStoryOpen(false);
     setNewStoryCaption('');
     setNewStoryImage(null);
+    setNewStoryImageFile(null);
   };
+
+  // --- Gouvernance du contenu (LOOP 02/17) : suppression, archivage, partage ---
+  const canManagePost = (post: Post) => post.authorId === (currentUser.id || 'u1') || currentUser.role === 'admin';
+
+  const handleDeletePost = async (post: Post) => {
+    setOpenPostMenuId(null);
+    if (!window.confirm('Supprimer définitivement cette publication ? Cette action est irréversible.')) return;
+    if (supabaseService.isConfigured() && isRealPostId(post.id)) {
+      try {
+        await supabaseService.deletePost(post.id);
+      } catch (err) {
+        console.warn('Could not delete post from Supabase', err);
+        alert('La suppression a échoué. Réessayez.');
+        return;
+      }
+    }
+    setPosts(prev => prev.filter(p => p.id !== post.id));
+  };
+
+  // Un post archivé sort immédiatement du fil (même règle côté serveur :
+  // getPosts() ne renvoie que status='published', voir services/supabaseClient.ts)
+  // — le désarchiver depuis ce fil n'a donc pas de sens ici ; une vraie vue
+  // "mes archives" reste à construire (LOOP 03/17) pour le faire.
+  const handleArchivePost = async (post: Post) => {
+    setOpenPostMenuId(null);
+    if (supabaseService.isConfigured() && isRealPostId(post.id)) {
+      try {
+        await supabaseService.updatePostStatus(post.id, 'archived');
+      } catch (err) {
+        console.warn('Could not archive post', err);
+        alert("L'archivage a échoué. La publication reste visible — réessayez.");
+        return;
+      }
+    }
+    setPosts(prev => prev.filter(p => p.id !== post.id));
+  };
+
+  // Partage réel (LOOP 02/17) : incrémente shares_count via une fonction
+  // serveur qui vérifie elle-même que le post est public ET publié avant
+  // d'accepter l'incrément (services/supabaseClient.ts::sharePost) — jamais
+  // de partage silencieux d'un contenu qui ne devrait pas l'être.
+  const handleSharePost = async (post: Post) => {
+    navigator.clipboard.writeText(`https://lemondeavous.org/mooc/posts/${post.id}`);
+    // Le lien est toujours copié, mais il ne mènera à rien pour quelqu'un qui
+    // n'a pas le droit de voir la publication : une publication réservée aux
+    // abonnés ou privée reste protégée par la RLS, quel que soit le lien.
+    // Le dire honnêtement plutôt que laisser croire à un partage public.
+    if (post.visibility !== 'public') {
+      alert(
+        post.visibility === 'private'
+          ? "Lien copié — mais cette publication est privée : personne d'autre que vous ne pourra l'ouvrir."
+          : "Lien copié — seuls vos amis et abonnés pourront ouvrir cette publication."
+      );
+      return;
+    }
+    if (supabaseService.isConfigured() && isRealPostId(post.id)) {
+      try {
+        await supabaseService.sharePost(post.id);
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares: (p.shares || 0) + 1 } : p));
+      } catch (err) {
+        console.warn('Could not record share', err);
+      }
+    }
+    alert('Lien de la publication copié !');
+  };
+
+  // --- Création de contenu par la voix (LOOP 03/17, Architecte MOCnet) ---
+  // Même triptyque que services/live/liveVoiceCommands.ts + SocialLive.tsx
+  // ::dispatchVoiceAction, déjà en production pour le LIVE : interpréter →
+  // vérifier → exécuter de façon déterministe. La voix appelle exactement
+  // les mêmes setters que les boutons du composeur — aucune logique
+  // dupliquée.
+  // Renvoie le résultat RÉEL de l'action (LOOP Architecte — pont d'exécution) :
+  // le bus de capacités doit rapporter `done`/`failed` selon ce qui s'est
+  // vraiment passé. Les cas qui ne font que modifier le composeur réussissent
+  // réellement de façon synchrone ; PUBLISH/SAVE_DRAFT attendent le vrai
+  // résultat de handlePublishPost, jamais un succès supposé.
+  const dispatchContentVoiceAction = async (action: ContentVoiceAction): Promise<{ ok: boolean; message: string; queued?: boolean }> => {
+    let lastSaid = '';
+    const say = (text: string) => {
+      lastSaid = text;
+      setVoiceContentFeedback(text);
+      voiceAssistant.speak(text);
+    };
+
+    switch (action.type) {
+      case 'SET_CONTENT':
+      case 'REWRITE_STYLE':
+      case 'SHORTEN':
+      case 'EXPAND':
+      case 'TRANSLATE':
+        if (action.payload?.text) {
+          setNewPostContent(action.payload.text);
+          setIsComposerFocused(true);
+        }
+        say(action.spokenConfirmation);
+        break;
+      case 'SET_VISIBILITY':
+        if (action.payload?.visibility) setNewPostVisibility(action.payload.visibility as PostVisibility);
+        say(action.spokenConfirmation);
+        break;
+      case 'SET_CATEGORY':
+        if (action.payload?.category) setNewPostCategory(action.payload.category);
+        say(action.spokenConfirmation);
+        break;
+      case 'ADD_TAGS':
+        if (action.payload?.tags?.length) setNewPostTags(prev => Array.from(new Set([...prev, ...action.payload!.tags!])));
+        say(action.spokenConfirmation);
+        break;
+      case 'SAVE_DRAFT': {
+        say(action.spokenConfirmation);
+        const draftOutcome = await handlePublishPost(true);
+        if (draftOutcome === 'queued') {
+          return { ok: false, queued: true, message: "Vous êtes hors ligne : le brouillon est en attente et sera enregistré au retour du réseau." };
+        }
+        return draftOutcome === 'published'
+          ? { ok: true, message: 'Brouillon enregistré.' }
+          : { ok: false, message: "Le brouillon n'a pas pu être enregistré." };
+      }
+      case 'PUBLISH': {
+        say(action.spokenConfirmation);
+        const pubOutcome = await handlePublishPost(false);
+        if (pubOutcome === 'queued') {
+          return { ok: false, queued: true, message: "Vous êtes hors ligne : votre publication est en attente et partira au retour du réseau." };
+        }
+        return pubOutcome === 'published'
+          ? { ok: true, message: 'Publication enregistrée.' }
+          : { ok: false, message: "La publication n'a pas abouti." };
+      }
+      case 'DISCARD_DRAFT':
+        // Action à impact plus élevé (moderate) — confirmation explicite,
+        // même règle que handleDeletePost.
+        if (window.confirm('Abandonner ce brouillon ? Le contenu saisi sera perdu.')) {
+          setNewPostContent('');
+          setNewPostImage(null);
+          setNewPostVideo(null);
+          setNewPostDocument(null);
+          setNewPostImageFile(null);
+          setNewPostVideoFile(null);
+          setNewPostDocumentFile(null);
+          setNewPostTags([]);
+          setIsComposerFocused(false);
+          say(action.spokenConfirmation);
+        } else {
+          say("D'accord, je garde le brouillon.");
+        }
+        break;
+      case 'DISCOVER_CAPABILITIES':
+      case 'ASK_CLARIFICATION':
+      case 'UNKNOWN':
+      default:
+        say(action.spokenConfirmation);
+        // Découverte/clarification/incompris : rien n'a été modifié — ce
+        // n'est pas un succès d'action, et le dire évite un faux « fait ».
+        return { ok: false, message: lastSaid || "Je n'ai pas pu agir sur cette demande." };
+    }
+    return { ok: true, message: lastSaid || 'Fait.' };
+  };
+
+  const handleContentVoiceTranscript = async (transcript: string) => {
+    if (!transcript.trim()) return;
+    const action = await interpretContentVoiceCommand(transcript, {
+      currentContent: newPostContent,
+      currentVisibility: newPostVisibility,
+      currentCategory: newPostCategory,
+      hasMedia: !!(newPostImage || newPostVideo || newPostDocument),
+    });
+    dispatchContentVoiceAction(action);
+  };
+
+  // Architecte — navigateur social (LOOP 05/17). Résolution du nom vers un
+  // membre réel : code déterministe, jamais le LLM (qui n'a fourni que le
+  // texte tel qu'énoncé) — 0 correspondance ou plusieurs → clarification,
+  // jamais une action devinée sur la mauvaise personne.
+  const resolveMemberByName = (rawName: string): { member: MemberProfile | null; candidates: MemberProfile[] } => {
+    const term = rawName.trim().toLowerCase();
+    if (!term) return { member: null, candidates: [] };
+    const candidates = members.filter(m => m.id !== (currentUser.id || 'u1') && m.name.toLowerCase().includes(term));
+    return { member: candidates.length === 1 ? candidates[0] : null, candidates };
+  };
+
+  // Renvoie le résultat RÉEL (LOOP Architecte — pont d'exécution) : `acted`
+  // ne devient vrai que si une action a effectivement été déclenchée sur une
+  // personne résolue SANS ambiguïté. Un nom introuvable ou ambigu n'est
+  // jamais rapporté comme un succès — c'est précisément le cas où agir au
+  // hasard serait le plus dommageable.
+  const dispatchSocialVoiceAction = (action: SocialVoiceAction): { ok: boolean; message: string } => {
+    let lastSaid = '';
+    let acted = false;
+    const say = (text: string) => {
+      lastSaid = text;
+      setVoiceSocialFeedback(text);
+      voiceAssistant.speak(text);
+    };
+
+    const withResolvedMember = (fn: (m: MemberProfile) => void) => {
+      const name = action.payload?.memberName;
+      if (!name) { say('Pour qui ? Dites le nom de la personne.'); return; }
+      const { member, candidates } = resolveMemberByName(name);
+      if (member) { acted = true; fn(member); return; }
+      if (candidates.length > 1) {
+        say(`Plusieurs personnes correspondent à "${name}" : ${candidates.slice(0, 3).map(c => c.name).join(', ')}. Pouvez-vous préciser ?`);
+        return;
+      }
+      say(`Je ne trouve personne correspondant à "${name}" parmi les membres actuellement affichés.`);
+    };
+
+    switch (action.type) {
+      case 'SEND_FRIEND_REQUEST':
+        withResolvedMember((m) => { handleFriendAction(m.id, 'send'); say(action.spokenConfirmation); });
+        break;
+      case 'ACCEPT_FRIEND_REQUEST':
+        withResolvedMember((m) => {
+          if (m.friendshipStatus !== 'pending_received') { say(`Aucune demande en attente de ${m.name}.`); return; }
+          handleFriendAction(m.id, 'accept'); say(action.spokenConfirmation);
+        });
+        break;
+      case 'DECLINE_FRIEND_REQUEST':
+        withResolvedMember((m) => {
+          if (m.friendshipStatus !== 'pending_received') { say(`Aucune demande en attente de ${m.name}.`); return; }
+          handleFriendAction(m.id, 'decline'); say(action.spokenConfirmation);
+        });
+        break;
+      case 'REMOVE_FRIEND':
+        withResolvedMember((m) => { handleFriendAction(m.id, 'remove'); say(action.spokenConfirmation); });
+        break;
+      case 'FOLLOW':
+        withResolvedMember((m) => { if (!m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'UNFOLLOW':
+        withResolvedMember((m) => { if (m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'BLOCK':
+        // Réutilise exactement handleBlockUser, qui exige déjà une
+        // confirmation explicite (window.confirm) — jamais de bypass vocal
+        // pour une action de ce niveau de risque.
+        withResolvedMember((m) => { handleBlockUser(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'UNBLOCK':
+        withResolvedMember((m) => { handleUnblockUser(m.id); say(action.spokenConfirmation); });
+        break;
+      case 'SEARCH_PEOPLE':
+        if (action.payload?.query) {
+          setMemberSearchQuery(action.payload.query);
+          runMemberSearch(action.payload.query);
+          acted = true;
+        }
+        say(action.spokenConfirmation);
+        break;
+      case 'DISCOVER_CAPABILITIES':
+      case 'ASK_CLARIFICATION':
+      case 'UNKNOWN':
+      default:
+        say(action.spokenConfirmation);
+        break;
+    }
+    // `acted` reste faux si la personne visée était introuvable ou ambiguë :
+    // le message dit alors pourquoi, et le bus rapportera `failed`, jamais
+    // un succès qui n'a pas eu lieu.
+    return { ok: acted, message: lastSaid || "Je n'ai pas pu agir sur cette demande." };
+  };
+
+  // --- Pont d'exécution de l'Architecte (LOOP Architecte) ---
+  // Cet écran DÉCLARE les capacités qu'il sait exécuter, plutôt que de laisser
+  // l'Architecte fouiller dans son état interne. Tant qu'il est monté, ces
+  // actions sont pilotables depuis n'importe où (barre Architecte, voix) ;
+  // dès qu'il est démonté, le bus les rapporte honnêtement `unavailable`
+  // au lieu de faire croire à une exécution.
+  //
+  // Chaque handler réutilise le dispatcher DÉJÀ testé de son domaine — aucune
+  // logique dupliquée, et le résultat renvoyé est celui réellement produit
+  // (une personne introuvable ou une publication refusée ne remonte jamais
+  // comme un succès).
+  useEffect(() => {
+    const content = (type: string) => async (payload: any) => {
+      const r = await dispatchContentVoiceAction({ type, payload, spokenConfirmation: '' } as any);
+      // `queued` remonte tel quel : le bus doit pouvoir dire « mis en
+      // attente » plutôt que « terminé » ou « échoué », qui seraient tous
+      // deux faux pour une publication qui partira au retour du réseau.
+      return { ok: r.ok, message: r.message, queued: r.queued };
+    };
+    const social = (type: string) => async (payload: any) => {
+      const r = dispatchSocialVoiceAction({ type, payload, spokenConfirmation: '' } as any);
+      return { ok: r.ok, message: r.message };
+    };
+    return registerCapabilityHandlers({
+      'content.post.compose': content('SET_CONTENT'),
+      'content.post.rewrite_style': content('REWRITE_STYLE'),
+      'content.post.shorten': content('SHORTEN'),
+      'content.post.expand': content('EXPAND'),
+      'content.post.translate': content('TRANSLATE'),
+      'content.post.set_visibility': content('SET_VISIBILITY'),
+      'content.post.set_category': content('SET_CATEGORY'),
+      'content.post.add_tags': content('ADD_TAGS'),
+      'content.post.save_draft': content('SAVE_DRAFT'),
+      'content.post.publish': content('PUBLISH'),
+      'content.post.discard': content('DISCARD_DRAFT'),
+      'social.friend.request': social('SEND_FRIEND_REQUEST'),
+      'social.friend.accept': social('ACCEPT_FRIEND_REQUEST'),
+      'social.friend.decline': social('DECLINE_FRIEND_REQUEST'),
+      'social.friend.remove': social('REMOVE_FRIEND'),
+      'social.follow.start': social('FOLLOW'),
+      'social.follow.stop': social('UNFOLLOW'),
+      'social.block.add': social('BLOCK'),
+      'social.block.remove': social('UNBLOCK'),
+      'social.people.search': social('SEARCH_PEOPLE'),
+    });
+  });
+
+  const handleSocialVoiceTranscript = async (transcript: string) => {
+    if (!transcript.trim()) return;
+    const action = await interpretSocialVoiceCommand(transcript, {
+      visibleMemberNames: members.filter(m => m.id !== (currentUser.id || 'u1')).slice(0, 20).map(m => m.name),
+    });
+    dispatchSocialVoiceAction(action);
+  };
+
+  // Un seul moteur vocal partagé (une capacité, un registre) — le champ
+  // vers lequel router la transcription dépend du dernier bouton micro
+  // pressé (composeur de contenu vs découverte sociale), jamais deux
+  // instances de reconnaissance vocale actives en même temps.
+  const voiceIntentScopeRef = useRef<'content' | 'social'>('content');
+  const handleVoiceTranscript = async (transcript: string) => {
+    if (voiceIntentScopeRef.current === 'social') {
+      await handleSocialVoiceTranscript(transcript);
+    } else {
+      await handleContentVoiceTranscript(transcript);
+    }
+  };
+
+  const voiceAssistant = useVoiceAssistant({ lang: 'fr-FR', onFinalTranscript: handleVoiceTranscript });
+  const startContentVoiceCommand = () => { voiceIntentScopeRef.current = 'content'; voiceAssistant.startListening(); };
+  const startSocialVoiceCommand = () => { voiceIntentScopeRef.current = 'social'; voiceAssistant.startListening(); };
 
   // Open Author Profile Modal
   const handleOpenAuthorProfile = (post: Post) => {
@@ -595,14 +1475,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 storiesCount: stories.filter(s => s.author === currentUser.name).length,
                 reelsCount: reels.filter(r => r.author === currentUser.name).length,
                 livesCount: 0,
-                skills: ['Coopération', 'Tech', 'Innovation'],
-                privacySettings: {
-                  profileVisibility: 'public',
-                  allowMessagesFrom: 'all',
-                  showOnlineStatus: true,
-                  allowTagging: true,
-                  showActivityFeed: true
-                }
+                skills: currentUser.skills.map(s => s.name),
+                privacySettings: currentUser.privacySettings
               };
               setSelectedMemberForProfile(myProfile);
             }}
@@ -785,6 +1659,16 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 </div>
               )}
 
+              {/* Retour de la dernière commande vocale (LOOP 03/17) — toujours visible en plus d'être dit à voix haute */}
+              {voiceContentFeedback && (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold">
+                  <span className="flex items-center gap-1.5"><Mic size={13} /> {voiceContentFeedback}</span>
+                  <button onClick={() => setVoiceContentFeedback(null)} className="text-indigo-400 hover:text-indigo-700">
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+
               {/* Bottom Toolbar: Upload Buttons & Submit */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 
@@ -821,11 +1705,33 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                     <FileText size={17} className="text-amber-500" />
                     <span className="hidden sm:inline">Document</span>
                   </button>
+
+                  {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
+                  {voiceAssistant.isSupported && (
+                    <button
+                      onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startContentVoiceCommand())}
+                      className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                      title="Dicter ou commander la rédaction par la voix"
+                    >
+                      <Mic size={17} />
+                      <span className="hidden sm:inline">{voiceAssistant.isListening ? 'Écoute...' : 'Voix'}</span>
+                    </button>
+                  )}
                 </div>
+
+                {/* Brouillon / Publier — distinction absolue "préparer ≠ publier" (LOOP 01/17) */}
+                <button
+                  onClick={() => handlePublishPost(true)}
+                  disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
+                  title="Enregistrer comme brouillon — jamais visible par les autres membres"
+                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 transition-all flex items-center gap-2"
+                >
+                  <span>Brouillon</span>
+                </button>
 
                 {/* Submit Button */}
                 <button
-                  onClick={handlePublishPost}
+                  onClick={() => handlePublishPost(false)}
                   disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
                   className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-40 transition-all flex items-center gap-2"
                 >
@@ -925,13 +1831,44 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                               {post.category}
                             </span>
                           )}
-                          <button 
+                          <button
                             onClick={() => handleToggleBookmark(post.id)}
                             className={`p-2 rounded-xl transition-colors ${isBookmarked ? 'bg-amber-50 text-amber-600' : 'text-slate-400 hover:bg-slate-100'}`}
                             title="Enregistrer dans mes favoris"
                           >
                             <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
                           </button>
+
+                          {/* Menu Archiver/Supprimer — auteur ou admin uniquement (LOOP 02/17, gouvernance du contenu) */}
+                          {canManagePost(post) && (
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenPostMenuId(openPostMenuId === post.id ? null : post.id)}
+                                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                                title="Plus d'options"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {openPostMenuId === post.id && (
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl border border-slate-100 shadow-xl z-20 py-1 animate-scale-up">
+                                  <button
+                                    onClick={() => handleArchivePost(post)}
+                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                                  >
+                                    <Archive size={14} />
+                                    <span>Archiver</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePost(post)}
+                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 size={14} />
+                                    <span>Supprimer</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                       </div>
@@ -1066,16 +2003,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           </button>
                         </div>
 
-                        {/* Shares Count & Button */}
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText(`https://lemondeavous.org/mooc/posts/${post.id}`);
-                            alert('Lien de la publication copié !');
-                          }}
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+                        {/* Shares Count & Button — partage réel avec vérification de droits (LOOP 02/17) */}
+                        <button
+                          onClick={() => handleSharePost(post)}
+                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-1"
                           title="Partager le post"
                         >
                           <Share2 size={16} />
+                          {(post.shares ?? 0) > 0 && <span className="text-[11px] font-bold">{post.shares}</span>}
                         </button>
 
                       </div>
@@ -1167,20 +2102,53 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           {/* RIGHT COLUMN: DISCOVER MEMBERS, ACTIVE TRIBES & LIVES (Col span 1) */}
           <div className="space-y-6">
             
-            {/* 1. Discover Community Members to Follow */}
+            {/* 1. Discover Community Members / Friend Requests */}
             <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <Users size={18} className="text-indigo-600" />
-                  Membres à Suivre
+                  Suggestions d'Amis
                 </h3>
                 <span className="text-[10px] font-bold text-indigo-600 uppercase">Communauté Mooc</span>
               </div>
 
+              {/* Recherche de personnes — LOOP 05/17 */}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') runMemberSearch(memberSearchQuery); }}
+                  placeholder="Rechercher un membre..."
+                  className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <button
+                  onClick={() => runMemberSearch(memberSearchQuery)}
+                  title="Rechercher"
+                  className="p-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all shrink-0"
+                >
+                  <Search size={14} />
+                </button>
+                {voiceAssistant.isSupported && (
+                  <button
+                    onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startSocialVoiceCommand())}
+                    title="Commande vocale (suivre, ajouter en ami, bloquer, chercher...)"
+                    className={`p-1.5 rounded-xl transition-all shrink-0 ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                  >
+                    <Mic size={14} />
+                  </button>
+                )}
+              </div>
+              {voiceSocialFeedback && (
+                <div className="text-[11px] text-indigo-700 bg-indigo-50 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                  <Mic size={12} /> {voiceSocialFeedback}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {members.filter(m => m.id !== 'u1').slice(0, 4).map(member => (
                   <div key={member.id} className="flex items-center justify-between gap-3 p-2 hover:bg-slate-50 rounded-2xl transition-all">
-                    <div 
+                    <div
                       className="flex items-center gap-2.5 min-w-0 cursor-pointer"
                       onClick={() => setSelectedMemberForProfile(member)}
                     >
@@ -1191,15 +2159,48 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           {member.isVerified && <CheckCircle size={12} className="text-blue-600" />}
                         </div>
                         <p className="text-[11px] text-slate-500 truncate">{member.title}</p>
+                        {!!mutualFriendsCounts[member.id] && (
+                          <p className="text-[10px] text-indigo-500 truncate">{mutualFriendsCounts[member.id]} ami{mutualFriendsCounts[member.id] > 1 ? 's' : ''} en commun</p>
+                        )}
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleToggleFollow(member.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${member.isFollowing ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                    >
-                      {member.isFollowing ? 'Abonné' : '+ Suivre'}
-                    </button>
+                    {member.isBlockedByMe ? (
+                      <button
+                        onClick={() => handleUnblockUser(member.id)}
+                        title="Débloquer cette personne"
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 bg-red-50 text-red-600 hover:bg-red-100"
+                      >
+                        Débloquer
+                      </button>
+                    ) : member.friendshipStatus === 'pending_received' ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => handleFriendAction(member.id, 'accept')}
+                          title="Accepter la demande"
+                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleFriendAction(member.id, 'decline')}
+                          title="Refuser la demande"
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleFriendAction(
+                          member.id,
+                          member.friendshipStatus === 'friends' ? 'remove' : member.friendshipStatus === 'pending_sent' ? 'cancel' : 'send'
+                        )}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${member.friendshipStatus === 'friends' || member.friendshipStatus === 'pending_sent' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                      >
+                        {member.friendshipStatus === 'friends' ? 'Amis' : member.friendshipStatus === 'pending_sent' ? 'Demande envoyée' : '+ Ajouter'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1734,10 +2735,20 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           stories={stories}
           reels={reels}
           lives={lives}
+          onFriendAction={handleFriendAction}
           onToggleFollow={handleToggleFollow}
+          onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
           onStartChatWithMember={(m) => {
             if (onOpenDirectChat) onOpenDirectChat(undefined, m);
           }}
+          // Confidentialité modifiable uniquement sur son propre profil —
+          // ne jamais fournir ce callback pour la fiche d'un autre membre.
+          onUpdatePrivacySettings={
+            selectedMemberForProfile.id === (currentUser.id || 'u1')
+              ? (newSettings) => updateUserProfile({ privacySettings: newSettings })
+              : undefined
+          }
         />
       )}
 
@@ -1774,9 +2785,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => setNewStoryImage(reader.result as string);
-                  reader.readAsDataURL(file);
+                  setNewStoryImageFile(file);
+                  setNewStoryImage(URL.createObjectURL(file));
                 }
               }}
             />
@@ -1784,8 +2794,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             {newStoryImage ? (
               <div className="relative aspect-[9/16] max-h-72 rounded-2xl overflow-hidden bg-slate-900 mx-auto">
                 <img src={newStoryImage} className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => setNewStoryImage(null)}
+                <button
+                  onClick={() => { setNewStoryImage(null); setNewStoryImageFile(null); }}
                   className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full"
                 >
                   <X size={14} />

@@ -83,7 +83,11 @@ export const Profile: React.FC<ProfileProps> = ({ userProfile = DEFAULT_PROFILE 
               <TrendingUp size={20} className="text-brand-600" /> Compétences
             </h3>
             <div className="space-y-4">
-               {userProfile.skills.map(skill => (
+               {userProfile.skills.length === 0 ? (
+                 <p className="text-sm text-gray-400 italic">
+                   Vos compétences apparaîtront ici au fil de vos parcours, formations et projets sur Le Monde à Vous.
+                 </p>
+               ) : userProfile.skills.map(skill => (
                  <div key={skill.name}>
                    <div className="flex justify-between text-sm mb-1">
                      <span className="font-medium text-gray-700">{skill.name}</span>
@@ -102,6 +106,11 @@ export const Profile: React.FC<ProfileProps> = ({ userProfile = DEFAULT_PROFILE 
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Award size={20} className="text-yellow-500" /> Badges & Certifications
             </h3>
+            {userProfile.badges.length === 0 && (
+              <p className="text-sm text-gray-400 italic mb-4">
+                Vos badges et certifications s'accumuleront ici à mesure de vos réussites.
+              </p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                {userProfile.badges.map(badge => (
                  <div key={badge.id} className="bg-gray-50 rounded-xl p-4 flex flex-col items-center text-center border border-gray-100 hover:border-brand-200 transition-colors group">

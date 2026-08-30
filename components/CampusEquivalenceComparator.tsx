@@ -26,18 +26,39 @@ interface CampusEquivalenceComparatorProps {
     onSelectBridgePath?: (path: string) => void;
 }
 
+// Petits repères visuels (drapeaux) pour les pays d'origine/destination réellement
+// présents dans le registre d'équivalences — purement décoratif, aucune donnée n'en dépend.
+const COUNTRY_FLAGS: Record<string, string> = {
+    'Guinée': '🇬🇳',
+    'Sénégal': '🇸🇳',
+    "Côte d'Ivoire": '🇨🇮',
+    'France': '🇫🇷',
+    'États-Unis': '🇺🇸',
+    'Canada / Québec': '🇨🇦',
+    'Royaume-Uni': '🇬🇧'
+};
+
 export const CampusEquivalenceComparator: React.FC<CampusEquivalenceComparatorProps> = ({
     onClose,
     onSelectBridgePath
 }) => {
-    const [selectedEquivalenceId, setSelectedEquivalenceId] = useState<string>(ACADEMIC_EQUIVALENCES[0]?.id || '');
+    const [selectedIndex, setSelectedIndex] = useState<number>(0);
     const [filterOrigin, setFilterOrigin] = useState<string>('ALL');
 
-    const activeEquiv = ACADEMIC_EQUIVALENCES.find(e => e.id === selectedEquivalenceId) || ACADEMIC_EQUIVALENCES[0];
+    // Pays d'origine réellement présents dans le registre (dérivé des données,
+    // jamais d'une liste codée en dur qui pourrait diverger du contenu réel).
+    const availableOrigins = Array.from(new Set(ACADEMIC_EQUIVALENCES.map(e => e.originCountry)));
 
-    const filteredEquivalences = filterOrigin === 'ALL' 
-        ? ACADEMIC_EQUIVALENCES 
-        : ACADEMIC_EQUIVALENCES.filter(e => e.sourceCountryCode === filterOrigin);
+    const filteredEquivalences = filterOrigin === 'ALL'
+        ? ACADEMIC_EQUIVALENCES
+        : ACADEMIC_EQUIVALENCES.filter(e => e.originCountry === filterOrigin);
+
+    const activeEquiv = filteredEquivalences[selectedIndex] || filteredEquivalences[0];
+
+    const handleFilterOrigin = (origin: string) => {
+        setFilterOrigin(origin);
+        setSelectedIndex(0);
+    };
 
     return (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden space-y-6">
@@ -61,37 +82,37 @@ export const CampusEquivalenceComparator: React.FC<CampusEquivalenceComparatorPr
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
                     <span className="text-xs font-bold text-slate-500 mr-2">Origine :</span>
                     <button
-                        onClick={() => setFilterOrigin('ALL')}
+                        onClick={() => handleFilterOrigin('ALL')}
                         className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${filterOrigin === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                     >
                         Tous les pays
                     </button>
-                    {['GN', 'SN', 'CI', 'FR', 'US', 'GB'].map(code => (
+                    {availableOrigins.map(origin => (
                         <button
-                            key={code}
-                            onClick={() => setFilterOrigin(code)}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${filterOrigin === code ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            key={origin}
+                            onClick={() => handleFilterOrigin(origin)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${filterOrigin === origin ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                         >
-                            {code === 'GN' ? '🇬🇳 Guinée' : code === 'SN' ? '🇸🇳 Sénégal' : code === 'CI' ? '🇨🇮 Côte d\'Ivoire' : code === 'FR' ? '🇫🇷 France' : code === 'US' ? '🇺🇸 États-Unis' : '🇬🇧 UK'}
+                            {COUNTRY_FLAGS[origin] ? `${COUNTRY_FLAGS[origin]} ${origin}` : origin}
                         </button>
                     ))}
                 </div>
 
                 {/* Grille des Équivalences Disponibles */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {filteredEquivalences.map(eq => (
+                    {filteredEquivalences.map((eq, idx) => (
                         <div
-                            key={eq.id}
-                            onClick={() => setSelectedEquivalenceId(eq.id)}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedEquivalenceId === eq.id ? 'border-indigo-600 bg-indigo-50/50 shadow-md' : 'border-slate-200 hover:border-slate-300 bg-slate-50'}`}
+                            key={`${eq.originCountry}-${eq.originLevel}-${eq.targetCountry}`}
+                            onClick={() => setSelectedIndex(idx)}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedIndex === idx ? 'border-indigo-600 bg-indigo-50/50 shadow-md' : 'border-slate-200 hover:border-slate-300 bg-slate-50'}`}
                         >
                             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
-                                <span>{eq.sourceCountryName}</span>
+                                <span>{eq.originCountry}</span>
                                 <ArrowRightLeft size={14} className="text-indigo-600" />
-                                <span>{eq.targetCountryName}</span>
+                                <span>{eq.targetCountry}</span>
                             </div>
-                            <h4 className="text-xs font-black text-slate-900 line-clamp-1 mb-1">{eq.sourceLevelName}</h4>
-                            <p className="text-[11px] text-slate-600 line-clamp-1">➔ {eq.targetLevelName}</p>
+                            <h4 className="text-xs font-black text-slate-900 line-clamp-1 mb-1">{eq.originLevel}</h4>
+                            <p className="text-[11px] text-slate-600 line-clamp-1">➔ {eq.targetLevel}</p>
                         </div>
                     ))}
                 </div>
@@ -107,7 +128,7 @@ export const CampusEquivalenceComparator: React.FC<CampusEquivalenceComparatorPr
                                     Correspondance Officielle
                                 </div>
                                 <h3 className="text-xl font-bold text-slate-900">
-                                    {activeEquiv.sourceLevelName} ({activeEquiv.sourceCountryName}) ➔ {activeEquiv.targetLevelName} ({activeEquiv.targetCountryName})
+                                    {activeEquiv.originLevel} ({activeEquiv.originCountry}) ➔ {activeEquiv.targetLevel} ({activeEquiv.targetCountry})
                                 </h3>
                             </div>
                             <div className="px-3.5 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 self-start">
@@ -124,7 +145,7 @@ export const CampusEquivalenceComparator: React.FC<CampusEquivalenceComparatorPr
                                     Matières Communes & Compétences Directes
                                 </h4>
                                 <ul className="space-y-2">
-                                    {activeEquiv.sharedCompetenciesAndTopics.map((item, i) => (
+                                    {activeEquiv.commonFoundations.map((item, i) => (
                                         <li key={i} className="text-xs text-slate-700 flex items-start gap-2">
                                             <span className="text-emerald-500 font-bold">•</span>
                                             <span>{item}</span>

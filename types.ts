@@ -68,6 +68,19 @@ export interface UserProfile {
     skills: { name: string; progress: number }[];
     badges: { id: string; name: string; icon: string; description: string }[];
     interests: string[];
+    privacySettings: {
+        profileVisibility: 'public' | 'network' | 'private';
+        allowMessagesFrom: 'all' | 'network' | 'none';
+        showOnlineStatus: boolean;
+        allowTagging: boolean;
+        showActivityFeed: boolean;
+        /** LOOP 04/17 (moteur social) : qui peut m'envoyer une demande d'ami. 'network' non encore proposé (nécessite une notion de relations mutuelles hors périmètre fondation). */
+        allowFriendRequestsFrom: 'all' | 'none';
+        showFollowersList: boolean;
+        showFollowingList: boolean;
+        /** LOOP 09/17 (notifications, orchestration proactive) : mode silencieux — réduit l'interruption (badge non-lus masqué) sans jamais cacher les notifications elles-mêmes du panneau. */
+        notificationsMuted: boolean;
+    };
     shop?: UserShop;
     medical?: {
         bloodType: string;
@@ -460,7 +473,7 @@ export interface LiveStageParticipant {
     id: string;
     name: string;
     avatar: string;
-    role: 'host' | 'cohost' | 'guest' | 'expert_ai' | 'expert_human' | 'speaker' | 'secretary_ai' | 'moderator_ai' | 'director_ai';
+    role: 'host' | 'cohost' | 'guest' | 'viewer' | 'moderator' | 'expert_ai' | 'expert_human' | 'speaker' | 'secretary_ai' | 'moderator_ai' | 'director_ai';
     isMuted: boolean;
     isVideoOn: boolean;
     isAi?: boolean;
@@ -620,11 +633,22 @@ export interface LiveReplayData {
     campusReady?: boolean;
 }
 
+/**
+ * Cinq univers visuels (prompt 3/7, LOOP 08/14) — une architecture commune
+ * (verre/eau/lumière du LOOP 07/14), pas cinq interfaces séparées. 'crystal'
+ * (Glassmorphism Crystal Water) est la référence ; les 4 autres réutilisent
+ * les mêmes classes/keyframes avec des variables de thème différentes (voir
+ * services/live/liveMaterialSystem.ts et index.html).
+ */
+export type LiveVisualUniverse = 'crystal' | 'futuristic_blue' | 'natural_fresh' | 'violet_luxe' | 'deep_ocean';
+
 export interface LiveStream {
     id: string;
     title: string;
     description?: string;
     type?: LiveType;
+    /** profiles.id de l'animateur — nécessaire pour les vérifications "suis-je l'hôte ?" par identité, pas seulement par nom affiché. */
+    hostId?: string;
     hostName: string;
     hostAvatar: string;
     viewers: number;
@@ -635,6 +659,8 @@ export interface LiveStream {
     coHosts?: string[];
     moderators?: string[];
     startedAt: Date;
+    /** Renseigné une fois le LIVE terminé (live_sessions.ended_at) — absent tant qu'il est en cours. */
+    endedAt?: string;
     scheduledFor?: string;
     timezone?: string;
     isScheduled?: boolean;
@@ -671,6 +697,73 @@ export interface LiveStream {
     interviewGuestBio?: string;
     confTracks?: string[];
     sensitiveDataAlert?: boolean;
+    /** Univers visuel actif (LOOP 08/14) — réglage de session, diffusé à tous via Realtime. Défaut : 'crystal'. */
+    visualUniverse?: LiveVisualUniverse;
+}
+
+/**
+ * Live Solidaire (complément reçu pendant LOOP 05/14, intégré aux LOOPs
+ * restantes — voir le plan). Mission de solidarité créée depuis un LIVE,
+ * souvent par la voix (LOOP 09/14) : le ledger/preuves/donateurs ne
+ * détiennent jamais de vrais fonds (traçabilité uniquement) — le mouvement
+ * réel d'argent passe par un prestataire de paiement externe, hors périmètre.
+ */
+export type SolidarityBeneficiaryType = 'person' | 'community' | 'project' | 'medical' | 'complex';
+
+/** Visibilité basique (LOOP 14/16) — pas de niveau "donateurs" séparé, voir rapport final. */
+export type SolidarityCauseVisibility = 'organizer_only' | 'live_participants';
+
+export interface LiveSolidarityCause {
+    id: string;
+    liveSessionId: string;
+    organizerId: string;
+    title: string;
+    beneficiaryDescription: string;
+    beneficiaryType: SolidarityBeneficiaryType;
+    targetAmount?: number;
+    currency: string;
+    organizerFeePercent: number;
+    status: 'active' | 'completed' | 'cancelled';
+    visibility: SolidarityCauseVisibility;
+    createdAt: string;
+}
+
+/** Écriture append-only du ledger (LOOP 14/16) — jamais un solde stocké, le
+ * total collecté/utilisé se calcule côté client à partir de ces lignes,
+ * même principe que wallet_transactions/get_wallet_balance(). Saisie
+ * manuelle par l'organisateur (aucun prestataire de paiement branché dans
+ * ce sandbox) — ce n'est pas un mouvement réel de fonds, seulement le
+ * suivi déclaré par l'organisateur de ce qui s'est passé hors de l'app. */
+export interface LiveSolidarityLedgerEntry {
+    id: string;
+    causeId: string;
+    entryType: 'collected' | 'used';
+    amount: number;
+    description?: string;
+    createdBy?: string;
+    createdAt: string;
+}
+
+export type SolidarityProofType = 'photo' | 'invoice' | 'receipt' | 'document' | 'video';
+
+export interface LiveSolidarityProof {
+    id: string;
+    causeId: string;
+    stepLabel: string;
+    expenseDescription?: string;
+    amount?: number;
+    proofType: SolidarityProofType;
+    documentUrl?: string;
+    createdBy?: string;
+    createdAt: string;
+}
+
+export interface LiveSolidarityUpdate {
+    id: string;
+    causeId: string;
+    authorId?: string;
+    text: string;
+    createdAt: string;
 }
 
 export interface LivePricing {
@@ -692,6 +785,26 @@ export interface LiveGift {
     icon: string;
     cost: number;
     animation: string;
+}
+
+/** Message de chat libre du LIVE (public.live_messages) — distinct des Questions/Réponses structurées (LiveQuestion). */
+export interface LiveChatMessage {
+    id: string;
+    sessionId: string;
+    authorId?: string;
+    authorName: string;
+    authorAvatar: string;
+    text: string;
+    createdAt: string;
+}
+
+/** Réaction ponctuelle (tap emoji) pendant le LIVE (public.live_reactions) — journal d'événements, pas un état unique par utilisateur. */
+export interface LiveReaction {
+    id: string;
+    sessionId: string;
+    userId: string;
+    type: string;
+    createdAt: string;
 }
 
 export interface Story {
@@ -750,6 +863,9 @@ export interface Tribe {
 
 export interface Comment {
     id: string;
+    authorId?: string;
+    postId?: string;
+    parentCommentId?: string;
     authorName: string;
     authorAvatar: string;
     content: string;
@@ -770,6 +886,16 @@ export interface PostDocument {
     pageCount?: number;
 }
 
+// Cycle de vie du moteur de contenu unifié (LOOP 01/17, mission Architecte
+// MOCnet) : draft = jamais visible publiquement quel que soit `visibility` ;
+// published = comportement historique ; scheduled = publication différée
+// (voir `scheduledAt`) ; archived = masqué du fil sans suppression.
+export type PostStatus = 'draft' | 'published' | 'scheduled' | 'archived';
+// Propriété du contenu plutôt qu'une architecture séparée — 'story' est
+// volontairement absent, les stories restent modélisées par `Story`/la
+// table `stories` (cycle de vie éphémère propre), pas un format de Post.
+export type PostFormat = 'text' | 'image' | 'video' | 'audio' | 'document' | 'live_extract' | 'composite';
+
 export interface Post {
     id: string;
     agentId?: string;
@@ -784,12 +910,19 @@ export interface Post {
     commentsList?: Comment[];
     imageUrl?: string;
     videoUrl?: string;
+    audioUrl?: string;
     document?: PostDocument;
     type?: string;
     category?: string;
     tags?: string[];
     pinned?: boolean;
     visibility?: PostVisibility;
+    status?: PostStatus;
+    scheduledAt?: string;
+    format?: PostFormat;
+    /** Provenance quand ce contenu est dérivé d'un autre objet MOCnet (ex. 'live_session'). */
+    sourceType?: string;
+    sourceId?: string;
     shares?: number;
     saved?: boolean;
     reactions?: Record<PostReactionType, number>;
@@ -809,6 +942,10 @@ export interface MemberProfile {
     joinedDate: string;
     isVerified?: boolean;
     isFollowing?: boolean;
+    /** LOOP 04/17 : ai-je (le viewer courant) bloqué ce membre — jamais l'inverse, un blocage reste invisible à la personne bloquée. */
+    isBlockedByMe?: boolean;
+    friendshipId?: string;
+    friendshipStatus?: 'none' | 'pending_sent' | 'pending_received' | 'friends';
     followersCount: number;
     followingCount: number;
     postsCount: number;
@@ -822,6 +959,10 @@ export interface MemberProfile {
         showOnlineStatus: boolean;
         allowTagging: boolean;
         showActivityFeed: boolean;
+        allowFriendRequestsFrom?: 'all' | 'none';
+        showFollowersList?: boolean;
+        showFollowingList?: boolean;
+        notificationsMuted?: boolean;
     };
 }
 
@@ -898,6 +1039,32 @@ export interface Notification {
     type: 'success' | 'info' | 'warning' | 'alert';
     timestamp: Date;
     read: boolean;
+    /** LOOP 08/17 (moteur de notifications) : priorité fixée par le TYPE d'événement côté serveur (jamais par qui l'a émis) — colonne réelle, jamais mappée côté client avant cette LOOP. */
+    priority?: 'low' | 'normal' | 'high';
+    /** Cible de navigation (ex. 'messages', 'social', 'friend_requests') — colonne réelle `target_action`, jamais consommée avant cette LOOP. */
+    targetAction?: string;
+}
+
+/**
+ * LOOP 10/17 (moteur de recherche universelle, fondation) : forme commune
+ * pour un résultat de recherche réel (Supabase), quel que soit son domaine
+ * d'origine — jusqu'ici `UniversalSearchModal.tsx` ne filtrait que des
+ * constantes locales (`MAIN_NAV_ITEMS`, `TRANSVERSAL_SERVICES`,
+ * `LEGAL_PROCEDURES`, et un `COURSES` factice à un seul élément, jamais
+ * connecté à la vraie table `courses`). `subtitle`/`avatarUrl` restent
+ * optionnels car leur pertinence dépend du domaine (un profil a un avatar,
+ * une publication non). Aucun champ sensible ici — chaque requête d'origine
+ * (voir `supabaseClient.ts::universalSearch`) sélectionne déjà un ensemble
+ * minimal de colonnes, RLS appliquée normalement (pas de contournement
+ * `SECURITY DEFINER` nécessaire, chaque requête passe par la session réelle
+ * de l'utilisateur qui cherche).
+ */
+export interface SearchResult {
+    id: string;
+    type: 'profile' | 'post' | 'course';
+    title: string;
+    subtitle?: string;
+    avatarUrl?: string;
 }
 
 export interface Message {
@@ -1377,6 +1544,8 @@ export interface MultimodalVisionAnalysis {
     scene: SceneUnderstanding;
     recognizedPersons: RecognizedPerson[];
     executiveSummary: string;
+    /** true si la passerelle IA était indisponible et que ce résultat vient du repli local — jamais présenté comme une vraie analyse (LOOP 11/14). */
+    degraded?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4709,6 +4878,10 @@ export interface AdminUserRecord {
   assignedExpertId?: string;
   notes?: string;
   origin?: 'supabase_cloud' | 'local_session' | 'admin_created';
+  /** Persona de démonstration fournie avec la plateforme (jamais un vrai
+   * compte membre) — sert à la distinguer des comptes réels dans la
+   * console Super-Admin, jamais à restreindre un droit. */
+  isDemoSeed?: boolean;
   level?: number;
   xp?: number;
   isOnline?: boolean;
@@ -5189,6 +5362,58 @@ export interface VersionComparisonResult {
     details: string[];
   };
   breakingChanges: string[];
+}
+
+// ============================================================================
+// MOTEUR DE SYNCHRONISATION HORS-LIGNE — modèle « Lazarus »
+// ----------------------------------------------------------------------------
+// Repris du `src/types.ts` du paquet Architecte (AI Studio). Les cinq champs
+// d'origine sont conservés à l'identique — `id`, `action`, `payload`,
+// `timestamp`, `retryCount` — parce que le modèle lui-même est juste : c'est
+// la seule pièce du paquet qui comble un manque réel de MokNet (l'Architecte
+// échouait honnêtement hors-ligne, mais ne rejouait rien au retour du réseau).
+//
+// Un seul champ est ajouté, `lastError`, et une seule sémantique est précisée :
+// `id` est un UUID généré UNE FOIS à la mise en file et jamais régénéré. Il
+// sert d'ancrage d'idempotence côté serveur (`messages.client_message_id`,
+// `posts.client_post_id`), exactement comme dans la messagerie : un rejeu
+// réutilise le même identifiant, un doublon devient un no-op (23505) au lieu
+// d'un second enregistrement.
+// ============================================================================
+
+/**
+ * Actions synchronisables. Union fermée : le module qui enregistre les
+ * gestionnaires doit fournir un `Record<SyncTaskAction, ...>` COMPLET, ce qui
+ * fait échouer la compilation si une action reste sans traitement. C'est le
+ * correctif structurel du défaut mesuré dans le `syncService.ts` reçu, où
+ * `CREATE_POST` était déclaré dans le type mais n'avait aucun `case` : la
+ * tâche tombait dans un `default:` qui journalisait sans lever, donc la
+ * publication était réputée réussie et retirée de la file — perdue sans trace.
+ */
+export type SyncTaskAction =
+  | 'CREATE_POST'
+  | 'SEND_MESSAGE'
+  | 'UPDATE_PROFILE'
+  | 'LOG_EVENT'
+  | 'SAVE_CONVERSATION';
+
+export interface SyncTask {
+  /** UUID stable, généré à la mise en file. Sert d'ancrage d'idempotence serveur. */
+  id: string;
+  action: SyncTaskAction;
+  payload: Record<string, unknown>;
+  /** Date de mise en file (ms epoch) — pas la date d'envoi. */
+  timestamp: number;
+  retryCount: number;
+  /** Dernière raison d'échec réelle, conservée pour pouvoir la dire à l'utilisateur. */
+  lastError?: string;
+}
+
+/** État d'une tâche abandonnée après épuisement des tentatives ou échec définitif. */
+export interface AbandonedSyncTask extends SyncTask {
+  abandonedAt: number;
+  /** `permanent` : refus serveur, payload invalide — réessayer n'y changerait rien. */
+  reason: 'permanent' | 'max_retries';
 }
 
 

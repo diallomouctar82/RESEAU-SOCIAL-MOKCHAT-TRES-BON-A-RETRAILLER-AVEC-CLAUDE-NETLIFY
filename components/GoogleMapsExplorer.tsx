@@ -393,9 +393,9 @@ export const GoogleMapsExplorer: React.FC = () => {
                 <div className="lg:col-span-4 space-y-4">
                     {/* Selected Place Card or AI Mobility Advisor */}
                     {selectedPlace ? (
-                        <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-5 shadow-xl border border-indigo-800/30 animate-fade-up">
+                        <div className="bg-gradient-to-br from-slate-900 to-brand-900 text-white rounded-3xl p-5 shadow-xl border border-brand-500/30 animate-fade-up">
                             <div className="flex items-center justify-between gap-2">
-                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-indigo-300">
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-blue-300">
                                     {selectedPlace.category}
                                 </span>
                                 <span className="text-xs text-slate-300 font-medium">
@@ -411,7 +411,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                             </p>
 
                             <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
-                                <div className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+                                <div className="text-[11px] font-bold text-blue-300 flex items-center gap-1">
                                     <Sparkles size={12} /> Points Clés & Services
                                 </div>
                                 <div className="space-y-1">
@@ -425,7 +425,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                             </div>
 
                             {selectedPlace.aiAdvice && (
-                                <div className="mt-4 p-3 bg-brand-900/40 border border-brand-500/30 rounded-2xl text-xs text-brand-200">
+                                <div className="mt-4 p-3 bg-brand-900/40 border border-brand-500/30 rounded-2xl text-xs text-brand-100">
                                     <strong className="text-white block font-semibold mb-1">Conseil Mobilité :</strong>
                                     {selectedPlace.aiAdvice}
                                 </div>
@@ -437,7 +437,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                                         href={selectedPlace.website}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex-1 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5"
+                                        className="flex-1 py-2 min-h-11 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                                     >
                                         <span>Consulter le site</span>
                                         <ExternalLink size={12} />
@@ -447,7 +447,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                                     href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPlace.position.lat},${selectedPlace.position.lng}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                    className="px-4 py-2 min-h-11 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                                 >
                                     <Navigation size={12} />
                                     <span>Itinéraire</span>
@@ -480,7 +480,11 @@ export const GoogleMapsExplorer: React.FC = () => {
                                 <div
                                     key={place.id}
                                     onClick={() => handleSelectPlace(place)}
-                                    className={`p-3 rounded-2xl border transition-all cursor-pointer text-left ${
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-pressed={selectedPlace?.id === place.id}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectPlace(place); } }}
+                                    className={`p-3 rounded-2xl border transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                                         selectedPlace?.id === place.id
                                             ? 'border-brand-500 bg-brand-50/50 shadow-sm'
                                             : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'

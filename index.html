@@ -32,16 +32,99 @@
                 border: '#FED7AA',
                 subtle: '#FB923C',
               },
+              // Échelle complétée le 30 août 2026 : 200/300/400/800/950
+                // manquaient alors que ~150 occurrences les utilisaient déjà
+                // (bg-brand-400, text-brand-300...) à travers Boutique, Wallet,
+                // Paramètres, Layout et Commerce. Tailwind ignore silencieusement
+                // une teinte non définie — ces classes ne peignaient donc
+                // strictement RIEN, sans erreur ni avertissement. Les teintes
+                // 200-800 suivent l'échelle bleue standard déjà adoptée par
+                // 50/100/500/600/700 ; 900/950 conservent la dérive volontaire
+                // vers le navy institutionnel.
               brand: {
                 50: '#eff6ff',
                 100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
                 500: '#3b82f6',
                 600: '#2563eb', // Primary Blue
                 700: '#1d4ed8',
+                800: '#1e40af',
                 900: '#0B132B', // Institutional Deep Navy
-              }
+                950: '#050A15', // Navy le plus profond (fonds pleine page)
+              },
+              // Système verre/eau/lumière du LIVE (LOOP 07/14, univers n°9
+              // Glassmorphism Crystal Water — prompts 1/7 et 3/7). Teintes du
+              // "corps" du verre/de l'eau, distinctes du slate/indigo générique
+              // utilisé partout ailleurs dans l'app pour bien signaler que le
+              // LIVE a sa propre matière visuelle.
+              crystal: {
+                deep: '#040B14',    // fond derrière le verre, jamais du noir pur
+                glass: '#0C1B2E',   // corps du verre au repos
+                water: '#0E293D',   // teinte de l'eau en mouvement
+                highlight: '#8FE3FF', // reflet/lumière sur le verre
+                foam: '#E8FBFF',    // microbulles/écume, très clair
+              },
             },
             keyframes: {
+              // Repos : quasi immobile, respiration à peine perceptible.
+              'water-idle': {
+                '0%, 100%': { transform: 'scale(1)', opacity: '0.9' },
+                '50%': { transform: 'scale(1.004)', opacity: '1' },
+              },
+              // Interaction : légère ondulation à la surface.
+              'water-ripple': {
+                '0%, 100%': { transform: 'translateY(0) scale(1)' },
+                '50%': { transform: 'translateY(-1px) scale(1.006)' },
+              },
+              // Commande vocale : onde lumineuse qui traverse le verre.
+              'water-wave': {
+                '0%': { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' },
+              },
+              // Réflexion (l'IA réfléchit) : mouvements internes subtils, plus lents que l'ondulation.
+              'water-reflect': {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '33%': { transform: 'translateY(-0.5px)' },
+                '66%': { transform: 'translateY(0.5px)' },
+              },
+              // Succès : impulsion positive, brève et nette.
+              'water-success': {
+                '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(143,227,255,0.5)' },
+                '40%': { transform: 'scale(1.03)', boxShadow: '0 0 0 8px rgba(143,227,255,0)' },
+                '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(143,227,255,0)' },
+              },
+              // Erreur : variation discrète, jamais agressive (pas de secousse violente).
+              'water-error': {
+                '0%, 100%': { transform: 'translateX(0)' },
+                '25%': { transform: 'translateX(-1.5px)' },
+                '75%': { transform: 'translateX(1.5px)' },
+              },
+              // Grammaire d'états de l'avatar (LOOP 10/14) — 4 états propres
+              // à l'avatar, en plus des 6 réutilisés du LOOP 07/14 ci-dessus.
+              // Vision active : double impulsion lumineuse (balayage/attention visuelle).
+              'avatar-vision': {
+                '0%, 100%': { boxShadow: '0 0 16px 2px var(--halo-color)', opacity: '0.85' },
+                '25%, 75%': { boxShadow: '0 0 28px 6px var(--halo-color)', opacity: '1' },
+              },
+              // Compréhension : micro-mouvement ascendant, comme des bulles qui remontent.
+              'avatar-comprehension': {
+                '0%, 100%': { transform: 'translateY(0) scale(1)' },
+                '50%': { transform: 'translateY(-2px) scale(1.015)' },
+              },
+              // Action : impulsion décisive et brève, jamais en boucle.
+              'avatar-action': {
+                '0%': { transform: 'scale(1) rotate(0deg)' },
+                '30%': { transform: 'scale(1.06) rotate(-1deg)' },
+                '60%': { transform: 'scale(1.02) rotate(0.5deg)' },
+                '100%': { transform: 'scale(1) rotate(0deg)' },
+              },
+              // Incertitude : balancement lent et discret, jamais présenté comme une erreur ni une certitude.
+              'avatar-uncertainty': {
+                '0%, 100%': { transform: 'translateX(0)', opacity: '0.75' },
+                '50%': { transform: 'translateX(3px)', opacity: '0.55' },
+              },
               'fade-up': {
                 '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
                 '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -107,7 +190,17 @@
               'fall': 'fall 3s linear forwards',
               'slide-across': 'slide-across 5s linear forwards',
               'pop-in': 'pop-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-              'scan-vertical': 'scan-vertical 2s linear infinite'
+              'scan-vertical': 'scan-vertical 2s linear infinite',
+              'water-idle': 'water-idle 6s ease-in-out infinite',
+              'water-ripple': 'water-ripple 1.6s ease-in-out infinite',
+              'water-wave': 'water-wave 1.8s linear infinite',
+              'water-reflect': 'water-reflect 2.4s ease-in-out infinite',
+              'water-success': 'water-success 0.6s ease-out forwards',
+              'water-error': 'water-error 0.4s ease-in-out',
+              'avatar-vision': 'avatar-vision 1s ease-in-out infinite',
+              'avatar-comprehension': 'avatar-comprehension 1.2s ease-in-out infinite',
+              'avatar-action': 'avatar-action 0.5s ease-out',
+              'avatar-uncertainty': 'avatar-uncertainty 2.2s ease-in-out infinite',
             }
           }
         }
@@ -141,6 +234,107 @@
       .perspective-container {
         perspective: 1000px;
         transform-style: preserve-3d;
+      }
+      /* Système verre/eau/lumière (LOOP 07/14) — le verre est une matière
+         (épaisseur perçue, reflet, profondeur), pas un effet CSS générique
+         plaqué partout : bordure claire en haut (lumière qui vient d'en
+         haut), légère dégradation vers le bas (profondeur du liquide),
+         netteté du contenu jamais compromise (le flou reste sur le fond,
+         jamais sur le texte au premier plan — prompt 3/7).
+
+         Cinq univers visuels (LOOP 08/14) : les teintes sont des variables
+         CSS avec la valeur "crystal" par défaut sur :root — [data-live-
+         universe] (posé sur le conteneur racine du LIVE) les redéfinit pour
+         les 4 univers secondaires. Toujours les 2 mêmes classes, jamais une
+         famille de classes par univers — une architecture, pas 5 refontes. */
+      :root {
+        --glass-tint-a: rgba(15, 41, 61, 0.72);
+        --glass-tint-b: rgba(4, 11, 20, 0.85);
+        --glass-border: rgba(143, 227, 255, 0.18);
+        --glass-border-top: rgba(232, 251, 255, 0.35);
+        --glass-shadow-inset: rgba(232, 251, 255, 0.12);
+        --glass-surface-tint-a: rgba(14, 41, 61, 0.55);
+        --glass-surface-tint-b: rgba(12, 27, 46, 0.65);
+        --glass-surface-border: rgba(143, 227, 255, 0.14);
+      }
+      /* 1 — Futuriste Bleu : bleu électrique, contrastes plus nets. */
+      [data-live-universe="futuristic_blue"] {
+        --glass-tint-a: rgba(10, 35, 80, 0.75);
+        --glass-tint-b: rgba(2, 8, 30, 0.88);
+        --glass-border: rgba(90, 170, 255, 0.22);
+        --glass-border-top: rgba(180, 220, 255, 0.4);
+        --glass-shadow-inset: rgba(180, 220, 255, 0.14);
+        --glass-surface-tint-a: rgba(10, 35, 80, 0.55);
+        --glass-surface-tint-b: rgba(6, 18, 50, 0.68);
+        --glass-surface-border: rgba(90, 170, 255, 0.16);
+      }
+      /* 2 — Naturel & Frais : émeraude doux, lumière plus naturelle. */
+      [data-live-universe="natural_fresh"] {
+        --glass-tint-a: rgba(15, 50, 42, 0.7);
+        --glass-tint-b: rgba(6, 20, 16, 0.85);
+        --glass-border: rgba(110, 230, 180, 0.2);
+        --glass-border-top: rgba(220, 255, 235, 0.35);
+        --glass-shadow-inset: rgba(220, 255, 235, 0.12);
+        --glass-surface-tint-a: rgba(15, 50, 42, 0.5);
+        --glass-surface-tint-b: rgba(10, 32, 26, 0.62);
+        --glass-surface-border: rgba(110, 230, 180, 0.14);
+      }
+      /* 5 — Violet Luxe : violet profond, reflet doré (sensation premium). */
+      [data-live-universe="violet_luxe"] {
+        --glass-tint-a: rgba(45, 20, 60, 0.74);
+        --glass-tint-b: rgba(14, 6, 22, 0.87);
+        --glass-border: rgba(200, 150, 255, 0.2);
+        --glass-border-top: rgba(255, 222, 170, 0.35);
+        --glass-shadow-inset: rgba(255, 222, 170, 0.12);
+        --glass-surface-tint-a: rgba(45, 20, 60, 0.52);
+        --glass-surface-tint-b: rgba(28, 12, 42, 0.64);
+        --glass-surface-border: rgba(200, 150, 255, 0.16);
+      }
+      /* 6 — Océan Profond : bleu-sarcelle sombre, plus dense, plus calme. */
+      [data-live-universe="deep_ocean"] {
+        --glass-tint-a: rgba(6, 35, 45, 0.78);
+        --glass-tint-b: rgba(2, 10, 14, 0.9);
+        --glass-border: rgba(70, 200, 210, 0.18);
+        --glass-border-top: rgba(160, 240, 240, 0.3);
+        --glass-shadow-inset: rgba(160, 240, 240, 0.1);
+        --glass-surface-tint-a: rgba(6, 35, 45, 0.56);
+        --glass-surface-tint-b: rgba(4, 20, 26, 0.68);
+        --glass-surface-border: rgba(70, 200, 210, 0.14);
+      }
+      .glass-crystal {
+        background: linear-gradient(180deg, var(--glass-tint-a) 0%, var(--glass-tint-b) 100%);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        border: 1px solid var(--glass-border);
+        border-top-color: var(--glass-border-top);
+        box-shadow: inset 0 1px 0 0 var(--glass-shadow-inset), 0 8px 32px -8px rgba(4, 11, 20, 0.6);
+      }
+      .glass-crystal-surface {
+        background: linear-gradient(180deg, var(--glass-surface-tint-a) 0%, var(--glass-surface-tint-b) 100%);
+        backdrop-filter: blur(14px) saturate(130%);
+        -webkit-backdrop-filter: blur(14px) saturate(130%);
+        border: 1px solid var(--glass-surface-border);
+      }
+      /* Halo de l'avatar (LOOP 10/14) — l'avatar est intégré au système
+         verre/eau/lumière (couleur portée par --halo-color, posée par
+         avatarHaloProps()), pas un élément visuel isolé posé par-dessus.
+         inset:0 + ombre INTÉRIEURE (jamais une valeur négative type -6px) :
+         les tuiles avatar du LIVE sont systématiquement dans un conteneur
+         overflow-hidden (rounded-3xl) — un halo qui déborderait serait
+         invisible, tronqué par cet ancêtre. */
+      .avatar-halo {
+        position: absolute;
+        inset: 0;
+        /* Valeur fixe (pas "inherit", qui remonterait au conteneur direct
+           d'Avatar3D — non arrondi — et non à la tuile rounded-3xl du LIVE
+           qui l'englobe) : les tuiles avatar du LIVE utilisent toutes
+           rounded-3xl (1.5rem) par convention dans ce dépôt. */
+        border-radius: 1.5rem;
+        border: 2px solid var(--halo-color, rgba(232, 251, 255, 0.3));
+        box-shadow: inset 0 0 28px 4px var(--halo-color, rgba(232, 251, 255, 0.2));
+        pointer-events: none;
+        z-index: 5;
+        transition: border-color 0.4s ease, box-shadow 0.4s ease;
       }
     </style>
   <script type="importmap">

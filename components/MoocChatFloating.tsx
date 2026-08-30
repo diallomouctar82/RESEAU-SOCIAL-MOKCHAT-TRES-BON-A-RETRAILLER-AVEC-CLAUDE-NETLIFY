@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall, 
-  PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2, 
+import {
+  MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall,
+  PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2,
   Sparkles, Pin, ShieldAlert, ArrowLeft, CheckCheck, UserPlus, MoreVertical,
-  Maximize2, Minimize2, Eye
+  Maximize2, Minimize2, Eye, Wand2
 } from 'lucide-react';
 import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSession } from '../types';
 import { MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
 import { adminConfigService } from '../services/adminConfigService';
+import { summarizeConversation, assistRewriteMessage, translateMessageText } from '../services/messaging/messagingIntelligence';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { ChatReportModal } from './chat/ChatReportModal';
@@ -19,16 +20,30 @@ interface MoocChatFloatingProps {
   activeConversationId?: string | null;
   onCloseDirect?: () => void;
   onOpenMemberProfile?: (member: MemberProfile) => void;
+  /**
+   * LOOP 06/17 (messagerie, fondation) : jusqu'ici aucun appelant ne
+   * fournissait `activeConversationId` — le pont entre le bouton "Message"
+   * du fil social (un vrai membre Supabase) et cette fenêtre flottante
+   * n'a jamais existé, donc démarrer une PREMIÈRE conversation avec une
+   * vraie personne n'avait aucun chemin fonctionnel dans l'UI. Ce nouveau
+   * couple de props (remonté App.tsx → Layout.tsx → ici, même patron déjà
+   * utilisé pour isGoalModalOpen/isSearchModalOpen dans Layout.tsx) comble
+   * ce trou : quand un membre réel est déposé ici, on tente une vraie
+   * création/récupération de conversation Supabase avant tout repli local.
+   */
+  pendingDirectChatMember?: MemberProfile;
+  onConsumePendingDirectChatMember?: () => void;
 }
 
 const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
-const STORAGE_KEY_BLOCKED_USERS = 'lmav_chat_blocked_users';
 
 export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   currentUser = USER_PROFILE,
   activeConversationId = null,
   onCloseDirect,
-  onOpenMemberProfile
+  onOpenMemberProfile,
+  pendingDirectChatMember,
+  onConsumePendingDirectChatMember
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [conversations, setConversations] = useState<ChatConversation[]>(() => {
@@ -50,6 +65,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [inputText, setInputText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; size: string; type: string; url: string }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+
+  // Intelligence de messagerie (LOOP 07/17) : résumé de conversation +
+  // assistance de rédaction. État volontairement local et éphémère (jamais
+  // persisté) — un résumé/une correction n'est jamais une vérité durable,
+  // juste une aide ponctuelle relue par l'utilisateur avant d'agir.
+  const [conversationSummary, setConversationSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
   
   // Voice Recording state
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -74,14 +97,17 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTargetMessage, setReportTargetMessage] = useState<ChatMessage | null>(null);
   const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
-  const [blockedUserIds, setBlockedUserIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BLOCKED_USERS);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // LOOP 06/17 : reutilise le vrai blocage (user_blocks, LOOP 04/17) au lieu
+  // d'une liste locale distincte — "pas de second systeme de blocage
+  // specifique a la messagerie" (spec moteur de messagerie). Peuple par un
+  // vrai fetch, pas localStorage.
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  // Profils des participants par conversation — les charges realtime
+  // (postgres_changes) ne portent que les colonnes de `messages`, jamais de
+  // jointure vers `profiles` ; ce cache, rempli au chargement des
+  // conversations, permet d'enrichir un message temps reel avec le nom/
+  // avatar de son expediteur sans une requete supplementaire par message.
+  const participantProfilesRef = useRef<Record<string, Record<string, { name: string; avatarUrl?: string; role?: string }>>>({});
 
   // Online presences mapped by user id
   const [onlinePresences, setOnlinePresences] = useState<Record<string, boolean>>({});
@@ -99,12 +125,6 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     } catch {}
   }, [conversations]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_BLOCKED_USERS, JSON.stringify(blockedUserIds));
-    } catch {}
-  }, [blockedUserIds]);
-
   // Open modal if external activeConversationId changed
   useEffect(() => {
     if (activeConversationId) {
@@ -113,33 +133,69 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     }
   }, [activeConversationId]);
 
-  // Load Real Supabase Conversations & Messages
+  // Un résumé IA appartient à SA conversation — jamais laissé affiché en
+  // rouvrant une autre discussion (LOOP 07/17).
+  useEffect(() => {
+    setConversationSummary(null);
+  }, [currentChatId]);
+
+  // Load Real Supabase Conversations (LOOP 06/17 — réécrit entièrement,
+  // l'ancienne version interrogeait des colonnes `participant_one_id`/
+  // `participant_two_id` qui n'ont jamais existé sur `conversations` :
+  // chaque appel échouait silencieusement, `MoocChatFloating.tsx` ne
+  // montrait donc jamais que `MOCK_CHATS` pour un utilisateur réel).
   useEffect(() => {
     const loadSupabaseData = async () => {
       if (!currentUser?.id) return;
       try {
-        const remoteConvs = await supabaseService.getConversations(currentUser.id);
+        const [remoteConvs, blocked] = await Promise.all([
+          supabaseService.getConversationsForUser(currentUser.id),
+          supabaseService.getBlockedUserIds(currentUser.id),
+        ]);
+        setBlockedUserIds(blocked);
+
         if (remoteConvs && remoteConvs.length > 0) {
-          // Merge with current state
-          setConversations(prev => {
-            const map = new Map<string, ChatConversation>();
-            prev.forEach(c => map.set(c.id, c));
-            remoteConvs.forEach((rc: any) => {
-              const otherId = rc.participant_one_id === currentUser.id ? rc.participant_two_id : rc.participant_one_id;
-              const existing = map.get(rc.id);
-              if (existing) {
-                map.set(rc.id, {
-                  ...existing,
-                  lastMessage: rc.last_message || existing.lastMessage,
-                  lastMessageTime: rc.last_message_time ? new Date(rc.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : existing.lastMessageTime
-                });
-              }
+          const mapped: ChatConversation[] = remoteConvs.map((rc: any) => {
+            const participants: any[] = rc.conversation_participants || [];
+            const profileCache: Record<string, { name: string; avatarUrl?: string; role?: string }> = {};
+            participants.forEach((p) => {
+              if (p.profiles) profileCache[p.user_id] = { name: p.profiles.name, avatarUrl: p.profiles.avatar_url, role: p.profiles.role };
             });
-            return Array.from(map.values());
+            participantProfilesRef.current[rc.id] = profileCache;
+
+            const others = participants.filter((p) => p.user_id !== currentUser.id);
+            const other = others[0];
+            const otherProfile = other ? profileCache[other.user_id] : undefined;
+
+            return {
+              id: rc.id,
+              participantId: other?.user_id || '',
+              participantName: rc.is_group ? (rc.title || 'Groupe') : (otherProfile?.name || 'Membre'),
+              participantAvatar: otherProfile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop',
+              participantRole: otherProfile?.role,
+              isGroup: rc.is_group,
+              groupMembersCount: rc.is_group ? participants.length : undefined,
+              groupMembers: rc.is_group ? participants.map((p) => ({ id: p.user_id, name: profileCache[p.user_id]?.name || 'Membre', avatar: profileCache[p.user_id]?.avatarUrl || '' })) : undefined,
+              lastMessage: rc.last_message_preview || '',
+              lastMessageTime: rc.last_message_at ? new Date(rc.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+              unreadCount: 0,
+              isOnline: false,
+              messages: [],
+            } as ChatConversation;
+          });
+
+          setConversations(prev => {
+            // Les conversations réelles font autorité — les entrées locales
+            // (MOCK_CHATS ou un fil créé optimistiquement dans cette même
+            // session) ne sont conservées que si Supabase ne les connaît
+            // pas encore, pour ne jamais perdre des messages déjà affichés.
+            const realIds = new Set(mapped.map(c => c.id));
+            const keptLocal = prev.filter(c => !realIds.has(c.id) && !mapped.some(m => m.participantId === c.participantId && !m.isGroup && !c.isGroup));
+            return [...mapped, ...keptLocal];
           });
         }
       } catch (err) {
-        console.warn("Supabase fetch conversations fallback to local cache");
+        console.warn("Supabase fetch conversations fallback to local cache", err);
       }
     };
 
@@ -192,65 +248,100 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     };
   }, [currentUser?.id, currentUser?.name, currentUser?.avatar]);
 
-  // Subscribe to active conversation Realtime updates
+  // Convertit une ligne réelle de `messages` (LOOP 06/17 — vraies colonnes :
+  // `content`/`attachment_url`/`message_type`/`metadata.reactions`/
+  // `reply_to_id`/`edited_at`/`deleted_at`, jamais les noms fictifs
+  // `text`/`sender_name`/`media_url`/`voice_url`/`reply_to` que l'ancien
+  // code lisait sans qu'ils n'aient jamais existé) en `ChatMessage` pour
+  // l'UI. Le nom/avatar de l'expéditeur vient du cache de profils construit
+  // au chargement des conversations — un paquet realtime ne porte aucune
+  // jointure.
+  const mapDbMessageToChatMessage = (raw: any, conversationId: string, existingMessages: ChatMessage[]): ChatMessage => {
+    const senderProfile = participantProfilesRef.current[conversationId]?.[raw.sender_id];
+    const isDeleted = !!raw.deleted_at;
+    const repliedTo = raw.reply_to_id ? existingMessages.find(m => m.id === raw.reply_to_id) : undefined;
+    return {
+      id: raw.id,
+      conversationId,
+      senderId: raw.sender_id,
+      senderName: raw.sender_id === currentUser.id ? currentUser.name : (senderProfile?.name || 'Membre'),
+      senderAvatar: raw.sender_id === currentUser.id ? currentUser.avatar : senderProfile?.avatarUrl,
+      senderRole: raw.sender_id === currentUser.id ? currentUser.role : senderProfile?.role,
+      text: isDeleted ? undefined : (raw.content || undefined),
+      mediaType: isDeleted ? undefined : (raw.attachment_url ? (raw.message_type || 'document') : 'text'),
+      mediaUrl: isDeleted ? undefined : raw.attachment_url,
+      timestamp: raw.created_at ? new Date(raw.created_at) : new Date(),
+      isRead: false, // dérivé plus bas depuis last_read_at de l'autre participant, jamais un flag par message inventé.
+      status: (raw.status as ChatMessage['status']) || 'sent', // valeur réelle renvoyée par la base, jamais fabriquée côté client.
+      reactions: raw.metadata?.reactions || {},
+      replyTo: repliedTo ? { id: repliedTo.id, text: repliedTo.text, senderName: repliedTo.senderName, mediaType: repliedTo.mediaType } : undefined,
+      isEdited: !!raw.edited_at,
+      isDeleted,
+    };
+  };
+
+  // Historique réel + abonnement temps réel (LOOP 06/17). Avant cette LOOP,
+  // aucune fonction ne chargeait l'historique — seuls les messages arrivés
+  // après ouverture (via `subscribeToChat`) étaient visibles.
   useEffect(() => {
-    if (!currentChatId) return;
+    if (!currentChatId || !currentUser?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      const history = await supabaseService.getConversationMessages(currentChatId);
+      if (cancelled || history.length === 0) return;
+      setConversations(prev => prev.map(c => {
+        if (c.id !== currentChatId) return c;
+        const known = new Set(c.messages.map(m => m.id));
+        const mapped = history.filter((h: any) => !known.has(h.id)).map((h: any) => mapDbMessageToChatMessage(h, currentChatId, c.messages));
+        return { ...c, messages: [...mapped, ...c.messages].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) };
+      }));
+      supabaseService.markConversationRead(currentChatId, currentUser.id!).catch(() => {});
+    })();
 
     const unsubChat = supabaseService.subscribeToChat(currentChatId, {
       onMessage: (newMsg) => {
-        // Convert supabase record to ChatMessage
-        const incoming: ChatMessage = {
-          id: newMsg.id || `msg-${Date.now()}`,
-          conversationId: currentChatId,
-          senderId: newMsg.sender_id,
-          senderName: newMsg.sender_name,
-          senderAvatar: newMsg.sender_avatar,
-          senderRole: newMsg.sender_role,
-          text: newMsg.text,
-          mediaType: newMsg.media_type || (newMsg.voice_url ? 'audio' : 'text'),
-          mediaUrl: newMsg.media_url || newMsg.voice_url,
-          fileName: newMsg.file_name,
-          fileSize: newMsg.file_size,
-          audioDuration: newMsg.voice_duration,
-          timestamp: newMsg.created_at ? new Date(newMsg.created_at) : new Date(),
-          isRead: newMsg.sender_id === currentUser.id,
-          status: 'read',
-          reactions: newMsg.reactions || {},
-          replyTo: newMsg.reply_to
-        };
-
         setConversations(prev => prev.map(c => {
-          if (c.id === currentChatId) {
-            // Avoid duplicate
-            if (c.messages.some(m => m.id === incoming.id)) return c;
-            return {
-              ...c,
-              lastMessage: incoming.text || (incoming.mediaType === 'audio' ? '🎙️ Message vocal' : '📎 Document'),
-              lastMessageTime: 'À l\'instant',
-              messages: [...c.messages, incoming]
-            };
+          if (c.id !== currentChatId) return c;
+          // Réconciliation avec l'envoi optimiste : le message local
+          // temporaire porte `client_message_id` comme id le temps que le
+          // serveur confirme — jamais un doublon, jamais un id qui reste
+          // "sending" indéfiniment une fois l'écho temps réel arrivé.
+          const optimisticIdx = c.messages.findIndex(m => m.id === newMsg.client_message_id);
+          const incoming = mapDbMessageToChatMessage(newMsg, currentChatId, c.messages);
+          let nextMessages: ChatMessage[];
+          if (optimisticIdx >= 0) {
+            nextMessages = [...c.messages];
+            nextMessages[optimisticIdx] = incoming;
+          } else if (c.messages.some(m => m.id === incoming.id)) {
+            return c;
+          } else {
+            nextMessages = [...c.messages, incoming];
           }
-          return c;
+          return {
+            ...c,
+            lastMessage: incoming.text || (incoming.mediaType && incoming.mediaType !== 'text' ? '📎 Fichier partagé' : ''),
+            lastMessageTime: 'À l\'instant',
+            messages: nextMessages
+          };
         }));
+        if (newMsg.sender_id !== currentUser.id) {
+          supabaseService.markConversationRead(currentChatId, currentUser.id!).catch(() => {});
+        }
       },
       onUpdate: (updatedMsg) => {
         setConversations(prev => prev.map(c => {
-          if (c.id === currentChatId) {
-            return {
-              ...c,
-              messages: c.messages.map(m => m.id === updatedMsg.id ? {
-                ...m,
-                text: updatedMsg.text ?? m.text,
-                reactions: updatedMsg.reactions ?? m.reactions,
-                isPinned: updatedMsg.is_pinned ?? m.isPinned,
-                isEdited: updatedMsg.is_edited ?? m.isEdited
-              } : m)
-            };
-          }
-          return c;
+          if (c.id !== currentChatId) return c;
+          return {
+            ...c,
+            messages: c.messages.map(m => m.id === updatedMsg.id ? mapDbMessageToChatMessage(updatedMsg, currentChatId, c.messages) : m)
+          };
         }));
       },
       onDelete: (deletedMsgId) => {
+        // Filet de sécurité pour une suppression définitive faite ailleurs
+        // (ex. modération) — le chemin normal côté utilisateur est
+        // désormais une suppression douce (`deleted_at`), reçue via onUpdate.
         setConversations(prev => prev.map(c => {
           if (c.id === currentChatId) {
             return {
@@ -264,6 +355,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     });
 
     return () => {
+      cancelled = true;
       unsubChat();
     };
   }, [currentChatId, currentUser.id]);
@@ -424,129 +516,79 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   };
 
   // --- Send Message ---
+  // LOOP 06/17 : réécrit pour la vraie table `messages`. Chaque message
+  // porte désormais un id CLIENT (`crypto.randomUUID()`) qui sert à la fois
+  // d'id d'affichage optimiste ET de `client_message_id` envoyé au serveur
+  // — l'ancre d'idempotence (index unique déjà présent en base) qui rend un
+  // double envoi (double clic, retry réseau) sans effet plutôt que de créer
+  // un second message. `status` démarre honnêtement à 'sending' — jamais
+  // 'sent' avant confirmation serveur réelle (l'ancien code l'affichait
+  // 'sent' immédiatement, alors que l'envoi échouait systématiquement en
+  // silence contre le vrai schéma).
+  const isRealConversationId = (id: string) => !id.startsWith('chat-') && !id.startsWith('local-');
+  // Les membres de l'Annuaire local (MOCK_MEMBERS, id 'u1'/'u2'/...) ne sont
+  // jamais de vrais comptes Supabase — tenter un appel réel avec un tel id
+  // échouerait de toute façon (colonne uuid) ; ce garde évite un aller-retour
+  // réseau inutile et garde le repli local explicite plutôt qu'implicite.
+  const isLikelyRealId = (id?: string): id is string => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
   const handleSendMessage = async () => {
     if (!currentChatId || (!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob)) return;
 
-    const now = new Date();
     const currentReplyTo = replyingTo;
     const filesToSend = [...attachedFiles];
     const textToSend = inputText.trim();
-    const currentAudioBlob = recordedAudioBlob;
     const currentAudioUrl = recordedAudioUrl;
     const currentAudioDuration = recordingDuration || 5;
+    const canSync = supabaseService.isConfigured() && isRealConversationId(currentChatId);
 
-    // Reset inputs immediately for responsive UX
     setInputText('');
     setAttachedFiles([]);
     setRecordedAudioBlob(null);
     setRecordedAudioUrl(null);
     setReplyingTo(null);
 
-    const newMessagesList: ChatMessage[] = [];
+    type PendingSend = { msg: ChatMessage; clientMessageId: string; messageType: 'text' | 'image' | 'video' | 'audio' | 'document'; content?: string; attachmentUrl?: string };
+    const pending: PendingSend[] = [];
+    const makeReplyTo = () => currentReplyTo ? { id: currentReplyTo.id, text: currentReplyTo.text, senderName: currentReplyTo.senderName, mediaType: currentReplyTo.mediaType } : undefined;
+    const baseMsg = (clientMessageId: string): Omit<ChatMessage, 'text' | 'mediaType' | 'mediaUrl' | 'fileName' | 'fileSize' | 'audioDuration'> => ({
+      id: clientMessageId,
+      conversationId: currentChatId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      senderRole: currentUser.role || 'citizen',
+      timestamp: new Date(),
+      isRead: false,
+      status: 'sending',
+      replyTo: makeReplyTo(),
+    });
 
-    if (currentAudioBlob && currentAudioUrl) {
-      // Audio Voice message
-      const audioMsgId = `msg-${Date.now()}`;
-      const audioMsg: ChatMessage = {
-        id: audioMsgId,
-        conversationId: currentChatId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
-        senderRole: currentUser.role || 'citizen',
-        text: textToSend || undefined,
-        mediaType: 'audio',
-        mediaUrl: currentAudioUrl,
-        audioDuration: currentAudioDuration,
-        timestamp: now,
-        isRead: true,
-        status: 'sent',
-        replyTo: currentReplyTo ? {
-          id: currentReplyTo.id,
-          text: currentReplyTo.text,
-          senderName: currentReplyTo.senderName,
-          mediaType: currentReplyTo.mediaType
-        } : undefined
-      };
-      newMessagesList.push(audioMsg);
+    if (currentAudioUrl) {
+      const clientMessageId = crypto.randomUUID();
+      pending.push({
+        msg: { ...baseMsg(clientMessageId), text: textToSend || undefined, mediaType: 'audio', mediaUrl: currentAudioUrl, audioDuration: currentAudioDuration },
+        clientMessageId, messageType: 'audio', content: textToSend || undefined, attachmentUrl: currentAudioUrl,
+      });
     } else if (filesToSend.length > 0) {
-      // Primary attached file (with optional text)
-      const primaryFile = filesToSend[0];
-      const primaryMsgId = `msg-${Date.now()}`;
-      const primaryMsg: ChatMessage = {
-        id: primaryMsgId,
-        conversationId: currentChatId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
-        senderRole: currentUser.role || 'citizen',
-        text: textToSend || undefined,
-        mediaType: primaryFile.type as any,
-        mediaUrl: primaryFile.url,
-        fileName: primaryFile.name,
-        fileSize: primaryFile.size,
-        timestamp: now,
-        isRead: true,
-        status: 'sent',
-        replyTo: currentReplyTo ? {
-          id: currentReplyTo.id,
-          text: currentReplyTo.text,
-          senderName: currentReplyTo.senderName,
-          mediaType: currentReplyTo.mediaType
-        } : undefined
-      };
-      newMessagesList.push(primaryMsg);
-
-      // Additional files as sequential messages
-      for (let i = 1; i < filesToSend.length; i++) {
-        const extraFile = filesToSend[i];
-        const extraMsgId = `msg-${Date.now()}-${i}`;
-        const extraMsg: ChatMessage = {
-          id: extraMsgId,
-          conversationId: currentChatId,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          senderAvatar: currentUser.avatar,
-          senderRole: currentUser.role || 'citizen',
-          text: undefined,
-          mediaType: extraFile.type as any,
-          mediaUrl: extraFile.url,
-          fileName: extraFile.name,
-          fileSize: extraFile.size,
-          timestamp: new Date(Date.now() + i * 50),
-          isRead: true,
-          status: 'sent'
-        };
-        newMessagesList.push(extraMsg);
-      }
+      filesToSend.forEach((file, i) => {
+        const clientMessageId = crypto.randomUUID();
+        pending.push({
+          msg: { ...baseMsg(clientMessageId), text: i === 0 ? (textToSend || undefined) : undefined, mediaType: file.type as any, mediaUrl: file.url, fileName: file.name, fileSize: file.size },
+          clientMessageId, messageType: file.type as any, content: i === 0 ? (textToSend || undefined) : undefined, attachmentUrl: file.url,
+        });
+      });
     } else if (textToSend) {
-      // Standard text message
-      const textMsgId = `msg-${Date.now()}`;
-      const textMsg: ChatMessage = {
-        id: textMsgId,
-        conversationId: currentChatId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
-        senderRole: currentUser.role || 'citizen',
-        text: textToSend,
-        mediaType: 'text',
-        timestamp: now,
-        isRead: true,
-        status: 'sent',
-        replyTo: currentReplyTo ? {
-          id: currentReplyTo.id,
-          text: currentReplyTo.text,
-          senderName: currentReplyTo.senderName,
-          mediaType: currentReplyTo.mediaType
-        } : undefined
-      };
-      newMessagesList.push(textMsg);
+      const clientMessageId = crypto.randomUUID();
+      pending.push({
+        msg: { ...baseMsg(clientMessageId), text: textToSend, mediaType: 'text' },
+        clientMessageId, messageType: 'text', content: textToSend,
+      });
     }
 
-    if (newMessagesList.length === 0) return;
+    if (pending.length === 0) return;
 
-    // Optimistic UI Update
+    const newMessagesList = pending.map(p => p.msg);
     const lastMsg = newMessagesList[newMessagesList.length - 1];
     setConversations(prev => prev.map(c => {
       if (c.id === currentChatId) {
@@ -560,38 +602,66 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       return c;
     }));
 
-    // Send each message to Supabase
-    for (const msg of newMessagesList) {
-      supabaseService.sendMessage({
-        id: msg.id,
-        conversation_id: currentChatId,
-        sender_id: currentUser.id,
-        sender_name: currentUser.name,
-        sender_avatar: currentUser.avatar,
-        sender_role: currentUser.role || 'citizen',
-        text: msg.text,
-        media_type: msg.mediaType,
-        media_url: msg.mediaUrl,
-        file_name: msg.fileName,
-        file_size: msg.fileSize,
-        voice_url: msg.mediaType === 'audio' ? msg.mediaUrl : undefined,
-        voice_duration: msg.audioDuration,
-        status: 'sent',
-        reply_to: msg.replyTo
-      }).catch((err) => {
-        console.warn('Erreur envoi message Supabase (sauvegardé en local):', err);
-      });
+    if (!canSync) return; // conversation locale seulement (démo/hors-ligne) — reste optimiste, jamais de fausse confirmation serveur.
+
+    for (const p of pending) {
+      try {
+        const sent = await supabaseService.sendChatMessage({
+          conversationId: currentChatId,
+          senderId: currentUser.id,
+          clientMessageId: p.clientMessageId,
+          content: p.content,
+          attachmentUrl: p.attachmentUrl,
+          messageType: p.messageType,
+          // Corrigé : les deux branches de l'ancien ternaire valaient
+          // `undefined` (probable copier-coller de la vérification de l'id
+          // de CONVERSATION appliquée par erreur à l'id du MESSAGE cité) —
+          // `reply_to_id` n'était donc jamais réellement envoyé à Supabase,
+          // même en répondant explicitement à un message (la preview de
+          // réponse locale de l'expéditeur ne survivait ni au rechargement
+          // ni pour le destinataire, qui ne recevait aucun lien de réponse).
+          // On ne cite que l'id d'un message déjà confirmé côté serveur
+          // (status !== 'sending') : le message optimiste pas encore
+          // confirmé n'existe pas encore comme ligne réelle, le référencer
+          // violerait la contrainte de clé étrangère reply_to_id.
+          replyToId: currentReplyTo && currentReplyTo.status !== 'sending' ? currentReplyTo.id : undefined,
+        });
+        if (sent) {
+          setConversations(prev => prev.map(c => c.id === currentChatId ? {
+            ...c,
+            messages: c.messages.map(m => m.id === p.clientMessageId ? { ...m, id: sent.id, status: sent.status as ChatMessage['status'] } : m)
+          } : c));
+        }
+      } catch (err) {
+        console.warn('Erreur envoi message Supabase:', err);
+        setConversations(prev => prev.map(c => c.id === currentChatId ? {
+          ...c,
+          messages: c.messages.map(m => m.id === p.clientMessageId ? { ...m, status: undefined } : m)
+        } : c));
+      }
     }
   };
 
   // --- Reactions Handler ---
+  // LOOP 06/17 : remplace l'ancien lire-modifier-écrire local (qui appelait
+  // `updateChatMessage({reactions})` — un payload sans rapport avec les
+  // vraies colonnes, donc toujours silencieusement sans effet réel côté
+  // serveur) par le RPC atomique `toggle_message_reaction` (verrou de ligne
+  // côté base, jamais de condition de course entre deux personnes qui
+  // réagissent au même instant). Optimiste localement pour la réactivité,
+  // puis réconcilié avec la valeur réellement écrite en base ; en cas
+  // d'échec (ex. non-membre de la conversation), l'état local est annulé
+  // plutôt que de laisser croire à une réaction qui n'a pas été enregistrée.
   const handleToggleReaction = (messageId: string, emoji: string) => {
     if (!currentChatId) return;
+    const canSync = supabaseService.isConfigured() && isRealConversationId(currentChatId);
 
+    let previousReactions: Record<string, string[]> | undefined;
     setConversations(prev => prev.map(c => {
       if (c.id === currentChatId) {
         const updatedMessages = c.messages.map(m => {
           if (m.id === messageId) {
+            previousReactions = m.reactions;
             const reactions = { ...(m.reactions || {}) };
             const users = reactions[emoji] || [];
             const userIdx = users.indexOf(currentUser.id);
@@ -603,9 +673,6 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
               reactions[emoji] = [...users, currentUser.id];
             }
 
-            // Sync with Supabase
-            supabaseService.updateChatMessage(messageId, { reactions }).catch(() => {});
-
             return { ...m, reactions };
           }
           return m;
@@ -614,6 +681,54 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       }
       return c;
     }));
+
+    if (!canSync) return;
+
+    supabaseService.toggleMessageReaction(messageId, emoji).then((serverReactions) => {
+      setConversations(prev => prev.map(c => c.id === currentChatId ? {
+        ...c,
+        messages: c.messages.map(m => m.id === messageId ? { ...m, reactions: serverReactions } : m)
+      } : c));
+    }).catch((err) => {
+      console.warn('Erreur réaction Supabase, annulation locale:', err);
+      setConversations(prev => prev.map(c => c.id === currentChatId ? {
+        ...c,
+        messages: c.messages.map(m => m.id === messageId ? { ...m, reactions: previousReactions } : m)
+      } : c));
+    });
+  };
+
+  // --- Résumé de conversation (LOOP 07/17) ---
+  // Même patron que SocialLive.tsx::handleEndLive (seul précédent réel de
+  // résumé IA dans ce dépôt) : matière première = vrais messages déjà
+  // chargés, jamais rien d'inventé si la conversation est vide, dégradation
+  // gracieuse si l'IA échoue.
+  const handleSummarizeConversation = async () => {
+    if (!activeChat || isSummarizing) return;
+    setIsSummarizing(true);
+    setConversationSummary(null);
+    try {
+      const summary = await summarizeConversation(
+        activeChat.messages.map(m => ({ senderName: m.senderId === currentUser.id ? 'Moi' : (m.senderName || activeChat.participantName), text: m.text || '' }))
+      );
+      setConversationSummary(summary);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  // --- Assistance de rédaction (LOOP 07/17) ---
+  // Ne modifie que le champ de saisie — n'envoie jamais rien elle-même
+  // (préparer n'est pas envoyer, principe transversal de la mission).
+  const handleAssistRewrite = async () => {
+    if (!inputText.trim() || isRewriting) return;
+    setIsRewriting(true);
+    try {
+      const corrected = await assistRewriteMessage(inputText, 'corrige l\'orthographe, la grammaire et la clarté, garde un ton naturel');
+      setInputText(corrected);
+    } finally {
+      setIsRewriting(false);
+    }
   };
 
   // --- Start Call ---
@@ -656,53 +771,129 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   };
 
   // --- Block / Unblock User ---
-  const handleToggleBlockUser = (userId: string) => {
-    if (blockedUserIds.includes(userId)) {
+  // LOOP 06/17 : l'ancienne version ne touchait qu'un état React local —
+  // rechargée, la personne redevenait débloquée, et l'autre partie n'était
+  // jamais réellement empêchée d'écrire (la RLS `messages_insert_if_participant`
+  // corrigée ce LOOP vérifie `are_users_blocked` côté serveur, mais seule une
+  // vraie ligne dans `user_blocks` — pas un state local — active cette
+  // protection). Réutilise mot pour mot `blockUser`/`unblockUser` du LOOP
+  // 04/17, jamais un second mécanisme de blocage propre à la messagerie.
+  const handleToggleBlockUser = async (userId: string) => {
+    const wasBlocked = blockedUserIds.includes(userId);
+    if (wasBlocked) {
       setBlockedUserIds(prev => prev.filter(id => id !== userId));
     } else {
       setBlockedUserIds(prev => [...prev, userId]);
-      // Close current chat if blocked
       if (activeChat?.participantId === userId) {
         setCurrentChatId(null);
       }
     }
+
+    if (!supabaseService.isConfigured() || !isLikelyRealId(currentUser?.id) || !isLikelyRealId(userId)) return;
+    try {
+      if (wasBlocked) {
+        await supabaseService.unblockUser(currentUser.id, userId);
+      } else {
+        await supabaseService.blockUser(currentUser.id, userId);
+      }
+    } catch (err) {
+      console.warn('Erreur blocage/déblocage Supabase, annulation locale:', err);
+      setBlockedUserIds(prev => wasBlocked ? [...prev, userId] : prev.filter(id => id !== userId));
+    }
   };
 
   // --- Start Chat with a Directory Member ---
-  const handleStartDirectChat = (member: MemberProfile) => {
+  // LOOP 06/17 : pour un vrai membre (id Supabase réel — venant soit de
+  // l'Annuaire local MOCK_MEMBERS soit, désormais, du pont
+  // pendingDirectChatMember relié au fil social), tente une vraie création/
+  // récupération de conversation (`createDirectConversation`, idempotent via
+  // `direct_key`) avant tout repli. Le repli local (membre de démonstration,
+  // Supabase non configuré, ou échec réseau) ne fabrique plus jamais un faux
+  // "message de bienvenue" au nom de l'autre personne — contrairement à
+  // l'ancien code, qui inventait des propos qu'elle n'avait jamais tenus :
+  // la conversation démarre simplement vide, comme une vraie conversation
+  // neuve rechargée depuis le serveur.
+  const handleStartDirectChat = async (member: MemberProfile) => {
     const existing = conversations.find(c => c.participantId === member.id);
     if (existing) {
       setCurrentChatId(existing.id);
       setActiveTab('all');
-    } else {
-      const newConv: ChatConversation = {
-        id: `chat-${member.id}`,
-        participantId: member.id,
-        participantName: member.name,
-        participantAvatar: member.avatar,
-        participantTitle: member.title,
-        participantCountry: member.country,
-        lastMessage: 'Conversation sécurisée initialisée',
-        lastMessageTime: 'À l\'instant',
-        unreadCount: 0,
-        isOnline: true,
-        messages: [
-          {
-            id: `msg-welcome-${Date.now()}`,
-            senderId: member.id,
-            senderName: member.name,
-            senderAvatar: member.avatar,
-            text: `Bonjour ${currentUser.name} ! Ravi d'échanger avec vous sur le réseau d'élite Le Monde à Vous. Comment puis-je vous aider ?`,
-            timestamp: new Date(),
-            isRead: true
-          }
-        ]
-      };
-      setConversations(prev => [newConv, ...prev]);
-      setCurrentChatId(newConv.id);
-      setActiveTab('all');
+      setIsOpen(true);
+      return;
     }
+
+    if (supabaseService.isConfigured() && isLikelyRealId(member.id) && isLikelyRealId(currentUser?.id)) {
+      try {
+        const conversationId = await supabaseService.createDirectConversation(currentUser.id, member.id);
+        if (conversationId) {
+          const newConv: ChatConversation = {
+            id: conversationId,
+            participantId: member.id,
+            participantName: member.name,
+            participantAvatar: member.avatarUrl,
+            participantTitle: member.title,
+            participantCountry: member.location,
+            lastMessage: '',
+            lastMessageTime: '',
+            unreadCount: 0,
+            isOnline: true,
+            messages: []
+          };
+          setConversations(prev => [newConv, ...prev]);
+          setCurrentChatId(conversationId);
+          setActiveTab('all');
+          setIsOpen(true);
+          return;
+        }
+      } catch (err: any) {
+        // LOOP 07/17 : un refus de permission (`allowMessagesFrom` du
+        // destinataire) est un résultat réel et attendu, pas un incident
+        // réseau — jamais un repli silencieux vers une fausse conversation
+        // locale qui ne pourrait de toute façon jamais délivrer un message
+        // (l'ancien comportement aurait laissé croire à un envoi réussi).
+        if (err?.code === 'MESSAGING_NOT_ALLOWED') {
+          alert(`${member.name} limite qui peut lui écrire. Suivez cette personne, ou attendez qu'elle accepte votre demande d'ami, pour pouvoir lui envoyer un message.`);
+          return;
+        }
+        console.warn('Erreur création conversation Supabase, repli local:', err);
+      }
+    }
+
+    const newConv: ChatConversation = {
+      id: `chat-${member.id}`,
+      participantId: member.id,
+      participantName: member.name,
+      participantAvatar: member.avatarUrl,
+      participantTitle: member.title,
+      participantCountry: member.location,
+      lastMessage: 'Conversation initialisée',
+      lastMessageTime: 'À l\'instant',
+      unreadCount: 0,
+      isOnline: true,
+      messages: []
+    };
+    setConversations(prev => [newConv, ...prev]);
+    setCurrentChatId(newConv.id);
+    setActiveTab('all');
+    setIsOpen(true);
   };
+
+  // Pont "Message"/"Mooc Chat" du fil social (SocialFeed.tsx) → cette
+  // fenêtre flottante (LOOP 06/17). Avant ce changement, `onOpenDirectChat`
+  // n'était fourni par aucun appelant (App.tsx rendait `<SocialFeed
+  // onOpenLive={...} />` sans lui), donc ces boutons ne faisaient
+  // strictement rien pour un vrai membre — aucun chemin UI n'existait pour
+  // démarrer une PREMIÈRE conversation avec une vraie personne. Remonté
+  // App.tsx → Layout.tsx → ici, même patron que isGoalModalOpen/
+  // isSearchModalOpen déjà utilisé dans Layout.tsx pour le même besoin
+  // (un enfant profond doit ouvrir un composant monté plus haut).
+  useEffect(() => {
+    if (pendingDirectChatMember) {
+      handleStartDirectChat(pendingDirectChatMember);
+      onConsumePendingDirectChatMember?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDirectChatMember]);
 
   return (
     <>
@@ -780,6 +971,19 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 {/* Call buttons in active chat */}
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={handleSummarizeConversation}
+                    disabled={isSummarizing}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-50"
+                    title="Résumer cette conversation (IA)"
+                  >
+                    {isSummarizing ? (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
+                    ) : (
+                      <Sparkles size={16} />
+                    )}
+                  </button>
+
+                  <button
                     onClick={() => handleStartCall('audio')}
                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
                     title="Appel Audio"
@@ -818,7 +1022,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         Realtime
                       </span>
                     </h3>
-                    <p className="text-[10px] text-slate-400">Échanges chiffrés de bout-en-bout</p>
+                    <p className="text-[10px] text-slate-400">Visible uniquement par les membres de chaque discussion</p>
                   </div>
                 </div>
 
@@ -972,11 +1176,29 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                 {/* Messages Stream */}
                 <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2">
                   
-                  {/* Encryption Notice Banner */}
+                  {/* Access Notice Banner — LOOP 07/17 : ne revendique plus un
+                      chiffrement de bout-en-bout qui n'existe pas (aucune
+                      bibliothèque E2E, `content` stocké en clair) — règle
+                      anti-fausse-promesse. Affirme uniquement ce qui est
+                      réellement garanti par la RLS (is_conversation_member). */}
                   <div className="py-2 px-3 bg-indigo-50/70 border border-indigo-100/80 rounded-2xl text-center text-[10px] text-indigo-900 font-medium flex items-center justify-center gap-1.5 shadow-2xs">
                     <Shield size={13} className="text-indigo-600 flex-shrink-0" />
-                    <span>Les messages et appels sont chiffrés de bout-en-bout. Personne d'autre ne peut les lire.</span>
+                    <span>Cette conversation n'est visible que par ses membres.</span>
                   </div>
+
+                  {/* Conversation Summary Banner (LOOP 07/17) */}
+                  {conversationSummary && (
+                    <div className="py-2.5 px-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-900 flex items-start gap-2 shadow-2xs">
+                      <Sparkles size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-bold block mb-0.5">Résumé (IA) :</span>
+                        <span>{conversationSummary}</span>
+                      </div>
+                      <button onClick={() => setConversationSummary(null)} className="text-amber-500 hover:text-amber-700 flex-shrink-0">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
 
                   {activeChat.messages.map(msg => (
                     <ChatMessageItem
@@ -1002,6 +1224,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       onToggleAudio={togglePlayAudio}
                       audioProgress={audioProgress}
                       onOpenImageLightbox={(imgUrl) => setLightboxImageUrl(imgUrl)}
+                      onTranslate={(text) => translateMessageText(text, currentUser.preferredLanguage || 'français')}
                     />
                   ))}
                   
@@ -1147,10 +1370,28 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         handleSendMessage();
                       }
                     }}
-                    placeholder={isRecordingVoice ? 'Enregistrement en cours...' : 'Écrivez un message sécurisé...'}
+                    placeholder={isRecordingVoice ? 'Enregistrement en cours...' : 'Écrivez un message...'}
                     disabled={isRecordingVoice}
                     className="flex-1 px-3.5 py-2.5 bg-slate-100 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 min-w-0"
                   />
+
+                  {/* Rewrite Assist Button (LOOP 07/17) — corrige uniquement
+                      le champ de saisie, n'envoie jamais rien elle-même. */}
+                  {inputText.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleAssistRewrite}
+                      disabled={isRewriting}
+                      className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
+                      title="Corriger l'orthographe et la clarté (IA) — ne change jamais le sens ni n'envoie le message"
+                    >
+                      {isRewriting ? (
+                        <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin block"></span>
+                      ) : (
+                        <Wand2 size={17} />
+                      )}
+                    </button>
+                  )}
 
                   {/* Voice Record Button or Send Button */}
                   {!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob ? (

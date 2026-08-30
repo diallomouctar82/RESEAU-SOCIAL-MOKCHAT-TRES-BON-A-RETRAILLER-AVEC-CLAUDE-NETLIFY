@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { StockItem, BusinessOrder, CrmLeadClient, CrmFollowUp, ProductProfitability } from '../../types';
 import { generateText } from '../../services/aiGateway';
+import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
+import { ELEVENLABS_CURATED_VOICES } from '../../services/voiceEngine';
 
 interface TalkToYourBusinessAssistantProps {
   orders: BusinessOrder[];
@@ -50,13 +52,22 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
 
   const [inputQuery, setInputQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Copilote vocal : voix "Analyste Diallo" (finance/B2B), cohérente avec le
+  // ton business de ce panneau. onFinalTranscript envoie directement la
+  // question dès que la reconnaissance vocale a fini de transcrire.
+  const { isListening, isSupported: isVoiceSupported, startListening, stopListening, speak } = useVoiceAssistant({
+    voiceId: ELEVENLABS_CURATED_VOICES.finance.id,
+    lang: 'fr-FR',
+    onFinalTranscript: (transcript) => handleSendMessage(transcript),
+    onInterimTranscript: (transcript) => setInputQuery(transcript),
+  });
 
   const handleSendMessage = async (queryText: string) => {
     if (!queryText.trim()) return;
@@ -126,6 +137,10 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
       };
 
       setMessages(prev => [...prev, botMsg]);
+
+      if (isSpeaking) {
+        void speak(botMsg.text).catch(() => {});
+      }
     } catch (e) {
       console.error(e);
       const fallbackMsg: ChatMessage = {
@@ -139,6 +154,10 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
         ]
       };
       setMessages(prev => [...prev, fallbackMsg]);
+
+      if (isSpeaking) {
+        void speak(fallbackMsg.text).catch(() => {});
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -182,10 +201,11 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
 
         <button
           onClick={() => setIsSpeaking(!isSpeaking)}
-          className={`p-2 rounded-xl text-xs font-bold transition-all border ${
-            isSpeaking ? 'bg-indigo-600/30 text-indigo-300 border-indigo-400/40' : 'bg-slate-800 text-slate-400 border-white/5'
+          className={`p-2.5 rounded-xl text-xs font-bold transition-all border ${
+            isSpeaking ? 'bg-indigo-600/30 text-indigo-300 border-indigo-400/40' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-white/5'
           }`}
           title={isSpeaking ? 'Voix activée' : 'Activer synthèse vocale'}
+          aria-pressed={isSpeaking}
         >
           {isSpeaking ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
@@ -255,21 +275,20 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
           <button
             type="button"
             onClick={() => {
-              setIsListening(!isListening);
-              if (!isListening) {
-                // simulate voice prompt
-                setTimeout(() => {
-                  setInputQuery("Diallo, quel est l'état de nos stocks à Conakry ?");
-                  setIsListening(false);
-                }, 1800);
+              if (isListening) {
+                stopListening();
+              } else {
+                startListening();
               }
             }}
-            className={`p-3 rounded-2xl transition-all border ${
-              isListening 
-                ? 'bg-rose-600 text-white animate-pulse border-rose-400' 
+            disabled={!isVoiceSupported}
+            className={`p-3.5 rounded-2xl transition-all border disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800 ${
+              isListening
+                ? 'bg-rose-600 text-white animate-pulse border-rose-400'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-white/10'
             }`}
-            title="Dicter la question"
+            title={isVoiceSupported ? 'Dicter la question' : 'Reconnaissance vocale non supportée par ce navigateur'}
+            aria-pressed={isListening}
           >
             {isListening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
@@ -279,13 +298,14 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
             value={inputQuery}
             onChange={(e) => setInputQuery(e.target.value)}
             placeholder="Posez votre question à Diallo OS (stocks, livraisons, marge, clients...)"
-            className="flex-1 px-4 py-3 bg-slate-950 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+            className="flex-1 px-4 py-3.5 bg-slate-950 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
           />
 
           <button
             type="submit"
             disabled={!inputQuery.trim() || isProcessing}
-            className="p-3 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-2xl transition-all shadow-md disabled:opacity-50"
+            aria-label="Envoyer le message"
+            className="p-3.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-2xl transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={16} />
           </button>

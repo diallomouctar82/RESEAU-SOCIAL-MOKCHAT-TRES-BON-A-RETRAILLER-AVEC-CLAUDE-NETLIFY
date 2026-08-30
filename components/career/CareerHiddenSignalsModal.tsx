@@ -46,7 +46,7 @@ export const CareerHiddenSignalsModal: React.FC<CareerHiddenSignalsModalProps> =
           </div>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
+            className="p-3 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
           >
             <X size={22} />
           </button>

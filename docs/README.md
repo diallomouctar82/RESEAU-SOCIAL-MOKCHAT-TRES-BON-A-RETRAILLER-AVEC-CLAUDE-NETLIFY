@@ -65,6 +65,8 @@ La documentation n'est pas un rapport rédigé a posteriori : elle est le **socl
 | **15. Tableau d'Enregistrement des Défauts** | Matrice formelle des 22 défauts résolus et certifiés (Norme IEEE 1044 / PSP). | [`docs/TABLEAU_ENREGISTREMENT_DEFAUTS.md`](./TABLEAU_ENREGISTREMENT_DEFAUTS.md) |
 | **16. Passation Claude Code (Handoff)** | Guide stratégique pour l'audit et la consolidation future. | [`docs/HANDOFF_CLAUDE_CODE.md`](./HANDOFF_CLAUDE_CODE.md) |
 | **17. Dossiers par Module** | Spécifications complètes des 14 modules fonctionnels de la plateforme. | [`docs/modules/`](./modules/) |
+| **18. Architecture Supabase** | État réel de la base (tables, RLS, fonctions, jobs planifiés) domaine par domaine — décrit ce qui existe, jamais une cible. | [`docs/SUPABASE_ARCHITECTURE.md`](./SUPABASE_ARCHITECTURE.md) |
+| **19. L'Architecte** | Orchestration par intention : registre de capacités, bus d'exécution, permissions, statuts. Couverture réelle et limites. | [`docs/ARCHITECTE.md`](./ARCHITECTE.md) |
 
 ---
 

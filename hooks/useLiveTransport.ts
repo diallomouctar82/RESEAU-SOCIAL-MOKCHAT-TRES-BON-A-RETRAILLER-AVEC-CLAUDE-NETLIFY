@@ -1,0 +1,168 @@
+// Pont React entre le port LiveTransportProvider (services/live/) et l'UI du
+// LIVE. Remplace la capture caméra/écran purement locale de SocialLive.tsx
+// par une vraie publication/abonnement de pistes (LOOP 04/14) — ce hook ne
+// connaît que le port, jamais livekit-client directement.
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
+import type { LiveConnectionState, LiveParticipantHandle, LiveTrackHandle } from '../services/live/liveTransportTypes';
+import { fetchLiveKitToken } from '../services/live/liveKitToken';
+
+export interface RemoteParticipantMedia {
+    participant: LiveParticipantHandle;
+    videoTrack?: LiveTrackHandle;
+    audioTrack?: LiveTrackHandle;
+    screenShareTrack?: LiveTrackHandle;
+}
+
+export interface UseLiveTransportOptions {
+    /** Identifiant de room LiveKit — un live_sessions.id par session. */
+    roomName: string;
+    participantName: string;
+    /** Reflète le rôle réel (sur scène ou spectateur) — doit correspondre au jeton émis côté serveur. */
+    canPublish: boolean;
+    /** Ne se connecte que lorsque true (ex. attendre que roomName soit connu). */
+    enabled: boolean;
+}
+
+export interface UseLiveTransportResult {
+    connectionState: LiveConnectionState;
+    error: string | null;
+    localVideoTrack: LiveTrackHandle | null;
+    localScreenShareTrack: LiveTrackHandle | null;
+    localIsSpeaking: boolean;
+    remoteParticipants: RemoteParticipantMedia[];
+    setCameraEnabled: (enabled: boolean) => Promise<void>;
+    setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
+    startScreenShare: () => Promise<void>;
+    stopScreenShare: () => Promise<void>;
+    disconnect: () => Promise<void>;
+}
+
+export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
+    const { roomName, participantName, canPublish, enabled } = options;
+    const providerRef = useRef<LiveKitTransportProvider | null>(null);
+    const [connectionState, setConnectionState] = useState<LiveConnectionState>('disconnected');
+    const [error, setError] = useState<string | null>(null);
+    const [localVideoTrack, setLocalVideoTrack] = useState<LiveTrackHandle | null>(null);
+    const [localScreenShareTrack, setLocalScreenShareTrack] = useState<LiveTrackHandle | null>(null);
+    const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
+    const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantMedia[]>([]);
+
+    useEffect(() => {
+        if (!enabled || !roomName) return;
+        let cancelled = false;
+        const provider = new LiveKitTransportProvider();
+        providerRef.current = provider;
+
+        const upsertRemote = (identity: string, patch: Partial<RemoteParticipantMedia>) => {
+            setRemoteParticipants((prev) => {
+                const idx = prev.findIndex((p) => p.participant.identity === identity);
+                if (idx === -1) {
+                    if (!patch.participant) return prev; // piste orpheline arrivée avant le handle participant — ignorée, un futur onParticipantConnected/snapshot la complètera
+                    return [...prev, { participant: patch.participant, ...patch } as RemoteParticipantMedia];
+                }
+                const next = [...prev];
+                next[idx] = { ...next[idx], ...patch };
+                return next;
+            });
+        };
+
+        (async () => {
+            try {
+                const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish);
+                if (cancelled) return;
+
+                await provider.connect({ serverUrl, token }, {
+                    onConnectionStateChanged: (state) => setConnectionState(state),
+                    onParticipantConnected: (p) => upsertRemote(p.identity, { participant: p }),
+                    onParticipantDisconnected: (identity) => {
+                        setRemoteParticipants((prev) => prev.filter((p) => p.participant.identity !== identity));
+                    },
+                    onTrackSubscribed: (track) => {
+                        if (track.kind === 'video') upsertRemote(track.participantIdentity, { videoTrack: track });
+                        else if (track.kind === 'audio') upsertRemote(track.participantIdentity, { audioTrack: track });
+                        else if (track.kind === 'screen_share') upsertRemote(track.participantIdentity, { screenShareTrack: track });
+                    },
+                    onTrackUnsubscribed: (identity, kind) => {
+                        if (kind === 'video') upsertRemote(identity, { videoTrack: undefined });
+                        else if (kind === 'audio') upsertRemote(identity, { audioTrack: undefined });
+                        else if (kind === 'screen_share') upsertRemote(identity, { screenShareTrack: undefined });
+                    },
+                    onLocalTrackPublished: (track) => {
+                        if (track.kind === 'video') setLocalVideoTrack(track);
+                        else if (track.kind === 'screen_share') setLocalScreenShareTrack(track);
+                    },
+                    onLocalTrackUnpublished: (kind) => {
+                        if (kind === 'video') setLocalVideoTrack(null);
+                        else if (kind === 'screen_share') setLocalScreenShareTrack(null);
+                    },
+                    onActiveSpeakersChanged: (identities) => {
+                        const localId = provider.getLocalParticipant()?.identity;
+                        setLocalIsSpeaking(!!localId && identities.includes(localId));
+                    },
+                    onDisconnected: () => setConnectionState('disconnected'),
+                });
+                if (cancelled) return;
+
+                // Participants déjà présents à la connexion — arrivent via ce
+                // snapshot, pas via onParticipantConnected (réservé aux
+                // arrivées ultérieures, voir LOOP 01/14).
+                for (const p of provider.getRemoteParticipants()) upsertRemote(p.identity, { participant: p });
+
+                if (canPublish) {
+                    try {
+                        await provider.setCameraEnabled(true);
+                        await provider.setMicrophoneEnabled(true);
+                    } catch (mediaErr) {
+                        // Permission caméra/micro refusée ou périphérique absent : le
+                        // LIVE reste utilisable (dégradation gracieuse), pas d'échec fatal.
+                        console.warn('useLiveTransport: activation caméra/micro impossible', mediaErr);
+                    }
+                }
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            provider.disconnect();
+            providerRef.current = null;
+            setLocalVideoTrack(null);
+            setLocalScreenShareTrack(null);
+            setRemoteParticipants([]);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [enabled, roomName, participantName, canPublish]);
+
+    const setCameraEnabled = useCallback(async (value: boolean) => {
+        await providerRef.current?.setCameraEnabled(value);
+    }, []);
+    const setMicrophoneEnabled = useCallback(async (value: boolean) => {
+        await providerRef.current?.setMicrophoneEnabled(value);
+    }, []);
+    const startScreenShare = useCallback(async () => {
+        await providerRef.current?.startScreenShare();
+    }, []);
+    const stopScreenShare = useCallback(async () => {
+        await providerRef.current?.stopScreenShare();
+    }, []);
+    const disconnect = useCallback(async () => {
+        await providerRef.current?.disconnect();
+    }, []);
+
+    return {
+        connectionState,
+        error,
+        localVideoTrack,
+        localScreenShareTrack,
+        localIsSpeaking,
+        remoteParticipants,
+        setCameraEnabled,
+        setMicrophoneEnabled,
+        startScreenShare,
+        stopScreenShare,
+        disconnect,
+    };
+}

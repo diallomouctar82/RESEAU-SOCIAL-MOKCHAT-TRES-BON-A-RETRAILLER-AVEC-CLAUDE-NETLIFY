@@ -263,9 +263,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                 <div className="flex items-center gap-1.5">
                     <button
                         onClick={() => setActiveSubTab('timeline')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                             activeSubTab === 'timeline'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                     >
@@ -275,9 +275,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                     <button
                         onClick={() => setActiveSubTab('tasks')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                             activeSubTab === 'tasks'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                     >
@@ -287,9 +287,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                     <button
                         onClick={() => setActiveSubTab('documents')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                             activeSubTab === 'documents'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                     >
@@ -299,9 +299,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                     <button
                         onClick={() => setActiveSubTab('experts')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                             activeSubTab === 'experts'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                     >
@@ -311,7 +311,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                     <button
                         onClick={() => setActiveSubTab('planb')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                             activeSubTab === 'planb'
                                 ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
                                 : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
@@ -323,9 +323,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                     <button
                         onClick={() => setActiveSubTab('memory')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${
                             activeSubTab === 'memory'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                     >
@@ -350,14 +350,14 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                 <div className="space-y-6 animate-fade-in">
                     
                     {/* POINT A: Starting Situation Card */}
-                    <div className="bg-slate-50 border-2 border-indigo-200 rounded-3xl p-5 md:p-6 shadow-sm">
+                    <div className="bg-slate-50 border-2 border-blue-200 rounded-3xl p-5 md:p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+                                <div className="w-9 h-9 rounded-2xl bg-brand-600 text-white flex items-center justify-center font-black text-sm shadow-md">
                                     A
                                 </div>
                                 <div>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-100 px-2 py-0.5 rounded-full">
                                         Point de Départ (Diagnostic Initial)
                                     </span>
                                     <h4 className="text-base font-black text-slate-900 mt-0.5">
@@ -405,7 +405,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                     </div>
 
                     {/* INTERMEDIATE STEPS (THE JOURNEY) */}
-                    <div className="space-y-4 pl-4 md:pl-8 border-l-2 border-dashed border-indigo-300 ml-4 md:ml-6 relative">
+                    <div className="space-y-4 pl-4 md:pl-8 border-l-2 border-dashed border-blue-300 ml-4 md:ml-6 relative">
                         {parcours.steps.map((step, index) => {
                             const stepAgent = AGENTS.find(a => a.id === step.assignedAgentId) || leadAgent;
                             const isCurrent = step.status === 'in_progress';
@@ -418,7 +418,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                     key={step.id} 
                                     className={`relative bg-white rounded-2xl p-5 border transition-all duration-300 ${
                                         isCurrent 
-                                            ? 'border-indigo-500 ring-2 ring-indigo-100 shadow-lg' 
+                                            ? 'border-brand-500 ring-2 ring-brand-100 shadow-lg' 
                                             : isDone 
                                             ? 'border-emerald-200 bg-emerald-50/20' 
                                             : isBlocked
@@ -433,7 +433,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                         isDone 
                                             ? 'bg-emerald-500 text-white' 
                                             : isCurrent 
-                                            ? 'bg-indigo-600 text-white animate-pulse' 
+                                            ? 'bg-brand-600 text-white animate-pulse' 
                                             : isBlocked
                                             ? 'bg-red-500 text-white'
                                             : 'bg-slate-200 text-slate-600'
@@ -446,7 +446,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
                                                 isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                                                isCurrent ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                                isCurrent ? 'bg-brand-100 text-brand-700 border-blue-300' :
                                                 isBlocked ? 'bg-red-100 text-red-800 border-red-300' :
                                                 'bg-slate-100 text-slate-600 border-slate-200'
                                             }`}>
@@ -478,7 +478,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                             {!isCurrent && !isDone && (
                                                 <button
                                                     onClick={() => handleStepStatusChange(step.id, 'in_progress')}
-                                                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-indigo-200 transition-colors"
+                                                    className="bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-blue-200 transition-colors"
                                                 >
                                                     Activer
                                                 </button>
@@ -500,7 +500,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                         {/* Assigned Expert */}
                                         <div className="flex items-center gap-2">
                                             <img 
-                                                src={stepAgent.avatar} 
+                                                src={stepAgent.avatarUrl}
                                                 alt={stepAgent.name} 
                                                 className="w-7 h-7 rounded-full object-cover border border-slate-300"
                                             />
@@ -522,7 +522,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                         {step.gatewayActionLabel && onNavigateToTab && (
                                             <button
                                                 onClick={() => onNavigateToTab(step.gatewayTab || (step.gatewayModule === 'campus' ? 'campus' : step.gatewayModule === 'market' ? 'shop' : 'chat'))}
-                                                className="bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors self-start md:self-auto"
+                                                className="bg-white hover:bg-brand-50 text-brand-700 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors self-start md:self-auto"
                                             >
                                                 <span>{step.gatewayActionLabel}</span>
                                                 <ArrowRight size={13} />
@@ -535,7 +535,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                     </div>
 
                     {/* POINT B: Final Target Goal Card */}
-                    <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white rounded-3xl p-5 md:p-6 shadow-xl border border-indigo-900">
+                    <div className="bg-gradient-to-br from-brand-900 via-slate-900 to-slate-950 text-white rounded-3xl p-5 md:p-6 shadow-xl border border-brand-900">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-9 h-9 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md">
@@ -550,7 +550,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                     </h4>
                                 </div>
                             </div>
-                            <span className="text-xs text-indigo-300 font-semibold">
+                            <span className="text-xs text-blue-300 font-semibold">
                                 Cible : {parcours.targetDate}
                             </span>
                         </div>
@@ -610,7 +610,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                             value={newTaskTitle}
                             onChange={(e) => setNewTaskTitle(e.target.value)}
                             placeholder="Ajouter une action concrète à réaliser..."
-                            className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                            className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 w-full"
                         />
 
                         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -626,7 +626,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                             <button
                                 type="submit"
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 whitespace-nowrap"
+                                className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 whitespace-nowrap"
                             >
                                 <Plus size={16} /> Ajouter
                             </button>
@@ -636,20 +636,24 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                     {/* Task List */}
                     <div className="space-y-2">
                         {parcours.tasks.map((task) => (
-                            <div 
+                            <div
                                 key={task.id}
                                 onClick={() => handleToggleTask(task.id)}
-                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
-                                    task.completed 
-                                        ? 'bg-slate-50/80 border-slate-200 text-slate-400 line-through' 
-                                        : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-sm text-slate-900'
+                                role="button"
+                                tabIndex={0}
+                                aria-pressed={task.completed}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleTask(task.id); } }}
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
+                                    task.completed
+                                        ? 'bg-slate-50/80 border-slate-200 text-slate-400 line-through'
+                                        : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-sm text-slate-900'
                                 }`}
                             >
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${
                                         task.completed 
                                             ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                            : 'border-slate-300 hover:border-indigo-500 bg-white'
+                                            : 'border-slate-300 hover:border-brand-500 bg-white'
                                     }`}>
                                         {task.completed && <Check size={14} />}
                                     </div>
@@ -662,7 +666,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
                                         task.priority === 'high' ? 'bg-red-50 text-red-700 border border-red-200' :
                                         task.priority === 'medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                        'bg-slate-100 text-slate-600'
+                                        'bg-slate-100 text-slate-600 border border-slate-200'
                                     }`}>
                                         {task.priority}
                                     </span>
@@ -694,7 +698,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                         <button
                             onClick={() => setShowDeliverableModal(true)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md flex items-center gap-1.5"
+                            className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md flex items-center gap-1.5"
                         >
                             <Plus size={15} /> Nouveau Livrable
                         </button>
@@ -727,17 +731,19 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                         Signé : {deliv.authorAgentName}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        <button 
+                                        <button
                                             onClick={() => addNotification("Téléchargement", `Téléchargement du livrable "${deliv.title}" certifié.`, "info")}
-                                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+                                            className="p-2.5 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                             title="Télécharger"
+                                            aria-label={`Télécharger ${deliv.title}`}
                                         >
                                             <Download size={14} />
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => addNotification("Google Drive", `Export du livrable vers Google Drive réussi.`, "success")}
-                                            className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-600 transition-colors"
+                                            className="p-2.5 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-brand-50 text-brand-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                             title="Sauvegarder dans Google Drive"
+                                            aria-label={`Sauvegarder ${deliv.title} dans Google Drive`}
                                         >
                                             <Share2 size={14} />
                                         </button>
@@ -765,9 +771,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
 
                                 <div className="pt-2 text-xs text-slate-400 flex items-center justify-between">
                                     <span>Version {doc.version}</span>
-                                    <button 
+                                    <button
                                         onClick={() => addNotification("Ouverture", `Ouverture de la pièce jointe ${doc.title}.`, "info")}
-                                        className="text-indigo-600 hover:underline font-semibold"
+                                        className="text-brand-600 hover:underline font-semibold py-2 px-1 -my-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded"
                                     >
                                         Consulter
                                     </button>
@@ -792,15 +798,15 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                             const isLead = ag.id === parcours.leadAgentId;
 
                             return (
-                                <div key={ag.id} className={`p-5 rounded-2xl border bg-white flex flex-col justify-between shadow-sm ${isLead ? 'border-indigo-400 ring-2 ring-indigo-50' : 'border-slate-200'}`}>
+                                <div key={ag.id} className={`p-5 rounded-2xl border bg-white flex flex-col justify-between shadow-sm ${isLead ? 'border-blue-400 ring-2 ring-brand-50' : 'border-slate-200'}`}>
                                     <div>
                                         <div className="flex items-center gap-3 mb-3">
-                                            <img src={ag.avatar} alt={ag.name} className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-sm" />
+                                            <img src={ag.avatarUrl} alt={ag.name} className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-sm" />
                                             <div>
                                                 <div className="flex items-center gap-1.5">
                                                     <h5 className="font-bold text-slate-900 text-sm">{ag.name}</h5>
                                                     {isLead && (
-                                                        <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md uppercase">
+                                                        <span className="text-[9px] font-black bg-brand-600 text-white px-1.5 py-0.5 rounded-md uppercase">
                                                             Pilote
                                                         </span>
                                                     )}
@@ -816,7 +822,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                     <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
                                         <button
                                             onClick={() => onOpenAgentChat && onOpenAgentChat(ag.id, `Bonjour ${ag.name}, faisons un point sur le parcours "${parcours.title}".`)}
-                                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                                            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                                         >
                                             <MessageSquare size={13} /> Chat Dédié
                                         </button>
@@ -825,8 +831,9 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                                 if (onNavigateToTab) onNavigateToTab('live');
                                                 addNotification("Session Live", `Appel vidéo initié avec ${ag.name}.`, "info");
                                             }}
-                                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                                            className="p-2 min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                             title="Lancer un appel vidéo"
+                                            aria-label={`Lancer un appel vidéo avec ${ag.name}`}
                                         >
                                             <Video size={15} />
                                         </button>
@@ -862,7 +869,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                             <button
                                 onClick={handleGenerateDynamicPlanB}
                                 disabled={isGeneratingPlanB}
-                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap"
+                                className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                             >
                                 {isGeneratingPlanB ? <RotateCcw className="animate-spin" size={15} /> : <Sparkles size={15} />}
                                 Calculer le Plan B
@@ -945,7 +952,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                         </div>
                         <button
                             type="submit"
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm flex items-center gap-1"
+                            className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm flex items-center gap-1"
                         >
                             <Plus size={14} /> Mémoriser dans Diallo OS
                         </button>
@@ -954,7 +961,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                     {/* Decisions history */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                         <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                            <BrainCircuit size={16} className="text-indigo-600" />
+                            <BrainCircuit size={16} className="text-brand-600" />
                             Décisions Actives & Orientations Validées
                         </h5>
                         <ul className="space-y-2 text-xs text-slate-700">
@@ -974,11 +981,11 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                 <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-indigo-600">
+                            <div className="flex items-center gap-2 text-brand-600">
                                 <Award size={20} />
                                 <h4 className="font-bold text-slate-900 text-base">Émettre un Livrable Certifié</h4>
                             </div>
-                            <button onClick={() => setShowDeliverableModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                            <button onClick={() => setShowDeliverableModal(false)} aria-label="Fermer" className="p-2.5 min-w-11 min-h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                                 <X size={18} />
                             </button>
                         </div>
@@ -995,7 +1002,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                                     value={deliverableTitle}
                                     onChange={(e) => setDeliverableTitle(e.target.value)}
                                     placeholder="Ex: Attestation de Maîtrise B2 / Rapport de Cadrage Commercial"
-                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
                                 />
                             </div>
 
@@ -1024,7 +1031,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
                             <button
                                 onClick={handleCreateCertifiedDeliverable}
                                 disabled={isCertifyingDeliverable || !deliverableTitle.trim()}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md flex items-center gap-1.5"
+                                className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-600 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                             >
                                 {isCertifyingDeliverable ? "Certification en cours..." : "Sceller & Signer"}
                             </button>

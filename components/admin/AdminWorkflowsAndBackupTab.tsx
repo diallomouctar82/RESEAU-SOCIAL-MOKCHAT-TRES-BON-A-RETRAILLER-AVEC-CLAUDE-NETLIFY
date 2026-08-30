@@ -46,6 +46,7 @@ import {
 } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { cloudService } from '../../services/cloud';
+import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 
 interface AdminWorkflowsAndBackupTabProps {
   workflows: WorkflowPipelineConfig[];
@@ -90,6 +91,8 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
   const [isProcessing, setIsProcessing] = useState(false);
   const [snapshotFilter, setSnapshotFilter] = useState<'all' | 'milestone' | 'manual' | 'scheduled' | 'pre_restore'>('all');
   const [searchSnapshotQuery, setSearchSnapshotQuery] = useState('');
+  const [confirmDeleteSnapshot, setConfirmDeleteSnapshot] = useState<{ id: string; name: string } | null>(null);
+  const [confirmUndoRestoreOpen, setConfirmUndoRestoreOpen] = useState(false);
 
   // Initial Load
   const refreshLocalState = () => {
@@ -140,16 +143,21 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
   };
 
   const handleDeleteSnapshot = (id: string, name: string) => {
-    if (window.confirm(`Confirmez-vous la suppression définitive de l'instantané "${name}" ?`)) {
-      const ok = adminConfigService.deleteSnapshot(id);
-      if (ok) {
-        refreshLocalState();
-        setOperationFeedback({
-          type: 'info',
-          message: `Instantané "${name}" supprimé.`
-        });
-        onReload();
-      }
+    setConfirmDeleteSnapshot({ id, name });
+  };
+
+  const confirmDeleteSnapshotAction = () => {
+    if (!confirmDeleteSnapshot) return;
+    const { id, name } = confirmDeleteSnapshot;
+    const ok = adminConfigService.deleteSnapshot(id);
+    setConfirmDeleteSnapshot(null);
+    if (ok) {
+      refreshLocalState();
+      setOperationFeedback({
+        type: 'info',
+        message: `Instantané "${name}" supprimé.`
+      });
+      onReload();
     }
   };
 
@@ -237,10 +245,11 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
   };
 
   const handleUndoRestore = () => {
-    if (!window.confirm('Voulez-vous annuler la dernière restauration et revenir au point de récupération automatique créé immédiatement avant ?')) {
-      return;
-    }
+    setConfirmUndoRestoreOpen(true);
+  };
 
+  const confirmUndoRestoreAction = () => {
+    setConfirmUndoRestoreOpen(false);
     setIsProcessing(true);
     setTimeout(() => {
       const result = adminConfigService.undoLastRestore();
@@ -313,7 +322,11 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
             {operationFeedback.type === 'success' ? <CheckCircle2 size={16} /> : <Info size={16} />}
             <span>{operationFeedback.message}</span>
           </div>
-          <button onClick={() => setOperationFeedback(null)} className="text-slate-400 hover:text-slate-700">
+          <button
+            onClick={() => setOperationFeedback(null)}
+            className="p-1.5 -m-1.5 rounded-lg hover:bg-black/5 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            aria-label="Fermer ce message"
+          >
             <X size={14} />
           </button>
         </div>
@@ -338,7 +351,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           <button
             onClick={handleUndoRestore}
             disabled={isProcessing}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-2 whitespace-nowrap"
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-2 whitespace-nowrap disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1"
           >
             <RotateCcw size={14} />
             Annuler la Restauration (Rollback)
@@ -366,10 +379,10 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           </p>
         </div>
 
-        <div className="flex flex-wrap bg-slate-100 p-1 rounded-2xl border border-slate-200">
+        <div className="flex flex-wrap bg-slate-100 p-1 rounded-2xl border border-slate-200 gap-1">
           <button
             onClick={() => setSubTab('versions')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'versions' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -378,7 +391,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           </button>
           <button
             onClick={() => setSubTab('snapshots')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'snapshots' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -387,7 +400,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           </button>
           <button
             onClick={() => setSubTab('schedule')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'schedule' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -396,7 +409,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           </button>
           <button
             onClick={() => setSubTab('workflows')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'workflows' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -405,7 +418,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           </button>
           <button
             onClick={() => setSubTab('integrations')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'integrations' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -432,14 +445,14 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowCreateSnapshotModal(true)}
-                className="px-4 py-2.5 bg-white text-blue-900 hover:bg-blue-50 rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 whitespace-nowrap"
+                className="px-4 py-2.5 bg-white text-blue-900 hover:bg-blue-50 rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900"
               >
                 <Plus size={14} />
                 Créer un Instantané
               </button>
               <button
                 onClick={() => handleDownloadSnapshot()}
-                className="px-4 py-2.5 bg-blue-700/80 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow border border-blue-500/30 flex items-center gap-1.5 whitespace-nowrap"
+                className="px-4 py-2.5 bg-blue-700/80 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow border border-blue-500/30 flex items-center gap-1.5 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900"
               >
                 <Download size={14} />
                 Exporter Snapshot JSON
@@ -518,20 +531,20 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                         {idx > 0 && (
                           <button
                             onClick={() => handleOpenCompare(versions[0].version, ver.version)}
-                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                           >
                             <ArrowUpDown size={13} />
                             Comparer avec v6.3.0
                           </button>
                         )}
-                        
+
                         {!isCurrent && (
                           <button
                             onClick={() => {
                               setSelectedVersionForRestore(ver);
                               setSelectedSnapshotForRestore(null);
                             }}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                           >
                             <RotateCcw size={13} />
                             Restaurer vers {ver.version}
@@ -589,14 +602,14 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   placeholder="Rechercher un instantané..."
                   value={searchSnapshotQuery}
                   onChange={(e) => setSearchSnapshotQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <select
                 value={snapshotFilter}
                 onChange={(e) => setSnapshotFilter(e.target.value as any)}
-                className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
+                className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">Tous les types ({snapshots.length})</option>
                 <option value="milestone">Jalons système</option>
@@ -609,13 +622,13 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowCreateSnapshotModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Plus size={14} />
                 Nouvel Instantané
               </button>
 
-              <label className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+              <label className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer focus-within:ring-2 focus-within:ring-blue-500">
                 <Upload size={14} />
                 Importer JSON
                 <input type="file" accept=".json" onChange={handleFileImport} className="hidden" />
@@ -685,11 +698,12 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                           </div>
                         </td>
                         <td className="p-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleDownloadSnapshot(snap.id)}
-                              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                               title="Télécharger JSON"
+                              aria-label="Télécharger cet instantané en JSON"
                             >
                               <Download size={14} />
                             </button>
@@ -699,7 +713,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                                 setSelectedSnapshotForRestore(snap);
                                 setSelectedVersionForRestore(null);
                               }}
-                              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition flex items-center gap-1"
+                              className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                               title="Restaurer cet instantané"
                             >
                               <RotateCcw size={13} />
@@ -709,8 +723,9 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                             {!isMilestone && (
                               <button
                                 onClick={() => handleDeleteSnapshot(snap.id, snap.name)}
-                                className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition"
+                                className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                                 title="Supprimer"
+                                aria-label="Supprimer cet instantané"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -761,7 +776,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   <select
                     value={schedule.frequency}
                     onChange={(e) => handleUpdateSchedule({ frequency: e.target.value as any })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="hourly">Toutes les heures (Haute Résilience)</option>
                     <option value="daily">Quotidienne (Recommandé)</option>
@@ -775,7 +790,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                     type="time"
                     value={schedule.timeOfDay}
                     onChange={(e) => handleUpdateSchedule({ timeOfDay: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -787,7 +802,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                     max={50}
                     value={schedule.keepMaxSnapshots}
                     onChange={(e) => handleUpdateSchedule({ keepMaxSnapshots: parseInt(e.target.value) || 10 })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <span className="text-[10px] text-slate-400 mt-1 block">Les jalons officiels ne sont jamais supprimés.</span>
                 </div>
@@ -823,7 +838,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                 <button
                   onClick={handleTriggerScheduledBackup}
                   disabled={isProcessing}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-2"
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                 >
                   <Zap size={14} />
                   Exécuter le Cycle Maintenant
@@ -885,8 +900,9 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                     </span>
                     <button
                       onClick={() => setEditingWorkflow({ ...wf })}
-                      className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition"
+                      className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       title="Modifier"
+                      aria-label="Modifier ce workflow"
                     >
                       <Edit size={16} />
                     </button>
@@ -976,12 +992,13 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setSelectedVersionForRestore(null);
                   setSelectedSnapshotForRestore(null);
-                }} 
-                className="text-slate-400 hover:text-slate-700"
+                }}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
               >
                 <X size={18} />
               </button>
@@ -1071,14 +1088,14 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   setSelectedVersionForRestore(null);
                   setSelectedSnapshotForRestore(null);
                 }}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Annuler
               </button>
               <button
                 onClick={handleExecuteRestore}
                 disabled={isProcessing}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-2"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Check size={14} />
                 {isProcessing ? 'Restauration en cours...' : 'Confirmer la Restauration Sécurisée'}
@@ -1097,7 +1114,11 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                 <HardDrive size={18} className="text-blue-600" />
                 Création d'un Instantané de Sauvegarde
               </h3>
-              <button onClick={() => setShowCreateSnapshotModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setShowCreateSnapshotModal(false)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -1111,7 +1132,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   placeholder="Ex : Sauvegarde avant mise à jour du 27 Août"
                   value={newSnapshotForm.name}
                   onChange={(e) => setNewSnapshotForm({ ...newSnapshotForm, name: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -1120,7 +1141,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                 <select
                   value={newSnapshotForm.type}
                   onChange={(e) => setNewSnapshotForm({ ...newSnapshotForm, type: e.target.value as any })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="manual">Sauvegarde Manuelle</option>
                   <option value="system_milestone">Jalon Système Majeur</option>
@@ -1134,7 +1155,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   placeholder="Détails des modifications ou contexte de la sauvegarde..."
                   value={newSnapshotForm.notes}
                   onChange={(e) => setNewSnapshotForm({ ...newSnapshotForm, notes: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -1142,13 +1163,13 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                 <button
                   type="button"
                   onClick={() => setShowCreateSnapshotModal(false)}
-                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold"
+                  className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                 >
                   Générer l'Instantané
                 </button>
@@ -1170,7 +1191,11 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                 </h3>
                 <p className="text-xs text-slate-500">{comparisonResult.diffSummary}</p>
               </div>
-              <button onClick={() => setCompareVersionsModal(null)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setCompareVersionsModal(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -1224,7 +1249,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
             <div className="flex justify-end pt-3 border-t border-slate-100">
               <button
                 onClick={() => setCompareVersionsModal(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Fermer la Comparaison
               </button>
@@ -1239,7 +1264,13 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-scale-up">
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900">Édition du Workflow : {editingWorkflow.name}</h3>
-              <button onClick={() => setEditingWorkflow(null)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+              <button
+                onClick={() => setEditingWorkflow(null)}
+                className="p-2 -m-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -1249,7 +1280,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   type="text"
                   value={editingWorkflow.name}
                   onChange={(e) => setEditingWorkflow({ ...editingWorkflow, name: e.target.value })}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -1259,7 +1290,7 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
                   rows={3}
                   value={editingWorkflow.description}
                   onChange={(e) => setEditingWorkflow({ ...editingWorkflow, description: e.target.value })}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -1275,12 +1306,36 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button onClick={() => setEditingWorkflow(null)} className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold">Annuler</button>
-              <button onClick={handleSaveWorkflow} className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow">Enregistrer</button>
+              <button onClick={() => setEditingWorkflow(null)} className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Annuler</button>
+              <button onClick={handleSaveWorkflow} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1">Enregistrer</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirmation de suppression d'instantané */}
+      <SmartConfirmModal
+        isOpen={!!confirmDeleteSnapshot}
+        onClose={() => setConfirmDeleteSnapshot(null)}
+        onConfirm={confirmDeleteSnapshotAction}
+        title={`Supprimer l'instantané « ${confirmDeleteSnapshot?.name || ''} » ?`}
+        description="Cet instantané de sauvegarde sera définitivement supprimé et ne pourra plus être utilisé pour une restauration."
+        actionType="delete"
+        riskLevel="high"
+        confirmLabel="Supprimer définitivement"
+      />
+
+      {/* Confirmation d'annulation de restauration */}
+      <SmartConfirmModal
+        isOpen={confirmUndoRestoreOpen}
+        onClose={() => setConfirmUndoRestoreOpen(false)}
+        onConfirm={confirmUndoRestoreAction}
+        title="Annuler la dernière restauration ?"
+        description="La plateforme reviendra au point de récupération automatique créé juste avant cette restauration."
+        actionType="generic"
+        riskLevel="high"
+        confirmLabel="Annuler la restauration"
+      />
     </div>
   );
 };

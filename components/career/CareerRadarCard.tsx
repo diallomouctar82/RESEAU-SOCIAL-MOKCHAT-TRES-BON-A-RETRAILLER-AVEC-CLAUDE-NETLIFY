@@ -106,7 +106,7 @@ export const CareerRadarCard: React.FC<CareerRadarCardProps> = ({
   return (
     <div className={`bg-white rounded-3xl p-6 border transition-all duration-300 relative flex flex-col justify-between space-y-5 group ${
       opportunity.isExplorationCard 
-        ? 'border-indigo-300 shadow-md shadow-indigo-100/50 bg-gradient-to-b from-indigo-50/30 to-white' 
+        ? 'border-indigo-300 shadow-md shadow-indigo-100/50 bg-indigo-50/40' 
         : 'border-slate-200 hover:border-blue-400 hover:shadow-xl'
     }`}>
       
@@ -309,7 +309,7 @@ export const CareerRadarCard: React.FC<CareerRadarCardProps> = ({
         {onOpenConquestWarRoom ? (
           <button 
             onClick={() => onOpenConquestWarRoom(opportunity)}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-600/20"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-600/20"
           >
             <ShieldCheck size={16} /> 
             <span>Salle de Préparation & Conquête</span>

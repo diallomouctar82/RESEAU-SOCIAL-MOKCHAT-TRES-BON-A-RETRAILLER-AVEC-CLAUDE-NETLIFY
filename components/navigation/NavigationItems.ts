@@ -364,5 +364,14 @@ export const GOAL_TEMPLATES = [
     targetTab: 'languages',
     steps: ['Test de niveau initial', 'Fiches mnémotechniques quotidiennes', 'Immersion audio avec natifs', 'Certification de fluidité'],
     leadAgent: 'Diallo Langues'
+  },
+  {
+    id: 'goal-health',
+    title: 'Consulter un professionnel de santé',
+    category: 'Santé & Bien-être',
+    icon: HeartPulse,
+    targetTab: 'health',
+    steps: ['Description confidentielle du besoin', 'Orientation vers le bon spécialiste', 'Prise de rendez-vous', 'Suivi avec Docteur Diallo'],
+    leadAgent: 'Docteur Diallo'
   }
 ];

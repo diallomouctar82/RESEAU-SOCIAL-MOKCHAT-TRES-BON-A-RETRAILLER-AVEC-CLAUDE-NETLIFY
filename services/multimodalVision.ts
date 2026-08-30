@@ -326,7 +326,8 @@ RÈGLES CRUCIALES POUR LES BOÎTES ENCADRANTES (Bounding Boxes) :
                         riskScore: 0
                     },
                     recognizedPersons: [],
-                    executiveSummary: "Scène capturée et prête pour l'accompagnement par votre expert."
+                    executiveSummary: "Scène capturée et prête pour l'accompagnement par votre expert.",
+                    degraded: true,
                 };
             }
 

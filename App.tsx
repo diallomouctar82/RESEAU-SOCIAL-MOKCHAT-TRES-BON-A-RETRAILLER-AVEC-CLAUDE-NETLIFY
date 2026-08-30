@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { GoalProvider } from './contexts/GoalContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard'; 
 import { ChatInterface } from './components/ChatInterface';
@@ -21,7 +22,6 @@ import { LegalCenter } from './components/LegalCenter';
 import { Wallet } from './components/Wallet';
 import { Auth } from './components/Auth';
 import { ResetPassword } from './components/ResetPassword';
-import { Settings } from './components/Settings';
 import { LanguageCenter } from './components/LanguageCenter';
 import { CouncilRoom } from './components/CouncilRoom';
 import { ExpertsHub } from './components/ExpertsHub';
@@ -31,7 +31,7 @@ import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
-import { Agent, LiveStream } from './types';
+import { Agent, LiveStream, MemberProfile } from './types';
 import { getSession, onAuthStateChange, signOut } from './services/auth';
 import { fetchUserProfile } from './services/profile';
 
@@ -43,10 +43,25 @@ const AppContent = () => {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   
-  const [activeTab, setActiveTab] = useState('home'); 
+  const [activeTab, setActiveTab] = useState('home');
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
-  
+  // Recherche universelle : remontée ici (au lieu d'un état local à Layout)
+  // pour que Dashboard puisse aussi l'ouvrir depuis sa zone d'actions
+  // rapides — c'était l'absence de ce lien qui faisait naviguer vers un
+  // onglet 'search' inexistant et vider tout l'écran.
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  // Idem pour la modale d'objectif ("Mon Cap") : remontée ici pour que
+  // Dashboard puisse aussi l'ouvrir depuis le pill "Changer de cap" de
+  // son EditorialHero, sans quoi ce clic n'avait aucun effet.
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  // LOOP 06/17 (messagerie, fondation) : même patron — remonté ici pour que
+  // le bouton "Message"/"Mooc Chat" du fil social (SocialFeed.tsx) puisse
+  // ouvrir une vraie conversation dans <MoocChatFloating>, montée à
+  // l'intérieur de <Layout>. Sans ce pont, `onOpenDirectChat` n'avait aucun
+  // appelant réel : ces boutons ne faisaient rien pour un vrai membre.
+  const [pendingDirectChatMember, setPendingDirectChatMember] = useState<MemberProfile | undefined>(undefined);
+
   // LIVE STATE
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
@@ -137,6 +152,37 @@ const AppContent = () => {
       setActiveLiveId(liveId);
   };
 
+  // Lien direct vers un Live précis (?live=<id>, copié depuis le bouton
+  // "Copier le lien" de SocialLive.tsx) — ouvre CE Live en rejouant
+  // exactement le même chemin que la navigation interne (handleOpenLive,
+  // sans initialData). Aucune vérification d'accès n'est contournée ni
+  // ajoutée ici : SocialLive applique les mêmes contrôles (RLS Supabase
+  // can_view_live_session()/is_live_host(), logique déjà en place) que pour
+  // un Live ouvert depuis le fil social — y compris le refus d'accès à une
+  // session privée. On attend que la session applicative soit confirmée
+  // (isAuthenticated) avant de consommer le paramètre, pour ne pas tenter
+  // d'ouvrir un Live avant que l'utilisateur ne soit connecté ; un lien
+  // ouvert déconnecté atterrit normalement sur l'écran de connexion, puis
+  // ce même effet se redéclenche une fois isAuthenticated passé à true.
+  const hasConsumedLiveLinkRef = useRef(false);
+  useEffect(() => {
+      if (!isAuthenticated || hasConsumedLiveLinkRef.current) return;
+      try {
+          const params = new URLSearchParams(window.location.search);
+          const liveIdFromUrl = params.get('live');
+          if (liveIdFromUrl) {
+              hasConsumedLiveLinkRef.current = true;
+              handleOpenLive(liveIdFromUrl);
+              // Nettoie l'URL une fois le lien consommé, pour ne pas rouvrir
+              // ce Live à chaque rechargement après que l'utilisateur l'a quitté.
+              const cleanUrl = window.location.pathname + window.location.hash;
+              window.history.replaceState({}, '', cleanUrl);
+          }
+      } catch (err) {
+          console.warn('Lecture du paramètre ?live= impossible', err);
+      }
+  }, [isAuthenticated]);
+
   // Prioritaire sur tout le reste : un lien "mot de passe oublié" cliqué
   // établit une vraie session Supabase, mais l'utilisateur doit choisir un
   // nouveau mot de passe avant d'entrer dans l'app, même si isAuthenticated
@@ -155,16 +201,25 @@ const AppContent = () => {
   }
 
   return (
-    <Layout 
-        activeTab={activeTab} 
+    <Layout
+        activeTab={activeTab}
         onTabChange={setActiveTab}
         notifications={notifications}
         onMarkRead={markNotificationRead}
         userProfile={userProfile}
         onLogout={handleLogout}
+        isSearchModalOpen={isSearchModalOpen}
+        onOpenSearch={() => setIsSearchModalOpen(true)}
+        onCloseSearch={() => setIsSearchModalOpen(false)}
+        isGoalModalOpen={isGoalModalOpen}
+        onOpenGoalModal={() => setIsGoalModalOpen(true)}
+        onCloseGoalModal={() => setIsGoalModalOpen(false)}
+        pendingDirectChatMember={pendingDirectChatMember}
+        onConsumePendingDirectChatMember={() => setPendingDirectChatMember(undefined)}
+        onUpdateProfile={updateUserProfile}
     >
-      
-      {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} />}
+
+      {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} onOpenCapModal={() => setIsGoalModalOpen(true)} />}
 
       {activeTab === 'google-maps' && <GoogleMapsExplorer />}
 
@@ -174,7 +229,7 @@ const AppContent = () => {
 
       {activeTab === 'google-meet' && <GoogleMeetCenter />}
 
-      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} />}
+      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} onOpenDirectChat={(_, member) => member && setPendingDirectChatMember(member)} />}
 
       {activeTab === 'world' && <WorldHub onNavigateToAgent={handleNavigateToAgent} onNavigate={setActiveTab} />}
 
@@ -200,8 +255,6 @@ const AppContent = () => {
       
       {activeTab === 'legal' && <LegalCenter userProfile={userProfile} />}
 
-      {activeTab === 'settings' && <Settings />}
-
       {(activeTab === 'admin' || activeTab === 'super-admin' || activeTab === 'admin-dashboard') &&
           (userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
               <AdminDashboard />
@@ -209,7 +262,7 @@ const AppContent = () => {
 
       {activeTab === 'languages' && <LanguageCenter userProfile={userProfile} />}
 
-      {(activeTab === 'admin-procedures' || activeTab === 'demarches') && <LegalCenter userProfile={userProfile} />}
+      {activeTab === 'admin-procedures' && <LegalCenter userProfile={userProfile} />}
 
       {activeTab === 'council' && <CouncilRoom onClose={() => setActiveTab('home')} />}
 
@@ -310,7 +363,9 @@ export default function App() {
     return (
         <GlobalProvider>
             <ThemeProvider>
-                <AppContent />
+                <GoalProvider>
+                    <AppContent />
+                </GoalProvider>
             </ThemeProvider>
         </GlobalProvider>
     );

@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   HelpCircle,
   Search,
-  Filter
+  Filter,
+  X
 } from 'lucide-react';
 import { 
   CareerMissionPlan, 
@@ -40,6 +41,7 @@ import {
   RadarOpportunityItem
 } from '../../../types';
 import { INITIAL_LIVE_DOSSIERS, INITIAL_BRIEFING_DATA, generatePlanBForDossier } from '../../../services/careerContinuityEngine';
+import { StatusBadge, StatusVariant } from '../../ui/StatusBadge';
 import { CareerLiveDossierModal } from './CareerLiveDossierModal';
 import { CareerWhatShouldIDoNowModal } from './CareerWhatShouldIDoNowModal';
 import { CareerBriefingTomorrowModal } from './CareerBriefingTomorrowModal';
@@ -181,36 +183,35 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
     }
   };
 
-  const getStatusDisplay = (dossier: CareerLiveDossier) => {
+  const getStatusDisplay = (dossier: CareerLiveDossier): { variant: StatusVariant | null; label: string; color?: string } => {
     if (dossier.isStalled) {
-      return { label: `Bloqué (${dossier.daysSinceLastContact}j)`, color: 'bg-red-50 text-red-800 border-red-200' };
+      return { variant: 'danger', label: `Bloqué (${dossier.daysSinceLastContact}j)` };
     }
     if (dossier.status === 'rendez_vous') {
-      return { label: 'Rendez-vous Fixé 📅', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
+      // Scheduling marker, not a validated/pending/danger status — kept as a bespoke pill.
+      return { variant: null, label: 'Rendez-vous Fixé 📅', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
     }
     if (dossier.status === 'a_relancer') {
-      return { label: 'À Relancer (J+8)', color: 'bg-amber-50 text-amber-800 border-amber-200' };
+      return { variant: 'action_required', label: 'À Relancer (J+8)' };
     }
     if (dossier.status === 'urgent') {
-      return { label: 'Urgent (<48h)', color: 'bg-red-50 text-red-800 border-red-200' };
+      return { variant: 'danger', label: 'Urgent (<48h)' };
     }
     if (dossier.status === 'en_attente') {
-      return { label: 'En attente retour', color: 'bg-slate-100 text-slate-700 border-slate-200' };
+      return { variant: 'pending', label: 'En attente retour' };
     }
     if (dossier.status === 'reussi') {
-      return { label: 'Résultat Certifié 🎉', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+      return { variant: 'success', label: 'Résultat Certifié 🎉' };
     }
-    return { label: 'En cours', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    return { variant: 'in_progress', label: 'En cours' };
   };
 
   return (
     <div className="space-y-6 animate-fade-up">
       
       {/* 🚀 1. CAREER PULSE & GLOBAL INTELLIGENCE BANNER */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="relative z-10 space-y-5">
+      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800">
+        <div className="space-y-5">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -234,7 +235,7 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
             <div className="flex flex-wrap gap-2.5 w-full lg:w-auto">
               <button
                 onClick={() => setShowWhatToDoModal(true)}
-                className="flex-1 sm:flex-none px-5 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs md:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all transform hover:scale-[1.02] active:scale-95"
+                className="flex-1 sm:flex-none px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs md:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all transform hover:scale-[1.02] active:scale-95"
               >
                 <Sparkles size={17} className="animate-spin" />
                 <span>Que dois-je faire maintenant ?</span>
@@ -268,7 +269,7 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
           </div>
 
           {/* NEXT BEST ACTION GLOBAL BAR */}
-          <div className="p-4 bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-slate-900/40 border border-blue-500/30 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="p-4 bg-slate-900/40 border border-blue-500/30 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
               <span className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-400/40 text-blue-300 flex items-center justify-center shrink-0">
                 <Sparkles size={16} />
@@ -409,9 +410,13 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
                     </div>
                   </div>
 
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border shrink-0 ${statusBadge.color}`}>
-                    {statusBadge.label}
-                  </span>
+                  {statusBadge.variant ? (
+                    <StatusBadge status={statusBadge.variant} label={statusBadge.label} size="sm" className="shrink-0" />
+                  ) : (
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border shrink-0 ${statusBadge.color}`}>
+                      {statusBadge.label}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -447,7 +452,7 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
               </div>
 
               {/* NEXT BEST ACTION CARD */}
-              <div className="p-4 bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/80 rounded-2xl space-y-2">
+              <div className="p-4 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2">
                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-blue-900">
                   <span className="flex items-center gap-1.5">
                     <Sparkles size={13} className="text-blue-600" /> Prochain Meilleur Pas (Diallo NBA)
@@ -642,7 +647,9 @@ export const CareerContinuityControlHub: React.FC<CareerContinuityControlHubProp
                 <Award size={22} />
                 <h3 className="text-lg font-black text-slate-900">Enregistrer un Résultat Certifié</h3>
               </div>
-              <button onClick={() => setShowOutcomeModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setShowOutcomeModal(false)} className="p-3 -m-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors" aria-label="Fermer">
+                <X size={18} />
+              </button>
             </div>
 
             <form onSubmit={handleCreateOutcome} className="space-y-4">
