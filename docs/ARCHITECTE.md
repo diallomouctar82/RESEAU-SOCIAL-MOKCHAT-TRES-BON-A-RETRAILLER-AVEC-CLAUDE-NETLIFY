@@ -207,8 +207,8 @@ d'exploitable n'est trouvé.
 
 ## 11. Tests
 
-**104 tests réels, tous verts** — 72 hors navigateur via `esbuild` + Node, plus
-**32 sous `vitest` + `@testing-library/react`** (voir §15), l'outillage DOM
+**131 tests réels, tous verts** — 72 hors navigateur via `esbuild` + Node, plus
+**59 sous `vitest` + `@testing-library/react`** (voir §15), l'outillage DOM
 que le dépôt n'avait pas jusqu'ici.
 
 | Suite | Couvre |
@@ -221,6 +221,10 @@ que le dépôt n'avait pas jusqu'ici.
 | Barre flottante — DOM (10) | Pastille présente · barre absente avant ouverture · **ouverture réellement vérifiée** (et non `toBeDefined()` sur un `null`) · écoute démarrée à l'ouverture · les trois boutons d'action · **ouverture au clavier** · **micro relâché au démontage** · rien coupé quand la barre est fermée · **échec micro terminal affiché** (jamais « Connexion... » à l'infini) |
 | Moteur vocal (5) | **Aucune relance après erreur fatale** (`audio-capture`, `not-allowed`) — fin de la boucle mesurée à 16 relances/5 s par l'audit du 30/08/2026 · relance légitime sur erreur transitoire isolée · plafond de relances (4) puis abandon signalé · nouveau `startListening` explicite = nouvelle chance · de l'audio réel réarme le compteur |
 | Recherche (6) | Échec RPC ≠ zéro résultat ≠ résultats (trois issues jamais confondues) · compte exact et surplus annoncé · terme trop court refusé sans appel · tolérance aux formes de payload du modèle |
+| Session (9) | Ordre et notification des tours · borne à 40 · dernière image retrouvée · contexte SANS les octets des images · **questions de vision reconnues, prompt qui interdit d'inventer un contenu visuel** (avec et sans image) · le cerveau inscrit lui-même commande et réponse |
+| Extraction (7) | **Formats construits RÉELLEMENT puis relus** : .xlsx (SheetJS), .docx (ZIP XML + mammoth), .pptx, .zip · refus honnête des binaires hérités · fichier vide refusé plutôt que résumé |
+| Consentement (5) | Déclencheurs réels · nom/portée/oui-non interprétés, relance si ambigu · récapitulatif fidèle avant toute écriture |
+| Livrables (5) | Détection demande + format (PDF réorienté honnêtement) · **boucle complète .docx : générer puis relire avec mammoth** · échappement XML |
 | Paramètres (29) | Registre à 55 sans doublon · confidentialité = confirmation requise · **6 écritures rapportées `ok:false` quand la persistance échoue** · clés `privacy_settings` voisines préservées · champ vide jamais écrit · valeur d'énumération inexistante refusée (`network` pour les demandes d'ami) · API appareil absente annoncée, jamais simulée |
 
 ---
@@ -323,10 +327,10 @@ et les 6 écritures de réglages sont testées dans le cas où la persistance
   (« fais A puis B ») n'est pas décomposée en plan explicite.
 - **Journal d'audit** — les exécutions ne sont pas tracées dans une table
   dédiée.
-- **Documents bureautiques** — le bouton Fichier (§16) lit les images et le
-  texte brut. Excel, Word, PowerPoint et PDF n'ont aucun analyseur dans ce
-  dépôt : l'Architecte le dit franchement et propose une alternative, il ne
-  tente jamais d'interpréter des octets illisibles.
+- ~~Documents bureautiques~~ — **comblé par la finalisation** (§17) :
+  extraction réelle PDF/Word/Excel/PowerPoint/ZIP via `documentExtractor.ts`.
+  Restent honnêtement refusés : les formats binaires hérités (.doc/.ppt/.xls
+  d'avant 2007), .rar/.7z, et les scans sans texte extractible.
 - **Médias hors-ligne** — une publication accompagnée d'un fichier local ne
   peut pas entrer dans la file (§15) : le fichier ne survivrait pas au
   rechargement, et le stockage du navigateur n'est pas dimensionné pour ça.
@@ -388,9 +392,9 @@ qu'une oreille : on peut lui donner quelque chose à lire ou à regarder.
 
 | Bouton | Ce qu'il fait réellement |
 |---|---|
-| **Fichier** | Image → `analyzeImage` (vision déjà branchée sur `ai-gateway`). Texte/CSV/JSON/Markdown → lu puis résumé par `generateText`. La réponse est prononcée. |
-| **Écrire** | Bascule vers le modal clavier — même cerveau, autre incarnation (§12). |
-| **Caméra** | `getUserMedia` réel, panneau de prévisualisation **au-dessus** de la barre pour cadrer avant d'envoyer, puis capture d'une image vers le même chemin d'analyse. |
+| **Fichier** | Image → `analyzeImage` (vision `ai-gateway`) et l'image reste dans le fil de session. Document → **extraction réelle** par `documentExtractor.ts` (PDF via pdfjs, .docx via mammoth, .xlsx via SheetJS, .pptx/.zip via jszip, texte tel quel), injecté dans la session puis résumé — questions de suivi possibles. Refus honnête uniquement pour l'impossible (.doc/.ppt/.xls hérités, .rar/.7z, scans sans texte). |
+| **Écrire** | Ouvre la saisie **dans la même barre** (chantier de finalisation) — même session, même fil, jamais une bascule vers une autre interface. |
+| **Caméra** | `getUserMedia` réel, prévisualisation au-dessus de la barre, capture vers le même chemin d'analyse ; la photo **apparaît dans le fil et y reste** pour les questions de suivi. Flux attaché par effet React (un `setTimeout(0)` pouvait précéder le rendu — aperçu noir, corrigé). |
 
 La caméra est explicitement relâchée à la fermeture **et** au démontage —
 même discipline que le micro (§12), et couverte par les tests DOM.
@@ -398,3 +402,26 @@ même discipline que le micro (§12), et couverte par les tests DOM.
 L'emplacement et la forme reprennent le bouton « Module ZIP » de l'Architecte
 d'origine. Ce bouton y téléchargeait l'archive du module ; ce fichier n'existe
 pas dans MokNet et le bouton y serait mort.
+
+---
+
+## 17. La finalisation — un seul Architecte, multimodal de bout en bout
+
+Chantier du 30/08/2026 (« FINALISATION COMPLÈTE DE L'ARCHITECTE ») : compléter
+l'existant, jamais le dupliquer. Chaque lot a été prouvé en navigateur réel
+avant d'être déclaré terminé.
+
+| Lot | Ce qui a changé | Pièce |
+|---|---|---|
+| **Session unique** | `architecteSession.ts` : UN fil pour voix, clavier, photos et documents (40 tours max), injecté au prompt du cerveau, qui y inscrit lui-même chaque échange. Mémoire de SESSION uniquement (RAM) — l'inter-sessions reste ouvert (§14). | `services/architecte/architecteSession.ts` |
+| **Clavier intégré** | Le bouton Écrire ouvre la saisie DANS la barre — plus jamais DialloOS (seconde expérience). DialloOS garde ses propres entrées (header) et partage le même cerveau et la même session. | `ArchitecteFloatingBar.tsx` |
+| **Vision honnête** | Question de vision sans image → « je ne dispose d'aucune image » (déterministe, jamais le modèle texte). Avec image → VRAIE analyse de la dernière image montrée. Prompt durci : jamais affirmer un objet incertain. | `isVisionQuestion`, garde dans `handleCommand` |
+| **Extraction documents** | PDF/Word/Excel/PowerPoint/ZIP réellement lus (imports dynamiques — zéro poids initial). | `documentExtractor.ts` (§16) |
+| **Fiche de consentement** | Formulaire rempli question par question (nom d'appel, portée, préparation auto), récapitulatif → confirmation → UNE écriture réelle dans `profiles.privacy_settings.architecte`. | `consentFlow.ts` |
+| **Livrables** | « Donne-le moi à télécharger en Word » → vrai `.docx` (jszip) téléchargé, contenu corrigé sans données inventées ; .txt/.md/.csv aussi ; PDF réorienté honnêtement (aucun générateur PDF dans le dépôt). | `deliverableBuilder.ts` |
+| **Recherche Internet** | Déclencheur déterministe → l'outil serveur `web_search` DÉJÀ existant (grounding Gemini, sources, échec honnête), activé pour l'agent `architecte` par une ligne de droit (`agent_tool_grants`). Aucun second moteur. | migration `architecte_web_search_grant` |
+
+Ordre de routage d'une commande dans la barre — chaque étage est
+déterministe, le modèle n'arrive qu'en dernier :
+consentement actif → déclencheur consentement → recherche Internet →
+livrable → question de vision → cerveau (`runArchitecteCommand`).

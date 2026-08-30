@@ -11,7 +11,7 @@ import {
 } from '../../services/architecte/architecteSession';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
-import { isVisionQuestion, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
+import { ARCHITECTE_AGENT_ID, isVisionQuestion, isWebSearchCommand, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
 import { extractDocumentText, UnsupportedDocumentError } from '../../services/architecte/documentExtractor';
 import { buildConsentRecap, CONSENT_STEPS, isConsentCommand, type ArchitecteConsent } from '../../services/architecte/consentFlow';
 import {
@@ -359,6 +359,33 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
             consentRef.current = { step: 0, answers: {} };
             announce(CONSENT_STEPS[0].question, 'text-cyan-300/80');
+            return;
+        }
+
+        // Recherche Internet : la VRAIE recherche web de l'orchestrateur
+        // (outil serveur `web_search`, grounding + sources) — l'Architecte
+        // fait la recherche, il ne dit jamais « vous pouvez chercher sur
+        // Internet ». En cas d'indisponibilité, l'outil serveur impose déjà
+        // au modèle de le dire au lieu de répondre de mémoire.
+        if (isWebSearchCommand(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            setIsThinking(true);
+            setStatus('Je cherche sur le web...');
+            setStatusTone('text-cyan-300/80');
+            try {
+                const reponse = await generateText(command.trim(), {
+                    agentId: ARCHITECTE_AGENT_ID,
+                    systemInstruction:
+                        "Tu es L'Architecte de MokNet. Utilise l'outil de recherche web pour répondre avec des faits À JOUR. " +
+                        "Réponds en français, brièvement, et CITE tes sources (titre et adresse) quand elles sont disponibles. " +
+                        "Si la recherche est indisponible ou échoue, dis-le clairement — ne réponds jamais de mémoire en le présentant comme un résultat de recherche.",
+                });
+                announce(reponse?.trim() || "La recherche n'a rien donné.", reponse ? 'text-cyan-300/80' : 'text-amber-300');
+            } catch (e: any) {
+                announce(`La recherche web a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            } finally {
+                setIsThinking(false);
+            }
             return;
         }
 

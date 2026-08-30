@@ -90,6 +90,32 @@ export function isVisionQuestion(command: string): boolean {
     return VISION_QUESTION_PATTERNS.some((p) => p.test(command));
 }
 
+/**
+ * Identité d'agent de l'Architecte auprès de l'orchestrateur `ai-gateway`.
+ *
+ * La recherche web RÉELLE existe côté serveur depuis l'origine de
+ * l'orchestrateur (`tools/web_search.ts` — grounding Gemini, sources citées,
+ * échec honnête si aucun fournisseur actif) : elle s'active par le système
+ * de droits existant (`ai_tools` × `agent_tool_grants`), jamais par un
+ * second mécanisme. La migration `architecte_web_search_grant` donne ce
+ * droit à cet identifiant.
+ */
+export const ARCHITECTE_AGENT_ID = 'architecte';
+
+const WEB_SEARCH_PATTERNS: RegExp[] = [
+    /cherche\w* sur (internet|le web|le net|google)/i,
+    /recherche\w* sur (internet|le web|le net)/i,
+    /regarde sur (internet|le web)/i,
+    /\bsur internet\b/i,
+    /derni[èe]res (actualit[ée]s|nouvelles|infos)/i,
+    /actualit[ée]s? (du jour|r[ée]centes?)/i,
+];
+
+/** La personne demande-t-elle explicitement une recherche sur Internet ? Détection déterministe. */
+export function isWebSearchCommand(command: string): boolean {
+    return WEB_SEARCH_PATTERNS.some((p) => p.test(command));
+}
+
 /** Modules de navigation connus — repris à l'identique du prompt d'origine. */
 const NAVIGATION_MODULES = `            - 'home' (Dashboard)
             - 'social' (Réseau, Feed)
