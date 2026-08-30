@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, X, UserRound } from 'lucide-react';
 import { analyzeImage, generateText } from '../../services/aiGateway';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
+import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
 import { runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
 import { registerSettingsCapabilities } from '../../services/architecte/settingsCapabilityHandlers';
+import { registerSearchCapabilities } from '../../services/architecte/searchCapabilityHandlers';
 import type { UserProfile } from '../../types';
 
 /**
@@ -131,13 +133,31 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         });
     }, [onUpdateProfile]);
 
+    // Recherche : lecture seule, RLS de la session — dernière capacité du
+    // registre qui restait sans handler (défaut relevé par l'audit du
+    // 30/08/2026 : annoncée par la découverte, jamais exécutable).
+    useEffect(() => registerSearchCapabilities(), []);
+
     const {
         isListening, isSpeaking, isSupported, volume,
-        transcript, startListening, stopListening, speak, stopSpeaking, setConversationalMode,
+        transcript, error: voiceError, startListening, stopListening, speak, stopSpeaking, setConversationalMode,
     } = useVoiceAssistant({
         lang: 'fr-FR',
         onFinalTranscript: (text) => { void handleCommand(text); },
     });
+
+    // Le moteur vocal a définitivement abandonné (autorisation micro refusée,
+    // aucun périphérique de capture, ou plafond de relances atteint) : sans
+    // ce relais, la barre restait sur « Connexion... » indéfiniment — le
+    // watchdog local ayant déjà été annulé par le premier `onstart` d'une
+    // reconnaissance qui échoue ensuite. Défaut mesuré par l'audit du
+    // 30/08/2026 : 16 relances silencieuses en ~5 s, zéro signal visible.
+    useEffect(() => {
+        if (!isOpen || voiceError !== MIC_UNAVAILABLE_MESSAGE) return;
+        if (listenWatchdog.current) { clearTimeout(listenWatchdog.current); listenWatchdog.current = null; }
+        setStatus(MIC_TIMEOUT_MESSAGE);
+        setStatusTone('text-amber-300');
+    }, [voiceError, isOpen]);
 
     useEffect(() => {
         listeningRef.current = isListening;

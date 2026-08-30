@@ -110,7 +110,7 @@ const SEARCH_CAPABILITY: PlatformCapability = {
     id: 'search.universal.search',
     domain: 'search',
     actionType: 'SEARCH',
-    description: "rechercher un terme dans les profils/publications/cours réels de MokNet (repli uniquement — le mot-clé déterministe existant reste toujours prioritaire)",
+    description: "rechercher un terme dans les profils/publications/cours réels de MokNet. payload attendu : { \"query\": \"le terme énoncé, nettoyé des hésitations\" }",
     riskLevel: 'low',
     confirmationRequired: false,
     requiredPermission: 'aucune (lecture seule)',

@@ -26,6 +26,9 @@ const stopListening = vi.fn();
 const stopSpeaking = vi.fn();
 const startListening = vi.fn(async () => true);
 const setConversationalMode = vi.fn();
+// Mutable pour simuler, test par test, un signal d'erreur du moteur vocal
+// (`vi.hoisted` : le bloc `vi.mock` est hissé au-dessus des `const`).
+const voiceState = vi.hoisted(() => ({ error: null as string | null }));
 
 vi.mock('../hooks/useVoiceAssistant', () => ({
     useVoiceAssistant: () => ({
@@ -34,6 +37,7 @@ vi.mock('../hooks/useVoiceAssistant', () => ({
         isSupported: true,
         volume: 0,
         transcript: '',
+        error: voiceState.error,
         startListening,
         stopListening,
         speak: vi.fn(async () => {}),
@@ -49,6 +53,9 @@ vi.mock('../services/architecte/taskCapabilityHandlers', () => ({
 }));
 vi.mock('../services/architecte/settingsCapabilityHandlers', () => ({
     registerSettingsCapabilities: () => () => {},
+}));
+vi.mock('../services/architecte/searchCapabilityHandlers', () => ({
+    registerSearchCapabilities: () => () => {},
 }));
 vi.mock('../services/aiGateway', () => ({
     analyzeImage: vi.fn(async () => 'Réponse de test'),
@@ -86,6 +93,7 @@ function ouvrirALaSouris() {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    voiceState.error = null;
 });
 
 describe('État fermé', () => {
@@ -150,6 +158,26 @@ describe('Accessibilité', () => {
         monter();
         fireEvent.keyDown(screen.getByLabelText(FAB), { key: 'Enter' });
         expect(await screen.findByText("L'Architecte")).toBeInTheDocument();
+    });
+});
+
+describe('Échec micro signalé par le moteur', () => {
+    it("affiche l'échec micro quand le moteur a définitivement abandonné — au lieu de rester sur « Connexion... »", async () => {
+        // Défaut mesuré par l'audit du 30/08/2026 : le moteur bouclait en
+        // silence sur `audio-capture`, la barre restait sur « Connexion... »
+        // (le watchdog local était déjà annulé par le premier `onstart`
+        // d'une reconnaissance condamnée). Le moteur émet désormais un
+        // signal terminal ; la barre doit l'afficher.
+        const { MIC_UNAVAILABLE_MESSAGE } = await import('../services/voiceEngine');
+        voiceState.error = MIC_UNAVAILABLE_MESSAGE;
+
+        monter();
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        expect(
+            await screen.findByText("Le micro n'a pas démarré — utilisez la saisie.")
+        ).toBeInTheDocument();
     });
 });
 

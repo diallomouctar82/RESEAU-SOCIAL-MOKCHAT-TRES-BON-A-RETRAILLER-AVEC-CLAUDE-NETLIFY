@@ -96,6 +96,16 @@ export const ELEVENLABS_CURATED_VOICES: Record<string, VoiceOption> = {
     }
 };
 
+/**
+ * Signal terminal émis (via `onError`) quand la reconnaissance vocale a
+ * définitivement abandonné : erreur fatale du micro, ou plafond de relances
+ * atteint. Exporté pour que les interfaces (barre Architecte, coachs)
+ * puissent le reconnaître et afficher leur état « micro indisponible » au
+ * lieu de rester sur « Connexion... » pendant que rien ne viendra.
+ */
+export const MIC_UNAVAILABLE_MESSAGE =
+    "Le micro est indisponible — vérifiez l'autorisation micro du navigateur, ou utilisez la saisie.";
+
 export class VoiceEngine {
     private static instance: VoiceEngine;
     private recognition: any = null;
@@ -112,6 +122,18 @@ export class VoiceEngine {
     private vadSilenceTimer: any = null;
     private lastSpokenTranscript: string = '';
     private silenceDelayMs: number = 1400; // Silence time before auto-sending
+
+    // Garde-fou contre la boucle de relance : quand le micro échoue de façon
+    // non transitoire (`audio-capture`, `not-allowed`...), la reprise
+    // automatique de `onend` relançait la reconnaissance toutes les ~300 ms,
+    // indéfiniment — l'échec restait invisible pour l'utilisateur pendant que
+    // la console se remplissait. Mesuré : 16 relances en ~5 s.
+    private consecutiveRecognitionFailures: number = 0;
+    private recognitionGaveUp: boolean = false;
+    private static readonly FATAL_RECOGNITION_ERRORS = new Set([
+        'audio-capture', 'not-allowed', 'service-not-allowed', 'language-not-supported',
+    ]);
+    private static readonly MAX_CONSECUTIVE_RECOGNITION_FAILURES = 4;
 
     // ElevenLabs state & cache
     private currentAudioElement: HTMLAudioElement | null = null;
@@ -204,6 +226,10 @@ export class VoiceEngine {
                 const currentText = (finalTranscript || interimTranscript).trim();
 
                 if (currentText) {
+                    // De l'audio réel arrive : le micro fonctionne, les échecs
+                    // précédents étaient transitoires.
+                    this.consecutiveRecognitionFailures = 0;
+                    this.recognitionGaveUp = false;
                     this.lastSpokenTranscript = currentText;
                     this.listeners.forEach(l => l.onTranscript?.(currentText, !!finalTranscript));
 
@@ -215,9 +241,25 @@ export class VoiceEngine {
             };
 
             this.recognition.onerror = (event: any) => {
-                if (event.error !== 'no-speech') {
-                    console.warn('Notification reconnaissance vocale:', event.error);
-                    this.listeners.forEach(l => l.onError?.(event.error));
+                // `no-speech` (personne n'a parlé) et `aborted` (arrêt voulu)
+                // sont des non-événements : ni comptés, ni notifiés.
+                if (event.error === 'no-speech' || event.error === 'aborted') return;
+
+                console.warn('Notification reconnaissance vocale:', event.error);
+                this.listeners.forEach(l => l.onError?.(event.error));
+
+                // Erreur fatale (pas de périphérique, autorisation refusée...) :
+                // la relance reproduirait exactement la même erreur. On abandonne
+                // tout de suite. Les erreurs a priori transitoires (`network`)
+                // ont droit à quelques relances, puis on abandonne aussi —
+                // sans plafond, la boucle mesurée tournait sans fin.
+                this.consecutiveRecognitionFailures += 1;
+                const fatal = VoiceEngine.FATAL_RECOGNITION_ERRORS.has(event.error);
+                if (fatal || this.consecutiveRecognitionFailures >= VoiceEngine.MAX_CONSECUTIVE_RECOGNITION_FAILURES) {
+                    this.recognitionGaveUp = true;
+                    // Signal terminal, en français lisible : les interfaces
+                    // affichent `error` tel quel (barre Architecte, coachs).
+                    this.listeners.forEach(l => l.onError?.(MIC_UNAVAILABLE_MESSAGE));
                 }
             };
 
@@ -225,7 +267,11 @@ export class VoiceEngine {
                 this.isListening = false;
                 this.listeners.forEach(l => l.onEnd?.());
 
-                // Reprise automatique si le mode conversationnel est toujours actif et l'IA ne parle pas
+                // Reprise automatique si le mode conversationnel est toujours
+                // actif, que l'IA ne parle pas, ET que le micro n'a pas été
+                // déclaré indisponible — sinon la reprise relançait à l'infini
+                // une reconnaissance condamnée à échouer.
+                if (this.recognitionGaveUp) return;
                 if (this.isConversationalMode && !this.isSpeaking) {
                     setTimeout(() => {
                         if (this.isConversationalMode && !this.isSpeaking && !this.isListening) {
@@ -291,6 +337,12 @@ export class VoiceEngine {
                 return false;
             }
         }
+
+        // Un démarrage explicite est une nouvelle chance honnête : la personne
+        // (ou l'écran) redemande l'écoute, peut-être après avoir accordé
+        // l'autorisation micro — le verdict précédent ne doit pas l'en priver.
+        this.recognitionGaveUp = false;
+        this.consecutiveRecognitionFailures = 0;
 
         try {
             if (this.isListening) {
