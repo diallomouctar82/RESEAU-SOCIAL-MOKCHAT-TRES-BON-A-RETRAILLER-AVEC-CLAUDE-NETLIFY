@@ -5364,6 +5364,58 @@ export interface VersionComparisonResult {
   breakingChanges: string[];
 }
 
+// ============================================================================
+// MOTEUR DE SYNCHRONISATION HORS-LIGNE — modèle « Lazarus »
+// ----------------------------------------------------------------------------
+// Repris du `src/types.ts` du paquet Architecte (AI Studio). Les cinq champs
+// d'origine sont conservés à l'identique — `id`, `action`, `payload`,
+// `timestamp`, `retryCount` — parce que le modèle lui-même est juste : c'est
+// la seule pièce du paquet qui comble un manque réel de MokNet (l'Architecte
+// échouait honnêtement hors-ligne, mais ne rejouait rien au retour du réseau).
+//
+// Un seul champ est ajouté, `lastError`, et une seule sémantique est précisée :
+// `id` est un UUID généré UNE FOIS à la mise en file et jamais régénéré. Il
+// sert d'ancrage d'idempotence côté serveur (`messages.client_message_id`,
+// `posts.client_post_id`), exactement comme dans la messagerie : un rejeu
+// réutilise le même identifiant, un doublon devient un no-op (23505) au lieu
+// d'un second enregistrement.
+// ============================================================================
+
+/**
+ * Actions synchronisables. Union fermée : le module qui enregistre les
+ * gestionnaires doit fournir un `Record<SyncTaskAction, ...>` COMPLET, ce qui
+ * fait échouer la compilation si une action reste sans traitement. C'est le
+ * correctif structurel du défaut mesuré dans le `syncService.ts` reçu, où
+ * `CREATE_POST` était déclaré dans le type mais n'avait aucun `case` : la
+ * tâche tombait dans un `default:` qui journalisait sans lever, donc la
+ * publication était réputée réussie et retirée de la file — perdue sans trace.
+ */
+export type SyncTaskAction =
+  | 'CREATE_POST'
+  | 'SEND_MESSAGE'
+  | 'UPDATE_PROFILE'
+  | 'LOG_EVENT'
+  | 'SAVE_CONVERSATION';
+
+export interface SyncTask {
+  /** UUID stable, généré à la mise en file. Sert d'ancrage d'idempotence serveur. */
+  id: string;
+  action: SyncTaskAction;
+  payload: Record<string, unknown>;
+  /** Date de mise en file (ms epoch) — pas la date d'envoi. */
+  timestamp: number;
+  retryCount: number;
+  /** Dernière raison d'échec réelle, conservée pour pouvoir la dire à l'utilisateur. */
+  lastError?: string;
+}
+
+/** État d'une tâche abandonnée après épuisement des tentatives ou échec définitif. */
+export interface AbandonedSyncTask extends SyncTask {
+  abandonedAt: number;
+  /** `permanent` : refus serveur, payload invalide — réessayer n'y changerait rien. */
+  reason: 'permanent' | 'max_retries';
+}
+
 
 
 

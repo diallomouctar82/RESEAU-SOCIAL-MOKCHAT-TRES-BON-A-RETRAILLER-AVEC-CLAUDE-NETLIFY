@@ -4,6 +4,8 @@ import { UserProfile, Notification, UserShop, WalletTransaction } from '../types
 import { USER_PROFILE, MOCK_TRANSACTIONS } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
 import { memoryService } from '../services/memory';
+import { setSyncQueueUser, startSyncQueueAutoResume } from '../services/architecte/syncQueue';
+import { installSyncTaskHandlers } from '../services/architecte/syncTaskHandlers';
 
 interface GlobalContextType {
     userProfile: UserProfile;
@@ -116,6 +118,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             });
         };
 
+        // File de synchronisation hors-ligne de l'Architecte (« Lazarus »).
+        // Les traitements sont enregistrés une fois pour toutes ; la reprise
+        // automatique s'attache à l'événement `online` du navigateur, comme
+        // dans le paquet d'origine. Les deux sont idempotents.
+        installSyncTaskHandlers();
+        const stopSyncAutoResume = startSyncQueueAutoResume();
+
         supabaseService.getCurrentUser().then(currentUser => {
             if (currentUser) {
                 loadRealNotifications(currentUser.id);
@@ -125,6 +134,11 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 // de savoir qui est connecté, exactement comme les
                 // notifications juste au-dessus.
                 memoryService.setCurrentUserId(currentUser.id);
+                // Même raison pour la file : elle est scindée par compte, pour
+                // qu'un second utilisateur sur le même appareil n'hérite jamais
+                // des tâches en attente du premier — et ne les envoie pas sous
+                // son identité.
+                setSyncQueueUser(currentUser.id);
             }
         });
 
@@ -133,16 +147,19 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 await loadRealNotifications(session.user.id);
                 attachNotificationsRealtime(session.user.id);
                 memoryService.setCurrentUserId(session.user.id);
+                setSyncQueueUser(session.user.id);
             } else {
                 unsubscribeNotifications?.();
                 unsubscribeNotifications = null;
                 memoryService.setCurrentUserId(null);
+                setSyncQueueUser(null);
             }
         });
 
         return () => {
             unsubscribe();
             unsubscribeNotifications?.();
+            stopSyncAutoResume();
         };
     }, []);
 
