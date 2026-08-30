@@ -514,13 +514,19 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
         }
     };
 
+    // Single source of truth for the submit button's enabled state, used both for the
+    // `disabled` attribute and its visual style so the two can never drift apart.
+    const isSubmitDisabled = isGenerating
+        || (creationMode === 'text' && !promptText.trim())
+        || (creationMode === 'voice' && !voiceTranscript.trim() && !promptText.trim());
+
     return (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
             <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
                 
                 {/* Header */}
-                <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white p-6 relative overflow-hidden shrink-0">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[90px] opacity-20 pointer-events-none"></div>
+                <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-brand-900 text-white p-6 relative overflow-hidden shrink-0">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500 rounded-full blur-[90px] opacity-20 pointer-events-none"></div>
                     
                     <div className="flex items-center justify-between relative z-10">
                         <div className="flex items-center gap-3">
@@ -529,7 +535,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold uppercase tracking-wider bg-white/15 px-2.5 py-0.5 rounded-full text-indigo-200 border border-white/10">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider bg-white/15 px-2.5 py-0.5 rounded-full text-blue-200 border border-white/10">
                                         Moteur Universel de Parcours de Vie
                                     </span>
                                     <span className="text-xs text-slate-400 font-medium">Diallo OS</span>
@@ -538,9 +544,10 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                             </div>
                         </div>
 
-                        <button 
+                        <button
                             onClick={onClose}
-                            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors"
+                            aria-label="Fermer"
+                            className="p-2.5 min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                         >
                             <X size={20} />
                         </button>
@@ -550,19 +557,19 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                     <div className="mt-6 flex flex-wrap items-center gap-2 bg-white/10 p-1.5 rounded-2xl max-w-md border border-white/10">
                         <button
                             onClick={() => setScopeMode('individual')}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${scopeMode === 'individual' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-300 hover:text-white'}`}
+                            className={`flex-1 py-2 px-3 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${scopeMode === 'individual' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-300 hover:text-white'}`}
                         >
                             <User size={14} /> Personnel
                         </button>
                         <button
                             onClick={() => setScopeMode('family')}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${scopeMode === 'family' ? 'bg-amber-400 text-slate-900 shadow-md' : 'text-slate-300 hover:text-white'}`}
+                            className={`flex-1 py-2 px-3 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${scopeMode === 'family' ? 'bg-amber-400 text-slate-900 shadow-md' : 'text-slate-300 hover:text-white'}`}
                         >
                             <Users size={14} /> Famille
                         </button>
                         <button
                             onClick={() => setScopeMode('organization')}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${scopeMode === 'organization' ? 'bg-indigo-400 text-slate-900 shadow-md' : 'text-slate-300 hover:text-white'}`}
+                            className={`flex-1 py-2 px-3 min-h-11 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${scopeMode === 'organization' ? 'bg-blue-400 text-slate-900 shadow-md' : 'text-slate-300 hover:text-white'}`}
                         >
                             <Building2 size={14} /> Entreprise / Tribu
                         </button>
@@ -574,25 +581,25 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setCreationMode('text')}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${creationMode === 'text' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
+                            className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold flex items-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${creationMode === 'text' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
                         >
                             <FileText size={15} className="text-blue-600" /> Saisie Texte Libre
                         </button>
                         <button
                             onClick={() => setCreationMode('voice')}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${creationMode === 'voice' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
+                            className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold flex items-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${creationMode === 'voice' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
                         >
                             <Mic size={15} className="text-red-600" /> Dictaphone Vocal
                         </button>
                         <button
                             onClick={() => setCreationMode('ocr')}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${creationMode === 'ocr' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
+                            className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold flex items-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${creationMode === 'ocr' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
                         >
                             <Camera size={15} className="text-purple-600" /> Scanner Document (OCR)
                         </button>
                         <button
                             onClick={() => setCreationMode('archetype')}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${creationMode === 'archetype' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
+                            className={`px-4 py-2 min-h-11 rounded-xl text-xs font-bold flex items-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 ${creationMode === 'archetype' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200/70'}`}
                         >
                             <Compass size={15} className="text-emerald-600" /> Modèles Clés en Main
                         </button>
@@ -603,7 +610,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                         <select 
                             value={targetTimeline}
                             onChange={(e) => setTargetTimeline(e.target.value)}
-                            className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
                         >
                             <option value="Sous 30 jours">1 Mois</option>
                             <option value="Dans 3 mois">3 Mois</option>
@@ -640,7 +647,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                 <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                                     Décrivez ce que vous voulez réellement accomplir (Intention brute) :
                                 </label>
-                                <span className="text-xs text-indigo-600 font-medium flex items-center gap-1">
+                                <span className="text-xs text-brand-600 font-medium flex items-center gap-1">
                                     <Sparkles size={12} /> Diallo OS structurera le Point A, les étapes et le Point B
                                 </span>
                             </div>
@@ -649,7 +656,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                 value={promptText}
                                 onChange={(e) => setPromptText(e.target.value)}
                                 placeholder="Exemples :&#10;• 'Je veux apprendre l'anglais professionnel et obtenir la certification C1 pour postuler à l'international.'&#10;• 'Je veux créer une unité de transformation agricole et trouver un fournisseur de séchoirs solaires en Chine.'&#10;• 'Je veux régulariser ma situation en France et préparer ma demande de Passeport Talent.'&#10;• 'Je veux inscrire mes enfants à l'école au Canada et trouver un logement avant la rentrée.'"
-                                className="w-full h-40 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400 leading-relaxed resize-none"
+                                className="w-full h-40 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all placeholder:text-slate-400 leading-relaxed resize-none"
                             />
 
                             {/* Quick suggestions tags */}
@@ -667,7 +674,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                             key={i}
                                             type="button"
                                             onClick={() => setPromptText(sug)}
-                                            className="text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors"
+                                            className="text-xs bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors"
                                         >
                                             + {sug}
                                         </button>
@@ -695,7 +702,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                     <button
                                         onClick={handleToggleRecording}
                                         className={`w-24 h-24 rounded-full flex flex-col items-center justify-center transition-all shadow-xl relative z-10 ${
-                                            isRecording ? 'bg-red-600 text-white scale-110' : 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white hover:scale-105'
+                                            isRecording ? 'bg-red-600 text-white scale-110' : 'bg-gradient-to-tr from-brand-600 to-brand-900 text-white hover:scale-105'
                                         }`}
                                     >
                                         {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
@@ -730,9 +737,12 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                 Uploadez un document de départ (Passeport, diplôme, refus, bail, devis, contrat...) :
                             </div>
 
-                            <div 
+                            <div
                                 onClick={() => fileInputRef.current?.click()}
-                                className="border-2 border-dashed border-slate-300 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50/40 rounded-3xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+                                className="border-2 border-dashed border-slate-300 hover:border-brand-500 bg-slate-50 hover:bg-brand-50/40 rounded-3xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                             >
                                 <input 
                                     type="file" 
@@ -742,7 +752,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                     onChange={handleFileChange}
                                 />
 
-                                <div className="w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3">
+                                <div className="w-16 h-16 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center mb-3">
                                     <Upload size={28} />
                                 </div>
 
@@ -779,7 +789,10 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                     <div
                                         key={arch.id}
                                         onClick={() => handleGenerateParcours(arch.defaultGoal, arch)}
-                                        className="group p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 bg-white hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleGenerateParcours(arch.defaultGoal, arch); } }}
+                                        className="group p-4 rounded-2xl border border-slate-200 hover:border-brand-500 bg-white hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                                     >
                                         <div className="flex items-start gap-3 mb-3">
                                             <div className={`p-3 rounded-xl bg-gradient-to-br ${arch.color} text-white shadow-md group-hover:scale-105 transition-transform`}>
@@ -787,7 +800,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-1 mb-1">
-                                                    <h4 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">
+                                                    <h4 className="font-bold text-slate-900 text-sm group-hover:text-brand-600 transition-colors">
                                                         {arch.title}
                                                     </h4>
                                                     <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap">
@@ -800,7 +813,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                                             </div>
                                         </div>
 
-                                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-indigo-600">
+                                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-brand-600">
                                             <span className="text-[11px] text-slate-400">
                                                 Expert référent : {AGENTS.find(a => a.id === arch.leadAgentId)?.name || 'Directeur Diallo'}
                                             </span>
@@ -818,7 +831,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                 {/* Footer Action */}
                 <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
                     <div className="text-xs text-slate-500 flex items-center gap-2">
-                        <Target size={16} className="text-indigo-600 shrink-0" />
+                        <Target size={16} className="text-brand-600 shrink-0" />
                         <span>Chaque parcours garantit : <strong>Point A ➔ Jalons certifiés ➔ Point B ➔ Pérennisation</strong></span>
                     </div>
 
@@ -826,7 +839,7 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors w-full sm:w-auto"
+                            className="px-5 py-2.5 min-h-11 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                         >
                             Annuler
                         </button>
@@ -834,11 +847,11 @@ export const ParcoursCreatorModal: React.FC<ParcoursCreatorModalProps> = ({
                         <button
                             type="button"
                             onClick={() => handleGenerateParcours()}
-                            disabled={isGenerating || (creationMode === 'text' && !promptText.trim()) || (creationMode === 'voice' && !voiceTranscript.trim() && !promptText.trim())}
-                            className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition-all w-full sm:w-auto ${
-                                isGenerating || ((creationMode === 'text' && !promptText.trim()) && (creationMode !== 'ocr' && creationMode !== 'archetype'))
+                            disabled={isSubmitDisabled}
+                            className={`px-6 py-2.5 min-h-11 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition-all w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
+                                isSubmitDisabled
                                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105'
+                                    : 'bg-brand-600 hover:bg-brand-700 text-white hover:scale-105'
                             }`}
                         >
                             {isGenerating ? (
