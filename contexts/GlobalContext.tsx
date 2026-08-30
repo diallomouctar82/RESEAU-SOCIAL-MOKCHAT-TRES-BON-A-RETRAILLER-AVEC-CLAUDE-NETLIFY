@@ -10,7 +10,8 @@ interface GlobalContextType {
     notifications: Notification[];
     transactions: WalletTransaction[];
     isSupabaseConnected: boolean;
-    updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
+    /** `true` uniquement si la persistance a réellement abouti — voir l'implémentation. */
+    updateUserProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
     addNotification: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'alert') => void;
     markNotificationRead: (id: string) => void;
     updateUserShop: (shop: UserShop) => void;
@@ -164,7 +165,20 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
     };
 
-    const updateUserProfile = async (updates: Partial<UserProfile>) => {
+    /**
+     * Renvoie `true` seulement si la persistance a RÉELLEMENT abouti.
+     *
+     * L'échec était auparavant avalé (`catch { console.warn }`) : l'état React
+     * local était mis à jour dans tous les cas, si bien qu'un écran de
+     * réglages — et surtout l'Architecte, qui annonce vocalement ce qu'il
+     * vient de faire — affichait un succès alors que rien n'avait été
+     * enregistré. Même discipline anti-faux-succès que celle appliquée à la
+     * publication, à l'amitié, au blocage et aux commentaires.
+     *
+     * Le repli hors-ligne reste intact : quand Supabase n'est pas configuré,
+     * l'écriture locale seule est un succès légitime (`true`), pas un échec.
+     */
+    const updateUserProfile = async (updates: Partial<UserProfile>): Promise<boolean> => {
         setUserProfile(prev => {
             const updated = { ...prev, ...updates };
             try {
@@ -207,10 +221,16 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     // local sans jamais persister le changement.
                     preferred_language: updates.preferredLanguage || userProfile.preferredLanguage,
                 });
+                return true;
             } catch (err) {
                 console.warn('Error syncing profile to Supabase', err);
+                return false;
             }
         }
+        // Supabase non configuré : le mode local est le comportement nominal
+        // attendu ici, pas une panne — l'écriture localStorage ci-dessus a
+        // bien eu lieu.
+        return true;
     };
 
     const updateUserShop = (shop: UserShop) => {

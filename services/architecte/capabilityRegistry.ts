@@ -2,21 +2,23 @@ import { LIVE_VOICE_CAPABILITIES } from '../live/liveVoiceCommands';
 import { CONTENT_VOICE_CAPABILITIES } from '../content/contentVoiceCommands';
 import { SOCIAL_VOICE_CAPABILITIES } from '../social/socialVoiceCommands';
 import { TASK_VOICE_CAPABILITIES } from '../tasks/taskVoiceCommands';
+import { SETTINGS_VOICE_CAPABILITIES } from '../settings/settingsVoiceCommands';
 
 /**
  * Capability Registry plateforme (LOOP 16/17, mission Architecte MOCnet).
  *
  * Source unique de vérité DÉRIVÉE, pas dupliquée : ce fichier n'invente
- * aucune capacité — il agrège et normalise les 4 registres par domaine déjà
+ * aucune capacité — il agrège et normalise les 5 registres par domaine déjà
  * réels et testés (`LIVE_VOICE_CAPABILITIES`/`CONTENT_VOICE_CAPABILITIES`/
- * `SOCIAL_VOICE_CAPABILITIES`/`TASK_VOICE_CAPABILITIES`), qui restent
- * chacun la source de vérité de LEUR domaine (« UNE CAPACITÉ, UN REGISTRE,
- * PLUSIEURS INTERFACES » — ce fichier est une interface supplémentaire,
- * jamais une seconde copie qui pourrait diverger). `confirmationRequired`/
- * `fallback`/`requiredPermission` sont calculés à partir des champs déjà
- * présents (`riskLevel`/`requiredRole`) plutôt que d'exiger une réécriture
- * des 4 fichiers domaine — un changement de risque dans un registre domaine
- * se répercute donc automatiquement ici, sans double maintenance.
+ * `SOCIAL_VOICE_CAPABILITIES`/`TASK_VOICE_CAPABILITIES`/
+ * `SETTINGS_VOICE_CAPABILITIES`), qui restent chacun la source de vérité de
+ * LEUR domaine (« UNE CAPACITÉ, UN REGISTRE, PLUSIEURS INTERFACES » — ce
+ * fichier est une interface supplémentaire, jamais une seconde copie qui
+ * pourrait diverger). `confirmationRequired`/`fallback`/`requiredPermission`
+ * sont calculés à partir des champs déjà présents
+ * (`riskLevel`/`requiredRole`) plutôt que d'exiger une réécriture des
+ * fichiers domaine — un changement de risque dans un registre domaine se
+ * répercute donc automatiquement ici, sans double maintenance.
  *
  * `search` n'a jamais eu de tableau structuré
  * (`services/search/searchVoiceCommands.ts` : 3 actions codées en dur dans
@@ -41,7 +43,7 @@ import { TASK_VOICE_CAPABILITIES } from '../tasks/taskVoiceCommands';
  * les points d'exécution réels, inchangés par ce fichier.
  */
 
-export type CapabilityDomain = 'live' | 'content' | 'social' | 'tasks' | 'search';
+export type CapabilityDomain = 'live' | 'content' | 'social' | 'tasks' | 'search' | 'settings';
 export type CapabilityRiskLevel = 'low' | 'moderate' | 'high';
 
 export interface PlatformCapability {
@@ -72,6 +74,7 @@ const DOMAIN_FALLBACK: Record<CapabilityDomain, string> = {
     social: "en cas d'échec de la reconnaissance vocale ou de l'IA, les boutons Suivre/Ajouter/Bloquer/Rechercher du fil social restent pleinement fonctionnels.",
     tasks: "aucune UI Tâches n'existe encore pour héberger ce registre (voir LOOP 14-15/17) — capacité déclarée et testée en isolation, mais sans écran à secourir pour l'instant.",
     search: "le mot-clé déterministe (`processVoiceCommand`) reste toujours prioritaire et fonctionne entièrement sans IA — cette capacité vocale n'est qu'un repli, jamais l'inverse.",
+    settings: "en cas d'échec de la reconnaissance vocale ou de l'IA, l'écran Paramètres reste pleinement fonctionnel — la voix ne fait que déclencher autrement un réglage déjà éditable à la main, jamais un réglage qui n'existerait que par la voix.",
 };
 
 const DOMAIN_HUMAN_LABEL: Record<CapabilityDomain, string> = {
@@ -80,6 +83,7 @@ const DOMAIN_HUMAN_LABEL: Record<CapabilityDomain, string> = {
     social: 'votre réseau (demandes d\'amis, abonnements, blocage, recherche de personnes...)',
     tasks: 'vos tâches personnelles par la voix (pas encore accessible depuis un écran dédié)',
     search: 'la recherche dans MokNet (profils, publications, cours)',
+    settings: "vos réglages MokNet (langue, confidentialité, notifications, profil) et quelques commandes de l'appareil (vibration, plein écran, partage, écran allumé)",
 };
 
 function normalizeRequiredPermission(requiredRole?: string): string {
@@ -118,6 +122,7 @@ export const PLATFORM_CAPABILITY_REGISTRY: PlatformCapability[] = [
     ...CONTENT_VOICE_CAPABILITIES.map((c) => toPlatformCapability('content', c)),
     ...SOCIAL_VOICE_CAPABILITIES.map((c) => toPlatformCapability('social', c)),
     ...TASK_VOICE_CAPABILITIES.map((c) => toPlatformCapability('tasks', c)),
+    ...SETTINGS_VOICE_CAPABILITIES.map((c) => toPlatformCapability('settings', c)),
     SEARCH_CAPABILITY,
 ];
 

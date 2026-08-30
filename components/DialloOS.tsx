@@ -1,30 +1,22 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { generateJSON } from '../services/aiGateway';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { describeCapabilitiesForHumans, getCapability } from '../services/architecte/capabilityRegistry';
-import { executeCapability, listExecutableCapabilities } from '../services/architecte/capabilityBus';
-import { registerTaskCapabilities } from '../services/architecte/taskCapabilityHandlers';
+import { describeCapabilitiesForHumans } from '../services/architecte/capabilityRegistry';
+import {
+    isDiscoveryCommand,
+    runArchitecteCommand,
+    type ArchitecteAction,
+} from '../services/architecte/architecteBrain';
 
-// LOOP 16/17 (Capability Registry plateforme, mission Architecte MOCnet) :
-// « qu'est-ce que tu peux faire ? » est traité de façon 100% déterministe,
+// « Qu'est-ce que tu peux faire ? » reste traité de façon 100% déterministe,
 // sans appel LLM — la réponse ne peut donc jamais contenir une capacité
-// inventée, uniquement ce que PLATFORM_CAPABILITY_REGISTRY contient
-// réellement. Formulations volontairement précises (pas de simple "aide"
-// seul, trop générique et qui intercepterait de vraies commandes de
-// navigation contenant ce mot, ex. "aide-moi à trouver un emploi").
-const DISCOVERY_PHRASES = [
-    'que peux-tu faire',
-    "qu'est-ce que tu peux faire",
-    "qu'est ce que tu peux faire",
-    'quelles sont tes capacités',
-    'que sais-tu faire',
-    "qu'est-ce que tu sais faire",
-];
+// inventée. La liste des formulations reconnues vit désormais dans le cerveau
+// partagé (`isDiscoveryCommand`), pour que la barre flottante vocale réponde
+// exactement comme ce modal.
 
 interface DialloOSProps {
     isOpen: boolean;
@@ -32,16 +24,6 @@ interface DialloOSProps {
     onNavigate: (tab: string, context?: any) => void;
     userProfile: UserProfile;
 }
-
-type AIAction = {
-    type: 'NAVIGATE' | 'NOTIFICATION' | 'EXECUTE';
-    /** Pour NAVIGATE : identifiant de module. Pour EXECUTE : conservé pour `create_dossier` (cas historique). */
-    target?: string;
-    /** Pour EXECUTE : identifiant de capacité du registre plateforme (ex. `task.item.create`). */
-    capabilityId?: string;
-    payload?: any;
-    explanation: string;
-};
 
 // Cas d'exécution historique, antérieur au bus de capacités : `create_dossier`
 // écrit directement dans `dossiers` depuis ce composant (voir
@@ -102,7 +84,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
     const [aiResponse, setAiResponse] = useState<string | null>(null);
-    const [activeAction, setActiveAction] = useState<AIAction | null>(null);
+    const [activeAction, setActiveAction] = useState<ArchitecteAction | null>(null);
     const [execution, setExecution] = useState<ExecutionState | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -112,17 +94,13 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         }
     }, [isOpen]);
 
-    // Les 7 capacités `task.*` n'ont besoin d'AUCUN état d'écran — elles
-    // n'opèrent que sur la table `tasks`. L'Architecte les porte donc
-    // lui-même : elles deviennent exécutables partout dans l'application,
-    // au lieu de rester déclarées mais inutilisables faute d'écran Tâches
-    // (limite documentée depuis la LOOP 15/17). Les domaines Live/Contenu/
-    // Social, eux, dépendent réellement de l'état de leur écran et
-    // s'enregistrent depuis celui-ci.
-    useEffect(() => {
-        if (!userProfile.id) return;
-        return registerTaskCapabilities(userProfile.id);
-    }, [userProfile.id]);
+    // Les capacités portées par l'Architecte lui-même (Tâches, Paramètres,
+    // Appareil — aucune ne dépend d'un état d'écran) sont enregistrées UNE
+    // SEULE FOIS, depuis `ArchitecteFloatingBar`, qui est toujours montée.
+    // Les enregistrer ici aussi créerait deux inscriptions concurrentes du
+    // même identifiant, susceptibles de se désenregistrer mutuellement au
+    // démontage. Les domaines Live/Contenu/Social, eux, dépendent réellement
+    // de l'état de leur écran et s'enregistrent depuis celui-ci.
 
     const { isListening, startListening, stopListening, speak } = useVoiceAssistant({
         lang: 'fr-FR',
@@ -141,8 +119,7 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         setActiveAction(null);
         setExecution(null);
 
-        const normalizedCommand = command.trim().toLowerCase();
-        if (DISCOVERY_PHRASES.some((phrase) => normalizedCommand.includes(phrase))) {
+        if (isDiscoveryCommand(command)) {
             const summary = describeCapabilitiesForHumans();
             setAiResponse(summary);
             if (viaVoice) speak(summary);
@@ -150,151 +127,54 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
             return;
         }
 
-        // Catalogue construit à l'instant T à partir des handlers RÉELLEMENT
-        // enregistrés — pas les 42 capacités théoriques du registre. Le modèle
-        // ne peut donc pas proposer une action qui échouerait aussitôt faute
-        // d'écran ouvert : ce qui est offert est ce qui est faisable, ici et
-        // maintenant.
-        const executable = listExecutableCapabilities();
-        const executableCatalogue = executable.length > 0
-            ? executable.map((c) => `            - capabilityId: "${c.id}" — ${c.description}`).join('\n')
-            : '            (aucune capacité exécutable dans le contexte actuel — n\'utilise pas "capabilityId")';
-
         try {
-            // SYSTEM PROMPT FOR OS CONTROL
-            const systemPrompt = `Tu es Diallo OS, le système d'exploitation intelligent de l'application 'Le Monde à Vous'.
-            L'utilisateur est : ${userProfile.name}, Niveau ${userProfile.level}.
-            
-            Ta mission : Analyser la demande de l'utilisateur et déterminer l'action UI à effectuer dans l'application.
-            
-            Les modules disponibles (target) sont :
-            - 'home' (Dashboard)
-            - 'social' (Réseau, Feed)
-            - 'world' (Mobilité, Visas, Simulation voyage)
-            - 'career' (Emploi, CV, Recrutement)
-            - 'campus' (Formation, Cours)
-            - 'wallet' (Banque, Transfert)
-            - 'legal' (Juridique, Documents)
-            - 'health' (Santé, SOS)
-            - 'housing' (Logement)
-            - 'chat' (Experts IA)
-            - 'live' (Appel direct)
-            - 'studio' (Création contenu)
-
-            Réponds UNIQUEMENT en JSON strict au format suivant :
-            {
-                "type": "NAVIGATE",
-                "target": "id_du_module",
-                "explanation": "Court texte futuriste expliquant l'action (ex: 'Initialisation du protocole de recherche de logement...')",
-                "payload": { "searchQuery": "..." } // Optionnel, données contextuelles
-            }
-
-            Exemple User: "Je veux partir travailler au Canada"
-            Réponse JSON: { "type": "NAVIGATE", "target": "world", "explanation": "Activation du simulateur de mobilité vers le Canada.", "payload": { "country": "Canada", "intent": "work" } }
-
-            Tu peux aussi déclencher une action RÉELLE (écriture réelle, jamais une simulation) avec le type "EXECUTE".
-
-            1) Cas particulier, avec "target" :
-            - target: "create_dossier" — ouvre un vrai dossier de suivi pour la personne.
-              payload attendu : { "titre": "Titre court et explicite", "categorie": "emploi|logement|sante|juridique|education|voyage|administration", "description": "Objectif en une phrase (optionnel)" }
-              N'utilise "create_dossier" QUE si la personne demande explicitement d'ouvrir, créer ou démarrer un dossier/suivi pour sa démarche (ex: "ouvre-moi un dossier pour chercher un emploi au Canada"). Dans le doute, préfère "NAVIGATE".
-
-            Exemple User: "Ouvre-moi un dossier pour chercher un emploi au Canada"
-            Réponse JSON: { "type": "EXECUTE", "target": "create_dossier", "explanation": "Ouverture d'un dossier de suivi pour votre recherche d'emploi au Canada.", "payload": { "titre": "Recherche d'emploi au Canada", "categorie": "emploi", "description": "Trouver un emploi et préparer les démarches d'installation au Canada." } }
-
-            2) Capacités enregistrées, avec "capabilityId" (JAMAIS "target") :
-${executableCatalogue}
-
-            Règles absolues pour "capabilityId" :
-            - N'utilise QUE l'un des identifiants listés ci-dessus, copié à l'identique. N'en invente jamais un autre, même s'il te semble logique : un identifiant absent de cette liste sera refusé.
-            - Si la demande ne correspond à aucun identifiant listé, n'utilise PAS "EXECUTE" — préfère "NAVIGATE" vers le module concerné.
-            - N'invente jamais un titre de tâche existante, ni une date : si la personne n'a pas énoncé d'échéance, omets simplement dueAt.
-            - Date et heure actuelles (ISO 8601) pour convertir toute date relative : ${new Date().toISOString()}
-
-            Exemple User: "Rappelle-moi d'appeler le notaire demain"
-            Réponse JSON: { "type": "EXECUTE", "capabilityId": "task.item.create", "explanation": "Création de la tâche.", "payload": { "task": { "title": "Appeler le notaire", "dueAt": "<date ISO de demain>" } } }
-            `;
-
-            const result = (await generateJSON<AIAction>(`Commande utilisateur : "${command}"`, {
-                systemInstruction: systemPrompt
-            })) || ({} as AIAction);
-            
-            setAiResponse(result.explanation);
-            setActiveAction(result);
-            // La classification est terminée : on arrête l'indicateur "en
-            // réflexion" ici plutôt que d'attendre le `finally`, pour que
-            // l'avancement réel d'une action EXECUTE (ci-dessous) reste
-            // visible pendant son exécution au lieu d'être masqué par
-            // l'animation de réflexion. Sans effet observable sur NAVIGATE :
-            // aucun `await` ne séparait ce point du `finally` auparavant, qui
-            // continue de plus de l'appeler (filet de sécurité inchangé).
-            setIsThinking(false);
-
-            if (viaVoice && result.explanation) {
-                speak(result.explanation);
-            }
-
-            // Execute Navigation with delay for effect
-            if (result.type === 'NAVIGATE' && result.target) {
-                setTimeout(() => {
-                    onNavigate(result.target!, result.payload);
-                    onClose();
-                }, 2000);
-            } else if (result.type === 'EXECUTE') {
-                // Chemin historique : dossier de suivi, écrit directement ici.
-                if (result.target && LEGACY_EXECUTABLE_TARGETS.has(result.target)) {
-                    setExecution({ phase: 'running', message: 'Ouverture du dossier en cours...' });
-                    const outcome = await createRealDossier(userProfile.id, result.payload || {});
+            // Le prompt, les garde-fous anti-hallucination, la confirmation
+            // proportionnelle au risque et les statuts d'exécution vivent
+            // désormais dans le cerveau partagé — le modal (saisie clavier) et
+            // la barre flottante (voix) sont deux incarnations d'une seule
+            // logique, jamais deux implémentations qui pourraient diverger.
+            const outcome = await runArchitecteCommand(command, {
+                userName: userProfile.name,
+                userLevel: userProfile.level,
+                confirm: (message) => window.confirm(message),
+                runLegacyTarget: async (target, payload) => {
+                    if (!LEGACY_EXECUTABLE_TARGETS.has(target)) {
+                        return { ok: false, message: "Cette action directe n'est pas reconnue." };
+                    }
+                    const res = await createRealDossier(userProfile.id, payload);
                     // Comparaison explicite (`=== true`), pas une simple
                     // troncature de vérité : dans cet environnement TS, un
-                    // `if (outcome.ok)` bare ne discrimine pas correctement
-                    // cette union par ailleurs standard (vérifié isolément,
-                    // indépendamment de la config du projet).
-                    if (outcome.ok === true) {
-                        setExecution({ phase: 'done', message: `Dossier « ${outcome.title} » créé avec succès.` });
-                    } else {
-                        setExecution({ phase: 'failed', message: outcome.error });
-                    }
-                } else if (result.capabilityId) {
-                    // Chemin général : registre de capacités + bus d'exécution.
-                    const capability = getCapability(result.capabilityId);
+                    // `if (res.ok)` bare ne discrimine pas correctement cette
+                    // union par ailleurs standard.
+                    return res.ok === true
+                        ? { ok: true, message: `Dossier « ${res.title} » créé avec succès.` }
+                        : { ok: false, message: res.error };
+                },
+                onPhase: (phase, message) => setExecution({ phase, message }),
+            });
 
-                    // Confirmation proportionnelle au risque, AVANT toute
-                    // écriture — jamais contournable, même si le modèle a
-                    // formulé la demande comme une évidence (règle transversale
-                    // de la mission : « la sécurité reste supérieure à la
-                    // préférence »).
-                    if (capability?.confirmationRequired) {
-                        const confirmed = window.confirm(
-                            `${capability.description}\n\nCette action est ${capability.riskLevel === 'high' ? 'sensible' : 'à confirmer'}. Voulez-vous que je la fasse ?`
-                        );
-                        if (!confirmed) {
-                            setExecution({ phase: 'cancelled', message: "Action annulée — rien n'a été modifié." });
-                            return;
-                        }
-                    }
+            setAiResponse(outcome.spoken);
+            if (outcome.action) setActiveAction(outcome.action);
+            // La classification est terminée : on arrête l'indicateur « en
+            // réflexion » ici plutôt que dans le `finally`, pour que
+            // l'avancement réel d'une exécution reste visible au lieu d'être
+            // masqué par l'animation de réflexion.
+            setIsThinking(false);
 
-                    setExecution({ phase: 'running', message: 'Exécution en cours...' });
-                    const outcome = await executeCapability(result.capabilityId, result.payload || {});
-                    // Le statut affiché est celui réellement renvoyé par le bus,
-                    // jamais une confirmation anticipée : `unavailable` signifie
-                    // que l'écran porteur n'est pas ouvert, `denied` que la
-                    // permission manque — ni l'un ni l'autre n'est un succès.
-                    const phase: ExecutionPhase =
-                        outcome.status === 'done' ? 'done'
-                        : outcome.status === 'denied' ? 'denied'
-                        : outcome.status === 'failed' ? 'failed'
-                        : 'unsupported';
-                    setExecution({ phase, message: outcome.message });
-                    if (viaVoice) speak(outcome.message);
-                } else {
-                    // Le modèle a demandé une exécution sans désigner de
-                    // capacité réelle : on le dit, on n'invente rien.
-                    setExecution({
-                        phase: 'unsupported',
-                        message: "Je n'ai pas identifié d'action réelle correspondante — reformulez, ou dites-moi où vous voulez aller.",
-                    });
-                }
+            if (viaVoice && outcome.spoken) speak(outcome.spoken);
+
+            if (outcome.execution) {
+                setExecution(outcome.execution);
+                if (viaVoice) speak(outcome.execution.message);
+            }
+
+            if (outcome.action?.type === 'NAVIGATE' && outcome.action.target) {
+                const target = outcome.action.target;
+                const payload = outcome.action.payload;
+                setTimeout(() => {
+                    onNavigate(target, payload);
+                    onClose();
+                }, 2000);
             }
 
         } catch (e) {

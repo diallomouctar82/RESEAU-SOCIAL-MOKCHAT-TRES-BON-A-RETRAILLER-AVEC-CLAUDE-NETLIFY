@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
+import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
 import { MAIN_NAV_ITEMS, NavItemDef } from './navigation/NavigationItems';
@@ -84,7 +85,10 @@ interface LayoutProps {
   // LOOP 09/17 (notifications, orchestration proactive) : jusqu'ici jamais
   // fourni à <UnifiedSettingsModal>, rendant son bouton "Enregistrer" inerte
   // pour tout ce que ce modal peut modifier (dont le nouveau mode silencieux).
-  onUpdateProfile?: (updated: Partial<UserProfile>) => void;
+  // Renvoie `true` seulement si la persistance a réellement abouti : la barre
+  // flottante de l'Architecte annonce vocalement ce qu'elle vient de faire et
+  // ne doit jamais confirmer un réglage qui n'a pas été enregistré.
+  onUpdateProfile?: (updated: Partial<UserProfile>) => Promise<boolean>;
 }
 
 const NEWS_ITEMS = [
@@ -1046,31 +1050,29 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
 
-        {/* ─── DESKTOP PERSISTENT DIALLO OS TRIGGER ───
-             Le bouton central du dock mobile ci-dessus est enveloppé dans un
-             parent `md:hidden` : Diallo OS n'a donc aucun point d'entrée fixe
-             sur desktop en dehors de la ContextActionBar, elle-même absente
-             sur l'onglet Accueil (`{activeTab !== 'home' && <ContextActionBar .../>}`
-             plus haut). Ce bouton, séparé et purement additif, comble ce trou
-             sans toucher au dock mobile : visible sur desktop uniquement
-             (`hidden md:flex`), sur tous les onglets y compris Accueil.
-             Position choisie après vérification de la mise en page desktop
-             réelle : la sidebar occupe tout le bord gauche (jusqu'à son pied
-             avec carte utilisateur) et <MoocChatFloating /> occupe déjà le
-             coin bas-droit (fixed bottom-6 right-6) — le bord droit à
-             mi-hauteur est la seule zone durablement libre dans les deux
-             états (sidebar dépliée/réduite, messagerie ouverte/fermée). */}
-        <button
-          onClick={() => setIsDialloOSOpen(true)}
-          className="hidden md:flex fixed right-5 top-1/2 -translate-y-1/2 z-40 w-14 h-14 items-center justify-center bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] group"
-          title="Ouvrir Diallo OS"
-          aria-label="Ouvrir Diallo OS"
-        >
-          <Sparkles size={22} className="animate-pulse" />
-          <span className="absolute right-full mr-3 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
-            Diallo OS
-          </span>
-        </button>
+        {/* ─── L'ARCHITECTE — PRÉSENCE FLOTTANTE PERMANENTE ───
+             Remplace l'ancien déclencheur desktop-only (bord droit,
+             mi-hauteur) : celui-ci n'existait pas sur mobile, où le seul
+             point d'entrée était le bouton central du dock, noyé parmi
+             quatre autres. La barre flottante est présente sur les DEUX
+             formats, toujours visible, et démarre l'écoute dès l'appui.
+
+             Présentation et comportement natif repris fidèlement de
+             l'Architecte historique (dépôt
+             ARCHITECTE-BON-INSPIRATION-POUR-MOKNET-2026,
+             components/PlatformGuide.tsx) — voir l'en-tête du composant pour
+             le détail de ce qui est conforme et de ce qui est amélioré.
+
+             Position bas-droite volontairement au-dessus de
+             <MoocChatFloating /> (fixed bottom-6 right-6) pour ne pas le
+             recouvrir ; la pastille reste déplaçable si l'utilisateur veut
+             la mettre ailleurs. */}
+        <ArchitecteFloatingBar
+          userProfile={userProfile}
+          onNavigate={onTabChange}
+          onUpdateProfile={onUpdateProfile ?? (async () => false)}
+          onOpenTyped={() => setIsDialloOSOpen(true)}
+        />
 
         {/* ─── MODALS & ORCHESTRATION OVERLAYS ─── */}
         <DialloOS

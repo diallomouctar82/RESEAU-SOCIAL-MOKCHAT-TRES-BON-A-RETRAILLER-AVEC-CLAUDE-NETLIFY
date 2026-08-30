@@ -22,16 +22,19 @@ Trois règles gouvernent tout le sous-système :
 
 ---
 
-## 2. Les quatre pièces
+## 2. Les pièces
 
 | Fichier | Rôle |
 |---|---|
-| `services/architecte/capabilityRegistry.ts` | **Ce qui existe.** Agrège les 4 registres de domaine + 1 entrée synthétique = 42 capacités. Source unique de vérité. |
+| `services/architecte/capabilityRegistry.ts` | **Ce qui existe.** Agrège les 5 registres de domaine + 1 entrée synthétique = 55 capacités. Source unique de vérité. |
 | `services/architecte/capabilityBus.ts` | **Ce qui est faisable maintenant.** Les écrans y déclarent leurs handlers ; l'Architecte exécute par identifiant. |
+| `services/architecte/architecteBrain.ts` | **Le cerveau unique.** Prompt, garde-fous, confirmation, statuts. Partagé par les deux incarnations. |
 | `services/architecte/taskCapabilityHandlers.ts` | Handlers réels du domaine Tâches, portés par l'Architecte lui-même. |
-| `components/DialloOS.tsx` | Point d'entrée : langage naturel → navigation ou exécution. |
+| `services/architecte/settingsCapabilityHandlers.ts` | Handlers réels des domaines Paramètres et Appareil, portés par l'Architecte lui-même. |
+| `components/architecte/ArchitecteFloatingBar.tsx` | **Incarnation vocale** : barre flottante permanente, mobile et desktop. |
+| `components/DialloOS.tsx` | **Incarnation clavier** : modal de saisie. |
 
-Les registres de domaine (`services/{live,content,social,tasks,search}/*VoiceCommands.ts`)
+Les registres de domaine (`services/{live,content,social,tasks,settings,search}/*VoiceCommands.ts`)
 restent chacun la source de vérité de **leur** domaine. Le registre plateforme
 les agrège sans les dupliquer : un changement de risque dans un registre de
 domaine se répercute automatiquement, sans double maintenance.
@@ -134,12 +137,13 @@ Elle n'est pas contournable, même si le modèle a formulé la demande comme une
 | Domaine | Capacités | Porteur |
 |---|---|---|
 | Tâches | 7 | L'Architecte lui-même — disponibles **partout** |
+| Paramètres + Appareil | 13 | L'Architecte lui-même — disponibles **partout** |
 | Contenu | 11 | `SocialFeed.tsx` |
 | Social | 9 | `SocialFeed.tsx` |
 | LIVE | 14 | `SocialLive.tsx`, **pendant un direct uniquement** |
 | Recherche | 1 | *Non branchée* |
 
-**41 / 42 exécutables.**
+**54 / 55 exécutables.**
 
 La 42ᵉ (`search.universal.search`) est une entrée **synthétique** du registre :
 `services/search/searchVoiceCommands.ts` n'a jamais eu de tableau structuré
@@ -198,7 +202,7 @@ d'exploitable n'est trouvé.
 
 ## 11. Tests
 
-43 tests réels, tous verts, exécutés hors navigateur via `esbuild` + Node.
+72 tests réels, tous verts, exécutés hors navigateur via `esbuild` + Node.
 
 | Suite | Couvre |
 |---|---|
@@ -206,10 +210,100 @@ d'exploitable n'est trouvé.
 | Contexte (4) | Écran non-hôte → `denied` · devient hôte → autorisé sans réenregistrement · **un appelant ne peut pas se déclarer hôte** · après démontage → `unavailable` |
 | Tâches (12) | Casse et accents · **titre ambigu refusé sans qu'aucune suppression ne parte** · titre inexistant · date non ISO jamais écrite · succès partiel annoncé honnêtement · auto-dépendance refusée |
 | JSON (11) | Clôtures markdown · phrases avant/après · tableaux · imbrication préservée · `undefined` plutôt qu'un objet inventé |
+| Paramètres (29) | Registre à 55 sans doublon · confidentialité = confirmation requise · **6 écritures rapportées `ok:false` quand la persistance échoue** · clés `privacy_settings` voisines préservées · champ vide jamais écrit · valeur d'énumération inexistante refusée (`network` pour les demandes d'ami) · API appareil absente annoncée, jamais simulée |
 
 ---
 
-## 12. Ce qui reste ouvert
+## 12. Les deux incarnations, un seul cerveau
+
+L'Architecte se présente sous deux formes, qui appellent **la même** fonction
+`runArchitecteCommand` (`services/architecte/architecteBrain.ts`) :
+
+| Incarnation | Fichier | Entrée |
+|---|---|---|
+| Barre flottante | `components/architecte/ArchitecteFloatingBar.tsx` | Voix, permanente, mobile et desktop |
+| Modal | `components/DialloOS.tsx` | Clavier, ouvert à la demande |
+
+Le cerveau a été **extrait** du modal au moment où la seconde incarnation est
+apparue, pas réécrit : prompt, garde-fous anti-hallucination, confirmation
+proportionnelle au risque et statuts d'exécution vivent en un seul endroit.
+Sans cette extraction, la même logique aurait existé en double, avec la
+certitude de diverger — ce qu'interdit la règle « une capacité, un registre,
+plusieurs interfaces ».
+
+### Conformité à l'Architecte historique
+
+Présentation et comportement natif repris de
+`ARCHITECTE-BON-INSPIRATION-POUR-MOKNET-2026`, `components/PlatformGuide.tsx` :
+pastille cyan flottante en bas à droite avec halo `animate-ping` et icône de
+compas ; à l'ouverture, barre-pilule centrée en bas (`#0f172a/90`,
+`backdrop-blur-xl`, anneau cyan, `rounded-full`) portant une pastille
+d'avatar 48 px, le libellé « L'ARCHITECTE » en capitales espacées avec point
+vert pulsant, un sous-titre en police mono, un égaliseur à 5 barres et une
+croix de fermeture. Comportement natif identique : **un appui ouvre la barre
+et démarre l'écoute**, un second ferme et coupe la session.
+
+**Trois écarts assumés, tous documentés dans l'en-tête du composant :**
+
+1. L'égaliseur de l'original était explicitement factice (`Math.random()`,
+   commenté « Fake Wave »). Ici il est alimenté par le vrai niveau sonore du
+   micro — même langage visuel, donnée réelle.
+2. L'original ouvrait une session audio native Gemini depuis le navigateur
+   avec la clé API exposée par un `GET /api/config`. Ici la voix passe par
+   `useVoiceAssistant` → `ai-gateway`, clés côté serveur.
+3. Position mobile à `bottom-44` au lieu de `bottom-36` : MokNet possède un
+   bouton de messagerie flottant que l'original n'avait pas, et à 36 la
+   pastille arrivait à son contact.
+
+Améliorations de fond : l'original ne pilotait qu'**un** outil (`navigate`) ;
+ici la barre atteint les 54 capacités exécutables, avec permissions vérifiées
+dans le code et statuts explicites. Un défaut du comportement d'origine a
+aussi été corrigé : quand le micro ne démarrait pas, la barre restait
+indéfiniment sur « Connexion... » — un état qui ressemble à une attente
+normale alors que rien n'écoute. Une limite de 3 secondes le dit désormais
+franchement, et le message s'efface de lui-même si l'écoute finit par
+démarrer.
+
+---
+
+## 13. Paramètres par la voix — et la frontière du téléphone
+
+13 capacités `settings.*` / `device.*`, portées par l'Architecte lui-même
+(aucun état d'écran requis, donc disponibles partout) :
+
+- **Réglages MokNet, persistés en base** : langue (`preferred_language`),
+  mode silencieux, visibilité du profil, qui peut vous écrire, qui peut vous
+  envoyer une demande d'ami, statut en ligne, champs de profil
+  (nom/titre/bio/ville/pays), et lecture à voix haute des réglages actuels.
+- **Appareil, via des API réellement exposées au navigateur** : vibration,
+  plein écran, partage natif, écran maintenu allumé.
+
+Les réglages de confidentialité sont classés `moderate` : ils changent qui
+peut vous voir, vous écrire ou vous ajouter, donc une confirmation explicite
+est exigée avant l'écriture. Jamais un basculement silencieux sur une phrase
+mal comprise.
+
+> **Ce que l'Architecte ne peut pas faire, et ne prétend pas faire.**
+> MokNet est une application web. Le navigateur interdit, par conception, à
+> toute page d'agir sur les réglages du **système** : volume, luminosité,
+> Wi-Fi, Bluetooth, données mobiles, mode avion, applications tierces.
+> Aucune capacité du registre ne le revendique, et une demande de ce type
+> reçoit une réponse honnête plutôt qu'une fausse confirmation. Quand une
+> API appareil existe mais que le navigateur ne la propose pas (cas courant
+> sur ordinateur pour la vibration et le partage natif), le handler le dit —
+> il ne simule jamais un succès.
+
+Anti-faux-succès de bout en bout : `updateUserProfile` avalait auparavant
+l'erreur de persistance (`catch { console.warn }`) et mettait quand même
+l'état local à jour. L'Architecte aurait donc annoncé « c'est fait » à voix
+haute sans que rien ne soit enregistré. Il renvoie désormais un booléen réel,
+et les 6 écritures de réglages sont testées dans le cas où la persistance
+échoue.
+
+
+---
+
+## 14. Ce qui reste ouvert
 
 - **Recherche** — 1 capacité non branchée (voir §8).
 - **Mémoire inter-sessions** — l'Architecte ne se souvient de rien d'une
@@ -217,8 +311,6 @@ d'exploitable n'est trouvé.
   consommée ici.
 - **Plan multi-étapes** — une intention = une action. Une commande composée
   (« fais A puis B ») n'est pas décomposée en plan explicite.
-- **Barre flottante dédiée** — l'Architecte reste un modal ; sa présence
-  permanente et son incarnation visuelle (avatar, halo) restent différées.
 - **Journal d'audit** — les exécutions ne sont pas tracées dans une table
   dédiée.
 
