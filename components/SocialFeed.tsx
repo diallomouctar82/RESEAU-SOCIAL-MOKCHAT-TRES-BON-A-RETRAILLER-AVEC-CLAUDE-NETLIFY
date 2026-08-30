@@ -818,25 +818,31 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           status: newPost.status,
           format: newPost.format
         });
-        if (inserted) {
-          newPost.id = inserted.id;
-          if (finalDocument) {
-            try {
-              await supabaseService.createPostDocument({
-                post_id: inserted.id,
-                name: finalDocument.name,
-                url: finalDocument.url,
-                size: newPostDocumentFile?.size ?? 0,
-                type: finalDocument.type,
-                page_count: finalDocument.pageCount
-              });
-            } catch (docErr) {
-              console.warn('Post created but its document could not be attached', docErr);
-            }
+        if (!inserted) throw new Error('createPost returned no row');
+        newPost.id = inserted.id;
+        if (finalDocument) {
+          try {
+            await supabaseService.createPostDocument({
+              post_id: inserted.id,
+              name: finalDocument.name,
+              url: finalDocument.url,
+              size: newPostDocumentFile?.size ?? 0,
+              type: finalDocument.type,
+              page_count: finalDocument.pageCount
+            });
+          } catch (docErr) {
+            console.warn('Post created but its document could not be attached', docErr);
           }
         }
       } catch (err) {
+        // Ne jamais faire croire à une publication réussie si l'écriture en
+        // base a réellement échoué (ex. contrainte de visibilité) — même
+        // discipline que l'échec d'upload média ci-dessus : on annule
+        // plutôt que d'ajouter un post fantôme à l'état local/IndexedDB.
         console.warn('Could not save post to Supabase', err);
+        alert("La publication a échoué (le serveur a refusé l'enregistrement). Réessayez.");
+        setIsPublishing(false);
+        return;
       }
     }
 
