@@ -101,6 +101,26 @@
                 '25%': { transform: 'translateX(-1.5px)' },
                 '75%': { transform: 'translateX(1.5px)' },
               },
+              // Direction artistique Studio Live (image de référence du
+              // 30/08/2026) — la matière vivante : l'interface « respire »,
+              // sans mouvement brusque ni rupture visuelle.
+              // Respiration du verre : très lente, presque imperceptible.
+              'water-breathe': {
+                '0%, 100%': { transform: 'scale(1)', filter: 'brightness(1)' },
+                '50%': { transform: 'scale(1.0035)', filter: 'brightness(1.03)' },
+              },
+              // Ondulation de surface : dérive verticale infime — fonctionne
+              // sur n'importe quel élément (un background-position n'aurait
+              // d'effet que si background-size > 100%, ce qui n'est pas le
+              // cas des surfaces de verre).
+              'water-undulate': {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-0.7px)' },
+              },
+              // (droplet-float et water-press vivent dans le bloc <style>
+              // ci-dessous : ils ne sont consommés que par les classes
+              // pleines .water-droplets/.water-ripple-dot — une seule source
+              // de vérité, jamais deux définitions du même keyframe.)
               // Grammaire d'états de l'avatar (LOOP 10/14) — 4 états propres
               // à l'avatar, en plus des 6 réutilisés du LOOP 07/14 ci-dessus.
               // Vision active : double impulsion lumineuse (balayage/attention visuelle).
@@ -201,6 +221,8 @@
               'avatar-comprehension': 'avatar-comprehension 1.2s ease-in-out infinite',
               'avatar-action': 'avatar-action 0.5s ease-out',
               'avatar-uncertainty': 'avatar-uncertainty 2.2s ease-in-out infinite',
+              'water-breathe': 'water-breathe 9s ease-in-out infinite',
+              'water-undulate': 'water-undulate 11s ease-in-out infinite',
             }
           }
         }
@@ -256,50 +278,94 @@
         --glass-surface-tint-a: rgba(14, 41, 61, 0.55);
         --glass-surface-tint-b: rgba(12, 27, 46, 0.65);
         --glass-surface-border: rgba(143, 227, 255, 0.14);
+        /* Couleur signature de l'univers (direction artistique Studio Live,
+           image de référence du 30/08/2026) : l'anneau/la lueur qui identifie
+           chaque univers. Consommée par l'onde d'appui, les micro-gouttelettes
+           et les accents — jamais une couleur codée en dur par composant. */
+        --water-accent: #7dd3fc;
+        --water-accent-soft: rgba(125, 211, 252, 0.35);
       }
-      /* 1 — Futuriste Bleu : bleu électrique, contrastes plus nets. */
+      /* Palette recalée sur l'image de référence de la direction artistique
+         du Studio Live (30/08/2026) : chaque univers reçoit sa couleur
+         signature (--water-accent, l'anneau lumineux de l'image) et des
+         teintes de verre fidèles aux 7 modèles fournis. */
+      /* 1 — Futuriste Bleu : bleu électrique sur nuit profonde. */
       [data-live-universe="futuristic_blue"] {
-        --glass-tint-a: rgba(10, 35, 80, 0.75);
-        --glass-tint-b: rgba(2, 8, 30, 0.88);
-        --glass-border: rgba(90, 170, 255, 0.22);
-        --glass-border-top: rgba(180, 220, 255, 0.4);
-        --glass-shadow-inset: rgba(180, 220, 255, 0.14);
-        --glass-surface-tint-a: rgba(10, 35, 80, 0.55);
-        --glass-surface-tint-b: rgba(6, 18, 50, 0.68);
-        --glass-surface-border: rgba(90, 170, 255, 0.16);
+        --glass-tint-a: rgba(10, 32, 84, 0.75);
+        --glass-tint-b: rgba(3, 8, 28, 0.88);
+        --glass-border: rgba(80, 165, 255, 0.24);
+        --glass-border-top: rgba(170, 216, 255, 0.42);
+        --glass-shadow-inset: rgba(170, 216, 255, 0.14);
+        --glass-surface-tint-a: rgba(10, 32, 84, 0.55);
+        --glass-surface-tint-b: rgba(6, 16, 48, 0.68);
+        --glass-surface-border: rgba(80, 165, 255, 0.17);
+        --water-accent: #38bdf8;
+        --water-accent-soft: rgba(56, 189, 248, 0.35);
       }
-      /* 2 — Naturel & Frais : émeraude doux, lumière plus naturelle. */
+      /* 2 — Naturel & Frais : vert vivant, verre plus clair et végétal. */
       [data-live-universe="natural_fresh"] {
-        --glass-tint-a: rgba(15, 50, 42, 0.7);
-        --glass-tint-b: rgba(6, 20, 16, 0.85);
-        --glass-border: rgba(110, 230, 180, 0.2);
-        --glass-border-top: rgba(220, 255, 235, 0.35);
-        --glass-shadow-inset: rgba(220, 255, 235, 0.12);
-        --glass-surface-tint-a: rgba(15, 50, 42, 0.5);
-        --glass-surface-tint-b: rgba(10, 32, 26, 0.62);
-        --glass-surface-border: rgba(110, 230, 180, 0.14);
+        --glass-tint-a: rgba(22, 62, 46, 0.66);
+        --glass-tint-b: rgba(8, 26, 19, 0.82);
+        --glass-border: rgba(120, 235, 170, 0.22);
+        --glass-border-top: rgba(224, 255, 238, 0.38);
+        --glass-shadow-inset: rgba(224, 255, 238, 0.13);
+        --glass-surface-tint-a: rgba(22, 62, 46, 0.48);
+        --glass-surface-tint-b: rgba(12, 36, 27, 0.6);
+        --glass-surface-border: rgba(120, 235, 170, 0.15);
+        --water-accent: #4ade80;
+        --water-accent-soft: rgba(74, 222, 128, 0.32);
+      }
+      /* 4 — Solaire & Chaud : ambre doré, chaleur de fin de journée. */
+      [data-live-universe="solaire_chaud"] {
+        --glass-tint-a: rgba(70, 38, 8, 0.72);
+        --glass-tint-b: rgba(24, 11, 3, 0.88);
+        --glass-border: rgba(251, 176, 64, 0.26);
+        --glass-border-top: rgba(255, 220, 160, 0.42);
+        --glass-shadow-inset: rgba(255, 220, 160, 0.14);
+        --glass-surface-tint-a: rgba(70, 38, 8, 0.52);
+        --glass-surface-tint-b: rgba(40, 21, 6, 0.64);
+        --glass-surface-border: rgba(251, 176, 64, 0.18);
+        --water-accent: #f59e0b;
+        --water-accent-soft: rgba(245, 158, 11, 0.33);
       }
       /* 5 — Violet Luxe : violet profond, reflet doré (sensation premium). */
       [data-live-universe="violet_luxe"] {
-        --glass-tint-a: rgba(45, 20, 60, 0.74);
-        --glass-tint-b: rgba(14, 6, 22, 0.87);
-        --glass-border: rgba(200, 150, 255, 0.2);
-        --glass-border-top: rgba(255, 222, 170, 0.35);
+        --glass-tint-a: rgba(48, 18, 66, 0.74);
+        --glass-tint-b: rgba(15, 5, 24, 0.87);
+        --glass-border: rgba(202, 145, 255, 0.22);
+        --glass-border-top: rgba(255, 222, 170, 0.36);
         --glass-shadow-inset: rgba(255, 222, 170, 0.12);
-        --glass-surface-tint-a: rgba(45, 20, 60, 0.52);
-        --glass-surface-tint-b: rgba(28, 12, 42, 0.64);
-        --glass-surface-border: rgba(200, 150, 255, 0.16);
+        --glass-surface-tint-a: rgba(48, 18, 66, 0.52);
+        --glass-surface-tint-b: rgba(30, 11, 44, 0.64);
+        --glass-surface-border: rgba(202, 145, 255, 0.17);
+        --water-accent: #c084fc;
+        --water-accent-soft: rgba(192, 132, 252, 0.34);
       }
-      /* 6 — Océan Profond : bleu-sarcelle sombre, plus dense, plus calme. */
+      /* 6 — Océan Profond : bleu-sarcelle sombre, profondeur marine calme. */
       [data-live-universe="deep_ocean"] {
-        --glass-tint-a: rgba(6, 35, 45, 0.78);
-        --glass-tint-b: rgba(2, 10, 14, 0.9);
-        --glass-border: rgba(70, 200, 210, 0.18);
-        --glass-border-top: rgba(160, 240, 240, 0.3);
-        --glass-shadow-inset: rgba(160, 240, 240, 0.1);
-        --glass-surface-tint-a: rgba(6, 35, 45, 0.56);
-        --glass-surface-tint-b: rgba(4, 20, 26, 0.68);
-        --glass-surface-border: rgba(70, 200, 210, 0.14);
+        --glass-tint-a: rgba(6, 38, 48, 0.78);
+        --glass-tint-b: rgba(2, 11, 15, 0.9);
+        --glass-border: rgba(64, 205, 216, 0.2);
+        --glass-border-top: rgba(158, 242, 242, 0.32);
+        --glass-shadow-inset: rgba(158, 242, 242, 0.1);
+        --glass-surface-tint-a: rgba(6, 38, 48, 0.56);
+        --glass-surface-tint-b: rgba(4, 22, 28, 0.68);
+        --glass-surface-border: rgba(64, 205, 216, 0.15);
+        --water-accent: #2dd4bf;
+        --water-accent-soft: rgba(45, 212, 191, 0.33);
+      }
+      /* 7 — Rose Doux : rose poudré, douceur et légèreté (verre le plus clair). */
+      [data-live-universe="rose_doux"] {
+        --glass-tint-a: rgba(88, 36, 58, 0.6);
+        --glass-tint-b: rgba(38, 14, 26, 0.8);
+        --glass-border: rgba(249, 168, 212, 0.28);
+        --glass-border-top: rgba(255, 226, 240, 0.44);
+        --glass-shadow-inset: rgba(255, 226, 240, 0.16);
+        --glass-surface-tint-a: rgba(88, 36, 58, 0.44);
+        --glass-surface-tint-b: rgba(56, 22, 38, 0.58);
+        --glass-surface-border: rgba(249, 168, 212, 0.2);
+        --water-accent: #f472b6;
+        --water-accent-soft: rgba(244, 114, 182, 0.32);
       }
       .glass-crystal {
         background: linear-gradient(180deg, var(--glass-tint-a) 0%, var(--glass-tint-b) 100%);
@@ -335,6 +401,61 @@
         pointer-events: none;
         z-index: 5;
         transition: border-color 0.4s ease, box-shadow 0.4s ease;
+      }
+      /* Direction artistique Studio Live (30/08/2026) — la matière vivante.
+         Onde d'appui : goutte qui touche une surface d'eau calme. Créée par
+         spawnWaterRipple() (services/live/liveMaterialSystem.ts) aux
+         coordonnées exactes de l'appui, teintée par l'univers courant via
+         --water-accent-soft, retirée du DOM à la fin de l'animation. */
+      @keyframes water-press {
+        0% { transform: translate(-50%, -50%) scale(0); opacity: 0.55; }
+        100% { transform: translate(-50%, -50%) scale(14); opacity: 0; }
+      }
+      .water-ripple-dot {
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        border-radius: 9999px;
+        background: radial-gradient(circle, var(--water-accent-soft) 0%, transparent 70%);
+        border: 1px solid var(--water-accent-soft);
+        pointer-events: none;
+        z-index: 40;
+        animation: water-press 0.65s ease-out forwards;
+      }
+      /* Micro-gouttelettes lumineuses : trois points de lumière discrets qui
+         dérivent très lentement — des reflets, jamais un motif décoratif
+         chargé. Superposition passive (pointer-events none), à poser sur les
+         grandes surfaces de verre uniquement. */
+      @keyframes droplet-float {
+        0%, 100% { background-position: 0 0, 40px 60px, 90px 20px; opacity: 0.5; }
+        50% { background-position: 2px -8px, 38px 50px, 92px 10px; opacity: 0.8; }
+      }
+      .water-droplets {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border-radius: inherit;
+        background-image:
+          radial-gradient(2px 2px at 12% 30%, var(--water-accent-soft), transparent),
+          radial-gradient(1.5px 1.5px at 60% 70%, var(--water-accent-soft), transparent),
+          radial-gradient(1px 1px at 85% 15%, var(--water-accent-soft), transparent);
+        background-repeat: no-repeat;
+        animation: droplet-float 14s ease-in-out infinite;
+      }
+      /* L'interface respire — mais jamais contre la volonté de l'utilisateur :
+         toute animation décorative de la matière est désactivée quand le
+         système demande une réduction du mouvement. Les animations d'ÉTAT
+         (succès/erreur) portent du sens et ne sont pas concernées. */
+      @media (prefers-reduced-motion: reduce) {
+        .water-ripple-dot,
+        .water-droplets,
+        .animate-water-breathe,
+        .animate-water-undulate,
+        .animate-water-idle,
+        .animate-water-ripple,
+        .animate-water-reflect {
+          animation: none !important;
+        }
       }
     </style>
   <script type="importmap">

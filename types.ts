@@ -653,7 +653,7 @@ export interface LiveReplayData {
  * les mêmes classes/keyframes avec des variables de thème différentes (voir
  * services/live/liveMaterialSystem.ts et index.html).
  */
-export type LiveVisualUniverse = 'crystal' | 'futuristic_blue' | 'natural_fresh' | 'violet_luxe' | 'deep_ocean';
+export type LiveVisualUniverse = 'crystal' | 'futuristic_blue' | 'natural_fresh' | 'violet_luxe' | 'deep_ocean' | 'solaire_chaud' | 'rose_doux';
 
 export interface LiveStream {
     id: string;

@@ -1,5 +1,6 @@
 import { generateJSON } from '../aiGateway';
 import { LiveVisualUniverse } from '../../types';
+import { LIVE_VISUAL_UNIVERSES } from './liveMaterialSystem';
 
 /**
  * Voix native branchée sur le LIVE (LOOP 09/14, prompts 2/7 et 4/7) —
@@ -62,7 +63,10 @@ export interface LiveVoiceCommandContext {
 }
 
 const SIDE_TABS = ['chat', 'qa', 'notes', 'decisions', 'agenda', 'products', 'polls', 'docs', 'assistant', 'solidarity'];
-const UNIVERSES: LiveVisualUniverse[] = ['crystal', 'futuristic_blue', 'natural_fresh', 'violet_luxe', 'deep_ocean'];
+// Dérivé de la source unique LIVE_VISUAL_UNIVERSES (liveMaterialSystem) —
+// une liste codée en dur ici avait silencieusement oublié les univers
+// ajoutés par la direction artistique du 30/08/2026 (solaire_chaud, rose_doux).
+const UNIVERSES: LiveVisualUniverse[] = LIVE_VISUAL_UNIVERSES.map((u) => u.id);
 
 /**
  * Registre de capacités du LIVE (LOOP 11/14, complément « Architecte » reçu

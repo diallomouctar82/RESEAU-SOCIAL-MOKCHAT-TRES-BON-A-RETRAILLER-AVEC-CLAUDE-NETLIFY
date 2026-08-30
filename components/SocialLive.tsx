@@ -35,7 +35,7 @@ import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransp
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
-import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState } from '../services/live/liveMaterialSystem';
+import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
@@ -320,6 +320,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // réellement sur scène, jamais affiché à un simple spectateur.
   const [controlsVisible, setControlsVisible] = useState(true);
   const lastActivityRef = useRef(Date.now());
+  // Direction artistique Studio Live (30/08/2026) — la racine du LIVE porte
+  // l'onde d'appui : chaque pression fait naître une goutte à l'endroit
+  // exact du contact (spawnWaterRipple, teintée par l'univers courant).
+  const liveRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // Souris/clavier (desktop) : signal continu, force la réapparition —
@@ -1446,11 +1450,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   }, [voiceAssistant.isSpeaking]);
 
   return (
-    <div data-live-universe={visualUniverse} className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none">
-      
-      {/* 1. TOP HEADER BAR — matière verre/eau/lumière (LOOP 07/14), surface de référence */}
-      <div className={`h-16 ${glassSurfaceClass('primary')} px-4 flex items-center justify-between z-30`}>
-        
+    <div
+      ref={liveRootRef}
+      data-live-universe={visualUniverse}
+      onPointerDown={(e) => spawnWaterRipple(e, liveRootRef.current)}
+      className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none"
+    >
+
+      {/* 1. TOP HEADER BAR — matière verre/eau/lumière (LOOP 07/14), surface de
+          référence. La barre respire (water-breathe, ~9s, presque imperceptible)
+          et porte des micro-gouttelettes lumineuses — jamais sur la zone de
+          chat/texte dense (Lisibilité avant Matière, prompt 3/7). */}
+      <div className={`h-16 relative ${glassSurfaceClass('primary')} animate-water-breathe px-4 flex items-center justify-between z-30`}>
+        <span className="water-droplets" aria-hidden="true"></span>
+
         {/* Left: Live Indicator, Title & Badges */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="bg-red-600 px-3 py-1 rounded-xl font-black text-xs flex items-center gap-2 animate-pulse shadow-lg shadow-red-600/40">
@@ -1466,7 +1479,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {liveData.type || 'Public'}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            {/* Lisibilité (DA-3) : slate-300 et 11px — slate-400 en 10px passait
+                sous le seuil de confort sur les verres les plus clairs (rose_doux). */}
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
               <span className="flex items-center gap-1"><Users size={11} /> {liveData.viewers.toLocaleString()} en direct</span>
               <span
                 className="flex items-center gap-1 text-slate-500 cursor-default"
@@ -1597,6 +1612,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     onClick={() => handleChangeVisualUniverse(universe.id)}
                     className={`w-5 h-5 rounded-full transition-all ${glassSurfaceClass('surface')} ${visualUniverse === universe.id ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
                     data-live-universe={universe.id}
+                    // Anneau couleur signature (image de référence : chaque verre
+                    // est identifié par son anneau lumineux) — à 20px, les teintes
+                    // de verre sombres seraient indistinctes sans lui.
+                    style={{ boxShadow: 'inset 0 0 0 2px var(--water-accent)' }}
                     title={`${universe.label} — ${universe.description}`}
                   />
                 ))}
@@ -2085,9 +2104,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
           </div>
 
-          {/* REAL-TIME BILINGUAL SUBTITLES BAR (DIALLO OS) */}
+          {/* REAL-TIME BILINGUAL SUBTITLES BAR (DIALLO OS) — ondulation de
+              surface imperceptible (water-undulate), jamais de gouttelettes
+              ici : cette barre porte du texte à lire en continu. */}
           {subtitlesMode !== 'off' && (
-            <div className={`h-16 ${glassSurfaceClass('primary')} px-6 flex items-center justify-between z-20`}>
+            <div className={`h-16 ${glassSurfaceClass('primary')} animate-water-undulate px-6 flex items-center justify-between z-20`}>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 bg-indigo-600/30 text-indigo-400 rounded-xl border border-indigo-500/30 flex-shrink-0">
                   <Globe size={16} />
@@ -2134,9 +2155,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             </div>
           )}
 
-          {/* BOTTOM CONTROLS DOCK — matière verre/eau/lumière (LOOP 07/14) */}
-          <div className={`h-16 ${glassSurfaceClass('primary')} px-6 flex items-center justify-between z-20`}>
-            
+          {/* BOTTOM CONTROLS DOCK — matière verre/eau/lumière (LOOP 07/14),
+              respire comme le header (même rythme, même matière vivante). */}
+          <div className={`h-16 relative ${glassSurfaceClass('primary')} animate-water-breathe px-6 flex items-center justify-between z-20`}>
+            <span className="water-droplets" aria-hidden="true"></span>
+
             {/* Media Toggles */}
             <div className="flex items-center gap-2">
               <button

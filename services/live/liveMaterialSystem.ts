@@ -47,8 +47,10 @@ export const LIVE_VISUAL_UNIVERSES: { id: LiveVisualUniverse; label: string; des
     { id: 'crystal', label: 'Cristal (référence)', description: 'Glassmorphism Crystal Water — verre et eau, la référence du LIVE.' },
     { id: 'futuristic_blue', label: 'Futuriste Bleu', description: 'Bleu électrique, contrastes nets, sensation de vitesse.' },
     { id: 'natural_fresh', label: 'Naturel & Frais', description: 'Vert/émeraude doux, lumière naturelle.' },
+    { id: 'solaire_chaud', label: 'Solaire & Chaud', description: 'Ambre doré, chaleur de fin de journée.' },
     { id: 'violet_luxe', label: 'Violet Luxe', description: 'Violet profond, reflet doré, sensation premium.' },
     { id: 'deep_ocean', label: 'Océan Profond', description: 'Bleu-sarcelle sombre, profondeur, calme.' },
+    { id: 'rose_doux', label: 'Rose Doux', description: 'Rose poudré, douceur et légèreté — le verre le plus clair.' },
 ];
 
 export type GlassSurfaceVariant = 'primary' | 'surface';
@@ -120,4 +122,29 @@ export function avatarHaloProps(state: AvatarGrammarState): { className: string;
         className: `avatar-halo${animation ? ` ${animation}` : ''}`,
         style: { '--halo-color': AVATAR_GRAMMAR_COLOR[state] },
     };
+}
+
+/**
+ * Onde d'appui (direction artistique Studio Live, 30/08/2026) — « quand on
+ * appuie sur un élément, il réagit comme une matière fluide : une onde
+ * subtile qui se propage, comme une goutte qui touche une surface d'eau
+ * calme ». Crée un point d'onde éphémère (.water-ripple-dot, teinté par
+ * --water-accent de l'univers courant) aux coordonnées de l'appui, retiré
+ * du DOM à la fin de son animation. Décoratif uniquement : jamais de logique
+ * métier ici, et no-op complet si l'utilisateur préfère réduire le mouvement
+ * (prefers-reduced-motion) — la matière respire, elle n'impose rien.
+ */
+export function spawnWaterRipple(event: { clientX: number; clientY: number }, host: HTMLElement | null): void {
+    if (!host) return;
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const rect = host.getBoundingClientRect();
+    const dot = document.createElement('span');
+    dot.className = 'water-ripple-dot';
+    dot.style.left = `${event.clientX - rect.left}px`;
+    dot.style.top = `${event.clientY - rect.top}px`;
+    host.appendChild(dot);
+    // Filet de sécurité si animationend ne se déclenche pas (onglet en arrière-plan).
+    const remove = () => dot.remove();
+    dot.addEventListener('animationend', remove, { once: true });
+    window.setTimeout(remove, 900);
 }
