@@ -52,6 +52,7 @@ import { GuidedModeModal } from './accessibility/GuidedModeModal';
 import { UniversalScannerModal, ScannerContext } from './scanner/UniversalScannerModal';
 import { BilingualConversationModal } from './translation/BilingualConversationModal';
 import { UnifiedSettingsModal } from './settings/UnifiedSettingsModal';
+import { InviteButton } from './ui/InviteButton';
 import { BrandColorLabModal } from './settings/BrandColorLabModal';
 import { ComponentShowcaseModal } from './ui/ComponentShowcaseModal';
 import { FocusAndPresentationControls } from './ui/FocusAndPresentationControls';
@@ -503,6 +504,8 @@ export const Layout: React.FC<LayoutProps> = ({
                         <Shield size={14} /> Console d'Administration
                       </button>
                     )}
+                    {/* ÉQUIPE F6 — invitation réelle avec suivi (composant global) */}
+                    <InviteButton className="w-full text-left px-3 py-1.5 hover:bg-emerald-50 rounded-xl text-xs flex items-center gap-2 text-emerald-700 font-bold" />
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>

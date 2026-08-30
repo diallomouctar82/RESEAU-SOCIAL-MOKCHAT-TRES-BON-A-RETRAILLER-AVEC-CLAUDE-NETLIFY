@@ -30,6 +30,8 @@ import { registerCapabilityHandlers } from '../services/architecte/capabilityBus
 import { interpretSocialVoiceCommand, SocialVoiceAction } from '../services/social/socialVoiceCommands';
 import { addToQueue } from '../services/architecte/syncQueue';
 import { checkNetworkStatus } from '../services/pwaService';
+import { ShareButton } from './ui/ShareButton';
+import { GrowthDashboard } from './growth/GrowthDashboard';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -1097,24 +1099,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setPosts(prev => prev.filter(p => p.id !== post.id));
   };
 
-  // Partage réel (LOOP 02/17) : incrémente shares_count via une fonction
-  // serveur qui vérifie elle-même que le post est public ET publié avant
-  // d'accepter l'incrément (services/supabaseClient.ts::sharePost) — jamais
-  // de partage silencieux d'un contenu qui ne devrait pas l'être.
-  const handleSharePost = async (post: Post) => {
-    navigator.clipboard.writeText(`https://lemondeavous.org/mooc/posts/${post.id}`);
-    // Le lien est toujours copié, mais il ne mènera à rien pour quelqu'un qui
-    // n'a pas le droit de voir la publication : une publication réservée aux
-    // abonnés ou privée reste protégée par la RLS, quel que soit le lien.
-    // Le dire honnêtement plutôt que laisser croire à un partage public.
-    if (post.visibility !== 'public') {
-      alert(
-        post.visibility === 'private'
-          ? "Lien copié — mais cette publication est privée : personne d'autre que vous ne pourra l'ouvrir."
-          : "Lien copié — seuls vos amis et abonnés pourront ouvrir cette publication."
-      );
-      return;
-    }
+  // Partage réel (LOOP 02/17, étendu ÉQUIPE F5) : le bouton Partager global
+  // (components/ui/ShareButton) diffuse vers les canaux réellement joignables
+  // avec un lien de retour attribuable ; l'incrément passe toujours par la
+  // fonction serveur qui vérifie elle-même public+publié
+  // (services/supabaseClient.ts::sharePost) — jamais un partage silencieux
+  // d'un contenu qui ne devrait pas l'être, jamais un compteur inventé.
+  const recordPostShare = async (post: Post) => {
+    if (post.visibility !== 'public') return; // la RLS protège de toute façon — le compteur ne compte que les partages réellement publics.
     if (supabaseService.isConfigured() && isRealPostId(post.id)) {
       try {
         await supabaseService.sharePost(post.id);
@@ -1123,7 +1115,6 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         console.warn('Could not record share', err);
       }
     }
-    alert('Lien de la publication copié !');
   };
 
   // --- Création de contenu par la voix (LOOP 03/17, Architecte MOCnet) ---
@@ -1497,6 +1488,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'tribes' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Tribus
+            </button>
+            {/* ÉQUIPE F7 — tableau de bord de croissance (mesures réelles) */}
+            <button
+              onClick={() => setActiveTab('my_space')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'my_space' ? 'bg-white text-teal-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Croissance
             </button>
           </div>
 
@@ -2047,15 +2045,21 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                           </button>
                         </div>
 
-                        {/* Shares Count & Button — partage réel avec vérification de droits (LOOP 02/17) */}
-                        <button
-                          onClick={() => handleSharePost(post)}
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-1"
-                          title="Partager le post"
-                        >
-                          <Share2 size={16} />
-                          {(post.shares ?? 0) > 0 && <span className="text-[11px] font-bold">{post.shares}</span>}
-                        </button>
+                        {/* Partager (ÉQUIPE F5) — diffusion réelle multi-canaux avec lien de retour */}
+                        <ShareButton
+                          url={`https://moknet.net/?post=${post.id}`}
+                          title={`Publication de ${post.author} sur MokNet`}
+                          text={(post.content || '').slice(0, 140)}
+                          count={post.shares}
+                          visibilityWarning={
+                            post.visibility === 'private'
+                              ? "Publication privée : personne d'autre que vous ne pourra l'ouvrir."
+                              : post.visibility === 'network'
+                                ? 'Réservée à vos amis et abonnés : seuls eux pourront ouvrir le lien.'
+                                : undefined
+                          }
+                          onShared={() => { void recordPostShare(post); }}
+                        />
 
                       </div>
 
@@ -2758,8 +2762,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         </div>
       )}
 
+      {/* ÉQUIPE F7 — Croissance & Diffusion : tableau de bord réel + agent */}
+      {activeTab === 'my_space' && (
+        <div className="max-w-2xl mx-auto">
+          <GrowthDashboard />
+        </div>
+      )}
+
       {/* 7. ALL MODALS INTEGRATION */}
-      
+
       {/* Pre-publication AI Assistant Modal */}
       <AIPostAssistantModal
         isOpen={isAIModalOpen}
