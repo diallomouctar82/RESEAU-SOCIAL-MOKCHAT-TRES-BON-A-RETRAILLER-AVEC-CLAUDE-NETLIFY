@@ -50,6 +50,10 @@ export interface AdapterRequest {
         // Texte -> parole (TTS)
         text?: string;
         voiceId?: string;
+        // Réglages fins du fournisseur, transmis TELS QUELS s'ils sont
+        // fournis par le client (ElevenLabs : stability/similarity_boost/
+        // style). Absents = défauts du fournisseur, comportement historique.
+        voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
         // Parole -> texte (STT/transcription) — audio fourni en base64
         audioBase64?: string;
         audioMimeType?: string;

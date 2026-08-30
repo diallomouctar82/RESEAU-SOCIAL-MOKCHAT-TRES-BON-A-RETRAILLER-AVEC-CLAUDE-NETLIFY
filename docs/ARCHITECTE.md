@@ -518,3 +518,54 @@ Différé honnêtement (« lorsque la technologie disponible le permet », dit l
 spécification elle-même) : le mode conversation vidéo avec l'Architecte —
 la surface unique le rend possible sans nouvelle architecture, mais il
 dépend du chantier LIVE/LiveKit, distinct.
+
+## 20. La voix vivante — Équipe V (continuité, chaleur, arrêt net)
+
+Mission du 30/08/2026 : la voix était saccadée, mécanique, et donnait par
+moments l'impression de plusieurs intervenants. L'audit du moteur
+(`services/voiceEngine.ts`) a identifié des causes PRÉCISES, toutes
+corrigées — jamais une refonte, le moteur partagé des Experts Diallo reste
+la base.
+
+### Les causes réelles trouvées, et leurs correctifs
+
+| Cause (mesurée dans le code) | Effet entendu | Correctif |
+|---|---|---|
+| La génération HD (1-4 s) n'était pas annulable : `stopSpeaking()` ou un second `speak()` pendant l'attente n'empêchait pas la promesse de jouer l'audio ensuite | Phrase « fantôme » qui arrive après la fermeture de la barre ; deux synthèses superposées = « plusieurs personnes » | Jeton d'époque (`speakEpoch`) : chaque arrêt/nouveau `speak` invalide toute continuation en vol — plus un son ne part d'une demande annulée |
+| Le texte ENTIER partait en une seule synthèse avant la première milliseconde de son | Long silence, puis long monologue — latence perçue élevée | Découpage HD : la 1ʳᵉ phrase part seule (premier son rapide, mais toujours une phrase complète — jamais un faux départ), la suite est générée PENDANT la lecture et enchaînée avec la respiration par ponctuation |
+| Le repli navigateur coupait chaque phrase à ses virgules (seuil 140) en énoncés séparés | « Coupures entre mots », redémarrages du moteur au milieu d'une phrase | Les virgules restent DANS l'énoncé (le moteur y respire naturellement) ; la coupe ne subsiste qu'en garde-fou au-delà de 240 caractères |
+| Aucun réglage de voix transmis au fournisseur ; voix de l'Architecte héritée d'un repli implicite | Timbre variable, pas d'identité déclarée | Voix ATTITRÉE : George (la même que le Professeur Diallo, la référence de stabilité), déclarée explicitement, avec `voice_settings` (stability 0.55, similarity 0.8, style 0.15) transmis de bout en bout (client → gateway → ElevenLabs). Les autres écrans n'envoient pas de réglages → strictement inchangés |
+
+### Ce qui existait déjà et reste la base (ne pas re-corriger)
+
+Respiration par ponctuation (`breathAfterPhrase` : ? 320 > . 250 > ;: 190 >
+, 130 ms), barge-in (une vraie phrase ≥ 12 caractères coupe la synthèse),
+fermé = silence réel, verrou d'identité vocale par session
+(`sessionEngineLock` — au pire UNE bascule HD→navigateur, jamais un
+aller-retour) — tout cela vient de la Boucle 1/Équipe B et est couvert par
+`tests/voiceEngine.test.ts`.
+
+### Le naturel sans imitation
+
+La directive PAROLE VIVANTE (`architecteBrain.ts`) construit les réponses
+pour l'oreille : phrases courtes, ponctuation qui rythme, jamais
+d'énumération récitée — et JAMAIS de « euh », bégaiements ou hésitations
+fabriqués : le naturel vient du rythme et de la formulation, pas d'une
+imitation caricaturale.
+
+### Preuves
+
+`tests/voiceContinuity.test.ts` (8) : phrase fantôme impossible après
+fermeture, superposition impossible (seule la seconde réponse joue),
+barge-in coupe la chaîne des segments, découpage 1ʳᵉ phrase seule,
+virgules non coupées, enchaînement de segments dans l'ordre avec
+pré-génération. Suite complète : 105/105.
+
+### Limites du fournisseur (honnêteté)
+
+Le premier son reste conditionné au temps de génération de la PREMIÈRE
+phrase par le fournisseur HD (~0,5-2 s selon sa charge) — incompressible
+sans streaming natif ElevenLabs (websocket), non branché à ce jour. En cas
+d'indisponibilité du fournisseur en COURS de réponse, la voix termine
+proprement dans la même identité plutôt que de basculer au milieu d'une
+phrase (le texte complet reste affiché) — choix délibéré §9.

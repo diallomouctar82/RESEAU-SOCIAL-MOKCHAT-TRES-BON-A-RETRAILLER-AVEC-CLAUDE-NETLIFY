@@ -139,6 +139,15 @@ export class VoiceEngine {
     private currentAudioElement: HTMLAudioElement | null = null;
     private currentAudioUrl: string | null = null;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
+    // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
+    // (1 à 4 s) — sans jeton, un `stopSpeaking()` (fermeture de la barre,
+    // barge-in) ou un second `speak()` pendant cette attente n'empêchait PAS
+    // la promesse de continuer : l'audio partait quand même quelques secondes
+    // plus tard (la « phrase fantôme » après fermeture) et deux `speak()`
+    // rapprochés se SUPERPOSAIENT. Chaque annulation incrémente l'époque ;
+    // toute continuation asynchrone vérifie que son époque est toujours la
+    // courante avant de produire le moindre son.
+    private speakEpoch: number = 0;
     private isElevenLabsAvailable: boolean = true;
     private preferredEngine: 'auto' | 'elevenlabs' | 'browser' = 'auto';
     private currentActiveEngine: 'elevenlabs' | 'browser_native' = 'elevenlabs';
@@ -526,22 +535,25 @@ export class VoiceEngine {
      * 🎙️ SYNTHÈSE VOCALE PRINCIPALE (ElevenLabs HD avec Fallback Navigateur Transparent)
      */
     public async speak(
-        text: string, 
-        options?: { 
+        text: string,
+        options?: {
             voiceId?: string;
-            voiceName?: string; 
-            rate?: number; 
-            pitch?: number; 
+            voiceName?: string;
+            rate?: number;
+            pitch?: number;
             stability?: number;
             similarity_boost?: number;
+            style?: number;
             onStart?: () => void;
             onEnd?: () => void;
         }
     ) {
         if (!text || typeof window === 'undefined') return;
 
-        // Arrêter toute diction en cours
+        // Arrêter toute diction en cours — et prendre l'époque APRÈS :
+        // toute continuation asynchrone d'un `speak` antérieur devient stale.
         this.stopSpeaking();
+        const epoch = this.speakEpoch;
 
         const cleanedText = this.formatForSpokenVoice(text);
         if (!cleanedText) return;
@@ -564,12 +576,16 @@ export class VoiceEngine {
 
         // Essayer d'abord la synthèse vocale ElevenLabs HD
         try {
-            const success = await this.speakWithElevenLabs(cleanedText, effectiveVoiceId, options);
+            const success = await this.speakWithElevenLabs(cleanedText, effectiveVoiceId, epoch, options);
+            // Annulé pendant la génération (fermeture, barge-in, nouveau
+            // `speak`) : silence — jamais une voix fantôme ni un repli tardif.
+            if (epoch !== this.speakEpoch) return;
             if (!success) {
                 console.log("ℹ️ Transition gracieuse vers le moteur vocal natif...");
                 this.fallbackToBrowserSpeech(cleanedText, options);
             }
         } catch (e) {
+            if (epoch !== this.speakEpoch) return;
             console.warn("ElevenLabs TTS non disponible, bascule sur la synthèse système:", e);
             this.fallbackToBrowserSpeech(cleanedText, options);
         }
@@ -581,75 +597,159 @@ export class VoiceEngine {
      * avec bascule automatique). Remplace l'ancien proxy /api/tts (backend Express
      * jamais exécuté en production sur cet hébergement statique).
      */
+    /**
+     * Découpage HD (Équipe V §11/§12) : la première phrase part SEULE en
+     * synthèse — le premier son arrive donc après la génération d'une phrase,
+     * pas de toute la réponse — mais c'est toujours une phrase complète et
+     * cohérente qui commence (jamais une syllabe isolée ni un faux départ).
+     * La suite est regroupée en blocs de phrases (~360 caractères) générés
+     * PENDANT la lecture du bloc courant : la voix enchaîne sans blanc de
+     * génération, avec la même respiration par ponctuation que le repli
+     * navigateur — une seule intention vocale continue.
+     */
+    private splitForHdSynthesis(text: string): string[] {
+        const sentences = text.split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean);
+        if (sentences.length <= 1) return sentences;
+        const segments: string[] = [sentences[0]];
+        let current = '';
+        for (const s of sentences.slice(1)) {
+            if (current && (current.length + s.length + 1) > 360) {
+                segments.push(current);
+                current = s;
+            } else {
+                current = current ? `${current} ${s}` : s;
+            }
+        }
+        if (current) segments.push(current);
+        return segments;
+    }
+
+    /** Génère (ou relit du cache) l'audio d'UN segment. Retourne null en cas d'échec — jamais une exception. */
+    private async generateSegmentAudio(
+        segment: string,
+        voiceId: string,
+        options?: { stability?: number; similarity_boost?: number; style?: number }
+    ): Promise<string | null> {
+        const settings = this.buildVoiceSettings(options);
+        const settingsKey = settings ? `_s${settings.stability ?? ''}i${settings.similarity_boost ?? ''}y${settings.style ?? ''}` : '';
+        const cacheKey = `${voiceId}${settingsKey}_${segment.slice(0, 80)}_${segment.length}`;
+
+        const cached = this.audioCache.get(cacheKey);
+        if (cached) return cached;
+
+        try {
+            const audioBase64 = await generateSpeech(segment, { voiceId, voiceSettings: settings });
+            if (!audioBase64) return null;
+            const url = `data:audio/mpeg;base64,${audioBase64}`;
+            this.audioCache.set(cacheKey, url);
+            return url;
+        } catch (e) {
+            console.warn("Synthèse vocale via l'orchestrateur indisponible:", e);
+            return null;
+        }
+    }
+
+    /** Ne transmet des réglages de voix que si l'appelant en fournit — les autres écrans (Experts Diallo) restent strictement inchangés. */
+    private buildVoiceSettings(options?: { stability?: number; similarity_boost?: number; style?: number }):
+        { stability?: number; similarity_boost?: number; style?: number } | undefined {
+        if (!options) return undefined;
+        const { stability, similarity_boost, style } = options;
+        if (stability === undefined && similarity_boost === undefined && style === undefined) return undefined;
+        return {
+            ...(stability !== undefined ? { stability } : {}),
+            ...(similarity_boost !== undefined ? { similarity_boost } : {}),
+            ...(style !== undefined ? { style } : {}),
+        };
+    }
+
+    /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */
+    private playAudioUrl(audioUrl: string, epoch: number): Promise<boolean> {
+        return new Promise<boolean>((resolve) => {
+            try {
+                const audio = new Audio(audioUrl);
+                this.currentAudioElement = audio;
+                this.currentAudioUrl = audioUrl;
+                audio.onended = () => resolve(true);
+                // `stopSpeaking()` met l'audio en pause : l'événement pause
+                // avec une époque périmée signifie « coupé net » — on résout
+                // tout de suite au lieu de laisser une promesse pendante.
+                audio.onpause = () => { if (epoch !== this.speakEpoch) resolve(false); };
+                audio.onerror = (e) => { console.warn('Erreur lecture audio ElevenLabs:', e); resolve(false); };
+                audio.play().catch((err) => { console.warn('Échec lecture autoplay audio:', err); resolve(false); });
+            } catch (err) {
+                console.warn('Erreur initialisation Audio ElevenLabs:', err);
+                resolve(false);
+            }
+        });
+    }
+
+    private waitMs(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
     private async speakWithElevenLabs(
         text: string,
         voiceId: string,
+        epoch: number,
         options?: {
             stability?: number;
             similarity_boost?: number;
+            style?: number;
             onStart?: () => void;
             onEnd?: () => void;
         }
     ): Promise<boolean> {
-        const cacheKey = `${voiceId}_${text.slice(0, 80)}_${text.length}`;
+        const segments = this.splitForHdSynthesis(text);
+        if (segments.length === 0) return true;
 
-        let audioBlobUrl = this.audioCache.get(cacheKey);
+        // §12 : aucun son avant qu'une phrase complète soit prête.
+        let currentUrl = await this.generateSegmentAudio(segments[0], voiceId, options);
+        if (epoch !== this.speakEpoch) return true; // annulé pendant la génération : silence
+        if (!currentUrl) return false; // rien n'a pu être dit → le repli peut prendre le relais
 
-        if (!audioBlobUrl) {
-            let audioBase64: string;
-            try {
-                audioBase64 = await generateSpeech(text, { voiceId });
-            } catch (e) {
-                console.warn("Synthèse vocale via l'orchestrateur indisponible:", e);
-                return false;
-            }
-            if (!audioBase64) return false;
-
-            audioBlobUrl = `data:audio/mpeg;base64,${audioBase64}`;
-            this.audioCache.set(cacheKey, audioBlobUrl);
+        // Pause du micro pendant la lecture
+        if (this.isListening && this.recognition) {
+            try { this.recognition.stop(); } catch (e) {}
         }
 
-        // Lecture de l'audio haute fidélité
-        return new Promise<boolean>((resolve) => {
-            try {
-                // Pause du micro pendant la lecture
-                if (this.isListening && this.recognition) {
-                    try { this.recognition.stop(); } catch (e) {}
+        this.isSpeaking = true;
+        this.currentActiveEngine = 'elevenlabs';
+        this.notifySpeakingState(true);
+        this.notifyConversationalTurn('ai_speaking');
+        this.listeners.forEach(l => l.onTtsEngineChange?.('elevenlabs'));
+        options?.onStart?.();
+
+        for (let i = 0; i < segments.length; i++) {
+            // Pré-générer le segment suivant PENDANT la lecture du courant.
+            const nextPromise = i + 1 < segments.length
+                ? this.generateSegmentAudio(segments[i + 1], voiceId, options)
+                : null;
+
+            const played = await this.playAudioUrl(currentUrl, epoch);
+            if (epoch !== this.speakEpoch) return true; // coupé net (barge-in/fermeture) : rien d'autre ne part
+            if (!played) break; // erreur de lecture : fin propre, jamais une superposition
+
+            if (nextPromise) {
+                // Respiration entre deux blocs, selon la ponctuation réelle.
+                await this.waitMs(VoiceEngine.breathAfterPhrase(segments[i]));
+                if (epoch !== this.speakEpoch) return true;
+                let nextUrl = await nextPromise;
+                if (epoch !== this.speakEpoch) return true;
+                if (!nextUrl) {
+                    // Une seule relance — puis fin PROPRE dans la même voix :
+                    // basculer sur la voix navigateur au milieu d'une réponse
+                    // serait précisément la « succession de voix » à bannir
+                    // (§9). Le texte complet reste affiché à l'écran.
+                    nextUrl = await this.generateSegmentAudio(segments[i + 1], voiceId, options);
+                    if (epoch !== this.speakEpoch) return true;
                 }
-
-                const audio = new Audio(audioBlobUrl);
-                this.currentAudioElement = audio;
-                this.currentAudioUrl = audioBlobUrl;
-
-                this.isSpeaking = true;
-                this.currentActiveEngine = 'elevenlabs';
-                this.notifySpeakingState(true);
-                this.notifyConversationalTurn('ai_speaking');
-                this.listeners.forEach(l => l.onTtsEngineChange?.('elevenlabs'));
-                options?.onStart?.();
-
-                audio.onended = () => {
-                    this.finishSpeakingElevenLabs(options);
-                    resolve(true);
-                };
-
-                audio.onerror = (e) => {
-                    console.warn("Erreur lecture audio ElevenLabs:", e);
-                    this.finishSpeakingElevenLabs(options);
-                    resolve(false);
-                };
-
-                audio.play().catch((err) => {
-                    console.warn("Échec lecture autoplay audio:", err);
-                    this.finishSpeakingElevenLabs(options);
-                    resolve(false);
-                });
-
-            } catch (err) {
-                console.warn("Erreur initialisation Audio ElevenLabs:", err);
-                resolve(false);
+                if (!nextUrl) break;
+                currentUrl = nextUrl;
             }
-        });
+        }
+
+        this.finishSpeakingElevenLabs(options);
+        return true;
     }
 
     private finishSpeakingElevenLabs(options?: { onEnd?: () => void }) {
@@ -717,11 +817,19 @@ export class VoiceEngine {
             const p = raw.trim();
             if (!p) continue;
 
-            if (p.length > 140) {
+            // ÉQUIPE V §3 : une phrase ordinaire reste UN SEUL énoncé — les
+            // virgules restent DEDANS et le moteur de synthèse y respire tout
+            // seul, naturellement. L'ancien seuil (140) découpait presque
+            // chaque phrase à ses virgules en énoncés séparés : chaque
+            // redémarrage du moteur + la pause fixe ajoutée donnaient les
+            // « coupures entre mots » entendues. La coupe à la virgule ne
+            // reste qu'en garde-fou pour les phrases anormalement longues
+            // (certains moteurs système se figent au-delà de ~250 caractères).
+            if (p.length > 240) {
                 const subParts = p.split(/(?<=[,])\s+/);
                 let currentChunk = '';
                 for (const sub of subParts) {
-                    if ((currentChunk + ' ' + sub).length > 140 && currentChunk) {
+                    if ((currentChunk + ' ' + sub).length > 240 && currentChunk) {
                         phrases.push(currentChunk.trim());
                         currentChunk = sub;
                     } else {
@@ -858,6 +966,10 @@ export class VoiceEngine {
     }
 
     public stopSpeaking() {
+        // Invalide toute continuation asynchrone en vol (génération HD,
+        // enchaînement de segments) : rien de ce qui a été demandé avant cet
+        // arrêt ne produira plus jamais de son (§14 — fermeture nette).
+        this.speakEpoch += 1;
         this.stopHeartbeat();
         this.speechQueue = [];
         this.isProcessingQueue = false;

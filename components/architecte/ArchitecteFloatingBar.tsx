@@ -11,7 +11,13 @@ import {
     type ArchitecteTurn,
 } from '../../services/architecte/architecteSession';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
-import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
+import { ELEVENLABS_CURATED_VOICES, MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
+
+// Identité vocale de l'Architecte (Équipe V) — constantes de module :
+// une référence STABLE (jamais un littéral re-créé à chaque rendu, qui
+// invaliderait le `useCallback` du hook vocal à chaque frappe).
+const ARCHITECTE_VOICE_ID = ELEVENLABS_CURATED_VOICES.professor.id;
+const ARCHITECTE_VOICE_SETTINGS = { stability: 0.55, similarity_boost: 0.8, style: 0.15 } as const;
 import {
     ARCHITECTE_AGENT_ID,
     buildArchitecteGreeting,
@@ -257,6 +263,16 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         transcript, error: voiceError, startListening, stopListening, speak, stopSpeaking, setConversationalMode,
     } = useVoiceAssistant({
         lang: 'fr-FR',
+        // Identité vocale ATTITRÉE de l'Architecte (Équipe V §2/§9/§10) :
+        // la même voix que le Professeur Diallo (George — « chaleureux,
+        // érudit et posé »), la référence de stabilité citée par la mission,
+        // déclarée explicitement au lieu de dépendre du repli par défaut.
+        // Les réglages inclinent vers le calme et la proximité : stabilité
+        // relevée (débit posé, moins de variations brusques), similarité
+        // haute (timbre constant d'une phrase à l'autre), style léger
+        // (de la vie, jamais de théâtre).
+        voiceId: ARCHITECTE_VOICE_ID,
+        voiceSettings: ARCHITECTE_VOICE_SETTINGS,
         onFinalTranscript: (text) => { void handleCommand(text); },
     });
 
