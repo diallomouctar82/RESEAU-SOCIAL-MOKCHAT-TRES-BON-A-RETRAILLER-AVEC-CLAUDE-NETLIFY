@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { GoalProvider } from './contexts/GoalContext';
@@ -151,6 +151,37 @@ const AppContent = () => {
       }
       setActiveLiveId(liveId);
   };
+
+  // Lien direct vers un Live précis (?live=<id>, copié depuis le bouton
+  // "Copier le lien" de SocialLive.tsx) — ouvre CE Live en rejouant
+  // exactement le même chemin que la navigation interne (handleOpenLive,
+  // sans initialData). Aucune vérification d'accès n'est contournée ni
+  // ajoutée ici : SocialLive applique les mêmes contrôles (RLS Supabase
+  // can_view_live_session()/is_live_host(), logique déjà en place) que pour
+  // un Live ouvert depuis le fil social — y compris le refus d'accès à une
+  // session privée. On attend que la session applicative soit confirmée
+  // (isAuthenticated) avant de consommer le paramètre, pour ne pas tenter
+  // d'ouvrir un Live avant que l'utilisateur ne soit connecté ; un lien
+  // ouvert déconnecté atterrit normalement sur l'écran de connexion, puis
+  // ce même effet se redéclenche une fois isAuthenticated passé à true.
+  const hasConsumedLiveLinkRef = useRef(false);
+  useEffect(() => {
+      if (!isAuthenticated || hasConsumedLiveLinkRef.current) return;
+      try {
+          const params = new URLSearchParams(window.location.search);
+          const liveIdFromUrl = params.get('live');
+          if (liveIdFromUrl) {
+              hasConsumedLiveLinkRef.current = true;
+              handleOpenLive(liveIdFromUrl);
+              // Nettoie l'URL une fois le lien consommé, pour ne pas rouvrir
+              // ce Live à chaque rechargement après que l'utilisateur l'a quitté.
+              const cleanUrl = window.location.pathname + window.location.hash;
+              window.history.replaceState({}, '', cleanUrl);
+          }
+      } catch (err) {
+          console.warn('Lecture du paramètre ?live= impossible', err);
+      }
+  }, [isAuthenticated]);
 
   // Prioritaire sur tout le reste : un lien "mot de passe oublié" cliqué
   // établit une vraie session Supabase, mais l'utilisateur doit choisir un

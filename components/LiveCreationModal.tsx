@@ -67,6 +67,15 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
   const [scheduledDate, setScheduledDate] = useState<string>('');
   const [scheduledTime, setScheduledTime] = useState<string>('');
   const [timezone, setTimezone] = useState<string>('GMT');
+  // LIMITATION CONNUE (constatée le 2026-08-30, corrigée en partie par le
+  // vrai lien de partage ajouté dans SocialLive.tsx) : rien dans cette
+  // modale n'appelle jamais setInvitedMemberIds — il n'existe aucun
+  // sélecteur de membres pour "Privé / Sur Invitation" ci-dessous. La liste
+  // envoyée à allowedMemberIds (voir plus bas) est donc toujours vide, ce
+  // qui, côté RLS (can_view_live_session), ne garantit l'accès qu'à l'hôte.
+  // Tant qu'un vrai sélecteur de membres validé côté serveur n'existe pas,
+  // ne pas promettre dans l'UI qu'une liste d'invités est appliquée — voir
+  // le texte de l'option 'private' ci-dessous, corrigé en conséquence.
   const [invitedMemberIds, setInvitedMemberIds] = useState<string[]>([]);
   const [moderatorIds, setModeratorIds] = useState<string[]>([]);
 
@@ -425,7 +434,17 @@ export const LiveCreationModal: React.FC<LiveCreationModalProps> = ({
                   {[
                     { id: 'public', label: 'Public (Tout Réseau Mok)', icon: Globe, desc: 'Visible dans le flux et sur les profils.' },
                     { id: 'tribe', label: 'Tribu Thématique', icon: Users, desc: 'Réservé aux membres de la tribu sélectionnée.' },
-                    { id: 'private', label: 'Privé / Sur Invitation', icon: Lock, desc: 'Accessible uniquement via lien ou invitation directe.' }
+                    // Texte corrigé le 2026-08-30 : l'ancien libellé
+                    // ("Accessible uniquement via lien ou invitation
+                    // directe") promettait une vraie liste d'invités qui
+                    // n'a jamais existé (voir le commentaire sur
+                    // invitedMemberIds plus haut) — le lien de partage,
+                    // lui, existe réellement désormais (bouton "Copier le
+                    // lien" dans l'écran du Live), mais tant qu'aucun
+                    // sélecteur de membres validé côté serveur n'est
+                    // branché, seul l'hôte est garanti d'accéder à un Live
+                    // marqué privé.
+                    { id: 'private', label: 'Privé / Sur Invitation', icon: Lock, desc: 'Non listé publiquement. Le lien de partage donne accès, mais la sélection d\'invités n\'est pas encore appliquée : pour l\'instant, seul l\'hôte est garanti d\'y entrer.' }
                   ].map(p => {
                     const Icon = p.icon;
                     return (
