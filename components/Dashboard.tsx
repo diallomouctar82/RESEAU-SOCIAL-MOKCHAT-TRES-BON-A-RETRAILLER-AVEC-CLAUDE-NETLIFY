@@ -26,6 +26,16 @@ interface DashboardProps {
     onOpenSearch?: () => void;
 }
 
+// Active une carte cliquable au clavier (Entrée / Espace) en plus du clic souris.
+const handleCardKeyDown = (e: React.KeyboardEvent, action: () => void) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        action();
+    }
+};
+
+const CARD_FOCUS_RING = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2';
+
 export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, onOpenCapModal, onOpenSearch }) => {
     const { currentGoal } = useGoal();
 
@@ -42,15 +52,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                 </div>
 
                 <div className="flex items-center gap-3 self-end sm:self-auto">
-                    <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1">
-                        <button
-                            onClick={() => onNavigate('admin')}
-                            className="px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 shadow-xs hover:scale-[1.02]"
-                            title="Ouvrir le Tableau de Bord Super-Admin & Connecteurs IA Souverains"
-                        >
-                            <Shield size={14} className="fill-slate-950/20" /> Super-Admin & IA
-                        </button>
-                    </div>
+                    {/* Réservé aux comptes admin/super-admin : pour un citoyen normal,
+                        activeTab='admin' ne rend rien dans App.tsx (voir la garde de rôle
+                        sur AdminDashboard) — afficher ce raccourci à tout le monde menait
+                        donc à un écran vide pour la quasi-totalité des utilisateurs. */}
+                    {(userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+                        <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1">
+                            <button
+                                onClick={() => onNavigate('admin')}
+                                className={`px-3 py-1.5 min-h-[44px] rounded-lg text-xs font-black flex items-center gap-1.5 transition-all bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 shadow-xs hover:scale-[1.02] ${CARD_FOCUS_RING}`}
+                                title="Ouvrir le Tableau de Bord Super-Admin & Connecteurs IA Souverains"
+                            >
+                                <Shield size={14} className="fill-slate-950/20" /> Super-Admin & IA
+                            </button>
+                        </div>
+                    )}
 
                     <QuickActionZone
                         onActionClick={onNavigate}
@@ -154,10 +170,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {DEFAULT_DOSSIERS.slice(0, 3).map((dossier, i) => (
-                                <div 
+                                <div
                                     key={dossier.id}
                                     onClick={() => onNavigate('chat')}
-                                    className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 hover:border-orange-300 hover:bg-orange-50/20 transition-all cursor-pointer group flex flex-col justify-between"
+                                    onKeyDown={(e) => handleCardKeyDown(e, () => onNavigate('chat'))}
+                                    role="button"
+                                    tabIndex={0}
+                                    className={`p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 hover:border-orange-300 hover:bg-orange-50/20 transition-all cursor-pointer group flex flex-col justify-between ${CARD_FOCUS_RING}`}
                                 >
                                     <div>
                                         <div className="flex justify-between items-center mb-2.5">
@@ -185,9 +204,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                     {/* Portefeuille & Progression XP (4 cols) */}
                     <div className="lg:col-span-4 space-y-4">
                         {/* Wallet Card */}
-                        <div 
+                        <div
                             onClick={() => onNavigate('wallet')}
-                            className="bg-slate-900 text-white rounded-3xl p-6 relative overflow-hidden shadow-lg border border-slate-800 cursor-pointer hover:border-slate-700 transition-all group"
+                            onKeyDown={(e) => handleCardKeyDown(e, () => onNavigate('wallet'))}
+                            role="button"
+                            tabIndex={0}
+                            className={`bg-slate-900 text-white rounded-3xl p-6 relative overflow-hidden shadow-lg border border-slate-800 cursor-pointer hover:border-slate-700 transition-all group ${CARD_FOCUS_RING}`}
                         >
                             <div className="absolute top-0 right-0 w-36 h-36 bg-orange-600/20 rounded-full blur-2xl pointer-events-none" />
                             <div className="flex justify-between items-start mb-4">
@@ -241,9 +263,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div 
+                        <div
                             onClick={() => onNavigate('career')}
-                            className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            onKeyDown={(e) => handleCardKeyDown(e, () => onNavigate('career'))}
+                            role="button"
+                            tabIndex={0}
+                            className={`bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${CARD_FOCUS_RING}`}
                         >
                             <div className="flex items-center gap-3.5 mb-3">
                                 <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
@@ -262,9 +287,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                             </div>
                         </div>
 
-                        <div 
+                        <div
                             onClick={() => onNavigate('campus')}
-                            className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            onKeyDown={(e) => handleCardKeyDown(e, () => onNavigate('campus'))}
+                            role="button"
+                            tabIndex={0}
+                            className={`bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${CARD_FOCUS_RING}`}
                         >
                             <div className="flex items-center gap-3.5 mb-3">
                                 <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
@@ -283,9 +311,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                             </div>
                         </div>
 
-                        <div 
+                        <div
                             onClick={() => onNavigate('shop')}
-                            className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            onKeyDown={(e) => handleCardKeyDown(e, () => onNavigate('shop'))}
+                            role="button"
+                            tabIndex={0}
+                            className={`bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${CARD_FOCUS_RING}`}
                         >
                             <div className="flex items-center gap-3.5 mb-3">
                                 <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
@@ -304,9 +335,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                             </div>
                         </div>
 
-                        <div 
+                        <div
                             onClick={() => onNavigate('council')}
-                            className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                            onKeyDown={(e) => handleCardKeyDown(e, () => onNavigate('council'))}
+                            role="button"
+                            tabIndex={0}
+                            className={`bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${CARD_FOCUS_RING}`}
                         >
                             <div className="flex items-center gap-3.5 mb-3">
                                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">

@@ -49,7 +49,6 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   const [query, setQuery] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // LOOP 10/17 (recherche universelle, fondation) : résultats réels
@@ -68,7 +67,6 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     if (isOpen) {
       setQuery('');
       setVoiceFeedback(null);
-      setSelectedIndex(0);
       setRealResults([]);
       setSearchFailed(false);
       setTimeout(() => {
@@ -312,7 +310,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
         onKeyDown={handleKeyDown}
       >
         {/* Search Bar Input */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3 focus-within:ring-2 focus-within:ring-blue-600/40 transition-shadow">
           <Search size={22} className="text-slate-400 shrink-0" />
           <input
             ref={inputRef}
@@ -327,7 +325,8 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
           <button
             onClick={handleToggleVoice}
             title={isListening ? "Arrêter l'écoute" : "Commande vocale"}
-            className={`p-2.5 rounded-2xl flex items-center gap-1.5 transition ${
+            aria-label={isListening ? "Arrêter l'écoute" : "Commande vocale"}
+            className={`p-2.5 min-w-[44px] min-h-[44px] rounded-2xl flex items-center justify-center gap-1.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
               isListening
                 ? 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-500/30'
                 : 'bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200'
@@ -339,7 +338,8 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+            aria-label="Fermer la recherche"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
           >
             <X size={20} />
           </button>
@@ -352,9 +352,9 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
               <Volume2 size={14} className="text-indigo-600 animate-pulse" />
               <span>{voiceFeedback}</span>
             </div>
-            <button 
-              onClick={() => setVoiceFeedback(null)} 
-              className="text-[10px] font-bold text-indigo-600 hover:underline"
+            <button
+              onClick={() => setVoiceFeedback(null)}
+              className="text-[10px] font-bold text-indigo-600 hover:underline px-1.5 py-1 -m-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1"
             >
               Effacer
             </button>
@@ -367,7 +367,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
           {query.trim() && (
             <button
               onClick={handleAskDialloOS}
-              className="w-full text-left p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white hover:shadow-lg transition flex items-center justify-between group"
+              className="w-full text-left p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white hover:shadow-lg transition flex items-center justify-between group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/30 border border-purple-400/40 flex items-center justify-center text-purple-300">
@@ -411,7 +411,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                     <button
                       key={item.id}
                       onClick={() => handleSelectTab(item.id)}
-                      className="p-3 rounded-2xl border border-slate-200/80 hover:border-indigo-300 hover:bg-indigo-50/40 transition flex items-start gap-3 text-left group"
+                      className="p-3 rounded-2xl border border-slate-200/80 hover:border-indigo-300 hover:bg-indigo-50/40 transition flex items-start gap-3 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                     >
                       <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-indigo-100 text-slate-700 group-hover:text-indigo-700 flex items-center justify-center shrink-0 transition">
                         <Icon size={18} />
@@ -422,7 +422,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                             {item.label}
                           </span>
                           {item.badge && (
-                            <span className="px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 text-[9px] font-bold uppercase">
+                            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[9px] font-bold uppercase">
                               {item.badge}
                             </span>
                           )}
@@ -453,7 +453,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                     <button
                       key={srv.id}
                       onClick={() => handleSelectTab(srv.tabTarget)}
-                      className="p-3 rounded-2xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition flex items-start gap-3 text-left group"
+                      className="p-3 rounded-2xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition flex items-start gap-3 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                     >
                       <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
                         <SrvIcon size={18} />
@@ -486,7 +486,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   <button
                     key={proc.id}
                     onClick={() => handleSelectTab('admin-procedures')}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-between text-left transition"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-between text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
                     <div className="flex items-center gap-2.5">
                       <FileText size={16} className="text-indigo-600 shrink-0" />
@@ -537,7 +537,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   <button
                     key={p.id}
                     onClick={() => handleSelectTab('social')}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-between text-left transition"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-between text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {p.avatarUrl ? (
@@ -570,7 +570,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   <button
                     key={post.id}
                     onClick={() => handleSelectTab('social')}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 flex items-center justify-between text-left transition"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 flex items-center justify-between text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <MessageSquare size={16} className="text-blue-600 shrink-0" />
@@ -599,7 +599,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   <button
                     key={crs.id}
                     onClick={() => handleSelectTab('campus')}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 flex items-center justify-between text-left transition"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 flex items-center justify-between text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <GraduationCap size={16} className="text-emerald-600 shrink-0" />
