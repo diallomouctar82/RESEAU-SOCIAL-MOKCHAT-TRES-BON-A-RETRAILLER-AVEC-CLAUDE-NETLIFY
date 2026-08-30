@@ -59,7 +59,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 
   const openChannel = (channel: string, buildHref: (link: string) => string) => {
     const link = withReturnRef(url, channel);
-    window.open(buildHref(link), '_blank', 'noopener,noreferrer');
+    const href = buildHref(link);
+    if (href.startsWith('sms:') || href.startsWith('mailto:')) {
+      // Protocoles d'application (Messages, e-mail) : window.open laisserait
+      // un onglet vide ou serait bloqué — la navigation directe déclenche le
+      // gestionnaire de l'appareil sans quitter la page.
+      window.location.href = href;
+    } else {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    }
     onShared?.(channel);
     setOpen(false);
   };
@@ -100,6 +108,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     { key: 'linkedin', label: 'LinkedIn', icon: <Share2 size={15} className="text-sky-700" />, action: () => openChannel('linkedin', (l) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(l)}`) },
     { key: 'telegram', label: 'Telegram', icon: <Send size={15} className="text-sky-500" />, action: () => openChannel('telegram', (l) => `https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(shareMessage)}`) },
     { key: 'email', label: 'E-mail', icon: <Mail size={15} className="text-amber-600" />, action: () => openChannel('email', (l) => `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${shareMessage}\n\n${l}`)}`) },
+    // SMS (demande utilisateur, F5) : ouvre la vraie app Messages de
+    // l'appareil avec le lien pré-rempli — le destinataire qui clique et
+    // n'est pas connecté atterrit directement sur l'écran
+    // d'authentification MokNet (création de compte ou connexion), le lien
+    // de retour étant conservé. `sms:?&body=` est la forme comprise à la
+    // fois par iOS et Android.
+    { key: 'sms', label: 'SMS', icon: <Smartphone size={15} className="text-lime-600" />, action: () => openChannel('sms', (l) => `sms:?&body=${encodeURIComponent(`${shareMessage} ${l}`)}`) },
   ];
 
   return (
