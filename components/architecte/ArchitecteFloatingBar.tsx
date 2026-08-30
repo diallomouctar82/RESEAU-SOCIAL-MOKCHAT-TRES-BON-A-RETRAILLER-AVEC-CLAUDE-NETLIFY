@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Compass, Loader2, X, UserRound } from 'lucide-react';
+import { DraftingCompass, Keyboard, Loader2, X, UserRound } from 'lucide-react';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
@@ -74,6 +74,9 @@ const MIC_TIMEOUT_MESSAGE = "Le micro n'a pas démarré — utilisez la saisie."
 const PHASE_TONE: Record<ArchitectePhase, string> = {
     running: 'text-cyan-300/80',
     done: 'text-emerald-300',
+    // Hors-ligne, en attente d'envoi : ni le vert du succès, ni le rouge de
+    // l'échec — l'action n'est ni faite ni perdue.
+    queued: 'text-sky-300',
     failed: 'text-red-300',
     denied: 'text-amber-300',
     unsupported: 'text-amber-300',
@@ -298,14 +301,16 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 // de position assumé — l'exigence « entièrement visible »
                 // prime sur une équivalence au pixel dans une mise en page
                 // différente. Desktop inchangé (`md:bottom-24`).
-                className="fixed bottom-44 md:bottom-24 right-4 md:right-8 z-[60] flex items-center justify-center bg-cyan-900/80 hover:bg-cyan-600 text-white w-14 h-14 rounded-full shadow-[0_0_20px_rgba(8,145,178,0.45)] transition-colors border-2 border-cyan-500/30 backdrop-blur-md"
+                // Conforme à la référence de l'état FERMÉ/INACTIF fournie :
+                // disque navy profond et mat, anneau cyan discret, compas de
+                // dessinateur clair au centre. Volontairement calme — pas de
+                // halo pulsant : au repos, l'Architecte ne réclame pas
+                // l'attention, il se tient disponible.
+                className="fixed bottom-44 md:bottom-24 right-4 md:right-8 z-[60] flex items-center justify-center w-14 h-14 rounded-full bg-[#16222f] hover:bg-[#1c2c3d] text-white border border-cyan-300/30 ring-1 ring-inset ring-white/[0.06] shadow-[0_0_26px_rgba(34,211,238,0.30),0_8px_28px_rgba(0,0,0,0.55)] transition-colors backdrop-blur-md"
                 title="L'Architecte (Navigation Vocale)"
                 aria-label="Ouvrir L'Architecte et démarrer l'écoute vocale"
             >
-                <span className="relative flex items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-10 w-10 rounded-full bg-cyan-400 opacity-20" />
-                    <Compass size={22} className="relative z-10 text-cyan-100" />
-                </span>
+                <DraftingCompass size={24} className="text-cyan-100/90" strokeWidth={1.75} />
             </button>
         );
     }
@@ -314,22 +319,33 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // l'état de la session — exactement la cascade de l'original
     // (`lastTranscript || (isConnected ? "En écoute..." : "Connexion...")`).
     const subtitle = status || transcript || (isListening ? 'En écoute...' : 'Connexion...');
+    /** Micro réellement en panne — pas simplement « pas encore démarré ». */
+    const micFailed = status === MIC_TIMEOUT_MESSAGE;
 
     return (
         <div
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-md bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-2xl flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
+            // Largeur portée de `max-w-md` (448px) à `max-w-lg` (512px) et halo
+            // cyan ajouté d'après la capture en contexte fournie : la pilule y
+            // est sensiblement plus large que ce que donnait `max-w-md`, et
+            // elle porte une lueur cyan que l'ombre neutre ne rendait pas.
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-lg bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
             role="status"
             aria-live="polite"
         >
             <div className="flex items-center gap-4 min-w-0">
                 <button
                     onClick={close}
+                    // L'anneau rouge est réservé à un micro RÉELLEMENT en
+                    // échec. Auparavant il s'affichait dès l'ouverture, avant
+                    // même que l'écoute ait pu démarrer : la barre paraissait
+                    // en panne à chaque ouverture, ce que la référence ne
+                    // montre pas et ce qui n'était pas vrai.
                     className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center transition-all ${
                         isSpeaking
                             ? 'bg-cyan-500 shadow-[0_0_20px_#06b6d4] animate-pulse'
-                            : isListening
-                                ? 'bg-cyan-900/50 border border-cyan-500'
-                                : 'bg-red-500/20 border border-red-500 animate-pulse'
+                            : micFailed
+                                ? 'bg-red-500/20 border border-red-500 animate-pulse'
+                                : 'bg-cyan-900/50 border border-cyan-500'
                     }`}
                     aria-label="Fermer L'Architecte"
                 >
@@ -368,12 +384,20 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 })}
             </div>
 
+            {/* Bouton d'action : même forme que la référence de l'état ouvert
+                — pilule bordée cyan, icône à gauche, libellé en gras. La
+                référence y place « Module ZIP », qui télécharge l'archive du
+                paquet AI Studio ; ce fichier n'existe pas dans MokNet et le
+                bouton y serait mort. L'emplacement porte donc l'action réelle
+                équivalente : basculer en saisie clavier quand la voix n'est
+                pas possible. */}
             {onOpenTyped && (
                 <button
                     onClick={() => { close(); onOpenTyped(); }}
-                    className="ml-3 text-[10px] font-bold uppercase tracking-wider text-cyan-300/70 hover:text-cyan-200 transition-colors shrink-0"
+                    className="ml-3 flex items-center gap-2 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3.5 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors shrink-0"
                     title="Écrire au lieu de parler"
                 >
+                    <Keyboard size={13} />
                     Écrire
                 </button>
             )}

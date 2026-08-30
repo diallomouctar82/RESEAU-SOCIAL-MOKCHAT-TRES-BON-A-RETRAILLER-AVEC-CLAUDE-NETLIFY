@@ -32,7 +32,7 @@ export interface ArchitecteAction {
 }
 
 /** Phases d'exécution affichables — mêmes valeurs que celles déjà utilisées par le modal. */
-export type ArchitectePhase = 'running' | 'done' | 'failed' | 'denied' | 'unsupported' | 'cancelled';
+export type ArchitectePhase = 'running' | 'done' | 'queued' | 'failed' | 'denied' | 'unsupported' | 'cancelled';
 
 export interface ArchitecteOutcome {
     /** Réponse parlée/affichée de l'Architecte (« explanation » du modèle, ou le résumé de découverte). */
@@ -210,6 +210,10 @@ export async function runArchitecteCommand(
         const outcome = await executeCapability(action.capabilityId, action.payload || {});
         const phase: ArchitectePhase =
             outcome.status === 'done' ? 'done'
+            // Hors-ligne : l'action attend dans la file de synchronisation.
+            // Ni « terminé » ni « échoué » — l'Architecte doit dire exactement
+            // ce qui s'est passé.
+            : outcome.status === 'queued' ? 'queued'
             : outcome.status === 'denied' ? 'denied'
             : outcome.status === 'failed' ? 'failed'
             : 'unsupported';

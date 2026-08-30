@@ -44,6 +44,13 @@ import {
 export type CapabilityExecutionStatus =
     /** Le handler réel a confirmé le succès. */
     | 'done'
+    /**
+     * Hors-ligne : l'action n'a pas eu lieu, mais elle n'est pas perdue — elle
+     * est entrée dans la file de synchronisation (`syncQueue.ts`) et partira au
+     * retour du réseau. Un statut à part entière, précisément parce que
+     * `done` serait un faux succès et `failed` un faux échec.
+     */
+    | 'queued'
     /** Le handler a été appelé et a échoué (ou a levé). Le message porte la raison réelle. */
     | 'failed'
     /** Permission refusée par le registre (ex. capacité réservée à l'hôte du Live). */
@@ -67,7 +74,18 @@ export interface CapabilityExecutionResult {
  * anticipé. Lever une exception est également accepté : le bus la convertit en
  * `failed` avec son message.
  */
-export type CapabilityHandler = (params: any) => Promise<{ ok: boolean; message: string; data?: unknown }>;
+export type CapabilityHandler = (params: any) => Promise<{
+    ok: boolean;
+    message: string;
+    data?: unknown;
+    /**
+     * Mis à `true` par un handler qui, faute de réseau, a placé l'action dans
+     * la file de synchronisation au lieu de l'exécuter. Prioritaire sur `ok` :
+     * ni un succès, ni un échec. Les handlers qui ne connaissent pas la file
+     * ne renseignent jamais ce champ, leur comportement est inchangé.
+     */
+    queued?: boolean;
+}>;
 
 const handlers = new Map<string, CapabilityHandler>();
 
@@ -195,8 +213,15 @@ export async function executeCapability(
 
     try {
         const outcome = await handler(params ?? {});
+        // `queued` d'abord : une action mise en file n'est ni terminée ni
+        // échouée, et l'écraser dans l'un des deux mentirait à l'utilisateur.
+        const status: CapabilityExecutionStatus = outcome.queued === true
+            ? 'queued'
+            : outcome.ok === true
+                ? 'done'
+                : 'failed';
         return {
-            status: outcome.ok === true ? 'done' : 'failed',
+            status,
             capability,
             message: outcome.message,
             data: outcome.data,

@@ -28,6 +28,8 @@ import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { interpretContentVoiceCommand, ContentVoiceAction } from '../services/content/contentVoiceCommands';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { interpretSocialVoiceCommand, SocialVoiceAction } from '../services/social/socialVoiceCommands';
+import { addToQueue } from '../services/architecte/syncQueue';
+import { checkNetworkStatus } from '../services/pwaService';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -766,8 +768,26 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // `failed` selon ce qui s'est vraiment passé, jamais un succès supposé.
   // Les appelants existants (boutons du composeur, dispatcher vocal)
   // ignorent simplement la valeur — comportement inchangé pour eux.
-  const handlePublishPost = async (asDraft: boolean = false): Promise<boolean> => {
-    if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return false;
+  const resetComposer = () => {
+    setNewPostContent('');
+    setNewPostImage(null);
+    setNewPostVideo(null);
+    setNewPostDocument(null);
+    setNewPostImageFile(null);
+    setNewPostVideoFile(null);
+    setNewPostDocumentFile(null);
+    setNewPostTags([]);
+    setIsComposerFocused(false);
+  };
+
+  /**
+   * Trois issues distinctes, jamais réduites à un booléen : `queued` est un
+   * état réel — la publication n'est ni partie ni perdue — et le confondre
+   * avec `published` serait exactement le faux succès que ce fichier évite
+   * partout ailleurs.
+   */
+  const handlePublishPost = async (asDraft: boolean = false): Promise<'published' | 'queued' | 'failed'> => {
+    if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return 'failed';
 
     setIsPublishing(true);
 
@@ -806,7 +826,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         console.warn('Could not upload post media to Supabase Storage', err);
         alert("L'envoi du média a échoué (connexion instable ?). La publication n'a pas été enregistrée — réessayez.");
         setIsPublishing(false);
-        return false;
+        return 'failed';
       }
     } else if (newPostImageFile || newPostVideoFile || newPostDocumentFile) {
       // Pas de session Supabase active (mode démo/hors ligne) : repli sur le
@@ -827,7 +847,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         console.warn('Could not read local media file', err);
         alert("La lecture du fichier a échoué. Réessayez.");
         setIsPublishing(false);
-        return false;
+        return 'failed';
       }
     }
 
@@ -886,14 +906,49 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           }
         }
       } catch (err) {
+        // Hors-ligne : la publication n'est ni partie ni perdue — elle entre
+        // dans la file de synchronisation de l'Architecte et sera envoyée
+        // automatiquement au retour du réseau, avec son identifiant de tâche
+        // comme ancre d'idempotence (jamais de doublon si le rejeu croise une
+        // écriture qui avait finalement abouti).
+        //
+        // Uniquement pour un contenu SANS fichier local : un média
+        // sélectionné sur l'appareil ne peut pas être mis en file — il ne
+        // survivrait pas au rechargement de la page, et le stockage du
+        // navigateur n'est pas dimensionné pour des vidéos. On le dit
+        // franchement plutôt que de promettre un envoi qui n'aurait pas lieu.
+        const hasLocalMedia = !!(newPostImageFile || newPostVideoFile || newPostDocumentFile);
+        if (!checkNetworkStatus() && !hasLocalMedia) {
+          const queuedId = addToQueue('CREATE_POST', {
+            authorId: currentUser.id,
+            content: newPostContent,
+            visibility: newPostVisibility,
+            status: asDraft ? 'draft' : 'published',
+            category: newPostCategory,
+            tags: newPostTags,
+            format,
+          });
+          if (queuedId) {
+            alert("Vous êtes hors ligne. Votre publication est mise en attente et partira automatiquement dès le retour du réseau.");
+            resetComposer();
+            setIsPublishing(false);
+            return 'queued';
+          }
+          // `addToQueue` a renvoyé null : le stockage du navigateur a refusé
+          // d'enregistrer. On ne prétend surtout pas que c'est en attente.
+        }
         // Ne jamais faire croire à une publication réussie si l'écriture en
         // base a réellement échoué (ex. contrainte de visibilité) — même
         // discipline que l'échec d'upload média ci-dessus : on annule
         // plutôt que d'ajouter un post fantôme à l'état local/IndexedDB.
         console.warn('Could not save post to Supabase', err);
-        alert("La publication a échoué (le serveur a refusé l'enregistrement). Réessayez.");
+        alert(
+          checkNetworkStatus()
+            ? "La publication a échoué (le serveur a refusé l'enregistrement). Réessayez."
+            : "Vous êtes hors ligne et cette publication n'a pas pu être mise en attente. Réessayez une fois reconnecté."
+        );
         setIsPublishing(false);
-        return false;
+        return 'failed';
       }
     }
 
@@ -906,18 +961,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       await cloudService.savePost(newPost);
     }
 
-    // Reset Composer
-    setNewPostContent('');
-    setNewPostImage(null);
-    setNewPostVideo(null);
-    setNewPostDocument(null);
-    setNewPostImageFile(null);
-    setNewPostVideoFile(null);
-    setNewPostDocumentFile(null);
-    setNewPostTags([]);
-    setIsComposerFocused(false);
+    resetComposer();
     setIsPublishing(false);
-    return true;
+    return 'published';
   };
 
   // Create Story Submit — branchement réel sur la table `stories` (LOOP
@@ -1047,7 +1093,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // vraiment passé. Les cas qui ne font que modifier le composeur réussissent
   // réellement de façon synchrone ; PUBLISH/SAVE_DRAFT attendent le vrai
   // résultat de handlePublishPost, jamais un succès supposé.
-  const dispatchContentVoiceAction = async (action: ContentVoiceAction): Promise<{ ok: boolean; message: string }> => {
+  const dispatchContentVoiceAction = async (action: ContentVoiceAction): Promise<{ ok: boolean; message: string; queued?: boolean }> => {
     let lastSaid = '';
     const say = (text: string) => {
       lastSaid = text;
@@ -1081,15 +1127,21 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         break;
       case 'SAVE_DRAFT': {
         say(action.spokenConfirmation);
-        const okDraft = await handlePublishPost(true);
-        return okDraft
+        const draftOutcome = await handlePublishPost(true);
+        if (draftOutcome === 'queued') {
+          return { ok: false, queued: true, message: "Vous êtes hors ligne : le brouillon est en attente et sera enregistré au retour du réseau." };
+        }
+        return draftOutcome === 'published'
           ? { ok: true, message: 'Brouillon enregistré.' }
           : { ok: false, message: "Le brouillon n'a pas pu être enregistré." };
       }
       case 'PUBLISH': {
         say(action.spokenConfirmation);
-        const okPub = await handlePublishPost(false);
-        return okPub
+        const pubOutcome = await handlePublishPost(false);
+        if (pubOutcome === 'queued') {
+          return { ok: false, queued: true, message: "Vous êtes hors ligne : votre publication est en attente et partira au retour du réseau." };
+        }
+        return pubOutcome === 'published'
           ? { ok: true, message: 'Publication enregistrée.' }
           : { ok: false, message: "La publication n'a pas abouti." };
       }
@@ -1240,7 +1292,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   useEffect(() => {
     const content = (type: string) => async (payload: any) => {
       const r = await dispatchContentVoiceAction({ type, payload, spokenConfirmation: '' } as any);
-      return { ok: r.ok, message: r.message };
+      // `queued` remonte tel quel : le bus doit pouvoir dire « mis en
+      // attente » plutôt que « terminé » ou « échoué », qui seraient tous
+      // deux faux pour une publication qui partira au retour du réseau.
+      return { ok: r.ok, message: r.message, queued: r.queued };
     };
     const social = (type: string) => async (payload: any) => {
       const r = dispatchSocialVoiceAction({ type, payload, spokenConfirmation: '' } as any);
