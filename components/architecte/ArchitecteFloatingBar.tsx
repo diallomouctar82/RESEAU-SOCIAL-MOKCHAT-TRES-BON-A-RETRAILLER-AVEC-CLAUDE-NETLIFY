@@ -3,6 +3,7 @@ import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, 
 import { analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
+    getLastSessionDocument,
     getLastSessionImage,
     getSessionTurns,
     subscribeToSession,
@@ -13,6 +14,13 @@ import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
 import { isVisionQuestion, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
 import { extractDocumentText, UnsupportedDocumentError } from '../../services/architecte/documentExtractor';
 import { buildConsentRecap, CONSENT_STEPS, isConsentCommand, type ArchitecteConsent } from '../../services/architecte/consentFlow';
+import {
+    buildDeliverableBlob,
+    deliverableFileName,
+    detectDeliverableFormat,
+    isDeliverableCommand,
+    triggerDownload,
+} from '../../services/architecte/deliverableBuilder';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
 import { registerSettingsCapabilities } from '../../services/architecte/settingsCapabilityHandlers';
 import { registerSearchCapabilities } from '../../services/architecte/searchCapabilityHandlers';
@@ -354,6 +362,59 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             return;
         }
 
+        // Livrable : produire un VRAI fichier final téléchargeable à partir
+        // du dernier document (ou d'une photo transcrite) — §15 : aller
+        // jusqu'au livrable, pas s'arrêter à une explication.
+        if (isDeliverableCommand(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            const doc = getLastSessionDocument();
+            const img = doc ? null : getLastSessionImage();
+            if (!doc && !img) {
+                announce("Montrez-moi d'abord ce que je dois transformer — un document via le bouton Fichier, ou une photo via la caméra.", 'text-amber-300');
+                return;
+            }
+            setIsThinking(true);
+            setStatus('Je prépare votre fichier...');
+            setStatusTone('text-cyan-300/80');
+            try {
+                let source: string | null = null;
+                if (doc) {
+                    source = doc.excerpt;
+                } else if (img) {
+                    // Photo d'un document : transcription visuelle réelle d'abord.
+                    const base64 = img.dataUrl.split(',')[1];
+                    source = await analyzeImage(base64, img.mimeType,
+                        'Transcris fidèlement TOUT le texte lisible de cette image, dans l\'ordre. Réponds uniquement avec le texte transcrit.',
+                        { systemInstruction: "Tu transcris ce qui est réellement lisible. Ce qui est illisible est marqué [illisible] — jamais inventé." });
+                }
+                if (!source?.trim()) {
+                    announce("Je n'ai pas pu obtenir de contenu exploitable pour produire le fichier.", 'text-amber-300');
+                    return;
+                }
+                const content = await generateText(
+                    `Contenu source (extrait réel${doc ? ` du document « ${doc.name} »` : " d'une photo transcrite"}) :\n\n${source}\n\nDemande de l'utilisateur : « ${command.trim()} ».\nProduis la version finale demandée (corrigée, bien structurée). Réponds UNIQUEMENT avec le contenu du document final — aucun commentaire autour.`,
+                    { systemInstruction: "Tu es L'Architecte de MokNet. Tu corriges et structures le contenu FOURNI — tu n'inventes jamais une donnée absente ; ce qui manque reste absent." }
+                );
+                if (!content?.trim()) {
+                    announce("La préparation du fichier a échoué — rien n'a été généré.", 'text-red-300');
+                    return;
+                }
+                const { format, pdfRedirected } = detectDeliverableFormat(command);
+                const filename = deliverableFileName(doc?.name, format);
+                triggerDownload(await buildDeliverableBlob(content.trim(), format), filename);
+                announce(
+                    `${pdfRedirected ? "Je ne sais pas encore produire un PDF — je vous l'ai préparé en Word (.docx). " : ''}` +
+                    `Votre fichier « ${filename} » est prêt : le téléchargement vient de démarrer.`,
+                    'text-emerald-300'
+                );
+            } catch (e: any) {
+                announce(`La préparation du fichier a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            } finally {
+                setIsThinking(false);
+            }
+            return;
+        }
+
         if (isVisionQuestion(command)) {
             addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
             const lastImage = getLastSessionImage();
@@ -447,7 +508,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 role: 'utilisateur', kind: 'document',
                 text: `Document fourni : ${doc.name}`,
                 docName: doc.name,
-                docExcerpt: doc.text.slice(0, 1200),
+                // Assez long pour produire un livrable fidèle depuis la
+                // session ; le contexte injecté au cerveau reste borné à part.
+                docExcerpt: doc.text.slice(0, 6000),
             });
             const reponse = await generateText(
                 `Voici le contenu réellement extrait du ${doc.kindLabel} « ${doc.name} »${doc.truncated ? ' (tronqué)' : ''} :\n\n${doc.text}\n\nRésume l'essentiel en deux ou trois phrases, en français, puis propose UNE suite utile (correction, réorganisation, réponse à une question...).`,
