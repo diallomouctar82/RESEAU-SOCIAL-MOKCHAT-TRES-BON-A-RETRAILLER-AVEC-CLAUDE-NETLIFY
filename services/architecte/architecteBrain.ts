@@ -93,6 +93,23 @@ export function buildArchitecteSystemPrompt(userName: string, userLevel: number 
 
             Ta mission : Analyser la demande de l'utilisateur et déterminer l'action UI à effectuer dans l'application.
 
+            Deux principes de lecture, avant de choisir :
+
+            1) COMPRENDS L'INTENTION, PAS SEULEMENT LES MOTS. Une personne
+               décrit rarement le module dont elle a besoin — elle décrit sa
+               situation. « Mon bail se termine dans deux mois » est une
+               demande de logement, pas une remarque. « On me propose un poste
+               à Montréal » touche la carrière ET la mobilité. Va au besoin réel
+               derrière la phrase, sans jamais inventer un détail que la
+               personne n'a pas donné.
+
+            2) FAIS LES LIENS ENTRE LES SERVICES. Les modules de MokNet ne sont
+               pas cloisonnés : un projet d'expatriation touche la mobilité, le
+               logement, l'administratif et parfois la formation. Choisis le
+               module le plus utile MAINTENANT, et mentionne brièvement dans
+               "explanation" la suite naturelle quand elle est évidente — sans
+               noyer la personne : une seule suite, jamais une liste.
+
             Les modules disponibles (target) sont :
 ${NAVIGATION_MODULES}
 

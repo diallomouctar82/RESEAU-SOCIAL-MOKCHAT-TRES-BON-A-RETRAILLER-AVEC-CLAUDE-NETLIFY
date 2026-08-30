@@ -63,7 +63,7 @@ exécutée à moitié, jamais présentée comme réussie.
 
 ---
 
-## 4. Les cinq statuts
+## 4. Les six statuts
 
 `executeCapability(id, params, ctx)` ne renvoie jamais un simple booléen : la
 nuance entre « refusé », « indisponible » et « échoué » est une information
@@ -72,6 +72,7 @@ utile pour l'utilisateur.
 | Statut | Signification |
 |---|---|
 | `done` | Le handler réel a confirmé le succès. |
+| `queued` | Hors-ligne : l'action n'a pas eu lieu mais n'est pas perdue — elle attend dans la file de synchronisation (§15) et partira au retour du réseau. |
 | `failed` | Le handler a été appelé et a échoué. Le message porte la raison réelle. |
 | `denied` | Permission refusée (ex. capacité réservée à l'hôte du Live). |
 | `unavailable` | Capacité réelle et autorisée, mais l'écran qui la porte n'est pas ouvert. |
@@ -202,7 +203,9 @@ d'exploitable n'est trouvé.
 
 ## 11. Tests
 
-72 tests réels, tous verts, exécutés hors navigateur via `esbuild` + Node.
+**92 tests réels, tous verts** — 72 hors navigateur via `esbuild` + Node, plus
+**20 sous `vitest` + `@testing-library/react`** (voir §15), l'outillage DOM
+que le dépôt n'avait pas jusqu'ici.
 
 | Suite | Couvre |
 |---|---|
@@ -210,6 +213,8 @@ d'exploitable n'est trouvé.
 | Contexte (4) | Écran non-hôte → `denied` · devient hôte → autorisé sans réenregistrement · **un appelant ne peut pas se déclarer hôte** · après démontage → `unavailable` |
 | Tâches (12) | Casse et accents · **titre ambigu refusé sans qu'aucune suppression ne parte** · titre inexistant · date non ISO jamais écrite · succès partiel annoncé honnêtement · auto-dépendance refusée |
 | JSON (11) | Clôtures markdown · phrases avant/après · tableaux · imbrication préservée · `undefined` plutôt qu'un objet inventé |
+| File hors-ligne (11) | Tâche conservée hors ligne · id UUID valide comme ancre · **tâche sans gestionnaire CONSERVÉE, jamais perdue** · tâche ajoutée pendant le traitement qui survit · pas de double passage concurrent · abandon signalé après 5 tentatives · refus définitif abandonné immédiatement · isolation stricte entre comptes |
+| Barre flottante — DOM (9) | Pastille présente · barre absente avant ouverture · **ouverture réellement vérifiée** (et non `toBeDefined()` sur un `null`) · écoute démarrée à l'ouverture · les trois boutons d'action · **ouverture au clavier** · **micro relâché au démontage** · rien coupé quand la barre est fermée |
 | Paramètres (29) | Registre à 55 sans doublon · confidentialité = confirmation requise · **6 écritures rapportées `ok:false` quand la persistance échoue** · clés `privacy_settings` voisines préservées · champ vide jamais écrit · valeur d'énumération inexistante refusée (`network` pour les demandes d'ami) · API appareil absente annoncée, jamais simulée |
 
 ---
@@ -313,6 +318,78 @@ et les 6 écritures de réglages sont testées dans le cas où la persistance
   (« fais A puis B ») n'est pas décomposée en plan explicite.
 - **Journal d'audit** — les exécutions ne sont pas tracées dans une table
   dédiée.
+- **Documents bureautiques** — le bouton Fichier (§16) lit les images et le
+  texte brut. Excel, Word, PowerPoint et PDF n'ont aucun analyseur dans ce
+  dépôt : l'Architecte le dit franchement et propose une alternative, il ne
+  tente jamais d'interpréter des octets illisibles.
+- **Médias hors-ligne** — une publication accompagnée d'un fichier local ne
+  peut pas entrer dans la file (§15) : le fichier ne survivrait pas au
+  rechargement, et le stockage du navigateur n'est pas dimensionné pour ça.
+  Refusé avec un message explicite, jamais promis puis perdu.
+- **Idempotence des traces** — `LOG_EVENT` et `SAVE_CONVERSATION` écrivent
+  dans `user_memory` sans ancre d'idempotence : un rejeu après un échec
+  ambigu peut y créer une ligne en double. Conséquence cosmétique (une ligne
+  de journal répétée), contrairement à une publication ou un message qui,
+  eux, sont protégés.
 
 Aucun de ces points n'est bloquant pour l'usage actuel ; ils sont listés pour
 qu'aucun ne soit confondu avec du déjà-fait.
+
+---
+
+## 15. La file de synchronisation hors-ligne — « Lazarus »
+
+`services/architecte/syncQueue.ts` + `services/architecte/syncTaskHandlers.ts`
+
+Reconstruction du `syncService.ts` du paquet Architecte fourni par
+l'utilisateur (AI Studio). L'API publique d'origine est conservée telle
+quelle — `addToQueue`, `processQueue`, `getQueueSize`, écoute de l'événement
+`online` — parce que l'organisation du paquet est juste. C'est la seule pièce
+qui comblait un manque réel : l'Architecte échouait honnêtement hors-ligne,
+mais ne rejouait rien au retour du réseau.
+
+**Quatre défauts du fichier reçu, corrigés** — chacun constaté en le lisant,
+aucun supposé :
+
+| Défaut mesuré | Correction |
+|---|---|
+| `CREATE_POST` déclaré dans le type mais sans `case` : tombait dans `default:` qui journalisait **sans lever**, donc la tâche était réputée réussie et retirée. Une publication faite hors-ligne disparaissait sans trace. | Les traitements sont fournis en `Record<SyncTaskAction, …>` **complet** : la compilation échoue si une action reste sans traitement. Et à l'exécution, une tâche sans gestionnaire est **conservée**, jamais supprimée. |
+| `processQueue` réécrivait `localStorage` depuis son instantané de départ, effaçant toute tâche ajoutée pendant la boucle. | Aucune réécriture globale : chaque mutation relit l'état courant et n'agit que sur la tâche concernée, par identifiant. |
+| Aucune idempotence — `addToQueue` et l'événement `online` déclenchaient tous deux `processQueue`. | Verrou anti-concurrence, plus l'`id` UUID de la tâche comme ancre d'idempotence serveur : `messages.client_message_id` (déjà en place) et `posts.client_post_id` (migration `architecte_sync_queue_post_idempotency_anchor`, colonne nullable + index unique **partiel** sur `(author_id, client_post_id)` — le chemin de publication normal n'est pas concerné). |
+| Clé `localStorage` unique pour tout le navigateur : sur un appareil partagé, le second compte héritait des tâches du premier et les envoyait **sous son identité**. | Clé scindée par utilisateur (`setSyncQueueUser`), même convention que `memoryService`. |
+
+**Un cinquième point**, propre à la discipline du dépôt : après épuisement des
+tentatives, la tâche du paquet disparaissait sans que personne l'apprenne. Ici
+elle passe dans une liste d'abandons consultable, avec la raison réelle
+(`max_retries` ou `permanent`).
+
+**Destinations des cinq actions.** `CREATE_POST` → `posts`, `SEND_MESSAGE` →
+`messages`, `UPDATE_PROFILE` → `profiles`. Pour les deux dernières, le paquet
+visait des tables écartées à l'audit : `LOG_EVENT` visait `audit_logs`, que
+MokNet réserve délibérément au `service_role` (aucune policy — lui en ajouter
+laisserait n'importe quel compte authentifié polluer ou forger le journal), et
+`SAVE_CONVERSATION` visait `chat_history`, qui ferait doublon avec
+`conversations`/`messages`/`ai_call_log`. Les deux écrivent donc dans
+`user_memory` (RLS propriétaire-seul) : `scope='recent_activity'` pour le
+journal, couche `conversational` — prévue depuis l'origine pour l'historique
+de sessions — pour les conversations.
+
+---
+
+## 16. Les trois boutons d'action de la barre
+
+À droite de la barre ouverte, trois pilules alignées. L'Architecte n'est pas
+qu'une oreille : on peut lui donner quelque chose à lire ou à regarder.
+
+| Bouton | Ce qu'il fait réellement |
+|---|---|
+| **Fichier** | Image → `analyzeImage` (vision déjà branchée sur `ai-gateway`). Texte/CSV/JSON/Markdown → lu puis résumé par `generateText`. La réponse est prononcée. |
+| **Écrire** | Bascule vers le modal clavier — même cerveau, autre incarnation (§12). |
+| **Caméra** | `getUserMedia` réel, panneau de prévisualisation **au-dessus** de la barre pour cadrer avant d'envoyer, puis capture d'une image vers le même chemin d'analyse. |
+
+La caméra est explicitement relâchée à la fermeture **et** au démontage —
+même discipline que le micro (§12), et couverte par les tests DOM.
+
+L'emplacement et la forme reprennent le bouton « Module ZIP » de l'Architecte
+d'origine. Ce bouton y téléchargeait l'archive du module ; ce fichier n'existe
+pas dans MokNet et le bouton y serait mort.
