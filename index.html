@@ -32,13 +32,27 @@
                 border: '#FED7AA',
                 subtle: '#FB923C',
               },
+              // Échelle complétée le 30 août 2026 : 200/300/400/800/950
+                // manquaient alors que ~150 occurrences les utilisaient déjà
+                // (bg-brand-400, text-brand-300...) à travers Boutique, Wallet,
+                // Paramètres, Layout et Commerce. Tailwind ignore silencieusement
+                // une teinte non définie — ces classes ne peignaient donc
+                // strictement RIEN, sans erreur ni avertissement. Les teintes
+                // 200-800 suivent l'échelle bleue standard déjà adoptée par
+                // 50/100/500/600/700 ; 900/950 conservent la dérive volontaire
+                // vers le navy institutionnel.
               brand: {
                 50: '#eff6ff',
                 100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
                 500: '#3b82f6',
                 600: '#2563eb', // Primary Blue
                 700: '#1d4ed8',
+                800: '#1e40af',
                 900: '#0B132B', // Institutional Deep Navy
+                950: '#050A15', // Navy le plus profond (fonds pleine page)
               },
               // Système verre/eau/lumière du LIVE (LOOP 07/14, univers n°9
               // Glassmorphism Crystal Water — prompts 1/7 et 3/7). Teintes du
