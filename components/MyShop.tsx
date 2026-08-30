@@ -121,6 +121,14 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
     }
   };
 
+  const handleRemoveProduct = (productId: string) => {
+    if (!shop) return;
+    if (!window.confirm('Retirer définitivement ce produit de votre catalogue ?')) return;
+    const updatedShop = { ...shop, products: shop.products.filter(p => p.id !== productId) };
+    setShop(updatedShop);
+    onUpdateShop(updatedShop);
+  };
+
   const handleUpdateAIConfig = (newConfig: Partial<ShopAIConfig>) => {
       if (shop) {
           const updatedShop = { ...shop, aiConfig: { ...shop.aiConfig, ...newConfig } };
@@ -189,10 +197,10 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
                   { id: 'products', label: 'Catalogue & Produits' },
                   { id: 'ai-agent', label: 'Agent Vendeur IA' }
               ].map(tab => (
-                  <button 
-                    key={tab.id} 
-                    onClick={() => setActiveTab(tab.id as any)} 
-                    className={`pb-3 px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap ${
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`pt-2 pb-3 px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap ${
                         activeTab === tab.id 
                             ? 'border-brand-600 text-brand-600' 
                             : 'border-transparent text-gray-500 hover:text-gray-800'
@@ -211,9 +219,9 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
 
           {activeTab === 'overview' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100"><div className="flex items-center gap-2 mb-2 text-gray-500"><BarChart size={20} /> <span className="text-sm font-bold">Vues</span></div><div className="text-3xl font-bold">1,240</div><div className="text-xs text-green-500 font-bold">+12% cette semaine</div></div>
+                  <div className="bg-white p-6 rounded-2xl border border-gray-100"><div className="flex items-center gap-2 mb-2 text-gray-500"><BarChart size={20} /> <span className="text-sm font-bold">Vues</span><span className="ml-auto text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Démo</span></div><div className="text-3xl font-bold">1,240</div><div className="text-xs text-green-500 font-bold">+12% cette semaine</div></div>
                   <div className="bg-white p-6 rounded-2xl border border-gray-100"><div className="flex items-center gap-2 mb-2 text-gray-500"><ShoppingBag size={20} /> <span className="text-sm font-bold">Produits</span></div><div className="text-3xl font-bold">{shop.products.length}</div></div>
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100"><div className="flex items-center gap-2 mb-2 text-gray-500"><Bot size={20} /> <span className="text-sm font-bold">Conv. IA</span></div><div className="text-3xl font-bold">85%</div></div>
+                  <div className="bg-white p-6 rounded-2xl border border-gray-100"><div className="flex items-center gap-2 mb-2 text-gray-500"><Bot size={20} /> <span className="text-sm font-bold">Conv. IA</span><span className="ml-auto text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Démo</span></div><div className="text-3xl font-bold">85%</div></div>
               </div>
           )}
 
@@ -260,7 +268,7 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
                               </div>
                               <textarea value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2 text-sm h-24" />
                           </div>
-                          <button onClick={handleAddProduct} className="w-full bg-black text-white py-2 rounded-lg font-bold text-sm hover:bg-gray-800">Ajouter au catalogue</button>
+                          <button onClick={handleAddProduct} disabled={!newProduct.title || !newProduct.price} className="w-full bg-black text-white py-2.5 rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-black">Ajouter au catalogue</button>
                       </div>
                   </div>
 
@@ -271,7 +279,7 @@ export const MyShop: React.FC<MyShopProps> = ({ userProfile, onUpdateShop }) => 
                               <div key={p.id} className="flex gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm items-center">
                                   <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0"><img src={p.imageUrl} className="w-full h-full object-cover rounded-lg" /></div>
                                   <div className="flex-1"><div className="font-bold text-gray-900">{p.title}</div><div className="text-xs text-gray-500 line-clamp-1">{p.description}</div><div className="text-brand-600 font-bold mt-1">{p.price} Ⓒ</div></div>
-                                  <button className="text-red-400 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                                  <button onClick={() => handleRemoveProduct(p.id)} aria-label={`Retirer ${p.title} du catalogue`} title="Retirer du catalogue" className="text-red-400 p-2.5 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={18} /></button>
                               </div>
                           ))
                       }

@@ -201,10 +201,11 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
 
         <button
           onClick={() => setIsSpeaking(!isSpeaking)}
-          className={`p-2 rounded-xl text-xs font-bold transition-all border ${
-            isSpeaking ? 'bg-indigo-600/30 text-indigo-300 border-indigo-400/40' : 'bg-slate-800 text-slate-400 border-white/5'
+          className={`p-2.5 rounded-xl text-xs font-bold transition-all border ${
+            isSpeaking ? 'bg-indigo-600/30 text-indigo-300 border-indigo-400/40' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-white/5'
           }`}
           title={isSpeaking ? 'Voix activée' : 'Activer synthèse vocale'}
+          aria-pressed={isSpeaking}
         >
           {isSpeaking ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
@@ -281,12 +282,13 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
               }
             }}
             disabled={!isVoiceSupported}
-            className={`p-3 rounded-2xl transition-all border ${
-              isListening 
-                ? 'bg-rose-600 text-white animate-pulse border-rose-400' 
+            className={`p-3.5 rounded-2xl transition-all border disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800 ${
+              isListening
+                ? 'bg-rose-600 text-white animate-pulse border-rose-400'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-white/10'
             }`}
             title={isVoiceSupported ? 'Dicter la question' : 'Reconnaissance vocale non supportée par ce navigateur'}
+            aria-pressed={isListening}
           >
             {isListening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
@@ -296,13 +298,14 @@ export const TalkToYourBusinessAssistant: React.FC<TalkToYourBusinessAssistantPr
             value={inputQuery}
             onChange={(e) => setInputQuery(e.target.value)}
             placeholder="Posez votre question à Diallo OS (stocks, livraisons, marge, clients...)"
-            className="flex-1 px-4 py-3 bg-slate-950 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+            className="flex-1 px-4 py-3.5 bg-slate-950 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
           />
 
           <button
             type="submit"
             disabled={!inputQuery.trim() || isProcessing}
-            className="p-3 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-2xl transition-all shadow-md disabled:opacity-50"
+            aria-label="Envoyer le message"
+            className="p-3.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-2xl transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={16} />
           </button>

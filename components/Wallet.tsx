@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { CreditCard, RefreshCw, Send, History, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, DollarSign, Globe, Lock, CheckCircle, Smartphone, Sparkles, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { CreditCard, RefreshCw, Send, History, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, DollarSign, Globe, Lock, CheckCircle, Smartphone, Sparkles, ArrowDownLeft, ArrowUpRight, Info } from 'lucide-react';
 import { CURRENCIES } from '../constants';
 import { Currency, UserProfile } from '../types';
 import { generateText } from '../services/aiGateway';
@@ -119,16 +119,22 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
                     </div>
                     
                     <div className="flex gap-2 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
-                        <button onClick={() => setActiveTab('cards')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'cards' ? 'bg-brand-600 text-white shadow-md' : 'text-white hover:bg-white/10'}`}>Ma Carte</button>
-                        <button onClick={() => setActiveTab('transfer')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'transfer' ? 'bg-brand-600 text-white shadow-md' : 'text-white hover:bg-white/10'}`}>Transfert</button>
-                        <button onClick={() => setActiveTab('exchange')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'exchange' ? 'bg-brand-600 text-white shadow-md' : 'text-white hover:bg-white/10'}`}>Change</button>
+                        <button onClick={() => setActiveTab('cards')} className={`px-6 py-3 rounded-lg font-bold text-sm transition-all ${activeTab === 'cards' ? 'bg-brand-600 text-white shadow-md' : 'text-white hover:bg-white/10'}`}>Ma Carte</button>
+                        <button onClick={() => setActiveTab('transfer')} className={`px-6 py-3 rounded-lg font-bold text-sm transition-all ${activeTab === 'transfer' ? 'bg-brand-600 text-white shadow-md' : 'text-white hover:bg-white/10'}`}>Transfert</button>
+                        <button onClick={() => setActiveTab('exchange')} className={`px-6 py-3 rounded-lg font-bold text-sm transition-all ${activeTab === 'exchange' ? 'bg-brand-600 text-white shadow-md' : 'text-white hover:bg-white/10'}`}>Change</button>
                     </div>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 pb-8 -mt-8">
                 <div className="max-w-5xl mx-auto">
-                    
+
+                    {/* Demo Data Disclosure — soldes non connectés à un compte réel */}
+                    <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-amber-800 text-xs sm:text-sm font-medium shadow-sm">
+                        <Info size={16} className="text-amber-600 shrink-0" />
+                        <span>Aperçu de démonstration : les soldes en devises, le numéro de carte et l'historique affichés ici sont simulés et ne reflètent pas un compte bancaire réel.</span>
+                    </div>
+
                     {activeTab === 'cards' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* Card Visual */}
@@ -237,7 +243,7 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
                                             <span className="text-xs font-bold text-brand-600">Solde: 1,250.00 €</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <input type="number" value={transferAmount} onChange={(e) => setTransferAmount(Number(e.target.value))} className="flex-1 bg-transparent text-3xl font-bold text-slate-800 outline-none" />
+                                            <input type="number" value={transferAmount} onChange={(e) => setTransferAmount(Number(e.target.value))} className="flex-1 bg-transparent text-3xl font-bold text-slate-800 outline-none rounded-lg focus:ring-2 focus:ring-brand-500" />
                                             <span className="text-xl font-bold text-slate-400">EUR</span>
                                         </div>
                                         <div className="h-px bg-slate-200 my-3"></div>
@@ -246,7 +252,7 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
                                             <span className="font-bold text-slate-800">{(transferAmount * 655.957).toLocaleString()} XOF</span>
                                         </div>
                                     </div>
-                                    <button onClick={handleTransfer} disabled={!recipient || isTransferring} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                                    <button onClick={handleTransfer} disabled={!recipient || isTransferring || !transferAmount || transferAmount <= 0} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-900">
                                         {isTransferring ? <RefreshCw className="animate-spin" /> : <Lock size={18} />}
                                         {isTransferring ? 'Traitement sécurisé...' : 'Confirmer le transfert'}
                                     </button>
@@ -269,8 +275,8 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
                                 <div className="flex-1 w-full">
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-1">Je vends</label>
                                     <div className="flex gap-2 p-2 border border-slate-200 rounded-xl">
-                                        <input type="number" value={amountFrom} onChange={(e) => setAmountFrom(Number(e.target.value))} className="flex-1 text-2xl font-bold outline-none pl-2" />
-                                        <select className="font-bold bg-slate-100 rounded-lg px-2 text-sm outline-none" value={currencyFrom.code} onChange={(e) => setCurrencyFrom(CURRENCIES.find(c => c.code === e.target.value) || CURRENCIES[0])}>
+                                        <input type="number" value={amountFrom} onChange={(e) => setAmountFrom(Number(e.target.value))} className="flex-1 text-2xl font-bold outline-none rounded-lg focus:ring-2 focus:ring-brand-500 pl-2" />
+                                        <select className="font-bold bg-slate-100 rounded-lg px-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" value={currencyFrom.code} onChange={(e) => setCurrencyFrom(CURRENCIES.find(c => c.code === e.target.value) || CURRENCIES[0])}>
                                             {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                                         </select>
                                     </div>
@@ -280,13 +286,13 @@ export const Wallet: React.FC<WalletProps> = ({ userProfile }) => {
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-1">J'achète</label>
                                     <div className="flex gap-2 p-2 border border-slate-200 rounded-xl bg-slate-50">
                                         <div className="flex-1 text-2xl font-bold pl-2 flex items-center text-slate-700">{resultExchange.toFixed(2)}</div>
-                                        <select className="font-bold bg-white border border-slate-200 rounded-lg px-2 text-sm outline-none" value={currencyTo.code} onChange={(e) => setCurrencyTo(CURRENCIES.find(c => c.code === e.target.value) || CURRENCIES[1])}>
+                                        <select className="font-bold bg-white border border-slate-200 rounded-lg px-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" value={currencyTo.code} onChange={(e) => setCurrencyTo(CURRENCIES.find(c => c.code === e.target.value) || CURRENCIES[1])}>
                                             {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                                         </select>
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={handleExchange} className="w-full bg-brand-600 text-white py-3 rounded-xl font-bold hover:bg-brand-700">Confirmer le change</button>
+                            <button onClick={handleExchange} disabled={!amountFrom || amountFrom <= 0} className="w-full bg-brand-600 text-white py-3 rounded-xl font-bold hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-600">Confirmer le change</button>
                         </div>
                     )}
 
