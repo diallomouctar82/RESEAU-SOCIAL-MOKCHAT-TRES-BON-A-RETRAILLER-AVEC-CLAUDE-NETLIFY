@@ -392,6 +392,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // Onglets secondaires repliés dans "Plus" (décongestion mobile — cf. audit UX) :
   // évite d'afficher 10 onglets sur une seule barre défilante.
   const [showMoreTabs, setShowMoreTabs] = useState(false);
+  // Mode cinéma (Équipe I / LOOP I2) : replie la barre latérale pour que la
+  // scène vidéo occupe toute la largeur/hauteur. Repli par RENDU CONDITIONNEL,
+  // jamais par animation transform/filter : la barre contient un enfant
+  // `fixed inset-0` (l'overlay du menu « Plus ») qu'un ancêtre transformé
+  // re-scoperait au conteneur au lieu de l'écran.
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   
   // 8. Personal & Collective Memory
   const [personalNotes, setPersonalNotes] = useState<LivePersonalNote[]>([
@@ -1716,10 +1722,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               (pas de survol persistant en tactile). */}
           <div className="flex-1 relative flex items-center justify-center overflow-hidden" onClick={handleStageTap}>
 
-            {/* MODE 1: CAMERA & MULTI-SPEAKER STAGE */}
+            {/* MODE 1: CAMERA & MULTI-SPEAKER STAGE — Équipe I (LOOP I2) :
+                quand de VRAIS participants distants sont là, ce sont les
+                humains qui remplissent la grille (vraie sensation de
+                présence, visibilité correcte entre participants) ; le
+                copilote IA se replie en vignette compacte au lieu d'occuper
+                une demi-scène. Seul sur scène, l'hôte garde la disposition
+                historique hôte + IA. */}
             {mainStageMode === 'camera' && (
               <div className="w-full h-full p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950">
-                
+
                 {/* Slot 1: Presenter / Host Stream */}
                 <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center group">
                   <video
@@ -1754,8 +1766,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   </div>
                 </div>
 
-                {/* Slot 2: Co-Pilot AI Agent or Invited Guest */}
-                {aiAgent && (
+                {/* Slot 2: copilote IA en pleine cellule UNIQUEMENT quand
+                    aucun humain distant n'est sur scène — sinon il cède la
+                    place aux vrais participants (vignette compacte plus bas). */}
+                {aiAgent && liveTransport.remoteParticipants.length === 0 && (
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-2xl flex items-center justify-center">
                     <Avatar3D
                       avatarId={aiAgent.id}
@@ -1787,6 +1801,28 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   <RemoteParticipantTile key={media.participant.identity} media={media} />
                 ))}
 
+              </div>
+            )}
+
+            {/* Copilote IA replié en vignette compacte quand de VRAIS humains
+                occupent la grille — présence discrète, jamais une demi-scène
+                (Équipe I / LOOP I2). `absolute` le sort du flux de la grille ;
+                positionné par rapport à la scène (conteneur `relative`). */}
+            {mainStageMode === 'camera' && aiAgent && liveTransport.remoteParticipants.length > 0 && (
+              <div className="absolute bottom-4 right-4 w-40 sm:w-48 aspect-video z-10 rounded-2xl overflow-hidden bg-slate-900 border border-indigo-500/40 shadow-2xl">
+                <Avatar3D
+                  avatarId={aiAgent.id}
+                  state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
+                  grammarState={avatarGrammarState}
+                  className="w-full h-full"
+                />
+                <div className="absolute bottom-1.5 left-1.5 right-1.5 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-lg border border-indigo-500/40 flex items-center gap-1">
+                  <Bot size={10} className="text-indigo-400 shrink-0" />
+                  <span className="text-[9px] font-bold text-indigo-200 truncate">{aiAgent.name}</span>
+                  {aiCopilotState === 'thinking' && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shrink-0" aria-label="IA en réflexion"></span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2283,8 +2319,27 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
         </div>
 
-        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) — matière verre/eau/lumière (LOOP 07/14) */}
-        <div className={`w-full md:w-96 ${glassSurfaceClass('surface')} border-l flex flex-col h-1/2 md:h-full z-20`}>
+        {/* Languette de réouverture du panneau (mode cinéma actif) —
+            sibling absolu du panneau, jamais un transform sur le panneau
+            lui-même (Équipe I / LOOP I2). */}
+        {isPanelCollapsed && (
+          <button
+            onClick={() => setIsPanelCollapsed(false)}
+            title="Rouvrir le panneau d'interaction"
+            aria-label="Rouvrir le panneau d'interaction"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 bg-slate-900/90 border border-white/15 border-r-0 rounded-l-xl px-1.5 py-4 text-slate-300 hover:text-white hover:bg-indigo-600 shadow-xl backdrop-blur-md transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
+        )}
+
+        {/* B. RIGHT INTERACTIVE SIDEBAR (30%) — matière verre/eau/lumière (LOOP 07/14).
+            Mode cinéma (LOOP I2) : masqué par display:none inline (cache aussi
+            l'overlay `fixed` du menu « Plus »), JAMAIS par transform/filter. */}
+        <div
+          className={`w-full md:w-96 ${glassSurfaceClass('surface')} border-l flex flex-col h-1/2 md:h-full z-20`}
+          style={isPanelCollapsed ? { display: 'none' } : undefined}
+        >
 
           {/* Sidebar Tabs — Essentiel (4 onglets toujours visibles) + le reste
               replié dans "Plus" (10 onglets sur une seule barre défilante
@@ -2356,6 +2411,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 </div>
               );
             })()}
+
+            {/* Mode cinéma (Équipe I / LOOP I2) : replier le panneau pour
+                donner toute la largeur à la scène vidéo. */}
+            <button
+              onClick={() => { setShowMoreTabs(false); setIsPanelCollapsed(true); }}
+              title="Mode cinéma — agrandir la scène vidéo"
+              aria-label="Replier le panneau (mode cinéma)"
+              className="px-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors"
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
 
           {/* Sidebar Body */}

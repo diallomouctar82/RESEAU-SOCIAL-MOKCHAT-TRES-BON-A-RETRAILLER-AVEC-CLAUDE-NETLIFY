@@ -237,6 +237,19 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         setActiveCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
         setIsIncomingCall(false);
       } else if (signal.type === 'call_ended' || signal.type === 'call_rejected') {
+        // Équipe I (LOOP I3 — cloche centralisée) : la signalisation d'appel
+        // est un broadcast éphémère — sans cette ligne, un appel manqué ne
+        // laissait AUCUNE trace nulle part. L'appelé enregistre sa propre
+        // notification (policy notifications_owner : soi-même uniquement).
+        const prev = activeCallSessionRef.current;
+        if (signal.type === 'call_ended' && prev && prev.status === 'ringing' && prev.receiverId === currentUser.id) {
+          void supabaseService.recordSelfNotification({
+            title: 'Appel manqué',
+            message: `${prev.initiatorName} a essayé de vous appeler (${prev.type === 'video' ? 'vidéo' : 'audio'}).`,
+            type: 'warning',
+            targetAction: 'chat',
+          });
+        }
         setActiveCallSession(null);
         setIsIncomingCall(false);
       }
@@ -732,6 +745,42 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   };
 
   // --- Start Call ---
+  // Miroir de l'appel actif pour les décisions dans les handlers de signaux
+  // (jamais un effet de bord dans un updater setState — StrictMode le
+  // rejouerait et doublerait la notification d'appel manqué).
+  const activeCallSessionRef = useRef<ActiveCallSession | null>(null);
+  useEffect(() => { activeCallSessionRef.current = activeCallSession; }, [activeCallSession]);
+
+  // Équipe I (LOOP I1) : identifiant du CORRESPONDANT pris dans la session
+  // d'appel elle-même — l'ancien code routait accepter/refuser/raccrocher
+  // via `activeChat.participantId` : si l'appelé n'avait pas cette
+  // conversation ouverte (cas courant d'un appel entrant), son « Décrocher »
+  // n'envoyait RIEN (ou au mauvais membre si un autre chat était ouvert) —
+  // l'appelant ne se connectait jamais. C'était l'une des causes racines des
+  // « appels qui échouent ».
+  const callPeerId = (session: ActiveCallSession): string =>
+    session.initiatorId === currentUser.id ? session.receiverId : session.initiatorId;
+
+  // Sonnerie sortante sans réponse : fin honnête après 35 s — jamais un
+  // faux « connecté », et l'échec entre dans la cloche (LOOP I3).
+  useEffect(() => {
+    if (!activeCallSession || activeCallSession.status !== 'ringing' || isIncomingCall) return;
+    const timer = setTimeout(() => {
+      const session = activeCallSessionRef.current;
+      if (!session || session.status !== 'ringing') return;
+      supabaseService.sendCallSignal(callPeerId(session), { type: 'call_ended', callId: session.callId });
+      void supabaseService.recordSelfNotification({
+        title: 'Appel sans réponse',
+        message: `${session.receiverName} n'a pas répondu à votre appel ${session.type === 'video' ? 'vidéo' : 'audio'}.`,
+        type: 'info',
+        targetAction: 'chat',
+      });
+      setActiveCallSession(null);
+    }, 35000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCallSession?.callId, activeCallSession?.status, isIncomingCall]);
+
   const handleStartCall = (type: 'audio' | 'video') => {
     if (!activeChat) return;
 
@@ -764,10 +813,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       callerAvatar: currentUser.avatar
     });
 
-    // Auto-connect after 2.5s for seamless interactive experience
-    setTimeout(() => {
-      setActiveCallSession(prev => prev?.callId === callId ? { ...prev, status: 'connected' } : prev);
-    }, 2500);
+    // Équipe I (LOOP I1) : l'ancien code passait en « connecté » après 2,5 s
+    // QUE L'APPELÉ AIT DÉCROCHÉ OU NON — l'appelant voyait un appel en cours
+    // face à personne (le faux succès à l'origine des « appels qui
+    // échouent »). Désormais, seul le signal réel `call_accepted` connecte ;
+    // sans réponse, le timeout ci-dessous met fin honnêtement.
   };
 
   // --- Block / Unblock User ---
@@ -1424,38 +1474,36 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         </div>
       )}
 
-      {/* Audio & Video Call Modal */}
+      {/* Audio & Video Call Modal — les signaux vont TOUJOURS au
+          correspondant de la session d'appel (callPeerId), jamais via
+          `activeChat` qui peut être fermé ou pointer un autre membre
+          (cause racine d'appels qui n'aboutissaient jamais — LOOP I1). */}
       {activeCallSession && (
         <ChatCallModal
           callSession={activeCallSession}
+          localName={currentUser.name}
           isIncoming={isIncomingCall}
           onAcceptCall={() => {
+            supabaseService.sendCallSignal(callPeerId(activeCallSession), {
+              type: 'call_accepted',
+              callId: activeCallSession.callId
+            });
             setActiveCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
             setIsIncomingCall(false);
-            if (activeChat) {
-              supabaseService.sendCallSignal(activeChat.participantId, {
-                type: 'call_accepted',
-                callId: activeCallSession.callId
-              });
-            }
           }}
           onRejectCall={() => {
-            if (activeChat) {
-              supabaseService.sendCallSignal(activeChat.participantId, {
-                type: 'call_rejected',
-                callId: activeCallSession.callId
-              });
-            }
+            supabaseService.sendCallSignal(callPeerId(activeCallSession), {
+              type: 'call_rejected',
+              callId: activeCallSession.callId
+            });
             setActiveCallSession(null);
             setIsIncomingCall(false);
           }}
           onEndCall={() => {
-            if (activeChat) {
-              supabaseService.sendCallSignal(activeChat.participantId, {
-                type: 'call_ended',
-                callId: activeCallSession.callId
-              });
-            }
+            supabaseService.sendCallSignal(callPeerId(activeCallSession), {
+              type: 'call_ended',
+              callId: activeCallSession.callId
+            });
             setActiveCallSession(null);
             setIsIncomingCall(false);
           }}

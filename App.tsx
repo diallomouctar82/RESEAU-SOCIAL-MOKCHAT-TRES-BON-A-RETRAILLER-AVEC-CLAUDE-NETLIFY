@@ -66,6 +66,40 @@ const AppContent = () => {
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
 
+  // Équipe I / LOOP I4 — navigation avant/arrière RÉELLE : chaque changement
+  // d'onglet principal devient une entrée d'historique (hash, donc aucune
+  // dépendance à une réécriture serveur Netlify) ; le bouton retour du
+  // navigateur/téléphone remonte le parcours au lieu de sortir de l'app.
+  // Sans interférence avec les hash d'authentification Supabase
+  // (#access_token…) : cet effet n'agit qu'une fois isAuthenticated=true,
+  // donc après que supabase-js a déjà consommé et nettoyé ce hash.
+  const popNavigationRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const cameFromPop = popNavigationRef.current;
+    popNavigationRef.current = false;
+    const st = window.history.state as { mokTab?: string; mokIdx?: number } | null;
+    if (cameFromPop || st?.mokTab === activeTab) return;
+    if (st?.mokTab === undefined) {
+      // Première entrée de la session : remplace (pas d'entrée parasite).
+      window.history.replaceState({ mokTab: activeTab, mokIdx: 0 }, '', `#${activeTab}`);
+    } else {
+      window.history.pushState({ mokTab: activeTab, mokIdx: (st.mokIdx ?? 0) + 1 }, '', `#${activeTab}`);
+    }
+  }, [activeTab, isAuthenticated]);
+
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      // Seuls nos propres états (mokTab) sont rejoués — un hash étranger ou
+      // absent retombe sur 'home', jamais sur un onglet inconnu (écran vide).
+      const tab = e.state && typeof e.state.mokTab === 'string' ? e.state.mokTab : 'home';
+      popNavigationRef.current = true;
+      setActiveTab(tab);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   // GESTION DE SESSION RÉSILIENTE (Supabase Cloud + Local-First Fallback)
   useEffect(() => {
       let isMounted = true;

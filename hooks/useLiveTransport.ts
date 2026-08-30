@@ -16,13 +16,19 @@ export interface RemoteParticipantMedia {
 }
 
 export interface UseLiveTransportOptions {
-    /** Identifiant de room LiveKit — un live_sessions.id par session. */
+    /** Identifiant de room LiveKit — un live_sessions.id par session, ou `call-{conversationId}` pour un appel 1-à-1 (Équipe I). */
     roomName: string;
     participantName: string;
     /** Reflète le rôle réel (sur scène ou spectateur) — doit correspondre au jeton émis côté serveur. */
     canPublish: boolean;
     /** Ne se connecte que lorsque true (ex. attendre que roomName soit connu). */
     enabled: boolean;
+    /**
+     * Publier la caméra dès la connexion (défaut true — comportement
+     * historique du LIVE). false pour un APPEL AUDIO (Équipe I) : seul le
+     * micro part, jamais un flash de caméra non demandé.
+     */
+    publishVideoOnConnect?: boolean;
 }
 
 export interface UseLiveTransportResult {
@@ -40,7 +46,7 @@ export interface UseLiveTransportResult {
 }
 
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
-    const { roomName, participantName, canPublish, enabled } = options;
+    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true } = options;
     const providerRef = useRef<LiveKitTransportProvider | null>(null);
     const [connectionState, setConnectionState] = useState<LiveConnectionState>('disconnected');
     const [error, setError] = useState<string | null>(null);
@@ -112,7 +118,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
 
                 if (canPublish) {
                     try {
-                        await provider.setCameraEnabled(true);
+                        // Appel audio (Équipe I) : seul le micro part à la
+                        // connexion — jamais un flash de caméra non demandé.
+                        if (publishVideoOnConnect) await provider.setCameraEnabled(true);
                         await provider.setMicrophoneEnabled(true);
                     } catch (mediaErr) {
                         // Permission caméra/micro refusée ou périphérique absent : le
@@ -134,7 +142,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             setRemoteParticipants([]);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, roomName, participantName, canPublish]);
+    }, [enabled, roomName, participantName, canPublish, publishVideoOnConnect]);
 
     const setCameraEnabled = useCallback(async (value: boolean) => {
         await providerRef.current?.setCameraEnabled(value);
