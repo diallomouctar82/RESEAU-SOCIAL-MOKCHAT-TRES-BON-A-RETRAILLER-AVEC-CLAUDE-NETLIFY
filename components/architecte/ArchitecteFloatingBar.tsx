@@ -147,7 +147,36 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             setStatusTone((prev) => (prev === 'text-amber-300' ? 'text-cyan-300/80' : prev));
         }
     }, [isListening]);
-    useEffect(() => () => { if (listenWatchdog.current) clearTimeout(listenWatchdog.current); }, []);
+    /**
+     * Nettoyage au démontage — micro réellement relâché.
+     *
+     * Sans ceci, un démontage pendant une session ouverte (déconnexion,
+     * démontage du Layout) laissait la reconnaissance vocale tourner et le
+     * flux micro actif : `stopListening()` est ce qui déclenche, en chaîne,
+     * `stopVolumeMonitoring()` → `mediaStream.getTracks().forEach(t =>
+     * t.stop())` et la fermeture de l'`AudioContext`. Le seul effet de
+     * nettoyage présent auparavant n'annulait que le watchdog.
+     *
+     * Deux précautions :
+     *  - la coupure n'a lieu QUE si CETTE barre avait une session ouverte.
+     *    `voiceEngine` est un singleton partagé (LIVE, coachs Carrière et
+     *    Campus) : couper inconditionnellement au démontage d'une barre
+     *    fermée interromprait la session d'un autre écran.
+     *  - le nettoyage passe par une ref réévaluée à chaque rendu, pour lire
+     *    l'état courant sans réexécuter l'effet — et donc sans provoquer un
+     *    arrêt du micro à chaque changement de `isOpen`.
+     */
+    const teardownRef = useRef<() => void>(() => {});
+    useEffect(() => {
+        teardownRef.current = () => {
+            if (listenWatchdog.current) { clearTimeout(listenWatchdog.current); listenWatchdog.current = null; }
+            if (!isOpen) return;
+            stopListening();
+            stopSpeaking();
+            setConversationalMode(false);
+        };
+    });
+    useEffect(() => () => teardownRef.current(), []);
 
     const handleCommand = useCallback(async (command: string) => {
         if (!command.trim()) return;
