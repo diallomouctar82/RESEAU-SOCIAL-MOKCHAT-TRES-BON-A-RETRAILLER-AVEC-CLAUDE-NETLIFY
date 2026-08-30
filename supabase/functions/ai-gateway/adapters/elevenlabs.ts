@@ -30,7 +30,14 @@ export const elevenlabsAdapter: ProviderAdapter = {
                     'xi-api-key': apiKey,
                     Accept: 'audio/mpeg',
                 },
-                body: JSON.stringify({ text: req.voice.text, model_id: req.modelId }),
+                // voice_settings uniquement si le client en fournit — les
+                // écrans qui n'en passent pas (Experts Diallo) gardent
+                // exactement les défauts du fournisseur, comme avant.
+                body: JSON.stringify({
+                    text: req.voice.text,
+                    model_id: req.modelId,
+                    ...(req.voice.voiceSettings ? { voice_settings: req.voice.voiceSettings } : {}),
+                }),
                 signal: controller.signal,
             });
         } catch (err) {

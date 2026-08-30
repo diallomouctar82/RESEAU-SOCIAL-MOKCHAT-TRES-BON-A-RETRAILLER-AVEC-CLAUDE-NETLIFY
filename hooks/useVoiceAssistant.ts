@@ -14,6 +14,9 @@ export interface UseVoiceAssistantOptions {
     // aucun voiceId explicite n'est fourni à speak().
     agent?: Agent;
     voiceId?: string;
+    /** Réglages fins du fournisseur HD (ElevenLabs). Optionnels — les écrans
+     * qui n'en passent pas gardent les défauts du fournisseur, inchangés. */
+    voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
     lang?: string;
     onFinalTranscript?: (transcript: string) => void;
     onInterimTranscript?: (transcript: string) => void;
@@ -36,7 +39,7 @@ export interface UseVoiceAssistantResult {
 }
 
 export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVoiceAssistantResult {
-    const { agent, voiceId, lang = 'fr-FR' } = options;
+    const { agent, voiceId, voiceSettings, lang = 'fr-FR' } = options;
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
@@ -84,8 +87,8 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     }, []);
 
     const speak = useCallback(async (text: string, opts?: { voiceId?: string; onStart?: () => void; onEnd?: () => void }) => {
-        await voiceEngine.speak(text, { ...opts, voiceId: resolveVoiceId(opts?.voiceId) });
-    }, [resolveVoiceId]);
+        await voiceEngine.speak(text, { ...(voiceSettings ?? {}), ...opts, voiceId: resolveVoiceId(opts?.voiceId) });
+    }, [resolveVoiceId, voiceSettings]);
 
     const stopSpeaking = useCallback(() => {
         voiceEngine.stopSpeaking();

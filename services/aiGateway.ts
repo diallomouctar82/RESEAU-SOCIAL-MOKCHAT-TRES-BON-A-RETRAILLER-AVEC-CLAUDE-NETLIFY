@@ -272,14 +272,20 @@ export const generateVideo = async (
 /** Synthèse vocale (TTS). Retourne l'audio en base64 (mp3). */
 export const generateSpeech = async (
     text: string,
-    options?: { voiceId?: string; providerId?: string; modelId?: string }
+    options?: {
+        voiceId?: string;
+        providerId?: string;
+        modelId?: string;
+        /** Réglages fins du fournisseur (ElevenLabs : stability/similarity_boost/style). Optionnels — sans eux, les défauts du fournisseur s'appliquent, comme avant. */
+        voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
+    }
 ): Promise<string> => {
     const data = await invokeGateway({
         mode: 'call',
         category: 'voice',
         providerId: options?.providerId,
         modelId: options?.modelId,
-        request: { text, voiceId: options?.voiceId },
+        request: { text, voiceId: options?.voiceId, voiceSettings: options?.voiceSettings },
     });
     const audioBase64 = data?.result?.audioBase64;
     if (!audioBase64) throw new Error("Le fournisseur n'a pas renvoyé d'audio.");
