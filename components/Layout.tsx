@@ -1045,9 +1045,35 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
         </div>
-        
+
+        {/* ─── DESKTOP PERSISTENT DIALLO OS TRIGGER ───
+             Le bouton central du dock mobile ci-dessus est enveloppé dans un
+             parent `md:hidden` : Diallo OS n'a donc aucun point d'entrée fixe
+             sur desktop en dehors de la ContextActionBar, elle-même absente
+             sur l'onglet Accueil (`{activeTab !== 'home' && <ContextActionBar .../>}`
+             plus haut). Ce bouton, séparé et purement additif, comble ce trou
+             sans toucher au dock mobile : visible sur desktop uniquement
+             (`hidden md:flex`), sur tous les onglets y compris Accueil.
+             Position choisie après vérification de la mise en page desktop
+             réelle : la sidebar occupe tout le bord gauche (jusqu'à son pied
+             avec carte utilisateur) et <MoocChatFloating /> occupe déjà le
+             coin bas-droit (fixed bottom-6 right-6) — le bord droit à
+             mi-hauteur est la seule zone durablement libre dans les deux
+             états (sidebar dépliée/réduite, messagerie ouverte/fermée). */}
+        <button
+          onClick={() => setIsDialloOSOpen(true)}
+          className="hidden md:flex fixed right-5 top-1/2 -translate-y-1/2 z-40 w-14 h-14 items-center justify-center bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] group"
+          title="Ouvrir Diallo OS"
+          aria-label="Ouvrir Diallo OS"
+        >
+          <Sparkles size={22} className="animate-pulse" />
+          <span className="absolute right-full mr-3 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+            Diallo OS
+          </span>
+        </button>
+
         {/* ─── MODALS & ORCHESTRATION OVERLAYS ─── */}
-        <DialloOS 
+        <DialloOS
           isOpen={isDialloOSOpen}
           onClose={() => { setIsDialloOSOpen(false); setDialloInitialPrompt(undefined); }}
           onNavigate={onTabChange}
