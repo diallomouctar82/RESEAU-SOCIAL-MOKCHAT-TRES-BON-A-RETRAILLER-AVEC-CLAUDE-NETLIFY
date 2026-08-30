@@ -853,7 +853,14 @@ export const Layout: React.FC<LayoutProps> = ({
                   activeTabLabel={currentItem?.label || activeTab}
                   pillarLabel={currentItem?.category || 'Espace LMAV'}
                   description={currentItem?.description}
-                  onBack={() => onTabChange('home')}
+                  // Équipe I / LOOP I4 : retour = étape PRÉCÉDENTE du parcours
+                  // (l'historique est synchronisé par App.tsx) ; repli accueil
+                  // quand il n'y a aucune étape en arrière dans l'app.
+                  onBack={() => {
+                    const st = window.history.state as { mokIdx?: number } | null;
+                    if ((st?.mokIdx ?? 0) > 0) window.history.back();
+                    else onTabChange('home');
+                  }}
                   onOpenDialloOS={(prompt) => {
                     setDialloInitialPrompt(prompt);
                     setIsDialloOSOpen(true);

@@ -56,6 +56,23 @@ Deno.serve(async (req: Request) => {
 
     const service = createServiceRoleClient();
 
+    // Rooms d'APPEL 1-à-1 (Équipe I / LOOP I1) : `call-{conversationId}` est
+    // une room PRIVÉE — seuls les membres réels de la conversation peuvent
+    // obtenir un jeton (les rooms de LIVE restent joignables comme avant,
+    // leur visibilité est gérée par la RLS de live_sessions côté données).
+    if (roomName.startsWith('call-')) {
+        const conversationId = roomName.slice('call-'.length);
+        const { data: membership, error: membershipError } = await service
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId)
+            .eq('user_id', authData.user.id)
+            .maybeSingle();
+        if (membershipError || !membership) {
+            return json({ error: "Cet appel est réservé aux membres de la conversation." }, 403);
+        }
+    }
+
     // 'development' pour l'instant (serveur LiveKit local sans compte) —
     // deviendra configurable par variable d'environnement au LOOP 13
     // (déploiement VPS), sans changer cette fonction.

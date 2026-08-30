@@ -832,6 +832,31 @@ export const supabaseService = {
         if (error) throw error;
     },
     /**
+     * Équipe I (cloche centralisée) — enregistre une notification POUR
+     * SOI-MÊME (policy `notifications_owner` : user_id = auth.uid()).
+     * Cas d'usage : appel manqué / sans réponse — la signalisation d'appel
+     * est un broadcast éphémère, seule une vraie ligne ici la fait entrer
+     * dans la cloche. Jamais utilisée pour notifier un TIERS (la RLS
+     * l'interdit — les notifications inter-membres passent par les triggers
+     * SECURITY DEFINER du LOOP 08/17).
+     */
+    async recordSelfNotification(input: { title: string; message: string; type?: string; priority?: 'low' | 'normal' | 'high'; targetAction?: string }): Promise<void> {
+        if (!isSupabaseConfigured) return;
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+        if (!uid) return;
+        const { error } = await supabase.from('notifications').insert({
+            user_id: uid,
+            title: input.title,
+            message: input.message,
+            type: input.type ?? 'info',
+            priority: input.priority ?? 'normal',
+            target_action: input.targetAction ?? null,
+            read: false,
+        });
+        if (error) console.warn('recordSelfNotification: écriture impossible', error.message);
+    },
+    /**
      * LOOP 08/17 (moteur de notifications, fondation) : la table
      * `notifications` est réellement dans la publication `supabase_realtime`
      * depuis l'origine, mais jamais consommée — `GlobalContext.tsx` ne
