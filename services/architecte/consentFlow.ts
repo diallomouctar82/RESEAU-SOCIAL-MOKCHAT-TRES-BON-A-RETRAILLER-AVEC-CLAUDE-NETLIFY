@@ -31,7 +31,13 @@ export const CONSENT_STEPS: ConsentStep[] = [
         key: 'callName',
         question: 'Commençons votre fiche. Comment souhaitez-vous que je vous appelle ?',
         parse: (answer) => {
-            const cleaned = answer.replace(/^(appelle[- ]?moi|je m'appelle|mon nom est|c'est)\s+/i, '').trim();
+            // Tutoiement ET vouvoiement : « Appelez-moi Preuve » doit donner
+            // « Preuve » — défaut réel constaté par la preuve navigateur du
+            // 30/08/2026 (l'Architecte appelait ensuite la personne
+            // « Appelez-moi Preuve »).
+            const cleaned = answer
+                .replace(/^(appelle[- ]?moi|appelez[- ]?moi|(tu peux|vous pouvez) m'appeler|je m'appelle|mon nom est|moi c'est|c'est)\s+/i, '')
+                .trim();
             return cleaned.length >= 2 && cleaned.length <= 60 ? cleaned : undefined;
         },
         reprompt: "Je n'ai pas saisi le nom. Dites simplement le nom que je dois utiliser.",

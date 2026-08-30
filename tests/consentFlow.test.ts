@@ -20,8 +20,13 @@ describe('Déclenchement', () => {
 });
 
 describe('Réponses interprétées — jamais devinées', () => {
-    it('nom : nettoie les tournures de politesse, refuse le vide', () => {
+    it('nom : nettoie les tournures de politesse — tutoiement ET vouvoiement, refuse le vide', () => {
         expect(step('callName').parse('Appelle-moi Mamadou')).toBe('Mamadou');
+        // Défaut réel trouvé par la preuve navigateur du 30/08/2026 : le
+        // vouvoiement n'était pas nettoyé, l'Architecte appelait ensuite la
+        // personne « Appelez-moi Preuve ».
+        expect(step('callName').parse('Appelez-moi Preuve')).toBe('Preuve');
+        expect(step('callName').parse("Vous pouvez m'appeler Aïssatou")).toBe('Aïssatou');
         expect(step('callName').parse('Mon nom est Fatou Diop')).toBe('Fatou Diop');
         expect(step('callName').parse('a')).toBeUndefined();
     });

@@ -13,6 +13,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * compte les appels réels à `recognition.start()` après l'échec fatal.
  */
 
+// La synthèse HD passe par l'orchestrateur : mockée ici pour piloter, test
+// par test, sa disponibilité (les tests d'identité vocale simulent un
+// fournisseur en panne — jamais un appel réseau réel dans un test).
+const gateway = vi.hoisted(() => ({
+    generateSpeech: vi.fn(async (): Promise<string> => { throw new Error('fournisseur HD indisponible'); }),
+}));
+vi.mock('../services/aiGateway', () => ({
+    generateSpeech: gateway.generateSpeech,
+    generateText: vi.fn(async () => ''),
+    generateJSON: vi.fn(async () => null),
+    analyzeImage: vi.fn(async () => ''),
+}));
+
 // La fausse reconnaissance est installée AVANT l'import du moteur : le
 // singleton est construit à l'import et capture la classe à ce moment-là.
 class FakeRecognition {
@@ -34,7 +47,7 @@ class FakeRecognition {
 }
 (window as any).webkitSpeechRecognition = FakeRecognition;
 
-const { voiceEngine, MIC_UNAVAILABLE_MESSAGE } = await import('../services/voiceEngine');
+const { voiceEngine, VoiceEngine, MIC_UNAVAILABLE_MESSAGE } = await import('../services/voiceEngine');
 
 /** La reconnaissance unique que le moteur a construite et réutilise. */
 const rec = () => FakeRecognition.instances[0];
@@ -132,6 +145,127 @@ describe('voiceEngine — abandon sur échec micro', () => {
         }
 
         expect(errors).not.toContain(MIC_UNAVAILABLE_MESSAGE);
+        un();
+    });
+});
+
+describe('voiceEngine — respiration par ponctuation (Équipe B §2)', () => {
+    it('la pause suit la ponctuation réellement écrite — jamais une valeur unique', () => {
+        const question = VoiceEngine.breathAfterPhrase('Voulez-vous continuer ?');
+        const point = VoiceEngine.breathAfterPhrase('Voici le chemin.');
+        const articulation = VoiceEngine.breathAfterPhrase('Deux choses ;');
+        const virgule = VoiceEngine.breathAfterPhrase('dans un premier temps,');
+
+        expect(question).toBeGreaterThan(point);
+        expect(point).toBeGreaterThan(articulation);
+        expect(articulation).toBeGreaterThan(virgule);
+        // Sobres : des respirations, pas des silences théâtraux.
+        expect(question).toBeLessThanOrEqual(400);
+        expect(virgule).toBeGreaterThanOrEqual(100);
+    });
+});
+
+describe('voiceEngine — identité vocale stable par session (Équipe B §9)', () => {
+    beforeEach(() => {
+        // Synthèse système factice : le repli navigateur doit pouvoir
+        // « parler » sans navigateur réel.
+        (window as any).speechSynthesis = {
+            cancel: vi.fn(), speak: vi.fn(), pause: vi.fn(), resume: vi.fn(),
+            getVoices: () => [], speaking: false,
+        };
+        (window as any).SpeechSynthesisUtterance = class {
+            text: string; lang = ''; rate = 1; pitch = 1; voice: any = null;
+            onend: (() => void) | null = null; onerror: ((e: unknown) => void) | null = null;
+            constructor(text: string) { this.text = text; }
+        };
+        gateway.generateSpeech.mockClear();
+        voiceEngine.setConversationalMode(true);
+    });
+
+    afterEach(() => {
+        voiceEngine.stopSpeaking();
+        voiceEngine.setConversationalMode(false);
+        delete (window as any).speechSynthesis;
+        delete (window as any).SpeechSynthesisUtterance;
+    });
+
+    it('après UN repli sur la voix navigateur, la session y RESTE — plus jamais une alternance de voix', async () => {
+        // 1er tour : le fournisseur HD échoue → repli navigateur (une bascule, assumée).
+        await voiceEngine.speak('Bonjour, je vous écoute.');
+        expect(gateway.generateSpeech).toHaveBeenCalledTimes(1);
+        expect(voiceEngine.getCurrentActiveEngine()).toBe('browser_native');
+
+        // 2e tour : le moteur HD n'est PAS retenté en cours de session —
+        // c'était l'origine de la « succession de voix » constatée.
+        voiceEngine.stopSpeaking();
+        await voiceEngine.speak('Voici la suite.');
+        expect(gateway.generateSpeech).toHaveBeenCalledTimes(1);
+        expect(voiceEngine.getCurrentActiveEngine()).toBe('browser_native');
+    });
+
+    it('une NOUVELLE session redonne sa chance au moteur HD — le verrou ne survit pas à la session', async () => {
+        await voiceEngine.speak('Premier tour.');
+        expect(gateway.generateSpeech).toHaveBeenCalledTimes(1);
+
+        // Fermeture puis réouverture de la barre = nouvelle session.
+        voiceEngine.stopSpeaking();
+        voiceEngine.setConversationalMode(false);
+        voiceEngine.setConversationalMode(true);
+
+        await voiceEngine.speak('Nouvelle session.');
+        expect(gateway.generateSpeech).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('voiceEngine — interruption naturelle (barge-in, Boucle 1 §15)', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        FakeRecognition.startCalls = 0;
+        voiceEngine.setConversationalMode(true);
+    });
+
+    afterEach(() => {
+        (voiceEngine as any).isSpeaking = false;
+        voiceEngine.setConversationalMode(false);
+        voiceEngine.stopListening();
+        vi.useRealTimers();
+    });
+
+    it("une vraie phrase prononcée PENDANT que l'IA parle la fait taire et est entendue", async () => {
+        await voiceEngine.startListening();
+        const heard: string[] = [];
+        const un = voiceEngine.addListener({ onTranscript: (t) => heard.push(t) });
+        const stopSpy = vi.spyOn(voiceEngine, 'stopSpeaking');
+
+        (voiceEngine as any).isSpeaking = true;
+        rec().onresult?.({
+            resultIndex: 0,
+            results: [Object.assign([{ transcript: 'attends, montre-moi plutôt le campus' }], { isFinal: false })],
+        });
+
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+        // stopSpeaking a réellement remis isSpeaking à false : la parole passe.
+        expect(voiceEngine.getIsSpeaking()).toBe(false);
+        expect(heard).toContain('attends, montre-moi plutôt le campus');
+        stopSpy.mockRestore();
+        un();
+    });
+
+    it("un fragment court (écho de la voix de synthèse) est ignoré : l'IA n'est PAS coupée", async () => {
+        await voiceEngine.startListening();
+        const heard: string[] = [];
+        const un = voiceEngine.addListener({ onTranscript: (t) => heard.push(t) });
+        const stopSpy = vi.spyOn(voiceEngine, 'stopSpeaking');
+
+        (voiceEngine as any).isSpeaking = true;
+        rec().onresult?.({
+            resultIndex: 0,
+            results: [Object.assign([{ transcript: 'le campus' }], { isFinal: false })],
+        });
+
+        expect(stopSpy).not.toHaveBeenCalled();
+        expect(heard).toHaveLength(0);
+        stopSpy.mockRestore();
         un();
     });
 });

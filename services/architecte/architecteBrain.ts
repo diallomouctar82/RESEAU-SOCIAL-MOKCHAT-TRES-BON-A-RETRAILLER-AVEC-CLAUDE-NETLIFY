@@ -116,6 +116,107 @@ export function isWebSearchCommand(command: string): boolean {
     return WEB_SEARCH_PATTERNS.some((p) => p.test(command));
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// COMPORTEMENT HUMAIN DE L'ARCHITECTE (Boucle 1)
+// « Ce n'est pas l'utilisateur qui doit apprendre à utiliser l'Architecte.
+//   C'est l'Architecte qui doit comprendre l'utilisateur et l'accompagner. »
+// Une seule identité, une seule personnalité, une seule continuité — et les
+// réponses identitaires sont DÉTERMINISTES : qui est l'Architecte ne dépend
+// jamais de l'humeur d'un modèle.
+// ─────────────────────────────────────────────────────────────────────────
+
+const IDENTITY_PATTERNS: RegExp[] = [
+    /\bqui es[\s-]?tu\b/i,
+    /\bt'es qui\b/i,
+    /\btu es qui\b/i,
+    /\bcomment (tu )?t'appelles/i,
+    /\bpr[ée]sente[\s-]?toi\b/i,
+    /\bc'est quoi l'architecte\b/i,
+    /\bqui est l'architecte\b/i,
+];
+
+/** « Qui es-tu ? » — détection déterministe. */
+export function isIdentityQuestion(command: string): boolean {
+    return IDENTITY_PATTERNS.some((p) => p.test(command));
+}
+
+/** Présentation stable de l'Architecte — la même, toujours, quel que soit le modèle. */
+export function describeArchitecteIdentity(callName?: string): string {
+    return (
+        "Je suis L'Architecte — votre guide dans Le Monde à Vous. " +
+        "Vous n'avez rien à apprendre ici : dites-moi ce que vous voulez accomplir, " +
+        "je vous montre le chemin et je peux agir pour vous. " +
+        `Alors${callName ? `, ${callName}` : ''} : qu'aimeriez-vous faire ?`
+    );
+}
+
+/**
+ * L'accueil : c'est l'Architecte qui va vers la personne, jamais l'inverse.
+ *
+ * Le marqueur nouveau/connu est la fiche de consentement
+ * (`privacy_settings.architecte`) : absente = première rencontre → accueil
+ * complet qui se présente ET propose la configuration ; présente = personne
+ * connue → accueil léger avec son nom choisi, sans jamais refaire
+ * l'onboarding. Les deux textes sont courts : faits pour être DITS, pas lus.
+ */
+export function buildArchitecteGreeting(
+    consent: { callName?: string } | null | undefined,
+    userName: string
+): { text: string; firstMeeting: boolean } {
+    if (!consent?.callName) {
+        return {
+            firstMeeting: true,
+            text:
+                "Bonjour, et bienvenue ! Je suis L'Architecte, votre guide ici. " +
+                "Dites-moi simplement ce que vous aimeriez faire — je m'occupe du chemin. " +
+                "Voulez-vous d'abord régler comment je m'adresse à vous ? Dites oui, ou lancez-vous.",
+        };
+    }
+    return {
+        firstMeeting: false,
+        text: `Bonjour ${consent.callName || userName}. Que puis-je faire pour vous aujourd'hui ?`,
+    };
+}
+
+/**
+ * Besoin flou exprimé tel quel (« je ne sais pas trop », « aucune idée ») :
+ * stratégie de clarification STABLE (complément Équipe A §6) — la phrase
+ * brute n'est jamais envoyée seule au modèle en espérant une réponse
+ * heureuse. Volontairement borné aux énoncés qui ne contiennent RIEN
+ * d'autre : « je ne sais pas comment faire un CV » a un sujet, il part au
+ * cerveau normalement.
+ */
+const VAGUE_NEED_PATTERNS: RegExp[] = [
+    /^je (ne )?sais pas( trop| vraiment)?[\s.,!…]*$/i,
+    /^je (ne )?sais pas( trop| vraiment)? (quoi faire|ce que je veux|par o[ùu] commencer)[\s.,!…]*$/i,
+    /^(aucune |pas d')id[ée]e[\s.,!…]*$/i,
+    /^j'h[ée]site[\s.,!…]*$/i,
+];
+
+export function isVagueNeed(text: string): boolean {
+    const t = text.trim();
+    if (t.length > 60) return false;
+    return VAGUE_NEED_PATTERNS.some((p) => p.test(t));
+}
+
+/** UNE question douce qui débloque, par grandes familles — jamais vingt possibilités d'un coup. */
+export function buildVagueNeedReply(callName?: string): string {
+    return (
+        `Aucun problème${callName ? `, ${callName}` : ''}. ` +
+        "Qu'est-ce qui vous occupe le plus en ce moment : travailler sur quelque chose, apprendre, " +
+        "communiquer avec quelqu'un, créer, ou organiser quelque chose ? On part de là, tranquillement."
+    );
+}
+
+/**
+ * Un « oui » court en réponse à une proposition de l'Architecte.
+ * Volontairement borné aux réponses BRÈVES : « oui, je veux voyager » est une
+ * commande, pas une acceptation de l'offre en cours.
+ */
+export function isAffirmativeReply(text: string): boolean {
+    return /^(oui|ouais|d'accord|daccord|ok|volontiers|avec plaisir|je veux bien|vas[\s-]?y|allons[\s-]?y|pourquoi pas)[\s.,!]*$/i.test(text.trim());
+}
+
 /** Modules de navigation connus — repris à l'identique du prompt d'origine. */
 const NAVIGATION_MODULES = `            - 'home' (Dashboard)
             - 'social' (Réseau, Feed)
@@ -130,7 +231,7 @@ const NAVIGATION_MODULES = `            - 'home' (Dashboard)
             - 'live' (Appel direct)
             - 'studio' (Création contenu)`;
 
-export function buildArchitecteSystemPrompt(userName: string, userLevel: number | string): string {
+export function buildArchitecteSystemPrompt(userName: string, userLevel: number | string, callName?: string): string {
     // Catalogue construit à l'instant T à partir des handlers RÉELLEMENT
     // enregistrés — pas les 42 capacités théoriques du registre. Le modèle ne
     // peut donc pas proposer une action qui échouerait aussitôt faute d'écran
@@ -147,8 +248,19 @@ export function buildArchitecteSystemPrompt(userName: string, userLevel: number 
         ? "Une ou plusieurs images ont été montrées dans cette session (voir le contexte) — mais TOI, tu n'as pas accès à leurs pixels ici : ne décris jamais leur contenu de mémoire."
         : "AUCUNE image n'a été montrée dans cette session : si l'on te demande ce que tu « vois », réponds honnêtement que tu ne disposes d'aucune image — n'invente JAMAIS un contenu visuel.";
 
-    return `Tu es Diallo OS, le système d'exploitation intelligent de l'application 'Le Monde à Vous'.
-            L'utilisateur est : ${userName}, Niveau ${userLevel}.
+    return `Tu es L'ARCHITECTE, le guide personnel de l'application 'Le Monde à Vous' (MokNet).
+            UNE SEULE IDENTITÉ : tu es L'Architecte, toujours — jamais « Diallo OS », jamais un « expert », jamais une autre personnalité.
+            L'utilisateur est : ${userName}, Niveau ${userLevel}.${callName ? `
+            La personne souhaite qu'on l'appelle « ${callName} » : utilise ce nom, et ne le redemande jamais.` : ''}
+
+            RÈGLES DE CONDUITE (aussi importantes que le routage) :
+            - Tu es un guide chaleureux et compétent, pas une machine à commandes. Français naturel, phrases courtes faites pour être DITES à voix haute. Ni robotique, ni théâtral.
+            - ADAPTE ton rythme au fil des échanges (le contexte récent te montre comment la personne s'exprime) : pressé ou très direct → réponse courte, action immédiate ; hésitant ou débutant → plus d'accompagnement, une étape à la fois ; expert → pas d'explications élémentaires ; bavard → laisse-lui la place et réponds à l'essentiel. Jamais de diagnostic psychologique : tu t'ajustes à la conversation, pas à un jugement sur la personne.
+            - Accorde ton ton au contexte : sobre quand la personne est concentrée, chaleureux quand elle est enthousiaste, rassurant quand elle hésite — sans surjouer, et sans jamais prétendre ressentir des émotions humaines.
+            - BESOIN FLOU (« je ne sais pas », « je veux voir ce que je peux faire », « j'aimerais améliorer quelque chose ») : ne force jamais une commande parfaite et ne navigue pas au hasard. Réponds { "type": "NOTIFICATION" } avec UNE question douce qui débloque, en proposant les grandes familles : apprendre, travailler, communiquer, créer, ou organiser quelque chose.
+            - PRODUCTION ÉCRITE (« écris-moi une lettre », « prépare mon CV », « fais-moi une liste », « rédige... ») : réponds { "type": "NOTIFICATION" } et mets la PRODUCTION COMPLÈTE demandée dans "explanation" — le texte final lui-même, pas un résumé ni une promesse du genre « je vais la préparer ». L'interface affiche automatiquement le texte long ; toi, tu livres le contenu.
+            - OUTILS AU BON MOMENT : si la demande gagnerait à MONTRER quelque chose (un problème visible sur un objet → propose la caméra : « Montrez-le-moi, je peux ouvrir la caméra si vous voulez » ; un document à vérifier comme un CV → propose le bouton Fichier : « Envoyez-le-moi et je le regarde avec vous »), propose-le dans "explanation" — n'impose jamais un outil que la tâche n'exige pas.
+            - Ne récite jamais spontanément la liste complète de tes capacités, et ne pousse pas de suggestions non sollicitées.
 ${sessionContext ? `
             Contexte récent de la conversation (pour comprendre les références comme « lui », « ce document », « cette image », « continue ») :
 ${sessionContext}
@@ -215,6 +327,8 @@ ${executableCatalogue}
 export interface RunArchitecteOptions {
     userName: string;
     userLevel: number | string;
+    /** Nom choisi dans la fiche de consentement — mémoire de la relation (§22) : jamais redemandé. */
+    callName?: string;
     /**
      * Demande de confirmation, posée AVANT toute écriture. Fournie par
      * l'interface appelante, qui seule sait comment la formuler dans son
@@ -267,7 +381,20 @@ async function interpretAndExecute(
         return { spoken: describeCapabilitiesForHumans(), handledLocally: true };
     }
 
-    const systemPrompt = buildArchitecteSystemPrompt(options.userName, options.userLevel);
+    // Identité : réponse stable et déterministe — qui est l'Architecte ne
+    // dépend jamais d'un modèle (cohérence d'identité, Boucle 1 §13).
+    if (isIdentityQuestion(trimmed)) {
+        return { spoken: describeArchitecteIdentity(options.callName), handledLocally: true };
+    }
+
+    // Besoin flou pur (« je ne sais pas trop ») : clarification stable par
+    // grandes familles — le modèle reste le chemin des formulations plus
+    // riches, encadré par la directive BESOIN FLOU du prompt.
+    if (isVagueNeed(trimmed)) {
+        return { spoken: buildVagueNeedReply(options.callName), handledLocally: true };
+    }
+
+    const systemPrompt = buildArchitecteSystemPrompt(options.userName, options.userLevel, options.callName);
     const action = (await generateJSON<ArchitecteAction>(`Commande utilisateur : "${trimmed}"`, {
         systemInstruction: systemPrompt,
     })) || ({} as ArchitecteAction);
