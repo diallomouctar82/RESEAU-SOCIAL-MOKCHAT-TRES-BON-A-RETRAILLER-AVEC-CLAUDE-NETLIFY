@@ -8,7 +8,7 @@ import {
   Camera, Lock, Globe, Flame, AlertCircle, CheckCircle2, CheckCircle, Sliders, ExternalLink,
   ShoppingBag, ShieldAlert, CheckSquare, Bell, Calendar, Clock, Bookmark,
   Compass, Copy, EyeOff, Headphones, GraduationCap, LifeBuoy, FileCheck,
-  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand
+  AlertTriangle, Plus, Play, Pause, RotateCcw, VolumeX, Hand, MoreHorizontal
 } from 'lucide-react';
 import { generateText, analyzeImage } from '../services/aiGateway';
 import { supabaseService } from '../services/supabaseClient';
@@ -365,6 +365,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // 7. Interactive Sidebar Tabs
   const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant' | 'solidarity'>('chat');
+  // Onglets secondaires repliés dans "Plus" (décongestion mobile — cf. audit UX) :
+  // évite d'afficher 10 onglets sur une seule barre défilante.
+  const [showMoreTabs, setShowMoreTabs] = useState(false);
   
   // 8. Personal & Collective Memory
   const [personalNotes, setPersonalNotes] = useState<LivePersonalNote[]>([
@@ -1365,13 +1368,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {liveData.type || 'Public'}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
               <span className="flex items-center gap-1"><Users size={11} /> {liveData.viewers.toLocaleString()} en direct</span>
-              <span>•</span>
-              <span className="flex items-center gap-1"><Shield size={11} className="text-emerald-400" /> Diallo OS Copilote</span>
-              <span>•</span>
-              <span className="flex items-center gap-1 font-mono text-emerald-400">
-                <Wifi size={11} /> {networkQuality.toUpperCase()} ({networkLatency}ms)
+              <span
+                className="flex items-center gap-1 text-slate-500 cursor-default"
+                title={`Diallo OS Copilote actif · Réseau ${networkQuality.toUpperCase()} (${networkLatency}ms)`}
+              >
+                <span aria-hidden="true">•</span>
+                <Shield size={11} />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
               </span>
             </div>
           </div>
@@ -1433,17 +1438,18 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {/* Audio Only Mode (Low Data) — personnel, utile à tout spectateur */}
             <button
               onClick={handleToggleAudioOnly}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-white/10 hover:text-white'}`}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 hover:text-white'}`}
               title="Mode Audio Seul (Économie de bande passante 85%)"
             >
               <Headphones size={14} />
               <span className="hidden xl:inline">{isAudioOnlyMode ? 'Audio Seul' : 'Éco Data'}</span>
             </button>
 
-            {/* SOS Help Button */}
+            {/* SOS Help Button — neutre au repos, ne s'allume qu'au survol/usage
+                (une couleur d'alerte affichée en permanence perd son sens d'alerte) */}
             <button
               onClick={() => setShowInstantHelpModal(true)}
-              className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-rose-600/30 text-slate-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
               title="Besoin d'aide immédiate ou modération"
             >
               <LifeBuoy size={14} />
@@ -1453,7 +1459,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {/* Fact-Check Sources */}
             <button
               onClick={() => setShowFactCheckModal(true)}
-              className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/40 text-sky-300 border border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-sky-600/30 text-slate-300 hover:text-sky-200 border border-white/10 hover:border-sky-500/40 text-xs font-bold rounded-xl hidden md:flex items-center gap-1 transition-all"
               title="Vérificateur de sources et déclarations"
             >
               <FileCheck size={14} />
@@ -1463,7 +1469,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {isUserOnStage && (
               <button
                 onClick={() => setShowWaitingRoomModal(true)}
-                className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
+                className="px-2.5 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1 transition-all"
                 title="Paramètres de scène & Salle d'attente"
               >
                 <Sliders size={14} />
@@ -1497,7 +1503,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             <button
               onClick={handleRequestCatchup}
-              className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
+              className="px-3 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
             >
               <Sparkles size={14} /> Résumé
             </button>
@@ -2146,32 +2152,76 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         {/* B. RIGHT INTERACTIVE SIDEBAR (30%) — matière verre/eau/lumière (LOOP 07/14) */}
         <div className={`w-full md:w-96 ${glassSurfaceClass('surface')} border-l flex flex-col h-1/2 md:h-full z-20`}>
 
-          {/* Sidebar Tabs */}
-          <div className="flex border-b border-white/10 bg-black/40 p-1 overflow-x-auto">
+          {/* Sidebar Tabs — Essentiel (4 onglets toujours visibles) + le reste
+              replié dans "Plus" (10 onglets sur une seule barre défilante
+              étaient illisibles et se coupaient sur petit écran — audit UX). */}
+          <div className="flex items-stretch gap-1 border-b border-white/10 bg-black/40 p-1">
             {[
               { id: 'chat', label: 'Chat', icon: MessageSquare },
               { id: 'qa', label: 'Q&A', icon: HelpCircle },
-              { id: 'notes', label: 'Mémoire', icon: BookOpen },
               { id: 'decisions', label: 'Décisions', icon: Award },
               { id: 'agenda', label: 'Agenda', icon: CheckSquare },
-              { id: 'products', label: 'Boutique', icon: ShoppingBag },
-              { id: 'polls', label: 'Sondage', icon: PieChart },
-              { id: 'docs', label: 'Docs', icon: FileText },
-              { id: 'assistant', label: 'IA Perso', icon: Bot },
-              { id: 'solidarity', label: 'Solidaire', icon: Heart }
             ].map(t => {
               const Icon = t.icon;
               return (
                 <button
                   key={t.id}
-                  onClick={() => setActiveSideTab(t.id as any)}
-                  className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors whitespace-nowrap ${activeSideTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
+                  className={`flex-1 min-w-0 px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   <Icon size={13} />
-                  <span>{t.label}</span>
+                  <span className="truncate w-full text-center">{t.label}</span>
                 </button>
               );
             })}
+
+            {(() => {
+              const moreTabs = [
+                { id: 'notes', label: 'Mémoire', icon: BookOpen },
+                { id: 'products', label: 'Boutique', icon: ShoppingBag },
+                { id: 'polls', label: 'Sondage', icon: PieChart },
+                { id: 'docs', label: 'Docs', icon: FileText },
+                { id: 'assistant', label: 'IA Perso', icon: Bot },
+                { id: 'solidarity', label: 'Solidaire', icon: Heart },
+              ] as const;
+              const activeMore = moreTabs.find(t => t.id === activeSideTab);
+              const MoreIcon = activeMore ? activeMore.icon : MoreHorizontal;
+              return (
+                <div className="relative flex-1 min-w-0">
+                  <button
+                    onClick={() => setShowMoreTabs(v => !v)}
+                    aria-expanded={showMoreTabs}
+                    aria-haspopup="menu"
+                    className={`w-full h-full px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeMore || showMoreTabs ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <MoreIcon size={13} />
+                    <span className="truncate w-full text-center">{activeMore ? activeMore.label : 'Plus'}</span>
+                  </button>
+
+                  {showMoreTabs && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setShowMoreTabs(false)} aria-hidden="true"></div>
+                      <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-48 bg-slate-900 border border-white/10 rounded-xl shadow-xl shadow-black/50 p-1.5 grid grid-cols-2 gap-1">
+                        {moreTabs.map(t => {
+                          const Icon = t.icon;
+                          return (
+                            <button
+                              key={t.id}
+                              role="menuitem"
+                              onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
+                              className={`px-2 py-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'}`}
+                            >
+                              <Icon size={14} />
+                              <span>{t.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Sidebar Body */}
