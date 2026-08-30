@@ -108,7 +108,7 @@ export const CareerContactDetailModal: React.FC<CareerContactDetailModalProps> =
       <div className="bg-slate-900 border border-slate-700/80 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-white">
         
         {/* Header with Profile Summary */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
           <div className="flex items-center gap-4">
             <img 
               src={contact.avatarUrl} 
@@ -133,7 +133,7 @@ export const CareerContactDetailModal: React.FC<CareerContactDetailModalProps> =
           
           <button 
             onClick={onClose}
-            className="p-2.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-3 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
             <X size={20} />
           </button>
@@ -194,7 +194,7 @@ export const CareerContactDetailModal: React.FC<CareerContactDetailModalProps> =
             <div className="space-y-6">
               
               {/* Next Best Action Banner */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/70 to-slate-900 border border-blue-500/40 flex items-start justify-between gap-4">
+              <div className="p-4 rounded-2xl bg-slate-900 border border-blue-500/40 flex items-start justify-between gap-4">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
                     <Sparkles size={13} /> Prochaine Meilleure Action (Next Best Action)

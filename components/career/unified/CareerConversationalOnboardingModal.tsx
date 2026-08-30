@@ -45,7 +45,7 @@ export const CareerConversationalOnboardingModal: React.FC<CareerConversationalO
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8">
         
         {/* Top Header */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 md:p-8 relative">
+        <div className="bg-slate-900 text-white p-6 md:p-8 relative">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-blue-500/20 border border-blue-400/30 rounded-2xl text-blue-300">
@@ -64,7 +64,7 @@ export const CareerConversationalOnboardingModal: React.FC<CareerConversationalO
 
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
+              className="p-3 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
             >
               <X size={20} />
             </button>
@@ -234,7 +234,7 @@ export const CareerConversationalOnboardingModal: React.FC<CareerConversationalO
           ) : (
             <button
               onClick={handleFinish}
-              className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition"
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition"
             >
               <span>Activer mon parcours</span>
               <CheckCircle2 size={16} />

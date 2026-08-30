@@ -59,7 +59,7 @@ export const CareerMeetingFlashModal: React.FC<CareerMeetingFlashModalProps> = (
 
           <button 
             onClick={onClose} 
-            className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            className="p-3 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
           >
             <X size={20} />
           </button>

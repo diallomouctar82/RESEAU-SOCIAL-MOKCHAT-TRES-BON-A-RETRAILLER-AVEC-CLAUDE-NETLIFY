@@ -15,7 +15,7 @@ import {
   Compass,
   Briefcase
 } from 'lucide-react';
-import { RelationalNode } from '../../types';
+import { RelationalNode } from '../../../types';
 
 interface CareerRelationshipMapModalProps {
   nodes: RelationalNode[];
@@ -59,7 +59,7 @@ export const CareerRelationshipMapModal: React.FC<CareerRelationshipMapModalProp
       <div className="bg-slate-900 border border-slate-700/80 w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-white">
         
         {/* Top Header */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/60">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
               <Compass size={24} />
@@ -76,7 +76,7 @@ export const CareerRelationshipMapModal: React.FC<CareerRelationshipMapModalProp
           
           <button 
             onClick={onClose}
-            className="p-2.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-3 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
             <X size={20} />
           </button>
@@ -130,7 +130,7 @@ export const CareerRelationshipMapModal: React.FC<CareerRelationshipMapModalProp
             <div className="space-y-4">
               
               {/* Level 1: Moi & Objectif */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-blue-900/40 to-slate-900 border border-blue-500/30">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/70 border border-blue-500/30">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-md">
                     Moi
@@ -148,7 +148,7 @@ export const CareerRelationshipMapModal: React.FC<CareerRelationshipMapModalProp
 
               {/* Connecting Line */}
               <div className="flex justify-center -my-2">
-                <div className="w-0.5 h-6 bg-gradient-to-b from-blue-500 to-indigo-500" />
+                <div className="w-0.5 h-6 bg-slate-700" />
               </div>
 
               {/* Level 2: Intermédiaires & Facilitateurs Directs */}
@@ -193,7 +193,7 @@ export const CareerRelationshipMapModal: React.FC<CareerRelationshipMapModalProp
 
               {/* Connecting Line */}
               <div className="flex justify-center -my-2">
-                <div className="w-0.5 h-6 bg-gradient-to-b from-indigo-500 to-emerald-500" />
+                <div className="w-0.5 h-6 bg-slate-700" />
               </div>
 
               {/* Level 3: Relations Potentielles & Opportunités Cibles */}
@@ -324,7 +324,7 @@ export const CareerRelationshipMapModal: React.FC<CareerRelationshipMapModalProp
                   {activeNodeHighlight.stage === 'introduction' ? (
                     <button
                       onClick={() => onOpenIntroduction(activeNodeHighlight)}
-                      className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-3 rounded-xl font-bold text-xs hover:from-indigo-500 hover:to-blue-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
                     >
                       <Users size={16} /> Lancer le Mode Introduction
                     </button>

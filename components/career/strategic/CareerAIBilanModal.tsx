@@ -14,7 +14,7 @@ import {
   Download,
   Share2
 } from 'lucide-react';
-import { CareerAIBilan } from '../../types';
+import { CareerAIBilan } from '../../../types';
 
 interface CareerAIBilanModalProps {
   isOpen: boolean;
@@ -34,6 +34,35 @@ export const CareerAIBilanModal: React.FC<CareerAIBilanModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownload = () => {
+    const reportText = `BILAN DE CARRIÈRE IA — ${bilan.evaluationPeriod}
+Généré le ${bilan.generatedDate}
+
+DYNAMIQUE GLOBALE : ${bilan.overallMomentumScore}/100
+
+1. Compétences Acquises : ${bilan.pillarScores.skillsAcquired}/100
+${bilan.pillarsDetails.skillsHighlights.map(s => `  - ${s}`).join('\n')}
+
+2. Réseau & Relations : ${bilan.pillarScores.networkExpanded}/100
+${bilan.pillarsDetails.networkHighlights.map(n => `  - ${n}`).join('\n')}
+
+3. Résultats Obtenus : ${bilan.pillarScores.resultsAchieved}/100
+${bilan.pillarsDetails.resultsHighlights.map(r => `  - ${r}`).join('\n')}
+
+4. Progression vers le Point B : ${bilan.pillarScores.progressionToPointB}/100
+
+5. Énergie & Épanouissement : ${bilan.pillarScores.energyAndFulfillment}/100
+
+RECOMMANDATION STRATÉGIQUE POUR LE PROCHAIN TRIMESTRE :
+${bilan.strategicRecommendation}`;
+
+    const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Bilan_Carriere_${bilan.evaluationPeriod.replace(/\s+/g, '_')}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     setDownloaded(true);
     setTimeout(() => setDownloaded(false), 3000);
   };
@@ -43,7 +72,7 @@ export const CareerAIBilanModal: React.FC<CareerAIBilanModalProps> = ({
       <div className="bg-slate-900 border border-slate-700/70 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl text-indigo-400">
               <FileText size={24} />
@@ -62,7 +91,7 @@ export const CareerAIBilanModal: React.FC<CareerAIBilanModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X size={20} />
           </button>
@@ -92,7 +121,7 @@ export const CareerAIBilanModal: React.FC<CareerAIBilanModalProps> = ({
               {onOpenVoiceBilan && (
                 <button
                   onClick={onOpenVoiceBilan}
-                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/30"
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/30"
                 >
                   <Mic size={15} />
                   <span>Bilan Vocal Coach 3D</span>
@@ -192,14 +221,14 @@ export const CareerAIBilanModal: React.FC<CareerAIBilanModalProps> = ({
                 className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors"
               >
                 {downloaded ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Download size={14} />}
-                <span>{downloaded ? 'Rapport Téléchargé !' : 'Télécharger le Bilan (PDF)'}</span>
+                <span>{downloaded ? 'Rapport Téléchargé !' : 'Télécharger le Bilan (.txt)'}</span>
               </button>
             </div>
 
           </div>
 
           {/* Strategic Recommendation */}
-          <div className="bg-gradient-to-r from-indigo-950/40 to-slate-800/70 border border-indigo-500/30 rounded-2xl p-5 space-y-2">
+          <div className="bg-slate-800/70 border border-indigo-500/30 rounded-2xl p-5 space-y-2">
             <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-2">
               <Sparkles size={16} className="text-indigo-400" /> Recommandation Stratégique pour le Prochain Trimestre :
             </h4>

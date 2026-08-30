@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Briefcase,
   Layers,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { CareerDailyWeeklyBriefing, CareerLiveDossier } from '../../../types';
 
@@ -35,7 +36,7 @@ export const CareerBriefingTomorrowModal: React.FC<CareerBriefingTomorrowModalPr
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[90vh] flex flex-col">
         
         {/* HEADER */}
-        <div className="p-6 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 text-white flex justify-between items-start">
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
@@ -52,11 +53,12 @@ export const CareerBriefingTomorrowModal: React.FC<CareerBriefingTomorrowModalPr
               Anticipez vos échéances pour aborder vos rendez-vous en totale maîtrise
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
+            aria-label="Fermer"
+            className="text-slate-400 hover:text-white p-3 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 
@@ -118,7 +120,7 @@ export const CareerBriefingTomorrowModal: React.FC<CareerBriefingTomorrowModalPr
               </div>
 
               {/* FLASH PREP CARDS TRIGGER */}
-              <div className="p-5 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-3xl space-y-3">
+              <div className="p-5 bg-indigo-50 border border-indigo-200 rounded-3xl space-y-3">
                 <div className="flex justify-between items-center">
                   <div className="space-y-0.5">
                     <h5 className="font-bold text-sm text-indigo-950">Fiches Flash J-0 Prêtes pour Demain</h5>

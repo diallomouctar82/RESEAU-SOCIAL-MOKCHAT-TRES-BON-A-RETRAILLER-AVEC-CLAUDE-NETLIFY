@@ -69,7 +69,7 @@ export const CareerEmergencyModal: React.FC<CareerEmergencyModalProps> = ({
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-rose-200 overflow-hidden my-8">
         
         {/* Urgent Header */}
-        <div className="bg-gradient-to-r from-rose-900 via-red-900 to-slate-900 text-white p-6 md:p-8 relative">
+        <div className="bg-rose-900 text-white p-6 md:p-8 relative">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-rose-500/20 border border-rose-400/40 rounded-2xl text-rose-300 animate-pulse">
@@ -88,7 +88,7 @@ export const CareerEmergencyModal: React.FC<CareerEmergencyModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
+              className="p-3 hover:bg-white/10 rounded-full transition text-slate-300 hover:text-white"
             >
               <X size={20} />
             </button>
@@ -208,7 +208,7 @@ export const CareerEmergencyModal: React.FC<CareerEmergencyModalProps> = ({
 
             <button
               onClick={() => {
-                onOpenMasterResume();
+                onOpenMasterResume?.();
                 onClose();
               }}
               className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs md:text-sm font-bold flex items-center gap-1.5 transition"

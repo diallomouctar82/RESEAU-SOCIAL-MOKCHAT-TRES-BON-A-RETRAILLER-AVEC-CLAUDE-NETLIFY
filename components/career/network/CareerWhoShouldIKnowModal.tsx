@@ -36,7 +36,7 @@ export const CareerWhoShouldIKnowModal: React.FC<CareerWhoShouldIKnowModalProps>
       <div className="bg-slate-900 border border-slate-700/80 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-white">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <Users size={24} />
@@ -53,7 +53,7 @@ export const CareerWhoShouldIKnowModal: React.FC<CareerWhoShouldIKnowModalProps>
           
           <button 
             onClick={onClose}
-            className="p-2.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-3 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
             <X size={20} />
           </button>
@@ -153,7 +153,7 @@ export const CareerWhoShouldIKnowModal: React.FC<CareerWhoShouldIKnowModalProps>
                 onConnectToCategory(selectedCategory.category);
                 onClose();
               }}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-xs hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
             >
               <UserPlus size={16} /> Explorer et activer les mises en relation pour cette catégorie
             </button>

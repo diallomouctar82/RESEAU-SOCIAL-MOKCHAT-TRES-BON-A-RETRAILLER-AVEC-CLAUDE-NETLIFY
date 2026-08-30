@@ -25,7 +25,8 @@ import {
   Award,
   Zap,
   HelpCircle,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 import { CareerMissionPlan, CareerGPSMilestone } from '../../types';
 
@@ -104,10 +105,8 @@ export const CareerGPSNavigator: React.FC<CareerGPSNavigatorProps> = ({
   return (
     <div className="space-y-6 animate-fade-up">
       {/* 🧭 GPS TOP COCKPIT BAR */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-2xl border border-slate-800">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-blue-600/30 via-indigo-600/20 to-transparent rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-800">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
               <Navigation size={14} className="animate-spin-slow" /> GPS de Carrière & Trajectoire Active
@@ -140,7 +139,7 @@ export const CareerGPSNavigator: React.FC<CareerGPSNavigatorProps> = ({
               </div>
               <div className="w-full sm:w-48 bg-slate-700 h-2.5 rounded-full overflow-hidden">
                 <div 
-                  className="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" 
+                  className="bg-blue-600 h-full rounded-full transition-all duration-500" 
                   style={{ width: `${missionPlan.progressPercent}%` }}
                 />
               </div>
@@ -159,7 +158,7 @@ export const CareerGPSNavigator: React.FC<CareerGPSNavigatorProps> = ({
               </button>
               <button
                 onClick={onOpenCoach3D}
-                className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
               >
                 <Video size={14} /> Coach 3D Vocal
               </button>
@@ -371,11 +370,12 @@ export const CareerGPSNavigator: React.FC<CareerGPSNavigatorProps> = ({
                   <p className="text-xs text-slate-500">Recalcul intelligent en cas de blocage ou refus</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowPlanBModal(null)}
-                className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-100 text-xl font-bold"
+                className="text-slate-400 hover:text-slate-700 p-3 rounded-full hover:bg-slate-100 transition-colors"
+                aria-label="Fermer"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 

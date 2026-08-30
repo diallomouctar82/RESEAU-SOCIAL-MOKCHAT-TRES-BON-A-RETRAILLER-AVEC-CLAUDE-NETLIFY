@@ -40,7 +40,7 @@ import {
   PersonalDecisionMatrix,
   CareerAIBilan,
   CareerEvolutionTimelineStep
-} from '../../types';
+} from '../../../types';
 
 import { CareerStrategicCompassModal } from './CareerStrategicCompassModal';
 import { CareerTrajectorySimulatorModal } from './CareerTrajectorySimulatorModal';
@@ -139,10 +139,8 @@ export const CareerStrategicAdvisorHub: React.FC<CareerStrategicAdvisorHubProps>
     <div className="space-y-6">
       
       {/* 1. HERO STRATÉGIQUE : Boussole Active & Cap Point A ➔ Point B */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 border border-indigo-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+      <div className="bg-slate-900 border border-indigo-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3 max-w-3xl">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 font-black text-xs uppercase tracking-wider rounded-xl border border-indigo-500/30 flex items-center gap-1.5">
@@ -410,7 +408,7 @@ export const CareerStrategicAdvisorHub: React.FC<CareerStrategicAdvisorHubProps>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
         {/* Banner Bilan IA */}
-        <div className="bg-gradient-to-r from-slate-800/90 to-indigo-950/70 border border-indigo-500/30 rounded-3xl p-6 flex flex-col justify-between space-y-4">
+        <div className="bg-slate-800/90 border border-indigo-500/30 rounded-3xl p-6 flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -442,7 +440,7 @@ export const CareerStrategicAdvisorHub: React.FC<CareerStrategicAdvisorHubProps>
         </div>
 
         {/* Banner Frise Mon Évolution */}
-        <div className="bg-gradient-to-r from-slate-800/90 to-emerald-950/70 border border-emerald-500/30 rounded-3xl p-6 flex flex-col justify-between space-y-4">
+        <div className="bg-slate-800/90 border border-emerald-500/30 rounded-3xl p-6 flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">

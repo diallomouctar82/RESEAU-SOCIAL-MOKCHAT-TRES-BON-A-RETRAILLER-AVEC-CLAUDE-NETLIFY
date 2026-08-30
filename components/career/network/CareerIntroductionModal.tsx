@@ -68,7 +68,7 @@ export const CareerIntroductionModal: React.FC<CareerIntroductionModalProps> = (
       <div className="bg-slate-900 border border-slate-700/80 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-white">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
               <Users size={24} />
@@ -85,7 +85,7 @@ export const CareerIntroductionModal: React.FC<CareerIntroductionModalProps> = (
           
           <button 
             onClick={onClose}
-            className="p-2.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-3 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
             <X size={20} />
           </button>
@@ -187,7 +187,7 @@ export const CareerIntroductionModal: React.FC<CareerIntroductionModalProps> = (
           <button
             onClick={handleSend}
             disabled={isSent || !introMessage.trim()}
-            className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl font-bold text-xs hover:from-indigo-500 hover:to-blue-500 shadow-lg shadow-indigo-600/30 flex items-center gap-2 disabled:opacity-50 transition-all"
+            className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 shadow-lg shadow-blue-600/30 flex items-center gap-2 disabled:opacity-50 transition-all"
           >
             {isSent ? <CheckCircle size={15} className="text-emerald-300" /> : <Send size={15} />}
             <span>{isSent ? 'Introduction Enregistrée !' : 'Valider & Lancer l\'Introduction'}</span>

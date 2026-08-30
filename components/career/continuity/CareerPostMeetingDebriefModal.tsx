@@ -12,7 +12,8 @@ import {
   ThumbsDown,
   ArrowRight,
   Send,
-  MessageSquare
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { CareerLiveDossier, CareerPostMeetingDebrief, CareerTimelineEvent } from '../../../types';
 
@@ -114,7 +115,7 @@ export const CareerPostMeetingDebriefModal: React.FC<CareerPostMeetingDebriefMod
       <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[90vh] flex flex-col">
         
         {/* HEADER */}
-        <div className="p-6 bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white flex justify-between items-start">
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
           <div className="space-y-1">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
               Débriefing Instantané & Clôture d'Échange
@@ -124,11 +125,12 @@ export const CareerPostMeetingDebriefModal: React.FC<CareerPostMeetingDebriefMod
               Dossier : <strong className="text-white">{dossier.title}</strong> chez <strong className="text-white">{dossier.entityName}</strong>
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
+            aria-label="Fermer"
+            className="text-slate-400 hover:text-white p-3 rounded-xl hover:bg-white/10 transition-all text-sm font-bold"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 
@@ -203,12 +205,13 @@ export const CareerPostMeetingDebriefModal: React.FC<CareerPostMeetingDebriefMod
                     <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
                     {dec}
                   </span>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => handleRemoveDecision(idx)}
-                    className="text-slate-400 hover:text-red-600 p-1 text-xs"
+                    aria-label="Retirer cette décision"
+                    className="text-slate-400 hover:text-red-600 p-2 -m-1 text-xs rounded-lg hover:bg-red-50 transition-colors"
                   >
-                    ✕
+                    <X size={14} />
                   </button>
                 </div>
               ))}
