@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { PlatformDetailedModuleSettings } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
+import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 
 interface AdminPlatformSettingsTabProps {
   detailedSettings: PlatformDetailedModuleSettings;
@@ -40,12 +41,22 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
     onReload();
   };
 
+  // Remarque : getDetailedSettings() renvoie l'état actuellement persisté,
+  // pas les valeurs d'usine — ce bouton annule donc les modifications locales
+  // non enregistrées en rechargeant le dernier état sauvegardé (un vrai
+  // "retour aux valeurs d'usine" nécessiterait une méthode dédiée côté
+  // service, hors périmètre de cet écran).
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
   const handleResetDefaults = () => {
-    if (window.confirm('Rétablir tous les paramètres par défaut de la plateforme ?')) {
-      const defaults = adminConfigService.getDetailedSettings();
-      setFormData(defaults);
-      onReload();
-    }
+    setConfirmResetOpen(true);
+  };
+
+  const confirmResetAction = () => {
+    const lastSaved = adminConfigService.getDetailedSettings();
+    setFormData(lastSaved);
+    setConfirmResetOpen(false);
+    onReload();
   };
 
   return (
@@ -77,15 +88,16 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
 
           <button
             onClick={handleResetDefaults}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            title="Annule les modifications non enregistrées de ce formulaire et recharge les derniers paramètres sauvegardés"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
           >
             <RotateCcw size={14} />
-            Rétablir
+            Annuler les modifications
           </button>
 
           <button
             onClick={handleSave}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5"
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
           >
             <Save size={15} />
             Enregistrer les Paramètres
@@ -118,7 +130,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   live: { ...formData.live, maxBitrateKbps: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -130,7 +142,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   live: { ...formData.live, aiModerationSensitivity: e.target.value as any }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="strict">Strict (Filtrage agressif anti-abus)</option>
                 <option value="medium">Moyen (Équilibré)</option>
@@ -147,7 +159,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   live: { ...formData.live, maxConcurrentLives: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -204,7 +216,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   commerce: { ...formData.commerce, commissionRatePercent: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -217,7 +229,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   commerce: { ...formData.commerce, escrowHoldingPeriodDays: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -230,7 +242,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   commerce: { ...formData.commerce, minRfqAmount: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -286,7 +298,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   mokTrust: { ...formData.mokTrust, minTrustScoreToPublish: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -299,7 +311,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   mokTrust: { ...formData.mokTrust, disputeResolutionTimeoutHours: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -313,7 +325,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   mokTrust: { ...formData.mokTrust, escrowFeePercent: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -369,7 +381,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   studio: { ...formData.studio, maxDailyGenerationsPerUser: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -381,7 +393,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   studio: { ...formData.studio, defaultVisionModel: e.target.value }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash (Ultra-rapide)</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro (Haute définition)</option>
@@ -441,7 +453,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   campus: { ...formData.campus, examPassingScore: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -455,7 +467,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   campus: { ...formData.campus, xpMultiplier: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -510,7 +522,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   aiCore: { ...formData.aiCore, geminiModel: e.target.value }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommandé - Équilibré)</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro (Raisonnement Complexe & Juridique)</option>
@@ -527,7 +539,7 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
                   ...formData,
                   aiCore: { ...formData.aiCore, thinkingBudgetTokens: Number(e.target.value) }
                 })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -562,6 +574,17 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
         </div>
 
       </div>
+
+      <SmartConfirmModal
+        isOpen={confirmResetOpen}
+        onClose={() => setConfirmResetOpen(false)}
+        onConfirm={confirmResetAction}
+        title="Annuler les modifications non enregistrées ?"
+        description="Les champs de ce formulaire seront rechargés avec les derniers paramètres sauvegardés de la plateforme. Toute modification faite ici depuis le dernier enregistrement sera perdue."
+        actionType="generic"
+        riskLevel="moderate"
+        confirmLabel="Recharger les derniers paramètres"
+      />
     </div>
   );
 };

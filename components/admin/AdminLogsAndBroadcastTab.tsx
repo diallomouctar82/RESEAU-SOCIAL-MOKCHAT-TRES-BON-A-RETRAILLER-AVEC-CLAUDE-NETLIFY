@@ -112,10 +112,10 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 gap-1">
           <button
             onClick={() => setSubTab('logs')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'logs' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -124,7 +124,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
           </button>
           <button
             onClick={() => setSubTab('broadcast')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               subTab === 'broadcast' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -154,7 +154,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
               <select
                 value={logLevel}
                 onChange={(e) => setLogLevel(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">Tous les Niveaux</option>
                 <option value="info">Info</option>
@@ -166,7 +166,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
               <select
                 value={logCategory}
                 onChange={(e) => setLogCategory(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">Toutes Catégories</option>
                 <option value="auth">Authentification</option>
@@ -179,7 +179,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
 
               <button
                 onClick={handleExportCSV}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5"
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Download size={14} />
                 Export CSV
@@ -286,7 +286,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
                   <select
                     value={broadcastPriority}
                     onChange={(e) => setBroadcastPriority(e.target.value as any)}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="info">Information</option>
                     <option value="warning">Avertissement</option>
@@ -300,7 +300,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
                   <select
                     value={broadcastAudience}
                     onChange={(e) => setBroadcastAudience(e.target.value as any)}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">Tous les Usagers</option>
                     <option value="citizens">Citoyens</option>
@@ -319,7 +319,7 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               >
                 <Send size={15} />
                 Diffuser l'Annonce en Direct
@@ -348,8 +348,9 @@ export const AdminLogsAndBroadcastTab: React.FC<AdminLogsAndBroadcastTabProps> =
 
                     <button
                       onClick={() => handleDeleteNotif(notif.id)}
-                      className="text-slate-400 hover:text-red-600 p-1 transition"
+                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 -m-1 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       title="Supprimer la notification"
+                      aria-label="Supprimer la notification"
                     >
                       <Trash2 size={15} />
                     </button>

@@ -84,7 +84,7 @@ const ProviderDiscoveryPanel: React.FC<{ onDiscovered: () => void }> = ({ onDisc
                 <button
                     onClick={handleAnalyze}
                     disabled={analyzing || !url.trim()}
-                    className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 flex items-center gap-2 shrink-0"
+                    className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 flex items-center gap-2 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                 >
                     {analyzing ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
                     {analyzing ? 'Analyse en cours…' : 'Analyser'}
@@ -145,7 +145,7 @@ const MissingInfoForm: React.FC<{ provider: AiProviderRow; onSaved: () => void }
             <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-3 py-1.5 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40"
+                className="px-3 py-1.5 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1"
             >
                 {saving ? 'Enregistrement…' : 'Enregistrer et activer'}
             </button>
@@ -299,11 +299,11 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                 </div>
                 {!notConfigured && (
                     <div className="flex items-center gap-1 text-slate-400">
-                        <button onClick={() => handlePriority(-10)} disabled={saving} title="Prioriser (essayé plus tôt)" className="p-1 hover:text-slate-700 disabled:opacity-40">
+                        <button onClick={() => handlePriority(-10)} disabled={saving} title="Prioriser (essayé plus tôt)" aria-label="Prioriser (essayé plus tôt)" className="p-1.5 hover:text-slate-700 disabled:opacity-40 rounded-lg hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                             <ChevronUp size={16} />
                         </button>
                         <span className="text-xs font-mono w-6 text-center">{provider.priority}</span>
-                        <button onClick={() => handlePriority(10)} disabled={saving} title="Déprioriser (essayé plus tard)" className="p-1 hover:text-slate-700 disabled:opacity-40">
+                        <button onClick={() => handlePriority(10)} disabled={saving} title="Déprioriser (essayé plus tard)" aria-label="Déprioriser (essayé plus tard)" className="p-1.5 hover:text-slate-700 disabled:opacity-40 rounded-lg hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                             <ChevronDown size={16} />
                         </button>
                     </div>
@@ -338,7 +338,7 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                         <button
                             onClick={handleSaveKey}
                             disabled={saving || !keyInput.trim()}
-                            className="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-900 disabled:opacity-40"
+                            className="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-900 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                         >
                             {provider.keyHint ? 'Faire tourner' : 'Enregistrer'}
                         </button>
@@ -358,7 +358,7 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                         <button
                             onClick={handleTest}
                             disabled={testing || !provider.keyHint}
-                            className="text-xs font-bold text-blue-600 hover:underline disabled:opacity-40 flex items-center gap-1"
+                            className="text-xs font-bold text-blue-600 hover:underline disabled:opacity-40 flex items-center gap-1 px-1.5 py-1 -mx-1.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         >
                             {testing ? <Loader2 className="animate-spin" size={14} /> : null}
                             Tester la connexion
@@ -392,7 +392,7 @@ const ProviderCard: React.FC<{ provider: AiProviderRow; onChanged: () => void }>
                                 <button
                                     onClick={handleSaveWorkspace}
                                     disabled={saving}
-                                    className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-500 disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1"
                                 >
                                     Enregistrer
                                 </button>

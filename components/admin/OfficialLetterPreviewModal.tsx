@@ -62,14 +62,15 @@ export const OfficialLetterPreviewModal: React.FC<OfficialLetterPreviewModalProp
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
             >
               <Printer size={15} />
               Imprimer / Exporter PDF
             </button>
-            <button 
+            <button
               onClick={onClose}
-              className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+              className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label="Fermer l'aperçu"
             >
               <X size={20} />
             </button>
@@ -111,7 +112,7 @@ export const OfficialLetterPreviewModal: React.FC<OfficialLetterPreviewModalProp
                 <select
                   value={selectedSignerId}
                   onChange={(e) => setSelectedSignerId(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {signatures.map(sig => (
                     <option key={sig.id} value={sig.id}>{sig.signerName} ({sig.signerTitle})</option>
@@ -124,7 +125,7 @@ export const OfficialLetterPreviewModal: React.FC<OfficialLetterPreviewModalProp
                 <select
                   value={selectedStampId}
                   onChange={(e) => setSelectedStampId(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {stamps.map(stamp => (
                     <option key={stamp.id} value={stamp.id}>{stamp.title}</option>

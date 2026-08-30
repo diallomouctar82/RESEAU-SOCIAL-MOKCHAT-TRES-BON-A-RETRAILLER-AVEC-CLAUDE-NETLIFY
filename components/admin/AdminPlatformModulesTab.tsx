@@ -51,14 +51,14 @@ export const AdminPlatformModulesTab: React.FC<AdminPlatformModulesTabProps> = (
         </div>
 
         {/* Category Pills */}
-        <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+        <div className="flex flex-wrap gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setFilterModuleCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                filterModuleCategory === cat 
-                  ? 'bg-blue-600 text-white shadow-sm' 
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+                filterModuleCategory === cat
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
               }`}
             >
@@ -104,9 +104,9 @@ export const AdminPlatformModulesTab: React.FC<AdminPlatformModulesTabProps> = (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleToggleModuleEnabled(mod)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                    mod.isEnabled 
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' 
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+                    mod.isEnabled
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                       : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                   }`}
                 >
@@ -116,9 +116,9 @@ export const AdminPlatformModulesTab: React.FC<AdminPlatformModulesTabProps> = (
 
                 <button
                   onClick={() => handleToggleModuleMaintenance(mod)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    mod.inMaintenance 
-                      ? 'bg-amber-500 text-slate-950 font-black' 
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+                    mod.inMaintenance
+                      ? 'bg-amber-500 text-slate-950 font-black'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >

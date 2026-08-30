@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { ContentModerationItem, UserReportItem, MokTrustAuditItem } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
+import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 
 interface AdminModerationTabProps {
   moderationItems: ContentModerationItem[];
@@ -52,7 +53,11 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
   const [reportActionType, setReportActionType] = useState<'warn_user' | 'delete_content' | 'suspend_user'>('warn_user');
 
   const [selectedAudit, setSelectedAudit] = useState<MokTrustAuditItem | null>(null);
+  const [auditActionMode, setAuditActionMode] = useState<'approve' | 'reject' | null>(null);
   const [auditNotes, setAuditNotes] = useState('');
+
+  // Confirmation de suppression de contenu (remplace window.confirm)
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<{ id: string; title: string } | null>(null);
 
   // Filtered Content
   const filteredContents = moderationItems.filter(item => {
@@ -79,10 +84,14 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
   };
 
   const handleDeleteContent = (id: string, title: string) => {
-    if (window.confirm(`Supprimer définitivement le contenu "${title}" ?`)) {
-      adminConfigService.deleteModerationItem(id);
-      onReload();
-    }
+    setConfirmDeleteItem({ id, title });
+  };
+
+  const confirmDeleteContent = () => {
+    if (!confirmDeleteItem) return;
+    adminConfigService.deleteModerationItem(confirmDeleteItem.id);
+    setConfirmDeleteItem(null);
+    onReload();
   };
 
   const handleApplyReportAction = () => {
@@ -98,21 +107,29 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
     onReload();
   };
 
-  const handleApproveAudit = (id: string) => {
-    adminConfigService.approveMokTrustBadge(id, auditNotes);
-    setSelectedAudit(null);
+  const openAuditAction = (audit: MokTrustAuditItem, mode: 'approve' | 'reject') => {
+    setSelectedAudit(audit);
+    setAuditActionMode(mode);
     setAuditNotes('');
+  };
+
+  const closeAuditAction = () => {
+    setSelectedAudit(null);
+    setAuditActionMode(null);
+    setAuditNotes('');
+  };
+
+  const handleApproveAudit = () => {
+    if (!selectedAudit) return;
+    adminConfigService.approveMokTrustBadge(selectedAudit.id, auditNotes.trim() || 'Audit KYC validé par le Super-Admin.');
+    closeAuditAction();
     onReload();
   };
 
-  const handleRejectAudit = (id: string) => {
-    if (!auditNotes) {
-      alert('Veuillez spécifier un motif de rejet.');
-      return;
-    }
-    adminConfigService.rejectMokTrustBadge(id, auditNotes);
-    setSelectedAudit(null);
-    setAuditNotes('');
+  const handleRejectAudit = () => {
+    if (!selectedAudit || !auditNotes.trim()) return;
+    adminConfigService.rejectMokTrustBadge(selectedAudit.id, auditNotes.trim());
+    closeAuditAction();
     onReload();
   };
 
@@ -134,7 +151,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
         <div className="flex flex-wrap gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
           <button
             onClick={() => setActiveSection('contents')}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               activeSection === 'contents'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -151,7 +168,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
 
           <button
             onClick={() => setActiveSection('reports')}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               activeSection === 'reports'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -168,7 +185,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
 
           <button
             onClick={() => setActiveSection('moktrust')}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
               activeSection === 'moktrust'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -201,12 +218,12 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(['all', 'flagged', 'pending', 'approved', 'hidden'] as const).map(st => (
                 <button
                   key={st}
                   onClick={() => setContentFilter(st)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold capitalize transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
                     contentFilter === st
                       ? 'bg-slate-900 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -293,7 +310,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                     {item.status !== 'approved' && (
                       <button
                         onClick={() => handleApproveContent(item.id)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
                       >
                         <CheckCircle2 size={13} />
                         Approuver
@@ -303,7 +320,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                     {item.status !== 'hidden' ? (
                       <button
                         onClick={() => handleHideContent(item.id)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                       >
                         <EyeOff size={13} />
                         Masquer
@@ -311,7 +328,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                     ) : (
                       <button
                         onClick={() => handleApproveContent(item.id)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                       >
                         <Eye size={13} />
                         Démasquer
@@ -320,7 +337,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
 
                     <button
                       onClick={() => handleDeleteContent(item.id, item.title)}
-                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1"
                     >
                       <Trash2 size={13} />
                       Supprimer
@@ -392,14 +409,14 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                   <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                     <button
                       onClick={() => handleDismissReport(rep.id)}
-                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                     >
                       Classer sans suite
                     </button>
 
                     <button
                       onClick={() => setSelectedReport(rep)}
-                      className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1"
                     >
                       <UserX size={14} />
                       Appliquer une Sanction / Mesure
@@ -461,8 +478,8 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                 <div className="flex gap-2 pt-2 border-t border-slate-100">
                   {audit.status !== 'approved' && (
                     <button
-                      onClick={() => handleApproveAudit(audit.id)}
-                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                      onClick={() => openAuditAction(audit, 'approve')}
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
                     >
                       <ShieldCheck size={15} />
                       Certifier MokTrust
@@ -471,14 +488,8 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
 
                   {audit.status !== 'rejected' && (
                     <button
-                      onClick={() => {
-                        const reason = prompt('Motif du rejet ou suspension MokTrust :');
-                        if (reason) {
-                          adminConfigService.rejectMokTrustBadge(audit.id, reason);
-                          onReload();
-                        }
-                      }}
-                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition"
+                      onClick={() => openAuditAction(audit, 'reject')}
+                      className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1"
                     >
                       Rejeter / Suspendre
                     </button>
@@ -502,7 +513,11 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Appliquez une mesure de rétorsion ou de modération.</p>
               </div>
-              <button onClick={() => setSelectedReport(null)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setSelectedReport(null)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -513,7 +528,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                 <select
                   value={reportActionType}
                   onChange={(e) => setReportActionType(e.target.value as any)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 outline-none"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="warn_user">Avertissement officiel à l'utilisateur</option>
                   <option value="delete_content">Suppression immédiate du contenu incriminé</option>
@@ -528,7 +543,7 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
                   value={reportActionNotes}
                   onChange={(e) => setReportActionNotes(e.target.value)}
                   placeholder="ex: Violation répétée des règles d’export et du séquestre MokTrust. Compte suspendu 30 jours."
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -536,13 +551,13 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setSelectedReport(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Annuler
               </button>
               <button
                 onClick={handleApplyReportAction}
-                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1"
               >
                 <Check size={14} />
                 Exécuter la Mesure
@@ -551,6 +566,89 @@ export const AdminModerationTab: React.FC<AdminModerationTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal: Certification / Rejet MokTrust (remplace window.prompt) */}
+      {selectedAudit && auditActionMode && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  {auditActionMode === 'approve' ? (
+                    <ShieldCheck className="text-emerald-600" size={20} />
+                  ) : (
+                    <ShieldAlert className="text-rose-600" size={20} />
+                  )}
+                  {auditActionMode === 'approve' ? 'Certification MokTrust' : 'Rejet / Suspension MokTrust'} : {selectedAudit.companyName}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {auditActionMode === 'approve'
+                    ? `Badge sollicité : ${selectedAudit.requestedBadge} — Score de confiance : ${selectedAudit.trustScore}/100.`
+                    : 'Précisez le motif du rejet ou de la suspension — il sera consigné dans l’audit.'}
+                </p>
+              </div>
+              <button
+                onClick={closeAuditAction}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <label className="block font-bold text-slate-700">
+                {auditActionMode === 'approve' ? "Notes d'audit (optionnel)" : 'Motif du rejet ou de la suspension *'}
+              </label>
+              <textarea
+                rows={3}
+                value={auditNotes}
+                onChange={(e) => setAuditNotes(e.target.value)}
+                placeholder={auditActionMode === 'approve'
+                  ? 'ex: Documents KYC conformes, score de confiance validé.'
+                  : 'ex: Documents KYC insuffisants ou expirés.'}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-500"
+              />
+              {auditActionMode === 'reject' && !auditNotes.trim() && (
+                <p className="text-[11px] text-rose-600">Un motif est requis pour rejeter ou suspendre ce badge.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                onClick={closeAuditAction}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={auditActionMode === 'approve' ? handleApproveAudit : handleRejectAudit}
+                disabled={auditActionMode === 'reject' && !auditNotes.trim()}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 text-white transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+                  auditActionMode === 'approve'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500'
+                    : 'bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500'
+                }`}
+              >
+                <Check size={14} />
+                {auditActionMode === 'approve' ? 'Confirmer la Certification' : 'Confirmer le Rejet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation de suppression de contenu */}
+      <SmartConfirmModal
+        isOpen={!!confirmDeleteItem}
+        onClose={() => setConfirmDeleteItem(null)}
+        onConfirm={confirmDeleteContent}
+        title={`Supprimer « ${confirmDeleteItem?.title || ''} » ?`}
+        description="Cette action supprime définitivement le contenu de la plateforme. Elle ne peut pas être annulée."
+        actionType="delete"
+        riskLevel="high"
+        confirmLabel="Supprimer définitivement"
+      />
     </div>
   );
 };
