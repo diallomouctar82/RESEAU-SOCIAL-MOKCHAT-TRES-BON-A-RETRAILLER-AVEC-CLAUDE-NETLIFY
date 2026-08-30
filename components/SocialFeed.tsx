@@ -26,6 +26,7 @@ import { supabaseService, SupabaseUserProfile } from '../services/supabaseClient
 import { useGlobal } from '../contexts/GlobalContext';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { interpretContentVoiceCommand, ContentVoiceAction } from '../services/content/contentVoiceCommands';
+import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { interpretSocialVoiceCommand, SocialVoiceAction } from '../services/social/socialVoiceCommands';
 
 interface SocialFeedProps {
@@ -760,8 +761,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // personne d'autre que son auteur (voir la policy RLS posts_select_visible,
   // corrigée dans cette même LOOP pour ne plus dépendre uniquement de
   // `visibility`).
-  const handlePublishPost = async (asDraft: boolean = false) => {
-    if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return;
+  // Renvoie le résultat RÉEL de la publication (LOOP Architecte — pont
+  // d'exécution) : le bus de capacités doit pouvoir rapporter `done` ou
+  // `failed` selon ce qui s'est vraiment passé, jamais un succès supposé.
+  // Les appelants existants (boutons du composeur, dispatcher vocal)
+  // ignorent simplement la valeur — comportement inchangé pour eux.
+  const handlePublishPost = async (asDraft: boolean = false): Promise<boolean> => {
+    if (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument) return false;
 
     setIsPublishing(true);
 
@@ -800,7 +806,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         console.warn('Could not upload post media to Supabase Storage', err);
         alert("L'envoi du média a échoué (connexion instable ?). La publication n'a pas été enregistrée — réessayez.");
         setIsPublishing(false);
-        return;
+        return false;
       }
     } else if (newPostImageFile || newPostVideoFile || newPostDocumentFile) {
       // Pas de session Supabase active (mode démo/hors ligne) : repli sur le
@@ -821,7 +827,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         console.warn('Could not read local media file', err);
         alert("La lecture du fichier a échoué. Réessayez.");
         setIsPublishing(false);
-        return;
+        return false;
       }
     }
 
@@ -887,7 +893,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         console.warn('Could not save post to Supabase', err);
         alert("La publication a échoué (le serveur a refusé l'enregistrement). Réessayez.");
         setIsPublishing(false);
-        return;
+        return false;
       }
     }
 
@@ -911,6 +917,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setNewPostTags([]);
     setIsComposerFocused(false);
     setIsPublishing(false);
+    return true;
   };
 
   // Create Story Submit — branchement réel sur la table `stories` (LOOP
@@ -1035,8 +1042,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // vérifier → exécuter de façon déterministe. La voix appelle exactement
   // les mêmes setters que les boutons du composeur — aucune logique
   // dupliquée.
-  const dispatchContentVoiceAction = (action: ContentVoiceAction) => {
+  // Renvoie le résultat RÉEL de l'action (LOOP Architecte — pont d'exécution) :
+  // le bus de capacités doit rapporter `done`/`failed` selon ce qui s'est
+  // vraiment passé. Les cas qui ne font que modifier le composeur réussissent
+  // réellement de façon synchrone ; PUBLISH/SAVE_DRAFT attendent le vrai
+  // résultat de handlePublishPost, jamais un succès supposé.
+  const dispatchContentVoiceAction = async (action: ContentVoiceAction): Promise<{ ok: boolean; message: string }> => {
+    let lastSaid = '';
     const say = (text: string) => {
+      lastSaid = text;
       setVoiceContentFeedback(text);
       voiceAssistant.speak(text);
     };
@@ -1065,14 +1079,20 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         if (action.payload?.tags?.length) setNewPostTags(prev => Array.from(new Set([...prev, ...action.payload!.tags!])));
         say(action.spokenConfirmation);
         break;
-      case 'SAVE_DRAFT':
+      case 'SAVE_DRAFT': {
         say(action.spokenConfirmation);
-        handlePublishPost(true);
-        break;
-      case 'PUBLISH':
+        const okDraft = await handlePublishPost(true);
+        return okDraft
+          ? { ok: true, message: 'Brouillon enregistré.' }
+          : { ok: false, message: "Le brouillon n'a pas pu être enregistré." };
+      }
+      case 'PUBLISH': {
         say(action.spokenConfirmation);
-        handlePublishPost(false);
-        break;
+        const okPub = await handlePublishPost(false);
+        return okPub
+          ? { ok: true, message: 'Publication enregistrée.' }
+          : { ok: false, message: "La publication n'a pas abouti." };
+      }
       case 'DISCARD_DRAFT':
         // Action à impact plus élevé (moderate) — confirmation explicite,
         // même règle que handleDeletePost.
@@ -1096,8 +1116,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       case 'UNKNOWN':
       default:
         say(action.spokenConfirmation);
-        break;
+        // Découverte/clarification/incompris : rien n'a été modifié — ce
+        // n'est pas un succès d'action, et le dire évite un faux « fait ».
+        return { ok: false, message: lastSaid || "Je n'ai pas pu agir sur cette demande." };
     }
+    return { ok: true, message: lastSaid || 'Fait.' };
   };
 
   const handleContentVoiceTranscript = async (transcript: string) => {
@@ -1122,8 +1145,16 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     return { member: candidates.length === 1 ? candidates[0] : null, candidates };
   };
 
-  const dispatchSocialVoiceAction = (action: SocialVoiceAction) => {
+  // Renvoie le résultat RÉEL (LOOP Architecte — pont d'exécution) : `acted`
+  // ne devient vrai que si une action a effectivement été déclenchée sur une
+  // personne résolue SANS ambiguïté. Un nom introuvable ou ambigu n'est
+  // jamais rapporté comme un succès — c'est précisément le cas où agir au
+  // hasard serait le plus dommageable.
+  const dispatchSocialVoiceAction = (action: SocialVoiceAction): { ok: boolean; message: string } => {
+    let lastSaid = '';
+    let acted = false;
     const say = (text: string) => {
+      lastSaid = text;
       setVoiceSocialFeedback(text);
       voiceAssistant.speak(text);
     };
@@ -1132,7 +1163,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       const name = action.payload?.memberName;
       if (!name) { say('Pour qui ? Dites le nom de la personne.'); return; }
       const { member, candidates } = resolveMemberByName(name);
-      if (member) { fn(member); return; }
+      if (member) { acted = true; fn(member); return; }
       if (candidates.length > 1) {
         say(`Plusieurs personnes correspondent à "${name}" : ${candidates.slice(0, 3).map(c => c.name).join(', ')}. Pouvez-vous préciser ?`);
         return;
@@ -1178,6 +1209,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         if (action.payload?.query) {
           setMemberSearchQuery(action.payload.query);
           runMemberSearch(action.payload.query);
+          acted = true;
         }
         say(action.spokenConfirmation);
         break;
@@ -1188,7 +1220,55 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         say(action.spokenConfirmation);
         break;
     }
+    // `acted` reste faux si la personne visée était introuvable ou ambiguë :
+    // le message dit alors pourquoi, et le bus rapportera `failed`, jamais
+    // un succès qui n'a pas eu lieu.
+    return { ok: acted, message: lastSaid || "Je n'ai pas pu agir sur cette demande." };
   };
+
+  // --- Pont d'exécution de l'Architecte (LOOP Architecte) ---
+  // Cet écran DÉCLARE les capacités qu'il sait exécuter, plutôt que de laisser
+  // l'Architecte fouiller dans son état interne. Tant qu'il est monté, ces
+  // actions sont pilotables depuis n'importe où (barre Architecte, voix) ;
+  // dès qu'il est démonté, le bus les rapporte honnêtement `unavailable`
+  // au lieu de faire croire à une exécution.
+  //
+  // Chaque handler réutilise le dispatcher DÉJÀ testé de son domaine — aucune
+  // logique dupliquée, et le résultat renvoyé est celui réellement produit
+  // (une personne introuvable ou une publication refusée ne remonte jamais
+  // comme un succès).
+  useEffect(() => {
+    const content = (type: string) => async (payload: any) => {
+      const r = await dispatchContentVoiceAction({ type, payload, spokenConfirmation: '' } as any);
+      return { ok: r.ok, message: r.message };
+    };
+    const social = (type: string) => async (payload: any) => {
+      const r = dispatchSocialVoiceAction({ type, payload, spokenConfirmation: '' } as any);
+      return { ok: r.ok, message: r.message };
+    };
+    return registerCapabilityHandlers({
+      'content.post.compose': content('SET_CONTENT'),
+      'content.post.rewrite_style': content('REWRITE_STYLE'),
+      'content.post.shorten': content('SHORTEN'),
+      'content.post.expand': content('EXPAND'),
+      'content.post.translate': content('TRANSLATE'),
+      'content.post.set_visibility': content('SET_VISIBILITY'),
+      'content.post.set_category': content('SET_CATEGORY'),
+      'content.post.add_tags': content('ADD_TAGS'),
+      'content.post.save_draft': content('SAVE_DRAFT'),
+      'content.post.publish': content('PUBLISH'),
+      'content.post.discard': content('DISCARD_DRAFT'),
+      'social.friend.request': social('SEND_FRIEND_REQUEST'),
+      'social.friend.accept': social('ACCEPT_FRIEND_REQUEST'),
+      'social.friend.decline': social('DECLINE_FRIEND_REQUEST'),
+      'social.friend.remove': social('REMOVE_FRIEND'),
+      'social.follow.start': social('FOLLOW'),
+      'social.follow.stop': social('UNFOLLOW'),
+      'social.block.add': social('BLOCK'),
+      'social.block.remove': social('UNBLOCK'),
+      'social.people.search': social('SEARCH_PEOPLE'),
+    });
+  });
 
   const handleSocialVoiceTranscript = async (transcript: string) => {
     if (!transcript.trim()) return;
