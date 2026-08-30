@@ -1067,11 +1067,14 @@ export const Layout: React.FC<LayoutProps> = ({
              <MoocChatFloating /> (fixed bottom-6 right-6) pour ne pas le
              recouvrir ; la pastille reste déplaçable si l'utilisateur veut
              la mettre ailleurs. */}
+        {/* La saisie clavier vit désormais DANS la barre elle-même (même
+            session, même Architecte) — le bouton Écrire n'ouvre plus DialloOS,
+            qui reste le lanceur de navigation accessible par ses propres
+            entrées (header, commande rapide). */}
         <ArchitecteFloatingBar
           userProfile={userProfile}
           onNavigate={onTabChange}
           onUpdateProfile={onUpdateProfile ?? (async () => false)}
-          onOpenTyped={() => setIsDialloOSOpen(true)}
         />
 
         {/* ─── MODALS & ORCHESTRATION OVERLAYS ─── */}

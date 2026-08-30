@@ -1,9 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, X, UserRound } from 'lucide-react';
+import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
 import { analyzeImage, generateText } from '../../services/aiGateway';
+import {
+    addSessionTurn,
+    getLastSessionDocument,
+    getLastSessionImage,
+    getSessionTurns,
+    subscribeToSession,
+    type ArchitecteTurn,
+} from '../../services/architecte/architecteSession';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
-import { runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
+import { ARCHITECTE_AGENT_ID, isVisionQuestion, isWebSearchCommand, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
+import { extractDocumentText, UnsupportedDocumentError } from '../../services/architecte/documentExtractor';
+import { buildConsentRecap, CONSENT_STEPS, isConsentCommand, type ArchitecteConsent } from '../../services/architecte/consentFlow';
+import {
+    buildDeliverableBlob,
+    deliverableFileName,
+    detectDeliverableFormat,
+    isDeliverableCommand,
+    triggerDownload,
+} from '../../services/architecte/deliverableBuilder';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
 import { registerSettingsCapabilities } from '../../services/architecte/settingsCapabilityHandlers';
 import { registerSearchCapabilities } from '../../services/architecte/searchCapabilityHandlers';
@@ -66,8 +83,6 @@ interface ArchitecteFloatingBarProps {
     onNavigate: (tab: string, context?: any) => void;
     /** Persistance réelle d'un réglage — `false` = rien n'a été enregistré. */
     onUpdateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
-    /** Ouvre le modal de saisie clavier (même cerveau, autre incarnation). */
-    onOpenTyped?: () => void;
 }
 
 const POSITION_STORAGE_KEY = 'lmav_architecte_bar_pos_v1';
@@ -90,12 +105,31 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     userProfile,
     onNavigate,
     onUpdateProfile,
-    onOpenTyped,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
     const [status, setStatus] = useState<string>('');
     const [statusTone, setStatusTone] = useState<string>('text-cyan-300/80');
+    // ── Session unique de l'Architecte ──────────────────────────────────
+    // La barre affiche le fil réel (voix, clavier, photos, documents) tenu
+    // par `architecteSession.ts` — le même que celui injecté au cerveau.
+    // Exigence de la mission de finalisation : « 1 contexte, 1 historique »,
+    // et le clavier ne bascule PLUS vers une seconde expérience (DialloOS) :
+    // la saisie se fait ICI, dans la même barre, la même session.
+    const [sessionTurns, setSessionTurns] = useState<ArchitecteTurn[]>(() => getSessionTurns());
+    useEffect(() => subscribeToSession(() => setSessionTurns(getSessionTurns())), []);
+    const [isTypingOpen, setIsTypingOpen] = useState(false);
+    const [typedText, setTypedText] = useState('');
+    const typedInputRef = useRef<HTMLInputElement | null>(null);
+    useEffect(() => {
+        if (isTypingOpen) typedInputRef.current?.focus();
+    }, [isTypingOpen]);
+    // Le fil suit la conversation : toujours défiler vers le dernier tour.
+    const conversationRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const el = conversationRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    }, [sessionTurns]);
     const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const dragState = useRef<{ startX: number; startY: number; baseX: number; baseY: number; moved: boolean } | null>(null);
     const listenWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -202,8 +236,229 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     });
     useEffect(() => () => teardownRef.current(), []);
 
+    // ─────────────────────────────────────────────────────────────────────
+    // L'ARCHITECTE REGARDE — pièce jointe et caméra.
+    //
+    // Trois boutons alignés à droite de la barre : joindre un fichier, écrire,
+    // ouvrir la caméra. Aucun n'est décoratif : l'image part réellement vers
+    // `analyzeImage` (vision déjà branchée sur l'orchestrateur `ai-gateway`),
+    // et l'Architecte répond à voix haute. Un format que le dépôt ne sait pas
+    // lire le dit franchement plutôt que d'échouer en silence.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Dit et affiche un résultat d'analyse, avec la même discipline que handleCommand — et l'inscrit dans le fil de la session. */
+    const announce = useCallback((message: string, tone: string) => {
+        setStatus(message);
+        setStatusTone(tone);
+        addSessionTurn({ role: 'architecte', kind: 'texte', text: message });
+        void speak(message);
+    }, [speak]);
+
+    const analyseVisual = useCallback(async (base64: string, mimeType: string, contexte: string) => {
+        setIsThinking(true);
+        setStatus('Je regarde...');
+        setStatusTone('text-cyan-300/80');
+        try {
+            const reponse = await analyzeImage(
+                base64,
+                mimeType,
+                `${contexte} Réponds de façon utile et brève (trois phrases maximum), en français.`,
+                {
+                    // Règle absolue de la mission de finalisation : INTERDICTION
+                    // D'INVENTER CE QU'IL VOIT. Constaté en usage réel : une
+                    // « montre » affirmée alors qu'aucune n'était présente.
+                    systemInstruction:
+                        "Tu es L'Architecte de MokNet. Règles de vision absolues : " +
+                        "1) Décris UNIQUEMENT ce qui est réellement et clairement visible dans l'image. " +
+                        "2) N'affirme JAMAIS la présence d'un objet dont tu n'es pas certain — en cas de doute, dis explicitement « je ne suis pas sûr ». " +
+                        "3) Si l'on te demande un élément qui n'apparaît pas dans l'image, réponds qu'il n'y apparaît pas. " +
+                        "4) Image floue, sombre, vide ou illisible : dis-le au lieu d'inventer.",
+                }
+            );
+            announce(reponse?.trim() || "Je n'ai rien pu tirer de cette image.", reponse ? 'text-cyan-300/80' : 'text-amber-300');
+        } catch (e: any) {
+            announce(`L'analyse a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+        } finally {
+            setIsThinking(false);
+        }
+    }, [announce]);
+
+    // ── Fiche de consentement — formulaire rempli RÉELLEMENT, question par
+    // question (§9/§18 de la mission de finalisation). L'état vit dans une
+    // ref : les réponses arrivent par les mêmes canaux (voix, clavier) et
+    // sont routées vers la fiche tant qu'elle est active. AUCUNE écriture
+    // avant la confirmation du récapitulatif.
+    const consentRef = useRef<{ step: number; answers: Partial<Omit<ArchitecteConsent, 'consentAt'>> } | null>(null);
+
+    const handleConsentAnswer = useCallback(async (answer: string) => {
+        addSessionTurn({ role: 'utilisateur', kind: 'texte', text: answer });
+        if (/\b(annule|laisse tomber|stop|abandonne)\b/i.test(answer)) {
+            consentRef.current = null;
+            announce("Fiche annulée — rien n'a été enregistré.", 'text-slate-400');
+            return;
+        }
+        const state = consentRef.current!;
+        const step = CONSENT_STEPS[state.step];
+        const value = step.parse(answer);
+        if (value === undefined) {
+            announce(step.reprompt, 'text-amber-300');
+            return;
+        }
+        (state.answers as any)[step.key] = value;
+
+        if (state.step + 1 < CONSENT_STEPS.length) {
+            state.step += 1;
+            announce(CONSENT_STEPS[state.step].question, 'text-cyan-300/80');
+            return;
+        }
+
+        // Toutes les réponses sont là : récapitulatif, PUIS confirmation,
+        // PUIS l'unique écriture réelle — dans cet ordre, jamais un autre.
+        consentRef.current = null;
+        const answers = state.answers as Omit<ArchitecteConsent, 'consentAt'>;
+        const recap = buildConsentRecap(answers);
+        announce(recap, 'text-cyan-300/80');
+        if (!window.confirm(recap)) {
+            announce('Fiche non enregistrée — dites « configure mes autorisations » pour recommencer.', 'text-slate-400');
+            return;
+        }
+        const ok = await onUpdateProfile({
+            privacySettings: {
+                ...profileRef.current.privacySettings,
+                architecte: { ...answers, consentAt: new Date().toISOString() },
+            },
+        });
+        announce(
+            ok
+                ? `C'est enregistré, ${answers.callName}. Ces choix restent modifiables et révocables à tout moment.`
+                : "L'enregistrement a échoué — rien n'a été conservé. Réessayez dans un instant.",
+            ok ? 'text-emerald-300' : 'text-red-300'
+        );
+    }, [announce, onUpdateProfile]);
+
+    /**
+     * Commande (voix OU clavier — même session, même cerveau).
+     *
+     * Routage vision DÉTERMINISTE avant tout appel au modèle texte :
+     *  - question de vision + image en session → VRAIE analyse de la dernière
+     *    image montrée (suivi de conversation sur la même photo) ;
+     *  - question de vision SANS image → aveu honnête, jamais un modèle texte
+     *    laissé libre d'inventer un contenu visuel (la « montre » constatée
+     *    en usage réel venait exactement de là).
+     */
     const handleCommand = useCallback(async (command: string) => {
         if (!command.trim()) return;
+
+        // Fiche de consentement active : la réponse va à la fiche, pas au
+        // cerveau — même canal, même session, zéro second assistant.
+        if (consentRef.current) {
+            await handleConsentAnswer(command.trim());
+            return;
+        }
+        if (isConsentCommand(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            consentRef.current = { step: 0, answers: {} };
+            announce(CONSENT_STEPS[0].question, 'text-cyan-300/80');
+            return;
+        }
+
+        // Recherche Internet : la VRAIE recherche web de l'orchestrateur
+        // (outil serveur `web_search`, grounding + sources) — l'Architecte
+        // fait la recherche, il ne dit jamais « vous pouvez chercher sur
+        // Internet ». En cas d'indisponibilité, l'outil serveur impose déjà
+        // au modèle de le dire au lieu de répondre de mémoire.
+        if (isWebSearchCommand(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            setIsThinking(true);
+            setStatus('Je cherche sur le web...');
+            setStatusTone('text-cyan-300/80');
+            try {
+                const reponse = await generateText(command.trim(), {
+                    agentId: ARCHITECTE_AGENT_ID,
+                    systemInstruction:
+                        "Tu es L'Architecte de MokNet. Utilise l'outil de recherche web pour répondre avec des faits À JOUR. " +
+                        "Réponds en français, brièvement, et CITE tes sources (titre et adresse) quand elles sont disponibles. " +
+                        "Si la recherche est indisponible ou échoue, dis-le clairement — ne réponds jamais de mémoire en le présentant comme un résultat de recherche.",
+                });
+                announce(reponse?.trim() || "La recherche n'a rien donné.", reponse ? 'text-cyan-300/80' : 'text-amber-300');
+            } catch (e: any) {
+                announce(`La recherche web a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            } finally {
+                setIsThinking(false);
+            }
+            return;
+        }
+
+        // Livrable : produire un VRAI fichier final téléchargeable à partir
+        // du dernier document (ou d'une photo transcrite) — §15 : aller
+        // jusqu'au livrable, pas s'arrêter à une explication.
+        if (isDeliverableCommand(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            const doc = getLastSessionDocument();
+            const img = doc ? null : getLastSessionImage();
+            if (!doc && !img) {
+                announce("Montrez-moi d'abord ce que je dois transformer — un document via le bouton Fichier, ou une photo via la caméra.", 'text-amber-300');
+                return;
+            }
+            setIsThinking(true);
+            setStatus('Je prépare votre fichier...');
+            setStatusTone('text-cyan-300/80');
+            try {
+                let source: string | null = null;
+                if (doc) {
+                    source = doc.excerpt;
+                } else if (img) {
+                    // Photo d'un document : transcription visuelle réelle d'abord.
+                    const base64 = img.dataUrl.split(',')[1];
+                    source = await analyzeImage(base64, img.mimeType,
+                        'Transcris fidèlement TOUT le texte lisible de cette image, dans l\'ordre. Réponds uniquement avec le texte transcrit.',
+                        { systemInstruction: "Tu transcris ce qui est réellement lisible. Ce qui est illisible est marqué [illisible] — jamais inventé." });
+                }
+                if (!source?.trim()) {
+                    announce("Je n'ai pas pu obtenir de contenu exploitable pour produire le fichier.", 'text-amber-300');
+                    return;
+                }
+                const content = await generateText(
+                    `Contenu source (extrait réel${doc ? ` du document « ${doc.name} »` : " d'une photo transcrite"}) :\n\n${source}\n\nDemande de l'utilisateur : « ${command.trim()} ».\nProduis la version finale demandée (corrigée, bien structurée). Réponds UNIQUEMENT avec le contenu du document final — aucun commentaire autour.`,
+                    { systemInstruction: "Tu es L'Architecte de MokNet. Tu corriges et structures le contenu FOURNI — tu n'inventes jamais une donnée absente ; ce qui manque reste absent." }
+                );
+                if (!content?.trim()) {
+                    announce("La préparation du fichier a échoué — rien n'a été généré.", 'text-red-300');
+                    return;
+                }
+                const { format, pdfRedirected } = detectDeliverableFormat(command);
+                const filename = deliverableFileName(doc?.name, format);
+                triggerDownload(await buildDeliverableBlob(content.trim(), format), filename);
+                announce(
+                    `${pdfRedirected ? "Je ne sais pas encore produire un PDF — je vous l'ai préparé en Word (.docx). " : ''}` +
+                    `Votre fichier « ${filename} » est prêt : le téléchargement vient de démarrer.`,
+                    'text-emerald-300'
+                );
+            } catch (e: any) {
+                announce(`La préparation du fichier a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            } finally {
+                setIsThinking(false);
+            }
+            return;
+        }
+
+        if (isVisionQuestion(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            const lastImage = getLastSessionImage();
+            if (!lastImage) {
+                announce(
+                    "Je ne dispose d'aucune image dans notre conversation — montrez-moi quelque chose avec la caméra ou le bouton Fichier, et je vous dirai ce que j'y vois réellement.",
+                    'text-amber-300'
+                );
+                return;
+            }
+            const base64 = lastImage.dataUrl.split(',')[1];
+            if (base64) {
+                await analyseVisual(base64, lastImage.mimeType, `Question de l'utilisateur sur l'image déjà montrée : « ${command.trim()} ».`);
+            }
+            return;
+        }
+
         setIsThinking(true);
         setStatus('Analyse...');
         setStatusTone('text-cyan-300/80');
@@ -238,54 +493,11 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         } finally {
             setIsThinking(false);
         }
-    }, [onNavigate, speak]);
-
-    // ─────────────────────────────────────────────────────────────────────
-    // L'ARCHITECTE REGARDE — pièce jointe et caméra.
-    //
-    // Trois boutons alignés à droite de la barre : joindre un fichier, écrire,
-    // ouvrir la caméra. Aucun n'est décoratif : l'image part réellement vers
-    // `analyzeImage` (vision déjà branchée sur l'orchestrateur `ai-gateway`),
-    // et l'Architecte répond à voix haute. Un format que le dépôt ne sait pas
-    // lire le dit franchement plutôt que d'échouer en silence.
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Dit et affiche un résultat d'analyse, avec la même discipline que handleCommand. */
-    const announce = useCallback((message: string, tone: string) => {
-        setStatus(message);
-        setStatusTone(tone);
-        void speak(message);
-    }, [speak]);
-
-    const analyseVisual = useCallback(async (base64: string, mimeType: string, contexte: string) => {
-        setIsThinking(true);
-        setStatus('Je regarde...');
-        setStatusTone('text-cyan-300/80');
-        try {
-            const reponse = await analyzeImage(
-                base64,
-                mimeType,
-                `${contexte} Décris ce que tu vois et donne ton avis utile, en deux phrases maximum, en français.`,
-                { systemInstruction: "Tu es L'Architecte de MokNet. Tu décris ce que tu vois RÉELLEMENT. Si l'image est floue, vide ou illisible, tu le dis au lieu d'inventer." }
-            );
-            announce(reponse?.trim() || "Je n'ai rien pu tirer de cette image.", reponse ? 'text-cyan-300/80' : 'text-amber-300');
-        } catch (e: any) {
-            announce(`L'analyse a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
-        } finally {
-            setIsThinking(false);
-        }
-    }, [announce]);
+    }, [onNavigate, speak, announce, analyseVisual, handleConsentAnswer]);
 
     // --- Pièce jointe ---------------------------------------------------
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-    /** Formats binaires qu'aucune bibliothèque du dépôt ne sait ouvrir. */
-    const isUnreadableBinary = (file: File) =>
-        /\.(xlsx|xls|docx|doc|pptx|ppt|zip|rar)$/i.test(file.name) ||
-        file.type.includes('officedocument') ||
-        file.type.includes('ms-excel') ||
-        file.type.includes('msword');
 
     const handleFilePicked = useCallback(async (file: File | undefined) => {
         if (!file) return;
@@ -296,6 +508,13 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 const dataUrl = String(reader.result || '');
                 const base64 = dataUrl.split(',')[1];
                 if (!base64) { announce("Ce fichier image n'a pas pu être lu.", 'text-amber-300'); return; }
+                // L'image entre dans le fil de la session : affichée dans la
+                // conversation, et réutilisable pour les questions de suivi.
+                addSessionTurn({
+                    role: 'utilisateur', kind: 'image',
+                    text: `Image importée : ${file.name}`,
+                    imageDataUrl: dataUrl, imageMimeType: file.type,
+                });
                 void analyseVisual(base64, file.type, `Voici une image que l'utilisateur me montre (fichier « ${file.name} »).`);
             };
             reader.onerror = () => announce("La lecture du fichier a échoué.", 'text-red-300');
@@ -303,36 +522,34 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             return;
         }
 
-        if (isUnreadableBinary(file)) {
-            // Honnêteté : aucun analyseur Excel/Word/PowerPoint n'existe dans
-            // ce dépôt. Le dire vaut mieux qu'un échec silencieux ou qu'une
-            // réponse inventée à partir d'octets illisibles.
-            announce(
-                `Je ne sais pas encore ouvrir un fichier ${file.name.split('.').pop()?.toUpperCase()}. Exportez-le en PDF, en texte ou en image, et je le lirai.`,
-                'text-amber-300'
-            );
-            return;
-        }
-
-        if (file.type === 'application/pdf') {
-            announce("Je ne sais pas encore lire un PDF. Envoyez-moi une capture d'écran de la page qui vous intéresse.", 'text-amber-300');
-            return;
-        }
-
-        // Texte lisible tel quel : txt, csv, json, markdown, code...
+        // Extraction RÉELLE du texte — PDF, Word, Excel, PowerPoint, ZIP,
+        // texte : le moteur d'extraction (`documentExtractor.ts`) remplace
+        // les anciens refus. Le document rejoint la session : l'Architecte
+        // peut en discuter immédiatement, à la voix comme au clavier.
         try {
-            const texte = (await file.text()).slice(0, 12000);
-            if (!texte.trim()) { announce('Ce fichier est vide.', 'text-amber-300'); return; }
             setIsThinking(true);
             setStatus('Je lis le document...');
             setStatusTone('text-cyan-300/80');
+            const doc = await extractDocumentText(file);
+            addSessionTurn({
+                role: 'utilisateur', kind: 'document',
+                text: `Document fourni : ${doc.name}`,
+                docName: doc.name,
+                // Assez long pour produire un livrable fidèle depuis la
+                // session ; le contexte injecté au cerveau reste borné à part.
+                docExcerpt: doc.text.slice(0, 6000),
+            });
             const reponse = await generateText(
-                `Voici le contenu du fichier « ${file.name} » :\n\n${texte}\n\nRésume-le et donne ton avis utile, en deux phrases maximum, en français.`,
-                { systemInstruction: "Tu es L'Architecte de MokNet. Tu t'appuies uniquement sur le contenu fourni et tu n'inventes rien." }
+                `Voici le contenu réellement extrait du ${doc.kindLabel} « ${doc.name} »${doc.truncated ? ' (tronqué)' : ''} :\n\n${doc.text}\n\nRésume l'essentiel en deux ou trois phrases, en français, puis propose UNE suite utile (correction, réorganisation, réponse à une question...).`,
+                { systemInstruction: "Tu es L'Architecte de MokNet. Tu t'appuies UNIQUEMENT sur le contenu fourni et tu n'inventes rien — si le contenu est partiel, dis-le." }
             );
             announce(reponse?.trim() || "Je n'ai rien pu tirer de ce document.", 'text-cyan-300/80');
         } catch (e: any) {
-            announce(`La lecture a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            if (e instanceof UnsupportedDocumentError) {
+                announce(e.message, 'text-amber-300');
+            } else {
+                announce(`La lecture de « ${file.name} » a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+            }
         } finally {
             setIsThinking(false);
         }
@@ -363,8 +580,6 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
             streamRef.current = stream;
             setIsCameraOpen(true);
-            // Le <video> n'existe qu'une fois le panneau rendu.
-            setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play(); } }, 0);
         } catch (e: any) {
             announce(
                 e?.name === 'NotAllowedError'
@@ -382,10 +597,32 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d')?.drawImage(video, 0, 0);
-        const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const base64 = dataUrl.split(',')[1];
         closeCamera();
-        if (base64) void analyseVisual(base64, 'image/jpeg', "Voici ce que l'utilisateur me montre avec sa caméra.");
+        if (!base64) return;
+        // La photo apparaît dans la conversation et y RESTE : l'utilisateur
+        // peut continuer à en parler à la voix (« et à droite, c'est quoi ? »)
+        // — la prise de photo n'interrompt jamais la session vocale.
+        addSessionTurn({
+            role: 'utilisateur', kind: 'image',
+            text: 'Photo prise à la caméra',
+            imageDataUrl: dataUrl, imageMimeType: 'image/jpeg',
+        });
+        void analyseVisual(base64, 'image/jpeg', "Voici ce que l'utilisateur me montre avec sa caméra.");
     }, [analyseVisual, announce, closeCamera]);
+
+    // Attacher le flux au <video> APRÈS le rendu du panneau — un
+    // `setTimeout(0)` pouvait s'exécuter avant le commit React (rendu
+    // asynchrone), laissant `videoRef.current` à null et l'aperçu
+    // définitivement noir. Défaut réel constaté par la preuve navigateur du
+    // chantier de finalisation.
+    useEffect(() => {
+        if (isCameraOpen && videoRef.current && streamRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+            void videoRef.current.play();
+        }
+    }, [isCameraOpen]);
 
     // La caméra ne doit jamais survivre au démontage de la barre.
     useEffect(() => () => {
@@ -511,6 +748,70 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
 
     return (
         <>
+        {/* Fil de conversation — LA session unique de l'Architecte : voix,
+            clavier, photos et documents dans le même échange, sans jamais
+            basculer vers une autre interface. Masqué pendant que la caméra
+            occupe le même emplacement. */}
+        {!isCameraOpen && (sessionTurns.length > 0 || isTypingOpen) && (
+            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[92%] max-w-2xl rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]">
+                {sessionTurns.length > 0 && (
+                    <div ref={conversationRef} className="max-h-60 overflow-y-auto p-3 space-y-2">
+                        {sessionTurns.slice(-8).map((t, i) => (
+                            <div key={`${t.at}-${i}`} className={`flex ${t.role === 'utilisateur' ? 'justify-end' : 'justify-start'}`}>
+                                {t.kind === 'image' && t.imageDataUrl ? (
+                                    <figure className="max-w-[70%]">
+                                        <img
+                                            src={t.imageDataUrl}
+                                            alt={t.text}
+                                            className="max-h-36 rounded-xl border border-cyan-400/40 shadow-[0_0_18px_rgba(34,211,238,0.15)]"
+                                        />
+                                        <figcaption className="mt-1 text-[10px] font-mono text-cyan-300/70">{t.text}</figcaption>
+                                    </figure>
+                                ) : (
+                                    <span
+                                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-[12px] leading-relaxed ${
+                                            t.role === 'utilisateur'
+                                                ? 'bg-cyan-400/15 border border-cyan-400/30 text-cyan-100'
+                                                : 'bg-slate-800/80 border border-white/10 text-slate-200'
+                                        }`}
+                                    >
+                                        {t.text}
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {isTypingOpen && (
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const t = typedText.trim();
+                            if (!t) return;
+                            setTypedText('');
+                            void handleCommand(t);
+                        }}
+                        className={`flex items-center gap-2 p-2 ${sessionTurns.length > 0 ? 'border-t border-cyan-500/20' : ''}`}
+                    >
+                        <input
+                            ref={typedInputRef}
+                            value={typedText}
+                            onChange={(e) => setTypedText(e.target.value)}
+                            placeholder="Écrivez à l'Architecte — même conversation que la voix"
+                            className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none px-2"
+                            aria-label="Saisie clavier de l'Architecte"
+                        />
+                        <button
+                            type="submit"
+                            className="flex items-center gap-1.5 rounded-full border border-cyan-300 bg-cyan-400/25 px-3 py-1.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/35 transition-colors"
+                            aria-label="Envoyer le message écrit"
+                        >
+                            <Send size={13} />
+                        </button>
+                    </form>
+                )}
+            </div>
+        )}
         {/* Panneau caméra — AU-DESSUS de la barre, jamais à sa place : on voit
             ce que l'Architecte va regarder avant de le lui envoyer. */}
         {isCameraOpen && (
@@ -610,7 +911,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
-                    accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc"
+                    accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
                     onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
                 />
                 <button
@@ -623,17 +924,25 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     <span className="hidden sm:inline">Fichier</span>
                 </button>
 
-                {onOpenTyped && (
-                    <button
-                        onClick={() => { close(); onOpenTyped(); }}
-                        className="flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors"
-                        title="Écrire au lieu de parler"
-                        aria-label="Écrire à l'Architecte"
-                    >
-                        <Keyboard size={13} />
-                        <span className="hidden sm:inline">Écrire</span>
-                    </button>
-                )}
+                <button
+                    // FINALISATION : ce bouton ouvrait auparavant DialloOS —
+                    // une SECONDE expérience conversationnelle, avec sa propre
+                    // identité visuelle et sans historique commun. Désormais la
+                    // saisie s'ouvre ICI, dans la même barre, la même session,
+                    // le même Architecte. (Exigence explicite : « il ne doit
+                    // jamais arriver qu'un bouton ouvre un autre assistant ».)
+                    onClick={() => setIsTypingOpen((v) => !v)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                        isTypingOpen
+                            ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
+                            : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
+                    }`}
+                    title="Écrire à l'Architecte — même conversation que la voix"
+                    aria-label="Écrire à l'Architecte"
+                >
+                    <Keyboard size={13} />
+                    <span className="hidden sm:inline">Écrire</span>
+                </button>
 
                 <button
                     onClick={() => (isCameraOpen ? closeCamera() : void openCamera())}
