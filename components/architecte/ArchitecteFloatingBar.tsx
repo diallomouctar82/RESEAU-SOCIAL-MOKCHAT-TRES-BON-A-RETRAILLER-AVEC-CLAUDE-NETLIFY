@@ -447,6 +447,19 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
+                // L'ouverture se fait sur `pointerup` pour qu'un glissement ne
+                // déclenche pas l'Architecte. Conséquence non voulue : Entrée
+                // et Espace émettent un `click`, pas d'événement pointeur — la
+                // pastille était donc inatteignable au clavier. Ce gestionnaire
+                // rétablit l'accès sans réintroduire de double ouverture : un
+                // clic souris ne passe jamais par ici.
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        dragState.current = null;
+                        void open();
+                    }
+                }}
                 style={{ transform: `translate(${offset.x}px, ${offset.y}px)`, touchAction: 'none' }}
                 // `bottom-44` sur mobile au lieu du `bottom-36` de l'original :
                 // MokNet possède un bouton de messagerie flottant que
