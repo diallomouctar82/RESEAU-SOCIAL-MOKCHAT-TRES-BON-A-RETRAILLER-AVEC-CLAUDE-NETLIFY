@@ -3,6 +3,7 @@ import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, 
 import { analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
+    buildSessionContext,
     getLastSessionDocument,
     getLastSessionImage,
     getSessionTurns,
@@ -96,6 +97,57 @@ interface ArchitecteFloatingBarProps {
 const POSITION_STORAGE_KEY = 'lmav_architecte_bar_pos_v1';
 const MIC_TIMEOUT_MESSAGE = "Le micro n'a pas démarré — utilisez la saisie.";
 
+/**
+ * SURFACE VISUELLE ADAPTATIVE (complément Équipe C — « la parole pilote
+ * l'interface ») : UNE seule zone au-dessus de la barre, qui change de rôle
+ * selon la tâche — retour caméra (déjà existant), lecteur vidéo, aperçu de
+ * document, fil de conversation. Jamais un second assistant : le contenu
+ * affiché appartient au même Architecte, même session, même contexte.
+ */
+type ArchitecteMediaView =
+    | { kind: 'video'; query: string }
+    | { kind: 'document'; name: string; excerpt: string };
+
+/**
+ * Extrait le sujet d'une demande de vidéo. Volontairement MINIMAL : seuls le
+ * verbe déclencheur, la politesse et les mots « vidéo/chanson/youtube... »
+ * sont retirés — le reste EST la recherche (« qui explique comment remplacer
+ * la pièce » porte le sens, il doit rester).
+ */
+export function extractVideoQuery(command: string): string {
+    return command
+        .replace(/\b(mets?|lance|joue|montre|passe|cherche|trouve)[- ]?(moi|nous)?\b/gi, ' ')
+        .replace(/\bs'il (te|vous) pla[îi]t\b/gi, ' ')
+        .replace(/\b(une?|le|la|les|cette?|des)\s+(vid[ée]o|chanson|musique|clip)s?\b/gi, ' ')
+        .replace(/\b(vid[ée]o|chanson|musique|clip)s?\b/gi, ' ')
+        .replace(/\bsur youtube\b/gi, ' ')
+        .replace(/\byoutube\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/^[\s.,!?:;-]+|[\s.,!?:;-]+$/g, '')
+        .trim();
+}
+
+/** Demande de vidéo/musique — détection déterministe, jamais le modèle. */
+export function isVideoRequest(command: string): boolean {
+    return /\b(mets?|lance|joue|montre|passe)[^.!?]{0,60}\b(vid[ée]o|youtube|chanson|musique|clip)s?\b/i.test(command)
+        || /\bsur youtube\b/i.test(command);
+}
+
+/** Le texte des tours peut contenir des adresses (recherche web citée) : les rendre cliquables. */
+export function renderTextWithLinks(text: string): React.ReactNode {
+    const parts = text.split(/(https?:\/\/[^\s)\]}>«»"']+)/g);
+    if (parts.length === 1) return text;
+    return parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+            <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline text-cyan-300 hover:text-cyan-200 break-all">
+                {part}
+            </a>
+        ) : (
+            part
+        )
+    );
+}
+
 /** Couleur du sous-titre selon l'issue réelle — jamais du vert sur un échec. */
 const PHASE_TONE: Record<ArchitectePhase, string> = {
     running: 'text-cyan-300/80',
@@ -127,6 +179,10 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const [sessionTurns, setSessionTurns] = useState<ArchitecteTurn[]>(() => getSessionTurns());
     useEffect(() => subscribeToSession(() => setSessionTurns(getSessionTurns())), []);
     const [isTypingOpen, setIsTypingOpen] = useState(false);
+    // Surface visuelle adaptative : un seul emplacement, un rôle par tâche
+    // (lecteur vidéo, aperçu document) — apparaît quand la parole l'exige,
+    // disparaît quand il n'y a plus qu'à parler.
+    const [mediaView, setMediaView] = useState<ArchitecteMediaView | null>(null);
     const [typedText, setTypedText] = useState('');
     const typedInputRef = useRef<HTMLInputElement | null>(null);
     useEffect(() => {
@@ -419,6 +475,42 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             announce("Appuyez sur le bouton Fichier, juste en dessous, et choisissez votre document — je le lirai immédiatement. (Le navigateur exige un vrai appui pour ouvrir le sélecteur.)", 'text-cyan-300/80');
             return;
         }
+
+        // ── Surface visuelle adaptative (« la parole pilote l'interface ») ──
+        // Fermer la fenêtre : le besoin visuel est passé, retour à la barre.
+        if (/\bferme\b[^.!?]{0,30}\b(la |le |l')?(vid[ée]o|fen[êe]tre|lecteur|aper[çc]u|[ée]cran)\b/i.test(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            setMediaView(null);
+            announce('Fenêtre refermée.', 'text-slate-400');
+            return;
+        }
+        // Vidéo/musique : la même surface devient lecteur — l'utilisateur ne
+        // fait pas lui-même YouTube → recherche → résultat → lecteur.
+        if (isVideoRequest(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            const query = extractVideoQuery(command);
+            if (query.length < 2) {
+                announce('Quelle vidéo voulez-vous voir ?', 'text-cyan-300/80');
+                return;
+            }
+            setMediaView({ kind: 'video', query });
+            // Honnête : les vidéos sont TROUVÉES et affichées ; la lecture
+            // démarre d'un appui (les navigateurs bloquent l'auto-lecture).
+            announce(`Voici les vidéos trouvées pour « ${query} » — appuyez sur lecture, je reste à l'écoute.`, 'text-cyan-300/80');
+            return;
+        }
+        // Aperçu du dernier document fourni, dans la même surface.
+        if (/\b(montre|affiche|fais[- ]voir|r[ée]ouvre|ouvre)\b[^.!?]{0,40}\b(document|aper[çc]u)\b/i.test(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            const doc = getLastSessionDocument();
+            if (!doc) {
+                announce("Aucun document dans notre conversation pour l'instant — appuyez sur le bouton Fichier pour m'en donner un, je l'afficherai ici.", 'text-amber-300');
+                return;
+            }
+            setMediaView({ kind: 'document', name: doc.name, excerpt: doc.excerpt });
+            announce(`Voici l'aperçu de « ${doc.name} ». Dites-moi ce que vous voulez en faire.`, 'text-cyan-300/80');
+            return;
+        }
         if (isConsentCommand(command)) {
             addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
             consentRef.current = { step: 0, answers: {} };
@@ -437,12 +529,17 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             setStatus('Je cherche sur le web...');
             setStatusTone('text-cyan-300/80');
             try {
+                // Continuité du contexte (« la parole pilote l'interface »,
+                // §16) : la recherche peut concerner la photo ou le document
+                // qui vient d'être montré — le fil récent est fourni.
+                const sessionContext = buildSessionContext();
                 const reponse = await generateText(command.trim(), {
                     agentId: ARCHITECTE_AGENT_ID,
                     systemInstruction:
                         "Tu es L'Architecte de MokNet. Utilise l'outil de recherche web pour répondre avec des faits À JOUR. " +
                         "Réponds en français, brièvement, et CITE tes sources (titre et adresse) quand elles sont disponibles. " +
-                        "Si la recherche est indisponible ou échoue, dis-le clairement — ne réponds jamais de mémoire en le présentant comme un résultat de recherche.",
+                        "Si la recherche est indisponible ou échoue, dis-le clairement — ne réponds jamais de mémoire en le présentant comme un résultat de recherche." +
+                        (sessionContext ? `\n\nContexte récent de la conversation (la recherche peut s'y référer) :\n${sessionContext}` : ''),
                 });
                 announce(reponse?.trim() || "La recherche n'a rien donné.", reponse ? 'text-cyan-300/80' : 'text-amber-300');
             } catch (e: any) {
@@ -764,6 +861,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         isOpenRef.current = false;
         setIsThinking(false);
         setStatus('');
+        // Fermer l'Architecte referme aussi sa surface visuelle : aucune
+        // vidéo ni aperçu ne survit derrière une barre fermée.
+        setMediaView(null);
         stopListening();
         stopSpeaking();
         setConversationalMode(false);
@@ -854,7 +954,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const lastTurn = sessionTurns[sessionTurns.length - 1];
     const hasRichTurns = sessionTurns.some((t) => t.kind !== 'texte');
     const lastIsWrittenProduction = !!lastTurn && lastTurn.role === 'architecte' && lastTurn.text.length > 220;
-    const showConversationPanel = isTypingOpen || hasRichTurns || lastIsWrittenProduction;
+    // La surface visuelle adaptative ouvre le panneau quand la parole a
+    // demandé quelque chose À VOIR (vidéo, aperçu) — et lui seul.
+    const showConversationPanel = isTypingOpen || hasRichTurns || lastIsWrittenProduction || mediaView !== null;
 
     return (
         <>
@@ -864,6 +966,37 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             occupe le même emplacement. */}
         {!isCameraOpen && showConversationPanel && (
             <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[92%] max-w-2xl rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]">
+                {/* Surface visuelle adaptative : le « petit écran » de
+                    l'Architecte — lecteur vidéo ou aperçu de document selon
+                    la tâche, jamais un second assistant. Une seule commande
+                    manuelle (fermer) : la voix reste le pilote. */}
+                {mediaView && (
+                    <div className="relative p-2 pb-0">
+                        {mediaView.kind === 'video' ? (
+                            <div className="relative w-full aspect-video overflow-hidden rounded-xl border border-cyan-400/40 bg-black">
+                                <iframe
+                                    title={`Vidéos pour : ${mediaView.query}`}
+                                    src={`https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(mediaView.query)}`}
+                                    className="absolute inset-0 h-full w-full"
+                                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                                    allowFullScreen
+                                />
+                            </div>
+                        ) : (
+                            <div className="max-h-52 overflow-y-auto rounded-xl border border-cyan-400/30 bg-slate-900/70 p-3">
+                                <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-cyan-300/70">{mediaView.name}</div>
+                                <div className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-200">{mediaView.excerpt}</div>
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setMediaView(null)}
+                            className="absolute right-3 top-3 z-10 rounded-full border border-slate-500/60 bg-[#0f172a]/85 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-slate-600/40 transition-colors"
+                            aria-label="Fermer la fenêtre visuelle"
+                        >
+                            <X size={12} />
+                        </button>
+                    </div>
+                )}
                 {sessionTurns.length > 0 && (
                     <div ref={conversationRef} className="max-h-60 overflow-y-auto p-3 space-y-2">
                         {sessionTurns.slice(-8).map((t, i) => (
@@ -885,7 +1018,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                                                 : 'bg-slate-800/80 border border-white/10 text-slate-200'
                                         }`}
                                     >
-                                        {t.text}
+                                        {/* Les sources citées par la recherche web deviennent
+                                            cliquables : la surface montre, l'utilisateur agit. */}
+                                        {renderTextWithLinks(t.text)}
                                     </span>
                                 )}
                             </div>

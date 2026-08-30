@@ -479,3 +479,42 @@ lettre → panneau conservé, caméra à la demande — captures dans le journal
 preuve. Les scénarios purement audio (barge-in au micro réel, fermeture
 pendant la synthèse) sont couverts par les tests unitaires/DOM — un
 navigateur headless n'a pas de service de reconnaissance vocale.
+
+---
+
+## 19. La surface visuelle adaptative — « la parole pilote l'interface »
+
+Complément Équipe C du 30/08/2026 : le centre de l'expérience n'est plus le
+bouton mais la parole — l'utilisateur dit ce qu'il veut, l'Architecte choisit
+l'outil, l'interface s'adapte. Les boutons restent disponibles (toucher en
+support), ils ne sont plus le passage obligé.
+
+UNE seule zone au-dessus de la barre — jamais un second assistant — qui
+change de rôle selon la tâche :
+
+| La personne dit | La surface devient | Mécanisme |
+|---|---|---|
+| « Ouvre la caméra » / « Je veux te montrer quelque chose » | Retour caméra (existant, conservé) | routage déterministe → `openCamera` |
+| « Mets-moi une vidéo sur… » / « …sur YouTube » | Lecteur vidéo (recherche YouTube incorporée, `youtube-nocookie.com`, sans clé API) | `isVideoRequest` + `extractVideoQuery` (extraction minimale : le sens de la demande RESTE la recherche) → `mediaView.video` |
+| « Montre-moi le document » | Aperçu du dernier document fourni (extrait réel) — honnête s'il n'y en a aucun | `getLastSessionDocument` → `mediaView.document` |
+| « Cherche sur internet… » | Les résultats dans le fil, adresses citées rendues CLIQUABLES (`renderTextWithLinks`) ; le contexte récent de la session est fourni à la recherche (la recherche peut concerner la photo qui vient d'être montrée) | branche web-search existante + `buildSessionContext()` |
+| « Ferme la vidéo / la fenêtre » | La surface se retire — retour à la barre légère | routage déterministe → `mediaView = null` |
+
+Règles tenues : la surface n'apparaît QUE quand la tâche l'exige (politique
+de panneau du §18 étendue à `mediaView`) ; fermer l'Architecte referme aussi
+sa surface (rien ne survit derrière une barre fermée) ; l'annonce vidéo est
+honnête (« vidéos trouvées — appuyez sur lecture », jamais « lecture
+lancée » : les navigateurs bloquent l'auto-lecture) ; un seul contrôle
+manuel ajouté (fermer la fenêtre) — pas de multiplication de boutons.
+
+Preuves navigateur (compte éphémère réel, supprimé après) : P1 barre seule →
+P2 caméra → P3 photo analysée dans le même fil → P4 lecteur vidéo à la
+demande parlée → P5 recherche réelle affichée → P6 fenêtre retirée à la
+voix → P7 après TOUS les outils, « Qui es-tu ? » répond L'Architecte et
+« Que vois-tu ? » décrit la photo montrée trois outils plus tôt — même
+identité, même contexte, aucune seconde conversation.
+
+Différé honnêtement (« lorsque la technologie disponible le permet », dit la
+spécification elle-même) : le mode conversation vidéo avec l'Architecte —
+la surface unique le rend possible sans nouvelle architecture, mais il
+dépend du chantier LIVE/LiveKit, distinct.

@@ -69,7 +69,11 @@ vi.mock('../services/aiGateway', () => ({
     generateJSON: vi.fn(async () => ({ type: 'NOTIFICATION', explanation: 'Réponse de test.' })),
 }));
 
-import { ArchitecteFloatingBar } from '../components/architecte/ArchitecteFloatingBar';
+import {
+    ArchitecteFloatingBar,
+    extractVideoQuery,
+    isVideoRequest,
+} from '../components/architecte/ArchitecteFloatingBar';
 import { addSessionTurn, clearSession, getSessionTurns } from '../services/architecte/architecteSession';
 import { generateJSON } from '../services/aiGateway';
 
@@ -259,10 +263,16 @@ describe('Démontage', () => {
 // BOUCLE 1 — comportement humain de l'Architecte.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Ouvre la saisie clavier et envoie un message — même session que la voix. */
+/**
+ * Ouvre la saisie clavier (si besoin — le bouton Écrire est une BASCULE)
+ * et envoie un message — même session que la voix.
+ */
 async function ecrire(texte: string) {
-    fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
-    const input = await screen.findByLabelText("Saisie clavier de l'Architecte");
+    let input = screen.queryByLabelText("Saisie clavier de l'Architecte");
+    if (!input) {
+        fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
+        input = await screen.findByLabelText("Saisie clavier de l'Architecte");
+    }
     fireEvent.change(input, { target: { value: texte } });
     fireEvent.submit(input.closest('form')!);
 }
@@ -390,5 +400,97 @@ describe('Boucle 1 — outils proposés et pilotés à la voix (§18-19)', () =>
         const matches = await screen.findAllByText(/Appuyez sur le bouton Fichier/);
         expect(matches.length).toBeGreaterThan(0);
         expect(generateJSON).not.toHaveBeenCalled();
+    });
+});
+
+describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'interface »)', () => {
+    it('extrait le sujet d\'une demande de vidéo sans détruire le sens', () => {
+        expect(isVideoRequest('Mets-moi la chanson Fatou Diop sur YouTube')).toBe(true);
+        expect(extractVideoQuery('Mets-moi la chanson Fatou Diop sur YouTube')).toBe('Fatou Diop');
+        expect(extractVideoQuery('mets-moi la vidéo qui explique comment remplacer la pièce'))
+            .toBe('qui explique comment remplacer la pièce');
+        expect(isVideoRequest('Emmène-moi sur le fil social')).toBe(false);
+        expect(isVideoRequest('Rédige-moi une lettre')).toBe(false);
+    });
+
+    it('« Mets-moi une vidéo » ouvre le lecteur DANS la même surface — sans appel au modèle', async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        await ecrire('Mets-moi une vidéo sur la mécanique automobile');
+
+        const lecteur = await screen.findByTitle(/Vidéos pour/);
+        expect(lecteur).toHaveAttribute(
+            'src',
+            expect.stringContaining('youtube-nocookie.com/embed?listType=search&list=')
+        );
+        expect((lecteur as HTMLIFrameElement).src).toContain(encodeURIComponent('sur la mécanique automobile'));
+        // L'annonce est honnête : trouvé et affiché, jamais « lecture lancée ».
+        const annonces = await screen.findAllByText(/appuyez sur lecture/);
+        expect(annonces.length).toBeGreaterThan(0);
+        expect(generateJSON).not.toHaveBeenCalled();
+
+        // « Ferme la vidéo » : le besoin visuel est passé, la surface se retire.
+        await ecrire('Ferme la vidéo');
+        await waitFor(() => expect(screen.queryByTitle(/Vidéos pour/)).toBeNull());
+        // La conversation, elle, continue — même barre, même Architecte.
+        expect(screen.getByText("L'Architecte")).toBeInTheDocument();
+    });
+
+    it("« Montre-moi le document » sans document répond honnêtement — jamais un aperçu inventé", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        await ecrire('Montre-moi le document');
+
+        const matches = await screen.findAllByText(/Aucun document dans notre conversation/);
+        expect(matches.length).toBeGreaterThan(0);
+        expect(generateJSON).not.toHaveBeenCalled();
+    });
+
+    it('avec un document en session, la même surface devient son aperçu', async () => {
+        addSessionTurn({
+            role: 'utilisateur', kind: 'document',
+            text: 'Document fourni : contrat.pdf',
+            docName: 'contrat.pdf',
+            docExcerpt: 'Article 1 — Le prix unitaire du ciment est de 85 000 GNF.',
+        });
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        await ecrire('Montre-moi le document');
+
+        expect(await screen.findByText(/Article 1 — Le prix unitaire du ciment/)).toBeInTheDocument();
+        expect(generateJSON).not.toHaveBeenCalled();
+    });
+
+    it('fermer l\'Architecte referme aussi la surface visuelle — rien ne survit derrière une barre fermée', async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        await ecrire('Mets-moi une vidéo de musique guinéenne');
+        await screen.findByTitle(/Vidéos pour/);
+
+        fireEvent.click(screen.getByLabelText('Fermer'));
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        expect(screen.queryByTitle(/Vidéos pour/)).toBeNull();
+    });
+
+    it('les adresses citées par une réponse (sources de recherche) deviennent des liens cliquables', async () => {
+        // Nettement au-dessus du seuil de production écrite (220) : le
+        // panneau doit s'ouvrir pour que le lien soit réellement visible.
+        const reponse = 'Voici les offres trouvées pour votre métier. ' +
+            'Consultez notamment cette page très complète : https://exemple.org/offres-emploi ' +
+            'ainsi que les résultats détaillés publiés cette semaine par les agences partenaires de la région, ' +
+            'avec les conditions, les salaires proposés et les contacts des recruteurs pour chaque poste ouvert.';
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+        addSessionTurn({ role: 'architecte', kind: 'texte', text: reponse });
+
+        const lien = await screen.findByRole('link', { name: 'https://exemple.org/offres-emploi' });
+        expect(lien).toHaveAttribute('href', 'https://exemple.org/offres-emploi');
+        expect(lien).toHaveAttribute('target', '_blank');
     });
 });
