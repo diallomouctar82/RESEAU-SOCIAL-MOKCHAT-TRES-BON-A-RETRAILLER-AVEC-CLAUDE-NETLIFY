@@ -72,6 +72,21 @@ export type CapabilityHandler = (params: any) => Promise<{ ok: boolean; message:
 const handlers = new Map<string, CapabilityHandler>();
 
 /**
+ * Fournisseur de contexte de permission, par capacité enregistrée.
+ *
+ * L'écran qui porte une capacité est le SEUL à connaître la vérité sur les
+ * rôles au moment T (« suis-je hôte de ce Live ? », « suis-je sur scène ? ») —
+ * un point d'entrée générique comme la barre de l'Architecte ne peut pas le
+ * savoir. Sans ce mécanisme, la vérification du bus s'exécuterait avec un
+ * contexte vide et refuserait systématiquement les capacités liées à un rôle,
+ * y compris à l'hôte légitime.
+ *
+ * C'est un getter (et non une valeur figée) pour rester juste après un
+ * changement de rôle en cours de session, sans réenregistrer les handlers.
+ */
+const contextProviders = new Map<string, () => CapabilityPermissionContext>();
+
+/**
  * Enregistre un lot de handlers et renvoie la fonction de retrait
  * correspondante (à appeler au démontage de l'écran — signature pensée pour
  * être retournée directement depuis un `useEffect`).
@@ -81,18 +96,26 @@ const handlers = new Map<string, CapabilityHandler>();
  * capacité qui n'existe pas. L'erreur est levée tôt, au développement, plutôt
  * que de produire un `unknown` silencieux à l'usage.
  */
-export function registerCapabilityHandlers(entries: Record<string, CapabilityHandler>): () => void {
+export function registerCapabilityHandlers(
+    entries: Record<string, CapabilityHandler>,
+    /** Contexte de permission fourni par l'écran porteur (voir `contextProviders`). Omis pour un domaine sans notion de rôle. */
+    getContext?: () => CapabilityPermissionContext
+): () => void {
     const ids = Object.keys(entries);
     for (const id of ids) {
         assertCapabilityExists(id);
         handlers.set(id, entries[id]);
+        if (getContext) contextProviders.set(id, getContext);
     }
     return () => {
         for (const id of ids) {
             // Ne retirer que si c'est bien CE handler qui est encore en place :
             // évite qu'un démontage tardif n'efface l'enregistrement d'un écran
             // remonté entre-temps (React peut remonter avant de démonter).
-            if (handlers.get(id) === entries[id]) handlers.delete(id);
+            if (handlers.get(id) === entries[id]) {
+                handlers.delete(id);
+                contextProviders.delete(id);
+            }
         }
     };
 }
@@ -140,20 +163,33 @@ export async function executeCapability(
         };
     }
 
-    if (!isCapabilityAllowed(id, ctx)) {
-        return {
-            status: 'denied',
-            capability,
-            message: `Cette action demande d'être ${capability.requiredPermission} — je ne peux pas la faire à votre place ici.`,
-        };
-    }
-
+    // Présence du handler AVANT la permission : sans écran porteur monté, la
+    // raison réelle est « l'écran n'est pas ouvert », pas « vous n'avez pas le
+    // droit ». Répondre `denied` ici induirait en erreur — un utilisateur qui
+    // EST hôte se verrait dire qu'il ne l'est pas, simplement parce qu'aucun
+    // direct n'est en cours. L'ordre inverse ne protège rien de plus : sans
+    // handler, rien ne peut s'exécuter de toute façon.
     const handler = handlers.get(id);
     if (!handler) {
         return {
             status: 'unavailable',
             capability,
             message: `Cette action existe, mais elle n'est pilotable que depuis l'écran qui la porte, et il n'est pas ouvert.`,
+        };
+    }
+
+    // Le contexte de l'écran porteur fait autorité sur celui de l'appelant :
+    // lui seul sait si l'utilisateur est réellement hôte ou sur scène à cet
+    // instant. Un appelant générique (barre de l'Architecte) n'a pas cette
+    // information et ne doit pas faire refuser à tort une action légitime —
+    // ni, à l'inverse, pouvoir se déclarer hôte pour contourner la règle.
+    const effectiveCtx: CapabilityPermissionContext = { ...ctx, ...(contextProviders.get(id)?.() ?? {}) };
+
+    if (!isCapabilityAllowed(id, effectiveCtx)) {
+        return {
+            status: 'denied',
+            capability,
+            message: `Cette action demande d'être ${capability.requiredPermission} — je ne peux pas la faire à votre place ici.`,
         };
     }
 

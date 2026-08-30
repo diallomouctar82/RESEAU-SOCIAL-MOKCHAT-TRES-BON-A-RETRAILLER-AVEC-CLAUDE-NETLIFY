@@ -37,6 +37,8 @@ import { fetchLiveSession, createLiveSession, joinLiveSession, leaveLiveSession,
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState } from '../services/live/liveMaterialSystem';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
+import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
+import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
 import {
   createSolidarityCause, fetchActiveSolidarityCause, subscribeToSolidarityCause, updateSolidarityCauseVisibility,
   fetchSolidarityLedger, fetchSolidarityProofs, addSolidarityProof, subscribeToSolidarityProofs,
@@ -1206,7 +1208,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     return () => clearTimeout(timer);
   }, [voiceFeedback]);
 
-  const dispatchVoiceAction = async (action: LiveVoiceAction, originalUtterance: string) => {
+  // Renvoie le résultat RÉEL (LOOP Architecte — pont d'exécution) : le bus de
+  // capacités doit rapporter `done`/`failed` selon ce qui s'est vraiment
+  // passé. Les appelants existants (transcription vocale du LIVE) ignorent la
+  // valeur — comportement inchangé pour eux.
+  const dispatchVoiceAction = async (action: LiveVoiceAction, originalUtterance: string): Promise<boolean> => {
     // Grammaire d'états (LOOP 10/14) : 'action' = impulsion "je m'exécute
     // réellement", remplacée juste après par le statut final (succès/erreur/
     // incertitude) — jamais un état sans rapport avec ce qui s'est vraiment
@@ -1224,7 +1230,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     // (source unique de vérité entre le prompt LLM et l'exécution réelle).
     if (!isVoiceCapabilityAllowed(action.type, { isHost, isUserOnStage })) {
       say("Cette action n'est pas autorisée pour ton rôle actuel.", 'erreur');
-      return;
+      return false;
     }
     switch (action.type) {
       case 'TOGGLE_MIC':
@@ -1362,7 +1368,46 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         say(action.spokenConfirmation, 'incertitude');
         break;
     }
+    // Aucun cas ci-dessus n'a interrompu : l'action a bien été effectuée.
+    return true;
   };
+
+  // --- Pont d'exécution de l'Architecte (LOOP Architecte) ---
+  // Le LIVE déclare ses capacités TANT QU'UNE SESSION EST OUVERTE. En dehors,
+  // elles ne sont volontairement pas enregistrées et le bus répond
+  // « indisponible » avec son explication : « donner la parole » n'a aucun
+  // sens sans direct en cours, et le dire est la réponse juste — pas une
+  // lacune à masquer.
+  //
+  // Les identifiants et leur type d'action sont lus DEPUIS le registre plutôt
+  // que recopiés ici : une capacité ajoutée au registre LIVE devient
+  // automatiquement pilotable, sans risque de divergence entre les deux.
+  //
+  // Le second argument fournit le contexte de permission réel (hôte / sur
+  // scène) — l'Architecte, appelé depuis n'importe quel écran, ne peut pas le
+  // connaître, et sans lui toute capacité liée à un rôle serait refusée à
+  // tort. `dispatchVoiceAction` refait de toute façon sa propre vérification
+  // autoritaire en interne : c'est une double barrière, jamais un
+  // contournement.
+  useEffect(() => {
+    const liveCaps = getCapabilitiesByDomain('live');
+    const entries = Object.fromEntries(
+      liveCaps.map((cap) => [
+        cap.id,
+        async (payload: any) => {
+          const ok = await dispatchVoiceAction(
+            { type: cap.actionType, payload, spokenConfirmation: '' } as any,
+            ''
+          );
+          return ok
+            ? { ok: true, message: cap.description }
+            : { ok: false, message: "Cette action n'a pas pu être effectuée dans ce direct." };
+        },
+      ])
+    );
+    return registerCapabilityHandlers(entries, () => ({ isHost, isUserOnStage }));
+  });
+
 
   const handleVoiceTranscript = (transcript: string) => {
     const trimmed = transcript.trim();
