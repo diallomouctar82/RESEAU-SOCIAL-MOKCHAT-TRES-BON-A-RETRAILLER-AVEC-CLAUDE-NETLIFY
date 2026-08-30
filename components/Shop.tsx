@@ -256,7 +256,7 @@ export const Shop: React.FC<ShopProps> = ({
             
             <button
               onClick={() => onOpenMyShop && onOpenMyShop()}
-              className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-slate-200 transition-colors flex items-center gap-1.5"
+              className="px-3.5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-slate-200 transition-colors flex items-center gap-1.5"
             >
               <Store size={14} className="text-emerald-400" />
               <span className="hidden md:inline">Espace Vendeur & IA</span>
@@ -311,21 +311,21 @@ export const Shop: React.FC<ShopProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveSection(tab.id as any)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                  isActive 
-                    ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md' 
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  isActive
+                    ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
                 }`}
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${isActive ? 'bg-black/30 text-white' : 'bg-white/10 text-slate-400'}`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${isActive ? 'bg-black/30 text-white' : 'bg-white/10 text-slate-400'}`}>
                     {tab.count}
                   </span>
                 )}
                 {tab.badge && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                     {tab.badge}
                   </span>
                 )}
@@ -343,7 +343,7 @@ export const Shop: React.FC<ShopProps> = ({
               <CheckCircle size={18} className="text-emerald-400" />
               <span className="font-semibold">{purchaseSuccessBanner}</span>
             </div>
-            <button onClick={() => setPurchaseSuccessBanner(null)} className="text-emerald-400 hover:text-white">
+            <button onClick={() => setPurchaseSuccessBanner(null)} aria-label="Fermer la notification" className="p-2 text-emerald-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
               <X size={16} />
             </button>
           </div>
@@ -625,13 +625,15 @@ export const Shop: React.FC<ShopProps> = ({
                         </span>
                       )}
 
-                      {/* Quick Add Button */}
+                      {/* Quick Add Button — visible par défaut sur mobile/tactile (pas de survol), révélé au survol sur desktop */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAddToCart(product, product.minOrderQuantity || 1);
                         }}
-                        className="absolute bottom-3 right-3 p-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                        aria-label={`Ajouter ${product.title} au panier`}
+                        title="Ajouter au panier"
+                        className="absolute bottom-3 right-3 p-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-full shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all hover:scale-110"
                       >
                         <Plus size={18} />
                       </button>
@@ -933,7 +935,7 @@ export const Shop: React.FC<ShopProps> = ({
                   <ShoppingCart className="text-brand-400" size={20} />
                   <h3 className="font-bold text-base text-white">Mon Panier International</h3>
                 </div>
-                <button onClick={() => setIsCartOpen(false)} className="p-1 hover:bg-white/10 rounded-full">
+                <button onClick={() => setIsCartOpen(false)} aria-label="Fermer le panier" className="p-2.5 hover:bg-white/10 rounded-full transition-colors">
                   <X size={20} />
                 </button>
               </div>

@@ -411,20 +411,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <div className="flex items-center bg-slate-900 border border-white/10 rounded-xl p-1">
                       <button
                         onClick={() => setOrderQuantity(Math.max(product.minOrderQuantity || 1, orderQuantity - (product.minOrderQuantity || 1)))}
-                        className="px-2 py-1 text-slate-400 hover:text-white text-xs font-bold"
+                        aria-label="Diminuer la quantité"
+                        className="px-3 py-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg text-xs font-bold transition-colors"
                       >
                         -
                       </button>
-                      <input 
+                      <input
                         type="number"
                         min={product.minOrderQuantity || 1}
                         value={orderQuantity}
                         onChange={(e) => setOrderQuantity(Math.max(product.minOrderQuantity || 1, parseInt(e.target.value) || 1))}
-                        className="w-16 text-center bg-transparent text-white font-bold text-xs outline-none"
+                        aria-label="Quantité commandée"
+                        className="w-16 text-center bg-transparent text-white font-bold text-xs outline-none border border-transparent focus:border-brand-500 rounded-lg py-2.5"
                       />
                       <button
                         onClick={() => setOrderQuantity(orderQuantity + (product.minOrderQuantity || 1))}
-                        className="px-2 py-1 text-slate-400 hover:text-white text-xs font-bold"
+                        aria-label="Augmenter la quantité"
+                        className="px-3 py-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg text-xs font-bold transition-colors"
                       >
                         +
                       </button>
