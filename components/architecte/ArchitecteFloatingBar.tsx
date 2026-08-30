@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { DraftingCompass, Keyboard, Loader2, X, UserRound } from 'lucide-react';
+import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, X, UserRound } from 'lucide-react';
+import { analyzeImage, generateText } from '../../services/aiGateway';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
@@ -219,6 +220,159 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         }
     }, [onNavigate, speak]);
 
+    // ─────────────────────────────────────────────────────────────────────
+    // L'ARCHITECTE REGARDE — pièce jointe et caméra.
+    //
+    // Trois boutons alignés à droite de la barre : joindre un fichier, écrire,
+    // ouvrir la caméra. Aucun n'est décoratif : l'image part réellement vers
+    // `analyzeImage` (vision déjà branchée sur l'orchestrateur `ai-gateway`),
+    // et l'Architecte répond à voix haute. Un format que le dépôt ne sait pas
+    // lire le dit franchement plutôt que d'échouer en silence.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Dit et affiche un résultat d'analyse, avec la même discipline que handleCommand. */
+    const announce = useCallback((message: string, tone: string) => {
+        setStatus(message);
+        setStatusTone(tone);
+        void speak(message);
+    }, [speak]);
+
+    const analyseVisual = useCallback(async (base64: string, mimeType: string, contexte: string) => {
+        setIsThinking(true);
+        setStatus('Je regarde...');
+        setStatusTone('text-cyan-300/80');
+        try {
+            const reponse = await analyzeImage(
+                base64,
+                mimeType,
+                `${contexte} Décris ce que tu vois et donne ton avis utile, en deux phrases maximum, en français.`,
+                { systemInstruction: "Tu es L'Architecte de MokNet. Tu décris ce que tu vois RÉELLEMENT. Si l'image est floue, vide ou illisible, tu le dis au lieu d'inventer." }
+            );
+            announce(reponse?.trim() || "Je n'ai rien pu tirer de cette image.", reponse ? 'text-cyan-300/80' : 'text-amber-300');
+        } catch (e: any) {
+            announce(`L'analyse a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+        } finally {
+            setIsThinking(false);
+        }
+    }, [announce]);
+
+    // --- Pièce jointe ---------------------------------------------------
+
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    /** Formats binaires qu'aucune bibliothèque du dépôt ne sait ouvrir. */
+    const isUnreadableBinary = (file: File) =>
+        /\.(xlsx|xls|docx|doc|pptx|ppt|zip|rar)$/i.test(file.name) ||
+        file.type.includes('officedocument') ||
+        file.type.includes('ms-excel') ||
+        file.type.includes('msword');
+
+    const handleFilePicked = useCallback(async (file: File | undefined) => {
+        if (!file) return;
+
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = String(reader.result || '');
+                const base64 = dataUrl.split(',')[1];
+                if (!base64) { announce("Ce fichier image n'a pas pu être lu.", 'text-amber-300'); return; }
+                void analyseVisual(base64, file.type, `Voici une image que l'utilisateur me montre (fichier « ${file.name} »).`);
+            };
+            reader.onerror = () => announce("La lecture du fichier a échoué.", 'text-red-300');
+            reader.readAsDataURL(file);
+            return;
+        }
+
+        if (isUnreadableBinary(file)) {
+            // Honnêteté : aucun analyseur Excel/Word/PowerPoint n'existe dans
+            // ce dépôt. Le dire vaut mieux qu'un échec silencieux ou qu'une
+            // réponse inventée à partir d'octets illisibles.
+            announce(
+                `Je ne sais pas encore ouvrir un fichier ${file.name.split('.').pop()?.toUpperCase()}. Exportez-le en PDF, en texte ou en image, et je le lirai.`,
+                'text-amber-300'
+            );
+            return;
+        }
+
+        if (file.type === 'application/pdf') {
+            announce("Je ne sais pas encore lire un PDF. Envoyez-moi une capture d'écran de la page qui vous intéresse.", 'text-amber-300');
+            return;
+        }
+
+        // Texte lisible tel quel : txt, csv, json, markdown, code...
+        try {
+            const texte = (await file.text()).slice(0, 12000);
+            if (!texte.trim()) { announce('Ce fichier est vide.', 'text-amber-300'); return; }
+            setIsThinking(true);
+            setStatus('Je lis le document...');
+            setStatusTone('text-cyan-300/80');
+            const reponse = await generateText(
+                `Voici le contenu du fichier « ${file.name} » :\n\n${texte}\n\nRésume-le et donne ton avis utile, en deux phrases maximum, en français.`,
+                { systemInstruction: "Tu es L'Architecte de MokNet. Tu t'appuies uniquement sur le contenu fourni et tu n'inventes rien." }
+            );
+            announce(reponse?.trim() || "Je n'ai rien pu tirer de ce document.", 'text-cyan-300/80');
+        } catch (e: any) {
+            announce(`La lecture a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
+        } finally {
+            setIsThinking(false);
+        }
+    }, [analyseVisual, announce]);
+
+    // --- Caméra ---------------------------------------------------------
+
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+
+    const closeCamera = useCallback(() => {
+        // Relâcher réellement la caméra : sans cet arrêt explicite, la diode
+        // reste allumée après la fermeture — le même défaut que celui corrigé
+        // sur le micro au démontage de la barre.
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        if (videoRef.current) videoRef.current.srcObject = null;
+        setIsCameraOpen(false);
+    }, []);
+
+    const openCamera = useCallback(async () => {
+        if (!navigator.mediaDevices?.getUserMedia) {
+            announce("Ce navigateur ne donne pas accès à la caméra.", 'text-amber-300');
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            streamRef.current = stream;
+            setIsCameraOpen(true);
+            // Le <video> n'existe qu'une fois le panneau rendu.
+            setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play(); } }, 0);
+        } catch (e: any) {
+            announce(
+                e?.name === 'NotAllowedError'
+                    ? "Accès à la caméra refusé. Autorisez-le dans votre navigateur pour me montrer quelque chose."
+                    : "La caméra n'a pas pu démarrer.",
+                'text-amber-300'
+            );
+        }
+    }, [announce]);
+
+    const captureFrame = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth) { announce("L'image n'est pas encore prête, réessayez.", 'text-amber-300'); return; }
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d')?.drawImage(video, 0, 0);
+        const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+        closeCamera();
+        if (base64) void analyseVisual(base64, 'image/jpeg', "Voici ce que l'utilisateur me montre avec sa caméra.");
+    }, [analyseVisual, announce, closeCamera]);
+
+    // La caméra ne doit jamais survivre au démontage de la barre.
+    useEffect(() => () => {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+    }, []);
+
     const open = useCallback(async () => {
         setIsOpen(true);
         setStatus('');
@@ -323,12 +477,41 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const micFailed = status === MIC_TIMEOUT_MESSAGE;
 
     return (
+        <>
+        {/* Panneau caméra — AU-DESSUS de la barre, jamais à sa place : on voit
+            ce que l'Architecte va regarder avant de le lui envoyer. */}
+        {isCameraOpen && (
+            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[90%] max-w-lg rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.25),0_18px_45px_rgba(0,0,0,0.6)]">
+                <video ref={videoRef} playsInline muted className="w-full h-56 object-cover bg-black" />
+                <div className="flex items-center justify-between gap-3 p-3">
+                    <span className="text-[11px] font-mono text-cyan-300/80 truncate">
+                        Cadrez ce que vous voulez me montrer.
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={closeCamera}
+                            className="rounded-full border border-slate-500/50 px-3 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-slate-500/20 transition-colors"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            onClick={captureFrame}
+                            className="flex items-center gap-1.5 rounded-full border border-cyan-300 bg-cyan-400/25 px-3.5 py-1.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/35 transition-colors"
+                        >
+                            <ScanLine size={13} />
+                            Analyser
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
         <div
-            // Largeur portée de `max-w-md` (448px) à `max-w-lg` (512px) et halo
-            // cyan ajouté d'après la capture en contexte fournie : la pilule y
-            // est sensiblement plus large que ce que donnait `max-w-md`, et
-            // elle porte une lueur cyan que l'ombre neutre ne rendait pas.
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-lg bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
+            // Halo cyan d'après la capture en contexte fournie ; largeur
+            // portée à `max-w-2xl` parce que la barre porte désormais TROIS
+            // boutons d'action : à 512px l'égaliseur se retrouvait écrasé
+            // entre le titre et les boutons, ce qui n'est ni la référence ni
+            // lisible.
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-2xl bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
             role="status"
             aria-live="polite"
         >
@@ -384,27 +567,60 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 })}
             </div>
 
-            {/* Bouton d'action : même forme que la référence de l'état ouvert
-                — pilule bordée cyan, icône à gauche, libellé en gras. La
-                référence y place « Module ZIP », qui télécharge l'archive du
-                paquet AI Studio ; ce fichier n'existe pas dans MokNet et le
-                bouton y serait mort. L'emplacement porte donc l'action réelle
-                équivalente : basculer en saisie clavier quand la voix n'est
-                pas possible. */}
-            {onOpenTyped && (
+            {/* Trois boutons d'action alignés, à l'emplacement et dans la forme
+                du « Module ZIP » de la référence — pilules bordées cyan.
+                L'Architecte n'est pas seulement une oreille : on peut lui
+                donner un fichier à lire, lui écrire, ou lui montrer quelque
+                chose avec la caméra. Chacun exécute une action réelle. */}
+            <div className="ml-3 flex items-center gap-2 shrink-0">
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc"
+                    onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
+                />
                 <button
-                    onClick={() => { close(); onOpenTyped(); }}
-                    className="ml-3 flex items-center gap-2 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3.5 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors shrink-0"
-                    title="Écrire au lieu de parler"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+                    title="Joindre un fichier à montrer à l'Architecte"
+                    aria-label="Joindre un fichier"
                 >
-                    <Keyboard size={13} />
-                    Écrire
+                    <Paperclip size={13} />
+                    <span className="hidden sm:inline">Fichier</span>
                 </button>
-            )}
+
+                {onOpenTyped && (
+                    <button
+                        onClick={() => { close(); onOpenTyped(); }}
+                        className="flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+                        title="Écrire au lieu de parler"
+                        aria-label="Écrire à l'Architecte"
+                    >
+                        <Keyboard size={13} />
+                        <span className="hidden sm:inline">Écrire</span>
+                    </button>
+                )}
+
+                <button
+                    onClick={() => (isCameraOpen ? closeCamera() : void openCamera())}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                        isCameraOpen
+                            ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
+                            : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
+                    }`}
+                    title="Montrer quelque chose à l'Architecte avec la caméra"
+                    aria-label="Activer la caméra"
+                >
+                    <Camera size={13} />
+                    <span className="hidden sm:inline">Caméra</span>
+                </button>
+            </div>
 
             <button onClick={close} className="ml-3 text-gray-400 hover:text-white transition-colors shrink-0" aria-label="Fermer">
                 <X size={18} />
             </button>
         </div>
+        </>
     );
 };
