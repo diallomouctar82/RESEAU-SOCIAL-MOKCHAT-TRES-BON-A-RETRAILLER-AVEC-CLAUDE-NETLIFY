@@ -263,13 +263,13 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
             
             {/* --- TOP UNIFIED HEADER --- */}
             <div className="bg-slate-950 text-white p-6 md:p-8 pb-14 relative overflow-hidden shrink-0 border-b border-slate-800">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[140px] opacity-20 pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-600 rounded-full blur-[110px] opacity-15 pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-600 rounded-full blur-[140px] opacity-15 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-slate-800/40 rounded-full blur-[110px] pointer-events-none"></div>
                 
                 <div className="relative z-10 max-w-7xl mx-auto space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 px-3.5 py-1 rounded-full text-xs font-bold text-indigo-200 uppercase tracking-wider mb-2">
+                            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 px-3.5 py-1 rounded-full text-xs font-bold text-blue-100 uppercase tracking-wider mb-2">
                                 <Globe size={14} className="text-amber-400" />
                                 <span>Monde / Mes Parcours de Vie</span>
                                 <span className="text-slate-400 font-normal">• Point A ➔ Parcours ➔ Point B</span>
@@ -286,7 +286,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                         <div className="flex items-center gap-2.5">
                             <button
                                 onClick={() => setIsCreatorModalOpen(true)}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 transition-all hover:scale-105"
+                                className="bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                             >
                                 <Plus size={18} />
                                 <span>Nouveau Parcours</span>
@@ -306,19 +306,19 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                     <div className="flex flex-wrap items-center gap-2 pt-4">
                         <button 
                             onClick={() => setViewMode('parcours')}
-                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                            className={`px-5 py-2.5 min-h-11 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                                 viewMode === 'parcours' 
                                     ? 'bg-white text-slate-900 shadow-xl scale-105' 
                                     : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
                             }`}
                         >
-                            <Compass size={16} className={viewMode === 'parcours' ? 'text-indigo-600' : ''} />
+                            <Compass size={16} className={viewMode === 'parcours' ? 'text-brand-600' : ''} />
                             <span>Mes Parcours ({dossiers.length})</span>
                         </button>
 
                         <button 
                             onClick={() => setViewMode('mobility')}
-                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                            className={`px-5 py-2.5 min-h-11 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                                 viewMode === 'mobility' 
                                     ? 'bg-white text-slate-900 shadow-xl scale-105' 
                                     : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
@@ -330,7 +330,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
 
                         <button 
                             onClick={() => setViewMode('safe')}
-                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                            className={`px-5 py-2.5 min-h-11 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                                 viewMode === 'safe' 
                                     ? 'bg-white text-slate-900 shadow-xl scale-105' 
                                     : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
@@ -342,13 +342,13 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
 
                         <button 
                             onClick={() => setViewMode('memory')}
-                            className={`px-5 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 ${
+                            className={`px-5 py-2.5 min-h-11 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                                 viewMode === 'memory' 
                                     ? 'bg-white text-slate-900 shadow-xl scale-105' 
                                     : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
                             }`}
                         >
-                            <BrainCircuit size={16} className={viewMode === 'memory' ? 'text-purple-600' : ''} />
+                            <BrainCircuit size={16} className={viewMode === 'memory' ? 'text-brand-600' : ''} />
                             <span>Mémoire Active Diallo OS</span>
                         </button>
                     </div>
@@ -389,7 +389,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                 </button>
                                 <button
                                     onClick={() => setScopeFilter('organization')}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${scopeFilter === 'organization' ? 'bg-purple-100 text-purple-900 shadow-sm font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${scopeFilter === 'organization' ? 'bg-brand-100 text-brand-900 shadow-sm font-black' : 'text-slate-600 hover:text-slate-900'}`}
                                 >
                                     <Building2 size={13} /> Entreprise
                                 </button>
@@ -404,14 +404,14 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                         value={parcoursSearchQuery}
                                         onChange={(e) => setParcoursSearchQuery(e.target.value)}
                                         placeholder="Rechercher un parcours..."
-                                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
                                     />
                                 </div>
 
                                 <select
                                     value={categoryFilter}
                                     onChange={(e) => setCategoryFilter(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
                                 >
                                     <option value="all">Toutes catégories</option>
                                     <option value="projet">Projet & Mobilité</option>
@@ -434,9 +434,13 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                     <div
                                         key={p.id}
                                         onClick={() => setSelectedDossier(p)}
-                                        className={`min-w-[280px] max-w-[320px] p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shrink-0 ${
-                                            isSelected 
-                                                ? 'bg-white border-indigo-600 ring-2 ring-indigo-100 shadow-md scale-[1.02]' 
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-pressed={isSelected}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDossier(p); } }}
+                                        className={`min-w-[280px] max-w-[320px] p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
+                                            isSelected
+                                                ? 'bg-white border-brand-600 ring-2 ring-brand-100 shadow-md scale-[1.02]'
                                                 : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white'
                                         }`}
                                     >
@@ -445,7 +449,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                                 <span className="text-[10px] font-extrabold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
                                                     {p.category}
                                                 </span>
-                                                <span className="text-xs font-black text-indigo-600">
+                                                <span className="text-xs font-black text-brand-600">
                                                     {p.progress}%
                                                 </span>
                                             </div>
@@ -461,7 +465,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                         <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                                             <div className="flex items-center gap-1.5">
                                                 {leadAgent && (
-                                                    <img src={leadAgent.avatar} alt={leadAgent.name} className="w-5 h-5 rounded-full object-cover" />
+                                                    <img src={leadAgent.avatarUrl} alt={leadAgent.name} className="w-5 h-5 rounded-full object-cover" />
                                                 )}
                                                 <span className="text-[11px] text-slate-500 truncate max-w-[120px]">{leadAgent?.name || 'Diallo'}</span>
                                             </div>
@@ -514,7 +518,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                 </p>
                                 <button
                                     onClick={() => setIsCreatorModalOpen(true)}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md inline-flex items-center gap-2"
+                                    className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md inline-flex items-center gap-2"
                                 >
                                     <Plus size={16} /> Initialiser un Nouveau Parcours
                                 </button>
@@ -533,14 +537,14 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                         <div className="w-full md:w-1/2 p-8 border-r border-slate-100 flex flex-col justify-between">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-                                   <Navigation className="text-indigo-600" /> Paramètres du Projet de Mobilité
+                                   <Navigation className="text-brand-600" /> Paramètres du Projet de Mobilité
                                 </h2>
                                 
                                 <div className="space-y-5">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pays d'origine</label>
                                         <select 
-                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                                           value={selectedOrigin?.code || ''}
                                           onChange={(e) => setSelectedOrigin(COUNTRIES.find(c => c.code === e.target.value) || null)}
                                         >
@@ -552,7 +556,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pays de destination visé</label>
                                         <select 
-                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                                           value={selectedDestination?.code || ''}
                                           onChange={(e) => setSelectedDestination(COUNTRIES.find(c => c.code === e.target.value) || null)}
                                         >
@@ -574,7 +578,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                                     key={type.id}
                                                     type="button"
                                                     onClick={() => setProjectType(type.id as any)}
-                                                    className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all ${projectType === type.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                    className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all ${projectType === type.id ? 'bg-brand-50 border-brand-500 text-brand-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                                 >
                                                     <type.icon size={15} /> {type.label}
                                                 </button>
@@ -588,7 +592,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                             value={projectDetails}
                                             onChange={(e) => setProjectDetails(e.target.value)}
                                             placeholder="Ex: J'ai 28 ans, titulaire d'un Master en informatique avec 3 ans d'expérience et 6000€ d'économies..."
-                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:ring-2 focus:ring-indigo-500 outline-none text-xs leading-relaxed resize-none"
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:ring-2 focus:ring-brand-500 outline-none text-xs leading-relaxed resize-none"
                                         />
                                     </div>
                                 </div>
@@ -597,7 +601,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                             <button 
                                 onClick={handleSimulation}
                                 disabled={isSimulating || !selectedOrigin || !selectedDestination || !projectDetails}
-                                className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${isSimulating || !selectedOrigin ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-[1.01]'}`}
+                                className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${isSimulating || !selectedOrigin ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-brand-600 text-white hover:bg-brand-700 hover:scale-[1.01]'}`}
                             >
                                 {isSimulating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                                 {isSimulating ? 'Simulation multimodale en cours...' : 'Lancer la Simulation de Mobilité'}
@@ -608,7 +612,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                         <div className="w-full md:w-1/2 p-8 bg-slate-50 flex flex-col justify-center items-center relative overflow-hidden">
                             {!simulationResult ? (
                                 <div className="text-center text-slate-400 max-w-xs">
-                                    <Globe size={56} className="mx-auto mb-3 opacity-20 text-indigo-600" />
+                                    <Globe size={56} className="mx-auto mb-3 opacity-20 text-brand-600" />
                                     <h3 className="text-base font-bold text-slate-700 mb-1">Prêt pour la simulation</h3>
                                     <p className="text-xs text-slate-500 leading-relaxed">
                                         Remplissez vos critères à gauche pour calculer votre score d'éligibilité, les visas recommandés et les pré-requis.
@@ -619,14 +623,14 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                     <div className="space-y-4">
                                         <div className="text-center">
                                             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Score de Faisabilité</div>
-                                            <div className="text-4xl font-black text-indigo-600">
+                                            <div className="text-4xl font-black text-brand-600">
                                                 {simulationResult.feasibilityScore}%
                                             </div>
                                         </div>
 
                                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                                             <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Voie d'Immigration / Visa Suggéré</div>
-                                            <div className="font-bold text-indigo-700 text-base">{simulationResult.visaType}</div>
+                                            <div className="font-bold text-brand-700 text-base">{simulationResult.visaType}</div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
@@ -652,7 +656,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                             </ul>
                                         </div>
 
-                                        <div className="bg-indigo-50/80 p-3.5 rounded-2xl border border-indigo-100 text-xs text-indigo-900 italic">
+                                        <div className="bg-brand-50/80 p-3.5 rounded-2xl border border-brand-100 text-xs text-brand-900 italic">
                                             "{simulationResult.advice}"
                                         </div>
                                     </div>
@@ -661,7 +665,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                     <div className="pt-4 flex flex-col sm:flex-row gap-2">
                                         <button 
                                             onClick={handleConvertSimulationToParcours}
-                                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-colors"
+                                            className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-colors"
                                         >
                                             <Compass size={15} />
                                             <span>Transformer en Parcours Officiel</span>
@@ -720,7 +724,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                     </div>
 
                                     <div className="flex items-center gap-2 w-full md:w-auto">
-                                        <button onClick={handleSync} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600"><RefreshCw size={16} /></button>
+                                        <button onClick={handleSync} aria-label="Synchroniser le Coffre-Fort" title="Synchroniser" className="p-2.5 min-w-11 min-h-11 flex items-center justify-center border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"><RefreshCw size={16} /></button>
                                         <div className="relative flex-1 md:w-64">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                             <input 
@@ -775,15 +779,19 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                             </div>
 
                                             <div className="flex items-center gap-1">
-                                                <button 
+                                                <button
                                                     onClick={() => addNotification("Document", `Consultation de ${doc.name}`, "info")}
-                                                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                                    aria-label={`Consulter ${doc.name}`}
+                                                    title="Consulter"
+                                                    className="p-2.5 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                                 >
                                                     <Eye size={14} />
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => addNotification("Partage", `Lien sécurisé généré pour ${doc.name}`, "info")}
-                                                    className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600"
+                                                    aria-label={`Partager ${doc.name}`}
+                                                    title="Partager"
+                                                    className="p-2.5 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                                                 >
                                                     <Share2 size={14} />
                                                 </button>
@@ -804,7 +812,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div>
                                 <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                                    <BrainCircuit className="text-purple-600" size={22} />
+                                    <BrainCircuit className="text-brand-600" size={22} />
                                     <span>Mémoire Active Diallo OS (5 Couches Transversales)</span>
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-1">
@@ -818,7 +826,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                     <button
                                         key={lay}
                                         onClick={() => setSelectedMemoryLayer(lay)}
-                                        className={`px-3 py-1.5 rounded-lg transition-colors capitalize ${selectedMemoryLayer === lay ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                        className={`px-3 py-1.5 rounded-lg transition-colors capitalize ${selectedMemoryLayer === lay ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
                                     >
                                         {lay === 'all' ? 'Toutes' : lay}
                                     </button>
@@ -833,7 +841,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
                                 .map((mem) => (
                                     <div key={mem.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:shadow-sm transition-all">
                                         <div className="flex items-center justify-between gap-2 mb-2">
-                                            <span className="text-[10px] font-extrabold uppercase bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full">
+                                            <span className="text-[10px] font-extrabold uppercase bg-brand-100 text-brand-700 px-2.5 py-0.5 rounded-full">
                                                 Couche : {mem.layer || 'Parcours'} • {mem.category}
                                             </span>
                                             <span className="text-[10px] text-slate-400 font-semibold">{mem.timestamp}</span>
