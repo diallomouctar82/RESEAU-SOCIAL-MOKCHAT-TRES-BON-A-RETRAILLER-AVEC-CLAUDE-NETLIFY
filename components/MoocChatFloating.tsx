@@ -613,7 +613,18 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           content: p.content,
           attachmentUrl: p.attachmentUrl,
           messageType: p.messageType,
-          replyToId: currentReplyTo && isRealConversationId(currentReplyTo.id) ? undefined : undefined,
+          // Corrigé : les deux branches de l'ancien ternaire valaient
+          // `undefined` (probable copier-coller de la vérification de l'id
+          // de CONVERSATION appliquée par erreur à l'id du MESSAGE cité) —
+          // `reply_to_id` n'était donc jamais réellement envoyé à Supabase,
+          // même en répondant explicitement à un message (la preview de
+          // réponse locale de l'expéditeur ne survivait ni au rechargement
+          // ni pour le destinataire, qui ne recevait aucun lien de réponse).
+          // On ne cite que l'id d'un message déjà confirmé côté serveur
+          // (status !== 'sending') : le message optimiste pas encore
+          // confirmé n'existe pas encore comme ligne réelle, le référencer
+          // violerait la contrainte de clé étrangère reply_to_id.
+          replyToId: currentReplyTo && currentReplyTo.status !== 'sending' ? currentReplyTo.id : undefined,
         });
         if (sent) {
           setConversations(prev => prev.map(c => c.id === currentChatId ? {
