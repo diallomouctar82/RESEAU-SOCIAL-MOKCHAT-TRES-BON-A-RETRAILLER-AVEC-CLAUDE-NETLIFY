@@ -80,6 +80,19 @@ export interface UserProfile {
         showFollowingList: boolean;
         /** LOOP 09/17 (notifications, orchestration proactive) : mode silencieux — réduit l'interruption (badge non-lus masqué) sans jamais cacher les notifications elles-mêmes du panneau. */
         notificationsMuted: boolean;
+        /**
+         * Fiche de consentement de l'Architecte (chantier de finalisation,
+         * §18) — remplie par le flux vocal guidé, toujours modifiable et
+         * révocable. `scope` distingue le mode personnalisé (limité) du mode
+         * étendu ; aucun des deux ne contourne jamais les permissions du
+         * navigateur ou du système.
+         */
+        architecte?: {
+            callName: string;
+            scope: 'limite' | 'etendu';
+            autoPrepare: boolean;
+            consentAt: string;
+        };
     };
     shop?: UserShop;
     medical?: {

@@ -12,6 +12,7 @@ import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
 import { isVisionQuestion, runArchitecteCommand, type ArchitectePhase } from '../../services/architecte/architecteBrain';
 import { extractDocumentText, UnsupportedDocumentError } from '../../services/architecte/documentExtractor';
+import { buildConsentRecap, CONSENT_STEPS, isConsentCommand, type ArchitecteConsent } from '../../services/architecte/consentFlow';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
 import { registerSettingsCapabilities } from '../../services/architecte/settingsCapabilityHandlers';
 import { registerSearchCapabilities } from '../../services/architecte/searchCapabilityHandlers';
@@ -274,6 +275,59 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         }
     }, [announce]);
 
+    // ── Fiche de consentement — formulaire rempli RÉELLEMENT, question par
+    // question (§9/§18 de la mission de finalisation). L'état vit dans une
+    // ref : les réponses arrivent par les mêmes canaux (voix, clavier) et
+    // sont routées vers la fiche tant qu'elle est active. AUCUNE écriture
+    // avant la confirmation du récapitulatif.
+    const consentRef = useRef<{ step: number; answers: Partial<Omit<ArchitecteConsent, 'consentAt'>> } | null>(null);
+
+    const handleConsentAnswer = useCallback(async (answer: string) => {
+        addSessionTurn({ role: 'utilisateur', kind: 'texte', text: answer });
+        if (/\b(annule|laisse tomber|stop|abandonne)\b/i.test(answer)) {
+            consentRef.current = null;
+            announce("Fiche annulée — rien n'a été enregistré.", 'text-slate-400');
+            return;
+        }
+        const state = consentRef.current!;
+        const step = CONSENT_STEPS[state.step];
+        const value = step.parse(answer);
+        if (value === undefined) {
+            announce(step.reprompt, 'text-amber-300');
+            return;
+        }
+        (state.answers as any)[step.key] = value;
+
+        if (state.step + 1 < CONSENT_STEPS.length) {
+            state.step += 1;
+            announce(CONSENT_STEPS[state.step].question, 'text-cyan-300/80');
+            return;
+        }
+
+        // Toutes les réponses sont là : récapitulatif, PUIS confirmation,
+        // PUIS l'unique écriture réelle — dans cet ordre, jamais un autre.
+        consentRef.current = null;
+        const answers = state.answers as Omit<ArchitecteConsent, 'consentAt'>;
+        const recap = buildConsentRecap(answers);
+        announce(recap, 'text-cyan-300/80');
+        if (!window.confirm(recap)) {
+            announce('Fiche non enregistrée — dites « configure mes autorisations » pour recommencer.', 'text-slate-400');
+            return;
+        }
+        const ok = await onUpdateProfile({
+            privacySettings: {
+                ...profileRef.current.privacySettings,
+                architecte: { ...answers, consentAt: new Date().toISOString() },
+            },
+        });
+        announce(
+            ok
+                ? `C'est enregistré, ${answers.callName}. Ces choix restent modifiables et révocables à tout moment.`
+                : "L'enregistrement a échoué — rien n'a été conservé. Réessayez dans un instant.",
+            ok ? 'text-emerald-300' : 'text-red-300'
+        );
+    }, [announce, onUpdateProfile]);
+
     /**
      * Commande (voix OU clavier — même session, même cerveau).
      *
@@ -286,6 +340,19 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
      */
     const handleCommand = useCallback(async (command: string) => {
         if (!command.trim()) return;
+
+        // Fiche de consentement active : la réponse va à la fiche, pas au
+        // cerveau — même canal, même session, zéro second assistant.
+        if (consentRef.current) {
+            await handleConsentAnswer(command.trim());
+            return;
+        }
+        if (isConsentCommand(command)) {
+            addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
+            consentRef.current = { step: 0, answers: {} };
+            announce(CONSENT_STEPS[0].question, 'text-cyan-300/80');
+            return;
+        }
 
         if (isVisionQuestion(command)) {
             addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
@@ -338,7 +405,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         } finally {
             setIsThinking(false);
         }
-    }, [onNavigate, speak, announce, analyseVisual]);
+    }, [onNavigate, speak, announce, analyseVisual, handleConsentAnswer]);
 
     // --- Pièce jointe ---------------------------------------------------
 
