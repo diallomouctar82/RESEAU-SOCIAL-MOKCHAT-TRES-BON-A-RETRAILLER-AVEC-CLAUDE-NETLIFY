@@ -1,6 +1,7 @@
 import { generateJSON } from '../aiGateway';
 import { describeCapabilitiesForHumans, getCapability } from './capabilityRegistry';
 import { executeCapability, listExecutableCapabilities } from './capabilityBus';
+import { addSessionTurn, buildSessionContext, sessionHasImage } from './architecteSession';
 
 /**
  * Cerveau unique de l'Architecte.
@@ -64,6 +65,31 @@ export function isDiscoveryCommand(command: string): boolean {
     return DISCOVERY_PHRASES.some((phrase) => normalized.includes(phrase));
 }
 
+/**
+ * La question porte-t-elle sur ce que l'Architecte « voit » ?
+ *
+ * Détection délibérément DÉTERMINISTE (pas un appel au modèle) : c'est le
+ * garde-fou contre l'hallucination visuelle constatée en usage réel —
+ * l'Architecte a affirmé voir une montre alors qu'aucune image n'était
+ * disponible. Une question de vision est routée vers la VRAIE analyse
+ * d'image quand une image existe dans la session, et vers un aveu honnête
+ * (« je ne dispose d'aucune image ») quand il n'y en a pas — jamais vers un
+ * modèle texte libre d'inventer un contenu visuel.
+ */
+const VISION_QUESTION_PATTERNS: RegExp[] = [
+    /\bque?\s+vois[\s-]?tu\b/i,
+    /\bqu'est[\s-]?ce que tu vois\b/i,
+    /\btu vois quoi\b/i,
+    /\bdécris (cette |l'|la |ce que tu vois)/i,
+    /\bsur (cette|la) (photo|image|capture)\b/i,
+    /\bregarde\b/i,
+    /\banalyse (cette|la|l')\s*(photo|image|capture)/i,
+];
+
+export function isVisionQuestion(command: string): boolean {
+    return VISION_QUESTION_PATTERNS.some((p) => p.test(command));
+}
+
 /** Modules de navigation connus — repris à l'identique du prompt d'origine. */
 const NAVIGATION_MODULES = `            - 'home' (Dashboard)
             - 'social' (Réseau, Feed)
@@ -88,8 +114,20 @@ export function buildArchitecteSystemPrompt(userName: string, userLevel: number 
         ? executable.map((c) => `            - capabilityId: "${c.id}" — ${c.description}`).join('\n')
         : '            (aucune capacité exécutable dans le contexte actuel — n\'utilise pas "capabilityId")';
 
+    // Contexte de session : le fil récent (texte, images montrées, documents
+    // fournis), borné — jamais tout l'historique dans chaque requête.
+    const sessionContext = buildSessionContext();
+    const visionTruth = sessionHasImage()
+        ? "Une ou plusieurs images ont été montrées dans cette session (voir le contexte) — mais TOI, tu n'as pas accès à leurs pixels ici : ne décris jamais leur contenu de mémoire."
+        : "AUCUNE image n'a été montrée dans cette session : si l'on te demande ce que tu « vois », réponds honnêtement que tu ne disposes d'aucune image — n'invente JAMAIS un contenu visuel.";
+
     return `Tu es Diallo OS, le système d'exploitation intelligent de l'application 'Le Monde à Vous'.
             L'utilisateur est : ${userName}, Niveau ${userLevel}.
+${sessionContext ? `
+            Contexte récent de la conversation (pour comprendre les références comme « lui », « ce document », « cette image », « continue ») :
+${sessionContext}
+` : ''}
+            Vérité visuelle : ${visionTruth}
 
             Ta mission : Analyser la demande de l'utilisateur et déterminer l'action UI à effectuer dans l'application.
 
@@ -180,6 +218,21 @@ export async function runArchitecteCommand(
     if (!trimmed) {
         return { spoken: '', handledLocally: true };
     }
+
+    // Historique de session unique : le cerveau est le point de passage des
+    // deux incarnations (barre vocale, clavier) — enregistrer ICI garantit
+    // « 1 historique » sans double écriture nulle part.
+    addSessionTurn({ role: 'utilisateur', kind: 'texte', text: trimmed });
+    const outcome = await interpretAndExecute(trimmed, options);
+    const reply = outcome.execution?.message || outcome.spoken;
+    if (reply) addSessionTurn({ role: 'architecte', kind: 'texte', text: reply });
+    return outcome;
+}
+
+async function interpretAndExecute(
+    trimmed: string,
+    options: RunArchitecteOptions
+): Promise<ArchitecteOutcome> {
 
     // Découverte : traitée SANS appel au modèle, directement depuis le
     // registre — la réponse ne peut donc jamais contenir une capacité

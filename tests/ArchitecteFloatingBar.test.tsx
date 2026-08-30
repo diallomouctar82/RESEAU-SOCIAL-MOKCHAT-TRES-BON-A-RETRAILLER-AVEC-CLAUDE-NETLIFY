@@ -63,6 +63,7 @@ vi.mock('../services/aiGateway', () => ({
 }));
 
 import { ArchitecteFloatingBar } from '../components/architecte/ArchitecteFloatingBar';
+import { addSessionTurn, clearSession } from '../services/architecte/architecteSession';
 
 const PROFIL: any = { id: 'u-test', name: 'Preuve Lazarus', level: 3 };
 
@@ -72,7 +73,6 @@ function monter(props: Partial<React.ComponentProps<typeof ArchitecteFloatingBar
             userProfile={PROFIL}
             onNavigate={vi.fn()}
             onUpdateProfile={vi.fn(async () => true)}
-            onOpenTyped={vi.fn()}
             {...props}
         />
     );
@@ -94,6 +94,9 @@ function ouvrirALaSouris() {
 beforeEach(() => {
     vi.clearAllMocks();
     voiceState.error = null;
+    // La session de l'Architecte est un singleton de module : chaque test
+    // repart d'un fil vierge.
+    clearSession();
 });
 
 describe('État fermé', () => {
@@ -141,15 +144,39 @@ describe('Ouverture', () => {
         expect(screen.getByLabelText('Activer la caméra')).toBeInTheDocument();
     });
 
-    it("n'affiche pas le bouton Écrire quand aucune saisie clavier n'est fournie", async () => {
-        monter({ onOpenTyped: undefined });
+    it("le bouton Écrire ouvre la saisie DANS la même barre — jamais un second assistant", async () => {
+        // Exigence de la mission de finalisation : « il ne doit jamais arriver
+        // qu'un bouton ouvre un autre assistant ». Avant : le bouton fermait
+        // la barre et ouvrait DialloOS. Désormais : un champ de saisie
+        // apparaît dans la même session, la barre reste ouverte.
+        monter();
         ouvrirALaSouris();
         await screen.findByText("L'Architecte");
 
-        expect(screen.queryByLabelText("Écrire à l'Architecte")).toBeNull();
-        // Les deux autres restent : ils ne dépendent d'aucune prop.
+        fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
+
+        expect(await screen.findByLabelText("Saisie clavier de l'Architecte")).toBeInTheDocument();
+        // La barre est TOUJOURS là — aucune bascule d'expérience.
+        expect(screen.getByText("L'Architecte")).toBeInTheDocument();
         expect(screen.getByLabelText('Joindre un fichier')).toBeInTheDocument();
         expect(screen.getByLabelText('Activer la caméra')).toBeInTheDocument();
+    });
+
+    it('le fil de session affiche les tours existants — y compris une image, avec sa vignette', async () => {
+        addSessionTurn({ role: 'utilisateur', kind: 'texte', text: 'Bonjour Architecte' });
+        addSessionTurn({
+            role: 'utilisateur', kind: 'image', text: 'Photo prise à la caméra',
+            imageDataUrl: 'data:image/jpeg;base64,AAAA', imageMimeType: 'image/jpeg',
+        });
+        addSessionTurn({ role: 'architecte', kind: 'texte', text: 'Je vois votre photo.' });
+
+        monter();
+        ouvrirALaSouris();
+        await screen.findByText("L'Architecte");
+
+        expect(screen.getByText('Bonjour Architecte')).toBeInTheDocument();
+        expect(screen.getByText('Je vois votre photo.')).toBeInTheDocument();
+        expect(screen.getByAltText('Photo prise à la caméra')).toBeInTheDocument();
     });
 });
 
