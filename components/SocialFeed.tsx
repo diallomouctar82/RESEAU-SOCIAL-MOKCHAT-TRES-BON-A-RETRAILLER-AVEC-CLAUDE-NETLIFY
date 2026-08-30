@@ -948,6 +948,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         await supabaseService.updatePostStatus(post.id, 'archived');
       } catch (err) {
         console.warn('Could not archive post', err);
+        alert("L'archivage a échoué. La publication reste visible — réessayez.");
         return;
       }
     }
@@ -960,6 +961,18 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // de partage silencieux d'un contenu qui ne devrait pas l'être.
   const handleSharePost = async (post: Post) => {
     navigator.clipboard.writeText(`https://lemondeavous.org/mooc/posts/${post.id}`);
+    // Le lien est toujours copié, mais il ne mènera à rien pour quelqu'un qui
+    // n'a pas le droit de voir la publication : une publication réservée aux
+    // abonnés ou privée reste protégée par la RLS, quel que soit le lien.
+    // Le dire honnêtement plutôt que laisser croire à un partage public.
+    if (post.visibility !== 'public') {
+      alert(
+        post.visibility === 'private'
+          ? "Lien copié — mais cette publication est privée : personne d'autre que vous ne pourra l'ouvrir."
+          : "Lien copié — seuls vos amis et abonnés pourront ouvrir cette publication."
+      );
+      return;
+    }
     if (supabaseService.isConfigured() && isRealPostId(post.id)) {
       try {
         await supabaseService.sharePost(post.id);
