@@ -416,12 +416,23 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     // existante (friendshipId) — pas d'action possible sans elle.
     const friendshipId = member.friendshipId;
     if (action === 'accept') {
+      const previous = members.find(m => m.id === memberId);
       setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'friends', isFollowing: true } : m));
       if (canSync && friendshipId) {
         try {
           await supabaseService.acceptFriendRequest(friendshipId);
         } catch (err) {
+          // Une amitié affichée mais jamais enregistrée est un mensonge à
+          // deux : l'autre personne ne devient jamais votre amie et ne le
+          // saura jamais. On rétablit l'état réel plutôt que de laisser
+          // croire à une acceptation.
           console.warn('Could not accept friend request', err);
+          setMembers(prev => prev.map(m => m.id === memberId ? {
+            ...m,
+            friendshipStatus: previous?.friendshipStatus ?? 'pending_received',
+            isFollowing: previous?.isFollowing ?? false
+          } : m));
+          alert("L'acceptation n'a pas pu être enregistrée. La demande est toujours en attente — réessayez.");
         }
       }
       return;
@@ -429,6 +440,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
     // cancel (demande envoyée par moi), decline (demande reçue) et remove
     // (ami existant) suppriment tous la même ligne côté base.
+    const beforeRemoval = members.find(m => m.id === memberId);
     setMembers(prev => prev.map(m => m.id === memberId ? {
       ...m,
       friendshipStatus: 'none',
@@ -440,7 +452,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       try {
         await supabaseService.removeFriendship(friendshipId);
       } catch (err) {
+        // Même principe : une relation retirée à l'écran mais toujours
+        // présente en base réapparaît au rechargement suivant.
         console.warn('Could not remove friendship', err);
+        if (beforeRemoval) setMembers(prev => prev.map(m => m.id === memberId ? beforeRemoval : m));
+        alert("La modification n'a pas pu être enregistrée. Réessayez.");
       }
     }
   };
@@ -479,7 +495,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     try {
       await supabaseService.blockUser(currentUser.id, memberId);
     } catch (err) {
+      // Un blocage affiché mais jamais enregistré est le plus dangereux des
+      // faux succès de cet écran : la personne peut toujours écrire, suivre
+      // et envoyer des demandes, alors que l'utilisateur se croit protégé.
+      // On rétablit l'état réel et on le dit clairement.
       console.warn('Could not block user', err);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: false } : m));
+      alert(`Le blocage n'a PAS pu être enregistré. ${member.name} n'est donc pas bloqué(e) et peut toujours vous contacter. Réessayez.`);
     }
   };
 
@@ -490,6 +512,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       await supabaseService.unblockUser(currentUser.id, memberId);
     } catch (err) {
       console.warn('Could not unblock user', err);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isBlockedByMe: true } : m));
+      alert("Le déblocage n'a pas pu être enregistré. La personne reste bloquée — réessayez.");
     }
   };
 
@@ -547,7 +571,16 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           await supabaseService.setReaction(postId, currentUser.id, reactionType);
         }
       } catch (err) {
+        // Une réaction est une action à faible enjeu : pas d'alerte
+        // bloquante (« un like n'a pas besoin d'un accusé », principe déjà
+        // retenu pour les notifications), mais l'état local revient à la
+        // vérité serveur plutôt que d'afficher un compteur inventé qui
+        // disparaîtrait au rechargement.
         console.warn('Could not sync reaction to Supabase', err);
+        setUserReactions(userReactions);
+        const reverted = [...posts];
+        reverted[postIndex] = post;
+        setPosts(reverted);
       }
     }
   };
@@ -596,9 +629,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             content: commentContent,
             parent_comment_id: parentCommentId
           });
-          if (inserted) newReply.id = inserted.id;
+          if (!inserted) throw new Error('createComment returned no row');
+          newReply.id = inserted.id;
         } catch (err) {
+          // Même défaut que la publication elle-même : une réponse affichée
+          // sans avoir été enregistrée disparaît au rechargement et n'est
+          // jamais vue par personne d'autre.
           console.warn('Could not sync reply to Supabase', err);
+          alert("Votre réponse n'a pas pu être publiée. Réessayez.");
+          return;
         }
       }
 
@@ -644,9 +683,15 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             author_id: currentUser.id!,
             content: commentContent
           });
-          if (inserted) newCmt.id = inserted.id;
+          if (!inserted) throw new Error('createComment returned no row');
+          newCmt.id = inserted.id;
         } catch (err) {
+          // Idem : ne jamais afficher un commentaire qui n'existe pas
+          // réellement côté serveur — il serait invisible pour l'auteur du
+          // post comme pour tout le monde, et disparaîtrait au rechargement.
           console.warn('Could not sync comment to Supabase', err);
+          alert("Votre commentaire n'a pas pu être publié. Réessayez.");
+          return;
         }
       }
 
