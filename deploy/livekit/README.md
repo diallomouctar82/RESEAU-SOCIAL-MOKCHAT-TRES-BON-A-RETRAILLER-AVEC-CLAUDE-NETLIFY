@@ -6,20 +6,26 @@ production le même serveur LiveKit qui sert déjà de cible de développement
 aucun code applicatif ne change, seule une ligne de configuration change
 dans Supabase une fois ce serveur en ligne (voir étape 4 ci-dessous).
 
-**Développé et validé localement dans ce sandbox** (syntaxe `docker
-compose`, cohérence des variables d'environnement, schéma de configuration
-LiveKit) — **jamais exécuté contre le VPS réel**, faute d'accès SSH/
-identifiants dans cet environnement. C'est le seul point d'arrêt de toute
-la mission LIVE : tout le reste a été développé et testé de bout en bout.
+**DÉPLOYÉ EN PRODUCTION le 30/08/2026** sur le VPS Hostinger de
+l'utilisateur (qui a exécuté lui-même chaque commande, les identifiants SSH
+n'ayant jamais été partagés) : `https://live.moknet.net`. Deux écarts par
+rapport à la procédure d'origine, appliqués sur place : (1) Caddy retiré —
+un site de production existant occupait déjà 80/443, TLS/reverse-proxy
+délégués à CloudPanel/nginx vers LiveKit sur `127.0.0.1:7880` ; (2) plage
+TURN bornée à `30000-30100` (la plage par défaut de 10 001 ports faisait
+échouer le démarrage du conteneur — timeout du userland-proxy Docker).
+Configuration `production` active dans `live_transport_config` (clé via
+Vault) et `LIVE_TRANSPORT_ENVIRONMENT=production` posé sur l'Edge Function
+`livekit-token`.
 
-## Ce qu'il faut pour aller plus loin (à fournir)
-
-1. Un accès SSH au VPS Hostinger (utilisateur + clé ou mot de passe).
-2. Un nom de domaine (ou sous-domaine) pointant vers l'IP publique du VPS —
-   ex. `live.lemondeavous.com` avec un enregistrement DNS de type A.
-
-Sans ces deux éléments, aucune des étapes ci-dessous ne peut être
-appliquée depuis cet environnement — mais tous les fichiers sont prêts.
+**Vérifié depuis le sandbox (30/08/2026, preuves conservées)** :
+`GET /` → 200 nginx ; `/rtc/validate` avec un jeton signé par la clé réelle
+(HMAC calculé en SQL depuis Vault, secret jamais sorti de la base) → 200 ;
+jeton bidon → 401 « invalid authorization token » ; et un **join de room
+réel au niveau signalisation** — WebSocket sortant Node → `wss://live.moknet.net/rtc`
+ouvert, JoinResponse protobuf reçue, fermeture propre 1000. **Reste côté
+utilisateur** : la preuve d'usage média à DEUX appareils réels (le trafic
+UDP/ICE n'est pas établissable depuis ce sandbox).
 
 ## Étapes (une fois l'accès SSH fourni)
 

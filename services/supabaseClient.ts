@@ -746,6 +746,46 @@ export const supabaseService = {
         if (error) throw error;
     },
 
+    // --- Croissance & diffusion (Équipes F5/F6/F7) ----------------------
+    /** F6 : code d'invitation personnel — généré côté serveur, idempotent. */
+    async getMyInviteCode(): Promise<string | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.rpc('get_or_create_invite_code');
+        if (error) { console.warn('getMyInviteCode: échec', error.message); return null; }
+        return (data as string) || null;
+    },
+
+    /**
+     * F6 : rattache le compte APPELANT au parrain propriétaire du code —
+     * refusé côté serveur si code inconnu / auto-parrainage / déjà parrainé.
+     */
+    async acceptInvitation(code: string): Promise<{ accepted: boolean; reason?: string }> {
+        if (!isSupabaseConfigured) return { accepted: false, reason: 'hors_ligne' };
+        const { data, error } = await supabase.rpc('accept_invitation', { p_code: code });
+        if (error) return { accepted: false, reason: error.message };
+        return (data as { accepted: boolean; reason?: string }) || { accepted: false, reason: 'reponse_vide' };
+    },
+
+    /** F6 : suivi RÉEL des résultats — uniquement les comptes réellement rattachés. */
+    async getMyInvitations(): Promise<{ invitedName: string; acceptedAt: string }[]> {
+        if (!isSupabaseConfigured) return [];
+        const { data, error } = await supabase.rpc('get_my_invitations');
+        if (error || !data) return [];
+        return (data as any[]).map((r) => ({ invitedName: r.invited_name, acceptedAt: r.accepted_at }));
+    },
+
+    /**
+     * F7 : statistiques de croissance personnelles — SECURITY INVOKER, la
+     * RLS s'applique normalement ; chaque nombre est réellement mesuré en
+     * base, jamais estimé côté client.
+     */
+    async getMyGrowthStats(): Promise<Record<string, number | null> | null> {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase.rpc('get_my_growth_stats');
+        if (error) { console.warn('getMyGrowthStats: échec', error.message); return null; }
+        return (data as Record<string, number | null>) || null;
+    },
+
     // --- Commentaires & réactions (fil social) --------------------------
     async getCommentsForPosts(postIds: string[]): Promise<any[]> {
         if (!isSupabaseConfigured || postIds.length === 0) return [];

@@ -33,6 +33,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, MemberProfile } from './types';
 import { getSession, onAuthStateChange, signOut } from './services/auth';
+import { supabaseService } from './services/supabaseClient';
 import { fetchUserProfile } from './services/profile';
 
 // Composant interne qui consomme le contexte
@@ -215,6 +216,37 @@ const AppContent = () => {
       } catch (err) {
           console.warn('Lecture du paramètre ?live= impossible', err);
       }
+  }, [isAuthenticated]);
+
+  // ÉQUIPE F6 — lien d'invitation (?invite=CODE, cf. components/ui/
+  // InviteButton.tsx). Le code est mémorisé AVANT l'authentification (la
+  // personne invitée arrive déconnectée, crée son compte, puis revient
+  // authentifiée), et consommé UNE fois la session établie :
+  // accept_invitation (SECURITY DEFINER) rattache réellement le compte au
+  // parrain — refus serveur silencieux si auto-parrainage/déjà parrainé.
+  const hasConsumedInviteRef = useRef(false);
+  useEffect(() => {
+      try {
+          const params = new URLSearchParams(window.location.search);
+          const inviteCode = params.get('invite');
+          if (inviteCode && /^[A-Za-z0-9]{4,16}$/.test(inviteCode)) {
+              localStorage.setItem('lmav_pending_invite', inviteCode.toUpperCase());
+              const cleanUrl = window.location.pathname + window.location.hash;
+              window.history.replaceState({}, '', cleanUrl);
+          }
+      } catch { /* paramètre illisible — on n'insiste pas */ }
+  }, []);
+  useEffect(() => {
+      if (!isAuthenticated || hasConsumedInviteRef.current) return;
+      const pending = (() => { try { return localStorage.getItem('lmav_pending_invite'); } catch { return null; } })();
+      if (!pending) return;
+      hasConsumedInviteRef.current = true;
+      void supabaseService.acceptInvitation(pending).then((res) => {
+          try { localStorage.removeItem('lmav_pending_invite'); } catch {}
+          if (res.accepted) {
+              console.info('Invitation rattachée au parrain.');
+          }
+      });
   }, [isAuthenticated]);
 
   // Prioritaire sur tout le reste : un lien "mot de passe oublié" cliqué
