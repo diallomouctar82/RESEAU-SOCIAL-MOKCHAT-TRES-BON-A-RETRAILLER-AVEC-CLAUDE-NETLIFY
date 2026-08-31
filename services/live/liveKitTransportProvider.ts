@@ -7,6 +7,7 @@ import {
     ConnectionState,
     LocalParticipant,
     LocalTrackPublication,
+    LocalVideoTrack,
     Participant,
     RemoteParticipant,
     Room,
@@ -14,6 +15,7 @@ import {
     Track,
 } from 'livekit-client';
 import type {
+    LiveCameraFacing,
     LiveConnectParams,
     LiveConnectionState,
     LiveParticipantHandle,
@@ -130,6 +132,17 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
 
     async setCameraEnabled(enabled: boolean): Promise<void> {
         await this.requireLocalParticipant().setCameraEnabled(enabled);
+    }
+
+    async setCameraFacing(facing: LiveCameraFacing): Promise<void> {
+        // restartTrack remplace la capture de la piste DÉJÀ publiée (mêmes
+        // abonnés, même publication) — jamais un unpublish/republish qui
+        // ferait clignoter la tuile chez le correspondant.
+        const track = this.requireLocalParticipant().getTrackPublication(Track.Source.Camera)?.track;
+        if (!(track instanceof LocalVideoTrack)) {
+            throw new Error('Caméra inactive — activez la caméra avant de basculer avant/arrière.');
+        }
+        await track.restartTrack({ facingMode: facing });
     }
 
     async setMicrophoneEnabled(enabled: boolean): Promise<void> {

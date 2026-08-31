@@ -637,8 +637,10 @@ le média réellement présentable, badge/bannière/compteur honnêtes.
 
 ### Limites documentées (honnêteté)
 
-Bascule caméra avant/arrière absente du port `LiveTransportProvider`
-(nécessite `switchCamera()` — chantier transport dédié) ; onglet fermé =
+Bascule caméra avant/arrière : COMBLÉE depuis (port `setCameraFacing` +
+hook `switchCamera` + bouton dans l'écran d'appel, visible uniquement si
+l'appareil a plusieurs caméras — miroir de l'aperçu local désactivé en
+face arrière) ; onglet fermé =
 pas de push serveur (limite web, aucune infrastructure push) ; RPM du
 palier gratuit Gemini TTS ; l'écoute à l'oreille et le test à deux vrais
 téléphones restent à la charge de l'utilisateur.

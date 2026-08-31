@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
-import type { LiveConnectionState, LiveParticipantHandle, LiveTrackHandle } from '../services/live/liveTransportTypes';
+import type { LiveCameraFacing, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
 
 export interface RemoteParticipantMedia {
@@ -45,6 +45,18 @@ export interface UseLiveTransportResult {
     /** À appeler DANS un handler de clic pour débloquer la lecture audio. */
     startAudio: () => Promise<void>;
     setCameraEnabled: (enabled: boolean) => Promise<void>;
+    /**
+     * Loop 7 (appels) : face actuelle de la caméra locale — 'user' par
+     * défaut, comme la capture livekit-client. Sert à l'UI pour ne PAS
+     * miroiter l'aperçu local quand la caméra arrière filme.
+     */
+    cameraFacing: LiveCameraFacing;
+    /**
+     * Bascule avant/arrière de la caméra déjà publiée. L'état `cameraFacing`
+     * ne change que si le transport a réellement réussi la bascule — un
+     * échec (une seule caméra, permission) laisse l'état honnête et rejette.
+     */
+    switchCamera: () => Promise<void>;
     setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
     startScreenShare: () => Promise<void>;
     stopScreenShare: () => Promise<void>;
@@ -82,6 +94,11 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantMedia[]>([]);
     const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
+    const [cameraFacing, setCameraFacing] = useState<LiveCameraFacing>('user');
+    // Miroir de l'état pour que switchCamera garde des deps [] (même patron
+    // que speakerMutedRef dans ChatCallModal) : deux bascules rapprochées
+    // lisent toujours la face réellement courante.
+    const cameraFacingRef = useRef<LiveCameraFacing>('user');
 
     useEffect(() => {
         if (!enabled || !roomName) return;
@@ -203,6 +220,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             setLocalVideoTrack(null);
             setLocalScreenShareTrack(null);
             setRemoteParticipants([]);
+            // Nouvelle connexion = nouvelle capture, qui repart en face avant.
+            cameraFacingRef.current = 'user';
+            setCameraFacing('user');
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [enabled, roomName, participantName, canPublish, publishVideoOnConnect, connectAttempt]);
@@ -217,6 +237,16 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
 
     const setCameraEnabled = useCallback(async (value: boolean) => {
         await providerRef.current?.setCameraEnabled(value);
+    }, []);
+    const switchCamera = useCallback(async () => {
+        const provider = providerRef.current;
+        if (!provider) return;
+        const next = nextCameraFacing(cameraFacingRef.current);
+        // L'état ne bascule QU'APRÈS le succès réel du transport — un rejet
+        // (une seule caméra, capture impossible) laisse l'affichage honnête.
+        await provider.setCameraFacing(next);
+        cameraFacingRef.current = next;
+        setCameraFacing(next);
     }, []);
     const setMicrophoneEnabled = useCallback(async (value: boolean) => {
         await providerRef.current?.setMicrophoneEnabled(value);
@@ -249,6 +279,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         audioPlaybackBlocked,
         startAudio,
         setCameraEnabled,
+        cameraFacing,
+        switchCamera,
         setMicrophoneEnabled,
         startScreenShare,
         stopScreenShare,
@@ -263,6 +295,15 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
 // SocialLive.tsx. Aucun nouveau système : elles ne font que DÉRIVER
 // l'affichage de l'état réel du transport ci-dessus.
 // ---------------------------------------------------------------------------
+
+/**
+ * Loop 7 (appels) : face suivante de la bascule caméra — un simple
+ * aller-retour avant ↔ arrière, jamais un troisième état. Pure et exportée
+ * pour être testée (tests/liveStageResync.test.ts).
+ */
+export function nextCameraFacing(current: LiveCameraFacing): LiveCameraFacing {
+    return current === 'user' ? 'environment' : 'user';
+}
 
 /**
  * L3 : un participant distant ne mérite une TUILE de scène que s'il publie

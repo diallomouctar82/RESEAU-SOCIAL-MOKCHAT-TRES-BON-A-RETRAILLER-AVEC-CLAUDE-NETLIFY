@@ -16,6 +16,9 @@ export type LiveConnectionState =
 
 export type LiveTrackKind = 'audio' | 'video' | 'screen_share' | 'screen_share_audio';
 
+/** Face de la caméra locale — 'user' (avant, appels en face à face) ou 'environment' (arrière, montrer ce qu'on voit). */
+export type LiveCameraFacing = 'user' | 'environment';
+
 export interface LiveParticipantHandle {
     /** Identifiant stable du participant — correspond à `profiles.id` côté MokNet. */
     identity: string;
@@ -78,6 +81,13 @@ export interface LiveTransportProvider {
     connect(params: LiveConnectParams, events: LiveTransportEvents): Promise<void>;
     disconnect(): Promise<void>;
     setCameraEnabled(enabled: boolean): Promise<void>;
+    /**
+     * Bascule la caméra locale déjà PUBLIÉE sur l'autre face (avant/arrière,
+     * loop 7 des appels). Rejette avec un message clair si aucune caméra
+     * n'est active — l'UI ne montre le bouton que quand la bascule a un sens
+     * (caméra allumée ET plusieurs caméras détectées).
+     */
+    setCameraFacing(facing: LiveCameraFacing): Promise<void>;
     setMicrophoneEnabled(enabled: boolean): Promise<void>;
     startScreenShare(): Promise<void>;
     stopScreenShare(): Promise<void>;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     hasPresentableMedia,
+    nextCameraFacing,
     stageGridClass,
     liveBadge,
     realViewerCount,
@@ -268,5 +269,25 @@ describe('shouldStartPanelCollapsed — la vidéo domine le mobile (L3)', () => 
     it('ouvert à partir de md (tablette/desktop)', () => {
         expect(shouldStartPanelCollapsed(768)).toBe(false);
         expect(shouldStartPanelCollapsed(1440)).toBe(false);
+    });
+});
+
+describe('nextCameraFacing — bascule avant/arrière (loop 7 des appels)', () => {
+    it("un simple aller-retour : avant → arrière → avant, jamais un troisième état", () => {
+        expect(nextCameraFacing('user')).toBe('environment');
+        expect(nextCameraFacing('environment')).toBe('user');
+        expect(nextCameraFacing(nextCameraFacing('user'))).toBe('user');
+    });
+});
+
+describe('port transport — la bascule caméra fait partie du contrat (loop 7)', () => {
+    it("LiveKitTransportProvider expose setCameraFacing et refuse HONNÊTEMENT avant connect()", async () => {
+        // Import dynamique : livekit-client est chargé mais aucune room n'est
+        // ouverte — on vérifie le contrat d'erreur claire, jamais un no-op
+        // silencieux qui ferait croire à une bascule réussie.
+        const { LiveKitTransportProvider } = await import('../services/live/liveKitTransportProvider');
+        const provider = new LiveKitTransportProvider();
+        expect(typeof provider.setCameraFacing).toBe('function');
+        await expect(provider.setCameraFacing('environment')).rejects.toThrow(/avant connect/);
     });
 });

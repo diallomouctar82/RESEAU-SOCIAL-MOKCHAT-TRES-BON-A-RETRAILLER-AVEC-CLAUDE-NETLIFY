@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Maximize2, Minimize2,
-  Volume2, VolumeX, Shield, User, Loader2
+  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2
 } from 'lucide-react';
 import { ActiveCallSession } from '../../types';
 import { useLiveTransport } from '../../hooks/useLiveTransport';
@@ -39,12 +39,14 @@ import { useLiveTransport } from '../../hooks/useLiveTransport';
  *   au toucher, états honnêtes (« Connexion… », « Reconnexion… », durée
  *   mm:ss).
  *
- * NOTE pour l'équipe LIVE (useLiveTransport) : la bascule caméra
- * avant/arrière (facingMode) n'est PAS exposée par le port transport
- * (setCameraEnabled(boolean) seulement) — le bouton dédié sera ajouté ici
- * dès qu'une API du type switchCamera()/setCameraFacing('user'|'environment')
- * existera dans le hook. Aucun contournement direct de livekit-client ici :
- * ce composant ne connaît que le hook.
+ * Bascule caméra avant/arrière (loop 7, dernier manque comblé) : exposée par
+ * le port transport (setCameraFacing) via le hook (switchCamera). Le bouton
+ * n'apparaît que si la bascule a un sens — caméra allumée ET plusieurs
+ * caméras détectées (un poste avec une seule webcam ne l'affiche pas, comme
+ * un téléphone n'affiche pas de bouton pour une caméra qu'il n'a pas).
+ * L'aperçu local n'est miroité qu'en face AVANT (un texte filmé par la
+ * caméra arrière doit rester lisible). Toujours aucun contournement direct
+ * de livekit-client ici : ce composant ne connaît que le hook.
  */
 
 /**
@@ -188,6 +190,30 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     const next = !isVideoOff;
     setIsVideoOff(next);
     try { await transport.setCameraEnabled(!next); } catch { setIsVideoOff(!next); }
+  };
+
+  // Bascule avant/arrière (loop 7) : proposée seulement quand l'appareil a
+  // réellement plusieurs caméras — enumerateDevices est réévalué une fois le
+  // média connecté (avant la permission, les navigateurs masquent souvent la
+  // liste réelle). Échec silencieux = pas de bouton, jamais un bouton mort.
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+  useEffect(() => {
+    if (!mediaConnected) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        if (!cancelled) setHasMultipleCameras(devices.filter((d) => d.kind === 'videoinput').length > 1);
+      } catch { /* API indisponible : le bouton reste masqué */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mediaConnected]);
+
+  const flipCamera = async () => {
+    try { await transport.switchCamera(); } catch {
+      // Une seule caméra réellement utilisable ou capture refusée : l'état
+      // du hook n'a pas bougé, l'appel continue tel quel.
+    }
   };
 
   const isScreenSharing = !!transport.localScreenShareTrack;
@@ -355,7 +381,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                 {isScreenSharing ? (
                   <video ref={localScreenRef} autoPlay playsInline muted className="w-full h-full object-cover pointer-events-none" />
                 ) : transport.localVideoTrack && !isVideoOff ? (
-                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1] pointer-events-none" />
+                  <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover pointer-events-none ${transport.cameraFacing === 'user' ? 'scale-x-[-1]' : ''}`} />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 p-2 text-center pointer-events-none">
                     <User size={24} />
@@ -523,6 +549,20 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
               >
                 {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
               </button>
+
+              {/* Bascule avant/arrière (loop 7) : uniquement quand la caméra
+                  est allumée ET que l'appareil en a plusieurs — un poste à
+                  webcam unique n'affiche pas un bouton sans effet. */}
+              {hasMultipleCameras && !isVideoOff && (
+                <button
+                  onClick={flipCamera}
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-md bg-white/10 hover:bg-white/20 text-white"
+                  title={transport.cameraFacing === 'user' ? 'Caméra arrière' : 'Caméra avant'}
+                  aria-label="Basculer entre caméra avant et arrière"
+                >
+                  <SwitchCamera size={20} />
+                </button>
+              )}
 
               {/* Raccrocher : rouge, central, le plus gros — la sortie doit
                   être trouvable en une demi-seconde, comme sur un téléphone. */}
