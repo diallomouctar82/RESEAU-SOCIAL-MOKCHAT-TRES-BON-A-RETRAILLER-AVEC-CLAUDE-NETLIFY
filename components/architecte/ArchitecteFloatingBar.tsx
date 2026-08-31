@@ -11,7 +11,7 @@ import {
     type ArchitecteTurn,
 } from '../../services/architecte/architecteSession';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
-import { ELEVENLABS_CURATED_VOICES, MIC_UNAVAILABLE_MESSAGE } from '../../services/voiceEngine';
+import { ELEVENLABS_CURATED_VOICES, LISTEN_NETWORK_MESSAGE, MIC_UNAVAILABLE_MESSAGE, SPEECH_OUTPUT_FAILED_MESSAGE, voiceEngine } from '../../services/voiceEngine';
 
 // Identité vocale de l'Architecte (Équipe V) — constantes de module :
 // une référence STABLE (jamais un littéral re-créé à chaque rendu, qui
@@ -301,10 +301,22 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // reconnaissance qui échoue ensuite. Défaut mesuré par l'audit du
     // 30/08/2026 : 16 relances silencieuses en ~5 s, zéro signal visible.
     useEffect(() => {
-        if (!isOpen || voiceError !== MIC_UNAVAILABLE_MESSAGE) return;
-        if (listenWatchdog.current) { clearTimeout(listenWatchdog.current); listenWatchdog.current = null; }
-        setStatus(MIC_TIMEOUT_MESSAGE);
-        setStatusTone('text-amber-300');
+        if (!isOpen) return;
+        if (voiceError === MIC_UNAVAILABLE_MESSAGE) {
+            if (listenWatchdog.current) { clearTimeout(listenWatchdog.current); listenWatchdog.current = null; }
+            setStatus(MIC_TIMEOUT_MESSAGE);
+            setStatusTone('text-amber-300');
+            return;
+        }
+        // Task force P0 (S2-C / S3-B) : l'abandon RÉSEAU de l'écoute et la
+        // voix impossible à jouer étaient émis par le moteur mais jamais
+        // affichés (l'égalité stricte ci-dessus les ignorait) — micro mort ou
+        // réponse muette SANS AUCUN SIGNAL. Le moteur retente l'écoute tout
+        // seul (filet ~15 s) ; ici on le DIT.
+        if (voiceError === LISTEN_NETWORK_MESSAGE || voiceError === SPEECH_OUTPUT_FAILED_MESSAGE) {
+            setStatus(voiceError);
+            setStatusTone('text-amber-300');
+        }
     }, [voiceError, isOpen]);
 
     useEffect(() => {
@@ -906,6 +918,28 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     useEffect(() => () => {
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
+    }, []);
+
+    // Task force P0 (S1) : l'accueil est un texte déterministe connu dès le
+    // montage de la pastille — sa synthèse est préchauffée en tâche de fond
+    // (cache mémoire + persistant) pour que le premier « Bonjour » parte
+    // quasi immédiatement au lieu d'attendre 2,5-4 s de génération. Un seul
+    // essai, best-effort, jamais bloquant.
+    useEffect(() => {
+        // Différé : jamais en compétition avec le chargement initial de la
+        // page — et le cache persistant rend l'appel gratuit dès la 2ᵉ visite.
+        const t = setTimeout(() => {
+            const greeting = buildArchitecteGreeting(
+                profileRef.current.privacySettings?.architecte,
+                profileRef.current.name
+            );
+            void voiceEngine.prewarmSpeech(greeting.text, {
+                voiceId: ARCHITECTE_VOICE_ID,
+                ...ARCHITECTE_VOICE_SETTINGS,
+            });
+        }, 1500);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const open = useCallback(async () => {
