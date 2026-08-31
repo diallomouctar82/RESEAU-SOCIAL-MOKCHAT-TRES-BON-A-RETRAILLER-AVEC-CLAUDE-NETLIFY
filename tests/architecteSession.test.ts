@@ -14,6 +14,8 @@ vi.mock('../services/aiGateway', () => ({
     generateText: vi.fn(async () => ''),
     analyzeImage: vi.fn(async () => ''),
     generateSpeech: vi.fn(async () => null),
+    generateSpeechDetailed: vi.fn(async () => ({ audioBase64: '', mimeType: 'audio/mpeg' })),
+    AiGatewayNetworkError: class extends Error { readonly isNetwork = true; },
     parseLooseJson: (t: string) => { try { return JSON.parse(t); } catch { return undefined; } },
 }));
 vi.mock('../services/supabaseClient', () => ({

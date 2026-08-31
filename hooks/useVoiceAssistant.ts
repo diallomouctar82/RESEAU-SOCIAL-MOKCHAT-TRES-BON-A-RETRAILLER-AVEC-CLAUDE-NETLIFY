@@ -30,6 +30,10 @@ export interface UseVoiceAssistantResult {
     transcript: string;
     error: string | null;
     conversationalTurn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user' | null;
+    /** Moteur vocal réellement en train de parler (HD ou voix de secours du
+     * navigateur) — permet à l'interface de dire honnêtement quelle voix
+     * parle au lieu d'une bascule invisible. */
+    ttsEngine: 'elevenlabs' | 'browser_native' | null;
     startListening: (lang?: string) => Promise<boolean>;
     stopListening: () => void;
     speak: (text: string, opts?: { voiceId?: string; onStart?: () => void; onEnd?: () => void }) => Promise<void>;
@@ -37,6 +41,8 @@ export interface UseVoiceAssistantResult {
     setConversationalMode: (enabled: boolean) => void;
     resolveVoiceId: (explicit?: string) => string;
 }
+
+let voiceAssistantInstanceCounter = 0;
 
 export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVoiceAssistantResult {
     const { agent, voiceId, voiceSettings, lang = 'fr-FR' } = options;
@@ -46,6 +52,17 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [conversationalTurn, setConversationalTurn] = useState<UseVoiceAssistantResult['conversationalTurn']>(null);
+    const [ttsEngine, setTtsEngine] = useState<UseVoiceAssistantResult['ttsEngine']>(null);
+
+    // Identité stable de CETTE instance du hook — sert de propriétaire de la
+    // session vocale (voir voiceEngine : un seul écran reçoit les
+    // transcriptions à la fois, fin du « plusieurs assistants répondent à la
+    // même phrase »).
+    const ownerIdRef = useRef<string>('');
+    if (!ownerIdRef.current) {
+        voiceAssistantInstanceCounter += 1;
+        ownerIdRef.current = `voice-owner-${voiceAssistantInstanceCounter}`;
+    }
 
     // Les callbacks passés en options changent souvent de référence d'un
     // rendu à l'autre (fonctions inline) : les lire depuis une ref évite de
@@ -56,6 +73,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     useEffect(() => { onInterimRef.current = options.onInterimTranscript; }, [options.onInterimTranscript]);
 
     useEffect(() => {
+        const myId = ownerIdRef.current;
         const listener: VoiceEngineListener = {
             onStart: () => setIsListening(true),
             onEnd: () => setIsListening(false),
@@ -63,13 +81,30 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
             onSpeechVolume: (v) => setVolume(v),
             onSpeakingStateChange: (speaking) => setIsSpeaking(speaking),
             onConversationalTurnChange: (turn) => setConversationalTurn(turn),
+            // Bascule de moteur vocal VISIBLE : l'interface peut dire quand la
+            // voix de secours du navigateur remplace la voix HD (l'audit du
+            // 31/08/2026 avait mesuré une bascule totalement invisible).
+            onTtsEngineChange: (engine) => setTtsEngine(engine),
             onTranscript: (text, isFinal) => {
+                // FILTRE DE PROPRIÉTÉ (mission Architecte §5) : quand un écran
+                // possède la session vocale, LUI SEUL reçoit les
+                // transcriptions — sans ce filtre, chaque écran monté
+                // exécutait sa propre réponse à la même phrase (plusieurs
+                // « intervenants » constatés en usage réel).
+                const owner = voiceEngine.getTranscriptOwner();
+                if (owner && owner !== myId) return;
                 setTranscript(text);
                 if (isFinal) onFinalRef.current?.(text);
                 else onInterimRef.current?.(text);
             },
         };
-        return voiceEngine.addListener(listener);
+        const remove = voiceEngine.addListener(listener);
+        return () => {
+            remove();
+            // Démontage : ne jamais laisser un propriétaire fantôme.
+            voiceEngine.releaseTemporaryOwnership(myId);
+            voiceEngine.releaseConversationalOwnership(myId);
+        };
     }, []);
 
     const resolveVoiceId = useCallback((explicit?: string): string => {
@@ -79,10 +114,13 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     const startListening = useCallback((overrideLang?: string) => {
         setError(null);
         setTranscript('');
+        // L'écran qui démarre l'écoute prend la main sur les transcriptions.
+        voiceEngine.claimTemporaryOwnership(ownerIdRef.current);
         return voiceEngine.startListening(overrideLang || lang);
     }, [lang]);
 
     const stopListening = useCallback(() => {
+        voiceEngine.releaseTemporaryOwnership(ownerIdRef.current);
         voiceEngine.stopListening();
     }, []);
 
@@ -95,6 +133,8 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     }, []);
 
     const setConversationalMode = useCallback((enabled: boolean) => {
+        if (enabled) voiceEngine.claimConversationalOwnership(ownerIdRef.current);
+        else voiceEngine.releaseConversationalOwnership(ownerIdRef.current);
         voiceEngine.setConversationalMode(enabled);
     }, []);
 
@@ -106,6 +146,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
         transcript,
         error,
         conversationalTurn,
+        ttsEngine,
         startListening,
         stopListening,
         speak,

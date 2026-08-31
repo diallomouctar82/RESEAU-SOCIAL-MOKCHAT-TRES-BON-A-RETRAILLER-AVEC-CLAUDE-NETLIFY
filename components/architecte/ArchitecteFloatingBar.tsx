@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
-import { analyzeImage, generateText } from '../../services/aiGateway';
+import { AiGatewayNetworkError, analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
     buildSessionContext,
@@ -259,7 +259,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     useEffect(() => registerSearchCapabilities(), []);
 
     const {
-        isListening, isSpeaking, isSupported, volume,
+        isListening, isSpeaking, isSupported, volume, ttsEngine,
         transcript, error: voiceError, startListening, stopListening, speak, stopSpeaking, setConversationalMode,
     } = useVoiceAssistant({
         lang: 'fr-FR',
@@ -448,8 +448,47 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
      *    laissé libre d'inventer un contenu visuel (la « montre » constatée
      *    en usage réel venait exactement de là).
      */
+    // ── Garde de ré-entrance (mission de finalisation §1) ────────────────
+    // Ceinture-bretelles au-dessus du correctif moteur (double émission VAD) :
+    // le MÊME texte reçu deux fois en moins de 4 s est ignoré (certains
+    // moteurs de reconnaissance émettent des doublons de final), et une
+    // commande arrivée PENDANT le traitement d'une autre est mise en attente
+    // (file de taille 1 — la dernière gagne) puis traitée à la fin, au lieu
+    // de partir en parallèle et d'entremêler deux réponses.
+    const lastCommandRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+    const inFlightRef = useRef(false);
+    const queuedCommandRef = useRef<string | null>(null);
+    // Le corps réel est lu via une ref réévaluée à chaque rendu (même patron
+    // que profileRef) : la garde de ré-entrance reste STABLE (deps []) sans
+    // jamais capturer une version périmée des callbacks.
+    const runCommandBodyRef = useRef<(command: string) => Promise<void>>(async () => {});
+
     const handleCommand = useCallback(async (command: string) => {
         if (!command.trim()) return;
+
+        const normalized = command.trim().toLowerCase();
+        const now = Date.now();
+        if (normalized === lastCommandRef.current.text && now - lastCommandRef.current.at < 4000) {
+            return; // doublon strict du moteur de reconnaissance — jamais deux exécutions
+        }
+        lastCommandRef.current = { text: normalized, at: now };
+
+        if (inFlightRef.current) {
+            queuedCommandRef.current = command;
+            return;
+        }
+        inFlightRef.current = true;
+        try {
+            await runCommandBodyRef.current(command);
+        } finally {
+            inFlightRef.current = false;
+            const queued = queuedCommandRef.current;
+            queuedCommandRef.current = null;
+            if (queued && isOpenRef.current) void handleCommand(queued);
+        }
+    }, []);
+
+    const runCommandBody = useCallback(async (command: string) => {
 
         // Offre de configuration en attente (première rencontre) : un « oui »
         // court l'accepte et démarre la fiche ; toute autre réponse la laisse
@@ -640,15 +679,34 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         setStatus('Analyse...');
         setStatusTone('text-cyan-300/80');
         try {
-            const outcome = await runArchitecteCommand(command, {
-                userName: profileRef.current.name,
-                userLevel: profileRef.current.level,
-                // Mémoire de la relation (§22) : le nom choisi dans la fiche
-                // est utilisé, jamais redemandé.
-                callName: profileRef.current.privacySettings?.architecte?.callName,
-                confirm: (message) => window.confirm(message),
-                onPhase: (phase, message) => { setStatus(message); setStatusTone(PHASE_TONE[phase]); },
-            });
+            // JUSQU'À DEUX TENTATIVES quand l'échec est un problème de
+            // TRANSPORT (réseau coupé, délai dépassé) — avec un état
+            // « reconnexion » visible entre les deux. Une erreur réseau
+            // n'est JAMAIS présentée comme une incompréhension (§20).
+            let outcome: Awaited<ReturnType<typeof runArchitecteCommand>> | null = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    outcome = await runArchitecteCommand(command, {
+                        userName: profileRef.current.name,
+                        userLevel: profileRef.current.level,
+                        // Mémoire de la relation (§22) : le nom choisi dans la
+                        // fiche est utilisé, jamais redemandé.
+                        callName: profileRef.current.privacySettings?.architecte?.callName,
+                        confirm: (message) => window.confirm(message),
+                        onPhase: (phase, message) => { setStatus(message); setStatusTone(PHASE_TONE[phase]); },
+                    });
+                    break;
+                } catch (e) {
+                    if (e instanceof AiGatewayNetworkError && attempt === 1 && isOpenRef.current) {
+                        setStatus('Connexion interrompue — je réessaie...');
+                        setStatusTone('text-amber-300');
+                        await new Promise((r) => setTimeout(r, 1500));
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+            if (!outcome) return;
 
             // Ce qui est prononcé est toujours le RÉSULTAT réel quand il y en
             // a un — jamais l'intention annoncée par le modèle si l'exécution
@@ -667,15 +725,22 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 const payload = outcome.action.payload;
                 setTimeout(() => onNavigate(target, payload), 1200);
             }
-        } catch {
-            const message = "Je n'ai pas compris. Reformulez, s'il vous plaît.";
+        } catch (e) {
+            const isNetwork = e instanceof AiGatewayNetworkError;
+            const message = isNetwork
+                ? `${(e as Error).message} Votre demande n'a pas été perdue : répétez-la quand la connexion revient.`
+                : "Je n'ai pas compris. Reformulez, s'il vous plaît.";
             setStatus(message);
-            setStatusTone('text-amber-300');
-            void speak(message);
+            setStatusTone(isNetwork ? 'text-red-300' : 'text-amber-300');
+            addSessionTurn({ role: 'architecte', kind: 'texte', text: message });
+            if (isOpenRef.current) void speak(message);
         } finally {
             setIsThinking(false);
         }
     }, [onNavigate, speak, announce, analyseVisual, handleConsentAnswer]);
+
+    // La garde de ré-entrance (deps []) lit toujours la dernière version.
+    useEffect(() => { runCommandBodyRef.current = runCommandBody; });
 
     // --- Pièce jointe ---------------------------------------------------
 
@@ -981,7 +1046,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             basculer vers une autre interface. Masqué pendant que la caméra
             occupe le même emplacement. */}
         {!isCameraOpen && showConversationPanel && (
-            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[92%] max-w-2xl rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]">
+            <div className="fixed bottom-44 md:bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[92%] max-w-2xl rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]">
                 {/* Surface visuelle adaptative : le « petit écran » de
                     l'Architecte — lecteur vidéo ou aperçu de document selon
                     la tâche, jamais un second assistant. Une seule commande
@@ -1076,7 +1141,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         {/* Panneau caméra — AU-DESSUS de la barre, jamais à sa place : on voit
             ce que l'Architecte va regarder avant de le lui envoyer. */}
         {isCameraOpen && (
-            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[90%] max-w-lg rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.25),0_18px_45px_rgba(0,0,0,0.6)]">
+            <div className="fixed bottom-44 md:bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[90%] max-w-lg rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.25),0_18px_45px_rgba(0,0,0,0.6)]">
                 <video ref={videoRef} playsInline muted className="w-full h-56 object-cover bg-black" />
                 <div className="flex items-center justify-between gap-3 p-3">
                     <span className="text-[11px] font-mono text-cyan-300/80 truncate">
@@ -1106,7 +1171,11 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             // boutons d'action : à 512px l'égaliseur se retrouvait écrasé
             // entre le titre et les boutons, ce qui n'est ni la référence ni
             // lisible.
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-2xl bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
+            // `bottom-24` sur mobile : la barre à `bottom-8` recouvrait le
+            // dock (z-50) — plus AUCUN accès au menu, donc aux Experts, tant
+            // que l'Architecte était ouvert (défaut mesuré par l'audit mobile
+            // du 31/08/2026). Desktop inchangé.
+            className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-2xl bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
             role="status"
             aria-live="polite"
         >
@@ -1136,6 +1205,15 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
                         L'Architecte
                         {isListening && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />}
+                        {/* Bascule de moteur vocal VISIBLE (§20 — jamais une
+                            bascule silencieuse) : quand la voix HD est
+                            indisponible, l'utilisateur sait qu'il entend la
+                            voix de secours du navigateur. */}
+                        {ttsEngine === 'browser_native' && (
+                            <span className="text-[8px] font-mono normal-case tracking-normal text-amber-300/90 border border-amber-400/40 rounded-full px-1.5 py-px" title="La voix haute-définition est indisponible — voix de secours du navigateur">
+                                voix de secours
+                            </span>
+                        )}
                     </span>
                     <span className={`text-[10px] font-mono truncate max-w-[180px] ${statusTone}`}>
                         {subtitle}

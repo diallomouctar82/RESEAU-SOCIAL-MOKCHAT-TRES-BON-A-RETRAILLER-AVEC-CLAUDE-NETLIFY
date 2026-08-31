@@ -49,7 +49,7 @@ import {
   MasterResumeProfile,
   ConquestWarRoomDossier
 } from '../types';
-import { generateText, generateJSON, generateSpeech } from '../services/aiGateway';
+import { generateText, generateJSON, generateSpeechDetailed } from '../services/aiGateway';
 import { Avatar3D } from './Avatar3D';
 
 // Career Accomplishment Sub-components
@@ -698,9 +698,10 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
   const speak = async (text: string) => {
     setAvatarState('speaking');
     try {
-      const base64 = await generateSpeech(text, { voiceId: 'Fenrir' });
-      if (base64) {
-        const audio = new Audio('data:audio/mp3;base64,' + base64);
+      const detail = await generateSpeechDetailed(text, { voiceId: 'Fenrir' });
+      if (detail?.audioBase64) {
+        // Type MIME réel du fournisseur retenu (mp3 ElevenLabs, wav Gemini...).
+        const audio = new Audio(`data:${detail.mimeType};base64,` + detail.audioBase64);
         audio.onended = () => setAvatarState('idle');
         audio.onerror = () => setAvatarState('idle');
         await audio.play();

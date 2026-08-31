@@ -44,11 +44,51 @@ async function readFunctionErrorMessage(error: any): Promise<string | undefined>
     }
 }
 
+/**
+ * Erreur de TRANSPORT (réseau coupé, délai dépassé) — distincte d'une erreur
+ * du fournisseur IA. Les interfaces peuvent la reconnaître (`isNetwork`) pour
+ * afficher un état « reconnexion » honnête au lieu de « je n'ai pas compris »
+ * (défaut mesuré par l'audit du 31/08/2026 : une coupure réseau était
+ * présentée comme une incompréhension).
+ */
+export class AiGatewayNetworkError extends Error {
+    readonly isNetwork = true;
+    constructor(message: string) { super(message); this.name = 'AiGatewayNetworkError'; }
+}
+
+/** Budget de temps CLIENT par appel — sans lui, le pire cas était
+ * `nb_fournisseurs × 30 s` en série sans aucun plafond visible. */
+const GATEWAY_TIMEOUT_MS = 45_000;
+
 async function invokeGateway(body: Record<string, unknown>): Promise<any> {
-    const { data, error } = await supabase.functions.invoke('ai-gateway', { body });
-    if (error) throw new Error((await readFunctionErrorMessage(error)) || error.message || "Échec de l'appel à l'orchestrateur IA.");
-    if (data?.error) throw new Error(data.error as string);
-    return data;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new AiGatewayNetworkError('Aucune connexion Internet — je réessaierai dès que la connexion revient.');
+    }
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+            () => reject(new AiGatewayNetworkError("Le service IA n'a pas répondu dans le délai imparti (45 s).")),
+            GATEWAY_TIMEOUT_MS
+        );
+    });
+    try {
+        const { data, error } = await Promise.race([
+            supabase.functions.invoke('ai-gateway', { body }),
+            timeout,
+        ]);
+        if (error) {
+            // `Failed to fetch` / TypeError = transport, pas fournisseur.
+            const detail = await readFunctionErrorMessage(error);
+            if (!detail && /fetch|network|load failed/i.test(error.message || '')) {
+                throw new AiGatewayNetworkError('La connexion au service IA a échoué — vérifiez votre réseau.');
+            }
+            throw new Error(detail || error.message || "Échec de l'appel à l'orchestrateur IA.");
+        }
+        if (data?.error) throw new Error(data.error as string);
+        return data;
+    } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
 }
 
 /**
@@ -130,13 +170,17 @@ export const generateTextDetailed = async (
  */
 export const generateJSON = async <T = any>(
     prompt: string | AiMessage[],
-    options?: { systemInstruction?: string; providerId?: string; modelId?: string }
+    options?: { systemInstruction?: string; providerId?: string; modelId?: string; agentId?: string }
 ): Promise<T> => {
     const data = await invokeGateway({
         mode: 'call',
         category: 'llm',
         providerId: options?.providerId,
         modelId: options?.modelId,
+        // `agentId` détermine côté serveur les outils autorisés (recherche
+        // web...) : sans lui, les droits d'outils accordés à l'Architecte
+        // n'avaient AUCUN effet sur son chemin principal (audit 31/08/2026).
+        agentId: options?.agentId,
         request: { messages: toMessages(prompt, options?.systemInstruction), jsonMode: true },
     });
     if (data?.result?.json !== undefined) return data.result.json as T;
@@ -269,17 +313,27 @@ export const generateVideo = async (
     return assetUrl as string;
 };
 
-/** Synthèse vocale (TTS). Retourne l'audio en base64 (mp3). */
-export const generateSpeech = async (
+export interface SpeechOptions {
+    voiceId?: string;
+    providerId?: string;
+    modelId?: string;
+    /** Réglages fins du fournisseur (ElevenLabs : stability/similarity_boost/style). Optionnels — sans eux, les défauts du fournisseur s'appliquent, comme avant. */
+    voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
+}
+
+export interface SpeechResult {
+    audioBase64: string;
+    /** Type MIME réel du fournisseur retenu (audio/mpeg pour ElevenLabs,
+     * audio/wav pour le secours Gemini TTS...) — indispensable pour jouer
+     * l'audio correctement quel que soit le fournisseur de bascule. */
+    mimeType: string;
+}
+
+/** Synthèse vocale (TTS) avec le type MIME réel de l'audio. */
+export const generateSpeechDetailed = async (
     text: string,
-    options?: {
-        voiceId?: string;
-        providerId?: string;
-        modelId?: string;
-        /** Réglages fins du fournisseur (ElevenLabs : stability/similarity_boost/style). Optionnels — sans eux, les défauts du fournisseur s'appliquent, comme avant. */
-        voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
-    }
-): Promise<string> => {
+    options?: SpeechOptions
+): Promise<SpeechResult> => {
     const data = await invokeGateway({
         mode: 'call',
         category: 'voice',
@@ -289,7 +343,19 @@ export const generateSpeech = async (
     });
     const audioBase64 = data?.result?.audioBase64;
     if (!audioBase64) throw new Error("Le fournisseur n'a pas renvoyé d'audio.");
-    return audioBase64 as string;
+    return {
+        audioBase64: audioBase64 as string,
+        mimeType: (data?.result?.audioMimeType as string) || 'audio/mpeg',
+    };
+};
+
+/** Synthèse vocale (TTS). Retourne l'audio en base64 (mp3 historique). */
+export const generateSpeech = async (
+    text: string,
+    options?: SpeechOptions
+): Promise<string> => {
+    const { audioBase64 } = await generateSpeechDetailed(text, options);
+    return audioBase64;
 };
 
 /** Transcription (parole -> texte). audioBase64 = audio brut encodé en base64. */

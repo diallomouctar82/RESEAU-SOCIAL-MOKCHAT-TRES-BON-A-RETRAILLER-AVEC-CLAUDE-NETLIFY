@@ -68,6 +68,9 @@ export interface AdapterResult {
     text?: string;
     json?: unknown;
     audioBase64?: string;
+    /** Type MIME réel de `audioBase64` (audio/mpeg par défaut historique ;
+     * audio/wav pour Gemini TTS). Le client joue l'audio avec ce type. */
+    audioMimeType?: string;
     jobId?: string;
     assetUrl?: string;
     raw?: unknown;
