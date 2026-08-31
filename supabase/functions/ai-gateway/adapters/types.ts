@@ -93,6 +93,33 @@ export class AdapterError extends Error {
     }
 }
 
+// Lecture TOLÉRANTE d'une réponse jsonMode : les modèles enveloppent souvent
+// le JSON demandé dans des clôtures markdown (```json ... ```) ou le font
+// précéder d'une phrase d'introduction. Un JSON.parse brut jetait alors une
+// exception qui brûlait toute la cascade de bascule — mesuré en QA le
+// 31/08/2026 (gemini et openrouter clôturés, deepseek en prose → 502 pour
+// l'utilisateur). Ici : parse strict d'abord, puis extraction du bloc
+// clôturé, puis du premier objet/tableau équilibré. Rien d'inventé : si
+// aucun JSON n'existe réellement, AdapterError 'other' — la bascule tente
+// honnêtement le fournisseur suivant.
+export function parseJsonModeText(text: string): unknown {
+    const trimmed = text.trim();
+    try { return JSON.parse(trimmed); } catch { /* tolérance ci-dessous */ }
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fenced) {
+        try { return JSON.parse(fenced[1]); } catch { /* continue */ }
+    }
+    const start = trimmed.search(/[{[]/);
+    if (start >= 0) {
+        const close = trimmed[start] === '{' ? '}' : ']';
+        const end = trimmed.lastIndexOf(close);
+        if (end > start) {
+            try { return JSON.parse(trimmed.slice(start, end + 1)); } catch { /* continue */ }
+        }
+    }
+    throw new AdapterError('Réponse non conforme au format JSON demandé (jsonMode).', 'other');
+}
+
 export interface ProviderAdapter {
     // config : présent uniquement pour les fournisseurs auto-découverts (adapter_kind
     // 'generic_http') — c'est ai_providers.adapter_config, ignoré par tous les

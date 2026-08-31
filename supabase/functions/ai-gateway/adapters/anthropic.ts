@@ -1,7 +1,7 @@
 // Adaptateur Claude (Anthropic Messages API) — forme de requête distincte d'OpenAI :
 // `system` est un champ séparé, pas un message, et le contenu de la réponse est un tableau de blocs.
 
-import { AdapterError, AdapterRequest, AdapterResult, ProviderAdapter } from './types.ts';
+import { AdapterError, AdapterRequest, AdapterResult, ProviderAdapter, parseJsonModeText } from './types.ts';
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com';
 
@@ -140,7 +140,7 @@ export const anthropicAdapter: ProviderAdapter = {
         if (toolCalls.length) return { text, toolCalls, usage, raw: data };
 
         if (!text) throw new AdapterError('Réponse vide du fournisseur.', 'other');
-        return req.llm.jsonMode ? { json: JSON.parse(text), usage, raw: data } : { text, usage, raw: data };
+        return req.llm.jsonMode ? { json: parseJsonModeText(text), usage, raw: data } : { text, usage, raw: data };
     },
 
     async testConnection(apiKey: string, baseUrl: string | null, config?: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
