@@ -117,6 +117,12 @@ export const MIC_UNAVAILABLE_MESSAGE =
 export const LISTEN_NETWORK_MESSAGE =
     "La connexion réseau interrompt l'écoute — je reprendrai dès que la connexion revient.";
 
+// Task force P0 (S3-B) : la synthèse navigateur n'a réussi à dire AUCUNE
+// phrase (environnement sans voix utilisable) — signalé plutôt qu'un faux
+// « j'ai parlé » silencieux, la réponse reste lisible à l'écran.
+export const SPEECH_OUTPUT_FAILED_MESSAGE =
+    "La voix n'a pas pu être jouée sur cet appareil — ma réponse reste affichée à l'écran.";
+
 export class VoiceEngine {
     private static instance: VoiceEngine;
     private recognition: any = null;
@@ -194,12 +200,42 @@ export class VoiceEngine {
     // un aller-retour. Le verrou saute à chaque nouvelle session (ouverture/
     // fermeture de la barre) et si la personne change son moteur préféré.
     private sessionEngineLock: 'browser_native' | null = null;
+    // Task force P0 (S3-A) : le verrou éternel posé au PREMIER hoquet du
+    // fournisseur HD condamnait toute la session à la voix navigateur alors
+    // que le HD refonctionnait 70 % du temps. Le verrou expire (TTL) : passé
+    // ce délai, la prochaine réponse redonne UNE chance au HD.
+    private sessionEngineLockAt = 0;
+    private static readonly ENGINE_LOCK_TTL_MS = 60_000;
+    // Task force P0 (S2-C) : retentative espacée après un abandon réseau de
+    // la reconnaissance (Chrome émet des erreurs `network` sans jamais
+    // repasser par l'événement `online`).
+    private lastNetworkRetryAt = 0;
+    // Task force P0 (S2) : filet « jamais bloqué » du mode conversationnel.
+    private conversationalWatchdog: any = null;
 
     // Browser Native Speech Queue fallback
     private speechQueue: string[] = [];
     private isProcessingQueue: boolean = false;
     private currentUtterance: SpeechSynthesisUtterance | null = null;
     private heartbeatInterval: any = null;
+    // Task force P0 (S3-B) : au moins une phrase du repli navigateur a-t-elle
+    // RÉELLEMENT commencé à être dite pendant ce tour de parole ?
+    private browserRunHadStart = false;
+
+    /**
+     * Journal des transitions de la boucle conversationnelle (mission P0) :
+     * horodatage + délai depuis la transition précédente. console.debug —
+     * visible en ouvrant la console, jamais un coût pour l'utilisateur.
+     */
+    private lastTraceAt = 0;
+    private trace(step: string, extra?: Record<string, unknown>) {
+        try {
+            const now = Date.now();
+            const dtMs = this.lastTraceAt ? now - this.lastTraceAt : 0;
+            this.lastTraceAt = now;
+            console.debug(`[VoixArchitecte] ${step}`, { dtMs, ...(extra || {}) });
+        } catch { /* jamais bloquant */ }
+    }
 
     private constructor() {
         this.initSpeechRecognition();
@@ -371,6 +407,11 @@ export class VoiceEngine {
                     // n'est pas un micro en panne — le message et la reprise
                     // automatique (événement `online`) diffèrent.
                     this.gaveUpBecauseOfNetwork = !fatal && this.lastRecognitionErrorWasNetwork;
+                    // La première retentative espacée du filet part ~15 s
+                    // après CET abandon — jamais immédiatement (le service
+                    // vient d'échouer 4 fois de suite).
+                    this.lastNetworkRetryAt = Date.now();
+                    this.trace('écoute abandonnée', { cause: this.gaveUpBecauseOfNetwork ? 'réseau' : event.error });
                     this.listeners.forEach(l => l.onError?.(
                         this.gaveUpBecauseOfNetwork ? LISTEN_NETWORK_MESSAGE : MIC_UNAVAILABLE_MESSAGE
                     ));
@@ -380,6 +421,21 @@ export class VoiceEngine {
             this.recognition.onend = () => {
                 this.isListening = false;
                 this.listeners.forEach(l => l.onEnd?.());
+
+                // Task force P0 (S2-B, propriétaire fantôme) : une dictée
+                // ponctuelle qui se termine d'elle-même (silence, jamais de
+                // bouton « stop ») gardait la main temporaire À VIE — la
+                // session conversationnelle d'un AUTRE écran continuait
+                // d'écouter mais tous ses transcripts étaient filtrés :
+                // micro « actif » et assistant sourd pour toujours. La prise
+                // de main temporaire expire avec la session de reconnaissance
+                // qui l'a portée, dès lors que la session conversationnelle
+                // appartient à quelqu'un d'autre.
+                if (this.isConversationalMode && this.temporaryOwnerId
+                    && this.temporaryOwnerId !== this.conversationalOwnerId) {
+                    this.trace('propriétaire temporaire expiré (fin de reconnaissance)');
+                    this.temporaryOwnerId = null;
+                }
 
                 // Reprise automatique si le mode conversationnel est toujours
                 // actif, que l'IA ne parle pas, ET que le micro n'a pas été
@@ -425,9 +481,37 @@ export class VoiceEngine {
         // session = plus rien à verrouiller. Dans les deux cas, le verrou
         // d'identité vocale ne survit jamais à la session qui l'a posé.
         this.sessionEngineLock = null;
+        this.sessionEngineLockAt = 0;
+        if (this.conversationalWatchdog) {
+            clearInterval(this.conversationalWatchdog);
+            this.conversationalWatchdog = null;
+        }
         if (!enabled) {
             if (this.vadSilenceTimer) clearTimeout(this.vadSilenceTimer);
+            return;
         }
+        this.trace('session conversationnelle ouverte');
+        // Task force P0 (S2) — FILET « jamais bloqué » : quelle que soit la
+        // panne qui a laissé la session ni parlante ni écoutante (utterance
+        // perdue, exception imprévue, relance ratée), la boucle se répare
+        // toute seule. Un abandon micro (permission/périphérique) ne se
+        // relance jamais tout seul ; un abandon RÉSEAU est retenté toutes
+        // les ~15 s (Chrome émet des erreurs `network` de son service de
+        // reconnaissance SANS jamais repasser par l'événement `online` —
+        // démontré par l'audit P0, S2-C).
+        this.conversationalWatchdog = setInterval(() => {
+            if (!this.isConversationalMode || this.isSpeaking || this.isListening) return;
+            if (this.recognitionGaveUp) {
+                if (this.gaveUpBecauseOfNetwork && Date.now() - this.lastNetworkRetryAt > 15_000) {
+                    this.lastNetworkRetryAt = Date.now();
+                    this.trace('retentative d\'écoute après abandon réseau');
+                    void this.startListening('fr-FR');
+                }
+                return;
+            }
+            this.trace('filet de reprise : écoute relancée');
+            void this.startListening('fr-FR');
+        }, 5000);
     }
 
     public getIsConversationalMode(): boolean {
@@ -672,8 +756,14 @@ export class VoiceEngine {
         // sur la voix navigateur — on n'alterne pas entre deux voix au gré
         // de la disponibilité du fournisseur HD.
         if (this.isConversationalMode && this.sessionEngineLock === 'browser_native') {
-            this.fallbackToBrowserSpeech(cleanedText, options);
-            return;
+            // Task force P0 (S3-A) : le verrou expire — le HD marche la
+            // plupart du temps, un seul hoquet ne condamne plus la session.
+            if (Date.now() - this.sessionEngineLockAt < VoiceEngine.ENGINE_LOCK_TTL_MS) {
+                this.fallbackToBrowserSpeech(cleanedText, options);
+                return;
+            }
+            this.sessionEngineLock = null;
+            this.trace('verrou voix navigateur expiré — nouvelle chance au HD');
         }
 
         // Essayer d'abord la synthèse vocale ElevenLabs HD
@@ -732,6 +822,67 @@ export class VoiceEngine {
         return segments;
     }
 
+    private segmentCacheKey(
+        segment: string,
+        voiceId: string,
+        options?: { stability?: number; similarity_boost?: number; style?: number }
+    ): string {
+        const settings = this.buildVoiceSettings(options);
+        const settingsKey = settings ? `_s${settings.stability ?? ''}i${settings.similarity_boost ?? ''}y${settings.style ?? ''}` : '';
+        return `${voiceId}${settingsKey}_${segment.slice(0, 80)}_${segment.length}`;
+    }
+
+    // Task force P0 (S1) : cache PERSISTANT des audios préchauffés (l'accueil
+    // de l'Architecte est un texte déterministe — le regénérer à chaque
+    // chargement de page gaspillait 2,5-4 s ET le quota du fournisseur
+    // gratuit). Quelques entrées seulement, jamais un entrepôt.
+    private static readonly PREWARM_STORE_KEY = 'lmav_tts_prewarm_v1';
+    private readPrewarmStore(): Record<string, string> {
+        try { return JSON.parse(localStorage.getItem(VoiceEngine.PREWARM_STORE_KEY) || '{}'); }
+        catch { return {}; }
+    }
+
+    /**
+     * Préchauffe la synthèse d'un texte connu d'avance (l'accueil) : chaque
+     * segment est généré en tâche de fond et rangé dans le cache mémoire ET
+     * le cache persistant — l'ouverture suivante parle immédiatement.
+     * Silencieux et sans conséquence en cas d'échec (le chemin normal
+     * reprendra sa génération habituelle).
+     */
+    public async prewarmSpeech(
+        text: string,
+        options?: { voiceId?: string; voiceName?: string; stability?: number; similarity_boost?: number; style?: number }
+    ): Promise<void> {
+        try {
+            const cleaned = this.formatForSpokenVoice(text);
+            if (!cleaned) return;
+            const voiceId = options?.voiceId || this.getVoiceIdForAgent(options?.voiceName);
+            const segments = this.splitForHdSynthesis(cleaned);
+            const store = this.readPrewarmStore();
+            let storeChanged = false;
+            for (const segment of segments) {
+                const key = this.segmentCacheKey(segment, voiceId, options);
+                if (this.audioCache.get(key)) continue;
+                if (store[key]) { this.audioCache.set(key, store[key]); continue; }
+                const url = await this.generateSegmentAudio(segment, voiceId, options);
+                if (!url) return; // fournisseur indisponible : on n'insiste pas
+                store[key] = url;
+                storeChanged = true;
+            }
+            if (storeChanged) {
+                // Borne stricte : au-delà de 6 entrées (variantes d'accueil),
+                // on repart d'un magasin frais plutôt que de grossir sans fin.
+                const keys = Object.keys(store);
+                const bounded = keys.length > 6
+                    ? Object.fromEntries(keys.slice(-6).map((k) => [k, store[k]]))
+                    : store;
+                try { localStorage.setItem(VoiceEngine.PREWARM_STORE_KEY, JSON.stringify(bounded)); }
+                catch { /* quota localStorage plein : le cache mémoire suffit pour cette page */ }
+                this.trace('accueil préchauffé', { segments: segments.length });
+            }
+        } catch { /* préchauffage best-effort, jamais bloquant */ }
+    }
+
     /** Génère (ou relit du cache) l'audio d'UN segment. Retourne null en cas d'échec — jamais une exception. */
     private async generateSegmentAudio(
         segment: string,
@@ -739,15 +890,24 @@ export class VoiceEngine {
         options?: { stability?: number; similarity_boost?: number; style?: number }
     ): Promise<string | null> {
         const settings = this.buildVoiceSettings(options);
-        const settingsKey = settings ? `_s${settings.stability ?? ''}i${settings.similarity_boost ?? ''}y${settings.style ?? ''}` : '';
-        const cacheKey = `${voiceId}${settingsKey}_${segment.slice(0, 80)}_${segment.length}`;
+        const cacheKey = this.segmentCacheKey(segment, voiceId, options);
 
         const cached = this.audioCache.get(cacheKey);
         if (cached) return cached;
+        // Cache persistant du préchauffage (S1) — hydrate le cache mémoire.
+        try {
+            const persisted = this.readPrewarmStore()[cacheKey];
+            if (persisted) { this.audioCache.set(cacheKey, persisted); return persisted; }
+        } catch { /* localStorage indisponible : chemin normal */ }
 
         try {
+            const t0 = Date.now();
             const detail = await generateSpeechDetailed(segment, { voiceId, voiceSettings: settings });
-            if (!detail?.audioBase64) return null;
+            if (!detail?.audioBase64) {
+                this.trace('segment TTS sans audio', { ms: Date.now() - t0, chars: segment.length });
+                return null;
+            }
+            this.trace('segment TTS généré', { ms: Date.now() - t0, chars: segment.length });
             // Type MIME RÉEL du fournisseur (mp3 ElevenLabs, wav Gemini...) —
             // l'ancien `audio/mpeg` codé en dur aurait fait échouer la lecture
             // d'un WAV de secours sur certains navigateurs.
@@ -875,10 +1035,12 @@ export class VoiceEngine {
         this.notifySpeakingState(false);
         options?.onEnd?.();
 
+        this.trace('voix HD : lecture terminée');
         if (this.isConversationalMode) {
             this.notifyConversationalTurn('waiting_user');
             setTimeout(() => {
                 if (this.isConversationalMode && !this.isSpeaking && !this.isListening) {
+                    this.trace('micro relancé après réponse');
                     this.startListening('fr-FR');
                 }
             }, 350);
@@ -903,8 +1065,9 @@ export class VoiceEngine {
         const phrases = this.splitIntoAcousticPhrases(text);
         if (phrases.length === 0) return;
 
-        // La session parle désormais avec CETTE voix — et la garde (§9).
-        if (this.isConversationalMode) this.sessionEngineLock = 'browser_native';
+        // Task force P0 (S3-A) : le verrou d'identité vocale (§9) n'est plus
+        // posé ICI mais au premier `utterance.onstart` réel — une voix qui
+        // n'a jamais parlé ne verrouille pas la session sur du silence.
 
         if (this.isListening && this.recognition) {
             try { this.recognition.stop(); } catch (e) {}
@@ -913,14 +1076,21 @@ export class VoiceEngine {
         this.speechQueue = phrases;
         this.isProcessingQueue = true;
         this.isSpeaking = true;
+        this.browserRunHadStart = false;
         this.currentActiveEngine = 'browser_native';
         this.notifySpeakingState(true);
         this.notifyConversationalTurn('ai_speaking');
         this.listeners.forEach(l => l.onTtsEngineChange?.('browser_native'));
         options?.onStart?.();
+        this.trace('repli navigateur : lecture demandée', { phrases: phrases.length });
 
         this.startHeartbeat();
-        this.processNextInQueue(options);
+        // Task force P0 (S2-A) : `stopSpeaking()` vient d'appeler
+        // `speechSynthesis.cancel()` dans ce même tick — certains navigateurs
+        // PERDENT silencieusement une utterance lancée immédiatement après
+        // (ni onstart, ni onend, ni onerror : voix muette ET micro jamais
+        // relancé, démontré par la reproduction de l'audit). Court différé.
+        setTimeout(() => { if (this.isProcessingQueue) this.processNextInQueue(options); }, 80);
     }
 
     private splitIntoAcousticPhrases(text: string): string[] {
@@ -989,7 +1159,33 @@ export class VoiceEngine {
         // point, une question laisse à l'autre le temps d'exister. L'ancienne
         // pause unique (120 ms partout) donnait la lecture d'un seul bloc.
         const breath = VoiceEngine.breathAfterPhrase(phrase);
+
+        // Task force P0 (S2-A, démontré par reproduction) : une utterance peut
+        // être PERDUE par le navigateur — aucun de ses événements ne part
+        // jamais. Sans chien de garde, `isSpeaking` restait true pour
+        // toujours : voix muette ET micro jamais relancé (blocage
+        // irrécupérable). Si rien n'a démarré sous 2 s, on passe à la suite.
+        const lostWatchdog = setTimeout(() => {
+            if (this.currentUtterance === utterance && this.isProcessingQueue) {
+                this.trace('utterance perdue — chien de garde', { phrase: phrase.slice(0, 40) });
+                this.processNextInQueue(options);
+            }
+        }, 2000);
+
+        utterance.onstart = () => {
+            clearTimeout(lostWatchdog);
+            this.browserRunHadStart = true;
+            // Task force P0 (S3-A) : le verrou d'identité vocale (§9) ne se
+            // pose que sur une voix qui a RÉELLEMENT commencé à parler.
+            if (this.isConversationalMode && this.sessionEngineLock !== 'browser_native') {
+                this.sessionEngineLock = 'browser_native';
+                this.sessionEngineLockAt = Date.now();
+                this.trace('verrou voix navigateur posé (voix réellement audible)');
+            }
+        };
+
         utterance.onend = () => {
+            clearTimeout(lostWatchdog);
             setTimeout(() => {
                 if (this.isProcessingQueue) {
                     this.processNextInQueue(options);
@@ -998,6 +1194,7 @@ export class VoiceEngine {
         };
 
         utterance.onerror = (e) => {
+            clearTimeout(lostWatchdog);
             console.warn('Speech chunk notice:', e);
             if (this.isProcessingQueue) {
                 this.processNextInQueue(options);
@@ -1060,16 +1257,30 @@ export class VoiceEngine {
 
     private finishSpeakingBrowser(options?: { onEnd?: () => void }) {
         this.stopHeartbeat();
+        const wasRunning = this.isProcessingQueue || this.isSpeaking;
         this.isProcessingQueue = false;
         this.isSpeaking = false;
         this.currentUtterance = null;
         this.notifySpeakingState(false);
         options?.onEnd?.();
 
+        // Task force P0 (S3-B) : la file s'est vidée sans qu'UNE SEULE phrase
+        // ait réellement démarré (environnement sans voix utilisable,
+        // utterances toutes perdues) — jamais un faux « j'ai parlé » : l'échec
+        // est signalé, la réponse reste lisible à l'écran, et le verrou
+        // d'identité n'a pas été posé (la prochaine réponse retente le HD).
+        if (wasRunning && !this.browserRunHadStart) {
+            this.trace('repli navigateur : AUCUNE phrase dite — échec signalé');
+            this.listeners.forEach(l => l.onError?.(SPEECH_OUTPUT_FAILED_MESSAGE));
+        } else if (wasRunning) {
+            this.trace('repli navigateur : lecture terminée');
+        }
+
         if (this.isConversationalMode) {
             this.notifyConversationalTurn('waiting_user');
             setTimeout(() => {
                 if (this.isConversationalMode && !this.isSpeaking && !this.isListening) {
+                    this.trace('micro relancé après réponse');
                     this.startListening('fr-FR');
                 }
             }, 350);

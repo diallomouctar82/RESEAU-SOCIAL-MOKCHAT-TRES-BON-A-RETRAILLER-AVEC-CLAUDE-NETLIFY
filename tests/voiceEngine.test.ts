@@ -199,11 +199,20 @@ describe('voiceEngine — identité vocale stable par session (Équipe B §9)', 
         delete (window as any).SpeechSynthesisUtterance;
     });
 
-    it('après UN repli sur la voix navigateur, la session y RESTE — plus jamais une alternance de voix', async () => {
+    it('après UN repli qui a RÉELLEMENT parlé, la session y RESTE — plus jamais une alternance de voix', async () => {
+        // Task force P0 (S3-A) : le verrou ne se pose plus à l'entrée du
+        // repli mais au premier `onstart` réel — une voix restée muette ne
+        // verrouille jamais la session sur du silence. Le faux moteur fait
+        // donc démarrer la voix pour poser le verrou, comme un vrai
+        // navigateur qui parle.
+        (window as any).speechSynthesis.speak = vi.fn((u: any) => { u.onstart?.(); });
+
         // 1er tour : le fournisseur HD échoue → repli navigateur (une bascule, assumée).
         await voiceEngine.speak('Bonjour, je vous écoute.');
         expect(gateway.generateSpeech).toHaveBeenCalledTimes(1);
         expect(voiceEngine.getCurrentActiveEngine()).toBe('browser_native');
+        // Le repli démarre après le différé anti-cancel (80 ms).
+        await new Promise((r) => setTimeout(r, 120));
 
         // 2e tour : le moteur HD n'est PAS retenté en cours de session —
         // c'était l'origine de la « succession de voix » constatée.
