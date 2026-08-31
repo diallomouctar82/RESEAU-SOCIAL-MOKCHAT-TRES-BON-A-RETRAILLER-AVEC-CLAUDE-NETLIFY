@@ -12,6 +12,7 @@ import { adminConfigService } from '../services/adminConfigService';
 import { summarizeConversation, assistRewriteMessage, translateMessageText } from '../services/messaging/messagingIntelligence';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
+import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
 import { ChatReportModal } from './chat/ChatReportModal';
 import { ChatMemberInfoModal } from './chat/ChatMemberInfoModal';
 
@@ -50,6 +51,107 @@ const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
 // livekit-token répondrait 403 (uuid invalide, erreur 22P02) et aucun média
 // ne passerait jamais.
 export const isLikelyRealId = (id?: string): id is string => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * ÉQUIPE 8 (appel entrant — loops 2+3+6) : logiques PURES du flux de
+ * sonnerie, extraites en fonctions testables. Le composant ne fait que les
+ * consommer ; services/calls/ringtoneService.ts reste l'unique source
+ * sonore (jamais deux générateurs superposés).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Phase sonore dérivée de la session d'appel — le SEUL mapping
+ * signaux → sonnerie/arrêt de tout le flux :
+ *  - `call_invitation` reçu   → session ringing + entrant   → 'ring'
+ *    (sonnerie choisie + vibration, via startRinging du service) ;
+ *  - invitation ÉMISE          → session ringing + sortant  → 'ringback'
+ *    (tonalité de retour côté appelant) ;
+ *  - `call_accepted` (ou décrocher local) → status 'connected' → 'silent' ;
+ *  - `call_ended`/`call_rejected` reçus, refus/raccrochage local,
+ *    expiration 35 s côté appelant → session null → 'silent'.
+ * Toute transition vers 'silent' arrête IMMÉDIATEMENT sonnerie ET ringback
+ * — un seul point de vérité, donc aucun chemin de sortie oublié.
+ */
+export const ringingStateForCall = (
+  session: { status: ActiveCallSession['status'] } | null,
+  isIncoming: boolean
+): 'ring' | 'ringback' | 'silent' => {
+  if (!session || session.status !== 'ringing') return 'silent';
+  return isIncoming ? 'ring' : 'ringback';
+};
+
+/**
+ * Sonnerie à jouer pour un appel entrant : le choix PROFIL
+ * (privacySettings.ringtoneId) prime s'il existe ; sinon `undefined`, et le
+ * service retombe sur son cache local (lmav_ringtone_v1) puis la Signature
+ * MokNet — jamais un id invalide transmis tel quel.
+ */
+export const resolveIncomingRingtoneId = (profileRingtoneId?: unknown): string | undefined =>
+  typeof profileRingtoneId === 'string' && profileRingtoneId.trim().length > 0
+    ? profileRingtoneId
+    : undefined;
+
+/**
+ * Décision de notification navigateur pour un appel entrant (loop 3 —
+ * limites web honnêtes : ceci ne fonctionne que si l'ONGLET VIT ; onglet
+ * fermé = pas d'appel, il n'y a aucun push serveur dans cette app web).
+ *  - onglet visible → 'none' (le modal plein écran suffit, jamais de bruit) ;
+ *  - onglet caché + permission déjà accordée → 'show' ;
+ *  - onglet caché + permission jamais demandée → 'request' (la demande n'a
+ *    lieu qu'AU premier appel concerné — jamais au chargement de la page) ;
+ *  - permission refusée ou API absente → 'none' : on ne simule rien d'autre,
+ *    la sonnerie audio du service joue de toute façon tant que l'onglet vit.
+ */
+export const decideIncomingCallNotification = (
+  documentHidden: boolean,
+  permission: 'default' | 'granted' | 'denied' | 'unsupported'
+): 'show' | 'request' | 'none' => {
+  if (!documentHidden) return 'none';
+  if (permission === 'granted') return 'show';
+  if (permission === 'default') return 'request';
+  return 'none';
+};
+
+/** Titre + corps de la notification d'appel entrant (nom réel + type). */
+export const incomingCallNotificationText = (
+  callerName: string,
+  callType: 'audio' | 'video'
+): { title: string; body: string } => ({
+  title: callType === 'video' ? 'Appel vidéo entrant' : 'Appel audio entrant',
+  body: `${callerName || 'Un membre'} vous appelle sur MokNet`,
+});
+
+/**
+ * Exécution (impure) de la décision ci-dessus. Best-effort intégral : aucun
+ * échec (API absente, permission refusée, requestPermission rejetée sans
+ * geste utilisateur) ne remonte jamais au flux d'appel — la sonnerie du
+ * service reste le canal principal tant que l'onglet vit.
+ */
+const notifyIncomingCallIfHidden = (callerName: string, callType: 'audio' | 'video'): void => {
+  try {
+    const hidden = typeof document !== 'undefined' && document.hidden;
+    const supported = typeof Notification !== 'undefined';
+    const decision = decideIncomingCallNotification(
+      hidden,
+      supported ? Notification.permission : 'unsupported'
+    );
+    if (decision === 'none') return;
+    const show = () => {
+      try {
+        const { title, body } = incomingCallNotificationText(callerName, callType);
+        // `tag` : un second signal du même appel REMPLACE la notification au
+        // lieu d'en empiler une nouvelle.
+        const notif = new Notification(title, { body, tag: 'moknet-incoming-call' });
+        notif.onclick = () => {
+          try { window.focus(); } catch { /* focus refusé — sans gravité */ }
+          notif.close();
+        };
+      } catch { /* constructeur indisponible (ex. mobile sans SW) — rien à faire */ }
+    };
+    if (decision === 'show') show();
+    else void Notification.requestPermission().then((p) => { if (p === 'granted') show(); }).catch(() => {});
+  } catch { /* jamais bloquant pour l'appel lui-même */ }
+};
 
 export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   currentUser = USER_PROFILE,
@@ -281,6 +383,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           durationSeconds: 0
         });
         setIsIncomingCall(true);
+        // Équipe 8 (loop 3) : onglet en arrière-plan au moment de l'appel →
+        // notification navigateur (nom + type réels), clic = focus de la
+        // fenêtre. La permission n'est demandée qu'ICI, au premier appel
+        // concerné — jamais au chargement. Refusée ou API absente : rien
+        // d'autre n'est simulé (la sonnerie du service joue si l'onglet vit).
+        notifyIncomingCallIfHidden(signal.callerName || 'Un membre', signal.callType === 'audio' ? 'audio' : 'video');
       } else if (signal.type === 'call_accepted') {
         setActiveCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
         setIsIncomingCall(false);
@@ -948,6 +1056,40 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // « appels qui échouent ».
   const callPeerId = (session: ActiveCallSession): string =>
     session.initiatorId === currentUser.id ? session.receiverId : session.initiatorId;
+
+  // ── Équipe 8 (loops 2+6) : coordination sonnerie ↔ session d'appel ──────
+  // UN seul effet déclaratif pilote TOUT l'audio de sonnerie via
+  // services/calls/ringtoneService (unique source sonore ; l'ancienne
+  // tonalité WebAudio locale de ChatCallModal est retirée — jamais deux
+  // générateurs superposés) :
+  //  - phase 'ring'     (invitation REÇUE, session ringing) → startRinging
+  //    avec la sonnerie du PROFIL (privacySettings.ringtoneId) si choisie,
+  //    sinon le cache local du service — vibration coordonnée incluse ;
+  //  - phase 'ringback' (invitation ÉMISE, session ringing) → startRingback
+  //    (tonalité « tuuut… tuuut » côté appelant, sans vibration) ;
+  //  - phase 'silent'   (accepté / refusé / raccroché / call_ended ou
+  //    call_rejected reçus / expiration 35 s / session nulle) → arrêt
+  //    IMMÉDIAT des deux canaux. Le cleanup d'effet couvre aussi le
+  //    démontage du composant et StrictMode (start* du service est
+  //    idempotent) ; le service garde en dernier filet son propre arrêt de
+  //    sécurité à 45 s (jamais une sonnerie orpheline).
+  const callRingingPhase = ringingStateForCall(activeCallSession, isIncomingCall);
+  const profileRingtoneId = resolveIncomingRingtoneId(currentUser?.privacySettings?.ringtoneId);
+  useEffect(() => {
+    if (callRingingPhase === 'ring') {
+      void startRinging(profileRingtoneId);
+    } else if (callRingingPhase === 'ringback') {
+      void startRingback();
+    } else {
+      stopRinging();
+      stopRingback();
+      return;
+    }
+    return () => {
+      stopRinging();
+      stopRingback();
+    };
+  }, [callRingingPhase, activeCallSession?.callId, profileRingtoneId]);
 
   // Sonnerie sortante sans réponse : fin honnête après 35 s — jamais un
   // faux « connecté », et l'échec entre dans la cloche (LOOP I3).
@@ -1694,7 +1836,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       {/* Audio & Video Call Modal — les signaux vont TOUJOURS au
           correspondant de la session d'appel (callPeerId), jamais via
           `activeChat` qui peut être fermé ou pointer un autre membre
-          (cause racine d'appels qui n'aboutissaient jamais — LOOP I1). */}
+          (cause racine d'appels qui n'aboutissaient jamais — LOOP I1).
+          Équipe 8 (loop 2) : rendu au niveau RACINE du composant,
+          INCONDITIONNELLEMENT dès qu'une session d'appel existe — jamais
+          derrière `isOpen` (le widget de chat peut rester fermé) ni derrière
+          une conversation ouverte. MoocChatFloating étant monté en permanence
+          par Layout, un appel entrant s'affiche donc au-dessus de TOUTE page
+          de l'app (z-[210] dans ChatCallModal), photo et nom réels de
+          l'appelant inclus, sans jamais devoir ouvrir la messagerie. */}
       {activeCallSession && (
         <ChatCallModal
           callSession={activeCallSession}

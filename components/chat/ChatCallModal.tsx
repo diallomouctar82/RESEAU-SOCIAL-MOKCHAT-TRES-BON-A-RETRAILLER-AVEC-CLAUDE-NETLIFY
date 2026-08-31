@@ -109,55 +109,13 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     return () => clearInterval(interval);
   }, [callSession.status]);
 
-  // Sonnerie AUDIBLE (Équipe F2) : jusqu'ici la « sonnerie » était purement
-  // visuelle — un appel entrant pouvait passer inaperçu. Tonalité générée
-  // localement en WebAudio (aucun fichier à charger), cadence type téléphone
-  // (entrant plus insistant que la tonalité de retour côté appelant),
-  // vibration sur mobile, et arrêt NET à la connexion/fermeture — même
-  // discipline anti-son-fantôme que stopSpeaking() du moteur vocal. Si le
-  // navigateur bloque l'audio sans geste utilisateur, la sonnerie reste
-  // visuelle : jamais une erreur, jamais un blocage de l'appel.
-  useEffect(() => {
-    if (callSession.status !== 'ringing') return;
-    let ctx: AudioContext | null = null;
-    let interval: ReturnType<typeof setInterval> | null = null;
-    let stopped = false;
-    const ringOnce = () => {
-      if (!ctx || stopped || ctx.state !== 'running') return;
-      const t0 = ctx.currentTime;
-      // Double bip (ring-ring) pour l'entrant, bip long doux pour le retour d'appel.
-      const bursts: Array<[number, number]> = isIncoming ? [[0, 0.45], [0.6, 0.45]] : [[0, 1.4]];
-      for (const [offset, len] of bursts) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = isIncoming ? 440 : 425;
-        gain.gain.value = 0.0001;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        gain.gain.exponentialRampToValueAtTime(isIncoming ? 0.12 : 0.05, t0 + offset + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + offset + len);
-        osc.start(t0 + offset);
-        osc.stop(t0 + offset + len + 0.05);
-      }
-    };
-    try {
-      ctx = new AudioContext();
-      void ctx.resume().then(() => { if (!stopped) ringOnce(); }).catch(() => {});
-      interval = setInterval(ringOnce, isIncoming ? 2600 : 4000);
-      if (isIncoming && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        try { navigator.vibrate([400, 250, 400]); } catch { /* non supporté */ }
-      }
-    } catch { /* AudioContext indisponible : sonnerie visuelle seule */ }
-    return () => {
-      stopped = true;
-      if (interval) clearInterval(interval);
-      if (ctx) { try { void ctx.close(); } catch { /* déjà fermé */ } }
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        try { navigator.vibrate(0); } catch { /* non supporté */ }
-      }
-    };
-  }, [callSession.status, isIncoming]);
+  // Sonnerie : DÉPLACÉE hors de ce composant (Équipe 8, loop 6). L'audio de
+  // sonnerie (entrante, avec la sonnerie choisie par l'utilisateur et la
+  // vibration coordonnée) et la tonalité de retour d'appel (côté appelant)
+  // sont pilotés par MoocChatFloating via services/calls/ringtoneService —
+  // l'UNIQUE source sonore. L'ancienne tonalité WebAudio locale de ce modal
+  // (Équipe F2) se superposait à celle du service : deux générateurs pour un
+  // même appel. Ce composant ne garde que l'AFFICHAGE de l'appel.
 
   // ── Attache des pistes réelles (Équipe 7, A3) ─────────────────────────
   // Même patron éprouvé que RemoteParticipantTile / localVideoTrackRef du
@@ -332,7 +290,12 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   useEffect(() => { setPipPos(null); }, [isFullscreen]);
 
   return (
-    <div className={`fixed inset-0 z-80 flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all ${isFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
+    /* Équipe 8 (loop 2) : z-[210] — l'interface d'appel passe AU-DESSUS de
+       tout le reste de l'app (dock mobile et barre Architecte z-[60], fenêtre
+       de chat z-[70], lightbox z-90, LIVE plein écran z-[200]) : un appel
+       entrant est immédiatement visible où que soit l'utilisateur, sans
+       jamais devoir ouvrir la messagerie. */
+    <div className={`fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all ${isFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
       <div
         className={`relative bg-slate-900 text-white shadow-2xl border border-slate-700/60 overflow-hidden flex flex-col transition-all duration-300 ${isFullscreen ? 'w-full h-full rounded-none border-0' : 'w-full max-w-lg aspect-4/5 sm:aspect-square max-h-[85vh] rounded-3xl'}`}
         onPointerDown={revealControls}
@@ -425,7 +388,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                 <p className="text-xs font-semibold text-indigo-300">
                   {callSession.status === 'ringing'
                     ? (isIncoming
-                      ? (callSession.type === 'video' ? 'Appel vidéo entrant…' : 'Appel vocal entrant…')
+                      ? (callSession.type === 'video' ? 'Appel vidéo entrant…' : 'Appel audio entrant…')
                       : 'Sonnerie en cours…')
                     : connectionLabel
                       ? connectionLabel
@@ -517,25 +480,30 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
         <div className={`absolute bottom-0 inset-x-0 z-20 p-4 pb-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-center transition-opacity duration-300 ${chromeClass}`}>
 
           {isIncoming && callSession.status === 'ringing' ? (
-            <div className="flex items-center justify-center gap-12 w-full">
-              <div className="text-center space-y-1">
+            /* Équipe 8 (loop 2) : Décrocher/Refuser LARGES et tactiles
+               (72 px — bien au-delà du minimum 44 px), vert/rouge sans
+               ambiguïté, libellés explicites sous chaque bouton. */
+            <div className="flex items-center justify-center gap-12 sm:gap-16 w-full">
+              <div className="text-center space-y-1.5">
                 <button
                   onClick={onRejectCall}
-                  className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-xl shadow-rose-600/30 transition-all hover:scale-110 active:scale-95"
+                  aria-label="Refuser l'appel"
+                  className="w-[4.5rem] h-[4.5rem] rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-xl shadow-rose-600/30 transition-all hover:scale-110 active:scale-95"
                 >
-                  <PhoneOff size={24} />
+                  <PhoneOff size={28} />
                 </button>
-                <span className="text-[11px] font-bold text-rose-300 block">Refuser</span>
+                <span className="text-xs font-bold text-rose-300 block">Refuser</span>
               </div>
 
-              <div className="text-center space-y-1">
+              <div className="text-center space-y-1.5">
                 <button
                   onClick={onAcceptCall}
-                  className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xl shadow-emerald-600/30 transition-all hover:scale-110 active:scale-95 animate-bounce"
+                  aria-label="Décrocher"
+                  className="w-[4.5rem] h-[4.5rem] rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xl shadow-emerald-600/30 transition-all hover:scale-110 active:scale-95 animate-bounce"
                 >
-                  <Phone size={24} />
+                  <Phone size={28} />
                 </button>
-                <span className="text-[11px] font-bold text-emerald-300 block">Décrocher</span>
+                <span className="text-xs font-bold text-emerald-300 block">Décrocher</span>
               </div>
             </div>
           ) : (
