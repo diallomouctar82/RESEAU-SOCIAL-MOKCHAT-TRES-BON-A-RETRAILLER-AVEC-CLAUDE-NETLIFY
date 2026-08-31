@@ -37,6 +37,7 @@ import {
     triggerDownload,
 } from '../../services/architecte/deliverableBuilder';
 import { registerTaskCapabilities } from '../../services/architecte/taskCapabilityHandlers';
+import { subscribeToDeferredOutcomes } from '../../services/architecte/capabilityBus';
 import { registerSettingsCapabilities } from '../../services/architecte/settingsCapabilityHandlers';
 import { registerSearchCapabilities } from '../../services/architecte/searchCapabilityHandlers';
 import type { UserProfile } from '../../types';
@@ -275,6 +276,23 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         voiceSettings: ARCHITECTE_VOICE_SETTINGS,
         onFinalTranscript: (text) => { void handleCommand(text); },
     });
+
+    // ── ENCHAÎNEMENT « naviguer PUIS agir » — la voix du résultat différé ──
+    // Quand une intention mémorisée (« lance un live avec... » depuis le
+    // Dashboard) s'exécute enfin à l'arrivée sur l'écran porteur, le bus
+    // l'a déjà inscrite dans le fil de session ; ici on la DIT — barre
+    // ouverte uniquement (§16 : fermé = réellement silencieux), et toujours
+    // le résultat RÉEL, jamais une intention.
+    useEffect(() => subscribeToDeferredOutcomes((outcome) => {
+        const tone = outcome.status === 'done' ? 'text-emerald-300'
+            : outcome.status === 'failed' ? 'text-red-300'
+            : outcome.status === 'queued' ? 'text-sky-300'
+            : outcome.status === 'cancelled' ? 'text-slate-400'
+            : 'text-amber-300';
+        setStatus(outcome.message);
+        setStatusTone(tone);
+        if (isOpenRef.current) void speak(outcome.message);
+    }), [speak]);
 
     // Le moteur vocal a définitivement abandonné (autorisation micro refusée,
     // aucun périphérique de capture, ou plafond de relances atteint) : sans

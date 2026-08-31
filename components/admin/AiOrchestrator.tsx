@@ -452,12 +452,15 @@ export const AiOrchestrator: React.FC = () => {
                 );
             })}
 
+            {/* La vue des assistants (qui a droit à quoi) passe AVANT la
+                gouvernance des coûts : c'est elle que l'admin cherche en
+                premier. */}
             <div className="pt-2 border-t border-slate-200">
-                <AiCostGovernance />
+                <AgentToolsMatrix />
             </div>
 
             <div className="pt-2 border-t border-slate-200">
-                <AgentToolsMatrix />
+                <AiCostGovernance />
             </div>
         </div>
     );

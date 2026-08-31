@@ -58,6 +58,12 @@ export interface PlatformCapability {
     requiredPermission: string;
     /** Description honnête du repli si la couche vocale/IA est indisponible — jamais un blocage total, conformément à l'architecture de dégradation gracieuse déjà posée pour le LIVE. */
     fallback: string;
+    /**
+     * Recopié du registre domaine : écran qui enregistre réellement le handler
+     * quand ce n'est PAS l'écran du domaine lui-même (cas `live.session.create`,
+     * porté par le fil social). Absent = règle par défaut du domaine.
+     */
+    carriedBy?: string;
 }
 
 interface SourceCapability {
@@ -66,13 +72,19 @@ interface SourceCapability {
     description: string;
     riskLevel: string;
     requiredRole?: string;
+    carriedBy?: string;
 }
 
 const DOMAIN_FALLBACK: Record<CapabilityDomain, string> = {
     live: "en cas d'échec de la reconnaissance vocale ou de l'IA, la barre d'actions tactile du LIVE reste pleinement fonctionnelle — la voix ne fait que déclencher autrement un bouton déjà existant, jamais une action qui n'existerait que par la voix.",
     content: "en cas d'échec de la reconnaissance vocale ou de l'IA, le composeur et ses actions manuelles (publier, corriger, joindre, programmer) restent pleinement fonctionnels.",
     social: "en cas d'échec de la reconnaissance vocale ou de l'IA, les boutons Suivre/Ajouter/Bloquer/Rechercher du fil social restent pleinement fonctionnels.",
-    tasks: "aucune UI Tâches n'existe encore pour héberger ce registre (voir LOOP 14-15/17) — capacité déclarée et testée en isolation, mais sans écran à secourir pour l'instant.",
+    // Libellé mis à jour (G5) : depuis que l'Architecte porte lui-même les
+    // handlers Tâches (`taskCapabilityHandlers.ts`, enregistrés par la barre
+    // flottante montée partout), ces capacités sont exécutables depuis
+    // n'importe quel écran — l'ancien texte « aucune UI Tâches n'existe
+    // encore » était périmé.
+    tasks: "les capacités Tâches sont portées par l'Architecte lui-même (aucun écran dédié requis) : en cas d'échec de la reconnaissance vocale ou de l'IA, la saisie clavier de la barre de l'Architecte reste pleinement fonctionnelle.",
     search: "le mot-clé déterministe (`processVoiceCommand`) reste toujours prioritaire et fonctionne entièrement sans IA — cette capacité vocale n'est qu'un repli, jamais l'inverse.",
     settings: "en cas d'échec de la reconnaissance vocale ou de l'IA, l'écran Paramètres reste pleinement fonctionnel — la voix ne fait que déclencher autrement un réglage déjà éditable à la main, jamais un réglage qui n'existerait que par la voix.",
 };
@@ -81,7 +93,9 @@ const DOMAIN_HUMAN_LABEL: Record<CapabilityDomain, string> = {
     live: 'les sessions LIVE (micro, invitations, tours de parole, traduction, résumé...)',
     content: 'vos publications (créer, corriger, programmer, partager...)',
     social: 'votre réseau (demandes d\'amis, abonnements, blocage, recherche de personnes...)',
-    tasks: 'vos tâches personnelles par la voix (pas encore accessible depuis un écran dédié)',
+    // G5 : les 7 capacités tâches (+ le dossier de suivi) sont exécutables
+    // partout — plus jamais présentées comme « pas encore accessibles ».
+    tasks: 'vos tâches personnelles et dossiers de suivi (créer, terminer, replanifier, supprimer...) — disponibles partout',
     search: 'la recherche dans MokNet (profils, publications, cours)',
     settings: "vos réglages MokNet (langue, confidentialité, notifications, profil) et quelques commandes de l'appareil (vibration, plein écran, partage, écran allumé)",
 };
@@ -103,6 +117,7 @@ function toPlatformCapability(domain: CapabilityDomain, source: SourceCapability
         confirmationRequired: riskLevel !== 'low',
         requiredPermission: normalizeRequiredPermission(source.requiredRole),
         fallback: DOMAIN_FALLBACK[domain],
+        carriedBy: source.carriedBy,
     };
 }
 
@@ -117,6 +132,32 @@ const SEARCH_CAPABILITY: PlatformCapability = {
     fallback: DOMAIN_FALLBACK.search,
 };
 
+/**
+ * G7 — dossier de suivi. Entrée synthétique, comme `SEARCH_CAPABILITY` (et
+ * documentée comme telle) : le registre domaine Tâches
+ * (`services/tasks/taskVoiceCommands.ts`) décrit l'interprète vocal des
+ * tâches personnelles et n'est pas modifié ici ; le dossier de suivi est une
+ * capacité sœur du même domaine, dont le handler vit dans
+ * `taskCapabilityHandlers.ts` (il possède déjà le `userId`) et est enregistré
+ * partout par la barre de l'Architecte. C'est la version « bus » du cas
+ * historique EXECUTE/target='create_dossier' — le cerveau mappe ce target
+ * legacy vers cet identifiant, une seule implémentation d'écriture.
+ *
+ * Risque 'low', comme `task.item.create` : création personnelle non
+ * destructive, même absence de confirmation que le chemin legacy remplacé
+ * (aucune friction ajoutée par la migration).
+ */
+const DOSSIER_CAPABILITY: PlatformCapability = {
+    id: 'task.dossier.create',
+    domain: 'tasks',
+    actionType: 'CREATE_DOSSIER',
+    description: "ouvrir un vrai dossier de suivi pour une démarche. payload attendu : { \"titre\": \"Titre court et explicite\", \"categorie\": \"emploi|logement|sante|juridique|education|voyage|administration\", \"description\": \"Objectif en une phrase (optionnel)\" }",
+    riskLevel: 'low',
+    confirmationRequired: false,
+    requiredPermission: 'aucune (action personnelle)',
+    fallback: DOMAIN_FALLBACK.tasks,
+};
+
 export const PLATFORM_CAPABILITY_REGISTRY: PlatformCapability[] = [
     ...LIVE_VOICE_CAPABILITIES.map((c) => toPlatformCapability('live', c)),
     ...CONTENT_VOICE_CAPABILITIES.map((c) => toPlatformCapability('content', c)),
@@ -124,6 +165,7 @@ export const PLATFORM_CAPABILITY_REGISTRY: PlatformCapability[] = [
     ...TASK_VOICE_CAPABILITIES.map((c) => toPlatformCapability('tasks', c)),
     ...SETTINGS_VOICE_CAPABILITIES.map((c) => toPlatformCapability('settings', c)),
     SEARCH_CAPABILITY,
+    DOSSIER_CAPABILITY,
 ];
 
 export function getCapability(id: string): PlatformCapability | undefined {
@@ -134,8 +176,17 @@ export function isCapabilityRegistered(id: string): boolean {
     return getCapability(id) !== undefined;
 }
 
+/**
+ * Capacités d'un domaine dont le handler est porté par l'écran du domaine
+ * lui-même. Unique consommateur : cet écran (`SocialLive.tsx` pour 'live'),
+ * qui enregistre un handler pour CHAQUE entrée renvoyée — les capacités
+ * portées par un AUTRE écran (`carriedBy`, ex. `live.session.create` portée
+ * par le fil social) sont donc exclues : les renvoyer ferait déclarer à
+ * l'écran LIVE un handler générique qui « réussirait » sans rien faire, et
+ * qui écraserait le vrai handler du fil social — deux faux succès d'un coup.
+ */
 export function getCapabilitiesByDomain(domain: CapabilityDomain): PlatformCapability[] {
-    return PLATFORM_CAPABILITY_REGISTRY.filter((c) => c.domain === domain);
+    return PLATFORM_CAPABILITY_REGISTRY.filter((c) => c.domain === domain && !c.carriedBy);
 }
 
 /**
@@ -185,13 +236,45 @@ export function buildPlatformCapabilitiesSummary(): string {
 /**
  * Résumé humain, groupé par domaine — jamais une liste technique
  * d'identifiants (même principe que DISCOVER_CAPABILITIES dans chaque
- * registre domaine). Câblée dans `DialloOS.tsx` pour répondre à « qu'est-ce
- * que tu peux faire ? » de façon 100% déterministe, sans appel LLM : la
- * réponse ne peut donc jamais contenir une capacité qui n'existe pas
- * réellement dans ce registre.
+ * registre domaine). Câblée dans `DialloOS.tsx` et dans le cerveau
+ * (`architecteBrain.ts`) pour répondre à « qu'est-ce que tu peux faire ? »
+ * de façon 100% déterministe, sans appel LLM : la réponse ne peut donc
+ * jamais contenir une capacité qui n'existe pas réellement dans ce registre.
+ *
+ * DÉCOUVERTE HONNÊTE (G5) : quand l'appelant fournit la liste des
+ * identifiants réellement exécutables à cet instant
+ * (`listExecutableCapabilityIds()` du bus — passée en paramètre plutôt
+ * qu'importée ici, pour ne pas créer de dépendance circulaire
+ * registre → bus → registre), la réponse distingue ce qui est faisable
+ * ICI ET MAINTENANT de ce qui ne le devient que depuis l'écran concerné.
+ * Sans ce paramètre (appelant historique), l'ancien résumé global est
+ * conservé tel quel.
  */
-export function describeCapabilitiesForHumans(): string {
+export function describeCapabilitiesForHumans(executableCapabilityIds?: readonly string[]): string {
     const domainsPresent = Array.from(new Set(PLATFORM_CAPABILITY_REGISTRY.map((c) => c.domain)));
-    const parts = domainsPresent.map((d) => DOMAIN_HUMAN_LABEL[d]).filter(Boolean);
-    return `Je peux vous aider avec : ${parts.join(' ; ')}. Dites-moi simplement ce que vous voulez faire.`;
+
+    if (!executableCapabilityIds) {
+        const parts = domainsPresent.map((d) => DOMAIN_HUMAN_LABEL[d]).filter(Boolean);
+        return `Je peux vous aider avec : ${parts.join(' ; ')}. Dites-moi simplement ce que vous voulez faire.`;
+    }
+
+    const executable = new Set(executableCapabilityIds);
+    const executableNow = domainsPresent.filter((d) =>
+        PLATFORM_CAPABILITY_REGISTRY.some((c) => c.domain === d && executable.has(c.id))
+    );
+    const fromTheirScreen = domainsPresent.filter((d) => !executableNow.includes(d));
+
+    const nowParts = executableNow.map((d) => DOMAIN_HUMAN_LABEL[d]).filter(Boolean);
+    const laterParts = fromTheirScreen.map((d) => DOMAIN_HUMAN_LABEL[d]).filter(Boolean);
+
+    if (nowParts.length === 0) {
+        // Rien d'exécutable ici (aucun écran porteur monté, pas de session) :
+        // on le dit — jamais une liste qui laisserait croire à une action
+        // immédiate impossible.
+        return `Ici, je peux surtout vous guider et naviguer. Depuis l'écran concerné, je peux aussi agir sur : ${laterParts.join(' ; ')}. Dites-moi simplement ce que vous voulez faire.`;
+    }
+
+    return `Je peux vous aider avec : ${nowParts.join(' ; ')}${
+        laterParts.length > 0 ? ` — et, depuis l'écran concerné : ${laterParts.join(' ; ')}` : ''
+    }. Dites-moi simplement ce que vous voulez faire.`;
 }

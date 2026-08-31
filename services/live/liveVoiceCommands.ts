@@ -31,6 +31,7 @@ export type LiveVoiceActionType =
     | 'SUMMON_EXPERT'
     | 'CREATE_SOLIDARITY_CAUSE'
     | 'ADD_SOLIDARITY_UPDATE'
+    | 'CREATE_LIVE_SESSION'
     | 'DISCOVER_CAPABILITIES'
     | 'ASK_CLARIFICATION'
     | 'UNKNOWN';
@@ -88,6 +89,17 @@ export interface LiveVoiceCapability {
     description: string;
     requiredRole: LiveVoiceRequiredRole;
     riskLevel: LiveVoiceRiskLevel;
+    /**
+     * Écran qui enregistre RÉELLEMENT le handler de cette capacité sur le bus.
+     * Absent = l'écran du LIVE lui-même (`SocialLive.tsx`, qui enregistre en
+     * bloc toutes les capacités de son domaine pendant qu'un direct est
+     * ouvert). `'social_feed'` = le fil social (`SocialFeed.tsx`) : c'est le
+     * cas de la création d'un LIVE, qui n'a par définition aucun direct déjà
+     * ouvert pour la porter. `getCapabilitiesByDomain` (capabilityRegistry)
+     * s'appuie sur ce champ pour ne pas faire déclarer à l'écran LIVE un
+     * handler qu'il ne possède pas — ce qui produirait un faux succès.
+     */
+    carriedBy?: 'social_feed';
 }
 
 export const LIVE_VOICE_CAPABILITIES: LiveVoiceCapability[] = [
@@ -117,6 +129,20 @@ export const LIVE_VOICE_CAPABILITIES: LiveVoiceCapability[] = [
         requiredRole: 'host',
         riskLevel: 'low',
     },
+    {
+        // G3 (mission Architecte) : la seule capacité du domaine qui s'exerce
+        // AVANT qu'un direct existe — son handler est donc porté par le fil
+        // social (SocialFeed, même chemin réel que la modale de création →
+        // handleCreateLive), jamais par l'écran du LIVE. Risque 'moderate' :
+        // ouvrir un direct expose immédiatement caméra/micro de la personne,
+        // la confirmation est exigée avant de le faire.
+        id: 'live.session.create',
+        actionType: 'CREATE_LIVE_SESSION',
+        description: "Créer et ouvrir un LIVE (direct vidéo) immédiatement, payload.title = titre énoncé (optionnel — un titre horodaté est utilisé sinon)",
+        requiredRole: 'anyone',
+        riskLevel: 'moderate',
+        carriedBy: 'social_feed',
+    },
 ];
 
 /** Le seul appel autorisé pour vérifier une permission de commande vocale — jamais un `if (!isHost)` dispersé ailleurs dans le dispatch. */
@@ -129,7 +155,14 @@ export function isVoiceCapabilityAllowed(actionType: LiveVoiceActionType, ctx: {
 }
 
 function buildSystemInstruction(ctx: LiveVoiceCommandContext): string {
-    const actionsList = LIVE_VOICE_CAPABILITIES.map((c) => `- ${c.actionType} : ${c.description}${c.requiredRole !== 'anyone' ? ` (réservé — ${c.requiredRole === 'host' ? 'hôte' : 'personnes sur scène'})` : ''}`).join('\n');
+    // Seules les capacités portées par l'écran du LIVE lui-même sont offertes
+    // au copilote IN-LIVE : `live.session.create` (carriedBy: 'social_feed')
+    // s'exerce depuis le fil social, pas depuis un direct déjà ouvert — la
+    // proposer ici ferait promettre une action que ce dispatch ne sait pas
+    // exécuter.
+    const actionsList = LIVE_VOICE_CAPABILITIES
+        .filter((c) => !c.carriedBy)
+        .map((c) => `- ${c.actionType} : ${c.description}${c.requiredRole !== 'anyone' ? ` (réservé — ${c.requiredRole === 'host' ? 'hôte' : 'personnes sur scène'})` : ''}`).join('\n');
     return `Tu es le copilote vocal du LIVE "${ctx.liveTitle}" sur Le Monde à Vous (MokNet).
 Ta mission : transformer UNE commande vocale en UNE action JSON strictement parmi la liste ci-dessous. Ne jamais inventer un type d'action hors de cette liste.
 

@@ -115,5 +115,65 @@ export function subscribeToSession(listener: () => void): () => void {
 /** Réservé aux tests et à une future commande explicite « oublie cette conversation ». */
 export function clearSession(): void {
     turns = [];
+    clearPendingCapabilityIntent();
     notify();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// INTENTION EN ATTENTE — « naviguer PUIS exécuter » (G1/G2).
+//
+// Le cerveau peut décider d'une action en deux temps : NAVIGATE vers l'écran
+// porteur, PUIS exécution de la capacité une fois cet écran monté (son
+// handler n'existe pas encore au moment de la commande). L'intention est
+// mémorisée ICI — même module que l'historique de session, même durée de vie
+// (mémoire vive uniquement) — et consommée par le bus de capacités au moment
+// où l'identifiant visé devient réellement exécutable
+// (`capabilityBus.registerCapabilityHandlers`).
+//
+// Bornée dans le temps (45 s) : une navigation abandonnée en route ne doit
+// jamais déclencher une écriture surprise dix minutes plus tard.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface PendingCapabilityIntent {
+    capabilityId: string;
+    payload?: Record<string, unknown>;
+    /** Timestamp (ms) au-delà duquel l'intention est caduque — jamais exécutée. */
+    expiresAt: number;
+    /**
+     * `true` si l'Architecte a déjà annoncé le plan (« j'ouvre X et je fais
+     * Y ») à l'utilisateur. Le RÉSULTAT réel, lui, n'est annoncé qu'après
+     * l'exécution effective — jamais un succès anticipé.
+     */
+    announced: boolean;
+}
+
+export const PENDING_CAPABILITY_INTENT_TTL_MS = 45_000;
+
+let pendingCapabilityIntent: PendingCapabilityIntent | null = null;
+
+export function setPendingCapabilityIntent(intent: {
+    capabilityId: string;
+    payload?: Record<string, unknown>;
+    announced?: boolean;
+}): void {
+    pendingCapabilityIntent = {
+        capabilityId: intent.capabilityId,
+        payload: intent.payload,
+        expiresAt: Date.now() + PENDING_CAPABILITY_INTENT_TTL_MS,
+        announced: intent.announced === true,
+    };
+}
+
+/** L'intention en attente, ou `null` si absente OU expirée (une intention expirée est effacée, jamais exécutée). */
+export function getPendingCapabilityIntent(): PendingCapabilityIntent | null {
+    if (!pendingCapabilityIntent) return null;
+    if (Date.now() > pendingCapabilityIntent.expiresAt) {
+        pendingCapabilityIntent = null;
+        return null;
+    }
+    return pendingCapabilityIntent;
+}
+
+export function clearPendingCapabilityIntent(): void {
+    pendingCapabilityIntent = null;
 }

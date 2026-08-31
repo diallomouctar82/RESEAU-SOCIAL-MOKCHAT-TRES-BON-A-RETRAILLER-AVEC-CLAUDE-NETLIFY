@@ -6,13 +6,21 @@ import {
     type CapabilityPermissionContext,
     type PlatformCapability,
 } from './capabilityRegistry';
+import {
+    addSessionTurn,
+    clearPendingCapabilityIntent,
+    getPendingCapabilityIntent,
+    type PendingCapabilityIntent,
+} from './architecteSession';
 
 /**
  * Bus d'exécution de l'Architecte.
  *
  * C'est la pièce explicitement différée par la LOOP 16/17 : le registre
- * (`capabilityRegistry.ts`) savait DÉCRIRE 42 capacités, mais une seule
- * (`create_dossier`) était réellement exécutable depuis l'Architecte — les 41
+ * (`capabilityRegistry.ts`) savait DÉCRIRE toutes les capacités plateforme
+ * (56 aujourd'hui, agrégées des registres domaine — jamais un compte figé
+ * ici : la vérité est `PLATFORM_CAPABILITY_REGISTRY.length`), mais une seule
+ * (`create_dossier`) était réellement exécutable depuis l'Architecte — les
  * autres vivaient à l'intérieur de leurs écrans (`SocialLive.tsx`,
  * `SocialFeed.tsx`) et n'étaient atteignables qu'en étant déjà sur cet écran,
  * micro ouvert. Le commentaire du registre disait qu'un routeur central
@@ -125,6 +133,11 @@ export function registerCapabilityHandlers(
         handlers.set(id, entries[id]);
         if (getContext) contextProviders.set(id, getContext);
     }
+    // « Naviguer PUIS exécuter » (G1/G2) : si le cerveau a mémorisé une
+    // intention pour un identifiant qui VIENT de devenir exécutable, elle est
+    // reprise ici — c'est le seul endroit qui sait exactement quand un écran
+    // porteur arrive.
+    resumePendingIntentIfMatching(ids);
     return () => {
         for (const id of ids) {
             // Ne retirer que si c'est bien CE handler qui est encore en place :
@@ -151,8 +164,9 @@ export function listExecutableCapabilityIds(): string[] {
 /**
  * Capacités réellement exécutables à cet instant, objets complets du registre.
  * Sert à construire un prompt qui ne propose QUE ce qui est faisable
- * maintenant, plutôt que les 42 théoriques — le modèle ne peut donc pas
- * suggérer une action qui échouerait aussitôt en `unavailable`.
+ * maintenant, plutôt que la totalité théorique du registre plateforme — le
+ * modèle ne peut donc pas suggérer une action qui échouerait aussitôt en
+ * `unavailable`.
  */
 export function listExecutableCapabilities(): PlatformCapability[] {
     return PLATFORM_CAPABILITY_REGISTRY.filter((c) => handlers.has(c.id));
@@ -232,5 +246,107 @@ export async function executeCapability(
             capability,
             message: e?.message || "L'action a échoué.",
         };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// REPRISE D'INTENTION APRÈS NAVIGATION (G1/G2 — « naviguer PUIS exécuter »).
+//
+// Le cerveau mémorise (`architecteSession.setPendingCapabilityIntent`) une
+// capacité à exécuter dès que son écran porteur sera monté. Quand cet écran
+// enregistre ses handlers, le bus détecte la correspondance et exécute par
+// LE MÊME chemin que toute autre commande (`executeCapability` : existence,
+// permission via le contexte de l'écran, handler réel) — jamais un chemin
+// d'exécution parallèle.
+//
+// Deux garanties absolues :
+//   1. UNE SEULE exécution par intention : l'intention est retirée
+//      SYNCHRONEMENT avant l'exécution — l'effet d'un écran comme SocialFeed
+//      tourne à chaque rendu et réenregistre ses handlers ; sans ce retrait
+//      immédiat, chaque rendu relancerait l'action. Succès OU échec, on ne
+//      réessaie jamais tout seul.
+//   2. JAMAIS un succès annoncé avant l'exécution réelle : le message publié
+//      dans le fil de session et transmis aux abonnés est celui renvoyé par
+//      le handler réel (`done`/`failed`/`denied`/`queued`), ou `cancelled`
+//      si la personne refuse la confirmation.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface DeferredCapabilityOutcome {
+    capabilityId: string;
+    /** Statut réel de l'exécution différée — `cancelled` si la confirmation a été refusée. */
+    status: CapabilityExecutionStatus | 'cancelled';
+    message: string;
+}
+
+const deferredOutcomeListeners = new Set<(outcome: DeferredCapabilityOutcome) => void>();
+
+/**
+ * S'abonner aux issues des exécutions différées (intention posée par une
+ * NAVIGATE + `then`, reprise au montage de l'écran porteur). La barre de
+ * l'Architecte s'y branche pour DIRE le résultat réel à voix haute — le bus,
+ * lui, ne parle pas : il inscrit le résultat dans le fil de session et
+ * notifie.
+ */
+export function subscribeToDeferredOutcomes(cb: (outcome: DeferredCapabilityOutcome) => void): () => void {
+    deferredOutcomeListeners.add(cb);
+    return () => { deferredOutcomeListeners.delete(cb); };
+}
+
+function emitDeferredOutcome(outcome: DeferredCapabilityOutcome): void {
+    // Le RÉSULTAT RÉEL rejoint l'historique unique de session — l'annonce du
+    // plan (« j'ouvre X et je fais Y ») a déjà été faite par le cerveau,
+    // celle-ci est l'issue effective.
+    addSessionTurn({ role: 'architecte', kind: 'texte', text: outcome.message });
+    deferredOutcomeListeners.forEach((l) => {
+        try { l(outcome); } catch { /* un abonné cassé ne doit pas bloquer les autres */ }
+    });
+}
+
+function resumePendingIntentIfMatching(justRegisteredIds: string[]): void {
+    const intent = getPendingCapabilityIntent(); // null si absente OU expirée
+    if (!intent || !justRegisteredIds.includes(intent.capabilityId)) return;
+    // Garantie n°1 : réclamée immédiatement — au plus UNE exécution.
+    clearPendingCapabilityIntent();
+    // Différée d'un tick : l'enregistrement a lieu pendant un effet React de
+    // l'écran porteur — on laisse ce commit se terminer (et l'écran
+    // s'afficher) avant toute confirmation bloquante ou setState en chaîne.
+    setTimeout(() => { void runDeferredIntent(intent); }, 0);
+}
+
+async function runDeferredIntent(intent: PendingCapabilityIntent): Promise<void> {
+    const capability = getCapability(intent.capabilityId);
+
+    // Confirmation proportionnelle au risque, la MÊME règle que le chemin
+    // direct du cerveau — jamais une écriture sensible sans accord explicite.
+    // Hors navigateur (aucun moyen de demander), on annule : refuser est
+    // toujours plus sûr qu'écrire sans confirmation.
+    if (capability?.confirmationRequired) {
+        const confirmed = typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm(
+                `${capability.description}\n\nCette action est ${capability.riskLevel === 'high' ? 'sensible' : 'à confirmer'}. Voulez-vous que je la fasse maintenant ?`
+            )
+            : false;
+        if (!confirmed) {
+            emitDeferredOutcome({
+                capabilityId: intent.capabilityId,
+                status: 'cancelled',
+                message: "Action annulée — rien n'a été modifié.",
+            });
+            return;
+        }
+    }
+
+    try {
+        const result = await executeCapability(intent.capabilityId, intent.payload ?? {});
+        emitDeferredOutcome({ capabilityId: intent.capabilityId, status: result.status, message: result.message });
+    } catch (e: any) {
+        // `executeCapability` convertit déjà les exceptions — ceinture et
+        // bretelles : même une panne imprévue est rapportée comme un échec
+        // réel, jamais avalée (et l'intention, déjà retirée, ne boucle pas).
+        emitDeferredOutcome({
+            capabilityId: intent.capabilityId,
+            status: 'failed',
+            message: e?.message || "L'action différée a échoué.",
+        });
     }
 }

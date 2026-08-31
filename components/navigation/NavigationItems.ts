@@ -220,7 +220,7 @@ export const MAIN_NAV_ITEMS: NavItemDef[] = [
     shortLabel: 'Experts',
     icon: MessageSquare,
     category: 'Communauté & Conseil',
-    description: 'Catalogue des 14 spécialistes d’élite de la Famille Diallo pour un conseil humain direct.',
+    description: 'Catalogue des spécialistes d’élite de la Famille Diallo pour un conseil humain direct.',
     keywords: ['experts', 'chat', 'diallo', 'conseiller', 'maitre', 'professeur', 'docteur', 'directeur', 'consultation', 'dialogue', 'assistance'],
     legacyName: 'Experts IA / Chat'
   },

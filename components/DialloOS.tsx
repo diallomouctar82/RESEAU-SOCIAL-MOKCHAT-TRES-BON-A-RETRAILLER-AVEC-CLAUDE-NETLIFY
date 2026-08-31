@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Command, Mic, Sparkles, ArrowRight, X, Zap, Globe, Briefcase, Home, Activity, Scale, StopCircle, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom'; // Assuming routing context, or passed prop
 import { UserProfile } from '../types';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { describeCapabilitiesForHumans } from '../services/architecte/capabilityRegistry';
+import { listExecutableCapabilityIds } from '../services/architecte/capabilityBus';
 import {
     isDiscoveryCommand,
     runArchitecteCommand,
@@ -25,59 +25,18 @@ interface DialloOSProps {
     userProfile: UserProfile;
 }
 
-// Cas d'exécution historique, antérieur au bus de capacités : `create_dossier`
-// écrit directement dans `dossiers` depuis ce composant (voir
-// createRealDossier plus bas). Conservé tel quel — il fonctionne, il est
-// testé, et le migrer vers le bus n'apporterait rien à l'utilisateur.
-// Toute AUTRE exécution passe désormais par le registre + le bus.
-const LEGACY_EXECUTABLE_TARGETS = new Set(['create_dossier']);
+// G7 : le cas historique `create_dossier` (écriture directe dans `dossiers`
+// depuis ce composant, dupliquée hors bus) a été déplacé vers la capacité
+// `task.dossier.create` (`services/architecte/taskCapabilityHandlers.ts`,
+// enregistrée partout par la barre de l'Architecte). Le cerveau mappe
+// lui-même le target legacy vers cette capacité : ce modal n'a plus aucun
+// chemin d'exécution privé — le dossier se crée à la voix depuis n'importe
+// quel écran, et une seule implémentation existe.
 
-type ExecutionPhase = 'running' | 'done' | 'failed' | 'unsupported' | 'denied' | 'cancelled';
+type ExecutionPhase = 'running' | 'done' | 'failed' | 'unsupported' | 'denied' | 'cancelled' | 'queued';
 interface ExecutionState {
     phase: ExecutionPhase;
     message: string;
-}
-
-/**
- * Ouvre réellement un dossier de suivi dans Supabase (table `dossiers`) —
- * même schéma et mêmes colonnes que l'outil serveur `create_dossier` de
- * l'orchestrateur IA (voir supabase/functions/ai-gateway/tools/actions.ts).
- * Écriture directe depuis le client, protégée par la policy RLS
- * `dossiers_insert_own` (with_check: owner_id = auth.uid()) : ni simulation
- * ni mock — le succès/échec renvoyé ici est celui réellement produit par
- * Supabase, jamais une confirmation optimiste affichée par avance.
- */
-async function createRealDossier(
-    ownerId: string,
-    payload: { titre?: string; categorie?: string; description?: string }
-): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
-    if (!isSupabaseConfigured) {
-        return { ok: false, error: "Supabase n'est pas configuré dans cet environnement : aucun dossier réel ne peut être créé." };
-    }
-    const titre = typeof payload?.titre === 'string' ? payload.titre.trim() : '';
-    if (!titre) {
-        return { ok: false, error: "Titre manquant : impossible d'ouvrir le dossier." };
-    }
-    try {
-        const { data, error } = await supabase
-            .from('dossiers')
-            .insert({
-                owner_id: ownerId,
-                title: titre,
-                objective: typeof payload?.description === 'string' ? payload.description : null,
-                category: typeof payload?.categorie === 'string' ? payload.categorie : null,
-                status: 'active',
-            })
-            .select('id, title')
-            .maybeSingle();
-
-        if (error || !data) {
-            return { ok: false, error: error?.message || 'La création du dossier a échoué.' };
-        }
-        return { ok: true, title: data.title as string };
-    } catch (e: any) {
-        return { ok: false, error: e?.message || 'La création du dossier a échoué (erreur réseau).' };
-    }
 }
 
 export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate, userProfile }) => {
@@ -120,7 +79,10 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
         setExecution(null);
 
         if (isDiscoveryCommand(command)) {
-            const summary = describeCapabilitiesForHumans();
+            // Découverte honnête (G5) : la réponse distingue ce qui est
+            // exécutable ICI (handlers réellement enregistrés sur le bus) de
+            // ce qui ne le devient que depuis l'écran concerné.
+            const summary = describeCapabilitiesForHumans(listExecutableCapabilityIds());
             setAiResponse(summary);
             if (viaVoice) speak(summary);
             setIsThinking(false);
@@ -139,19 +101,9 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                 // Même identité, même mémoire de relation que la barre (§13/§22).
                 callName: userProfile.privacySettings?.architecte?.callName,
                 confirm: (message) => window.confirm(message),
-                runLegacyTarget: async (target, payload) => {
-                    if (!LEGACY_EXECUTABLE_TARGETS.has(target)) {
-                        return { ok: false, message: "Cette action directe n'est pas reconnue." };
-                    }
-                    const res = await createRealDossier(userProfile.id, payload);
-                    // Comparaison explicite (`=== true`), pas une simple
-                    // troncature de vérité : dans cet environnement TS, un
-                    // `if (res.ok)` bare ne discrimine pas correctement cette
-                    // union par ailleurs standard.
-                    return res.ok === true
-                        ? { ok: true, message: `Dossier « ${res.title} » créé avec succès.` }
-                        : { ok: false, message: res.error };
-                },
+                // `create_dossier` (legacy) est mappé par le cerveau vers la
+                // capacité de bus `task.dossier.create` — plus aucune
+                // écriture privée depuis ce modal (G7).
                 onPhase: (phase, message) => setExecution({ phase, message }),
             });
 
@@ -259,6 +211,9 @@ export const DialloOS: React.FC<DialloOSProps> = ({ isOpen, onClose, onNavigate,
                                             execution.phase === 'done' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' :
                                             execution.phase === 'failed' || execution.phase === 'denied' ? 'text-red-300 bg-red-500/10 border-red-500/30' :
                                             execution.phase === 'cancelled' ? 'text-slate-300 bg-white/5 border-white/10' :
+                                            // Hors-ligne, en file d'attente : ni le vert du succès,
+                                            // ni le rouge de l'échec — même code couleur que la barre.
+                                            execution.phase === 'queued' ? 'text-sky-300 bg-sky-500/10 border-sky-500/30' :
                                             'text-amber-300 bg-amber-500/10 border-amber-500/30'
                                         }`}>
                                             {execution.phase === 'running' && <Loader2 size={14} className="animate-spin" />}

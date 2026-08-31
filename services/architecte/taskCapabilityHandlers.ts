@@ -1,4 +1,4 @@
-import { supabaseService } from '../supabaseClient';
+import { isSupabaseConfigured, supabase, supabaseService } from '../supabaseClient';
 import { registerCapabilityHandlers, type CapabilityHandler } from './capabilityBus';
 import type { TaskVoiceSingleTask } from '../tasks/taskVoiceCommands';
 
@@ -195,6 +195,50 @@ export function buildTaskCapabilityHandlers(userId: string): Record<string, Capa
             if (resolved.ok !== true) return { ok: false, message: resolved.message };
             await supabaseService.deleteTask(userId, resolved.task.id);
             return { ok: true, message: `« ${resolved.task.title} » supprimée.` };
+        },
+
+        /**
+         * G7 — dossier de suivi. Logique DÉPLACÉE telle quelle de
+         * `components/DialloOS.tsx::createRealDossier` (qui écrivait
+         * directement dans `dossiers`, hors bus, et n'était donc exécutable
+         * que depuis ce modal) : même schéma et mêmes colonnes que l'outil
+         * serveur `create_dossier` de l'orchestrateur IA
+         * (supabase/functions/ai-gateway/tools/actions.ts). Écriture directe
+         * depuis le client, protégée par la policy RLS `dossiers_insert_own`
+         * (with_check: owner_id = auth.uid()) : ni simulation ni mock — le
+         * succès/échec renvoyé est celui réellement produit par Supabase,
+         * jamais une confirmation optimiste affichée par avance. Enregistrée
+         * ici avec le `userId` déjà capturé, cette capacité est disponible
+         * PARTOUT (la barre de l'Architecte est montée sur tous les écrans).
+         */
+        'task.dossier.create': async (params) => {
+            if (!isSupabaseConfigured) {
+                return { ok: false, message: "Supabase n'est pas configuré dans cet environnement : aucun dossier réel ne peut être créé." };
+            }
+            const titre = typeof params?.titre === 'string' ? params.titre.trim() : '';
+            if (!titre) {
+                return { ok: false, message: "Titre manquant : impossible d'ouvrir le dossier." };
+            }
+            try {
+                const { data, error } = await supabase
+                    .from('dossiers')
+                    .insert({
+                        owner_id: userId,
+                        title: titre,
+                        objective: typeof params?.description === 'string' ? params.description : null,
+                        category: typeof params?.categorie === 'string' ? params.categorie : null,
+                        status: 'active',
+                    })
+                    .select('id, title')
+                    .maybeSingle();
+
+                if (error || !data) {
+                    return { ok: false, message: error?.message || 'La création du dossier a échoué.' };
+                }
+                return { ok: true, message: `Dossier « ${data.title as string} » créé avec succès.`, data };
+            } catch (e: any) {
+                return { ok: false, message: e?.message || 'La création du dossier a échoué (erreur réseau).' };
+            }
         },
     };
 }
