@@ -21,9 +21,17 @@ const gateway = vi.hoisted(() => ({
 }));
 vi.mock('../services/aiGateway', () => ({
     generateSpeech: gateway.generateSpeech,
+    // Le moteur consomme désormais la variante détaillée (MIME réel) — le
+    // mock DÉLÈGUE au mock historique pour préserver toutes les assertions
+    // de comptage/mockImplementationOnce existantes.
+    generateSpeechDetailed: vi.fn(async (t: string, o?: unknown) => ({
+        audioBase64: await gateway.generateSpeech(t, o),
+        mimeType: 'audio/mpeg',
+    })),
     generateText: vi.fn(async () => ''),
     generateJSON: vi.fn(async () => null),
     analyzeImage: vi.fn(async () => ''),
+    AiGatewayNetworkError: class extends Error { readonly isNetwork = true; },
 }));
 
 class FakeAudio {

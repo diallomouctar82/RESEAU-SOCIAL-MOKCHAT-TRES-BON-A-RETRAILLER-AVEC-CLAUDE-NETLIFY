@@ -169,9 +169,27 @@ Deno.serve(async (req: Request) => {
     // L'ordre vient entièrement du classement calculé en base : aucun tri local
     // ne vient le contredire. `providerId` reste possible pour forcer un
     // fournisseur précis (test admin, appel spécialisé), sans bascule.
-    const ordered = body.providerId
+    let ordered = body.providerId
         ? (candidates ?? []).filter((c: RankedCandidate) => c.provider_id === body.providerId)
         : (candidates ?? []);
+
+    // ── Sous-familles de la catégorie « voice » ──────────────────────────────
+    // TTS (texte → parole) et STT (parole → texte) partagent la catégorie mais
+    // sont des capacités DISJOINTES : sans ce filtre, la bascule d'une
+    // synthèse en échec « essayait » Deepgram/Whisper/AssemblyAI, qui
+    // répondaient « Audio requis pour la transcription » — 68 échecs de
+    // routage journalisés en 48 h (audit du 31/08/2026), du temps perdu à
+    // chaque phrase parlée. La forme de la requête dit sans ambiguïté ce que
+    // le client veut ; les adaptateurs inconnus (auto-découverts) restent
+    // traités comme TTS, comportement le plus courant.
+    if (body.category === 'voice' && !body.providerId) {
+        const voiceReq = body.request as AdapterRequest['voice'];
+        const sttKinds = new Set(['whisper', 'deepgram', 'assemblyai']);
+        const wantsStt = !!voiceReq?.audioBase64 && !voiceReq?.text;
+        ordered = ordered.filter((c: RankedCandidate) =>
+            sttKinds.has(c.adapter_kind) === wantsStt
+        );
+    }
 
     if (ordered.length === 0) {
         return json({ error: 'Aucun fournisseur actif et configuré pour cette catégorie.' }, 503);

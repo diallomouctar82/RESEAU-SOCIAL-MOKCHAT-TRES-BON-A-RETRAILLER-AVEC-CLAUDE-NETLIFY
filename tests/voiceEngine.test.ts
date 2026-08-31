@@ -21,9 +21,14 @@ const gateway = vi.hoisted(() => ({
 }));
 vi.mock('../services/aiGateway', () => ({
     generateSpeech: gateway.generateSpeech,
+    generateSpeechDetailed: vi.fn(async (t: string, o?: unknown) => ({
+        audioBase64: await gateway.generateSpeech(t, o),
+        mimeType: 'audio/mpeg',
+    })),
     generateText: vi.fn(async () => ''),
     generateJSON: vi.fn(async () => null),
     analyzeImage: vi.fn(async () => ''),
+    AiGatewayNetworkError: class extends Error { readonly isNetwork = true; },
 }));
 
 // La fausse reconnaissance est installée AVANT l'import du moteur : le
@@ -47,7 +52,7 @@ class FakeRecognition {
 }
 (window as any).webkitSpeechRecognition = FakeRecognition;
 
-const { voiceEngine, VoiceEngine, MIC_UNAVAILABLE_MESSAGE } = await import('../services/voiceEngine');
+const { voiceEngine, VoiceEngine, MIC_UNAVAILABLE_MESSAGE, LISTEN_NETWORK_MESSAGE } = await import('../services/voiceEngine');
 
 /** La reconnaissance unique que le moteur a construite et réutilise. */
 const rec = () => FakeRecognition.instances[0];
@@ -112,7 +117,12 @@ describe('voiceEngine — abandon sur échec micro', () => {
         const atCeiling = FakeRecognition.startCalls;
         await vi.advanceTimersByTimeAsync(3000);
         expect(FakeRecognition.startCalls).toBe(atCeiling);
-        expect(errors).toContain(MIC_UNAVAILABLE_MESSAGE);
+        // Diagnostic HONNÊTE (mission Architecte §19-20) : une rafale
+        // d'erreurs `network` n'est PAS un micro en panne — le message
+        // distingue désormais la cause réseau (l'ancien libellé unique
+        // « micro indisponible » posait un diagnostic faux).
+        expect(errors).toContain(LISTEN_NETWORK_MESSAGE);
+        expect(errors).not.toContain(MIC_UNAVAILABLE_MESSAGE);
         un();
     });
 

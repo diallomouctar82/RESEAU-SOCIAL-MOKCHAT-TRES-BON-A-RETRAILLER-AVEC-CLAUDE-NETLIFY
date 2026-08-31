@@ -67,6 +67,8 @@ vi.mock('../services/aiGateway', () => ({
     // déterministe : les tests Boucle 1 le contrôlent (réponse différée pour
     // le scénario « fermé pendant que la réponse est en vol »).
     generateJSON: vi.fn(async () => ({ type: 'NOTIFICATION', explanation: 'Réponse de test.' })),
+    generateSpeechDetailed: vi.fn(async () => ({ audioBase64: '', mimeType: 'audio/mpeg' })),
+    AiGatewayNetworkError: class extends Error { readonly isNetwork = true; },
 }));
 
 import {

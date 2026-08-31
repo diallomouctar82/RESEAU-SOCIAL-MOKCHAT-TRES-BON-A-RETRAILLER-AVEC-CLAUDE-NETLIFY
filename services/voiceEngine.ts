@@ -2,7 +2,7 @@
 // 🎙️ VOICE ENGINE PRO + ELEVENLABS HD — SYNTHÈSE VOCALE HAUTE FIDÉLITÉ
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { generateSpeech } from './aiGateway';
+import { generateSpeechDetailed } from './aiGateway';
 
 export interface VoiceEngineListener {
     onTranscript?: (transcript: string, isFinal: boolean) => void;
@@ -106,6 +106,17 @@ export const ELEVENLABS_CURATED_VOICES: Record<string, VoiceOption> = {
 export const MIC_UNAVAILABLE_MESSAGE =
     "Le micro est indisponible — vérifiez l'autorisation micro du navigateur, ou utilisez la saisie.";
 
+/**
+ * Signal terminal distinct quand l'abandon vient d'erreurs RÉSEAU répétées de
+ * la reconnaissance vocale (et non du micro lui-même) : l'ancien message
+ * unique « micro indisponible » posait un diagnostic FAUX sur une coupure de
+ * connexion — l'utilisateur vérifiait ses autorisations alors que c'était son
+ * réseau. La reprise automatique (événement `online`) redonne une chance dès
+ * que la connexion revient.
+ */
+export const LISTEN_NETWORK_MESSAGE =
+    "La connexion réseau interrompt l'écoute — je reprendrai dès que la connexion revient.";
+
 export class VoiceEngine {
     private static instance: VoiceEngine;
     private recognition: any = null;
@@ -130,6 +141,29 @@ export class VoiceEngine {
     // la console se remplissait. Mesuré : 16 relances en ~5 s.
     private consecutiveRecognitionFailures: number = 0;
     private recognitionGaveUp: boolean = false;
+    /** L'abandon en cours vient-il d'erreurs `network` (et non du micro) ? */
+    private gaveUpBecauseOfNetwork: boolean = false;
+    private lastRecognitionErrorWasNetwork: boolean = false;
+
+    // ── PROPRIÉTÉ DE LA SESSION VOCALE (mission Architecte §5) ──────────
+    // Le moteur est un singleton partagé : sans propriétaire, chaque écran
+    // monté (barre Architecte, fil social, DialloOS, coachs) recevait le
+    // MÊME transcript final et déclenchait SON propre traitement — plusieurs
+    // assistants répondaient à la même phrase (« impression de parler à
+    // plusieurs intervenants », défaut mesuré par l'audit du 31/08/2026).
+    // Deux niveaux : le propriétaire conversationnel (posé par l'écran qui
+    // ouvre une session continue) et le propriétaire temporaire (dictée
+    // ponctuelle qui prend brièvement la main puis la rend). Le hook
+    // `useVoiceAssistant` filtre les transcriptions selon ce propriétaire.
+    private conversationalOwnerId: string | null = null;
+    private temporaryOwnerId: string | null = null;
+
+    // Voix de synthèse navigateur : `getVoices()` renvoie souvent [] au tout
+    // premier appel après le chargement de la page (chargement asynchrone) —
+    // sans écoute de `voiceschanged`, le repli parlait avec la voix système
+    // par défaut, potentiellement non francophone. Cache rafraîchi par
+    // l'événement.
+    private cachedSynthesisVoices: SpeechSynthesisVoice[] = [];
     private static readonly FATAL_RECOGNITION_ERRORS = new Set([
         'audio-capture', 'not-allowed', 'service-not-allowed', 'language-not-supported',
     ]);
@@ -170,6 +204,32 @@ export class VoiceEngine {
     private constructor() {
         this.initSpeechRecognition();
         this.loadSettings();
+        if (typeof window !== 'undefined') {
+            // Préchargement des voix de synthèse (voir cachedSynthesisVoices).
+            if (window.speechSynthesis) {
+                try {
+                    this.cachedSynthesisVoices = window.speechSynthesis.getVoices();
+                    window.speechSynthesis.onvoiceschanged = () => {
+                        this.cachedSynthesisVoices = window.speechSynthesis.getVoices();
+                    };
+                } catch { /* synthèse absente : le repli échouera proprement ailleurs */ }
+            }
+            // RECONNEXION PROPRE (mission Architecte §19) : si l'écoute a été
+            // abandonnée à cause du réseau et que la connexion revient pendant
+            // une session conversationnelle encore active, on redonne une
+            // chance automatiquement — jamais un assistant resté muet sans
+            // explication après une coupure passagère.
+            window.addEventListener('online', () => {
+                if (this.recognitionGaveUp && this.gaveUpBecauseOfNetwork && this.isConversationalMode) {
+                    this.recognitionGaveUp = false;
+                    this.gaveUpBecauseOfNetwork = false;
+                    this.consecutiveRecognitionFailures = 0;
+                    if (!this.isSpeaking && !this.isListening) {
+                        void this.startListening('fr-FR');
+                    }
+                }
+            });
+        }
     }
 
     public static getInstance(): VoiceEngine {
@@ -262,12 +322,29 @@ export class VoiceEngine {
                     // précédents étaient transitoires.
                     this.consecutiveRecognitionFailures = 0;
                     this.recognitionGaveUp = false;
-                    this.lastSpokenTranscript = currentText;
-                    this.listeners.forEach(l => l.onTranscript?.(currentText, !!finalTranscript));
+                    this.gaveUpBecauseOfNetwork = false;
 
-                    // En mode conversationnel continu : réinitialiser le timer VAD
-                    if (this.isConversationalMode) {
-                        this.resetVadSilenceTimer();
+                    if (finalTranscript) {
+                        // FINAL DU MOTEUR : émis UNE seule fois, et le timer
+                        // VAD est neutralisé. L'ancien code réarmait le timer
+                        // avec `lastSpokenTranscript` encore rempli : 1,4 s
+                        // plus tard, le MÊME texte repartait en final — chaque
+                        // commande vocale s'exécutait DEUX fois (double appel
+                        // au cerveau, double exécution possible d'une action).
+                        // Défaut de premier ordre mesuré par l'audit du
+                        // 31/08/2026.
+                        this.lastSpokenTranscript = '';
+                        if (this.vadSilenceTimer) { clearTimeout(this.vadSilenceTimer); this.vadSilenceTimer = null; }
+                        if (this.isConversationalMode) this.notifyConversationalTurn('ai_thinking');
+                        this.listeners.forEach(l => l.onTranscript?.(currentText, true));
+                    } else {
+                        this.lastSpokenTranscript = currentText;
+                        this.listeners.forEach(l => l.onTranscript?.(currentText, false));
+                        // Le timer VAD ne finalise QUE les interimaires jamais
+                        // conclus par le moteur (silence prolongé).
+                        if (this.isConversationalMode) {
+                            this.resetVadSilenceTimer();
+                        }
                     }
                 }
             };
@@ -286,12 +363,17 @@ export class VoiceEngine {
                 // ont droit à quelques relances, puis on abandonne aussi —
                 // sans plafond, la boucle mesurée tournait sans fin.
                 this.consecutiveRecognitionFailures += 1;
+                this.lastRecognitionErrorWasNetwork = event.error === 'network';
                 const fatal = VoiceEngine.FATAL_RECOGNITION_ERRORS.has(event.error);
                 if (fatal || this.consecutiveRecognitionFailures >= VoiceEngine.MAX_CONSECUTIVE_RECOGNITION_FAILURES) {
                     this.recognitionGaveUp = true;
-                    // Signal terminal, en français lisible : les interfaces
-                    // affichent `error` tel quel (barre Architecte, coachs).
-                    this.listeners.forEach(l => l.onError?.(MIC_UNAVAILABLE_MESSAGE));
+                    // Diagnostic HONNÊTE : une rafale d'erreurs `network`
+                    // n'est pas un micro en panne — le message et la reprise
+                    // automatique (événement `online`) diffèrent.
+                    this.gaveUpBecauseOfNetwork = !fatal && this.lastRecognitionErrorWasNetwork;
+                    this.listeners.forEach(l => l.onError?.(
+                        this.gaveUpBecauseOfNetwork ? LISTEN_NETWORK_MESSAGE : MIC_UNAVAILABLE_MESSAGE
+                    ));
                 }
             };
 
@@ -359,6 +441,26 @@ export class VoiceEngine {
     public addListener(listener: VoiceEngineListener) {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
+    }
+
+    // ── Propriété de la session vocale (voir champs plus haut) ──────────
+    /** Prise de main ponctuelle (dictée) : dure jusqu'au release correspondant. */
+    public claimTemporaryOwnership(ownerId: string) { this.temporaryOwnerId = ownerId; }
+    public releaseTemporaryOwnership(ownerId: string) {
+        if (this.temporaryOwnerId === ownerId) this.temporaryOwnerId = null;
+    }
+    /** Session conversationnelle continue (barre Architecte, coachs). */
+    public claimConversationalOwnership(ownerId: string) { this.conversationalOwnerId = ownerId; }
+    public releaseConversationalOwnership(ownerId: string) {
+        if (this.conversationalOwnerId === ownerId) this.conversationalOwnerId = null;
+    }
+    /**
+     * Propriétaire effectif des transcriptions : la prise de main ponctuelle
+     * l'emporte sur la session continue ; `null` = aucun filtre (comportement
+     * historique conservé pour tout écran qui n'a rien réclamé).
+     */
+    public getTranscriptOwner(): string | null {
+        return this.temporaryOwnerId ?? this.conversationalOwnerId;
     }
 
     public isSpeechRecognitionSupported(): boolean {
@@ -613,7 +715,13 @@ export class VoiceEngine {
         const segments: string[] = [sentences[0]];
         let current = '';
         for (const s of sentences.slice(1)) {
-            if (current && (current.length + s.length + 1) > 360) {
+            // 700 (au lieu de 360) : chaque segment est UN appel au fournisseur
+            // TTS — le palier gratuit du secours Gemini TTS a une limite de
+            // débit basse (429 mesurés en rafale le 31/08/2026), et moins
+            // d'appels par réponse = moins de risques de la toucher, sans
+            // changer la sensation (le bloc suivant est généré PENDANT la
+            // lecture du courant).
+            if (current && (current.length + s.length + 1) > 700) {
                 segments.push(current);
                 current = s;
             } else {
@@ -638,9 +746,18 @@ export class VoiceEngine {
         if (cached) return cached;
 
         try {
-            const audioBase64 = await generateSpeech(segment, { voiceId, voiceSettings: settings });
-            if (!audioBase64) return null;
-            const url = `data:audio/mpeg;base64,${audioBase64}`;
+            const detail = await generateSpeechDetailed(segment, { voiceId, voiceSettings: settings });
+            if (!detail?.audioBase64) return null;
+            // Type MIME RÉEL du fournisseur (mp3 ElevenLabs, wav Gemini...) —
+            // l'ancien `audio/mpeg` codé en dur aurait fait échouer la lecture
+            // d'un WAV de secours sur certains navigateurs.
+            const url = `data:${detail.mimeType || 'audio/mpeg'};base64,${detail.audioBase64}`;
+            // Cache borné : sans éviction, des data-URL MP3 complètes
+            // s'accumulaient pour toute la vie de l'onglet.
+            if (this.audioCache.size >= 40) {
+                const oldest = this.audioCache.keys().next().value;
+                if (oldest !== undefined) this.audioCache.delete(oldest);
+            }
             this.audioCache.set(cacheKey, url);
             return url;
         } catch (e) {
@@ -907,7 +1024,11 @@ export class VoiceEngine {
 
     private selectBestFrenchVoice(preferredName?: string): SpeechSynthesisVoice | null {
         if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-        const voices = window.speechSynthesis.getVoices();
+        // Le cache (rafraîchi par `voiceschanged`) évite le [] du premier
+        // appel ; on retente un getVoices() direct en dernier recours.
+        const voices = this.cachedSynthesisVoices.length
+            ? this.cachedSynthesisVoices
+            : window.speechSynthesis.getVoices();
         const frenchVoices = voices.filter(v => v.lang.startsWith('fr'));
 
         if (frenchVoices.length === 0) return null;
@@ -917,17 +1038,24 @@ export class VoiceEngine {
             if (exact) return exact;
         }
 
-        const naturalVoice = frenchVoices.find(v => 
-            v.name.includes('Natural') || 
-            v.name.includes('Google') || 
-            v.name.includes('Henri') || 
-            v.name.includes('Denise') || 
-            v.name.includes('Thomas') || 
-            v.name.includes('Audrey') || 
-            v.name.includes('Siri')
-        );
+        // Ordre de préférence RÉFLÉCHI (l'ancien `frenchVoices[0]` retombait
+        // souvent, sur Android, sur une voix compacte de basse qualité) :
+        // 1. voix réseau de qualité (Google français sur Chrome, Natural/
+        //    Neural sur Edge) ; 2. voix nommées réputées ; 3. fr-FR avant les
+        //    autres variantes ; 4. sinon la première disponible.
+        const byQuality =
+            frenchVoices.find(v => /google.*fran|fran.*google/i.test(v.name)) ||
+            frenchVoices.find(v => /natural|neural/i.test(v.name)) ||
+            frenchVoices.find(v =>
+                v.name.includes('Henri') ||
+                v.name.includes('Denise') ||
+                v.name.includes('Thomas') ||
+                v.name.includes('Audrey') ||
+                v.name.includes('Siri')
+            ) ||
+            frenchVoices.find(v => v.lang === 'fr-FR');
 
-        return naturalVoice || frenchVoices[0];
+        return byQuality || frenchVoices[0];
     }
 
     private finishSpeakingBrowser(options?: { onEnd?: () => void }) {

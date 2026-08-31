@@ -3,6 +3,7 @@ import { openaiCompatibleAdapter } from './openai_compatible.ts';
 import { anthropicAdapter } from './anthropic.ts';
 import { geminiAdapter } from './gemini.ts';
 import { elevenlabsAdapter } from './elevenlabs.ts';
+import { geminiTtsAdapter } from './gemini_tts.ts';
 import { replicateAdapter } from './replicate.ts';
 import { whisperAdapter, deepgramAdapter, assemblyaiAdapter } from './voice_stt_providers.ts';
 import { cartesiaAdapter, playhtAdapter, azureSpeechAdapter, googleTtsAdapter } from './voice_tts_providers.ts';
@@ -24,6 +25,7 @@ export const ADAPTERS: Record<string, ProviderAdapter> = {
     gemini: geminiAdapter,
     replicate: replicateAdapter,
     elevenlabs: elevenlabsAdapter,
+    gemini_tts: geminiTtsAdapter,
     whisper: whisperAdapter,
     deepgram: deepgramAdapter,
     assemblyai: assemblyaiAdapter,

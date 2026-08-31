@@ -356,7 +356,11 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                     </div>
                 </div>
 
-                {/* Main Navigation Tabs */}
+                {/* Main Navigation Tabs — le voile dégradé (mobile) rend le
+                    débordement horizontal visible : la barre est masquée
+                    (no-scrollbar) et les onglets hors écran passaient
+                    inaperçus sur téléphone. */}
+                <div className="relative w-full md:w-auto">
                 <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar text-xs font-bold">
                     <button
                         onClick={() => setActiveTab('catalogue')}
@@ -445,6 +449,8 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                     >
                         <BrainCircuit size={14} /> Mémoire Active
                     </button>
+                </div>
+                <div aria-hidden="true" className="md:hidden pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
                 </div>
             </div>
 

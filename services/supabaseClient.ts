@@ -430,10 +430,47 @@ export const supabaseService = {
     async sendCallSignal(toUserId: string, signal: any): Promise<void> {
         if (!isSupabaseConfigured) return;
         try {
+            // Équipe 7 (appels, A4) : l'ancien `await channel.subscribe()`
+            // n'attendait RIEN — subscribe() renvoie le canal, pas une
+            // promesse — donc le send partait avant la jointure websocket et
+            // passait systématiquement par le repli REST HTTP, dont
+            // realtime-js annonce la dépréciation. On attend désormais le
+            // statut réel 'SUBSCRIBED' via le callback officiel de
+            // subscribe(), borné à 3 s : au-delà (ou sur erreur de canal), on
+            // tente l'envoi quand même — le repli actuel vaut mieux qu'un
+            // signal d'appel perdu. Même signature, mêmes appelants.
+            const topic = `realtime:call-signals:${toUserId}`;
+            const existing = supabase.getChannels().find((c) => c.topic === topic);
+            if (existing) {
+                // Un envoi encore en vol tient déjà ce canal : réutiliser —
+                // se réabonner à la même instance jette (« tried to subscribe
+                // multiple times », même leçon que sendTypingSignal).
+                await existing.send({ type: 'broadcast', event: 'signal', payload: signal });
+                return;
+            }
             const channel = supabase.channel(`call-signals:${toUserId}`);
-            await channel.subscribe();
-            await channel.send({ type: 'broadcast', event: 'signal', payload: signal });
-            supabase.removeChannel(channel);
+            try {
+                await new Promise<void>((resolve) => {
+                    let settled = false;
+                    const settle = () => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
+                        resolve();
+                    };
+                    const timer = setTimeout(settle, 3000);
+                    channel.subscribe((status: string) => {
+                        // États terminaux de realtime-js : joint, ou en échec —
+                        // dans les deux cas on cesse d'attendre.
+                        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') settle();
+                    });
+                });
+                await channel.send({ type: 'broadcast', event: 'signal', payload: signal });
+            } finally {
+                // Toujours retirer le canal jetable — même si le send échoue,
+                // sinon chaque appel raté laisserait un canal orphelin.
+                supabase.removeChannel(channel);
+            }
         } catch {
             // dégradation silencieuse — l'appel ne partira pas, pas de crash.
         }
@@ -718,6 +755,23 @@ export const supabaseService = {
         if (!isSupabaseConfigured) return null;
         const { data, error } = await supabase.from('stories').insert(story).select('id, created_at, expires_at').single();
         if (error) throw error;
+        return data;
+    },
+    /**
+     * ÉQUIPE 11 « Identité des publications » : identité d'annuaire minimale
+     * (nom, avatar, titre) des auteurs dont l'embed `author:profiles!...` a
+     * été masqué par `profiles_select_visible` (profil 'network' non-ami).
+     * RPC `get_content_author_profiles` — SECURITY DEFINER étroit, même
+     * patron que `discover_profiles` / `get_my_conversation_participant_profiles` :
+     * ne renvoie un id demandé QUE si son porteur est réellement auteur d'au
+     * moins un contenu (post/commentaire/story active) visible par
+     * l'appelant selon les MÊMES prédicats que la RLS de ces tables — jamais
+     * un annuaire ouvert, jamais email/téléphone/crédits.
+     */
+    async getContentAuthorProfiles(authorIds: string[]): Promise<Array<{ id: string; name: string | null; avatar_url: string | null; title: string | null }>> {
+        if (!isSupabaseConfigured || authorIds.length === 0) return [];
+        const { data, error } = await supabase.rpc('get_content_author_profiles', { p_author_ids: authorIds });
+        if (error || !data) return [];
         return data;
     },
 

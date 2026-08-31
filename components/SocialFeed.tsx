@@ -32,6 +32,9 @@ import { addToQueue } from '../services/architecte/syncQueue';
 import { checkNetworkStatus } from '../services/pwaService';
 import { ShareButton } from './ui/ShareButton';
 import { GrowthDashboard } from './growth/GrowthDashboard';
+// ÉQUIPE 11 « Identité des publications » : résolution batchée de l'identité
+// réelle des auteurs que l'embed profiles a masqués (RLS 'network' non-ami).
+import { collectMissingAuthorIds, buildAuthorProfileMap, mergePostsWithAuthorProfiles, mergeStoriesWithAuthorProfiles, RawAuthoredRow } from '../services/social/contentAuthorIdentity';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -149,10 +152,16 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // pour être réutilisable par la recherche de personnes (bouton/voix),
   // pas seulement au premier chargement. `query` absent = comportement
   // historique (liste des profils pour le fil).
-  const loadMembers = async (query?: string) => {
-    if (!supabaseService.isConfigured()) return;
+  //
+  // Renvoie la liste réellement chargée (ou null si rien n'a pu l'être) : la
+  // résolution vocale d'un nom (G4) doit pouvoir retenter IMMÉDIATEMENT sur
+  // le résultat serveur — l'état React `members`, mis à jour par setMembers,
+  // ne serait visible qu'au rendu suivant, trop tard pour la commande en
+  // cours.
+  const loadMembers = async (query?: string): Promise<MemberProfile[] | null> => {
+    if (!supabaseService.isConfigured()) return null;
     const profiles = await supabaseService.searchProfiles(query);
-    if (!profiles || profiles.length === 0) return;
+    if (!profiles || profiles.length === 0) return null;
     const rawFriendships = currentUser.id ? await supabaseService.getFriendshipsForUser(currentUser.id) : [];
     setFriendships(rawFriendships);
     // Abonnement (follow) et blocage — LOOP 04/17 : deux relations
@@ -218,6 +227,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       });
     }
     setMembers(mergedMembers);
+    return mergedMembers;
   };
 
   // Load Cloud Data on mount
@@ -230,6 +240,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         // honnête hors-ligne) d'un fil légitimement vide (→ vérité serveur).
         let fetched: Post[] = [];
         let serverFetchSucceeded = false;
+        // ÉQUIPE 11 : lignes brutes (posts/commentaires/stories) dont l'embed
+        // `author:profiles!...` peut avoir été masqué par la RLS de profiles —
+        // collectées ici pour UN SEUL appel batché getContentAuthorProfiles
+        // après le chargement, jamais un appel par post.
+        const rawAuthoredRows: RawAuthoredRow[] = [];
         if (supabaseService.isConfigured()) {
           try {
           // Délai de garde : sur un réseau semi-mort (mobile), la requête
@@ -247,6 +262,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               supabaseService.getCommentsForPosts(postIds),
               supabaseService.getReactionsForPosts(postIds)
             ]);
+            // ÉQUIPE 11 : mémoriser les lignes brutes pour la résolution
+            // batchée d'identité des auteurs (après le bloc stories).
+            rawAuthoredRows.push(...remotePosts, ...remoteComments);
 
             const mapComment = (rc: any): Comment => ({
               id: rc.id,
@@ -355,6 +373,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           try {
             const remoteStories = await supabaseService.getStories();
             if (remoteStories && remoteStories.length > 0) {
+              rawAuthoredRows.push(...remoteStories);
               const mappedStories: Story[] = remoteStories.map((rs: any) => ({
                 id: rs.id,
                 author: rs.author?.name || 'Membre',
@@ -370,6 +389,33 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             }
           } catch (e) {
             console.warn('Could not fetch stories from Supabase', e);
+          }
+        }
+
+        // 2bis. ÉQUIPE 11 « Identité des publications » : les embeds
+        // `author:profiles!...` sont soumis à `profiles_select_visible`
+        // (profil 'public' OU amitié acceptée — 'network' est le défaut réel),
+        // donc NULL pour tout auteur non-ami alors que la RLS des posts laisse
+        // voir la publication. UN SEUL appel batché au RPC
+        // `get_content_author_profiles` (SECURITY DEFINER étroit : nom/avatar/
+        // titre uniquement, et uniquement pour les auteurs d'un contenu
+        // réellement visible par l'appelant) complète les identités réelles.
+        // Le repli « Membre » ne reste que pour un auteur réellement
+        // introuvable (compte supprimé).
+        if (supabaseService.isConfigured()) {
+          try {
+            const missingAuthorIds = collectMissingAuthorIds(rawAuthoredRows);
+            if (missingAuthorIds.length > 0) {
+              const authorProfiles = await supabaseService.getContentAuthorProfiles(missingAuthorIds);
+              if (authorProfiles.length > 0) {
+                const authorMap = buildAuthorProfileMap(authorProfiles);
+                setPosts(prev => mergePostsWithAuthorProfiles(prev, authorMap));
+                setStories(prev => mergeStoriesWithAuthorProfiles(prev, authorMap));
+              }
+            }
+          } catch (e) {
+            // Échec non bloquant : le fil reste affiché avec le repli générique.
+            console.warn('Identité des auteurs non résolue (repli générique conservé)', e);
           }
         }
 
@@ -1221,23 +1267,52 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     dispatchContentVoiceAction(action);
   };
 
-  // Architecte — navigateur social (LOOP 05/17). Résolution du nom vers un
-  // membre réel : code déterministe, jamais le LLM (qui n'a fourni que le
-  // texte tel qu'énoncé) — 0 correspondance ou plusieurs → clarification,
-  // jamais une action devinée sur la mauvaise personne.
-  const resolveMemberByName = (rawName: string): { member: MemberProfile | null; candidates: MemberProfile[] } => {
+  // Architecte — navigateur social (LOOP 05/17, élargi G4). Résolution du
+  // nom vers un membre réel : code déterministe, jamais le LLM (qui n'a
+  // fourni que le texte tel qu'énoncé) — 0 correspondance ou plusieurs →
+  // clarification, jamais une action devinée sur la mauvaise personne.
+  const filterMemberCandidates = (list: MemberProfile[], term: string) =>
+    list.filter(m => m.id !== (currentUser.id || 'u1') && m.name.toLowerCase().includes(term));
+
+  // G4 : (a) résolution ÉLARGIE — si aucun VRAI compte ne correspond parmi
+  // les membres déjà chargés, une recherche serveur (discover_profiles, le
+  // même chemin que le bouton Rechercher) est tentée UNE fois avant
+  // d'abandonner ; (b) anti-faux-succès — les membres de démonstration
+  // (MOCK_MEMBERS, ids non-UUID, aucune ligne réelle dans `profiles`) sont
+  // EXCLUS de la résolution vocale : agir dessus n'écrirait jamais rien en
+  // base, et le rapporter comme un succès serait un mensonge.
+  const resolveMemberByName = async (
+    rawName: string
+  ): Promise<{ member: MemberProfile | null; candidates: MemberProfile[]; demoOnly: boolean }> => {
     const term = rawName.trim().toLowerCase();
-    if (!term) return { member: null, candidates: [] };
-    const candidates = members.filter(m => m.id !== (currentUser.id || 'u1') && m.name.toLowerCase().includes(term));
-    return { member: candidates.length === 1 ? candidates[0] : null, candidates };
+    if (!term) return { member: null, candidates: [], demoOnly: false };
+
+    let candidates = filterMemberCandidates(members, term);
+
+    if (!candidates.some(m => isRealMemberId(m.id))) {
+      const refreshed = await loadMembers(rawName.trim());
+      if (refreshed) candidates = filterMemberCandidates(refreshed, term);
+    }
+
+    const realCandidates = candidates.filter(m => isRealMemberId(m.id));
+    if (realCandidates.length === 0 && candidates.length > 0) {
+      // Seuls des profils de démonstration correspondent — refus honnête.
+      return { member: null, candidates: [], demoOnly: true };
+    }
+    return {
+      member: realCandidates.length === 1 ? realCandidates[0] : null,
+      candidates: realCandidates,
+      demoOnly: false,
+    };
   };
 
   // Renvoie le résultat RÉEL (LOOP Architecte — pont d'exécution) : `acted`
   // ne devient vrai que si une action a effectivement été déclenchée sur une
-  // personne résolue SANS ambiguïté. Un nom introuvable ou ambigu n'est
-  // jamais rapporté comme un succès — c'est précisément le cas où agir au
-  // hasard serait le plus dommageable.
-  const dispatchSocialVoiceAction = (action: SocialVoiceAction): { ok: boolean; message: string } => {
+  // personne résolue SANS ambiguïté. Un nom introuvable, ambigu, ou qui ne
+  // désigne qu'un profil de démonstration n'est jamais rapporté comme un
+  // succès — c'est précisément le cas où agir au hasard serait le plus
+  // dommageable.
+  const dispatchSocialVoiceAction = async (action: SocialVoiceAction): Promise<{ ok: boolean; message: string }> => {
     let lastSaid = '';
     let acted = false;
     const say = (text: string) => {
@@ -1246,51 +1321,55 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       voiceAssistant.speak(text);
     };
 
-    const withResolvedMember = (fn: (m: MemberProfile) => void) => {
+    const withResolvedMember = async (fn: (m: MemberProfile) => void) => {
       const name = action.payload?.memberName;
       if (!name) { say('Pour qui ? Dites le nom de la personne.'); return; }
-      const { member, candidates } = resolveMemberByName(name);
+      const { member, candidates, demoOnly } = await resolveMemberByName(name);
       if (member) { acted = true; fn(member); return; }
+      if (demoOnly) {
+        say(`« ${name} » correspond à un profil de démonstration, pas à un vrai compte — je ne peux pas faire cette action pour de vrai.`);
+        return;
+      }
       if (candidates.length > 1) {
         say(`Plusieurs personnes correspondent à "${name}" : ${candidates.slice(0, 3).map(c => c.name).join(', ')}. Pouvez-vous préciser ?`);
         return;
       }
-      say(`Je ne trouve personne correspondant à "${name}" parmi les membres actuellement affichés.`);
+      say(`Je ne trouve personne correspondant à "${name}", même en cherchant dans l'annuaire des membres.`);
     };
 
     switch (action.type) {
       case 'SEND_FRIEND_REQUEST':
-        withResolvedMember((m) => { handleFriendAction(m.id, 'send'); say(action.spokenConfirmation); });
+        await withResolvedMember((m) => { handleFriendAction(m.id, 'send'); say(action.spokenConfirmation); });
         break;
       case 'ACCEPT_FRIEND_REQUEST':
-        withResolvedMember((m) => {
-          if (m.friendshipStatus !== 'pending_received') { say(`Aucune demande en attente de ${m.name}.`); return; }
+        await withResolvedMember((m) => {
+          if (m.friendshipStatus !== 'pending_received') { acted = false; say(`Aucune demande en attente de ${m.name}.`); return; }
           handleFriendAction(m.id, 'accept'); say(action.spokenConfirmation);
         });
         break;
       case 'DECLINE_FRIEND_REQUEST':
-        withResolvedMember((m) => {
-          if (m.friendshipStatus !== 'pending_received') { say(`Aucune demande en attente de ${m.name}.`); return; }
+        await withResolvedMember((m) => {
+          if (m.friendshipStatus !== 'pending_received') { acted = false; say(`Aucune demande en attente de ${m.name}.`); return; }
           handleFriendAction(m.id, 'decline'); say(action.spokenConfirmation);
         });
         break;
       case 'REMOVE_FRIEND':
-        withResolvedMember((m) => { handleFriendAction(m.id, 'remove'); say(action.spokenConfirmation); });
+        await withResolvedMember((m) => { handleFriendAction(m.id, 'remove'); say(action.spokenConfirmation); });
         break;
       case 'FOLLOW':
-        withResolvedMember((m) => { if (!m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
+        await withResolvedMember((m) => { if (!m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
         break;
       case 'UNFOLLOW':
-        withResolvedMember((m) => { if (m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
+        await withResolvedMember((m) => { if (m.isFollowing) handleToggleFollow(m.id); say(action.spokenConfirmation); });
         break;
       case 'BLOCK':
         // Réutilise exactement handleBlockUser, qui exige déjà une
         // confirmation explicite (window.confirm) — jamais de bypass vocal
         // pour une action de ce niveau de risque.
-        withResolvedMember((m) => { handleBlockUser(m.id); say(action.spokenConfirmation); });
+        await withResolvedMember((m) => { handleBlockUser(m.id); say(action.spokenConfirmation); });
         break;
       case 'UNBLOCK':
-        withResolvedMember((m) => { handleUnblockUser(m.id); say(action.spokenConfirmation); });
+        await withResolvedMember((m) => { handleUnblockUser(m.id); say(action.spokenConfirmation); });
         break;
       case 'SEARCH_PEOPLE':
         if (action.payload?.query) {
@@ -1307,10 +1386,23 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         say(action.spokenConfirmation);
         break;
     }
-    // `acted` reste faux si la personne visée était introuvable ou ambiguë :
-    // le message dit alors pourquoi, et le bus rapportera `failed`, jamais
-    // un succès qui n'a pas eu lieu.
+    // `acted` reste faux si la personne visée était introuvable, ambiguë ou
+    // un profil de démonstration : le message dit alors pourquoi, et le bus
+    // rapportera `failed`, jamais un succès qui n'a pas eu lieu.
     return { ok: acted, message: lastSaid || "Je n'ai pas pu agir sur cette demande." };
+  };
+
+  // Création d'un LIVE — logique UNIQUE partagée entre la modale de création
+  // (LiveCreationModal → onCreateLive, extraite telle quelle de l'ancien
+  // callback inline) et la capacité vocale 'live.session.create' (G3) : le
+  // direct rejoint le fil et, s'il n'est pas programmé, s'ouvre immédiatement
+  // (onOpenLive → SocialLive, qui crée la session réelle côté serveur avec
+  // ses propres contrôles — exactement le même chemin que depuis la modale).
+  const handleCreateLive = (newLive: LiveStream) => {
+    setLives(prev => [newLive, ...prev]);
+    if (!newLive.isScheduled) {
+      onOpenLive(newLive.id, newLive);
+    }
   };
 
   // --- Pont d'exécution de l'Architecte (LOOP Architecte) ---
@@ -1333,10 +1425,81 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       return { ok: r.ok, message: r.message, queued: r.queued };
     };
     const social = (type: string) => async (payload: any) => {
-      const r = dispatchSocialVoiceAction({ type, payload, spokenConfirmation: '' } as any);
+      const r = await dispatchSocialVoiceAction({ type, payload, spokenConfirmation: '' } as any);
       return { ok: r.ok, message: r.message };
     };
+    // G3 — « lance un live » : mêmes valeurs par défaut que le studio de
+    // création (LiveCreationModal, type public, copilote IA n°1, non
+    // programmé), puis EXACTEMENT le même chemin que la modale
+    // (handleCreateLive). La confirmation (risque 'moderate') est posée par
+    // l'appelant (cerveau/bus), comme pour toute capacité du registre.
+    const createLiveSession = async (payload: any) => {
+      try {
+        const rawTitle = typeof payload?.title === 'string' ? payload.title.trim() : '';
+        const now = new Date();
+        const title = rawTitle ||
+          `Live de ${currentUser.name} — ${now.toLocaleDateString('fr-FR')} ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+        const assignedAgent = AGENTS.find(a => a.id === '1');
+        const newLive: LiveStream = {
+          id: `live-${Date.now()}`,
+          title,
+          description: "Session lancée à la voix via L'Architecte",
+          type: 'public',
+          hostName: currentUser.name,
+          hostAvatar: currentUser.avatarUrl,
+          viewers: 1,
+          isMixed: true,
+          aiAssistantId: assignedAgent?.id,
+          startedAt: now,
+          isScheduled: false,
+          duration: 45,
+          isPaid: false,
+          language: 'Français',
+          targetLanguage: 'Anglais',
+          coverImage: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&fit=crop',
+          isPrivate: false,
+          allowedMemberIds: [],
+          expertId: assignedAgent?.id,
+          isRecordingEnabled: true,
+          isTranslationEnabled: true,
+          isQuestionsEnabled: true,
+          isScreenShareEnabled: true,
+          isVisionEnabled: true,
+          isDataSaver: false,
+          qualityMode: 'auto',
+          tags: ['#Live', '#DialloOS', '#RéseauMok'],
+          speakers: [
+            {
+              id: currentUser.id || 'u1',
+              name: currentUser.name,
+              avatar: currentUser.avatarUrl,
+              role: 'host',
+              isMuted: false,
+              isVideoOn: true,
+              isVerified: true
+            },
+            ...(assignedAgent ? [{
+              id: `agent-${assignedAgent.id}`,
+              name: `${assignedAgent.name} (IA)`,
+              avatar: assignedAgent.avatarUrl,
+              role: 'expert_ai' as const,
+              isMuted: false,
+              isVideoOn: true,
+              isAi: true,
+              specialty: assignedAgent.specialty,
+              agentId: assignedAgent.id
+            }] : [])
+          ]
+        };
+        handleCreateLive(newLive);
+        return { ok: true, message: `Votre live « ${title} » est créé — il s'ouvre à l'écran.` };
+      } catch (e: any) {
+        // Jamais ok:true si la création a échoué — la raison réelle remonte.
+        return { ok: false, message: e?.message || "La création du live a échoué — rien n'a été ouvert." };
+      }
+    };
     return registerCapabilityHandlers({
+      'live.session.create': createLiveSession,
       'content.post.compose': content('SET_CONTENT'),
       'content.post.rewrite_style': content('REWRITE_STYLE'),
       'content.post.shorten': content('SHORTEN'),
@@ -1365,7 +1528,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     const action = await interpretSocialVoiceCommand(transcript, {
       visibleMemberNames: members.filter(m => m.id !== (currentUser.id || 'u1')).slice(0, 20).map(m => m.name),
     });
-    dispatchSocialVoiceAction(action);
+    await dispatchSocialVoiceAction(action);
   };
 
   // Un seul moteur vocal partagé (une capacité, un registre) — le champ
@@ -2931,16 +3094,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         />
       )}
 
-      {/* Live Creation Wizard Modal */}
+      {/* Live Creation Wizard Modal — même chemin de création que la
+          capacité vocale live.session.create (handleCreateLive, G3). */}
       <LiveCreationModal
         isOpen={isLiveModalOpen}
         onClose={() => setIsLiveModalOpen(false)}
-        onCreateLive={(newLive) => {
-          setLives([newLive, ...lives]);
-          if (!newLive.isScheduled) {
-            onOpenLive(newLive.id, newLive);
-          }
-        }}
+        onCreateLive={handleCreateLive}
       />
 
       {/* Live Intelligent Replay Modal */}

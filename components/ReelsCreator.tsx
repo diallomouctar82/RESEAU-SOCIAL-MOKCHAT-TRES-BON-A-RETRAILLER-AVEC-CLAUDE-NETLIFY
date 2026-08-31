@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Video, Sparkles, Wand2, Music, Type, Share2, Download, X, Play, Pause, ChevronRight, Upload, Mic, RefreshCw, Languages, TrendingUp, Layers, CheckCircle, Camera, Circle, StopCircle, Zap, Timer, RotateCcw, Sticker, Scissors, Palette, Move, Send, FileText, AlignCenter, Volume2, AudioWaveform, Film, ZapOff } from 'lucide-react';
-import { generateText, generateJSON, generateImage, generateSpeech } from '../services/aiGateway';
+import { generateText, generateJSON, generateImage, generateSpeechDetailed } from '../services/aiGateway';
 import { ReelDraft } from '../types';
 
 interface ReelsCreatorProps {
@@ -264,8 +264,8 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
         try {
             // Note : la voix générée dépend désormais du fournisseur vocal actif
             // (ElevenLabs par défaut) et non plus de la voix Gemini "Fenrir".
-            const base64Audio = await generateSpeech(voiceText);
-            if (base64Audio) {
+            const speech = await generateSpeechDetailed(voiceText);
+            if (speech?.audioBase64) {
                 setTracks(prev => [...prev, {
                     id: `voice-${Date.now()}`,
                     type: 'voice',
@@ -276,7 +276,7 @@ export const ReelsCreator: React.FC<ReelsCreatorProps> = ({ onClose, onPublish }
                 }]);
 
                 // Play for preview
-                const audio = new Audio(`data:audio/mpeg;base64,${base64Audio}`);
+                const audio = new Audio(`data:${speech.mimeType};base64,${speech.audioBase64}`);
                 audio.play().catch(() => {});
 
                 setVoiceText('');

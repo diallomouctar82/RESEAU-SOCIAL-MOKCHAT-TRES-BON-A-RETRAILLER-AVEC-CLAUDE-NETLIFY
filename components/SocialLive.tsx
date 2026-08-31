@@ -31,9 +31,9 @@ import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
 import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
-import { useLiveTransport, RemoteParticipantMedia } from '../hooks/useLiveTransport';
+import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse } from '../services/live/liveSessionService';
+import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, mergeLiveStreamWithRealSession } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
@@ -195,7 +195,6 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }] : [])
   ]);
 
-  const [stageInvitation, setStageInvitation] = useState<{ inviterName: string } | null>(null);
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
   // Consentement caméra/micro/vision (LOOP 12/16) — au-delà du simple
   // toggle mic/caméra existant : avant toute publication réelle de média,
@@ -204,8 +203,53 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // sans ce choix explicite).
   const [hasMediaConsent, setHasMediaConsent] = useState(false);
   const [showMediaConsentModal, setShowMediaConsentModal] = useState(isHost);
-  const handleAcceptMediaConsent = () => { setHasMediaConsent(true); setShowMediaConsentModal(false); };
-  const handleDeclineMediaConsent = () => { setIsUserOnStage(false); setShowMediaConsentModal(false); };
+  // Équipe 10 (L1) : le choix (accord OU refus) est mémorisé pour ne jamais
+  // rouvrir la modale en boucle — isHost se résout en ASYNCHRONE (effet de
+  // resynchronisation plus bas) et le roster répète role='speaker' à chaque
+  // polling : sans cette garde, chaque passage rouvrirait la modale.
+  const mediaConsentAnsweredRef = useRef(false);
+  // Miroirs en refs pour les callbacks temps réel (abonnement + polling
+  // live_speakers ci-dessous), dont les closures seraient sinon figées sur
+  // un état périmé de isUserOnStage/hasMediaConsent.
+  const isUserOnStageRef = useRef(isUserOnStage);
+  useEffect(() => { isUserOnStageRef.current = isUserOnStage; }, [isUserOnStage]);
+  const hasMediaConsentRef = useRef(hasMediaConsent);
+  useEffect(() => { hasMediaConsentRef.current = hasMediaConsent; }, [hasMediaConsent]);
+  const handleAcceptMediaConsent = () => {
+    mediaConsentAnsweredRef.current = true;
+    hasMediaConsentRef.current = true; // miroir à jour immédiatement (les callbacks temps réel n'attendent pas le re-rendu)
+    setHasMediaConsent(true);
+    setShowMediaConsentModal(false);
+  };
+  const handleDeclineMediaConsent = () => {
+    mediaConsentAnsweredRef.current = true;
+    isUserOnStageRef.current = false; // idem : miroir avant le prochain polling
+    setIsUserOnStage(false);
+    setShowMediaConsentModal(false);
+    // L1 : un invité qui refuse la scène redevient spectateur EN BASE aussi
+    // (sa propre ligne live_speakers reste modifiable par lui-même, cf. RLS) —
+    // sinon le roster (role='speaker') le remonterait sur scène au polling
+    // suivant. L'hôte, lui, garde son rôle : il reste maître du direct, le
+    // refus ne coupe que la publication caméra/micro (hasMediaConsent=false).
+    if (realSessionId && !isHost) {
+      updateParticipantRole(realSessionId, userProfile.id, 'viewer').catch(() => {});
+    }
+  };
+
+  // Équipe 10 (L1) — LA rupture majeure corrigée : isHost dépend de
+  // realHostId, résolu en ASYNCHRONE (fetch/création de la session réelle
+  // ci-dessous), alors que isUserOnStage/showMediaConsentModal étaient
+  // initialisés UNE SEULE FOIS avec la valeur du premier rendu — souvent
+  // false pour l'hôte réel. Conséquence : l'hôte ne publiait jamais rien et
+  // tous les spectateurs restaient sur « En attente du direct ». On
+  // resynchronise dès que isHost devient vrai, sans jamais rouvrir la modale
+  // si le choix a déjà été fait (garde mediaConsentAnsweredRef).
+  useEffect(() => {
+    if (!isHost) return;
+    isUserOnStageRef.current = true;
+    setIsUserOnStage(true);
+    if (!hasMediaConsentRef.current && !mediaConsentAnsweredRef.current) setShowMediaConsentModal(true);
+  }, [isHost]);
 
   // Provisionnement de la session réelle (LOOP 05/14) — la plupart des points
   // d'entrée du LIVE (SocialFeed, Trade*, StoryViewer...) ouvrent encore ce
@@ -233,6 +277,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         setRealSessionId(existing.id);
         setRealHostId(existing.hostId);
         setVisualUniverse(existing.visualUniverse || 'crystal');
+        // Équipe 10 (L4) : la ligne RÉELLE alimente enfin l'affichage —
+        // titre/compteur/réglages venaient jusqu'ici du LiveStream de
+        // démonstration (setLiveData n'était jamais appelé depuis la base).
+        setLiveData((prev) => mergeLiveStreamWithRealSession(prev, existing));
         return;
       }
       if (!isHost) return; // spectateur sur une session pas encore créée : rien à faire, transport désactivé.
@@ -255,6 +303,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           setRealSessionId(created.id);
           setRealHostId(created.hostId);
           setVisualUniverse(created.visualUniverse || 'crystal');
+          setLiveData((prev) => mergeLiveStreamWithRealSession(prev, created)); // Équipe 10 (L4) : même principe pour la session créée à la volée.
           // Équipe F3 : un direct qui démarre TOUT DE SUITE doit porter son
           // started_at réel — `startLiveSession` existait mais n'avait AUCUN
           // appelant, donc started_at restait null et fetchActiveLiveSessions
@@ -356,6 +405,32 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     else track?.detach();
   }, [liveTransport.localScreenShareTrack, liveTransport.remoteParticipants]);
 
+  // Équipe 10 (L3) : seuls les participants qui PUBLIENT un média (caméra,
+  // écran, ou micro de quelqu'un sur scène) occupent une tuile — TOUT le
+  // monde se connecte à la room, spectateurs muets compris, et une tuile par
+  // spectateur réduisait le présentateur à 1/N de l'écran. Leur audio
+  // éventuel reste joué par <RemoteAudioSink>, indépendant des tuiles.
+  const presentableRemotes = liveTransport.remoteParticipants.filter(hasPresentableMedia);
+  // Nombre RÉEL de tuiles de la scène caméra (mêmes conditions que le rendu
+  // plus bas) : ma tuile si je suis sur scène, la tuile d'attente d'un
+  // spectateur sans présentateur, le copilote IA en pleine cellule quand
+  // aucun humain distant ne publie, puis les participants qui publient.
+  const cameraTileCount =
+    (isUserOnStage ? 1 : 0)
+    + (!isUserOnStage && presentableRemotes.length === 0 ? 1 : 0)
+    + (aiAgent && presentableRemotes.length === 0 ? 1 : 0)
+    + presentableRemotes.length;
+
+  // Équipe 10 (L4) : badge et compteur dérivés de l'état RÉEL (session +
+  // transport) — jamais un « LIVE » pulsant codé en dur ni un 1420 fictif.
+  const stageBadge = liveBadge(!!realSessionId, liveTransport.connectionState, !!liveTransport.error);
+  const viewerCount = realViewerCount({
+    hasRealSession: !!realSessionId,
+    connectionState: liveTransport.connectionState,
+    remoteParticipantCount: liveTransport.remoteParticipants.length,
+    dbViewers: liveData.viewers,
+  });
+
   // 4. View Mode: Video Stage / Screen Share / Whiteboard / Documents / Meeting / Commerce / Masterclass
   const [mainStageMode, setMainStageMode] = useState<'camera' | 'screen' | 'whiteboard' | 'document' | 'council' | 'meeting' | 'commerce' | 'masterclass'>('camera');
 
@@ -446,7 +521,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // jamais par animation transform/filter : la barre contient un enfant
   // `fixed inset-0` (l'overlay du menu « Plus ») qu'un ancêtre transformé
   // re-scoperait au conteneur au lieu de l'écran.
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  // Équipe 10 (L3) : sur mobile le panneau couvrait d'office la moitié basse
+  // de l'écran (h-1/2) — la vidéo doit dominer : il démarre replié sous md,
+  // la languette de réouverture et le chat restent à un tap.
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(
+    () => typeof window !== 'undefined' && shouldStartPanelCollapsed(window.innerWidth)
+  );
   
   // 8. Personal & Collective Memory
   const [personalNotes, setPersonalNotes] = useState<LivePersonalNote[]>([
@@ -571,19 +651,54 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setHandRaised(realSessionId, userProfile.id, next).catch(() => setIsHandRaisedByMe(!next));
   };
 
+  // Équipe 10 (L1) : abonnement au roster live_speakers pour TOUS les
+  // participants — l'ancienne garde `!isHost` réservait ce flux à l'hôte,
+  // donc un invité promu par handlePromoteToSpeaker (role='speaker' écrit en
+  // base) ne l'apprenait JAMAIS : ni vu ni entendu. Ma propre ligne pilote
+  // désormais isUserOnStage (promotion ET rétrogradation, décision pure
+  // testée : deriveSelfStagePresence) ; la liste agrégée des mains levées
+  // reste réservée à l'hôte.
   useEffect(() => {
-    if (!realSessionId || !isHost) return; // seul l'hôte a besoin de la liste agrégée des mains levées
+    if (!realSessionId) return;
     let cancelled = false;
+
+    const applyMyRole = (role: string, leftAt: string | null) => {
+      const decision = deriveSelfStagePresence({
+        role,
+        leftAt,
+        isCurrentlyOnStage: isUserOnStageRef.current,
+        isHost: !!isHost,
+      });
+      if (decision === 'promote') {
+        isUserOnStageRef.current = true;
+        setIsUserOnStage(true);
+        addNotification('Vous êtes sur scène 🎤', "L'hôte vous a invité à prendre la parole dans ce direct.", 'success');
+        // Proposer le consentement média avant toute publication — jamais en
+        // boucle : le polling répète role='speaker' toutes les 4 s.
+        if (!hasMediaConsentRef.current && !mediaConsentAnsweredRef.current) setShowMediaConsentModal(true);
+      } else if (decision === 'demote') {
+        isUserOnStageRef.current = false;
+        setIsUserOnStage(false);
+        addNotification('Retour en spectateur', 'Vous avez quitté la scène du direct.', 'info');
+      }
+    };
+
     const refresh = () => {
       fetchActiveParticipants(realSessionId).then((participants) => {
         if (cancelled) return;
-        setRaisedHands(participants.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
+        const me = participants.find((p) => p.id === userProfile.id);
+        if (me) applyMyRole(me.role, null); // left_at IS NULL garanti par fetchActiveParticipants
+        if (isHost) {
+          setRaisedHands(participants.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
+        }
       });
     };
     refresh();
     const unsub = subscribeToLiveSpeakerChanges(realSessionId, (row) => {
       const participantId = row.user_id;
-      if (!participantId || row.left_at) return;
+      if (cancelled || !participantId) return;
+      if (participantId === userProfile.id) applyMyRole(row.role, row.left_at);
+      if (!isHost || row.left_at) return;
       setRaisedHands((prev) => {
         const withoutThis = prev.filter(p => p.id !== participantId);
         return row.is_hand_raised ? [...withoutThis, { id: participantId, name: row.name }] : withoutThis;
@@ -593,7 +708,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     // toujours livrées par Realtime dans cet environnement (constaté en
     // testant ce LOOP — contrairement à live_messages/live_reactions,
     // confirmées fonctionnelles) ; ce polling garantit que la fonctionnalité
-    // reste réellement utilisable en attendant d'en identifier la cause.
+    // reste réellement utilisable en attendant d'en identifier la cause —
+    // c'est aussi par lui qu'un invité promu apprend son rôle quand
+    // Realtime ne livre pas l'UPDATE (Équipe 10, L1).
     const pollInterval = setInterval(refresh, 4000);
     return () => { cancelled = true; unsub(); clearInterval(pollInterval); };
   }, [realSessionId, isHost]);
@@ -1542,10 +1659,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       <div className={`h-16 relative ${glassSurfaceClass('primary')} animate-water-breathe px-4 flex items-center justify-between z-30`}>
         <span className="water-droplets" aria-hidden="true"></span>
 
-        {/* Left: Live Indicator, Title & Badges */}
+        {/* Left: Live Indicator, Title & Badges — Équipe 10 (L4) : badge
+            dérivé de l'état réel (liveBadge), plus un rouge pulsant codé en
+            dur pendant une reconnexion, une panne ou un simple aperçu. */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="bg-red-600 px-3 py-1 rounded-xl font-black text-xs flex items-center gap-2 animate-pulse shadow-lg shadow-red-600/40">
-            <span className="w-2 h-2 bg-white rounded-full"></span> LIVE
+          <div className={`px-3 py-1 rounded-xl font-black text-xs flex items-center gap-2 ${stageBadge.className}`}>
+            <span className="w-2 h-2 bg-white rounded-full"></span> {stageBadge.label}
           </div>
 
           <div className="min-w-0">
@@ -1560,12 +1679,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {/* Lisibilité (DA-3) : slate-300 et 11px — slate-400 en 10px passait
                 sous le seuil de confort sur les verres les plus clairs (rose_doux). */}
             <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-              <span className="flex items-center gap-1"><Users size={11} /> {liveData.viewers.toLocaleString()} en direct</span>
+              {/* Équipe 10 (L4) : compteur honnête — participants réellement
+                  connectés au transport, sinon compteur de la ligne réelle,
+                  sinon RIEN (jamais le 1420 de démonstration). */}
+              {viewerCount !== null && (
+                <span className="flex items-center gap-1"><Users size={11} /> {viewerCount.toLocaleString()} en direct</span>
+              )}
               <span
                 className="flex items-center gap-1 text-slate-500 cursor-default"
                 title={`Diallo OS Copilote actif · Réseau ${networkQuality.toUpperCase()} (${networkLatency}ms)`}
               >
-                <span aria-hidden="true">•</span>
+                {viewerCount !== null && <span aria-hidden="true">•</span>}
                 <Shield size={11} />
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
               </span>
@@ -1806,12 +1930,28 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 <Volume2 size={14} /> Activer le son
               </button>
             )}
+            {/* Équipe 10 (L4) : l'échec propose une vraie relance (jeton +
+                connexion via liveTransport.retry) au lieu d'un constat sans
+                issue ; la reconnexion automatique du transport (état
+                'reconnecting', déjà mappé par le provider) n'est plus
+                écrasée par le libellé de première connexion. */}
             {realSessionId && liveTransport.error && (
-              <div className="absolute top-4 right-4 z-30 px-3 py-1.5 rounded-xl bg-rose-600/90 text-white text-[11px] font-bold shadow-lg">
-                Diffusion interrompue — reconnexion nécessaire
+              <div className="absolute top-4 right-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-600/90 text-white text-[11px] font-bold shadow-lg">
+                <span>Diffusion interrompue</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); liveTransport.retry(); }}
+                  className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/35 font-extrabold transition-colors"
+                >
+                  Réessayer
+                </button>
               </div>
             )}
-            {realSessionId && !liveTransport.error && liveTransport.connectionState !== 'connected' && (
+            {realSessionId && !liveTransport.error && liveTransport.connectionState === 'reconnecting' && (
+              <div className="absolute top-4 right-4 z-30 px-3 py-1.5 rounded-xl bg-amber-500/90 text-slate-950 text-[11px] font-bold shadow-lg animate-pulse">
+                Reconnexion au direct en cours…
+              </div>
+            )}
+            {realSessionId && !liveTransport.error && liveTransport.connectionState !== 'connected' && liveTransport.connectionState !== 'reconnecting' && (
               <div className="absolute top-4 right-4 z-30 px-3 py-1.5 rounded-xl bg-amber-500/90 text-slate-950 text-[11px] font-bold shadow-lg animate-pulse">
                 Connexion au direct…
               </div>
@@ -1830,7 +1970,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 une demi-scène. Seul sur scène, l'hôte garde la disposition
                 historique hôte + IA. */}
             {mainStageMode === 'camera' && (
-              <div className="w-full h-full p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950">
+              /* Équipe 10 (L3) : grille dérivée du nombre RÉEL de tuiles
+                 (1 → pleine scène, 2 → deux colonnes, 3-4 → 2x2, plus →
+                 auto-fit) — la grille sm:grid-cols-2 figée laissait un
+                 présentateur seul sur une demi-scène. */
+              <div className={`w-full h-full p-3 grid ${stageGridClass(cameraTileCount)} gap-3 bg-slate-950`}>
 
                 {/* Slot 1 : MA caméra — UNIQUEMENT quand je suis sur scène.
                     Équipe F3 : un SPECTATEUR voyait ici sa propre caméra
@@ -1873,8 +2017,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 )}
 
                 {/* Spectateur, présentateur pas encore connecté au transport :
-                    attente honnête plutôt qu'une fausse tuile. */}
-                {!isUserOnStage && liveTransport.remoteParticipants.length === 0 && (
+                    attente honnête plutôt qu'une fausse tuile. Équipe 10 (L3) :
+                    jugé sur les participants qui PUBLIENT (presentableRemotes),
+                    pas sur les simples connectés — des spectateurs muets ne
+                    sont pas « le direct ». */}
+                {!isUserOnStage && presentableRemotes.length === 0 && (
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex flex-col items-center justify-center gap-3">
                     <img src={liveData.hostAvatar} className="w-20 h-20 rounded-full object-cover opacity-80" alt={liveData.hostName} />
                     <span className="text-xs font-bold text-slate-300">
@@ -1884,9 +2031,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 )}
 
                 {/* Slot 2: copilote IA en pleine cellule UNIQUEMENT quand
-                    aucun humain distant n'est sur scène — sinon il cède la
+                    aucun humain distant ne PUBLIE de média — sinon il cède la
                     place aux vrais participants (vignette compacte plus bas). */}
-                {aiAgent && liveTransport.remoteParticipants.length === 0 && (
+                {aiAgent && presentableRemotes.length === 0 && (
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-2xl flex items-center justify-center">
                     <Avatar3D
                       avatarId={aiAgent.id}
@@ -1913,8 +2060,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   </div>
                 )}
 
-                {/* Participants distants réels (LOOP 04/14) — publication/abonnement LiveKit, pas de simulation. */}
-                {liveTransport.remoteParticipants.map((media) => (
+                {/* Participants distants réels (LOOP 04/14) — publication/abonnement LiveKit, pas de simulation.
+                    Équipe 10 (L3) : une tuile UNIQUEMENT pour qui publie un
+                    média (caméra/écran/micro de scène) — les spectateurs
+                    muets, qui se connectent tous à la room, n'en ont pas. */}
+                {presentableRemotes.map((media) => (
                   <RemoteParticipantTile key={media.participant.identity} media={media} />
                 ))}
 
@@ -1922,10 +2072,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             )}
 
             {/* Copilote IA replié en vignette compacte quand de VRAIS humains
-                occupent la grille — présence discrète, jamais une demi-scène
-                (Équipe I / LOOP I2). `absolute` le sort du flux de la grille ;
-                positionné par rapport à la scène (conteneur `relative`). */}
-            {mainStageMode === 'camera' && aiAgent && liveTransport.remoteParticipants.length > 0 && (
+                publient sur la grille — présence discrète, jamais une
+                demi-scène (Équipe I / LOOP I2 ; critère Équipe 10 L3 :
+                presentableRemotes, pas les simples connectés). `absolute` le
+                sort du flux de la grille ; positionné par rapport à la scène
+                (conteneur `relative`). */}
+            {mainStageMode === 'camera' && aiAgent && presentableRemotes.length > 0 && (
               <div className="absolute bottom-4 right-4 w-40 sm:w-48 aspect-video z-10 rounded-2xl overflow-hidden bg-slate-900 border border-indigo-500/40 shadow-2xl">
                 <Avatar3D
                   avatarId={aiAgent.id}

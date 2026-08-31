@@ -569,3 +569,76 @@ sans streaming natif ElevenLabs (websocket), non branché à ce jour. En cas
 d'indisponibilité du fournisseur en COURS de réponse, la voix termine
 proprement dans la même identité plutôt que de basculer au milieu d'une
 phrase (le texte complet reste affiché) — choix délibéré §9.
+
+## 21. L'Architecte opérationnel — missions AO/CL (31/08/2026)
+
+Deux missions parallèles (« Finalisation complète et opérationnelle de
+l'Architecte » et « Appels, Live, sonneries, identité des publications »),
+exécutées par équipes à périmètres de fichiers disjoints. Cette section ne
+documente que les trains VALIDÉS et poussés (`150fff8`, `a3e2a60`,
+`72f00c1`, `56518da`) — le reste est couvert au fil des trains suivants.
+
+### Fiabilité vocale — les deux bugs de premier ordre (`150fff8`)
+
+| Cause (mesurée) | Effet vécu | Correctif |
+|---|---|---|
+| Un transcript FINAL du moteur de reconnaissance émettait le texte ET laissait le timer VAD (1,4 s) armé avec ce même texte — qui repartait une seconde fois | **Chaque commande vocale s'exécutait deux fois** | Un final vide `lastSpokenTranscript`, annule le timer VAD et émet UNE fois ; le VAD ne finalise plus que les interimaires (`tests/voiceReactivity.test.ts`) |
+| `voiceEngine` est un singleton sans propriétaire : chaque écran monté recevait le même transcript et répondait aussi | « Plusieurs intervenants » qui parlent en même temps | Propriété de session à 2 niveaux (`temporaryOwnerId` prime sur `conversationalOwnerId`) ; `useVoiceAssistant` filtre `onTranscript` par propriétaire ; `null` = comportement historique sans filtre |
+
+S'y ajoutent : erreurs réseau honnêtes (`AiGatewayNetworkError`, timeout
+client 45 s, retry visible dans la barre — « Connexion interrompue — je
+réessaie... », jamais « je n'ai pas compris » pour une panne réseau),
+reprise automatique sur l'événement `online`, garde de ré-entrance de la
+barre (dédup <4 s + file de taille 1), badge « voix de secours » quand le
+repli navigateur est actif, et annonce vocale du résultat réel des actions
+différées (`subscribeToDeferredOutcomes`) uniquement si la barre est ouverte.
+
+### Secours TTS Gemini (`150fff8` + migration `voice_ao2_add_gemini_tts_fallback_provider`)
+
+La clé ElevenLabs étant morte côté fournisseur (`quota_exceeded`, 0/39611),
+la voix HD échouait silencieusement pour tout le monde. Nouvel adaptateur
+`gemini_tts` (voir `docs/SUPABASE_ARCHITECTURE.md`, section IA) : la voix
+HD survit à la panne d'un fournisseur au lieu de retomber d'office sur la
+voix navigateur. Segments HD regroupés (seuil 700 caractères) pour ménager
+le RPM du palier gratuit.
+
+### Agent d'action partout (`72f00c1`)
+
+`ArchitecteAction.then` + `pendingCapabilityIntent` (TTL 45 s) : « ouvre le
+social et invite Fatou » navigue PUIS exécute — l'écran qui monte ses
+handlers (`registerCapabilityHandlers`) reprend l'intention en attente avec
+un claim synchrone (une seule exécution), confirmation proportionnée au
+risque, résultat réel rendu à la session. `live.session.create` est porté
+par `social_feed` (`carriedBy`) ; `getCapabilitiesByDomain` exclut les
+capacités portées pour empêcher un double enregistrement. Cartographie
+réelle des 28 onglets (`NAV_ID_TO_MODULE_CODE`).
+
+### Mobile et Super Admin (`72f00c1`)
+
+Strips experts/assistants avec affordance de défilement réelle
+(`.no-scrollbar` défini + voile dégradé), `viewport-fit=cover`, positions
+de la barre au-dessus du dock (`bottom-24 md:bottom-8`), conditions de rôle
+Super-Admin réparées (×3), `AgentToolsMatrix` affiche les 13 assistants
+avec leur moteur réel (« Orchestrateur central (sélection auto) ») et leur
+disponibilité mobile — un élément masqué a une raison identifiable.
+
+### Sonneries (`a3e2a60`) et appels/LIVE (`56518da`)
+
+Cinq sonneries WebAudio déclaratives (Signature MokNet — arpège
+pentatonique LA majeur —, Kora, Pulse, Aurore, Classique), bibliothèque
+dans Paramètres → Notifications et appels (aperçu/choix/persistance),
+tonalité de retour côté APPELANT (`startRingback`, 440+480 Hz, cadence
+1 s/3 s) — l'appelant et l'appelé entendent tous deux sonner. Appels :
+garde `isLikelyRealId`, bouton « Activer le son » (autoplay bloqué),
+`sendCallSignal` attend l'abonnement réel du canal, écran mobile (PiP
+déplaçable, contrôles estompés, mm:ss). LIVE : resync `isUserOnStage` pour
+tous (plus seulement l'hôte), reconnexion sérialisée, tuiles filtrées sur
+le média réellement présentable, badge/bannière/compteur honnêtes.
+
+### Limites documentées (honnêteté)
+
+Bascule caméra avant/arrière absente du port `LiveTransportProvider`
+(nécessite `switchCamera()` — chantier transport dédié) ; onglet fermé =
+pas de push serveur (limite web, aucune infrastructure push) ; RPM du
+palier gratuit Gemini TTS ; l'écoute à l'oreille et le test à deux vrais
+téléphones restent à la charge de l'utilisateur.

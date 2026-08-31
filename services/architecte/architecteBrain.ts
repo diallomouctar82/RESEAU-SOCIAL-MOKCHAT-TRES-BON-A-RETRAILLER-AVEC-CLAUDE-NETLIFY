@@ -1,7 +1,22 @@
 import { generateJSON } from '../aiGateway';
-import { describeCapabilitiesForHumans, getCapability } from './capabilityRegistry';
-import { executeCapability, listExecutableCapabilities } from './capabilityBus';
-import { addSessionTurn, buildSessionContext, sessionHasImage } from './architecteSession';
+import {
+    describeCapabilitiesForHumans,
+    getCapability,
+    PLATFORM_CAPABILITY_REGISTRY,
+    type CapabilityDomain,
+} from './capabilityRegistry';
+import {
+    executeCapability,
+    isCapabilityExecutable,
+    listExecutableCapabilities,
+    listExecutableCapabilityIds,
+} from './capabilityBus';
+import {
+    addSessionTurn,
+    buildSessionContext,
+    sessionHasImage,
+    setPendingCapabilityIntent,
+} from './architecteSession';
 
 /**
  * Cerveau unique de l'Architecte.
@@ -30,6 +45,15 @@ export interface ArchitecteAction {
     capabilityId?: string;
     payload?: any;
     explanation: string;
+    /**
+     * G1/G2 — « naviguer PUIS exécuter » : capacité à exécuter UNE FOIS
+     * l'écran cible du NAVIGATE monté (son handler n'est pas encore
+     * enregistré au moment de la commande). Mémorisée comme intention en
+     * attente (`architecteSession.setPendingCapabilityIntent`) et consommée
+     * par le bus à l'enregistrement des handlers de l'écran porteur — le
+     * résultat RÉEL n'est annoncé qu'après cette exécution, jamais avant.
+     */
+    then?: { capabilityId: string; payload?: Record<string, unknown> };
 }
 
 /** Phases d'exécution affichables — mêmes valeurs que celles déjà utilisées par le modal. */
@@ -217,9 +241,19 @@ export function isAffirmativeReply(text: string): boolean {
     return /^(oui|ouais|d'accord|daccord|ok|volontiers|avec plaisir|je veux bien|vas[\s-]?y|allons[\s-]?y|pourquoi pas)[\s.,!]*$/i.test(text.trim());
 }
 
-/** Modules de navigation connus — repris à l'identique du prompt d'origine. */
+/**
+ * Modules de navigation connus (G6 — cartographie complète).
+ *
+ * Synchronisé À LA MAIN avec les onglets réellement rendus par `App.tsx`
+ * (`AppContent`, blocs `{activeTab === '...'}`). Pas de constante partagée :
+ * App.tsx n'exporte pas sa liste d'onglets, et la restructurer pour cela
+ * dépasserait le gain — si un onglet utile apparaît ou disparaît là-bas,
+ * mettre à jour ICI. Les onglets purement techniques ou réservés
+ * (admin, google-drive/chat/meet, admin-procedures) restent volontairement
+ * hors du prompt.
+ */
 const NAVIGATION_MODULES = `            - 'home' (Dashboard)
-            - 'social' (Réseau, Feed)
+            - 'social' (Réseau, Fil social, Reels, Tribus — c'est AUSSI l'écran d'où se créent et s'ouvrent les LIVES communautaires)
             - 'world' (Mobilité, Visas, Simulation voyage)
             - 'career' (Emploi, CV, Recrutement)
             - 'campus' (Formation, Cours)
@@ -227,19 +261,79 @@ const NAVIGATION_MODULES = `            - 'home' (Dashboard)
             - 'legal' (Juridique, Documents)
             - 'health' (Santé, SOS)
             - 'housing' (Logement)
-            - 'chat' (Experts IA)
-            - 'live' (Appel direct)
-            - 'studio' (Création contenu)`;
+            - 'chat' (Experts IA — catalogue des experts ; 'experts' est un alias accepté)
+            - 'live' (Appel direct en tête-à-tête avec un expert IA — PAS les directs vidéo communautaires : pour « lancer un live », « faire un direct » ou rejoindre un LIVE du réseau, choisis 'social')
+            - 'studio' (Création contenu)
+            - 'profile' (Profil personnel de l'utilisateur)
+            - 'shop' (Boutique — acheter avec ses crédits)
+            - 'my-shop' (Ma boutique — vendre, gérer sa boutique personnelle)
+            - 'languages' (Centre de langues, traduction, apprentissage linguistique)
+            - 'council' (Salle du Conseil — délibération multi-experts IA)
+            - 'parcours' (Dossiers et parcours de suivi — 'dossiers' est un alias accepté)
+            - 'google-maps' (Cartes, exploration de lieux)`;
+
+/**
+ * G2 — écran/tab porteur de chaque domaine dont les capacités ne deviennent
+ * exécutables qu'une fois leur écran monté. `note` : précision honnête
+ * injectée dans le prompt (le LIVE en a besoin — ses commandes internes ne
+ * deviennent exécutables qu'un direct ouvert DEPUIS le fil social).
+ * Les domaines absents d'ici (tasks/settings/search) sont portés par
+ * l'Architecte lui-même : quand ils manquent au catalogue exécutable, aucune
+ * navigation ne les ferait apparaître — ils ne sont donc jamais promis
+ * « après navigation ».
+ */
+const DOMAIN_CARRIER_TAB: Partial<Record<CapabilityDomain, { tab: string; note?: string }>> = {
+    social: { tab: 'social' },
+    content: { tab: 'social' },
+    live: {
+        tab: 'social',
+        note: "le LIVE s'ouvre depuis le fil social — la création d'un direct (live.session.create) devient exécutable dès l'arrivée sur 'social' ; les commandes INTERNES d'un direct (micro, parole, sous-titres...) ne le deviennent qu'une fois un direct effectivement ouvert",
+    },
+};
 
 export function buildArchitecteSystemPrompt(userName: string, userLevel: number | string, callName?: string): string {
     // Catalogue construit à l'instant T à partir des handlers RÉELLEMENT
-    // enregistrés — pas les 42 capacités théoriques du registre. Le modèle ne
-    // peut donc pas proposer une action qui échouerait aussitôt faute d'écran
-    // ouvert : ce qui est offert est ce qui est faisable, ici et maintenant.
+    // enregistrés — pas la totalité théorique du registre plateforme. Le
+    // modèle ne peut donc pas proposer une exécution directe qui échouerait
+    // aussitôt faute d'écran ouvert : ce qui est offert en EXECUTE est ce qui
+    // est faisable, ici et maintenant.
     const executable = listExecutableCapabilities();
     const executableCatalogue = executable.length > 0
         ? executable.map((c) => `            - capabilityId: "${c.id}" — ${c.description}`).join('\n')
         : '            (aucune capacité exécutable dans le contexte actuel — n\'utilise pas "capabilityId")';
+
+    // G1/G2 — capacités qui EXISTENT au registre plateforme mais dont l'écran
+    // porteur n'est pas monté : jamais offertes en EXECUTE direct (le bus
+    // répondrait `unavailable`), offertes en NAVIGATE + `then` — le cerveau
+    // mémorise l'intention et le bus l'exécute réellement à l'arrivée sur
+    // l'écran porteur. Construit par DIFFÉRENCE registre/exécutable : aucune
+    // liste recopiée à la main, aucune capacité inventée.
+    const executableIds = new Set(executable.map((c) => c.id));
+    const deferrable = PLATFORM_CAPABILITY_REGISTRY.filter(
+        (c) => !executableIds.has(c.id) && DOMAIN_CARRIER_TAB[c.domain] !== undefined
+    );
+    const deferredNotes = Array.from(
+        new Set(
+            deferrable
+                .map((c) => DOMAIN_CARRIER_TAB[c.domain]?.note)
+                .filter((n): n is string => typeof n === 'string')
+        )
+    );
+    const deferredCatalogue = deferrable.length > 0
+        ? deferrable
+            .map((c) => `            - capabilityId: "${c.id}" — ${c.description} (écran porteur : target '${DOMAIN_CARRIER_TAB[c.domain]!.tab}')`)
+            .join('\n')
+        : '';
+    const deferredBlock = deferrable.length > 0
+        ? `
+            CAPACITÉS DISPONIBLES APRÈS NAVIGATION (leur écran porteur n'est pas ouvert en ce moment) :
+${deferredCatalogue}
+${deferredNotes.map((n) => `            NB : ${n}.`).join('\n')}
+            Règle pour ces capacités : réponds { "type": "NAVIGATE", "target": "<écran porteur>", "then": { "capabilityId": "<id copié à l'identique>", "payload": { ... } } } — JAMAIS un "EXECUTE" direct sur une capacité de cette liste (elle échouerait aussitôt). Dans "explanation", dis honnêtement les DEUX temps (« j'ouvre X et je vais faire Y ») — n'affirme jamais que Y est déjà fait : il ne s'exécutera qu'à l'arrivée sur l'écran.
+
+            Exemple User: "Lance un live maintenant sur l'entrepreneuriat"
+            Réponse JSON: { "type": "NAVIGATE", "target": "social", "explanation": "J'ouvre le fil social et je lance votre direct sur l'entrepreneuriat.", "then": { "capabilityId": "live.session.create", "payload": { "title": "Entrepreneuriat" } } }
+` : '';
 
     // Contexte de session : le fil récent (texte, images montrées, documents
     // fournis), borné — jamais tout l'historique dans chaque requête.
@@ -315,13 +409,16 @@ ${NAVIGATION_MODULES}
 ${executableCatalogue}
 
             Règles absolues pour "capabilityId" :
-            - N'utilise QUE l'un des identifiants listés ci-dessus, copié à l'identique. N'en invente jamais un autre, même s'il te semble logique : un identifiant absent de cette liste sera refusé.
-            - Si la demande ne correspond à aucun identifiant listé, n'utilise PAS "EXECUTE" — préfère "NAVIGATE" vers le module concerné.
+            - En "EXECUTE", n'utilise QUE l'un des identifiants listés en 2) ci-dessus, copié à l'identique. N'en invente jamais un autre, même s'il te semble logique : un identifiant absent de cette liste sera refusé.
+            - Si la demande ne correspond ni à un identifiant exécutable (liste 2), ni à une capacité disponible après navigation (liste 3 ci-dessous), n'utilise PAS "EXECUTE" — préfère "NAVIGATE" vers le module concerné, sans "then".
             - N'invente jamais un titre de tâche existante, ni une date : si la personne n'a pas énoncé d'échéance, omets simplement dueAt.
             - Date et heure actuelles (ISO 8601) pour convertir toute date relative : ${new Date().toISOString()}
 
             Exemple User: "Rappelle-moi d'appeler le notaire demain"
             Réponse JSON: { "type": "EXECUTE", "capabilityId": "task.item.create", "explanation": "Création de la tâche.", "payload": { "task": { "title": "Appeler le notaire", "dueAt": "<date ISO de demain>" } } }
+
+            3) Enchaînement « naviguer PUIS exécuter », avec "type": "NAVIGATE" + "then" :
+${deferredBlock || `            (toutes les capacités connues sont déjà exécutables ici — n'utilise pas "then")`}
             `;
 }
 
@@ -337,10 +434,63 @@ export interface RunArchitecteOptions {
      * barre vocale). Renvoyer `false` annule sans rien modifier.
      */
     confirm: (message: string) => Promise<boolean> | boolean;
-    /** Exécution du cas historique `create_dossier`, portée par l'appelant (écriture directe hors bus). */
-    runLegacyTarget?: (target: string, payload: any) => Promise<{ ok: boolean; message: string }>;
     /** Notifié dès que la phase change, pour afficher l'avancement réel plutôt qu'un spinner générique. */
     onPhase?: (phase: ArchitectePhase, message: string) => void;
+}
+
+/**
+ * G7 — le cas historique EXECUTE/target='create_dossier' (écriture directe
+ * depuis DialloOS, dupliquée hors bus) est désormais MAPPÉ vers la capacité
+ * de bus correspondante : une seule implémentation d'écriture
+ * (`taskCapabilityHandlers.ts`), enregistrée partout par la barre de
+ * l'Architecte — le dossier se crée donc à la voix depuis n'importe quel
+ * écran. Le target legacy reste compris (compatibilité avec le prompt et
+ * d'anciennes réponses du modèle), il n'a simplement plus de chemin
+ * d'exécution parallèle.
+ */
+const LEGACY_TARGET_TO_CAPABILITY: Record<string, string> = {
+    create_dossier: 'task.dossier.create',
+};
+
+/**
+ * Confirmation proportionnelle au risque PUIS exécution réelle par le bus —
+ * le chemin unique des deux cas EXECUTE (capabilityId direct, target legacy
+ * mappé) et du `then` déjà exécutable. Ne renvoie jamais un statut qui n'a
+ * pas eu lieu.
+ */
+async function confirmAndExecuteCapability(
+    capabilityId: string,
+    payload: any,
+    options: RunArchitecteOptions
+): Promise<{ phase: ArchitectePhase; message: string }> {
+    const capability = getCapability(capabilityId);
+
+    // Confirmation posée AVANT toute écriture — jamais contournable, même si
+    // le modèle a formulé la demande comme une évidence (« la sécurité reste
+    // supérieure à la préférence »).
+    if (capability?.confirmationRequired) {
+        const confirmed = await options.confirm(
+            `${capability.description}\n\nCette action est ${capability.riskLevel === 'high' ? 'sensible' : 'à confirmer'}. Voulez-vous que je la fasse ?`
+        );
+        if (!confirmed) {
+            const message = "Action annulée — rien n'a été modifié.";
+            options.onPhase?.('cancelled', message);
+            return { phase: 'cancelled', message };
+        }
+    }
+
+    options.onPhase?.('running', 'Exécution en cours...');
+    const outcome = await executeCapability(capabilityId, payload || {});
+    const phase: ArchitectePhase =
+        outcome.status === 'done' ? 'done'
+        // Hors-ligne : l'action attend dans la file de synchronisation.
+        // Ni « terminé » ni « échoué » — l'Architecte doit dire exactement
+        // ce qui s'est passé.
+        : outcome.status === 'queued' ? 'queued'
+        : outcome.status === 'denied' ? 'denied'
+        : outcome.status === 'failed' ? 'failed'
+        : 'unsupported';
+    return { phase, message: outcome.message };
 }
 
 /**
@@ -377,9 +527,11 @@ async function interpretAndExecute(
 
     // Découverte : traitée SANS appel au modèle, directement depuis le
     // registre — la réponse ne peut donc jamais contenir une capacité
-    // inventée.
+    // inventée. Les identifiants réellement exécutables à cet instant sont
+    // fournis (G5) : la réponse distingue ce qui est faisable ICI de ce qui
+    // ne le devient que depuis l'écran concerné.
     if (isDiscoveryCommand(trimmed)) {
-        return { spoken: describeCapabilitiesForHumans(), handledLocally: true };
+        return { spoken: describeCapabilitiesForHumans(listExecutableCapabilityIds()), handledLocally: true };
     }
 
     // Identité : réponse stable et déterministe — qui est l'Architecte ne
@@ -398,50 +550,67 @@ async function interpretAndExecute(
     const systemPrompt = buildArchitecteSystemPrompt(options.userName, options.userLevel, options.callName);
     const action = (await generateJSON<ArchitecteAction>(`Commande utilisateur : "${trimmed}"`, {
         systemInstruction: systemPrompt,
+        // Identité d'agent auprès de l'orchestrateur : active côté serveur
+        // les droits d'outils accordés à l'Architecte (`ai_tools` ×
+        // `agent_tool_grants`, ex. recherche web) — jamais un second
+        // mécanisme d'activation côté client.
+        agentId: ARCHITECTE_AGENT_ID,
     })) || ({} as ArchitecteAction);
 
     if (action.type !== 'EXECUTE') {
+        // ── G1/G2 : « naviguer PUIS exécuter ». ──────────────────────────
+        if (action.type === 'NAVIGATE' && action.then?.capabilityId) {
+            const thenCapability = getCapability(action.then.capabilityId);
+
+            if (!thenCapability) {
+                // Seconde étape inventée par le modèle : on navigue quand
+                // même (la destination, elle, est réelle), mais on le DIT —
+                // jamais un « je fais Y » silencieusement abandonné.
+                const { then: _dropped, ...rest } = action;
+                return {
+                    spoken: action.explanation,
+                    action: rest as ArchitecteAction,
+                    execution: {
+                        phase: 'unsupported',
+                        message: "La seconde étape demandée ne correspond à aucune action réelle — j'ouvre seulement l'écran.",
+                    },
+                };
+            }
+
+            if (isCapabilityExecutable(action.then.capabilityId)) {
+                // L'écran porteur est déjà monté (le modèle a préféré `then`
+                // par prudence) : exécuter MAINTENANT, par le chemin unique —
+                // la navigation demandée reste rendue à l'appelant.
+                const execution = await confirmAndExecuteCapability(action.then.capabilityId, action.then.payload, options);
+                return { spoken: action.explanation, action, execution };
+            }
+
+            // L'écran porteur n'est pas monté : l'intention est mémorisée
+            // AVANT de rendre la main — le bus l'exécutera à l'enregistrement
+            // des handlers de l'écran cible (une seule fois, expirable), et
+            // c'est LÀ que le résultat réel sera annoncé. Le `spoken` du
+            // modèle annonce le plan (« j'ouvre X et je vais faire Y »),
+            // jamais un succès : rien n'a encore été exécuté.
+            setPendingCapabilityIntent({
+                capabilityId: action.then.capabilityId,
+                payload: action.then.payload,
+                announced: true,
+            });
+            return { spoken: action.explanation, action };
+        }
+
         return { spoken: action.explanation, action };
     }
 
-    // ── Chemin historique : dossier de suivi, écrit directement par l'appelant.
-    if (action.target && options.runLegacyTarget) {
-        options.onPhase?.('running', 'Ouverture du dossier en cours...');
-        const outcome = await options.runLegacyTarget(action.target, action.payload || {});
-        const phase: ArchitectePhase = outcome.ok === true ? 'done' : 'failed';
-        return { spoken: action.explanation, action, execution: { phase, message: outcome.message } };
-    }
+    // ── G7 : le target legacy (`create_dossier`) est mappé vers sa capacité
+    // de bus — une seule implémentation d'écriture, exécutable partout.
+    const capabilityId = action.capabilityId
+        || (action.target ? LEGACY_TARGET_TO_CAPABILITY[action.target] : undefined);
 
-    // ── Chemin général : registre de capacités + bus d'exécution.
-    if (action.capabilityId) {
-        const capability = getCapability(action.capabilityId);
-
-        // Confirmation proportionnelle au risque, AVANT toute écriture —
-        // jamais contournable, même si le modèle a formulé la demande comme
-        // une évidence (« la sécurité reste supérieure à la préférence »).
-        if (capability?.confirmationRequired) {
-            const confirmed = await options.confirm(
-                `${capability.description}\n\nCette action est ${capability.riskLevel === 'high' ? 'sensible' : 'à confirmer'}. Voulez-vous que je la fasse ?`
-            );
-            if (!confirmed) {
-                const message = "Action annulée — rien n'a été modifié.";
-                options.onPhase?.('cancelled', message);
-                return { spoken: action.explanation, action, execution: { phase: 'cancelled', message } };
-            }
-        }
-
-        options.onPhase?.('running', 'Exécution en cours...');
-        const outcome = await executeCapability(action.capabilityId, action.payload || {});
-        const phase: ArchitectePhase =
-            outcome.status === 'done' ? 'done'
-            // Hors-ligne : l'action attend dans la file de synchronisation.
-            // Ni « terminé » ni « échoué » — l'Architecte doit dire exactement
-            // ce qui s'est passé.
-            : outcome.status === 'queued' ? 'queued'
-            : outcome.status === 'denied' ? 'denied'
-            : outcome.status === 'failed' ? 'failed'
-            : 'unsupported';
-        return { spoken: action.explanation, action, execution: { phase, message: outcome.message } };
+    // ── Chemin unique : registre de capacités + bus d'exécution.
+    if (capabilityId) {
+        const execution = await confirmAndExecuteCapability(capabilityId, action.payload, options);
+        return { spoken: action.explanation, action, execution };
     }
 
     // Le modèle a demandé une exécution sans désigner de capacité réelle :

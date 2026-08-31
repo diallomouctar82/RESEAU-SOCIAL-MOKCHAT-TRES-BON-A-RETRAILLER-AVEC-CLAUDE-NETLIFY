@@ -59,6 +59,7 @@ import { FocusAndPresentationControls } from './ui/FocusAndPresentationControls'
 import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
 import { voiceEngine } from '../services/voiceEngine';
+import { adminConfigService } from '../services/adminConfigService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -101,6 +102,47 @@ const NEWS_ITEMS = [
 ];
 
 const DEFAULT_FAVORITES = ['career', 'campus', 'housing', 'shop'];
+
+// Les bascules de modules du Super-Admin (adminConfigService.getModules())
+// pilotent la visibilité des entrées de navigation correspondantes.
+// Mapping explicite nav-id → code module — codes vérifiés dans
+// INITIAL_MODULES (services/adminConfigService.ts) : seules les
+// correspondances CERTAINES sont listées. 'admin' n'y figure volontairement
+// jamais : la console d'administration reste toujours accessible.
+const NAV_ID_TO_MODULE_CODE: Record<string, string> = {
+  home: 'home',
+  parcours: 'parcours',
+  campus: 'campus',
+  languages: 'languages',
+  career: 'career',
+  health: 'health',
+  housing: 'housing',
+  wallet: 'wallet',
+  'admin-procedures': 'admin-procedures',
+  legal: 'legal',
+  world: 'world',
+  studio: 'studio',
+  shop: 'shop',
+  social: 'social',
+  chat: 'chat',
+  council: 'council',
+};
+
+// Codes des modules explicitement désactivés (isEnabled === false).
+// Par défaut — module inconnu, service indisponible — l'entrée reste
+// VISIBLE ; inMaintenance ne masque rien (hors périmètre).
+const readDisabledModuleCodes = (): Set<string> => {
+  try {
+    return new Set(
+      adminConfigService
+        .getModules()
+        .filter(m => m.isEnabled === false)
+        .map(m => m.code)
+    );
+  } catch {
+    return new Set<string>();
+  }
+};
 
 export const Layout: React.FC<LayoutProps> = ({
   children,
@@ -174,6 +216,18 @@ export const Layout: React.FC<LayoutProps> = ({
   // Language State
   const [currentLang, setCurrentLang] = useState<Language>('fr');
 
+  // Modules désactivés par le Super-Admin — resynchronisés à chaque
+  // notification du service (bascule dans AdminDashboard → effet immédiat
+  // sur la navigation, desktop ET tiroir mobile).
+  const [disabledModuleCodes, setDisabledModuleCodes] = useState<Set<string>>(readDisabledModuleCodes);
+  useEffect(() => {
+    try {
+      return adminConfigService.subscribe(() => setDisabledModuleCodes(readDisabledModuleCodes()));
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   const unreadCount = notifications.filter(n => !n.read).length;
   const t = (key: string) => TRANSLATIONS[currentLang]?.[key] || key;
 
@@ -209,8 +263,15 @@ export const Layout: React.FC<LayoutProps> = ({
     'Communauté & Conseil'
   ];
 
+  // Un item n'est masqué QUE si un module correspondant existe et est
+  // explicitement désactivé ; sinon (pas de mapping, service muet) : visible.
+  const isNavItemVisible = (item: NavItemDef): boolean => {
+    const moduleCode = NAV_ID_TO_MODULE_CODE[item.id];
+    return !moduleCode || !disabledModuleCodes.has(moduleCode);
+  };
+
   const groupedNavItems = categoryOrder.reduce((acc, cat) => {
-    acc[cat] = MAIN_NAV_ITEMS.filter(item => item.category === cat);
+    acc[cat] = MAIN_NAV_ITEMS.filter(item => item.category === cat && isNavItemVisible(item));
     return acc;
   }, {} as Record<NavItemDef['category'], NavItemDef[]>);
 
@@ -348,20 +409,24 @@ export const Layout: React.FC<LayoutProps> = ({
               />
             </div>
 
-            {/* Super-Admin Dashboard Trigger */}
-            <button
-              onClick={() => onTabChange('admin')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98] ${
-                activeTab === 'admin' 
-                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300' 
-                  : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40'
-              }`}
-              title="Ouvrir le Tableau de Bord Super-Admin Souverain (Gestion des comptes, rôles, modules & système)"
-            >
-              <Shield size={14} className="text-amber-400 fill-amber-400/20" />
-              <span>Super-Admin</span>
-              <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-extrabold">Tous Comptes</span>
-            </button>
+            {/* Super-Admin Dashboard Trigger — réservé aux rôles admin :
+                offert à tous, il menait un utilisateur standard vers un
+                écran blanc (même garde que le menu profil ci-dessous). */}
+            {(userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+              <button
+                onClick={() => onTabChange('admin')}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98] ${
+                  activeTab === 'admin'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300'
+                    : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40'
+                }`}
+                title="Ouvrir le Tableau de Bord Super-Admin Souverain (Gestion des comptes, rôles, modules & système)"
+              >
+                <Shield size={14} className="text-amber-400 fill-amber-400/20" />
+                <span>Super-Admin</span>
+                <span className="text-[9px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-extrabold">Tous Comptes</span>
+              </button>
+            )}
 
             {/* Brand Color Lab (10 palettes) : sélecteur masqué (Chantier 3 Phase 2 —
                 un thème unique et cohérent, palette-10, est désormais figé comme
@@ -492,10 +557,12 @@ export const Layout: React.FC<LayoutProps> = ({
                       )}
                     </div>
                     
-                    <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 rounded-xl text-xs flex items-center gap-2 font-black border border-amber-200/80 shadow-2xs mb-1">
-                      <Shield size={15} className="text-amber-600 fill-amber-500/20" /> 
-                      <span>Tableau de Bord Super-Admin</span>
-                    </button>
+                    {(userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+                      <button onClick={() => {onTabChange('admin'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 rounded-xl text-xs flex items-center gap-2 font-black border border-amber-200/80 shadow-2xs mb-1">
+                        <Shield size={15} className="text-amber-600 fill-amber-500/20" />
+                        <span>Tableau de Bord Super-Admin</span>
+                      </button>
+                    )}
                     <button onClick={() => {onTabChange('profile'); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <User size={14} /> Mon Profil
                     </button>
@@ -858,7 +925,10 @@ export const Layout: React.FC<LayoutProps> = ({
         </aside>
 
         {/* ─── MAIN CONTENT VIEWPORT ─── */}
-        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-36 md:pb-0">
+        {/* pb-56 mobile : réserve le dock (h-16 + marges) ET la pastille
+            Architecte (bottom-44 + h-14) — avec pb-36, la fin du contenu
+            restait cachée derrière elle. */}
+        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-56 md:pb-0">
           <div className="max-w-[1700px] mx-auto h-full flex flex-col">
             {activeTab !== 'home' && (() => {
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
@@ -884,7 +954,10 @@ export const Layout: React.FC<LayoutProps> = ({
                 />
               );
             })()}
-            <div className="flex-1">
+            {/* min-h-0 : autorise un enfant plein écran (ExpertsHub…) à
+                gérer son propre défilement sans créer un double scroll
+                imbriqué avec <main>. */}
+            <div className="flex-1 min-h-0">
               {children}
             </div>
           </div>
@@ -1006,9 +1079,11 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
               
               <div className="mt-3 pt-3 border-t border-slate-100 shrink-0 flex gap-2">
-                <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
-                  <Shield size={14} /> Super-Admin (IA & Comptes)
-                </button>
+                {(userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
+                  <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
+                    <Shield size={14} /> Super-Admin (IA & Comptes)
+                  </button>
+                )}
                 {/* Ouvre la même UnifiedSettingsModal que le desktop — le
                     tab 'settings'/Settings.tsx était une implémentation
                     séparée, propre au mobile, sans équivalent desktop. */}

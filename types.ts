@@ -80,6 +80,8 @@ export interface UserProfile {
         showFollowingList: boolean;
         /** LOOP 09/17 (notifications, orchestration proactive) : mode silencieux — réduit l'interruption (badge non-lus masqué) sans jamais cacher les notifications elles-mêmes du panneau. */
         notificationsMuted: boolean;
+        /** ÉQUIPE 9 (Audio & Sonneries) : id de la sonnerie d'appel entrant choisie dans le catalogue services/calls/ringtones.ts — absent = 'signature' (Signature MokNet). */
+        ringtoneId?: string;
         /**
          * Fiche de consentement de l'Architecte (chantier de finalisation,
          * §18) — remplie par le flux vocal guidé, toujours modifiable et

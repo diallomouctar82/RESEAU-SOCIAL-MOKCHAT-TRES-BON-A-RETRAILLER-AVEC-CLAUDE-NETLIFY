@@ -867,7 +867,7 @@ const INITIAL_MODULES: PlatformModuleConfig[] = [
   { id: 'mod-studio', code: 'studio', label: 'Studio Créatif & Multimédia', category: 'Pilier 4', isEnabled: true, inMaintenance: false, accessLevel: 'verified', description: 'Génération de vidéos, scripts et contenus visuels.', icon: 'Palette', activeSessionsCount: 89 },
   { id: 'mod-shop', code: 'shop', label: 'Marché Mondial B2B/B2C', category: 'Pilier 4', isEnabled: true, inMaintenance: false, accessLevel: 'all', description: 'Sourcing, import-export, devis RFQ et salons B2B.', icon: 'ShoppingBag', activeSessionsCount: 410, assignedLeadExpertId: '8' },
   { id: 'mod-social', code: 'social', label: 'Réseau MOC & Live', category: 'Pilier 5', isEnabled: true, inMaintenance: false, accessLevel: 'all', description: 'Fil de confiance, Reels, Tribus et Lives interactifs.', icon: 'Users', activeSessionsCount: 520 },
-  { id: 'mod-chat', code: 'chat', label: 'Catalogue des Experts Diallo', category: 'Pilier 5', isEnabled: true, inMaintenance: false, accessLevel: 'all', description: '14 spécialistes d’élite pour consultation humaine.', icon: 'MessageSquare', activeSessionsCount: 390 },
+  { id: 'mod-chat', code: 'chat', label: 'Catalogue des Experts Diallo', category: 'Pilier 5', isEnabled: true, inMaintenance: false, accessLevel: 'all', description: 'Spécialistes d’élite de la Famille Diallo pour consultation humaine.', icon: 'MessageSquare', activeSessionsCount: 390 },
   { id: 'mod-council', code: 'council', label: 'Conseil des Sages Réuni', category: 'Pilier 5', isEnabled: true, inMaintenance: false, accessLevel: 'verified', description: 'Délibération collégiale et arbitrage pluridisciplinaire.', icon: 'ShieldCheck', activeSessionsCount: 75 }
 ];
 

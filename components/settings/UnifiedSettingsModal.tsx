@@ -23,12 +23,20 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
+import { RingtonePicker } from './RingtonePicker';
+import { getSelectedRingtoneId } from '../../services/calls/ringtoneService';
 
 interface UnifiedSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: UserProfile;
-  onUpdateProfile?: (updated: Partial<UserProfile>) => void;
+  /**
+   * ÉQUIPE 9 (Audio & Sonneries) : type élargi (sans rien casser — Layout
+   * passe déjà une fonction Promise<boolean>) pour pouvoir lire le résultat
+   * réel de la persistance : le picker de sonnerie n'affiche « Enregistré »
+   * que si la promesse a répondu `true`.
+   */
+  onUpdateProfile?: (updated: Partial<UserProfile>) => void | Promise<boolean>;
 }
 
 export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
@@ -415,6 +423,26 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                     </span>
                   </button>
                 </div>
+
+                {/* ÉQUIPE 9 (Audio & Sonneries) : sonnerie d'appel entrant.
+                    Même chemin de persistance que le mode silencieux
+                    ci-dessus (onUpdateProfile → profiles.privacy_settings) ;
+                    le picker tient de son côté le cache local
+                    `lmav_ringtone_v1` lu par startRinging(). « Enregistré »
+                    n'est affiché que si la promesse a répondu `true`. */}
+                <RingtonePicker
+                  selectedId={userProfile.privacySettings?.ringtoneId ?? getSelectedRingtoneId()}
+                  onSelect={async (id: string) => {
+                    if (!onUpdateProfile) return undefined; // aucun canal de persistance : ne rien prétendre
+                    const ok = await Promise.resolve(onUpdateProfile({
+                      privacySettings: {
+                        ...userProfile.privacySettings,
+                        ringtoneId: id,
+                      },
+                    }));
+                    return ok === true;
+                  }}
+                />
               </div>
             )}
 

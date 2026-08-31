@@ -3,7 +3,10 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover : sans lui, env(safe-area-inset-*) vaut toujours 0
+         sur iOS — le pb-[max(...,env(safe-area-inset-bottom))] du dock mobile
+         (Layout.tsx) était donc sans effet sur les iPhone à encoche. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Le Monde à Vous</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -229,6 +232,23 @@
       }
     </script>
     <style>
+      /* Utilitaires scrollbar — ~30 composants utilisent .no-scrollbar /
+         .scrollbar-none / .scrollbar-thin (onglets Experts, filtres
+         Catalogue, Campus, Layout…) alors qu'AUCUNE de ces classes n'était
+         définie (Tailwind CDN ne les fournit pas) : les barres système
+         pleines s'affichaient, ou rien ne signalait le débordement. */
+      .no-scrollbar,
+      .scrollbar-none {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .no-scrollbar::-webkit-scrollbar,
+      .scrollbar-none::-webkit-scrollbar {
+        display: none;
+      }
+      .scrollbar-thin {
+        scrollbar-width: thin;
+      }
       /* Custom scrollbar for webkit */
       ::-webkit-scrollbar {
         width: 6px;
