@@ -356,7 +356,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   useEffect(() => {
     if (!currentUser?.id) return;
     const unsubPresence = supabaseService.subscribeToPresence(
-      { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatar },
+      { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl },
       (state) => {
         const presencesMap: Record<string, boolean> = {};
         Object.keys(state).forEach(key => {
@@ -378,7 +378,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           initiatorAvatar: signal.callerAvatar,
           receiverId: currentUser.id,
           receiverName: currentUser.name,
-          receiverAvatar: currentUser.avatar,
+          receiverAvatar: currentUser.avatarUrl,
           status: 'ringing',
           durationSeconds: 0
         });
@@ -433,7 +433,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       conversationId,
       senderId: raw.sender_id,
       senderName: raw.sender_id === currentUser.id ? currentUser.name : (senderProfile?.name || 'Membre'),
-      senderAvatar: raw.sender_id === currentUser.id ? currentUser.avatar : senderProfile?.avatarUrl,
+      senderAvatar: raw.sender_id === currentUser.id ? currentUser.avatarUrl : senderProfile?.avatarUrl,
       senderRole: raw.sender_id === currentUser.id ? currentUser.role : senderProfile?.role,
       text: isDeleted ? undefined : (raw.content || undefined),
       mediaType: isDeleted ? undefined : (raw.attachment_url ? (raw.message_type || 'document') : 'text'),
@@ -862,7 +862,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       conversationId: currentChatId,
       senderId: currentUser.id,
       senderName: currentUser.name,
-      senderAvatar: currentUser.avatar,
+      senderAvatar: currentUser.avatarUrl,
       senderRole: currentUser.role || 'citizen',
       timestamp: new Date(),
       isRead: false,
@@ -1135,7 +1135,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       type,
       initiatorId: currentUser.id,
       initiatorName: currentUser.name,
-      initiatorAvatar: currentUser.avatar,
+      initiatorAvatar: currentUser.avatarUrl,
       receiverId: activeChat.participantId,
       receiverName: activeChat.participantName,
       receiverAvatar: activeChat.participantAvatar,
@@ -1154,7 +1154,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       callType: type,
       callerId: currentUser.id,
       callerName: currentUser.name,
-      callerAvatar: currentUser.avatar
+      callerAvatar: currentUser.avatarUrl
     });
 
     // Équipe I (LOOP I1) : l'ancien code passait en « connecté » après 2,5 s

@@ -741,13 +741,18 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             if (outcome.action?.type === 'NAVIGATE' && outcome.action.target) {
                 const target = outcome.action.target;
                 const payload = outcome.action.payload;
-                setTimeout(() => onNavigate(target, payload), 1200);
+                // Fermé = vraiment fermé : une réponse arrivée après la
+                // fermeture de la barre ne doit pas non plus NAVIGUER.
+                setTimeout(() => { if (isOpenRef.current) onNavigate(target, payload); }, 1200);
             }
         } catch (e) {
             const isNetwork = e instanceof AiGatewayNetworkError;
+            // Une exception ici est TOUJOURS une panne technique (passerelle,
+            // fournisseur, format) — jamais une incompréhension de la demande :
+            // ne jamais la mettre sur le dos de la personne.
             const message = isNetwork
                 ? `${(e as Error).message} Votre demande n'a pas été perdue : répétez-la quand la connexion revient.`
-                : "Je n'ai pas compris. Reformulez, s'il vous plaît.";
+                : "Le service a rencontré un problème technique — votre demande n'est pas en cause. Réessayez dans un instant.";
             setStatus(message);
             setStatusTone(isNetwork ? 'text-red-300' : 'text-amber-300');
             addSessionTurn({ role: 'architecte', kind: 'texte', text: message });

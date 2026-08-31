@@ -3,7 +3,7 @@
 // compatible-mode), Kimi (Moonshot), Mistral, Grok (xAI), OpenRouter, Together AI,
 // Fireworks AI, Cerebras — un seul fichier, paramétré par baseUrl à l'appel.
 
-import { AdapterError, AdapterRequest, AdapterResult, ProviderAdapter } from './types.ts';
+import { AdapterError, AdapterRequest, AdapterResult, ProviderAdapter, parseJsonModeText } from './types.ts';
 
 async function chatCompletions(baseUrl: string, apiKey: string, body: Record<string, unknown>) {
     const controller = new AbortController();
@@ -149,7 +149,7 @@ export const openaiCompatibleAdapter: ProviderAdapter = {
             throw new AdapterError('Réponse vide du fournisseur.', 'other');
         }
         return req.llm.jsonMode
-            ? { json: JSON.parse(content), usage, raw: data }
+            ? { json: parseJsonModeText(content), usage, raw: data }
             : { text: content, usage, raw: data };
     },
 
