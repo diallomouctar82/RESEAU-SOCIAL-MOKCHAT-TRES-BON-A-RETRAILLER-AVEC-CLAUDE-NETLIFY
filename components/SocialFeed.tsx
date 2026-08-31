@@ -32,6 +32,9 @@ import { addToQueue } from '../services/architecte/syncQueue';
 import { checkNetworkStatus } from '../services/pwaService';
 import { ShareButton } from './ui/ShareButton';
 import { GrowthDashboard } from './growth/GrowthDashboard';
+// ÉQUIPE 11 « Identité des publications » : résolution batchée de l'identité
+// réelle des auteurs que l'embed profiles a masqués (RLS 'network' non-ami).
+import { collectMissingAuthorIds, buildAuthorProfileMap, mergePostsWithAuthorProfiles, mergeStoriesWithAuthorProfiles, RawAuthoredRow } from '../services/social/contentAuthorIdentity';
 
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
@@ -237,6 +240,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         // honnête hors-ligne) d'un fil légitimement vide (→ vérité serveur).
         let fetched: Post[] = [];
         let serverFetchSucceeded = false;
+        // ÉQUIPE 11 : lignes brutes (posts/commentaires/stories) dont l'embed
+        // `author:profiles!...` peut avoir été masqué par la RLS de profiles —
+        // collectées ici pour UN SEUL appel batché getContentAuthorProfiles
+        // après le chargement, jamais un appel par post.
+        const rawAuthoredRows: RawAuthoredRow[] = [];
         if (supabaseService.isConfigured()) {
           try {
           // Délai de garde : sur un réseau semi-mort (mobile), la requête
@@ -254,6 +262,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               supabaseService.getCommentsForPosts(postIds),
               supabaseService.getReactionsForPosts(postIds)
             ]);
+            // ÉQUIPE 11 : mémoriser les lignes brutes pour la résolution
+            // batchée d'identité des auteurs (après le bloc stories).
+            rawAuthoredRows.push(...remotePosts, ...remoteComments);
 
             const mapComment = (rc: any): Comment => ({
               id: rc.id,
@@ -362,6 +373,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           try {
             const remoteStories = await supabaseService.getStories();
             if (remoteStories && remoteStories.length > 0) {
+              rawAuthoredRows.push(...remoteStories);
               const mappedStories: Story[] = remoteStories.map((rs: any) => ({
                 id: rs.id,
                 author: rs.author?.name || 'Membre',
@@ -377,6 +389,33 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             }
           } catch (e) {
             console.warn('Could not fetch stories from Supabase', e);
+          }
+        }
+
+        // 2bis. ÉQUIPE 11 « Identité des publications » : les embeds
+        // `author:profiles!...` sont soumis à `profiles_select_visible`
+        // (profil 'public' OU amitié acceptée — 'network' est le défaut réel),
+        // donc NULL pour tout auteur non-ami alors que la RLS des posts laisse
+        // voir la publication. UN SEUL appel batché au RPC
+        // `get_content_author_profiles` (SECURITY DEFINER étroit : nom/avatar/
+        // titre uniquement, et uniquement pour les auteurs d'un contenu
+        // réellement visible par l'appelant) complète les identités réelles.
+        // Le repli « Membre » ne reste que pour un auteur réellement
+        // introuvable (compte supprimé).
+        if (supabaseService.isConfigured()) {
+          try {
+            const missingAuthorIds = collectMissingAuthorIds(rawAuthoredRows);
+            if (missingAuthorIds.length > 0) {
+              const authorProfiles = await supabaseService.getContentAuthorProfiles(missingAuthorIds);
+              if (authorProfiles.length > 0) {
+                const authorMap = buildAuthorProfileMap(authorProfiles);
+                setPosts(prev => mergePostsWithAuthorProfiles(prev, authorMap));
+                setStories(prev => mergeStoriesWithAuthorProfiles(prev, authorMap));
+              }
+            }
+          } catch (e) {
+            // Échec non bloquant : le fil reste affiché avec le repli générique.
+            console.warn('Identité des auteurs non résolue (repli générique conservé)', e);
           }
         }
 

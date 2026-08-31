@@ -757,6 +757,23 @@ export const supabaseService = {
         if (error) throw error;
         return data;
     },
+    /**
+     * ÉQUIPE 11 « Identité des publications » : identité d'annuaire minimale
+     * (nom, avatar, titre) des auteurs dont l'embed `author:profiles!...` a
+     * été masqué par `profiles_select_visible` (profil 'network' non-ami).
+     * RPC `get_content_author_profiles` — SECURITY DEFINER étroit, même
+     * patron que `discover_profiles` / `get_my_conversation_participant_profiles` :
+     * ne renvoie un id demandé QUE si son porteur est réellement auteur d'au
+     * moins un contenu (post/commentaire/story active) visible par
+     * l'appelant selon les MÊMES prédicats que la RLS de ces tables — jamais
+     * un annuaire ouvert, jamais email/téléphone/crédits.
+     */
+    async getContentAuthorProfiles(authorIds: string[]): Promise<Array<{ id: string; name: string | null; avatar_url: string | null; title: string | null }>> {
+        if (!isSupabaseConfigured || authorIds.length === 0) return [];
+        const { data, error } = await supabase.rpc('get_content_author_profiles', { p_author_ids: authorIds });
+        if (error || !data) return [];
+        return data;
+    },
 
     // --- Gouvernance du contenu (LOOP 02/17, mission Architecte MOCnet) ----
     /** Suppression réelle et définitive — RLS (`posts_delete_own_or_admin`) limite déjà l'accès à l'auteur ou un admin ; la confirmation avant appel est de la responsabilité de l'appelant UI. */
