@@ -430,10 +430,47 @@ export const supabaseService = {
     async sendCallSignal(toUserId: string, signal: any): Promise<void> {
         if (!isSupabaseConfigured) return;
         try {
+            // Équipe 7 (appels, A4) : l'ancien `await channel.subscribe()`
+            // n'attendait RIEN — subscribe() renvoie le canal, pas une
+            // promesse — donc le send partait avant la jointure websocket et
+            // passait systématiquement par le repli REST HTTP, dont
+            // realtime-js annonce la dépréciation. On attend désormais le
+            // statut réel 'SUBSCRIBED' via le callback officiel de
+            // subscribe(), borné à 3 s : au-delà (ou sur erreur de canal), on
+            // tente l'envoi quand même — le repli actuel vaut mieux qu'un
+            // signal d'appel perdu. Même signature, mêmes appelants.
+            const topic = `realtime:call-signals:${toUserId}`;
+            const existing = supabase.getChannels().find((c) => c.topic === topic);
+            if (existing) {
+                // Un envoi encore en vol tient déjà ce canal : réutiliser —
+                // se réabonner à la même instance jette (« tried to subscribe
+                // multiple times », même leçon que sendTypingSignal).
+                await existing.send({ type: 'broadcast', event: 'signal', payload: signal });
+                return;
+            }
             const channel = supabase.channel(`call-signals:${toUserId}`);
-            await channel.subscribe();
-            await channel.send({ type: 'broadcast', event: 'signal', payload: signal });
-            supabase.removeChannel(channel);
+            try {
+                await new Promise<void>((resolve) => {
+                    let settled = false;
+                    const settle = () => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
+                        resolve();
+                    };
+                    const timer = setTimeout(settle, 3000);
+                    channel.subscribe((status: string) => {
+                        // États terminaux de realtime-js : joint, ou en échec —
+                        // dans les deux cas on cesse d'attendre.
+                        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') settle();
+                    });
+                });
+                await channel.send({ type: 'broadcast', event: 'signal', payload: signal });
+            } finally {
+                // Toujours retirer le canal jetable — même si le send échoue,
+                // sinon chaque appel raté laisserait un canal orphelin.
+                supabase.removeChannel(channel);
+            }
         } catch {
             // dégradation silencieuse — l'appel ne partira pas, pas de crash.
         }

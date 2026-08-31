@@ -39,6 +39,18 @@ interface MoocChatFloatingProps {
 
 const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
 
+// Les membres de l'Annuaire local (MOCK_MEMBERS, id 'u1'/'u2'/...) ne sont
+// jamais de vrais comptes Supabase — tenter un appel réel avec un tel id
+// échouerait de toute façon (colonne uuid) ; ce garde évite un aller-retour
+// réseau inutile et garde le repli local explicite plutôt qu'implicite.
+// Équipe 7 (appels, A1) : sorti du corps du composant (fonction pure, aucune
+// capture) et exporté pour être testé — il garde désormais AUSSI
+// handleStartCall : une conversation de repli locale (`chat-<memberId>`)
+// n'existe pas dans `conversation_participants`, donc l'Edge Function
+// livekit-token répondrait 403 (uuid invalide, erreur 22P02) et aucun média
+// ne passerait jamais.
+export const isLikelyRealId = (id?: string): id is string => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   currentUser = USER_PROFILE,
   activeConversationId = null,
@@ -687,11 +699,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // 'sent' immédiatement, alors que l'envoi échouait systématiquement en
   // silence contre le vrai schéma).
   const isRealConversationId = (id: string) => !id.startsWith('chat-') && !id.startsWith('local-');
-  // Les membres de l'Annuaire local (MOCK_MEMBERS, id 'u1'/'u2'/...) ne sont
-  // jamais de vrais comptes Supabase — tenter un appel réel avec un tel id
-  // échouerait de toute façon (colonne uuid) ; ce garde évite un aller-retour
-  // réseau inutile et garde le repli local explicite plutôt qu'implicite.
-  const isLikelyRealId = (id?: string): id is string => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  // isLikelyRealId : désormais défini (et exporté) au niveau module — voir en
+  // tête de fichier (Équipe 7, A1).
 
   const handleSendMessage = async () => {
     if (!currentChatId || (!inputText.trim() && attachedFiles.length === 0 && !recordedAudioBlob)) return;
@@ -965,6 +974,17 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   const handleStartCall = (type: 'audio' | 'video') => {
     if (!activeChat) return;
+
+    // Équipe 7 (A1) : une conversation de repli locale (`chat-<memberId>`,
+    // membre de démonstration ou création serveur échouée) n'existe pas dans
+    // `conversation_participants` — la room `call-chat-...` ferait répondre
+    // 403 à l'Edge Function livekit-token (cast uuid en erreur 22P02) et
+    // AUCUN média ne passerait jamais : l'appel « sonnait » dans le vide.
+    // Message honnête à la place d'une session d'appel condamnée d'avance.
+    if (!isLikelyRealId(activeChat.id)) {
+      alert("Les appels ne sont possibles qu'avec un membre réel de la plateforme (conversation synchronisée). Envoyez d'abord un message : dès que la conversation existe côté serveur, l'appel devient disponible.");
+      return;
+    }
 
     const callId = `call-${Date.now()}`;
     const newSession: ActiveCallSession = {

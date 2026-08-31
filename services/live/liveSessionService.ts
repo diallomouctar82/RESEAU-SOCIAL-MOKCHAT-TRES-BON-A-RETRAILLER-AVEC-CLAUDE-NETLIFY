@@ -143,6 +143,69 @@ function mapSpeakerRow(row: LiveSpeakerRow): LiveStageParticipant {
     };
 }
 
+// ---------------------------------------------------------------------------
+// Aides pures rôles/session (Équipe 10 — loops 8-12), exportées pour les
+// tests unitaires (tests/liveStageResync.test.ts) et SocialLive.tsx.
+// ---------------------------------------------------------------------------
+
+/**
+ * L1 : rôles live_speakers qui placent réellement quelqu'un SUR SCÈNE.
+ * L'app n'écrit aujourd'hui que 'host'/'viewer' (joinLiveSession) et
+ * 'speaker' (updateParticipantRole/promotion) ; 'moderator' est prévu par la
+ * RLS (live_speakers_write_host_or_moderator) et compte aussi comme scène.
+ */
+const STAGE_ROLES: ReadonlyArray<LiveStageParticipant['role']> = ['host', 'speaker', 'moderator'];
+
+export function isStageRole(role: string | null | undefined): boolean {
+    return !!role && (STAGE_ROLES as readonly string[]).includes(role);
+}
+
+export type SelfStagePresence = 'promote' | 'demote' | 'none';
+
+/**
+ * L1 — décision pure de resynchronisation de MA présence sur scène à partir
+ * de MA ligne live_speakers (abonnement Realtime + polling de secours) :
+ * - role ∈ {host, speaker, moderator} et pas encore sur scène → 'promote' ;
+ * - role redevenu 'viewer' alors que j'étais sur scène → 'demote' (jamais
+ *   pour l'hôte réel : son statut ne dépend pas d'une ligne rétrogradée) ;
+ * - ligne marquée sortie (left_at) ou rien à changer → 'none'.
+ * C'est par cette décision qu'un invité promu par l'hôte l'APPREND — l'ancien
+ * abonnement n'était souscrit que côté hôte, la promotion restait invisible.
+ */
+export function deriveSelfStagePresence(args: {
+    role: string;
+    leftAt: string | null;
+    isCurrentlyOnStage: boolean;
+    isHost: boolean;
+}): SelfStagePresence {
+    if (args.leftAt) return 'none';
+    if (isStageRole(args.role)) return args.isCurrentlyOnStage ? 'none' : 'promote';
+    if (args.role === 'viewer' && args.isCurrentlyOnStage && !args.isHost) return 'demote';
+    return 'none';
+}
+
+/**
+ * L4 : fusionne la ligne RÉELLE live_sessions dans l'état d'affichage du
+ * LIVE — la base gagne (titre, compteur, réglages), mais les champs de pure
+ * présentation qu'une ligne peut porter vides (nom/avatar d'hôte, image de
+ * couverture, tags…) retombent sur ce que l'écran affichait déjà plutôt que
+ * de casser l'UI avec des chaînes vides.
+ */
+export function mergeLiveStreamWithRealSession(prev: LiveStream, real: LiveStream): LiveStream {
+    return {
+        ...prev,
+        ...real,
+        hostName: real.hostName || prev.hostName,
+        hostAvatar: real.hostAvatar || prev.hostAvatar,
+        description: real.description || prev.description,
+        coverImage: real.coverImage || prev.coverImage,
+        tribeName: real.tribeName || prev.tribeName,
+        type: real.type || prev.type,
+        language: real.language || prev.language,
+        tags: real.tags && real.tags.length > 0 ? real.tags : prev.tags,
+    };
+}
+
 export interface CreateLiveSessionParams {
     title: string;
     description?: string;
