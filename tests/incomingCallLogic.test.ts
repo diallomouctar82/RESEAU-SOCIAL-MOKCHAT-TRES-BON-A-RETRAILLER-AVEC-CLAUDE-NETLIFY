@@ -37,7 +37,6 @@ vi.mock('../services/adminConfigService', () => ({
 vi.mock('../services/messaging/messagingIntelligence', () => ({
     summarizeConversation: vi.fn(),
     assistRewriteMessage: vi.fn(),
-    translateMessageText: vi.fn(),
 }));
 
 const {
