@@ -24,7 +24,8 @@ import {
     ChevronRight,
     Search,
     ExternalLink,
-    Check
+    Check,
+  Award
 } from 'lucide-react';
 import { generateText } from '../services/aiGateway';
 import { DossierParcours } from '../types';

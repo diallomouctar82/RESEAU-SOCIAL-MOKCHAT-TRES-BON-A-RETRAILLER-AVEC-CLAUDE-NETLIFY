@@ -928,7 +928,7 @@ La sentence arbitrale rendue sous l'égide de la CCJA bénéficie d'une force ex
         certificationTitle: "Titre d'Ingénieur Diplômé d'État en Ingénierie Cloud, DevOps & Sécurité Systèmes",
         degreeLevel: "Master (Bac+5 / Grade d'Ingénieur)",
         institution: "Grande École d'Ingénieurs Le Monde à Vous (en partenariat CTI & Cloud Native Computing Foundation)",
-        level: 'Ingénieur',
+        level: 'Master',
         category: 'Tech & IA',
         duration: "2 Ans (ou VAE / 12 Mois Intensifs)",
         ectsCredits: 120,

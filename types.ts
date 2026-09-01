@@ -524,16 +524,27 @@ export interface LiveAgendaItem {
     completed: boolean;
 }
 
+/**
+ * Décision collective actée pendant un LIVE. Forme alignée sur le producteur
+ * (`SocialLive.handleCreateDecision`), les données initiales de l'écran ET ses
+ * DEUX rendus, qui lisent tous `title`/`description` : l'ancienne déclaration
+ * (`text`/`agreedBy`) n'était écrite ni lue nulle part.
+ */
 export interface LiveDecision {
     id: string;
-    text: string;
-    agreedBy: string[];
+    title: string;
+    description: string;
+    proposedBy: string;
     timestamp: string;
+    status: 'proposed' | 'approved' | 'rejected';
+    votesCount: number;
     category?: string;
 }
 
 export interface LivePersonalNote {
     id: string;
+    /** Auteur de la note — le carnet est privé, la note est nominative. */
+    authorId?: string;
     text: string;
     timestamp: string;
     category: 'reminder' | 'task' | 'project' | 'learning' | 'general';
@@ -1634,6 +1645,13 @@ export interface DossierDeliverable {
     description: string;
     category: string;
     status: 'draft' | 'review' | 'final';
+    /**
+     * Corps du document réellement rédigé (Experts / Chef de Projet / Conseil).
+     * `dossierService.addDeliverable` le persistait déjà par diffusion d'objet,
+     * mais le champ n'était pas déclaré : le texte produit était donc stocké
+     * sans être typé ni relisible autrement qu'en `any`.
+     */
+    content?: string;
     documentUrl?: string;
     createdAt: string;
     authorAgentName: string;
@@ -2480,7 +2498,7 @@ export interface BusinessMatch {
         isMatch: boolean;
         explanation: string;
     }[];
-    matchType: 'client_supplier' | 'distributor' | 'tech_partner' | 'investor';
+    matchType: 'client_supplier' | 'supplier' | 'distributor' | 'tech_partner' | 'investor';
     status: 'suggested' | 'connected' | 'meeting_scheduled' | 'dismissed';
     dateSuggested: string;
 }
@@ -2858,10 +2876,20 @@ export interface LocalCommercialRepresentative {
 export interface DataRoomFile {
     id: string;
     title: string;
-    category: 'presentation' | 'business_plan' | 'budget_projections' | 'contrats' | 'legal_statuts' | 'audit';
+    category: 'presentation' | 'business_plan' | 'budget_projections' | 'finance' | 'contrats' | 'legal_statuts' | 'audit';
     fileName: string;
     fileSize: string;
     isConfidential: boolean;
+    /**
+     * Champs lus par l'écran Data Room (`TradePartnershipsHub`) et jusqu'ici
+     * absents du type : les documents existants s'affichaient donc avec un
+     * type de fichier, un niveau de confidentialité et une date vides.
+     * Optionnels car les documents historiques ne les portent pas tous.
+     */
+    fileType?: string;
+    confidentialityLevel?: 'public' | 'partner_only' | 'nda_required';
+    uploadedAt?: string;
+    downloadCount?: number;
     allowedRoles: ('owner' | 'partner' | 'investor' | 'expert')[];
     accessLogs: { userName: string; role: string; accessedAt: string; action: 'view' | 'download' }[];
     uploadDate: string;
@@ -3220,6 +3248,8 @@ export interface StockItem {
     color?: string;
     packaging?: string;
     grade?: string;
+    /** Référence/modèle constructeur — utilisé pour l'équipement industriel. */
+    model?: string;
   };
   physicalQuantity: number;
   reservedQuantity: number;
@@ -3502,11 +3532,26 @@ export interface BusinessGoal {
   status: 'en_bonne_voie' | 'attention' | 'en_retard' | 'atteint';
 }
 
+/**
+ * Rôles de l'espace Business. Union extraite de `BusinessTeamMember` pour
+ * devenir la source unique : `TradeBusinessOperatingSystem.tsx` l'importait
+ * déjà sous ce nom alors qu'elle n'était pas exportée.
+ */
+export type BusinessRole =
+  | 'proprietaire'
+  | 'administrateur'
+  | 'commercial'
+  | 'gestion_stock'
+  | 'logistique'
+  | 'finance'
+  | 'service_client'
+  | 'lecture_seule';
+
 export interface BusinessTeamMember {
   id: string;
   name: string;
   email: string;
-  role: 'proprietaire' | 'administrateur' | 'commercial' | 'gestion_stock' | 'logistique' | 'finance' | 'service_client' | 'lecture_seule';
+  role: BusinessRole;
   avatarUrl: string;
   lastActive: string;
   assignedHubs: string[];
@@ -4150,7 +4195,7 @@ export interface CareerNextBestAction {
     moduleLink: string;
     contactReason: string;
   };
-  urgencyLevel: 'normale' | 'prioritaire' | 'critique';
+  urgencyLevel: 'normale' | 'haute' | 'critique';
 }
 
 export interface CareerFollowUpStrategy {
@@ -5131,7 +5176,7 @@ export interface SystemAuditLog {
   id: string;
   timestamp: string;
   level: 'info' | 'warning' | 'error' | 'security';
-  category: 'auth' | 'ai' | 'document' | 'payment' | 'admin' | 'sync' | 'workflow';
+  category: 'auth' | 'ai' | 'document' | 'payment' | 'admin' | 'sync' | 'workflow' | 'moderation';
   message: string;
   actor: string;
   ipAddress: string;
@@ -5172,7 +5217,8 @@ export interface ContentModerationItem {
   contentSnippet: string;
   authorId: string;
   authorName: string;
-  authorEmail: string;
+  /** Optionnel : un signalement depuis la messagerie ne connaît que l'ID de l'auteur. */
+  authorEmail?: string;
   authorAvatar?: string;
   createdAt: string;
   status: 'approved' | 'flagged' | 'hidden' | 'deleted';
@@ -5191,8 +5237,9 @@ export interface UserReportItem {
   reportedUserName: string;
   reporterId: string;
   reporterName: string;
-  reporterEmail: string;
-  reason: 'spam' | 'harassment' | 'fraud' | 'copyright' | 'inappropriate' | 'counterfeit';
+  /** Optionnel : certains points de signalement (messagerie) ne connaissent que l'ID. */
+  reporterEmail?: string;
+  reason: 'spam' | 'harassment' | 'fraud' | 'copyright' | 'inappropriate' | 'counterfeit' | 'other';
   details: string;
   status: 'pending' | 'reviewed' | 'actioned' | 'dismissed';
   createdAt: string;
@@ -5330,53 +5377,44 @@ export interface BackupScheduleConfig {
   autoPruneOldSnapshots: boolean;
 }
 
+/**
+ * Forme RÉELLE produite par `adminConfigService.intelligentRestore()` et lue
+ * par `AdminWorkflowsAndBackupTab.tsx` (`preservedItems`, `summary`,
+ * `warnings`). L'ancienne déclaration décrivait une structure qu'aucun code
+ * n'écrivait ni ne lisait — d'où des erreurs de typage des deux côtés d'un
+ * contrat pourtant cohérent. Type aligné sur ce contrat réel.
+ */
 export interface RestoreOperationResult {
   success: boolean;
   preRestoreSnapshotId: string;
   restoredVersion: string;
+  snapshotId: string;
   timestamp: string;
-  preservedUserDataCount: {
+  summary: string;
+  preservedItems: {
     usersCount: number;
-    rolesPreservedCount: number;
-    creditsPreservedTotal: number;
-    profilesPreservedCount: number;
-    logsPreservedCount: number;
+    logsCount: number;
+    totalCreditsPreserved: number;
+    profilesPreserved: boolean;
   };
-  restoredConfigCount: {
-    modulesUpdated: number;
-    aiProvidersUpdated: number;
-    templatesUpdated: number;
-    workflowsUpdated: number;
-    settingsUpdated: boolean;
-  };
-  migrationChecksPassed: boolean;
-  compatibilityWarnings: string[];
-  restoredSnapshotName: string;
+  warnings: string[];
 }
 
+/**
+ * Forme RÉELLE produite par `adminConfigService.compareVersions()` et lue par
+ * `AdminWorkflowsAndBackupTab.tsx`. L'ancienne déclaration (sourceVersion /
+ * featuresDiff / modulesDiff / aiProvidersDiff / databaseSchemaDiff /
+ * breakingChanges) ne correspondait ni au producteur ni au consommateur :
+ * personne n'a jamais écrit ni lu ces champs. Type aligné sur le contrat réel.
+ */
 export interface VersionComparisonResult {
-  sourceVersion: string;
-  targetVersion: string;
-  featuresDiff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
-  modulesDiff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
-  aiProvidersDiff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
-  databaseSchemaDiff: {
-    isCompatible: boolean;
-    details: string[];
-  };
-  breakingChanges: string[];
+  versionA: string;
+  versionB: string;
+  diffSummary: string;
+  addedFeatures: string[];
+  removedFeatures: string[];
+  changedConfigs: { key: string; oldValue: string; newValue: string; impact: string }[];
+  schemaChanges: string[];
 }
 
 // ============================================================================
@@ -5447,3 +5485,145 @@ export interface AbandonedSyncTask extends SyncTask {
 
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES CARRIÈRE & COMMERCE — déclarations manquantes
+//
+// Ces dix types étaient IMPORTÉS depuis './types' par des composants et des
+// services réellement montés dans l'application, mais n'y avaient jamais été
+// déclarés : le bundler Vite efface les types à la compilation, donc l'app
+// fonctionnait, mais `tsc` signalait chaque import et aucun de ces écrans
+// n'était couvert par la vérification de types. Chaque forme ci-dessous est
+// dérivée de l'usage réel constaté dans le code (champs lus, valeurs
+// littérales écrites), pas inventée.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Retour donné par l'utilisateur sur une opportunité du Radar Carrière. */
+export interface OpportunityFeedbackRecord {
+  id: string;
+  timestamp: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  action: 'declined' | 'accepted' | 'postponed';
+  declineReason:
+    | 'salary_too_low'
+    | 'location_unsuitable'
+    | 'domain_mismatch'
+    | 'level_mismatch'
+    | 'bad_timing'
+    | 'company_reputation'
+    | 'other';
+  feedbackNotes?: string;
+}
+
+/** Levier d'accélération proposé pour sortir d'un plateau de carrière. */
+export interface CareerAccelerationLever {
+  id: string;
+  title: string;
+  description: string;
+  leverType: string;
+  impactRating: number;
+  effortRequired: string;
+  timeframeToEffect: string;
+}
+
+/** Étape de la frise d'évolution de carrière (vue « avant / aujourd'hui / après »). */
+export interface CareerEvolutionTimelineStep {
+  id: string;
+  title: string;
+  description: string;
+  timeframe: string;
+  category: string;
+  status: string;
+  keyMilestones: string[];
+  achievementBadge?: string;
+}
+
+/**
+ * Élément de frise tel que produit par `careerStrategicEngine`
+ * (`INITIAL_EVOLUTION_TIMELINE`). Forme distincte de
+ * `CareerEvolutionTimelineStep` : le moteur raisonne par période, l'écran par
+ * étape — les deux coexistent réellement dans le code.
+ */
+export interface CareerEvolutionTimelineItem {
+  id: string;
+  period:
+    | 'avant'
+    | 'point_depart'
+    | 'competences_acquises'
+    | 'aujourdhui'
+    | 'opportunites'
+    | 'point_b'
+    | 'prochaine_etape';
+  label: string;
+  title: string;
+  description: string;
+  dateOrHorizon: string;
+  badge: string;
+  isPassed: boolean;
+  isCurrent: boolean;
+}
+
+/** Critère pondéré d'une matrice de décision personnelle. */
+export interface DecisionCriteriaConfig {
+  id: string;
+  name: string;
+  description: string;
+  userWeight: number;
+}
+
+/** Évaluation d'une opportunité au regard des critères de la matrice. */
+export interface OpportunityEvaluation {
+  opportunityId: string;
+  opportunityTitle: string;
+  organizationName: string;
+  criteriaScores: Record<string, number>;
+  totalWeightedScore: number;
+  fitSummary: string;
+  prosHighlights: string[];
+  consHighlights: string[];
+}
+
+/** Matrice de décision personnelle : critères pondérés + opportunités évaluées. */
+export interface PersonalDecisionMatrix {
+  criteria: DecisionCriteriaConfig[];
+  evaluatedOpportunities: OpportunityEvaluation[];
+}
+
+/**
+ * Opportunité suivie dans le poste de commandement Carrière. Le seul champ
+ * réellement lu par `CareerMasterCommandHub` est `status` ; les autres restent
+ * optionnels pour ne pas prétendre à une forme qui n'est pas vérifiable ici.
+ */
+export interface Opportunity {
+  id: string;
+  title: string;
+  status: 'detected' | 'preparing' | 'contacted' | 'interview' | 'won' | 'lost';
+  entity?: string;
+  universe?: OpportunityUniverse;
+  matchScore?: number;
+  deadline?: string;
+}
+
+/** Ligne de programme d'une mission commerciale. */
+export interface MissionScheduleItem {
+  id: string;
+  date: string;
+  time: string;
+  title: string;
+  activityType: string;
+  partnerName?: string;
+  location?: string;
+}
+
+/** Alerte produite par la veille commerciale autonome. */
+export interface AutonomousWatchdogAlert {
+  id: string;
+  timestamp: string;
+  title: string;
+  message: string;
+  priority: 'haute' | 'moyenne' | 'normale';
+  sector?: string;
+  countryCorridor?: string;
+  recommendedAction?: string;
+}

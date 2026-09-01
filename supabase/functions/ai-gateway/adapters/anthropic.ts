@@ -1,7 +1,7 @@
 // Adaptateur Claude (Anthropic Messages API) — forme de requête distincte d'OpenAI :
 // `system` est un champ séparé, pas un message, et le contenu de la réponse est un tableau de blocs.
 
-import { AdapterError, AdapterRequest, AdapterResult, ProviderAdapter, parseJsonModeText } from './types.ts';
+import { AdapterError, AdapterMessage, AdapterRequest, AdapterResult, ProviderAdapter, parseJsonModeText } from './types.ts';
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com';
 
@@ -71,7 +71,7 @@ async function messages(
     return res.json();
 }
 
-function splitSystem(msgs: { role: string; content: string; imageBase64?: string; imageMimeType?: string }[]) {
+function splitSystem(msgs: AdapterMessage[]) {
     const systemParts = msgs.filter((m) => m.role === 'system').map((m) => m.content);
     const rest = msgs
         .filter((m) => m.role !== 'system')

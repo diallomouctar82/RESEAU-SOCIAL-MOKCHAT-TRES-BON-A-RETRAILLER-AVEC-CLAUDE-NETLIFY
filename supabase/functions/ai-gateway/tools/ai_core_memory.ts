@@ -54,7 +54,21 @@ function safeBaseUrl(raw: string): string | null {
     }
 }
 
-async function aiCoreJson<T>(url: string, token: string): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string }> {
+/**
+ * Résultat d'un appel AI Core. Forme PLATE volontaire : l'union discriminée
+ * précédente (`{ok:true,...} | {ok:false,...}`) ne se réduisait pas côté
+ * TypeScript avec la configuration de ce dépôt (`strictNullChecks` désactivé),
+ * si bien que `search.status` et `search.message` étaient signalés en erreur
+ * après un `if (!search.ok)` pourtant correct. Champs toujours présents.
+ */
+interface AiCoreResult<T> {
+    ok: boolean;
+    data?: T;
+    status: number;
+    message: string;
+}
+
+async function aiCoreJson<T>(url: string, token: string): Promise<AiCoreResult<T>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
@@ -70,7 +84,7 @@ async function aiCoreJson<T>(url: string, token: string): Promise<{ ok: true; da
             const body = (await response.text().catch(() => '')).slice(0, 300);
             return { ok: false, status: response.status, message: body };
         }
-        return { ok: true, data: await response.json() as T };
+        return { ok: true, data: await response.json() as T, status: response.status, message: '' };
     } catch (err) {
         const message = (err as Error)?.name === 'AbortError'
             ? 'délai dépassé'

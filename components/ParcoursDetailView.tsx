@@ -107,7 +107,7 @@ export const ParcoursDetailView: React.FC<ParcoursDetailViewProps> = ({
         };
 
         onUpdateParcours(updated);
-        await dossierService.persist();
+        await dossierService.save();
     };
 
     // Add new task

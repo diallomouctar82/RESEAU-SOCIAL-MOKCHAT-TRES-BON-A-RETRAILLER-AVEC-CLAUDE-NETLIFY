@@ -408,7 +408,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       unsubPresence();
       unsubCalls();
     };
-  }, [currentUser?.id, currentUser?.name, currentUser?.avatar]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.avatarUrl]);
 
   // Convertit une ligne réelle de `messages` (LOOP 06/17 — vraies colonnes :
   // `content`/`attachment_url`/`message_type`/`metadata.reactions`/
@@ -777,7 +777,16 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach(file => {
+    // `Array.from(FileList)` s'infère en `unknown[]` avec la configuration de
+    // types de ce projet : on parcourt la FileList par son accesseur typé
+    // `item(i)`, qui rend un vrai `File` sans dépendre de cette inférence.
+    const selectedFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const entry = files.item(i);
+      if (entry) selectedFiles.push(entry);
+    }
+
+    selectedFiles.forEach(file => {
       const isImg = file.type.startsWith('image/');
       const isVid = file.type.startsWith('video/');
       const isAud = file.type.startsWith('audio/');
@@ -1499,8 +1508,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="relative">
-                            <img src={member.avatar} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200" />
-                            {member.isOnline && (
+                            <img src={member.avatarUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200" />
+                            {onlinePresences[member.id] && (
                               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
                             )}
                           </div>
@@ -1510,7 +1519,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                               <Shield size={12} className="text-blue-600" />
                             </div>
                             <div className="text-[10px] text-slate-500 truncate">{member.title}</div>
-                            <div className="text-[9px] text-indigo-600 font-semibold">{member.country}</div>
+                            <div className="text-[9px] text-indigo-600 font-semibold">{member.location}</div>
                           </div>
                         </div>
 

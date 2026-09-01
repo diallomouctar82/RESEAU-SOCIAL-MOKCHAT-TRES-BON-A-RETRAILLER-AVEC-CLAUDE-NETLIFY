@@ -84,12 +84,10 @@ export const TradeBusinessOperatingSystem: React.FC<TradeBusinessOperatingSystem
     const audit: BusinessAuditEntry = {
       id: `aud-${Date.now()}`,
       timestamp: 'À l\'instant',
-      actorId: 'usr-amadou',
-      actorName: 'Amadou Diallo',
-      actorRole: activeRole,
+      userName: 'Amadou Diallo',
+      userRole: activeRole,
       action: 'Ajustement Stock',
-      entity: 'StockItem',
-      entityId: movement.productId,
+      module: 'stock',
       details: `${movement.type}: ${movement.quantity} unités (${movement.productTitle})`
     };
     setAuditLogs([audit, ...auditLogs]);
@@ -104,12 +102,10 @@ export const TradeBusinessOperatingSystem: React.FC<TradeBusinessOperatingSystem
     const audit: BusinessAuditEntry = {
       id: `aud-${Date.now()}`,
       timestamp: 'À l\'instant',
-      actorId: 'usr-amadou',
-      actorName: 'Amadou Diallo',
-      actorRole: activeRole,
+      userName: 'Amadou Diallo',
+      userRole: activeRole,
       action: 'Changement Étape Commande',
-      entity: 'BusinessOrder',
-      entityId: orderId,
+      module: 'commandes',
       details: `Passage de ${targetOrder?.stage} à ${newStage} pour ${targetOrder?.orderNumber}`
     };
     setAuditLogs([audit, ...auditLogs]);
@@ -134,16 +130,19 @@ export const TradeBusinessOperatingSystem: React.FC<TradeBusinessOperatingSystem
         orderNumber: `BC-PO-SOLAR-${Math.floor(Math.random() * 9000 + 1000)}`,
         supplierId: 'sup-helios',
         supplierName: 'Helios Tech Guangzhou',
-        createdAt: 'Aujourd\'hui',
+        orderedAt: 'Aujourd\'hui',
         expectedDeliveryDate: 'Sous 14 jours ouvrés',
         status: 'confirmee',
-        destinationWarehouse: 'Hub Portuaire Conakry',
+        paymentStatus: 'en_attente',
+        country: 'Chine (Guangzhou)',
+        targetWarehouseId: 'wh-conakry-port',
+        targetWarehouseName: 'Hub Portuaire Conakry',
+        // Forme réelle d'une ligne de commande fournisseur (type SupplierOrder
+        // et données existantes) : sku / title / quantity / unitCost / totalCost.
         items: [{
-          productId: solarStock.productId,
           sku: solarStock.sku,
           title: solarStock.title,
-          quantityOrdered: 50,
-          quantityReceived: 0,
+          quantity: 50,
           unitCost: solarStock.unitCost,
           totalCost: 50 * solarStock.unitCost
         }],
@@ -211,9 +210,9 @@ export const TradeBusinessOperatingSystem: React.FC<TradeBusinessOperatingSystem
               className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
             >
               <option value="proprietaire">Propriétaire / Dirigeant</option>
-              <option value="admin">Administrateur</option>
+              <option value="administrateur">Administrateur</option>
               <option value="commercial">Responsable Commercial</option>
-              <option value="gestionnaire_stock">Gestionnaire de Stock</option>
+              <option value="gestion_stock">Gestionnaire de Stock</option>
               <option value="logistique">Responsable Logistique</option>
               <option value="finance">Responsable Finance</option>
               <option value="service_client">Service Client</option>
@@ -446,11 +445,11 @@ export const TradeBusinessOperatingSystem: React.FC<TradeBusinessOperatingSystem
                     <tr key={log.id}>
                       <td className="p-3.5 text-slate-400 font-mono">{log.timestamp}</td>
                       <td className="p-3.5">
-                        <strong className="text-white">{log.actorName}</strong>
-                        <div className="text-[10px] text-brand-300 uppercase">{log.actorRole}</div>
+                        <strong className="text-white">{log.userName}</strong>
+                        <div className="text-[10px] text-brand-300 uppercase">{log.userRole}</div>
                       </td>
                       <td className="p-3.5 font-semibold text-white">{log.action}</td>
-                      <td className="p-3.5 font-mono text-slate-400">{log.entity}</td>
+                      <td className="p-3.5 font-mono text-slate-400">{log.module}</td>
                       <td className="p-3.5 text-slate-300">{log.details}</td>
                     </tr>
                   ))}

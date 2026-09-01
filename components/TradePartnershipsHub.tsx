@@ -586,11 +586,14 @@ export const TradePartnershipsHub: React.FC<TradePartnershipsHubProps> = ({
                     id: `file-${Date.now()}`,
                     title: 'Attestation Bancaire de Solvabilité & Garantie',
                     category: 'finance',
+                    fileName: 'Attestation_Bancaire_Solvabilite.pdf',
                     fileType: 'PDF',
                     fileSize: '1.4 MB',
+                    isConfidential: true,
                     confidentialityLevel: 'nda_required',
+                    uploadDate: 'Aujourd\'hui',
                     uploadedAt: 'Aujourd\'hui',
-                    checksumSha256: 'e8b7c934a1...99f0',
+                    accessLogs: [],
                     allowedRoles: ['owner', 'investor', 'expert'],
                     downloadCount: 0
                   };
@@ -629,8 +632,6 @@ export const TradePartnershipsHub: React.FC<TradePartnershipsHubProps> = ({
                           <span className="capitalize text-indigo-400 font-semibold">{file.category}</span>
                           <span>•</span>
                           <span>Déposé le {file.uploadedAt}</span>
-                          <span>•</span>
-                          <span className="text-slate-500 font-mono">SHA-256: {file.checksumSha256}</span>
                         </div>
                       </div>
                     </div>

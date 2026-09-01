@@ -62,7 +62,23 @@ export const listProviders = async (): Promise<AiProviderRow[]> => {
         console.error('Erreur chargement statut identifiants orchestrateur IA:', statusError);
     }
 
-    const statusByProvider = new Map((status || []).map((s: any) => [s.provider_id, s]));
+    /**
+     * Forme réelle d'une ligne renvoyée par le RPC `get_ai_provider_status`.
+     * Sans ce type, `new Map(rows.map(...))` produisait un `Map<unknown, unknown>`
+     * et toutes les lectures de statut ci-dessous étaient signalées en erreur.
+     */
+    interface ProviderCredentialStatus {
+        provider_id: string;
+        is_enabled: boolean | null;
+        key_hint: string | null;
+        last_tested_at: string | null;
+        last_test_status: 'success' | 'failure' | null;
+        last_test_message: string | null;
+    }
+
+    const statusByProvider = new Map<string, ProviderCredentialStatus>(
+        ((status || []) as ProviderCredentialStatus[]).map((s) => [s.provider_id, s] as const)
+    );
 
     return providers.map((p) => {
         const s = statusByProvider.get(p.id);
