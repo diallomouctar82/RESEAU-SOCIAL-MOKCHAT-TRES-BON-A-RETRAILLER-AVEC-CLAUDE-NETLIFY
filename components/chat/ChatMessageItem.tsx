@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { getLanguageLabel, type TranslationResult } from '../../services/translation/translationService';
+import { InitialsAvatar } from '../ui/InitialsAvatar';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -12,6 +13,11 @@ interface ChatMessageItemProps {
   currentUserId?: string;
   isGroup?: boolean;
   participantAvatar?: string;
+  /** Nom du correspondant — initiales de repli quand le message n'a ni avatar ni nom d'expéditeur. */
+  participantName?: string;
+  /** VF-7 : identité du propriétaire du compte, affichée à droite de SES bulles (photo réelle, sinon initiales). */
+  currentUserName?: string;
+  currentUserAvatar?: string;
   onReply: (message: ChatMessage) => void;
   onReact: (messageId: string, emoji: string) => void;
   onReport: (message: ChatMessage) => void;
@@ -40,6 +46,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   currentUserId,
   isGroup,
   participantAvatar,
+  participantName,
+  currentUserName,
+  currentUserAvatar,
   onReply,
   onReact,
   onReport,
@@ -230,12 +239,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   return (
     <div ref={containerRef} className={`group relative flex gap-2.5 my-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
       
-      {/* Remote Avatar */}
+      {/* Avatar du correspondant (à gauche) — sa photo réelle, sinon ses
+          initiales : plus jamais la photo d'un inconnu présentée comme la sienne. */}
       {!isMe && (
-        <img 
-          src={message.senderAvatar || participantAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&fit=crop'} 
-          className="w-7 h-7 rounded-full object-cover self-end mb-1 ring-1 ring-slate-200" 
-          alt={message.senderName || 'Membre'} 
+        <InitialsAvatar
+          name={message.senderName || participantName || 'Membre'}
+          avatarUrl={message.senderAvatar || participantAvatar}
+          size={28}
+          className="self-end mb-1 ring-1 ring-slate-200"
         />
       )}
 
@@ -516,6 +527,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
         </div>
 
       </div>
+
+      {/* VF-7 : MON avatar à droite de mes bulles, symétrique de celui du
+          correspondant — photo réelle du compte, sinon initiales ; alt/title = mon nom. */}
+      {isMe && (
+        <InitialsAvatar
+          name={currentUserName || message.senderName || 'Moi'}
+          avatarUrl={currentUserAvatar || message.senderAvatar}
+          size={28}
+          className="self-end mb-1 ring-1 ring-indigo-200"
+        />
+      )}
     </div>
   );
 };

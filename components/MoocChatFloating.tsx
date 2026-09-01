@@ -19,6 +19,9 @@ import { ChatCallModal } from './chat/ChatCallModal';
 import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
 import { ChatReportModal } from './chat/ChatReportModal';
 import { ChatMemberInfoModal } from './chat/ChatMemberInfoModal';
+import { ConversationHeader } from './chat/ConversationHeader';
+import { MessagingOwnerCard } from './chat/MessagingOwnerCard';
+import { InitialsAvatar } from './ui/InitialsAvatar';
 
 interface MoocChatFloatingProps {
   currentUser?: UserProfile;
@@ -1449,97 +1452,77 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           {/* Header */}
           <div className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-white/10 flex-shrink-0">
             {activeChat ? (
-              /* Active Chat Header with participant info & call actions */
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <button 
-                  onClick={() => setCurrentChatId(null)}
-                  className="p-1.5 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-                  title="Retour à la liste"
+              /* En-tête de conversation (VF-8), extrait dans ConversationHeader :
+                 le sélecteur « Ma langue » y est FIXE, à côté du nom du
+                 correspondant, hors de la zone de messages qui défile. Les
+                 boutons d'action restent ici, handlers inchangés. */
+              <ConversationHeader
+                peer={{
+                  name: activeChat.participantName,
+                  avatarUrl: activeChat.participantAvatar,
+                  verified: true,
+                  presence: (activeChat.isOnline || onlinePresences[activeChat.participantId]) ? 'online' : 'offline',
+                  subtitle: activeChat.participantTitle || 'Membre vérifié',
+                }}
+                myLanguage={myLanguage}
+                onLanguageChange={handleChangeMyLanguage}
+                peerReadsIn={recipientLanguage && recipientLanguage !== myLanguage
+                  ? (MESSAGING_LANGUAGES.find((l) => l.code === recipientLanguage)?.label || recipientLanguage)
+                  : undefined}
+                onBack={() => setCurrentChatId(null)}
+                onOpenPeer={() => setShowMemberInfo(true)}
+              >
+                {/* Call buttons in active chat */}
+                <button
+                  onClick={handleSummarizeConversation}
+                  disabled={isSummarizing}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-50"
+                  title="Résumer cette conversation (IA)"
                 >
-                  <ArrowLeft size={18} />
+                  {isSummarizing ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
+                  ) : (
+                    <Sparkles size={16} />
+                  )}
                 </button>
 
-                <div 
-                  className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 flex-1"
-                  onClick={() => setShowMemberInfo(true)}
+                <button
+                  onClick={() => handleStartCall('audio')}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Appel Audio"
                 >
-                  <div className="relative flex-shrink-0">
-                    <img 
-                      src={activeChat.participantAvatar} 
-                      className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-400" 
-                      alt={activeChat.participantName} 
-                    />
-                    <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                  </div>
+                  <Phone size={16} />
+                </button>
 
-                  <div className="min-w-0">
-                    <div className="font-extrabold text-xs text-white truncate flex items-center gap-1.5">
-                      <span>{activeChat.participantName}</span>
-                      <Shield size={12} className="text-blue-400" />
-                    </div>
-                    <div className="text-[10px] text-slate-300 truncate">
-                      {activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'En ligne' : (activeChat.participantTitle || 'Membre vérifié')}
-                    </div>
-                  </div>
-                </div>
+                <button
+                  onClick={() => handleStartCall('video')}
+                  className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm"
+                  title="Appel Vidéo"
+                >
+                  <Video size={16} />
+                </button>
 
-                {/* Call buttons in active chat */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={handleSummarizeConversation}
-                    disabled={isSummarizing}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-50"
-                    title="Résumer cette conversation (IA)"
-                  >
-                    {isSummarizing ? (
-                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
-                    ) : (
-                      <Sparkles size={16} />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => handleStartCall('audio')}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                    title="Appel Audio"
-                  >
-                    <Phone size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => handleStartCall('video')}
-                    className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm"
-                    title="Appel Vidéo"
-                  >
-                    <Video size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => setShowMemberInfo(true)}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                    title="Détails du profil"
-                  >
-                    <Info size={16} />
-                  </button>
-                </div>
-              </div>
+                <button
+                  onClick={() => setShowMemberInfo(true)}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Détails du profil"
+                >
+                  <Info size={16} />
+                </button>
+              </ConversationHeader>
             ) : (
-              /* Global Directory / Conversations List Header */
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-indigo-600 rounded-xl">
-                    <MessageCircle size={18} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-1.5">
-                      <span>Messagerie Privée</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-md text-[9px] font-mono">
-                        Realtime
-                      </span>
-                    </h3>
-                    <p className="text-[10px] text-slate-400">Visible uniquement par les membres de chaque discussion</p>
-                  </div>
-                </div>
+              /* Global Directory / Conversations List Header — VF-7 : la photo
+                 et le nom du PROPRIÉTAIRE du compte, pas seulement une icône.
+                 Le statut n'est affiché qu'une fois la présence Realtime
+                 synchronisée : rien n'est inventé hors connexion. */
+              <div className="flex items-center justify-between w-full gap-2">
+                <MessagingOwnerCard
+                  name={currentUser.name}
+                  avatarUrl={currentUser.avatarUrl}
+                  presence={Object.keys(onlinePresences).length > 0
+                    ? (onlinePresences[currentUser.id] ? 'online' : 'offline')
+                    : undefined}
+                />
 
                 <button
                   onClick={() => setIsOpen(false)}
@@ -1611,7 +1594,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="relative">
-                            <img src={member.avatarUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200" />
+                            <InitialsAvatar name={member.name} avatarUrl={member.avatarUrl} size={40} className="ring-2 ring-slate-200" />
                             {onlinePresences[member.id] && (
                               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
                             )}
@@ -1652,7 +1635,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="relative">
-                              <img src={conv.participantAvatar} className="w-11 h-11 rounded-full object-cover ring-2 ring-slate-100" />
+                              <InitialsAvatar name={conv.participantName} avatarUrl={conv.participantAvatar} size={44} className="ring-2 ring-slate-100" />
                               {(conv.isOnline || onlinePresences[conv.participantId]) && (
                                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></span>
                               )}
@@ -1701,37 +1684,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     <span>Cette conversation n'est visible que par ses membres.</span>
                   </div>
 
-                  {/* Ma langue — unique réglage. « Par défaut » = aucune
-                      traduction (je lis et j'entends l'original). Dès qu'une
-                      langue est choisie, les messages reçus, les vocaux et les
-                      appels me sont rendus dans cette langue ; mon interlocuteur
-                      règle la sienne dans SA boîte, le système la détecte seul.
-                      L'original reste toujours accessible d'un clic. */}
-                  <div className="py-2 px-3 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center gap-2">
-                    <Languages size={14} className="text-indigo-600 flex-shrink-0" />
-                    <label className="flex-1 flex items-center gap-2 min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap">Ma langue</span>
-                      <select
-                        value={myLanguage ?? ''}
-                        onChange={(e) => handleChangeMyLanguage(e.target.value)}
-                        aria-label="Ma langue"
-                        className="flex-1 min-w-0 min-h-[36px] px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
-                      >
-                        <option value="">Par défaut · aucune traduction</option>
-                        {MESSAGING_LANGUAGES.map((lang) => (
-                          <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    {recipientLanguage && recipientLanguage !== myLanguage && (
-                      <span
-                        className="text-[9px] font-bold text-slate-400 whitespace-nowrap"
-                        title="Langue détectée à partir des messages de votre interlocuteur"
-                      >
-                        Il lit en {MESSAGING_LANGUAGES.find((l) => l.code === recipientLanguage)?.label || recipientLanguage}
-                      </span>
-                    )}
-                  </div>
+                  {/* « Ma langue » ne vit plus ici (VF-8) : le sélecteur est
+                      FIXE dans l'en-tête de conversation (ConversationHeader),
+                      à côté du nom — il ne défile plus avec les messages. */}
 
                   {/* Conversation Summary Banner (LOOP 07/17) */}
                   {conversationSummary && (
@@ -1755,6 +1710,10 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       currentUserId={currentUser.id}
                       isGroup={activeChat.isGroup}
                       participantAvatar={activeChat.participantAvatar}
+                      participantName={activeChat.participantName}
+                      /* VF-7 : mon identité (photo réelle, sinon initiales) à droite de mes bulles. */
+                      currentUserName={currentUser.name}
+                      currentUserAvatar={currentUser.avatarUrl}
                       onReply={(targetMsg) => setReplyingTo(targetMsg)}
                       onReact={handleToggleReaction}
                       onReport={(targetMsg) => {
