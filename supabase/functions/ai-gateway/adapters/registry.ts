@@ -4,6 +4,7 @@ import { anthropicAdapter } from './anthropic.ts';
 import { geminiAdapter } from './gemini.ts';
 import { elevenlabsAdapter } from './elevenlabs.ts';
 import { geminiTtsAdapter } from './gemini_tts.ts';
+import { geminiSttAdapter } from './gemini_stt.ts';
 import { replicateAdapter } from './replicate.ts';
 import { whisperAdapter, deepgramAdapter, assemblyaiAdapter } from './voice_stt_providers.ts';
 import { cartesiaAdapter, playhtAdapter, azureSpeechAdapter, googleTtsAdapter } from './voice_tts_providers.ts';
@@ -26,6 +27,7 @@ export const ADAPTERS: Record<string, ProviderAdapter> = {
     replicate: replicateAdapter,
     elevenlabs: elevenlabsAdapter,
     gemini_tts: geminiTtsAdapter,
+    gemini_stt: geminiSttAdapter,
     whisper: whisperAdapter,
     deepgram: deepgramAdapter,
     assemblyai: assemblyaiAdapter,

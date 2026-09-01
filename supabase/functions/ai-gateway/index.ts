@@ -184,7 +184,7 @@ Deno.serve(async (req: Request) => {
     // traités comme TTS, comportement le plus courant.
     if (body.category === 'voice' && !body.providerId) {
         const voiceReq = body.request as AdapterRequest['voice'];
-        const sttKinds = new Set(['whisper', 'deepgram', 'assemblyai']);
+        const sttKinds = new Set(['whisper', 'deepgram', 'assemblyai', 'gemini_stt']);
         const wantsStt = !!voiceReq?.audioBase64 && !voiceReq?.text;
         ordered = ordered.filter((c: RankedCandidate) =>
             sttKinds.has(c.adapter_kind) === wantsStt
