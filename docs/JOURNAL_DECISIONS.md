@@ -34,6 +34,24 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-033] — 1er Septembre 2026
+* **Module(s)** : `Réseau MOK`, `Messagerie`, `Langues & Communication`, `Vision Smart AI Core`.
+* **Problème / Besoin initial** : la traduction des messages était une action manuelle logée dans `services/messaging/messagingIntelligence.ts`, donc couplée à la messagerie, non automatique selon la langue du destinataire et non réutilisable proprement par la future traduction vocale. L'architecture demandée impose un chemin unique, un original immuable et un moteur remplaçable sans modification des consommateurs.
+* **Options envisagées** :
+  1. Conserver un appel IA propre à chaque écran (messagerie aujourd'hui, appels demain).
+  2. Introduire un service transversal avec une interface de moteur injectable, puis ne laisser aux composants que le contexte fonctionnel et les langues source/cible.
+* **Décision retenue** : option 2. `services/translation/translationService.ts` devient l'unique contrat de traduction pour cette mission. Le moteur par défaut utilise l'orchestrateur existant `services/aiGateway.ts`; `TranslationEngine` et `setEngine()` permettent un remplacement ultérieur sans toucher la messagerie ni les appels.
+* **Justification** : séparation stricte UI/service/fournisseur, cohérence avec l'orchestration centrale Vision Smart AI Core, testabilité par injection, maîtrise des coûts par cache mémoire et déduplication, absence de stockage local des conversations privées.
+* **Conséquences** :
+  1. `messages.content` demeure la source originale immuable ; seule la langue choisie par l'auteur est ajoutée dans `metadata.original_language`.
+  2. Le destinataire voit l'original puis une traduction dérivée dans son `profiles.preferred_language`. Une panne laisse l'original lisible et affiche un état honnête.
+  3. La traduction existante est retirée de `messagingIntelligence.ts` pour éviter toute duplication.
+  4. La traduction vocale est explicitement exclue de ce lot et reste bloquée jusqu'à validation utilisateur ; elle devra réutiliser le même service.
+* **Éléments techniques** : `services/translation/translationService.ts`, `services/messaging/messagingIntelligence.ts`, `services/supabaseClient.ts`, `components/MoocChatFloating.tsx`, `components/chat/ChatMessageItem.tsx`, `types.ts`, `tests/translationService.test.ts`, `tests/chatMessageTranslation.test.tsx`.
+* **Statut** : `Testé`.
+
+---
+
 ### [DEC-2026-031] — 28 Août 2026
 * **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Orchestrateur IA (ai-gateway)`, `Espace Super-Admin Souverain`, `Documentation & Continuité Système`
 * **Problème / Besoin initial** :
@@ -815,4 +833,3 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
-

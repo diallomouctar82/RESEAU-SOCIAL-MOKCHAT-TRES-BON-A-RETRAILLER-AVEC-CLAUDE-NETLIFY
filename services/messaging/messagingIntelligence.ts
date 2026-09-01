@@ -31,27 +31,6 @@ export async function summarizeConversation(
     }
 }
 
-/** Traduction à la demande — le texte d'origine est TOUJOURS retourné à côté de la traduction, jamais un remplacement silencieux. */
-export interface TranslationResult {
-    translatedText: string;
-    originalText: string;
-    targetLanguage: string;
-}
-
-export async function translateMessageText(text: string, targetLanguage: string): Promise<TranslationResult> {
-    const trimmed = text.trim();
-    if (!trimmed) {
-        return { translatedText: text, originalText: text, targetLanguage };
-    }
-    const systemInstruction = `Tu traduis fidèlement un message vers la langue "${targetLanguage}". N'ajoute et ne retire aucune information, n'explique rien, ne commente pas. Réponds uniquement avec le texte traduit, rien d'autre.`;
-    try {
-        const translated = await generateText(trimmed, { systemInstruction });
-        return { translatedText: translated?.trim() || text, originalText: text, targetLanguage };
-    } catch {
-        return { translatedText: text, originalText: text, targetLanguage };
-    }
-}
-
 /**
  * Assistance de rédaction — corrige la FORME (orthographe/grammaire/clarté/
  * ton) sans jamais changer le FOND : n'ajoute jamais un engagement, un

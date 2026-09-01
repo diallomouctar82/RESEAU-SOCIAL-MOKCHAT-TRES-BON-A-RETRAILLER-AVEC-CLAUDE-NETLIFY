@@ -1,16 +1,21 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
 > *Date de Mise à Jour : 1er Septembre 2026*
-> *Version Courante : v6.6.2 (HOTFIX MESSAGERIE — FRONTIÈRE UUID SUPABASE)*
+> *Version Courante : v6.6.3 (TRADUCTION CENTRALISÉE — MESSAGERIE TEXTE)*
 
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
 **Hotfix v6.6.2** : l'ouverture d'une conversation locale (`chat-u5` ou `local-…`) ne transmet plus cet identifiant factice à `messages.conversation_id` ni aux abonnements Supabase Realtime. Les conversations locales restent affichables en dégradation gracieuse; seules les conversations portant un UUID réel accèdent au backend. La correction est couverte par deux tests d'intégration (frontière locale et conservation du chemin UUID), par la suite complète de 256 tests et par un build Vite de production réussi. Aucun schéma, aucune donnée et aucun module hors messagerie n'est modifié.
 
-**Le Monde à Vous** a franchi le jalon officiel **HIGH DEMAND SPIKE ABSORPTION & 503 FAILOVER (v6.6.1)**. La plateforme est un écosystème hautement intégré combinant 15 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance, un espace Super-Administrateur souverain, un orchestrateur central et une interface conversationnelle moderne, aérée et hyper-résiliente.
+**Le Monde à Vous** a franchi le jalon **TRADUCTION CENTRALISÉE — MESSAGERIE TEXTE (v6.6.3)**, construit sur le hotfix v6.6.2 et le socle de résilience IA v6.6.1. La plateforme est un écosystème hautement intégré combinant 15 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance, un espace Super-Administrateur souverain, un orchestrateur central et une interface conversationnelle moderne, aérée et hyper-résiliente.
 
-La version **v6.6.1** consacre :
+La version **v6.6.3** ajoute, sans élargir le périmètre fonctionnel :
+- **Service central unique de traduction** (`services/translation/translationService.ts`) : contrat `TranslationEngine` remplaçable, routage par `aiGateway`, cache mémoire borné, mutualisation des appels et dégradation gracieuse.
+- **Messages texte bilingues** : langue de l'auteur enregistrée dans `messages.metadata.original_language`, original conservé dans `messages.content`, traduction automatique affichée séparément dans `profiles.preferred_language` du destinataire.
+- **Phase appels vocaux non commencée** : elle reste bloquée jusqu'à validation explicite de cette livraison texte.
+
+Le socle **v6.6.1** consacre également :
 - **Absorption Automatique des Pointes de Charge (503 UNAVAILABLE / High Demand)** : Détection proactive et gestion résiliente des surcharges d'API distantes dans l'Edge Function orchestratrice `supabase/functions/ai-gateway/index.ts`.
 - **Cascade Multi-Modèles Instantanée** : En cas de forte affluence sur `gemini-2.5-flash`, basculement automatique et silencieux vers `gemini-2.5-pro` ou `gemini-2.0-flash`, puis vers les autres fournisseurs configurés (Claude, DeepSeek, OpenAI, Mistral) sans rupture d'expérience.
 - **Protection Multimodale (Vision HUD & Voice)** : Prise en charge des bascules dans `services/multimodalVision.ts` et `services/ai.ts` pour garantir un fonctionnement ininterrompu de la caméra et de l'analyse.
@@ -169,7 +174,7 @@ La version **v6.6.1** consacre :
   - Communication 1-à-1 et groupes réels (`conversations`/`conversation_participants`/`messages`), avec anti-doublon d'envoi (`client_message_id`) et blocage réellement appliqué à l'envoi.
   - **Confidentialité réelle** : chaque conversation n'est visible que par ses membres (RLS `is_conversation_member`) — **aucun chiffrement de bout en bout n'est implémenté** (le contenu est stocké en clair dans la base, comme documenté honnêtement dans l'interface elle-même depuis le LOOP 07/17), il ne faut donc jamais présenter cette capacité comme acquise.
   - Envoi d'images/vidéos/documents/messages vocaux avec aperçu — pièces jointes réellement persistées (colonne `attachment_url`), mais encore en base64 (upload Storage réel non fait, voir Chantier Messagerie LOOP 06/17 dans `docs/SUPABASE_ARCHITECTURE.md`).
-  - Citations/réponses, réactions emoji (atomiques, `toggle_message_reaction`), résumé de conversation et traduction de message par IA (LOOP 07/17, langue d'origine toujours conservée).
+  - Citations/réponses, réactions emoji (atomiques, `toggle_message_reaction`), résumé de conversation et traduction automatique par le service central dans la langue préférée du destinataire ; `messages.content` reste toujours l'original et `metadata.original_language` en conserve la langue déclarée.
   - **Épinglage** : bouton présent dans l'UI mais **non fonctionnel** — `onPin` n'est câblé par aucun appelant, aucune colonne `is_pinned` n'existe sur `messages`. Non implémenté, pas un correctif à faire passer pour acquis.
   - **Appels audio/vidéo** : la signalisation (sonnerie/acceptation/refus) est réelle (Supabase Broadcast), mais **aucun transport audio/vidéo pair-à-pair n'est établi entre les deux personnes** (`ChatCallModal.tsx` ne capture que la caméra locale de l'utilisateur — pas de `RTCPeerConnection`) : un appel ne délivre donc pas encore le son/l'image de l'autre participant. Non chiffré pour la même raison qu'il n'y a pas de flux média à chiffrer.
 - **Réseau Social de Confiance (`SocialFeed.tsx`)** :

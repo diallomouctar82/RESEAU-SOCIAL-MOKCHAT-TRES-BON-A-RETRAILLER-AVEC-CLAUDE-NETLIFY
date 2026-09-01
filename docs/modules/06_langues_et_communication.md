@@ -22,6 +22,7 @@
 - **Fichiers Clés** :
   - `components/LanguageCenter.tsx` : Interface d'apprentissage polyglotte.
   - `services/voiceEngine.ts` : Moteur de synthèse vocale multilingue.
+  - `services/translation/translationService.ts` : contrat transversal unique pour toute nouvelle traduction Moknet, indépendant du moteur concret. La phase 1 de la messagerie texte est son premier consommateur ; les appels vocaux devront réutiliser exactement ce service après validation explicite, sans logique parallèle.
 - **Modèles de Données (`types.ts`)** :
   - `Language`, `LanguageLesson`, `VocabularyCard`.
 
@@ -30,10 +31,12 @@
 ## 🛡️ 4. RÈGLES MÉTIER & SÉCURITÉ
 - **Accent Authentique** : Utilisation prioritaire des voix natives du moteur de synthèse.
 - **Approche Pédagogique Spaced Repetition** : Réactivation régulière des termes difficiles.
+- **Unicité du chemin de traduction** : aucun composant de messagerie ou d'appel ne doit appeler directement un fournisseur. Le texte original est immuable et toute indisponibilité rend la source plutôt qu'un contenu inventé.
 
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
 - **Terminé** : 40+ langues répertoriées, modules de vocabulaire interactifs, audio déclenchable.
 - **Partiel / En cours** : Évaluation automatique de la prononciation de l'utilisateur par reconnaissance vocale.
+- **En attente de validation** : traduction bidirectionnelle en temps réel des appels vocaux (sélecteurs « Ma langue » / « Langue de mon interlocuteur »). Aucun code de cette fonctionnalité n'est commencé avant validation de la traduction texte.
 - **Évolutions Prévues** : Tandems linguistiques en direct avec d'autres apprenants du Réseau MOK.

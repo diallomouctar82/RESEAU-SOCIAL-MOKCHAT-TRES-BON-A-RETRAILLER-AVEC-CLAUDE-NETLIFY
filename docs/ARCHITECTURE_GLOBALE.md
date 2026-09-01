@@ -27,7 +27,8 @@
                                          ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                            3. COUCHE SERVICES CORE & IA                          │
-│  ├─ aiService (@google/genai, Gemini 2.5/Flash, JSON Structuré, Analyse Media)  │
+│  ├─ aiGateway (client unique vers l'orchestrateur IA serveur multi-moteurs)    │
+│  ├─ translationService (contrat unique, moteur injectable, original immuable) │
 │  ├─ voiceEngine (Web Speech API, Synthèse multilingue, Reconnaissance vocale)   │
 │  ├─ multimodalVision (Analyse caméra temps réel, OCR documents, Détection flux)  │
 │  ├─ memoryService (Mémoire vectorielle simulée, Faits actifs, Préférences)      │
@@ -58,7 +59,7 @@ Firestore n'a jamais été réellement câblé malgré ce que suggérait ce diag
 | **02** | `shop` / `my-shop` | `Shop.tsx`, `MyShop.tsx`, `TradeBusinessOperatingSystem.tsx` | Marché B2B/B2C/C2C, négociation assistée, RFQ, devis, IncoTerms, litiges, salons mondiaux. | `GlobalContext`, `Trade*` modals, `aiService`, `Wallet` |
 | **03** | `career` | `CareerCenter.tsx`, `CareerGPSNavigator.tsx`, `CareerCoach3DModal.tsx` | GPS trajectoire A➔B, diagnostic 17 critères, Jumeau Numérique, simulateur d'entretiens 3D, Kanban. | `GlobalContext`, `Campus`, `aiService`, `voiceEngine` |
 | **04** | `campus` | `Campus.tsx`, `MoocChatFloating.tsx` | MOOCs interactifs, évaluations académiques, examens avec Professeur Diallo, certification XP. | `GlobalContext`, `Professeur Diallo`, `types.Course` |
-| **05** | `social` / `live` | `SocialFeed.tsx`, `SocialLive.tsx`, `SmartReelViewer.tsx` | Réseau de confiance Mok, flux social, Reels vidéo interactifs, streaming live avec achats directs. | `GlobalContext`, `MokTrustCenter`, `LiveSession` |
+| **05** | `social` / `live` | `SocialFeed.tsx`, `SocialLive.tsx`, `SmartReelViewer.tsx`, `MoocChatFloating.tsx` | Réseau de confiance Mok, messagerie privée multilingue, flux social, Reels vidéo interactifs, streaming live avec achats directs. | `GlobalContext`, `translationService`, `MokTrustCenter`, `LiveSession` |
 | **06** | `languages` | `LanguageCenter.tsx` | 40+ langues, fiches mnémotechniques, audio natif, immersion quotidienne avec Professeur Diallo. | `voiceEngine`, `aiService`, `types.LanguageLesson` |
 | **07** | `legal` / `admin-procedures` | `LegalCenter.tsx`, `DigitalSafe.tsx` | Assistance administrative, titres de séjour, contrats, coffre-fort de pièces officielles. | `Maître Diallo`, `DigitalSafe`, `GoogleDriveCenter` |
 | **08** | `housing` | `HousingCenter.tsx` | Annonces de logements, baux, simulateur APL, conseils locatifs par Monsieur Diallo. | `Monsieur Diallo`, `GoogleMapsExplorer` |
@@ -144,6 +145,7 @@ La navigation ne reflète plus l'ordre technique ou historique d'ajout des modul
 ## ⚙️ 5. SERVICES PARTAGÉS DU DOSSIER `/services`
 
 - **`ai.ts`** : Client singleton `GoogleGenAI` gérant la génération de texte, l'extraction de JSON strict et l'analyse multimodale avec fallback d'erreur.
+- **`translation/translationService.ts`** : point d'entrée unique des traductions Moknet. Il expose un contrat indépendant du fournisseur (`TranslationEngine`), conserve toujours le texte source, normalise les langues, mutualise les appels identiques en mémoire et se dégrade vers l'original sans bloquer l'interface. Le moteur actuel passe par `aiGateway`; son remplacement se fait uniquement via `setEngine`, sans modification de la messagerie ni des futurs appels.
 - **`orchestratorService.ts`** : Moteur intelligent analysant les intentions pour déclencher les parcours et coordonner les agents.
 - **`dossierService.ts`** : Gestionnaire de persistance et de cycle de vie des dossiers de vie de l'utilisateur.
 - **`memory.ts`** : Gestionnaire de la mémoire contextuelle (faits appris, préférences retenues, historique des conversations).

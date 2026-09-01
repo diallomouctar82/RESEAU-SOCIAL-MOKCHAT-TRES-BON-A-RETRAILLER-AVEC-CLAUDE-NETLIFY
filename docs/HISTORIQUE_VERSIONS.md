@@ -19,6 +19,17 @@
 | **v6.2** | 27 Août 2026 | **Architecture IA Auto-Résiliente (12 Fournisseurs) & Color Lab** | Super-Admin AI Hub, Failover, Auto-Quarantine, Color Lab | AI Coding Agent | Stable |
 | **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | **Courante (Active)** |
 | **v6.6.2** | 1er Septembre 2026 | **Hotfix Messagerie — Frontière UUID Supabase** | Mooc Chat, historique, Realtime | Codex | **Stable** |
+| **v6.6.3** | 1er Septembre 2026 | **Traduction centralisée — Messagerie texte** | Messagerie, Profil, AI Gateway | Vision Smart AI Core / DEC-2026-033 | **Courante (Active)** |
+
+---
+
+## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
+
+### [Version 6.6.3] — 1er Septembre 2026 (Traduction centralisée — Messagerie texte)
+- **Objectif** : traduire automatiquement chaque message reçu dans la langue préférée du lecteur sans jamais remplacer ni supprimer le texte original.
+- **Réalisations** : service unique `services/translation/translationService.ts`, moteur injectable et remplaçable, passage exclusif par `services/aiGateway.ts`, persistance de la langue source dans `messages.metadata.original_language`, rendu original + traduction dans `ChatMessageItem.tsx`, dégradation gracieuse et traduction différée aux bulles visibles.
+- **Validation** : tests unitaires du contrat, du changement de moteur, du cache/dédoublonnage, du repli et tests DOM de l'affichage bilingue ; suite complète et build de production validés.
+- **Périmètre exclu** : aucun développement de traduction vocale ; cette seconde fonctionnalité attend la validation explicite de la phase texte.
 
 ---
 
@@ -26,11 +37,9 @@
 - **Incident** : l'ouverture d'un fil local `chat-u5` déclenchait un `GET /rest/v1/messages?...conversation_id=eq.chat-u5` rejeté en HTTP 400 / PostgreSQL `22P02`, car `conversation_id` attend un UUID.
 - **Correction** : la messagerie conserve le fil local à l'écran mais arrête le chemin avant le chargement d'historique, le marquage de lecture et les abonnements Realtime tant que l'identifiant n'est pas un UUID réel.
 - **Preuves** : 2 tests d'intégration dédiés, 256/256 tests globaux, build Vite réussi, prévisualisation Netlify publique `ready`, scan de secrets Netlify vide.
-- **Périmètre** : 1 composant, 1 test; aucune migration, aucune donnée, aucun autre module fonctionnel et aucune fonctionnalité de traduction non validée inclus.
+- **Périmètre** : 1 composant, 1 test; aucune migration, aucune donnée et aucun module hors messagerie.
 
 ---
-
-## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 ### [Version 6.3] — 27 Août 2026 (Sauvegarde, Versioning, Restauration Intelligente & Realtime RBAC)
 - **Objectif** : Mettre en place un système complet de sauvegarde, gestion des versions, comparaison et restauration intelligente sans perte de données dans l'espace Super Admin, avec synchronisation Realtime bidirectionnelle et diagnostic automatique des comptes.
