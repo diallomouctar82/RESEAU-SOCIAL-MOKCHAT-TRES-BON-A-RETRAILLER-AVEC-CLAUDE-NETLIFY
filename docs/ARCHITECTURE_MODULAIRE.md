@@ -134,8 +134,11 @@ Le mode module ne crée **aucune** donnée, aucun cache ni aucun canal qui lui s
 - **Croix « fermer » de la liste des conversations** (zone du chantier M) : en mode module, elle ferme la fenêtre ;
   un écran de repli « Rouvrir la messagerie » prend le relais (signal `openWidgetSignal` existant), sans bouton
   flottant.
-- **Affordance dans le bouton de messagerie lui-même** : prévue avec le nouveau design du bouton ; le composant
-  `<InstallModuleButton module compact />` est prêt à y être monté.
+- **Affordance dans le bouton de messagerie lui-même** : livrée avec la goutte (`components/chat/MessagingDropButton.tsx`,
+  maquette 01 validée) — un **maintien long de 500 ms** (souris ou toucher) affiche « Installer la messagerie sur mon
+  téléphone » et appelle `handleInstallMessagingModule` (`MoocChatFloating.tsx`) : invitation native si elle est
+  disponible pour ce module, sinon ouverture de `/messagerie?installer=1` (où l'invitation ou la fiche iPhone
+  l'attend) ; module déjà installé → ouverture de `/messagerie`. Le clic qui suit le maintien n'ouvre pas la messagerie.
 
 ---
 
