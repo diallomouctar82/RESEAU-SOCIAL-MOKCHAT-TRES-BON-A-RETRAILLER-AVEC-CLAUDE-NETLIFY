@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
+import { forgetPushSubscription } from './services/push/pushService';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { GoalProvider } from './contexts/GoalContext';
 import { Layout } from './components/Layout';
@@ -159,6 +160,13 @@ const AppContent = () => {
 
   // ACTIONS
   const handleLogout = async () => {
+      // L'abonnement push de CET appareil est retiré AVANT la fin de session :
+      // la suppression de la ligne push_subscriptions passe par la RLS, donc
+      // exige encore le jeton de l'utilisateur. Après signOut(), l'appel
+      // n'aurait effacé aucune ligne et le téléphone aurait continué à
+      // recevoir les appels d'un compte déconnecté. Ne bloque jamais la
+      // déconnexion (la fonction ne lève pas).
+      await forgetPushSubscription();
       try {
           await signOut();
       } catch (e) {
