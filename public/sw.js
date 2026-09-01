@@ -41,7 +41,8 @@ self.addEventListener('fetch', (event) => {
   // Offline » servie à l'application — qui retombait alors sur le profil de
   // démonstration au lieu de signaler l'erreur. Réseau direct, comportement
   // natif du navigateur.
-  if (url.origin !== self.location.origin) return;
+  const ownOrigin = self.location ? self.location.origin : null;
+  if (ownOrigin && url.origin !== ownOrigin) return;
 
   // Navigation (le document HTML) : toujours réseau d'abord — jamais servir un
   // index.html en cache qui référencerait des fichiers JS/CSS hashés qui

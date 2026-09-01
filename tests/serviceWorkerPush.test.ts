@@ -75,6 +75,9 @@ function loadServiceWorker() {
         addEventListener: (type: string, handler: (event: any) => void) => {
             listeners.set(type, [...(listeners.get(type) ?? []), handler]);
         },
+        // Origine du worker : les requêtes vers d'autres origines (API, CDN) ne
+        // doivent jamais passer par le gestionnaire fetch.
+        location: { origin: 'http://localhost' },
         registration,
         clients,
         skipWaiting: vi.fn(async () => undefined),
@@ -172,6 +175,32 @@ describe('cache (comportement historique conservé)', () => {
         await responded;
         expect(sw.fetchMock).toHaveBeenCalledTimes(1);
         expect(sw.caches.match).toHaveBeenCalledWith('/index.html');
+    });
+
+    it('requête vers une autre origine (API Supabase) : le worker ne s’interpose pas — réseau natif, jamais un faux « 503 Offline »', async () => {
+        const sw = loadServiceWorker();
+        const respondWith = vi.fn();
+        await sw.dispatch('fetch', {
+            request: { method: 'GET', url: 'https://rqciahtpixdjbyoajomg.supabase.co/rest/v1/profiles?select=*', mode: 'cors' },
+            respondWith,
+        });
+        expect(respondWith).not.toHaveBeenCalled();
+        expect(sw.fetchMock).not.toHaveBeenCalled();
+        expect(sw.caches.match).not.toHaveBeenCalled();
+    });
+
+    it('ressource statique de la même origine : toujours servie par le worker (cache puis réseau)', async () => {
+        const sw = loadServiceWorker();
+        let responded: Promise<unknown> | null = null;
+        await sw.dispatch('fetch', {
+            request: { method: 'GET', url: 'http://localhost/assets/index-abc123.js', mode: 'cors' },
+            respondWith: (promise: Promise<unknown>) => {
+                responded = promise;
+            },
+        });
+        await responded;
+        expect(sw.caches.match).toHaveBeenCalledTimes(1);
+        expect(sw.fetchMock).toHaveBeenCalledTimes(1);
     });
 });
 
