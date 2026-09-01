@@ -27,6 +27,9 @@ import { ChatMemberInfoModal } from './chat/ChatMemberInfoModal';
 import { ConversationHeader } from './chat/ConversationHeader';
 import { MessagingOwnerCard } from './chat/MessagingOwnerCard';
 import { InitialsAvatar } from './ui/InitialsAvatar';
+import { MessagingDropButton } from './chat/MessagingDropButton';
+import { findModuleById } from '../modules/moduleRegistry';
+import { getInstallState, promptInstall } from '../services/modules/installPrompt';
 
 interface MoocChatFloatingProps {
   currentUser?: UserProfile;
@@ -751,6 +754,29 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   // Total unread count
   const totalUnread = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+
+  /**
+   * VF-9 / VF-10 — maintien long sur la goutte : installer la messagerie comme
+   * application autonome. Depuis l'application principale, l'invitation native
+   * capturée appartient à MokNet, pas au module : on rejoint la page autonome
+   * du module (/messagerie?installer=1) où SA propre invitation est proposée
+   * (ou les consignes iPhone). Module déjà installé : on l'ouvre simplement.
+   */
+  const handleInstallMessagingModule = async () => {
+    const messagingModule = findModuleById('messagerie');
+    if (!messagingModule) return;
+    const state = getInstallState(messagingModule);
+    if (state === 'installable') {
+      await promptInstall(messagingModule);
+      return;
+    }
+    const target = state === 'installed' ? messagingModule.route : `${messagingModule.route}?installer=1`;
+    try {
+      window.location.assign(target);
+    } catch {
+      /* navigation refusée : Paramètres → Modules reste le second point d'installation */
+    }
+  };
   const activeChat = conversations.find(c => c.id === currentChatId);
 
   /**
@@ -1853,26 +1879,19 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         id="mooc-chat-floating-container"
         className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-40 flex items-center justify-end"
       >
-        <button
-          id="mooc-chat-toggle-btn"
-          type="button"
-          aria-label="Ouvrir la messagerie sécurisée"
-          onClick={() => setIsOpen(!isOpen)}
-          className="relative group p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center border-2 border-white/20"
-        >
-          <MessageCircle size={24} className="text-white" />
-          
-          {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[20px] h-5 bg-rose-500 text-white text-[11px] font-extrabold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-              {totalUnread}
-            </span>
-          )}
-
-          {/* Tooltip on desktop */}
-          <span className="absolute right-full mr-3 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg hidden md:block">
-            Messagerie Souveraine LMAV
-          </span>
-        </button>
+        {/* Bouton « Goutte » (VF-10, maquette 01 validée) : le niveau d'eau
+            suit les VRAIS non-lus, l'état « appel » n'existe que pendant une
+            vraie sonnerie entrante, le maintien long propose d'installer la
+            messagerie comme application autonome (VF-9). */}
+        <MessagingDropButton
+          isOpen={isOpen}
+          unreadCount={totalUnread}
+          incomingCall={isIncomingCall && activeCallSession && activeCallSession.status === 'ringing'
+            ? { callerName: activeCallSession.initiatorName, callType: activeCallSession.type }
+            : null}
+          onToggle={() => setIsOpen(!isOpen)}
+          onInstallRequest={handleInstallMessagingModule}
+        />
       </div>
       )}
 
