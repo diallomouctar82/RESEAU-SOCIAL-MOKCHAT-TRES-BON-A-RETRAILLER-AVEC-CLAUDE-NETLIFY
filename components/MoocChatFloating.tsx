@@ -9,7 +9,8 @@ import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSe
 import { MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
 import { adminConfigService } from '../services/adminConfigService';
-import { summarizeConversation, assistRewriteMessage, translateMessageText } from '../services/messaging/messagingIntelligence';
+import { summarizeConversation, assistRewriteMessage } from '../services/messaging/messagingIntelligence';
+import { translationService } from '../services/translation/translationService';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
@@ -436,6 +437,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       senderAvatar: raw.sender_id === currentUser.id ? currentUser.avatarUrl : senderProfile?.avatarUrl,
       senderRole: raw.sender_id === currentUser.id ? currentUser.role : senderProfile?.role,
       text: isDeleted ? undefined : (raw.content || undefined),
+      originalLanguage: isDeleted ? undefined : raw.metadata?.original_language,
       mediaType: isDeleted ? undefined : (raw.attachment_url ? (raw.message_type || 'document') : 'text'),
       mediaUrl: isDeleted ? undefined : raw.attachment_url,
       timestamp: raw.created_at ? new Date(raw.created_at) : new Date(),
@@ -873,6 +875,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       senderName: currentUser.name,
       senderAvatar: currentUser.avatarUrl,
       senderRole: currentUser.role || 'citizen',
+      originalLanguage: currentUser.preferredLanguage || 'fr',
       timestamp: new Date(),
       isRead: false,
       status: 'sending',
@@ -926,6 +929,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           senderId: currentUser.id,
           clientMessageId: p.clientMessageId,
           content: p.content,
+          originalLanguage: currentUser.preferredLanguage || 'fr',
           attachmentUrl: p.attachmentUrl,
           messageType: p.messageType,
           // Corrigé : les deux branches de l'ancien ternaire valaient
@@ -1628,7 +1632,14 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       onToggleAudio={togglePlayAudio}
                       audioProgress={audioProgress}
                       onOpenImageLightbox={(imgUrl) => setLightboxImageUrl(imgUrl)}
-                      onTranslate={(text) => translateMessageText(text, currentUser.preferredLanguage || 'français')}
+                      autoTranslate={msg.senderId !== currentUser.id}
+                      translationTargetLanguage={currentUser.preferredLanguage || 'fr'}
+                      onTranslate={(text) => translationService.translateText({
+                        text,
+                        sourceLanguage: msg.originalLanguage,
+                        targetLanguage: currentUser.preferredLanguage || 'fr',
+                        context: 'messaging',
+                      })}
                     />
                   ))}
                   

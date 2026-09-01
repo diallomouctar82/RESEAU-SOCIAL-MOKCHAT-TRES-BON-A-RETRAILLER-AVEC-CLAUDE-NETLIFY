@@ -1106,6 +1106,8 @@ export interface ChatMessage {
     senderAvatar?: string;
     senderRole?: string;
     text?: string;
+    /** Langue choisie par l'auteur au moment de l'envoi (metadata.original_language). */
+    originalLanguage?: string;
     mediaUrl?: string;
     mediaType?: 'text' | 'image' | 'video' | 'audio' | 'document';
     fileName?: string;
@@ -5430,7 +5432,6 @@ export interface AbandonedSyncTask extends SyncTask {
   /** `permanent` : refus serveur, payload invalide — réessayer n'y changerait rien. */
   reason: 'permanent' | 'max_retries';
 }
-
 
 
 

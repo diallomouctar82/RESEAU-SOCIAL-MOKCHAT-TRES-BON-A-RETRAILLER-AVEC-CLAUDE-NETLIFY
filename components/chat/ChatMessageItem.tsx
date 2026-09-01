@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Check, CheckCheck, Play, Pause, Download, FileText, Reply, Smile,
   MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2, Languages, AlertCircle
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import type { TranslationResult } from '../../services/translation/translationService';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -21,8 +22,12 @@ interface ChatMessageItemProps {
   onToggleAudio: (messageId: string, audioUrl?: string) => void;
   audioProgress?: number; // 0 to 100
   onOpenImageLightbox?: (imageUrl: string) => void;
-  /** LOOP 07/17 : traduction à la demande — retourne toujours le texte d'origine à côté de la traduction, jamais un remplacement silencieux. */
-  onTranslate?: (text: string) => Promise<{ translatedText: string; originalText: string; targetLanguage: string }>;
+  /** Passe exclusivement par le service central de traduction. */
+  onTranslate?: (text: string) => Promise<TranslationResult>;
+  /** Pour les messages reçus : traduction automatique dès que la bulle est visible. */
+  autoTranslate?: boolean;
+  /** Déclenche une nouvelle traduction si la préférence du lecteur change. */
+  translationTargetLanguage?: string;
 }
 
 const COMMON_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💡', '🛡️'];
@@ -43,27 +48,83 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onToggleAudio,
   audioProgress = 0,
   onOpenImageLightbox,
-  onTranslate
+  onTranslate,
+  autoTranslate = false,
+  translationTargetLanguage,
 }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const onTranslateRef = useRef(onTranslate);
+  const translationRequestIdRef = useRef(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [translation, setTranslation] = useState<{ translatedText: string; targetLanguage: string } | null>(null);
+  const [translation, setTranslation] = useState<TranslationResult | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [translationAttempted, setTranslationAttempted] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    onTranslateRef.current = onTranslate;
+  }, [onTranslate]);
+
+  // Ne lance pas un appel de traduction pour les dizaines de messages hors
+  // écran : une bulle reçue est traduite automatiquement lorsqu'elle entre
+  // réellement dans la zone visible. Repli immédiat si l'API n'existe pas.
+  useEffect(() => {
+    if (!autoTranslate || !containerRef.current) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '120px 0px' });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [autoTranslate, message.id]);
+
+  useEffect(() => {
+    // Invalide toute réponse encore en vol pour l'ancien message ou
+    // l'ancienne langue : une réponse tardive ne doit jamais écraser la
+    // traduction correspondant à la préférence actuelle du lecteur.
+    translationRequestIdRef.current += 1;
+    setTranslation(null);
+    setTranslationAttempted(false);
+    setIsTranslating(false);
+  }, [message.id, message.text, translationTargetLanguage]);
+
+  useEffect(() => () => {
+    translationRequestIdRef.current += 1;
+  }, []);
 
   const isAudioPlaying = playingAudioId === message.id;
 
   const handleTranslate = async () => {
-    if (!onTranslate || !message.text || isTranslating) return;
+    const translate = onTranslateRef.current;
+    if (!translate || !message.text || isTranslating) return;
+    const requestId = translationRequestIdRef.current + 1;
+    translationRequestIdRef.current = requestId;
     setShowMenu(false);
     setIsTranslating(true);
+    setTranslationAttempted(true);
     try {
-      const result = await onTranslate(message.text);
-      setTranslation({ translatedText: result.translatedText, targetLanguage: result.targetLanguage });
+      const result = await translate(message.text);
+      if (translationRequestIdRef.current === requestId) setTranslation(result);
     } finally {
-      setIsTranslating(false);
+      if (translationRequestIdRef.current === requestId) setIsTranslating(false);
     }
   };
+
+  useEffect(() => {
+    if (!autoTranslate || !isVisible || translationAttempted || !message.text) return;
+    void handleTranslate();
+    // `onTranslate` est lu depuis une ref : un rerender du parent ne doit
+    // jamais annuler/rejouer une traduction déjà en vol.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTranslate, isVisible, translationAttempted, message.id, message.text, translationTargetLanguage]);
 
   const handleCopyText = () => {
     if (message.text) {
@@ -84,7 +145,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   })();
 
   return (
-    <div className={`group relative flex gap-2.5 my-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+    <div ref={containerRef} className={`group relative flex gap-2.5 my-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
       
       {/* Remote Avatar */}
       {!isMe && (
@@ -123,10 +184,22 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           )}
 
           {/* Translation (LOOP 07/17) — le texte d'origine reste toujours affiché au-dessus, jamais remplacé silencieusement. */}
-          {translation && (
+          {translation?.status === 'translated' && (
             <div className={`text-xs leading-relaxed whitespace-pre-wrap break-words pt-1.5 mt-1 border-t ${isMe ? 'border-white/20 text-indigo-50' : 'border-slate-200 text-slate-700'} italic`}>
-              <span className={`not-italic text-[9px] font-bold uppercase tracking-wide block mb-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>Traduit ({translation.targetLanguage})</span>
+              <span className={`not-italic text-[9px] font-bold uppercase tracking-wide block mb-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>Traduction automatique · {translation.targetLanguageLabel}</span>
               {translation.translatedText}
+            </div>
+          )}
+
+          {isTranslating && autoTranslate && (
+            <div className={`text-[10px] pt-1.5 mt-1 border-t ${isMe ? 'border-white/20 text-indigo-200' : 'border-slate-200 text-slate-400'}`}>
+              Traduction automatique…
+            </div>
+          )}
+
+          {translation?.status === 'unavailable' && (
+            <div className={`text-[10px] pt-1.5 mt-1 border-t flex items-center gap-1 ${isMe ? 'border-white/20 text-indigo-200' : 'border-slate-200 text-amber-700'}`}>
+              <AlertCircle size={11} /> Traduction indisponible — l’original reste affiché.
             </div>
           )}
 
@@ -341,14 +414,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   </button>
                 )}
 
-                {onTranslate && message.text && !translation && (
+                {onTranslate && message.text && translation?.status !== 'translated' && (
                   <button
                     onClick={handleTranslate}
                     disabled={isTranslating}
                     className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 disabled:opacity-50"
                   >
                     <Languages size={13} className="text-indigo-500" />
-                    <span>{isTranslating ? 'Traduction...' : 'Traduire'}</span>
+                    <span>{isTranslating ? 'Traduction...' : translation?.status === 'unavailable' ? 'Réessayer la traduction' : 'Traduire'}</span>
                   </button>
                 )}
 

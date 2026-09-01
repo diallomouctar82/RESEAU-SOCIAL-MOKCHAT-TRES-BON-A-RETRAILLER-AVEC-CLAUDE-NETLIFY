@@ -27,6 +27,7 @@ Chaque idée enregistrée comprend :
 | **IDEA-005** | Diagnostic Médical Préventif par Capteurs Connectés (IoT) | `Santé` | `Basse` | `En réserve` | Web Bluetooth API, Validation déontologique |
 | **IDEA-006** | Simulateur Visas en Réalité Augmentée / Guichet Virtuel | `Mobilité` / `World` | `Moyenne` | `En réserve` | WebXR, Google Maps 3D |
 | **IDEA-007** | Plateforme de Crowdfunding Communautaire pour Projets MOK | `Wallet` / `Social` | `Haute` | `À l'étude` | Wallet, MokTrustHub, Contrats d'investissement |
+| **IDEA-008** | Traduction bidirectionnelle des appels Moknet | `Messagerie` / `Appels` | `Stratégique` | `Planifié` — validation requise | Service central de traduction, transport audio pair-à-pair réel, STT/TTS temps réel |
 
 ---
 
@@ -56,3 +57,12 @@ Chaque idée enregistrée comprend :
 * **Intérêt** : Un agent mandataire paramétré avec les seuils de prix d'un grossiste peut pré-négocier 24h/24 les IncoTerms et volumes avec les acheteurs avant validation finale par l'entrepreneur.
 * **Dépendances** : `TradeDealNegotiation`, `aiService`, validation humaine finale obligatoire.
 * **Statut** : `À l'étude`.
+
+---
+
+### [IDEA-008] Traduction bidirectionnelle des appels Moknet
+* **Origine** : Mission utilisateur du 1er septembre 2026, explicitement découpée en deux fonctionnalités séquentielles.
+* **Module(s)** : `MoocChatFloating`, `ChatCallModal`, communication multilingue.
+* **Intérêt** : Chaque interlocuteur parle dans sa langue et entend la conversation dans sa propre langue, avec deux sélecteurs explicites (« Ma langue » et « Langue de mon interlocuteur »).
+* **Dépendances** : Phase texte validée, `services/translation/translationService.ts` obligatoire, transport audio pair-à-pair réellement fonctionnel, transcription et synthèse en flux avec maîtrise de la latence et du consentement micro.
+* **Statut** : `Planifié`, mais bloqué jusqu'à validation explicite de la fonctionnalité 1. Aucun code vocal engagé dans v6.6.3.
