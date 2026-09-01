@@ -454,12 +454,21 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // après ouverture (via `subscribeToChat`) étaient visibles.
   useEffect(() => {
     if (!currentChatId || !currentUser?.id) return;
-    let cancelled = false;
 
     // Équipe F1 (D13) : ouvrir une conversation la marque lue — le badge
     // local retombe à 0 en même temps que markConversationRead côté serveur.
     setConversations(prev => prev.map(c => c.id === currentChatId && c.unreadCount ? { ...c, unreadCount: 0 } : c));
     setTypingUsers({});
+
+    // Incident production 01/09/2026 : les fils locaux de démonstration
+    // (`chat-u5`, `local-…`) ne sont pas des UUID PostgreSQL. Ils restent
+    // utilisables en mode local, mais ne doivent JAMAIS atteindre les APIs
+    // `messages`/Realtime, dont `conversation_id` est strictement de type
+    // UUID. Sans cette frontière, l'ouverture d'un fil local déclenchait un
+    // GET /messages 400 (22P02) et un abonnement Realtime invalide.
+    if (!isLikelyRealId(currentChatId)) return;
+
+    let cancelled = false;
 
     (async () => {
       const history = await supabaseService.getConversationMessages(currentChatId);
