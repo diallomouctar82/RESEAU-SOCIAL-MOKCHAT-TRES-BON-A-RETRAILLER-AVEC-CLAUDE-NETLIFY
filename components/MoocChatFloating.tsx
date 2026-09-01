@@ -1801,6 +1801,15 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       try {
         const conversationId = await supabaseService.createDirectConversation(currentUser.id, member.id);
         if (conversationId) {
+          // Le cache de profils n'est rempli qu'au chargement des conversations
+          // (`loadSupabaseData`) : sans cette ligne, le premier message reçu
+          // dans un fil qui vient d'être créé était estampillé « Membre »
+          // (paquet Realtime sans jointure). L'identité de l'interlocuteur est
+          // connue ici — elle sert donc immédiatement.
+          participantProfilesRef.current[conversationId] = {
+            ...(participantProfilesRef.current[conversationId] || {}),
+            [member.id]: { name: member.name, avatarUrl: member.avatarUrl },
+          };
           const newConv: ChatConversation = {
             id: conversationId,
             participantId: member.id,

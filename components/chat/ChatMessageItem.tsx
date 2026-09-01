@@ -240,11 +240,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     <div ref={containerRef} className={`group relative flex gap-2.5 my-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
       
       {/* Avatar du correspondant (à gauche) — sa photo réelle, sinon ses
-          initiales : plus jamais la photo d'un inconnu présentée comme la sienne. */}
+          initiales : plus jamais la photo d'un inconnu présentée comme la sienne.
+          Dans un fil DIRECT, l'expéditeur d'une bulle reçue est par construction
+          le correspondant : son identité (en-tête de conversation) prime sur le
+          nom estampillé sur le message, qui retombe sur « Membre » quand le
+          cache de profils n'est pas encore rempli (conversation qui vient d'être
+          créée, paquet Realtime sans jointure). En groupe, le nom du message
+          reste la seule identité fiable de son expéditeur. */}
       {!isMe && (
         <InitialsAvatar
-          name={message.senderName || participantName || 'Membre'}
-          avatarUrl={message.senderAvatar || participantAvatar}
+          name={(!isGroup && participantName) || message.senderName || participantName || 'Membre'}
+          avatarUrl={(!isGroup && participantAvatar) || message.senderAvatar || participantAvatar}
           size={28}
           className="self-end mb-1 ring-1 ring-slate-200"
         />
