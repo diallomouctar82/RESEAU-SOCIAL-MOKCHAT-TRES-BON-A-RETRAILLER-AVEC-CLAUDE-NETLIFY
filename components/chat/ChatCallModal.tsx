@@ -9,9 +9,9 @@ import type { LiveConnectionQuality, SendDataOptions } from '../../services/live
 import { translationService, getLanguageLabel } from '../../services/translation/translationService';
 import { myEffectiveLanguage } from '../../services/messaging/messageLanguage';
 import {
-  decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
+  captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
 } from '../../services/messaging/speechLanguage';
-import { CallCaptioner, InterpreterVoice, captionLanguageFromTag } from '../../services/calls/callInterpreter';
+import { CallCaptioner, InterpreterVoice, ServerCaptioner, captionLanguageFromTag } from '../../services/calls/callInterpreter';
 
 /**
  * HL-3 : libellé + couleur de la qualité réseau RÉELLE rapportée par le
@@ -160,12 +160,20 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   const [captionsUnavailable, setCaptionsUnavailable] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [interpreterSpeaking, setInterpreterSpeaking] = useState(false);
-  const captionerRef = useRef<CallCaptioner | null>(null);
+  // VF-4 : le captioner actif est soit la transcription serveur, soit le
+  // repli navigateur — les deux savent s'arrêter net.
+  const captionerRef = useRef<{ stop: () => void } | null>(null);
   const voiceRef = useRef<InterpreterVoice | null>(null);
   const voiceEnabledRef = useRef(voiceEnabled);
   const sendDataRef = useRef<(payload: Uint8Array, options?: SendDataOptions) => Promise<void>>(transport.sendData);
   sendDataRef.current = transport.sendData;
   const lastInterimSentAtRef = useRef(0);
+  // Miroirs lus par le captioner sans jamais le redémarrer : la piste micro
+  // (publiée un peu après la connexion) et « l'interprète parle » (mon micro
+  // entend alors mon haut-parleur — ce n'est pas ma voix).
+  const getLocalAudioTrackRef = useRef(transport.getLocalAudioTrack);
+  getLocalAudioTrackRef.current = transport.getLocalAudioTrack;
+  const interpreterSpeakingRef = useRef(false);
 
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
@@ -183,9 +191,14 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
       setPeerCaption({ original: msg.text, sourceLang: msg.lang, final: false });
       return;
     }
-    if (!plan.needsTranslation) {
-      const caption: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, translated: msg.text };
+    // VF-4 : si l'émetteur a déjà joint la traduction dans MA langue
+    // (transcription serveur), elle est affichée et dite tout de suite —
+    // zéro appel réseau. Même langue des deux côtés : l'original tel quel.
+    const ready = captionForReceiver(msg, myLanguage);
+    if (!ready.needsTranslation) {
+      const caption: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, translated: ready.text };
       setPeerCaption((prev) => { if (prev?.final && prev.translated) setRecentCaptions((r) => [prev, ...r].slice(0, 2)); return caption; });
+      if (ready.translatedByPeer && voiceEnabledRef.current) voiceRef.current?.speak(ready.text);
       return;
     }
     const pending: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, pending: true };
@@ -210,37 +223,94 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   }, [mediaConnected, remote?.participant.identity, myLang]);
 
   // Ma voix → sous-titres pour l'autre (seulement si l'un de nous a choisi une langue, micro ouvert).
+  // VF-4 : transcription SERVEUR d'abord — ma piste micro est découpée en
+  // segments et la passerelle renvoie le texte, la langue détectée et la
+  // traduction dans la langue du correspondant (le récepteur n'a alors plus
+  // rien à traduire). La reconnaissance du navigateur n'est plus qu'un repli,
+  // et si elle manque aussi, l'écran le dit. Redémarré quand ma langue ou
+  // celle du correspondant change (dépendances ci-dessous).
   useEffect(() => {
     const wanted = mediaConnected && !isMuted && shouldCaptionMyVoice({ myLanguage, peerLanguage });
     if (!wanted) { setMyLiveText(''); return; }
-    const lang = captionLanguageFromTag(mySpeechTag);
-    const send = (text: string, final: boolean) => {
+    const declaredLang = captionLanguageFromTag(mySpeechTag) ?? null;
+    const peerLang = myEffectiveLanguage(peerLanguage);
+    const send = (text: string, final: boolean, detail?: { lang?: string | null; translated?: string | null; targetLang?: string | null }) => {
       const now = Date.now();
       if (!final) { if (now - lastInterimSentAtRef.current < 400) return; lastInterimSentAtRef.current = now; }
+      const lang = detail?.lang !== undefined ? detail.lang : declaredLang;
+      const attached = detail?.translated && detail.targetLang ? { translated: detail.translated, targetLang: detail.targetLang } : {};
       void sendDataRef.current(
-        encodeCallData({ t: 'caption', v: 1, id: crypto.randomUUID(), text, lang, final, ts: now }),
+        encodeCallData({ t: 'caption', v: 1, id: crypto.randomUUID(), text, lang, final, ts: now, ...attached }),
         { reliable: final },
       ).catch(() => {});
     };
-    const captioner = new CallCaptioner({
-      lang: mySpeechTag,
-      onInterim: (text) => { setMyLiveText(text); send(text, false); },
-      onFinal: (text) => { setMyLiveText(''); send(text, true); },
-      onUnavailable: (reason) => setCaptionsUnavailable(reason),
-    });
-    if (!captioner.start()) return;
-    captionerRef.current = captioner;
-    return () => { captioner.stop(); if (captionerRef.current === captioner) captionerRef.current = null; setMyLiveText(''); };
+    let disposed = false;
+    let browser: CallCaptioner | null = null;
+    let server: ServerCaptioner | null = null;
+    const startBrowser = (): boolean => {
+      if (disposed || !CallCaptioner.isSupported()) return false;
+      browser = new CallCaptioner({
+        lang: mySpeechTag,
+        onInterim: (text) => { setMyLiveText(text); send(text, false); },
+        onFinal: (text) => { setMyLiveText(''); send(text, true); },
+        onUnavailable: (reason) => setCaptionsUnavailable(reason),
+      });
+      if (!browser.start()) { browser = null; return false; }
+      captionerRef.current = browser;
+      return true;
+    };
+    setCaptionsUnavailable(null);
+    if (ServerCaptioner.isSupported()) {
+      server = new ServerCaptioner({
+        getTrack: () => getLocalAudioTrackRef.current(),
+        languageHint: myLang,
+        targetLanguage: peerLang && peerLang !== myLang ? peerLang : undefined,
+        // Pas de texte partiel côté serveur : état local honnête seulement, rien n'est envoyé au correspondant.
+        onInterim: (text) => setMyLiveText(text),
+        onFinal: (caption) => {
+          setMyLiveText('');
+          send(caption.text, true, { lang: caption.language || declaredLang, translated: caption.translated, targetLang: caption.targetLang });
+        },
+        onUnavailable: (reason) => {
+          if (captionerRef.current === server) captionerRef.current = null;
+          server = null;
+          setMyLiveText('');
+          // Repli : reconnaissance du navigateur si elle existe ; sinon on le dit, jamais un silence inexpliqué.
+          if (!startBrowser()) setCaptionsUnavailable(`Sous-titres indisponibles : ${reason}`);
+        },
+        isPaused: () => interpreterSpeakingRef.current,
+      });
+      if (server.start()) captionerRef.current = server;
+    } else if (!startBrowser()) {
+      setCaptionsUnavailable('Sous-titres indisponibles sur ce navigateur (ni capture audio, ni reconnaissance vocale).');
+    }
+    return () => {
+      disposed = true;
+      server?.stop();
+      browser?.stop();
+      if (captionerRef.current && (captionerRef.current === server || captionerRef.current === browser)) captionerRef.current = null;
+      setMyLiveText('');
+    };
     // myLanguage est représenté par myLang/mySpeechTag ; peerLanguage déclenche le démarrage quand l'autre choisit une langue.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaConnected, isMuted, myLang, peerLanguage, mySpeechTag]);
 
   // Voix de l'interprète dans MA langue — n'existe qu'avec une langue choisie.
+  // Le miroir `interpreterSpeakingRef` est posé AVANT le rendu : le captioner
+  // serveur jette immédiatement ce que le micro capte pendant que la voix parle.
   useEffect(() => {
     if (!myLang) { voiceRef.current?.stop(); voiceRef.current = null; return; }
-    const voice = new InterpreterVoice({ lang: mySpeechTag, onSpeakingChange: setInterpreterSpeaking });
+    const voice = new InterpreterVoice({
+      lang: mySpeechTag,
+      onSpeakingChange: (speaking) => { interpreterSpeakingRef.current = speaking; setInterpreterSpeaking(speaking); },
+    });
     voiceRef.current = voice;
-    return () => { voice.stop(); if (voiceRef.current === voice) voiceRef.current = null; setInterpreterSpeaking(false); };
+    return () => {
+      voice.stop();
+      if (voiceRef.current === voice) voiceRef.current = null;
+      interpreterSpeakingRef.current = false;
+      setInterpreterSpeaking(false);
+    };
   }, [myLang, mySpeechTag]);
 
   // Pendant que l'interprète parle, l'original est atténué : on n'entend que sa langue.

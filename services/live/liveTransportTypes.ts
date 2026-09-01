@@ -115,4 +115,11 @@ export interface LiveTransportProvider {
     getLocalParticipant(): LiveParticipantHandle | null;
     getRemoteParticipants(): LiveParticipantHandle[];
     getConnectionState(): LiveConnectionState;
+    /**
+     * VF-4 : la piste micro LOCALE réellement publiée (MediaStreamTrack), pour
+     * la transcription serveur de l'interprète d'appel — null tant que le
+     * micro n'est pas publié. Lecture seule : l'appelant n'arrête jamais
+     * cette piste, il l'écoute.
+     */
+    getLocalAudioTrack(): MediaStreamTrack | null;
 }

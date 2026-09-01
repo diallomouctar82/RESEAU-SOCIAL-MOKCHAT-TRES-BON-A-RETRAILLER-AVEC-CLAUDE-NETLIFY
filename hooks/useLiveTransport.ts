@@ -80,6 +80,12 @@ export interface UseLiveTransportResult {
      * l'effet de connexion. Sans effet si le transport est désactivé.
      */
     retry: () => void;
+    /**
+     * VF-4 : piste micro locale réellement publiée (null avant publication ou
+     * hors connexion) — lue à la demande par l'interprète d'appel pour la
+     * transcription serveur. Référence stable (deps []).
+     */
+    getLocalAudioTrack: () => MediaStreamTrack | null;
 }
 
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
@@ -301,6 +307,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             // le navigateur a encore refusé — l'état bloqué reste affiché
         }
     }, []);
+    const getLocalAudioTrack = useCallback((): MediaStreamTrack | null => {
+        return providerRef.current?.getLocalAudioTrack() ?? null;
+    }, []);
 
     return {
         connectionState,
@@ -322,6 +331,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         stopScreenShare,
         disconnect,
         retry,
+        getLocalAudioTrack,
     };
 }
 

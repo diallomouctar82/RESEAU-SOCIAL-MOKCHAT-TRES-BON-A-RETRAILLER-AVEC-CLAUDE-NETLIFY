@@ -13,7 +13,7 @@ import { summarizeConversation, assistRewriteMessage } from '../services/messagi
 import { translationService, MESSAGING_LANGUAGES } from '../services/translation/translationService';
 import { detectRecipientLanguage, myEffectiveLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
 import { languageCodeFromTag, speechTagFor } from '../services/messaging/speechLanguage';
-import { CallCaptioner, InterpreterVoice } from '../services/calls/callInterpreter';
+import { CallCaptioner, InterpreterVoice, transcribeVoiceRecording } from '../services/calls/callInterpreter';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
@@ -224,6 +224,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [liveVoiceTranscript, setLiveVoiceTranscript] = useState('');
   const [recordedTranscript, setRecordedTranscript] = useState<string | null>(null);
   const [recordedTranscriptLanguage, setRecordedTranscriptLanguage] = useState<string | undefined>(undefined);
+  // VF-4 : quand la reconnaissance du navigateur est absente ou n'a rien
+  // produit (la plupart des téléphones), le vocal est transcrit par le
+  // SERVEUR après l'enregistrement — état visible (« Transcription en
+  // cours… »), message honnête si impossible, et le vocal part quoi qu'il
+  // arrive. Le compteur invalide une réponse arrivée après une annulation,
+  // un rejet ou un envoi.
+  const [voiceTranscriptionPending, setVoiceTranscriptionPending] = useState(false);
+  const [voiceTranscriptionNote, setVoiceTranscriptionNote] = useState<string | null>(null);
+  const voiceTranscriptionSeqRef = useRef(0);
+  const resetVoiceTranscriptionState = () => {
+    voiceTranscriptionSeqRef.current += 1;
+    setVoiceTranscriptionPending(false);
+    setVoiceTranscriptionNote(null);
+  };
 
   // Audio Playback state
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
@@ -716,6 +730,30 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         setRecordedTranscriptLanguage(transcript ? (languageCodeFromTag(voiceSpeechTagRef.current) ?? myLanguage) : undefined);
         const effectiveType = mediaRecorder.mimeType || mime || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: effectiveType });
+        // VF-4 : rien du navigateur → transcription serveur (langue DÉTECTÉE
+        // par le fournisseur, sinon ma langue). Jamais bloquant pour l'envoi.
+        if (!transcript) {
+          const seq = ++voiceTranscriptionSeqRef.current;
+          setVoiceTranscriptionPending(true);
+          setVoiceTranscriptionNote(null);
+          transcribeVoiceRecording(audioBlob, myLanguage)
+            .then((result) => {
+              if (voiceTranscriptionSeqRef.current !== seq) return; // annulé, rejeté ou déjà envoyé entre-temps
+              if (result.text) {
+                setRecordedTranscript(result.text);
+                setRecordedTranscriptLanguage(result.language);
+              } else {
+                setVoiceTranscriptionNote('Aucune parole reconnue dans ce vocal — il part tel quel.');
+              }
+            })
+            .catch((err) => {
+              if (voiceTranscriptionSeqRef.current !== seq) return;
+              console.warn('Transcription serveur du vocal impossible', err);
+              const detail = err instanceof Error && err.message ? ` (${err.message})` : '';
+              setVoiceTranscriptionNote(`Transcription indisponible${detail} — le vocal part tel quel.`);
+            })
+            .finally(() => { if (voiceTranscriptionSeqRef.current === seq) setVoiceTranscriptionPending(false); });
+        }
         const reader = new FileReader();
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
@@ -739,6 +777,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setLiveVoiceTranscript('');
       setRecordedTranscript(null);
       setRecordedTranscriptLanguage(undefined);
+      resetVoiceTranscriptionState();
       voiceSpeechTagRef.current = speechTagFor(myLanguage, typeof navigator !== 'undefined' ? navigator.language : undefined);
       const captioner = new CallCaptioner({
         lang: voiceSpeechTagRef.current,
@@ -773,6 +812,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setLiveVoiceTranscript('');
       setRecordedTranscript(null);
       setRecordedTranscriptLanguage(undefined);
+      resetVoiceTranscriptionState();
       mediaRecorderRef.current.stop();
       setIsRecordingVoice(false);
       clearInterval(recordingTimerRef.current);
@@ -940,6 +980,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     setRecordedAudioUrl(null);
     setRecordedTranscript(null);
     setRecordedTranscriptLanguage(undefined);
+    // VF-4 : une transcription serveur encore en vol ne s'attachera plus à
+    // rien — le vocal part maintenant, tel quel (jamais retenu par elle).
+    resetVoiceTranscriptionState();
     setReplyingTo(null);
 
     // Équipe F1 (D4) : le vocal partait en BASE64 DANS LA LIGNE — au-delà de
@@ -1882,13 +1925,18 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         <Volume2 size={16} className="text-indigo-600" />
                         <span>Message vocal prêt ({recordingDuration}s)</span>
                       </div>
-                      {/* HL-2 : transcription réelle jointe au vocal — l'interlocuteur la lira dans SA langue. */}
-                      <p className="text-[11px] text-indigo-800/80 italic truncate" title={recordedTranscript ?? undefined}>
-                        {recordedTranscript ? `« ${recordedTranscript} »` : 'Aucune transcription disponible sur ce navigateur — le vocal part tel quel.'}
+                      {/* HL-2 : transcription réelle jointe au vocal — l'interlocuteur la lira dans SA langue.
+                          VF-4 : faite par le serveur quand le navigateur n'a rien produit — état visible, jamais bloquant. */}
+                      <p className="text-[11px] text-indigo-800/80 italic truncate" title={recordedTranscript ?? voiceTranscriptionNote ?? undefined}>
+                        {recordedTranscript
+                          ? `« ${recordedTranscript} »`
+                          : voiceTranscriptionPending
+                            ? 'Transcription en cours…'
+                            : (voiceTranscriptionNote ?? 'Aucune transcription disponible — le vocal part tel quel.')}
                       </p>
                     </div>
                     <button
-                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); setRecordedTranscript(null); setRecordedTranscriptLanguage(undefined); }}
+                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); setRecordedTranscript(null); setRecordedTranscriptLanguage(undefined); resetVoiceTranscriptionState(); }}
                       className="p-1 hover:bg-indigo-100 text-slate-500 rounded-full flex-shrink-0"
                     >
                       <X size={14} />

@@ -1,14 +1,23 @@
-import { generateSpeechDetailed } from '../aiGateway';
+import { generateSpeechDetailed, transcribeSpeechDetailed } from '../aiGateway';
 import { languageCodeFromTag } from '../messaging/speechLanguage';
+import { PcmSegmenter, blobToWav16kMono, bytesToBase64, encodeWav16kMono, readBlobBytes } from './pcmSegmenter';
 
 /**
- * Interprète d'appel — les deux briques qui touchent au matériel :
+ * Interprète d'appel — les briques qui touchent au matériel :
  *
- * - `CallCaptioner` : reconnaissance vocale du navigateur (Web Speech API)
- *   sur MA voix, dans MA langue, pendant un appel. Instance DÉDIÉE — jamais
- *   le singleton `voiceEngine` de l'Architecte : un appel entre deux personnes
- *   ne doit ni réveiller l'assistant ni hériter de ses états (barge-in,
- *   verrous de voix, propriété de session). Les segments finaux partent vers
+ * - `ServerCaptioner` (VF-4, chemin PRINCIPAL) : ma voix, découpée en segments
+ *   par `PcmSegmenter`, est transcrite — et traduite dans la langue du
+ *   correspondant — par la passerelle IA (services/aiGateway.ts,
+ *   transcribeSpeechDetailed). Indépendant de la reconnaissance vocale du
+ *   navigateur, absente ou muette sur la plupart des téléphones : c'était la
+ *   cause réelle de « la traduction ne fonctionne pas » (audit VF-0 : zéro
+ *   appel STT jamais journalisé).
+ *
+ * - `CallCaptioner` (repli) : reconnaissance vocale du navigateur (Web Speech
+ *   API) sur MA voix, dans MA langue. Instance DÉDIÉE — jamais le singleton
+ *   `voiceEngine` de l'Architecte : un appel entre deux personnes ne doit ni
+ *   réveiller l'assistant ni hériter de ses états (barge-in, verrous de
+ *   voix, propriété de session). Les segments finaux partent vers
  *   l'interlocuteur par le canal de données LiveKit ; c'est LUI qui les
  *   traduit dans SA langue.
  *
@@ -149,6 +158,199 @@ export class CallCaptioner {
             if (this.active) this.restartTimer = setTimeout(() => { this.restartTimer = null; if (this.active) this.spawn(Cls); }, 600);
         }
     }
+}
+
+// ── Transcription serveur (VF-4) ────────────────────────────────────────────
+
+export interface ServerCaption {
+    text: string;
+    /** Langue de `text` : détectée par le serveur (code catalogue), sinon l'indication donnée, sinon chaîne vide. */
+    language: string;
+    /** Traduction faite dans la même réponse, dans `targetLang` — null si non demandée, même langue, ou fournisseur sans traduction. */
+    translated: string | null;
+    targetLang: string | null;
+}
+
+export interface ServerCaptionerOptions {
+    /** Piste micro locale (LiveKit) — relue à intervalle tant qu'elle n'est pas publiée, et après un changement de micro. */
+    getTrack: () => MediaStreamTrack | null;
+    /** Ma langue effective (indication pour le serveur ; absente = détection seule). */
+    languageHint?: string;
+    /** Langue du correspondant quand elle diffère de la mienne : la traduction arrive avec la transcription. */
+    targetLanguage?: string;
+    /** État local honnête (« Transcription… » pendant l'aller-retour, '' ensuite) — jamais un texte partiel inventé. */
+    onInterim?: (text: string) => void;
+    onFinal: (caption: ServerCaption) => void;
+    /** Panne définitive (micro absent, 3 échecs serveur d'affilée) — l'appelant bascule sur un repli, ou le dit à l'écran. */
+    onUnavailable?: (reason: string) => void;
+    /** Vrai pendant que l'interprète parle dans mon haut-parleur : ce que mon micro capte alors n'est pas ma voix. */
+    isPaused?: () => boolean;
+}
+
+/** Délai maximal d'attente de la publication du micro (elle suit la connexion de peu). */
+const TRACK_WAIT_MS = 12_000;
+const TRACK_POLL_MS = 250;
+/** Au-delà, la passerelle est considérée indisponible pour cet appel. */
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+export class ServerCaptioner {
+    static isSupported(): boolean {
+        return PcmSegmenter.isSupported();
+    }
+
+    private segmenter: PcmSegmenter | null = null;
+    private active = false;
+    private inFlight = false;
+    /** Segment en attente pendant qu'un autre est en vol — le plus récent seulement, pour garder la latence basse. */
+    private queued: { audioBase64: string } | null = null;
+    private consecutiveFailures = 0;
+    private trackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    constructor(private readonly options: ServerCaptionerOptions) {}
+
+    start(): boolean {
+        if (!ServerCaptioner.isSupported()) {
+            this.options.onUnavailable?.('Capture audio non disponible sur ce navigateur.');
+            return false;
+        }
+        if (this.active) return true;
+        this.active = true;
+        this.consecutiveFailures = 0;
+        this.waitForTrack(Date.now());
+        return true;
+    }
+
+    /** Arrêt net : plus aucun rappel après cet appel, même pour une requête encore en vol. */
+    stop(): void {
+        this.active = false;
+        if (this.trackTimer) { clearTimeout(this.trackTimer); this.trackTimer = null; }
+        const segmenter = this.segmenter;
+        this.segmenter = null;
+        segmenter?.stop();
+        this.queued = null;
+    }
+
+    private fail(reason: string): void {
+        this.stop();
+        this.options.onUnavailable?.(reason);
+    }
+
+    private waitForTrack(startedAt: number): void {
+        if (!this.active) return;
+        const track = this.options.getTrack();
+        if (track && track.readyState === 'live') { void this.attach(track); return; }
+        if (Date.now() - startedAt >= TRACK_WAIT_MS) { this.fail('Micro indisponible pour la transcription.'); return; }
+        this.trackTimer = setTimeout(() => { this.trackTimer = null; this.waitForTrack(startedAt); }, TRACK_POLL_MS);
+    }
+
+    private async attach(track: MediaStreamTrack): Promise<void> {
+        const segmenter = new PcmSegmenter({
+            track,
+            isPaused: this.options.isPaused,
+            onSegment: (pcm) => this.enqueue(pcm),
+            onError: () => {
+                // Piste terminée (changement de micro, reprise LiveKit) : on
+                // se rattache à la nouvelle publication au lieu de se taire.
+                if (this.segmenter !== segmenter) return;
+                segmenter.stop();
+                this.segmenter = null;
+                if (this.active) this.waitForTrack(Date.now());
+            },
+        });
+        this.segmenter = segmenter;
+        try {
+            await segmenter.start();
+        } catch (err) {
+            if (this.segmenter !== segmenter) return;
+            this.segmenter = null;
+            this.fail(err instanceof Error ? err.message : 'Capture audio impossible.');
+        }
+    }
+
+    private enqueue(pcm: Int16Array): void {
+        if (!this.active) return;
+        if (this.options.isPaused?.()) return; // capté pendant que l'interprète parlait : pas ma voix
+        const audioBase64 = bytesToBase64(encodeWav16kMono(pcm));
+        if (this.inFlight) { this.queued = { audioBase64 }; return; } // le plus récent gagne, l'ancien est abandonné
+        void this.transcribe(audioBase64);
+    }
+
+    private async transcribe(audioBase64: string): Promise<void> {
+        this.inFlight = true;
+        this.options.onInterim?.('Transcription…');
+        try {
+            const result = await transcribeSpeechDetailed({
+                audioBase64,
+                mimeType: 'audio/wav',
+                languageHint: this.options.languageHint,
+                targetLanguage: this.options.targetLanguage,
+            });
+            this.consecutiveFailures = 0;
+            if (!this.active) return;
+            const text = result.text.trim();
+            if (!text) return; // silence ou bruit : rien à afficher, rien à inventer
+            const detected = languageCodeFromTag(result.language);
+            const translated = result.translated?.trim() || null;
+            this.options.onFinal({
+                text,
+                language: detected ?? this.options.languageHint ?? '',
+                translated,
+                targetLang: translated ? (result.targetLanguage ?? this.options.targetLanguage ?? null) : null,
+            });
+        } catch (err) {
+            if (!this.active) return;
+            this.consecutiveFailures += 1;
+            if (this.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                const detail = err instanceof Error ? err.message : String(err);
+                this.fail(`Transcription serveur indisponible (${detail}).`);
+            }
+        } finally {
+            this.inFlight = false;
+            if (this.active) this.options.onInterim?.('');
+            const next = this.queued;
+            this.queued = null;
+            if (next && this.active) void this.transcribe(next.audioBase64);
+        }
+    }
+}
+
+/** Au-delà (≈ 7 min de WAV 16 kHz), le corps de requête dépasserait la limite serveur (20 Mo en base64). */
+const MAX_VOICE_WAV_BYTES = 14 * 1024 * 1024;
+
+export interface VoiceRecordingTranscription {
+    text: string;
+    /** Langue DÉTECTÉE (code catalogue) si le fournisseur la rapporte, sinon l'indication donnée. */
+    language: string | undefined;
+}
+
+/**
+ * VF-4 — transcription serveur d'un VOCAL enregistré (MediaRecorder), quand
+ * la reconnaissance du navigateur est absente ou n'a rien produit. Le blob
+ * est décodé, mélangé en mono, rééchantillonné à 16 kHz et envoyé en WAV —
+ * même chemin que l'appel. Si le navigateur ne sait pas décoder son propre
+ * conteneur, l'audio brut part tel quel avec son type MIME (les fournisseurs
+ * acceptent ogg/aac/mp3…). Rejette avec un message clair sinon ; le vocal,
+ * lui, n'est jamais bloqué par cette étape (voir MoocChatFloating).
+ */
+export async function transcribeVoiceRecording(blob: Blob, languageHint?: string): Promise<VoiceRecordingTranscription> {
+    let audioBase64: string;
+    let mimeType: string;
+    try {
+        const { wav } = await blobToWav16kMono(blob);
+        if (wav.length > MAX_VOICE_WAV_BYTES) throw new Error('Vocal trop long pour la transcription.');
+        audioBase64 = bytesToBase64(wav);
+        mimeType = 'audio/wav';
+    } catch (err) {
+        if (err instanceof Error && /trop long/.test(err.message)) throw err;
+        // Décodage impossible dans ce navigateur : audio brut, type réel.
+        const raw = new Uint8Array(await readBlobBytes(blob));
+        if (raw.length === 0) throw new Error('Enregistrement vide.');
+        if (raw.length > MAX_VOICE_WAV_BYTES) throw new Error('Vocal trop long pour la transcription.');
+        audioBase64 = bytesToBase64(raw);
+        mimeType = (blob.type || 'audio/webm').split(';')[0].trim();
+    }
+    const result = await transcribeSpeechDetailed({ audioBase64, mimeType, languageHint });
+    return { text: result.text.trim(), language: languageCodeFromTag(result.language) ?? languageHint };
 }
 
 export interface InterpreterVoiceOptions {
