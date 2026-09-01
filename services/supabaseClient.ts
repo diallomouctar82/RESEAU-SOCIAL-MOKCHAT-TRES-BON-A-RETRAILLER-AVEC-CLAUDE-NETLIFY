@@ -90,6 +90,40 @@ export const supabase = createClient(
     { auth: { storage: hybridStorage } }
 );
 
+/**
+ * Types des signaux d'appel 1-à-1 (broadcast `call-signals:<userId>`).
+ *  - `call_invitation` : invitation (appelant → appelé), avec le type et
+ *    l'identité réelle de l'appelant ;
+ *  - `call_accepted` : décroché — le SEUL signal qui « connecte » un appel ;
+ *  - `call_rejected` / `call_ended` : refus / fin (ou annulation avant
+ *    décroché, envoyée comme `call_ended` pour rester lisible par les
+ *    clients antérieurs) ;
+ *  - `call_cancelled` : annulation explicite par l'appelant (mission VF,
+ *    accepté en réception, équivalent de `call_ended`) ;
+ *  - `call_handled_elsewhere` : envoyé par un appareil à SES PROPRES autres
+ *    connexions quand il décroche ou refuse (mission VF-2) — celles qui
+ *    sonnent encore se taisent et se ferment sans « appel manqué ».
+ */
+export type CallSignalType =
+    | 'call_invitation'
+    | 'call_accepted'
+    | 'call_rejected'
+    | 'call_ended'
+    | 'call_cancelled'
+    | 'call_handled_elsewhere';
+
+export interface CallSignal {
+    type: CallSignalType;
+    callId: string;
+    conversationId?: string;
+    callType?: 'audio' | 'video';
+    callerId?: string;
+    callerName?: string;
+    callerAvatar?: string;
+    /** `call_cancelled` / `call_handled_elsewhere` : motif. */
+    reason?: 'answered' | 'rejected' | 'cancelled' | 'missed';
+}
+
 export interface SupabaseUserProfile {
     id: string;
     email: string;
@@ -423,12 +457,20 @@ export const supabaseService = {
         }
     },
 
-    subscribeToCallSignals(userId: string, callback: (signal: any) => void): () => void {
+    /**
+     * Signaux d'appel : broadcast éphémère sur `call-signals:<userId>`. Il ne
+     * revient jamais à la connexion qui l'émet, mais atteint bien les AUTRES
+     * connexions du même compte (second onglet, autre appareil) — c'est ce
+     * qui porte `call_handled_elsewhere` (mission VF-2 : un appareil qui
+     * décroche fait taire les autres). Onglet fermé = rien ne passe : c'est
+     * le Web Push (services/calls/callPush.ts) qui prend le relais (VF-1).
+     */
+    subscribeToCallSignals(userId: string, callback: (signal: CallSignal) => void): () => void {
         if (!isSupabaseConfigured) return () => {};
         try {
             const channel = supabase
                 .channel(`call-signals:${userId}`)
-                .on('broadcast', { event: 'signal' }, ({ payload }) => callback(payload))
+                .on('broadcast', { event: 'signal' }, ({ payload }) => callback(payload as CallSignal))
                 .subscribe();
             return () => { supabase.removeChannel(channel); };
         } catch {
@@ -436,7 +478,7 @@ export const supabaseService = {
         }
     },
 
-    async sendCallSignal(toUserId: string, signal: any): Promise<void> {
+    async sendCallSignal(toUserId: string, signal: CallSignal): Promise<void> {
         if (!isSupabaseConfigured) return;
         try {
             // Équipe 7 (appels, A4) : l'ancien `await channel.subscribe()`

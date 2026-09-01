@@ -31,6 +31,15 @@ export interface UseLiveTransportOptions {
      * micro part, jamais un flash de caméra non demandé.
      */
     publishVideoOnConnect?: boolean;
+    /**
+     * Mission VF-3 (pré-connexion pendant la sonnerie) : publier le micro
+     * dès la connexion (défaut true — comportement historique du LIVE et de
+     * l'appelant). false pour l'APPELÉ : il se connecte à la room pendant
+     * que ça sonne (jeton + signalisation faits d'avance) mais AUCUN média
+     * n'est capté avant le décroché — l'activation passe ensuite par
+     * `publishMicrophone()`.
+     */
+    publishAudioOnConnect?: boolean;
     /** HL-3 : profil audio du transport — 'call' pour un appel à deux (Opus parole, RED, DTX), 'live' (défaut) inchangé. */
     audioProfile?: 'live' | 'call';
     /**
@@ -71,6 +80,21 @@ export interface UseLiveTransportResult {
      */
     switchCamera: () => Promise<void>;
     setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
+    /**
+     * Mission VF-3 : activation DIFFÉRÉE du micro (+ caméra si `camera`)
+     * après une connexion sans publication (appelé qui décroche). Publie
+     * immédiatement si la room est connectée ; si une tentative de
+     * connexion est encore en vol, elle publiera dès la connexion ; s'il n'y
+     * a plus de connexion vivante (jeton refusé pendant la sonnerie,
+     * éviction par un autre appareil du même compte…), relance une tentative
+     * complète — jeton + connexion — qui publiera ensuite. Un appel n'est
+     * donc jamais bloqué par l'échec de sa pré-connexion. Rejette si la
+     * capture elle-même échoue (permission refusée), l'erreur étant aussi
+     * exposée dans `mediaError`.
+     */
+    publishMicrophone: (options?: { camera?: boolean }) => Promise<void>;
+    /** Dernier échec de capture micro/caméra (permission refusée, périphérique absent) — null quand tout va bien. */
+    mediaError: string | null;
     startScreenShare: () => Promise<void>;
     stopScreenShare: () => Promise<void>;
     disconnect: () => Promise<void>;
@@ -82,14 +106,44 @@ export interface UseLiveTransportResult {
     retry: () => void;
 }
 
+/** Média local voulu pour une connexion : micro et/ou caméra. */
+interface WantedMedia {
+    audio: boolean;
+    video: boolean;
+}
+
+/**
+ * Publie le média voulu sur un provider connecté (caméra puis micro — ordre
+ * historique du LIVE, conservé). Les erreurs remontent à l'appelant, qui
+ * décide (avertissement au LIVE, message dans l'écran d'appel).
+ */
+async function publishWanted(provider: LiveKitTransportProvider, wanted: WantedMedia): Promise<void> {
+    if (wanted.video) await provider.setCameraEnabled(true);
+    if (wanted.audio) await provider.setMicrophoneEnabled(true);
+}
+
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
-    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, audioProfile = 'live' } = options;
+    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live' } = options;
     const providerRef = useRef<LiveKitTransportProvider | null>(null);
     // HL-4 : le callback de données est lu via une ref — jamais dans les
     // dépendances de l'effet de connexion (un nouveau handler à chaque rendu
     // ne doit pas déclencher une reconnexion).
     const onDataReceivedRef = useRef(options.onDataReceived);
     onDataReceivedRef.current = options.onDataReceived;
+    // VF-3 : les options « publier à la connexion » sont lues via une ref, PAS
+    // dans les dépendances de l'effet — chez l'appelé elles ne bougent pas,
+    // mais un changement de prop ne doit jamais provoquer une reconnexion
+    // (et donc une coupure) en plein appel.
+    const publishOnConnectRef = useRef<WantedMedia>({ audio: publishAudioOnConnect, video: publishVideoOnConnect });
+    publishOnConnectRef.current = { audio: publishAudioOnConnect, video: publishVideoOnConnect };
+    // Média voulu pour la tentative COURANTE (ou la prochaine) : initialisé
+    // depuis publish*OnConnect à chaque tentative, puis complété par
+    // publishMicrophone() — une demande différée survit à une reconnexion.
+    const wantedMediaRef = useRef<WantedMedia | null>(null);
+    // État réel de la tentative en cours, lu par publishMicrophone pour
+    // choisir entre publier maintenant, attendre la connexion, ou relancer.
+    const attemptRef = useRef<{ inFlight: boolean; connected: boolean }>({ inFlight: false, connected: false });
+    const [mediaError, setMediaError] = useState<string | null>(null);
     const [connectionQuality, setConnectionQuality] = useState<LiveConnectionQuality>('unknown');
     const [remoteConnectionQuality, setRemoteConnectionQuality] = useState<LiveConnectionQuality>('unknown');
     // Équipe 10 (L2) : promesse de démontage de la connexion PRÉCÉDENTE.
@@ -126,6 +180,15 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         const provider = new LiveKitTransportProvider();
         providerRef.current = provider;
         const previousTeardown = teardownRef.current;
+        attemptRef.current = { inFlight: true, connected: false };
+        // Ce que cette tentative publiera une fois connectée : les options
+        // « à la connexion », plus tout ce qu'une activation différée a déjà
+        // demandé (appelé qui a décroché pendant que la connexion échouait).
+        const deferred = wantedMediaRef.current;
+        wantedMediaRef.current = {
+            audio: publishOnConnectRef.current.audio || !!deferred?.audio,
+            video: publishOnConnectRef.current.video || !!deferred?.video,
+        };
 
         const upsertRemote = (identity: string, patch: Partial<RemoteParticipantMedia>) => {
             setRemoteParticipants((prev) => {
@@ -167,7 +230,15 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 if (cancelled) return;
 
                 await provider.connect({ serverUrl, token, audioProfile }, {
-                    onConnectionStateChanged: (state) => { if (!cancelled) setConnectionState(state); },
+                    onConnectionStateChanged: (state) => {
+                        if (cancelled) return;
+                        // Miroir synchrone pour publishMicrophone : après une
+                        // éviction (même identité sur un autre appareil) ou une
+                        // perte, la room n'est plus « connectée ».
+                        if (state === 'connected') attemptRef.current.connected = true;
+                        else if (state === 'disconnected' || state === 'failed') attemptRef.current.connected = false;
+                        setConnectionState(state);
+                    },
                     onDataReceived: (payload, from) => { if (!cancelled) onDataReceivedRef.current?.(payload, from); },
                     onConnectionQualityChanged: (identity, quality) => {
                         if (cancelled) return;
@@ -210,34 +281,48 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         setLocalIsSpeaking(!!localId && identities.includes(localId));
                     },
                     onAudioPlaybackChanged: (canPlay) => { if (!cancelled) setAudioPlaybackBlocked(!canPlay); },
-                    onDisconnected: () => { if (!cancelled) setConnectionState('disconnected'); },
+                    onDisconnected: () => {
+                        if (cancelled) return;
+                        attemptRef.current.connected = false;
+                        setConnectionState('disconnected');
+                    },
                 });
                 if (cancelled) return;
+                attemptRef.current = { inFlight: false, connected: true };
 
                 // Participants déjà présents à la connexion — arrivent via ce
                 // snapshot, pas via onParticipantConnected (réservé aux
                 // arrivées ultérieures, voir LOOP 01/14).
                 for (const p of provider.getRemoteParticipants()) upsertRemote(p.identity, { participant: p });
 
-                if (canPublish) {
+                // VF-3 : ce qui est publié ici est ce que cette tentative VEUT —
+                // options « à la connexion » (appelant, LIVE) et/ou activation
+                // différée déjà demandée (appelé qui a décroché entre-temps).
+                // Appel audio (Équipe I) : seul le micro part — jamais un flash
+                // de caméra non demandé ; appelé pendant la sonnerie : rien.
+                const wanted = wantedMediaRef.current;
+                if (canPublish && wanted && (wanted.audio || wanted.video)) {
                     try {
-                        // Appel audio (Équipe I) : seul le micro part à la
-                        // connexion — jamais un flash de caméra non demandé.
-                        if (publishVideoOnConnect) await provider.setCameraEnabled(true);
-                        await provider.setMicrophoneEnabled(true);
+                        await publishWanted(provider, wanted);
+                        if (!cancelled) setMediaError(null);
                     } catch (mediaErr) {
                         // Permission caméra/micro refusée ou périphérique absent : le
                         // LIVE reste utilisable (dégradation gracieuse), pas d'échec fatal.
                         console.warn('useLiveTransport: activation caméra/micro impossible', mediaErr);
+                        if (!cancelled) setMediaError(mediaErr instanceof Error ? mediaErr.message : String(mediaErr));
                     }
                 }
             } catch (err) {
-                if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+                if (!cancelled) {
+                    attemptRef.current = { inFlight: false, connected: false };
+                    setError(err instanceof Error ? err.message : String(err));
+                }
             }
         })();
 
         return () => {
             cancelled = true;
+            attemptRef.current = { inFlight: false, connected: false };
             // L2 : le démontage devient la promesse que la PROCHAINE tentative
             // attendra — plus jamais deux connexions simultanées à la même
             // identité. disconnect() est sans danger même si connect() était
@@ -253,8 +338,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             cameraFacingRef.current = 'user';
             setCameraFacing('user');
         };
+        // publishVideoOnConnect / publishAudioOnConnect : lus via publishOnConnectRef, volontairement hors dépendances (VF-3).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, roomName, participantName, canPublish, publishVideoOnConnect, audioProfile, connectAttempt]);
+    }, [enabled, roomName, participantName, canPublish, audioProfile, connectAttempt]);
 
     const sendData = useCallback(async (payload: Uint8Array, sendOptions?: SendDataOptions) => {
         await providerRef.current?.sendData(payload, sendOptions);
@@ -283,6 +369,29 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     }, []);
     const setMicrophoneEnabled = useCallback(async (value: boolean) => {
         await providerRef.current?.setMicrophoneEnabled(value);
+    }, []);
+    // VF-3 : activation différée (voir UseLiveTransportResult.publishMicrophone).
+    const publishMicrophone = useCallback(async (publishOptions?: { camera?: boolean }) => {
+        const wanted: WantedMedia = { audio: true, video: !!publishOptions?.camera || !!wantedMediaRef.current?.video };
+        wantedMediaRef.current = wanted;
+        const provider = providerRef.current;
+        const attempt = attemptRef.current;
+        if (provider && attempt.connected) {
+            try {
+                await publishWanted(provider, wanted);
+                setMediaError(null);
+            } catch (mediaErr) {
+                setMediaError(mediaErr instanceof Error ? mediaErr.message : String(mediaErr));
+                throw mediaErr;
+            }
+            return;
+        }
+        // Tentative encore en vol : elle publiera `wanted` dès la connexion.
+        if (attempt.inFlight) return;
+        // Plus de connexion vivante (pré-connexion en échec, éviction) : on
+        // repart — jeton + connexion — et la nouvelle tentative publiera.
+        setError(null);
+        setConnectAttempt((n) => n + 1);
     }, []);
     const startScreenShare = useCallback(async () => {
         await providerRef.current?.startScreenShare();
@@ -318,6 +427,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         cameraFacing,
         switchCamera,
         setMicrophoneEnabled,
+        publishMicrophone,
+        mediaError,
         startScreenShare,
         stopScreenShare,
         disconnect,
