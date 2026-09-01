@@ -4,7 +4,7 @@ import {
   MoreVertical, ShieldAlert, Trash2, Edit2, Pin, Volume2, Sparkles, Copy, CheckCircle2, Languages, AlertCircle
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
-import type { TranslationResult } from '../../services/translation/translationService';
+import { getLanguageLabel, type TranslationResult } from '../../services/translation/translationService';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -62,6 +62,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationAttempted, setTranslationAttempted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  /** Le lecteur a demandé explicitement à revoir le texte de départ. */
+  const [showOriginal, setShowOriginal] = useState(false);
 
   useEffect(() => {
     onTranslateRef.current = onTranslate;
@@ -94,6 +96,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     setTranslation(null);
     setTranslationAttempted(false);
     setIsTranslating(false);
+    // Une nouvelle traduction repart toujours de la lecture dans la langue
+    // du lecteur : l'affichage de l'original est un choix ponctuel, jamais
+    // un réglage durable hérité du message précédent.
+    setShowOriginal(false);
   }, [message.id, message.text, translationTargetLanguage]);
 
   useEffect(() => () => {
@@ -101,6 +107,12 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   }, []);
 
   const isAudioPlaying = playingAudioId === message.id;
+  // `translated` est le seul statut qui produit un texte réellement différent
+  // de l'original : `unchanged` (même langue) et `unavailable` (échec moteur)
+  // laissent tous deux le texte de départ tel quel, donc aucun bandeau ni
+  // bouton — il n'y a rien à basculer.
+  const isTranslated = translation?.status === 'translated';
+  const isShowingTranslation = isTranslated && !showOriginal;
 
   const handleTranslate = async () => {
     const translate = onTranslateRef.current;
@@ -178,16 +190,34 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             </div>
           )}
 
-          {/* Text Content */}
+          {/* Contenu texte — le destinataire lit directement dans SA langue.
+              Le texte de départ n'est jamais perdu : il reste la source de
+              vérité (`translation.originalText === message.text`) et redevient
+              visible d'un clic. Tant que la traduction n'est pas revenue,
+              c'est l'original qui s'affiche : la lecture n'est jamais bloquée
+              par un appel réseau. */}
           {message.text && (
-            <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
+            <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
+              {isShowingTranslation ? translation!.translatedText : message.text}
+            </p>
           )}
 
-          {/* Translation (LOOP 07/17) — le texte d'origine reste toujours affiché au-dessus, jamais remplacé silencieusement. */}
-          {translation?.status === 'translated' && (
-            <div className={`text-xs leading-relaxed whitespace-pre-wrap break-words pt-1.5 mt-1 border-t ${isMe ? 'border-white/20 text-indigo-50' : 'border-slate-200 text-slate-700'} italic`}>
-              <span className={`not-italic text-[9px] font-bold uppercase tracking-wide block mb-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>Traduction automatique · {translation.targetLanguageLabel}</span>
-              {translation.translatedText}
+          {/* Bandeau de traduction + bouton « Voir le message original ». */}
+          {isTranslated && message.text && (
+            <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-1 mt-1 border-t ${isMe ? 'border-white/20' : 'border-slate-200'}`}>
+              <span className={`text-[9px] font-bold uppercase tracking-wide ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                {showOriginal
+                  ? `Message original${translation!.sourceLanguage ? ` · ${getLanguageLabel(translation!.sourceLanguage)}` : ''}`
+                  : `Traduit automatiquement · ${translation!.targetLanguageLabel}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowOriginal((previous) => !previous)}
+                aria-pressed={showOriginal}
+                className={`text-[9px] font-bold underline underline-offset-2 transition-colors ${isMe ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-800'}`}
+              >
+                {showOriginal ? 'Voir la traduction' : 'Voir le message original'}
+              </button>
             </div>
           )}
 
