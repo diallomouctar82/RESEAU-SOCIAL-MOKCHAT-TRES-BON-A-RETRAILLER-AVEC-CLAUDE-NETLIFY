@@ -20,6 +20,20 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-032] — 1er Septembre 2026
+* **Module(s)** : `Réseau Mok`, `Messagerie`, `Supabase PostgREST`, `Supabase Realtime`
+* **Problème / Besoin initial** : Les journaux de production ont révélé deux rejets PostgreSQL `22P02` lors de l'ouverture d'une conversation locale : l'identifiant de repli `chat-u5` était envoyé à `messages.conversation_id`, colonne strictement typée `uuid`. Le rendu local survivait grâce à la dégradation gracieuse, mais le navigateur produisait une requête HTTP 400 et tentait d'ouvrir un abonnement Realtime invalide.
+* **Idées / Options envisagées** :
+  1. Supprimer toutes les conversations locales et casser le mode de démonstration/hors-ligne.
+  2. Conserver le rendu et les actions purement locales, mais établir une frontière stricte avant tout accès Supabase : seul un identifiant UUID valide peut charger l'historique, marquer la conversation lue ou ouvrir les abonnements messages/frappe.
+* **Décision retenue** : Option 2. L'effet d'historique de `MoocChatFloating.tsx` réutilise désormais la garde partagée et testée `isLikelyRealId` avant le premier appel réseau. Le comportement local (ouverture, remise à zéro du compteur local, affichage) reste inchangé.
+* **Justification & Valeur ajoutée** : Le correctif supprime exactement l'appel fautif sans migration de schéma, sans toucher aux conversations UUID réelles et sans inclure la branche de traduction encore non validée.
+* **Conséquences & Impacts transversaux** : Un test d'intégration monte le composant avec `chat-u5` et prouve zéro appel à `getConversationMessages`, `subscribeToChat`, `subscribeToTyping` et `markConversationRead`; un second scénario prouve que ces chemins restent actifs pour un UUID réel. Suite complète : 256/256 tests verts; build Vite de production vert; compteur TypeScript inchangé par rapport à la base (143 erreurs historiques avant et après, zéro nouvelle signature).
+* **Éléments techniques concernés** : `components/MoocChatFloating.tsx`, `tests/chatLocalConversationGuard.test.tsx`, `docs/modules/05_reseau_mok_et_social.md`, `docs/ETAT_ACTUEL.md`, `docs/HISTORIQUE_VERSIONS.md`.
+* **Statut** : `Développé`, `Testé` & `Validé en prévisualisation Netlify`.
+
+---
+
 ### [DEC-2026-031] — 28 Août 2026
 * **Module(s)** : `14_SECURITE_ET_INFRASTRUCTURE`, `Orchestrateur IA (ai-gateway)`, `Espace Super-Admin Souverain`, `Documentation & Continuité Système`
 * **Problème / Besoin initial** :
@@ -801,5 +815,4 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
-
 
