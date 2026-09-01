@@ -28,6 +28,11 @@
  *   stopRingback()             → sur acceptation / refus / raccrochage /
  *                                expiration de l'appel sortant.
  *
+ * ── Arrêt total (mission VF-2) ────────────────────────────────────────────
+ *   stopAll()                  → stopRinging + stopRingback + stopPreview en
+ *                                un seul appel idempotent, à poser sur CHAQUE
+ *                                sortie de la phase sonore (voir plus bas).
+ *
  * Garanties communes :
  *  - idempotence : deux `start…` successifs ne superposent JAMAIS deux
  *    boucles (arrêt implicite de la précédente sur le même canal) ;
@@ -424,6 +429,24 @@ export function isRingbackActive(): boolean {
     return channels.ringback !== null;
 }
 
+/* ─────────────────────────── Arrêt total (VF-2) ────────────────────────── */
+
+/**
+ * Mission VF-2 (« sonnerie qui s'arrête net ») : arrêt de TOUT ce qui peut
+ * sonner — sonnerie entrante (+ vibration), retour d'appel, aperçu. Un seul
+ * appel, idempotent, à placer sur CHAQUE sortie de la phase sonore : décroché
+ * (AVANT toute activation du micro, sinon il capte la fin de la sonnerie),
+ * `call_accepted` reçu, refus, fin, expiration, erreur, prise en charge sur
+ * un autre appareil, première voix distante, démontage de l'écran d'appel.
+ * L'audit VF-0 a montré qu'à arrêter les canaux un par un, il y avait
+ * toujours un chemin oublié — et une sonnerie qui continuait sous la voix.
+ */
+export function stopAll(): void {
+    stopRinging();
+    stopRingback();
+    stopPreview();
+}
+
 /* ─────────────────────────────── Aperçu ────────────────────────────────── */
 
 /**
@@ -522,9 +545,7 @@ export function setSelectedRingtoneId(id: string): void {
 
 /** Réinitialisation complète de l'état module — réservé aux tests. */
 export function __resetRingtoneServiceForTests(): void {
-    stopRinging();
-    stopRingback();
-    stopPreview();
+    stopAll();
     if (audioCtx) {
         try {
             void audioCtx.close();

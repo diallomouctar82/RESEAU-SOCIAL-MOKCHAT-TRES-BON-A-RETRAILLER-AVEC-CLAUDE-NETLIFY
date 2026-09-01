@@ -1203,6 +1203,24 @@ export interface ActiveCallSession {
     status: 'ringing' | 'connected' | 'ended' | 'rejected' | 'busy';
     startedAt?: Date;
     durationSeconds: number;
+    /**
+     * Mission VF-3 (latence des appels) : chronométrage, en ms epoch de
+     * l'horloge LOCALE (jamais comparé entre appareils). `offerSentAt` chez
+     * l'appelant (invitation partie), `ringStartedAt` chez l'appelé (sonnerie
+     * commencée), `acceptedAt` des deux côtés (clic « Décrocher » ou
+     * `call_accepted` reçu). Le transport connecté et la première voix
+     * distante sont mesurés par ChatCallModal (services/calls/callFlow.ts).
+     */
+    offerSentAt?: number;
+    ringStartedAt?: number;
+    acceptedAt?: number;
+    /**
+     * Mission VF-1 : provenance de la session — signal temps réel
+     * (`broadcast`), push relayé par le service worker fenêtre ouverte
+     * (`push`) ou lancement de l'application depuis la notification
+     * (`push_launch`). Sert à ne pas doubler la notification système.
+     */
+    origin?: 'broadcast' | 'push' | 'push_launch';
 }
 
 export type ReelCategory = 
