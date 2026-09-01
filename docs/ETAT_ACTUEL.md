@@ -1,11 +1,13 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
-> *Date de Mise à Jour : 28 Août 2026*  
-> *Version Courante : v6.6.1 (Production Ready — HIGH DEMAND SPIKE ABSORPTION & 503 FAILOVER)*
+> *Date de Mise à Jour : 1er Septembre 2026*
+> *Version Courante : v6.6.2 (HOTFIX MESSAGERIE — FRONTIÈRE UUID SUPABASE)*
 
 ---
 
 ## 🎯 SYNTHÈSE EXÉCUTIVE
+**Hotfix v6.6.2** : l'ouverture d'une conversation locale (`chat-u5` ou `local-…`) ne transmet plus cet identifiant factice à `messages.conversation_id` ni aux abonnements Supabase Realtime. Les conversations locales restent affichables en dégradation gracieuse; seules les conversations portant un UUID réel accèdent au backend. La correction est couverte par deux tests d'intégration (frontière locale et conservation du chemin UUID), par la suite complète de 256 tests et par un build Vite de production réussi. Aucun schéma, aucune donnée et aucun module hors messagerie n'est modifié.
+
 **Le Monde à Vous** a franchi le jalon officiel **HIGH DEMAND SPIKE ABSORPTION & 503 FAILOVER (v6.6.1)**. La plateforme est un écosystème hautement intégré combinant 15 modules, l'expertise de 8 spécialistes de la Famille Diallo, un marché mondial sécurisé, un campus certifiant, un GPS de carrière complet, un réseau de confiance, un espace Super-Administrateur souverain, un orchestrateur central et une interface conversationnelle moderne, aérée et hyper-résiliente.
 
 La version **v6.6.1** consacre :
