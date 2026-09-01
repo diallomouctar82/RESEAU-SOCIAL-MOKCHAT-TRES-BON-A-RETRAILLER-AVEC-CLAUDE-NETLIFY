@@ -374,6 +374,70 @@ export const transcribeAudio = async (
     return data?.result?.text ?? '';
 };
 
+export interface SpeechTranscriptionInput {
+    /** Audio encodé en base64 — WAV 16 kHz mono 16 bits de préférence (voir services/calls/pcmSegmenter.ts). */
+    audioBase64: string;
+    mimeType: string;
+    /** Langue probablement parlée (code catalogue) — une indication, jamais une contrainte : le serveur transcrit la langue réellement entendue. */
+    languageHint?: string;
+    /** Langue cible d'une traduction demandée dans la MÊME réponse (interprète d'appel) — absente = transcription seule. */
+    targetLanguage?: string;
+}
+
+export interface SpeechTranscription {
+    /** Transcription exacte ; chaîne vide s'il n'y a aucune parole intelligible. */
+    text: string;
+    /** Langue DÉTECTÉE (code ISO 639-1) ; chaîne vide si le fournisseur ne la rapporte pas. */
+    language: string;
+    /** Traduction dans `targetLanguage`, ou null (pas demandée, même langue, ou fournisseur sans traduction). */
+    translated: string | null;
+    targetLanguage: string | null;
+    /** Fournisseur réellement retenu par la bascule (traçabilité, tests de preuve). */
+    providerId: string | null;
+}
+
+/**
+ * Transcription DÉTAILLÉE (mission VF-4) : texte + langue détectée + traduction
+ * facultative en un seul aller-retour. C'est ce qui rend l'interprète d'appel
+ * et les vocaux indépendants de la reconnaissance vocale du navigateur,
+ * absente ou muette sur la plupart des téléphones.
+ *
+ * Deux formes de réponse sont gérées, selon le fournisseur STT retenu par la
+ * bascule : `result.json` ({ text, language, translated, targetLanguage }) pour
+ * le fournisseur multimodal ; un simple `result.text` pour les autres
+ * (Deepgram, Whisper…) — la langue est alors inconnue (chaîne vide) et rien
+ * n'est inventé : l'appelant traduit ensuite par le service de traduction.
+ */
+export const transcribeSpeechDetailed = async (input: SpeechTranscriptionInput): Promise<SpeechTranscription> => {
+    const data = await invokeGateway({
+        mode: 'call',
+        category: 'voice',
+        request: {
+            audioBase64: input.audioBase64,
+            audioMimeType: input.mimeType,
+            languageHint: input.languageHint || undefined,
+            targetLanguage: input.targetLanguage || undefined,
+        },
+    });
+    const providerId = typeof data?.providerId === 'string' ? data.providerId : null;
+    const json = data?.result?.json;
+    if (json && typeof json === 'object' && typeof (json as { text?: unknown }).text === 'string') {
+        const j = json as { text: string; language?: unknown; translated?: unknown; targetLanguage?: unknown };
+        const text = j.text.trim();
+        const translated = typeof j.translated === 'string' && j.translated.trim() ? j.translated.trim() : null;
+        return {
+            text,
+            language: typeof j.language === 'string' ? j.language.trim().toLowerCase() : '',
+            // Une traduction sans texte source n'a pas de sens ; on ne la propage jamais.
+            translated: text ? translated : null,
+            targetLanguage: typeof j.targetLanguage === 'string' && j.targetLanguage ? j.targetLanguage : (translated ? input.targetLanguage ?? null : null),
+            providerId,
+        };
+    }
+    const text = typeof data?.result?.text === 'string' ? data.result.text.trim() : '';
+    return { text, language: '', translated: null, targetLanguage: null, providerId };
+};
+
 /**
  * Jeton éphémère pour l'appel vocal en direct (Gemini Live, Experts IA) — le
  * seul cas où le navigateur a besoin d'une forme de clé, à courte durée de

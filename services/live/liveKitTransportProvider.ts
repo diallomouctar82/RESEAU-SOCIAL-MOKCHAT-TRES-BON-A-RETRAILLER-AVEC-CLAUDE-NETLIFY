@@ -224,6 +224,10 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         return CONNECTION_STATE_MAP[this.room.state] ?? 'disconnected';
     }
 
+    getLocalAudioTrack(): MediaStreamTrack | null {
+        return this.room?.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack ?? null;
+    }
+
     private requireLocalParticipant(): LocalParticipant {
         if (!this.room) throw new Error('LiveKitTransportProvider: appel avant connect()');
         return this.room.localParticipant;
