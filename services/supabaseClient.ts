@@ -1206,24 +1206,6 @@ export const supabaseService = {
         if (error) throw error;
     },
     /**
-     * Lecture CIBLÉE d'une seule préférence, par sa clé. `getMemories` ramène
-     * toutes les lignes actives de l'utilisateur : acceptable pour peupler un
-     * panneau, inutilement coûteux pour relire un réglage à chaque ouverture
-     * de conversation. RLS owner-only inchangée, `.eq('user_id')` en plus par
-     * défense en profondeur, comme les autres accès de ce fichier.
-     */
-    async getMemoryByKey(userId: string, scope: string, category: string, key: string): Promise<any | null> {
-        if (!isSupabaseConfigured) return null;
-        const { data, error } = await supabase
-            .from('user_memory')
-            .select('*')
-            .eq('user_id', userId).eq('scope', scope).eq('category', category).eq('key', key)
-            .eq('status', 'active')
-            .maybeSingle();
-        if (error) return null;
-        return data;
-    },
-    /**
      * LOOP 13/17 (multi-appareils) : `user_memory` ajoutée à la publication
      * Realtime par cette LOOP (jusqu'ici seules `notifications`/`messages`
      * y étaient) — un ajout/une modification/une suppression de mémoire sur

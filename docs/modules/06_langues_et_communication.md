@@ -32,23 +32,24 @@
 - **Accent Authentique** : Utilisation prioritaire des voix natives du moteur de synthèse.
 - **Approche Pédagogique Spaced Repetition** : Réactivation régulière des termes difficiles.
 - **Unicité du chemin de traduction** : aucun composant de messagerie ou d'appel ne doit appeler directement un fournisseur. Le texte original est immuable et toute indisponibilité rend la source plutôt qu'un contenu inventé.
-- **Couple de langues par conversation (messagerie texte)** : chaque conversation
-  porte deux listes déroulantes — « Ma langue » et « Langue de mon interlocuteur ».
-  Le choix est PERSONNEL (deux membres d'une même conversation peuvent avoir des
-  couples différents, chacun lisant dans sa propre langue) et mémorisé côté
-  serveur dans `user_memory` (`scope='durable_preference'`,
-  `category='messaging_language'`, `key` = id de conversation) : il suit donc
-  l'utilisateur d'un appareil à l'autre. L'index unique partiel déjà posé sur ce
-  scope garantit qu'un nouveau choix REMPLACE le précédent au lieu d'empiler des
-  lignes concurrentes — aucune migration n'a été nécessaire.
-  Sens de traduction, porté par `targetLanguageForMessage()` (fonction pure,
-  testée, pour qu'une inversion ne puisse pas passer inaperçue) :
-  - message **reçu** → traduit vers **ma** langue ;
-  - message **que j'envoie** → traduit vers **la sienne**, de sorte que je vois
-    ce que mon interlocuteur lit réellement.
-  Valeurs de départ tant que rien n'est choisi : ma préférence de profil pour moi,
-  et pour l'autre la langue réellement déclarée par son dernier message — jamais
-  une langue devinée ; à défaut, l'anglais.
+- **Un seul réglage : ma langue (messagerie texte)** : chaque conversation affiche
+  une unique liste déroulante « Ma langue », liée à `profiles.preferred_language`
+  (mémorisée sur le profil, donc retrouvée d'un appareil à l'autre — même chaîne
+  d'écriture que le réglage des Paramètres : App → Layout → messagerie →
+  `updateUserProfile`). **On ne choisit jamais la langue de l'interlocuteur** :
+  le système la DÉTECTE (`services/messaging/messageLanguage.ts::
+  detectRecipientLanguage`) à partir de la langue qu'il a lui-même déclarée dans
+  son dernier message (`messages.metadata.original_language`, écrite à chaque
+  envoi) — une donnée réelle, jamais devinée. Tant qu'il n'a rien écrit, elle est
+  inconnue et rien n'est inventé. Aucune table ni migration.
+  Langue d'affichage, portée par `targetLanguageForMessage()` (fonction pure,
+  testée) :
+  - message **reçu** → toujours traduit vers **ma** langue ;
+  - message **que j'envoie** → affiché dans la langue détectée de l'interlocuteur
+    (je vois ce qu'il lit), uniquement en conversation directe et seulement si
+    elle est connue — sinon tel que je l'ai écrit ;
+  - groupe : messages reçus traduits vers ma langue ; les miens restent tels
+    quels (il n'y a pas UN destinataire).
   Le catalogue (`MESSAGING_LANGUAGES`, ~28 langues mondiales) est la SOURCE
   UNIQUE partagée par les sélecteurs et la normalisation du moteur : une langue
   proposée à l'écran ne peut pas être rejetée au moment de traduire. Il est
