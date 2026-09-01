@@ -12,11 +12,13 @@ import { ToolExecutor } from './types.ts';
 import { executeWebSearch } from './web_search.ts';
 import { executeGetUserContext } from './user_context.ts';
 import { executeCreateDossier } from './actions.ts';
+import { executeSearchAiCoreMemory } from './ai_core_memory.ts';
 
 const EXECUTORS: Record<string, ToolExecutor> = {
     web_search: executeWebSearch,
     get_user_context: executeGetUserContext,
     create_dossier: executeCreateDossier,
+    search_ai_core_memory: executeSearchAiCoreMemory,
 };
 
 export function resolveToolExecutor(toolId: string): ToolExecutor | null {
