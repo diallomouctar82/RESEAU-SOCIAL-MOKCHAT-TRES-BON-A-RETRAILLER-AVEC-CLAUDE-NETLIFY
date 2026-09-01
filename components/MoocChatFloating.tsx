@@ -1,16 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall,
   PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2,
   Sparkles, Pin, ShieldAlert, ArrowLeft, CheckCheck, UserPlus, MoreVertical,
-  Maximize2, Minimize2, Eye, Wand2
+  Maximize2, Minimize2, Eye, Wand2, Languages
 } from 'lucide-react';
 import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSession } from '../types';
 import { MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE } from '../constants';
 import { supabaseService } from '../services/supabaseClient';
 import { adminConfigService } from '../services/adminConfigService';
 import { summarizeConversation, assistRewriteMessage } from '../services/messaging/messagingIntelligence';
-import { translationService } from '../services/translation/translationService';
+import { translationService, MESSAGING_LANGUAGES } from '../services/translation/translationService';
+import {
+  loadConversationLanguages,
+  saveConversationLanguages,
+  targetLanguageForMessage,
+  type ConversationLanguagePair,
+} from '../services/messaging/conversationLanguagePrefs';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
@@ -606,6 +612,58 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // Total unread count
   const totalUnread = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
   const activeChat = conversations.find(c => c.id === currentChatId);
+
+  /**
+   * Couple de langues de la conversation ouverte : « Ma langue » (ce que JE
+   * lis) et « Langue de mon interlocuteur » (ce qu'IL lit). Réglage personnel
+   * et mémorisé côté serveur, donc retrouvé d'un appareil à l'autre.
+   *
+   * Valeurs de départ, tant que rien n'a été choisi pour cette conversation :
+   * ma langue = ma préférence de profil ; celle de l'interlocuteur = la langue
+   * réellement déclarée par son dernier message, jamais une langue devinée —
+   * à défaut, l'anglais, et un simple changement dans la liste corrige.
+   */
+  const lastIncomingLanguage = useMemo(() => {
+    if (!activeChat) return undefined;
+    for (let i = activeChat.messages.length - 1; i >= 0; i--) {
+      const msg = activeChat.messages[i];
+      if (msg.senderId !== currentUser.id && msg.originalLanguage) return msg.originalLanguage;
+    }
+    return undefined;
+  }, [activeChat, currentUser.id]);
+
+  const defaultLanguagePair = useMemo<ConversationLanguagePair>(() => {
+    const mine = currentUser.preferredLanguage || 'fr';
+    const theirs = lastIncomingLanguage && lastIncomingLanguage !== mine
+      ? lastIncomingLanguage
+      : (mine === 'en' ? 'fr' : 'en');
+    return { mine, theirs };
+  }, [currentUser.preferredLanguage, lastIncomingLanguage]);
+
+  const [languagePairs, setLanguagePairs] = useState<Record<string, ConversationLanguagePair>>({});
+  const languagePair = (currentChatId && languagePairs[currentChatId]) || defaultLanguagePair;
+
+  // Relecture du réglage mémorisé à chaque ouverture de conversation. Une
+  // réponse tardive ne doit jamais écraser un choix fait entre-temps, ni un
+  // réglage déjà chargé pour une AUTRE conversation.
+  useEffect(() => {
+    if (!currentChatId || !currentUser.id) return;
+    if (languagePairs[currentChatId]) return;
+    let cancelled = false;
+    loadConversationLanguages(currentUser.id, currentChatId).then((stored) => {
+      if (cancelled || !stored) return;
+      setLanguagePairs((prev) => (prev[currentChatId] ? prev : { ...prev, [currentChatId]: stored }));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChatId, currentUser.id]);
+
+  const handleChangeLanguage = (side: 'mine' | 'theirs', code: string) => {
+    if (!currentChatId) return;
+    const next: ConversationLanguagePair = { ...languagePair, [side]: code };
+    setLanguagePairs((prev) => ({ ...prev, [currentChatId]: next }));
+    void saveConversationLanguages(currentUser.id, currentChatId, next);
+  };
 
   // Filter conversations
   const filteredConversations = conversations.filter(c => {
@@ -1602,6 +1660,49 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     <span>Cette conversation n'est visible que par ses membres.</span>
                   </div>
 
+                  {/* Langues de la conversation — réglage personnel et mémorisé.
+                      Ce que je lis / ce que mon interlocuteur lit : les messages
+                      reçus sont traduits vers ma langue, les miens vers la
+                      sienne, chacun gardant son texte d'origine accessible. */}
+                  <div className="py-2 px-3 bg-white border border-slate-200 rounded-2xl shadow-2xs">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Languages size={13} className="text-indigo-600 flex-shrink-0" />
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                        Langues de la conversation
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Ma langue</span>
+                        <select
+                          value={languagePair.mine}
+                          onChange={(e) => handleChangeLanguage('mine', e.target.value)}
+                          aria-label="Ma langue"
+                          className="w-full min-h-[36px] px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                        >
+                          {MESSAGING_LANGUAGES.map((lang) => (
+                            <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                          Langue de mon interlocuteur
+                        </span>
+                        <select
+                          value={languagePair.theirs}
+                          onChange={(e) => handleChangeLanguage('theirs', e.target.value)}
+                          aria-label="Langue de mon interlocuteur"
+                          className="w-full min-h-[36px] px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                        >
+                          {MESSAGING_LANGUAGES.map((lang) => (
+                            <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
                   {/* Conversation Summary Banner (LOOP 07/17) */}
                   {conversationSummary && (
                     <div className="py-2.5 px-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-900 flex items-start gap-2 shadow-2xs">
@@ -1641,12 +1742,17 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       onToggleAudio={togglePlayAudio}
                       audioProgress={audioProgress}
                       onOpenImageLightbox={(imgUrl) => setLightboxImageUrl(imgUrl)}
-                      autoTranslate={msg.senderId !== currentUser.id}
-                      translationTargetLanguage={currentUser.preferredLanguage || 'fr'}
+                      /* Entrant ET sortant : un message reçu est rendu dans MA
+                         langue, un message que j'envoie est rendu dans celle de
+                         mon interlocuteur — je vois donc ce qu'il lit vraiment.
+                         Quand les deux langues coïncident, le service renvoie
+                         `unchanged` sans aucun appel réseau. */
+                      autoTranslate
+                      translationTargetLanguage={targetLanguageForMessage(languagePair, msg.senderId === currentUser.id)}
                       onTranslate={(text) => translationService.translateText({
                         text,
                         sourceLanguage: msg.originalLanguage,
-                        targetLanguage: currentUser.preferredLanguage || 'fr',
+                        targetLanguage: targetLanguageForMessage(languagePair, msg.senderId === currentUser.id),
                         context: 'messaging',
                       })}
                     />

@@ -52,27 +52,78 @@ export interface TranslationResult {
     engineId: string;
 }
 
-const LANGUAGE_ALIASES: Record<string, string> = {
-    fr: 'fr', 'fr-fr': 'fr', français: 'fr', francais: 'fr', french: 'fr',
-    en: 'en', 'en-us': 'en', 'en-gb': 'en', english: 'en', anglais: 'en',
-    es: 'es', 'es-es': 'es', español: 'es', espanol: 'es', spanish: 'es', espagnol: 'es',
-    ar: 'ar', 'ar-sa': 'ar', العربية: 'ar', arabic: 'ar', arabe: 'ar',
-    pt: 'pt', português: 'pt', portugues: 'pt', portuguese: 'pt', portugais: 'pt',
-    de: 'de', deutsch: 'de', german: 'de', allemand: 'de',
-    it: 'it', italiano: 'it', italian: 'it', italien: 'it',
-    zh: 'zh', 'zh-cn': 'zh', 中文: 'zh', mandarin: 'zh', chinois: 'zh', chinese: 'zh',
-};
+/**
+ * Catalogue des langues de conversation — SOURCE UNIQUE.
+ *
+ * Il alimente à la fois les sélecteurs « Ma langue » / « Langue de mon
+ * interlocuteur » de la messagerie ET la normalisation du moteur : impossible
+ * qu'une langue proposée à l'écran ne soit pas comprise par le moteur, ou
+ * l'inverse.
+ *
+ * À ne pas confondre avec `constants.ts::SUPPORTED_LANGUAGES`, qui pilote la
+ * langue de l'INTERFACE (adossée à `TRANSLATIONS`, qui ne couvre que fr/en) :
+ * y ajouter ces langues afficherait une UI non traduite. Traduire un message
+ * et traduire l'application sont deux besoins distincts, donc deux listes.
+ *
+ * `aliases` couvre les formes réellement rencontrées : code court, variantes
+ * régionales, et le nom de la langue en français, en anglais et dans la langue
+ * elle-même — c'est ce que renvoie la détection du moteur selon les modèles.
+ */
+export interface MessagingLanguage {
+    code: string;
+    label: string;
+    flag: string;
+    aliases: string[];
+}
 
-const LANGUAGE_LABELS: Record<string, string> = {
-    fr: 'Français',
-    en: 'English',
-    es: 'Español',
-    ar: 'العربية',
-    pt: 'Português',
-    de: 'Deutsch',
-    it: 'Italiano',
-    zh: '中文',
-};
+export const MESSAGING_LANGUAGES: MessagingLanguage[] = [
+    { code: 'fr', label: 'Français', flag: '🇫🇷', aliases: ['fr-fr', 'fr-ca', 'français', 'francais', 'french'] },
+    { code: 'en', label: 'English', flag: '🇬🇧', aliases: ['en-us', 'en-gb', 'english', 'anglais'] },
+    { code: 'es', label: 'Español', flag: '🇪🇸', aliases: ['es-es', 'es-mx', 'español', 'espanol', 'spanish', 'espagnol'] },
+    { code: 'pt', label: 'Português', flag: '🇵🇹', aliases: ['pt-br', 'pt-pt', 'português', 'portugues', 'portuguese', 'portugais'] },
+    { code: 'de', label: 'Deutsch', flag: '🇩🇪', aliases: ['de-de', 'deutsch', 'german', 'allemand'] },
+    { code: 'ru', label: 'Русский', flag: '🇷🇺', aliases: ['ru-ru', 'русский', 'russian', 'russe'] },
+    { code: 'ar', label: 'العربية', flag: '🇸🇦', aliases: ['ar-sa', 'ar-ma', 'العربية', 'arabic', 'arabe'] },
+    { code: 'zh', label: '中文', flag: '🇨🇳', aliases: ['zh-cn', 'zh-hans', 'zh-tw', '中文', 'mandarin', 'chinese', 'chinois'] },
+    { code: 'hi', label: 'हिन्दी', flag: '🇮🇳', aliases: ['hi-in', 'हिन्दी', 'hindi'] },
+    { code: 'bn', label: 'বাংলা', flag: '🇧🇩', aliases: ['bn-bd', 'বাংলা', 'bengali', 'bangla', 'bengali'] },
+    { code: 'ur', label: 'اردو', flag: '🇵🇰', aliases: ['ur-pk', 'اردو', 'urdu', 'ourdou'] },
+    { code: 'id', label: 'Bahasa Indonesia', flag: '🇮🇩', aliases: ['id-id', 'indonesian', 'indonésien', 'indonesien'] },
+    { code: 'ja', label: '日本語', flag: '🇯🇵', aliases: ['ja-jp', '日本語', 'japanese', 'japonais'] },
+    { code: 'ko', label: '한국어', flag: '🇰🇷', aliases: ['ko-kr', '한국어', 'korean', 'coréen', 'coreen'] },
+    { code: 'it', label: 'Italiano', flag: '🇮🇹', aliases: ['it-it', 'italiano', 'italian', 'italien'] },
+    { code: 'tr', label: 'Türkçe', flag: '🇹🇷', aliases: ['tr-tr', 'türkçe', 'turkce', 'turkish', 'turc'] },
+    { code: 'nl', label: 'Nederlands', flag: '🇳🇱', aliases: ['nl-nl', 'nederlands', 'dutch', 'néerlandais', 'neerlandais'] },
+    { code: 'pl', label: 'Polski', flag: '🇵🇱', aliases: ['pl-pl', 'polski', 'polish', 'polonais'] },
+    { code: 'uk', label: 'Українська', flag: '🇺🇦', aliases: ['uk-ua', 'українська', 'ukrainian', 'ukrainien'] },
+    { code: 'vi', label: 'Tiếng Việt', flag: '🇻🇳', aliases: ['vi-vn', 'tiếng việt', 'vietnamese', 'vietnamien'] },
+    { code: 'th', label: 'ไทย', flag: '🇹🇭', aliases: ['th-th', 'ไทย', 'thai', 'thaï'] },
+    { code: 'fa', label: 'فارسی', flag: '🇮🇷', aliases: ['fa-ir', 'فارسی', 'persian', 'farsi', 'persan'] },
+    { code: 'ms', label: 'Bahasa Melayu', flag: '🇲🇾', aliases: ['ms-my', 'malay', 'malais'] },
+    { code: 'ta', label: 'தமிழ்', flag: '🇱🇰', aliases: ['ta-in', 'தமிழ்', 'tamil', 'tamoul'] },
+    { code: 'sw', label: 'Kiswahili', flag: '🇰🇪', aliases: ['sw-ke', 'kiswahili', 'swahili', 'souahéli'] },
+    { code: 'ha', label: 'Hausa', flag: '🇳🇬', aliases: ['ha-ng', 'hausa', 'haoussa'] },
+    { code: 'yo', label: 'Yorùbá', flag: '🇳🇬', aliases: ['yo-ng', 'yorùbá', 'yoruba'] },
+    { code: 'wo', label: 'Wolof', flag: '🇸🇳', aliases: ['wo-sn', 'wolof'] },
+];
+
+const LANGUAGE_ALIASES: Record<string, string> = MESSAGING_LANGUAGES.reduce<Record<string, string>>(
+    (acc, lang) => {
+        acc[lang.code] = lang.code;
+        acc[lang.label.toLowerCase()] = lang.code;
+        for (const alias of lang.aliases) acc[alias.toLowerCase()] = lang.code;
+        return acc;
+    },
+    {},
+);
+
+const LANGUAGE_LABELS: Record<string, string> = MESSAGING_LANGUAGES.reduce<Record<string, string>>(
+    (acc, lang) => {
+        acc[lang.code] = lang.label;
+        return acc;
+    },
+    {},
+);
 
 /** Normalise les codes/noms usuels sans limiter le service à une liste figée. */
 export function normalizeLanguage(language?: string): string | undefined {
