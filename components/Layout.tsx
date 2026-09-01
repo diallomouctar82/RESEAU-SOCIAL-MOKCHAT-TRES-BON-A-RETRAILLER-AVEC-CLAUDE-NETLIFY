@@ -62,6 +62,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
 import { voiceEngine } from '../services/voiceEngine';
 import { adminConfigService } from '../services/adminConfigService';
+import { ExportableModule } from '../modules/moduleRegistry';
+import { MessagingModuleStandalone } from './modules/MessagingModuleStandalone';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -93,6 +95,10 @@ interface LayoutProps {
   // flottante de l'Architecte annonce vocalement ce qu'elle vient de faire et
   // ne doit jamais confirmer un réglage qui n'a pas été enregistré.
   onUpdateProfile?: (updated: Partial<UserProfile>) => Promise<boolean>;
+  // Architecture modulaire exportable : module autonome détecté par App.tsx
+  // (`/messagerie`). Quand il est fourni, Layout rend le module plein écran
+  // à la place de tout le reste (navigation, dock, Architecte, modales).
+  standaloneModule?: ExportableModule | null;
 }
 
 const NEWS_ITEMS = [
@@ -163,6 +169,7 @@ export const Layout: React.FC<LayoutProps> = ({
   pendingDirectChatMember,
   onConsumePendingDirectChatMember,
   onUpdateProfile,
+  standaloneModule,
 }) => {
   const { currentPalette, paletteId } = useTheme();
   // Équipe P (VF-1) : abonnement push silencieux si la permission est déjà
@@ -308,6 +315,22 @@ export const Layout: React.FC<LayoutProps> = ({
     setDialloInitialPrompt(prompt);
     setIsDialloOSOpen(true);
   };
+
+  // ─── MODE MODULE AUTONOME (messagerie détachée, installée sur le téléphone) ───
+  // Même composant de messagerie, mêmes props/handlers que son montage flottant
+  // ci-dessous — seule la coquille change : rien d'autre n'est rendu.
+  if (standaloneModule?.id === 'messagerie') {
+    return (
+      <MessagingModuleStandalone
+        currentUser={userProfile}
+        onUpdateProfile={onUpdateProfile}
+        pendingDirectChatMember={pendingDirectChatMember}
+        onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
+        openWidgetSignal={chatOpenSignal}
+        onLogout={onLogout}
+      />
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-[#f0f2f5] overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>

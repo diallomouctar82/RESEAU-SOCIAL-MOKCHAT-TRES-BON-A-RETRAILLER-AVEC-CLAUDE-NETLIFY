@@ -54,6 +54,13 @@ interface MoocChatFloatingProps {
   onConsumePendingDirectChatMember?: () => void;
   /** Équipe F1 (D12) : compteur-signal incrémenté par Layout quand une notification `target_action='chat'` est cliquée — ouvre le widget. */
   openWidgetSignal?: number;
+  /**
+   * Module exportable (route autonome `/messagerie`, application installée
+   * sur le téléphone) : fenêtre ouverte d'emblée, bouton flottant masqué,
+   * conteneur plein écran calé sous la barre du module (variable CSS
+   * `--moknet-module-topbar`, posée par MessagingModuleStandalone).
+   */
+  standalone?: boolean;
 }
 
 const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
@@ -246,9 +253,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   onOpenMemberProfile,
   pendingDirectChatMember,
   onConsumePendingDirectChatMember,
-  openWidgetSignal = 0
+  openWidgetSignal = 0,
+  standalone = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  // Module autonome : la fenêtre est le module, elle s'ouvre d'emblée.
+  const [isOpen, setIsOpen] = useState<boolean>(standalone);
   const [conversations, setConversations] = useState<ChatConversation[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONVERSATIONS);
@@ -1838,7 +1847,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   return (
     <>
       {/* Floating Action Button - Positioned above dock on mobile & bottom right on desktop */}
-      <div 
+      {/* Module autonome : masqué — la fenêtre occupe tout l'écran, rien à basculer. */}
+      {!standalone && (
+      <div
         id="mooc-chat-floating-container"
         className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-40 flex items-center justify-end"
       >
@@ -1863,12 +1874,16 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           </span>
         </button>
       </div>
+      )}
 
       {/* Main Chat Window Panel */}
       {isOpen && (
-        <div 
+        <div
           id="mooc-chat-window"
-          className="fixed inset-x-2 sm:inset-x-auto bottom-20 md:bottom-24 sm:right-6 w-auto sm:w-[420px] md:w-[460px] h-[78vh] sm:h-[620px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-[70] flex flex-col overflow-hidden animate-scale-up"
+          className={standalone
+            // Module autonome : plein écran sous la barre du module — sans bordure, ombre ni animation de fenêtre flottante.
+            ? "fixed inset-x-0 bottom-0 top-[var(--moknet-module-topbar,0px)] bg-white z-[70] flex flex-col overflow-hidden"
+            : "fixed inset-x-2 sm:inset-x-auto bottom-20 md:bottom-24 sm:right-6 w-auto sm:w-[420px] md:w-[460px] h-[78vh] sm:h-[620px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-[70] flex flex-col overflow-hidden animate-scale-up"}
         >
           
           {/* Header */}

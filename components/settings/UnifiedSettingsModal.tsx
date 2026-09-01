@@ -19,12 +19,14 @@ import {
   Globe,
   Sliders,
   Type,
-  Volume2
+  Volume2,
+  Smartphone
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
 import { RingtonePicker } from './RingtonePicker';
 import { getSelectedRingtoneId } from '../../services/calls/ringtoneService';
+import { ModulesSettingsSection } from '../modules/ModulesSettingsSection';
 
 interface UnifiedSettingsModalProps {
   isOpen: boolean;
@@ -45,7 +47,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
   userProfile,
   onUpdateProfile
 }) => {
-  const [activeSection, setActiveSection] = useState<'account' | 'accessibility' | 'connectors' | 'privacy' | 'notifications'>('accessibility');
+  const [activeSection, setActiveSection] = useState<'account' | 'accessibility' | 'connectors' | 'privacy' | 'notifications' | 'modules'>('accessibility');
 
   // Accessibility States
   const [textSize, setTextSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
@@ -149,6 +151,21 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
               >
                 <Bell size={16} /> Notifications & Alertes
               </button>
+
+              {/* Architecture modulaire exportable : installer un module
+                  (la messagerie d'abord) comme application autonome sur le
+                  téléphone — section pilotée par modules/moduleRegistry.ts. */}
+              <button
+                onClick={() => setActiveSection('modules')}
+                aria-current={activeSection === 'modules' ? 'true' : undefined}
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
+                  activeSection === 'modules'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Smartphone size={16} /> Modules & applications
+              </button>
             </nav>
           </div>
 
@@ -168,6 +185,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
               {activeSection === 'account' && "Profil & Paramètres Personnels"}
               {activeSection === 'privacy' && "Confidentialité & Données IA"}
               {activeSection === 'notifications' && "Préférences de Notifications"}
+              {activeSection === 'modules' && "Modules & Applications sur mon Téléphone"}
             </h3>
 
             <button
@@ -445,6 +463,10 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                 />
               </div>
             )}
+
+            {/* MODULES PANEL — modules exportables, installables comme
+                applications autonomes (même compte, mêmes données). */}
+            {activeSection === 'modules' && <ModulesSettingsSection />}
 
           </div>
 
