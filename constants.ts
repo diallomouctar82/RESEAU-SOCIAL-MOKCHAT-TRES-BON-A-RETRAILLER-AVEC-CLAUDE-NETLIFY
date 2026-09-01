@@ -366,7 +366,7 @@ export const USER_PROFILE: UserProfile = {
     nextLevelXp: 5000,
     credits: 1250,
     avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&fit=crop',
-    preferredLanguage: 'fr',
+    preferredLanguage: null, // « Par défaut » : aucune traduction tant qu'aucune langue n'est choisie.
     twoFactorEnabled: true,
     skills: [],
     badges: [],

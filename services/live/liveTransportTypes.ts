@@ -37,6 +37,8 @@ export interface LiveTrackHandle {
     kind: LiveTrackKind;
     attach: (el: HTMLMediaElement) => void;
     detach: (el?: HTMLMediaElement) => void;
+    /** Pistes audio distantes uniquement : volume 0..1 (HL-4, l'interprète atténue l'original pendant qu'il parle). */
+    setVolume?: (volume: number) => void;
 }
 
 export interface LiveTransportEvents {
@@ -59,6 +61,8 @@ export interface LiveTransportEvents {
     onAudioPlaybackChanged?: (canPlay: boolean) => void;
     /** Canal de données temps réel — utilisé par les LOOPs suivantes pour chat/réactions/demandes de parole en complément des tables persistées. */
     onDataReceived?: (payload: Uint8Array, fromIdentity: string | undefined) => void;
+    /** HL-3 : qualité de connexion d'un participant (local compris), telle que mesurée par le transport. */
+    onConnectionQualityChanged?: (identity: string, quality: LiveConnectionQuality) => void;
     onDisconnected?: (reason?: string) => void;
 }
 
@@ -66,7 +70,18 @@ export interface LiveConnectParams {
     serverUrl: string;
     /** Jeton signé côté serveur (edge function `livekit-token`) — jamais de clé/secret côté client. */
     token: string;
+    /**
+     * Mission « Harmonisation de la langue » (HL-3, fluidité des appels) :
+     * profil audio. `call` = conversation à deux — encodage Opus « parole »
+     * (plus robuste aux pertes de paquets qu'un préréglage musique, moins de
+     * coupures sur réseau mobile), redondance RED + DTX gardés. `live`
+     * (défaut) = comportement historique du LIVE, inchangé.
+     */
+    audioProfile?: 'live' | 'call';
 }
+
+/** Qualité de connexion RÉELLE rapportée par le transport (jamais estimée côté UI). */
+export type LiveConnectionQuality = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
 
 export interface SendDataOptions {
     reliable?: boolean;

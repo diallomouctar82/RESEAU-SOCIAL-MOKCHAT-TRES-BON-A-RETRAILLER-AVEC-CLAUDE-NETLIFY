@@ -120,7 +120,7 @@ export interface SupabaseUserProfile {
     created_at?: string;
     updated_at?: string;
     /** LOOP 13/17 : colonne réelle, déjà lue par services/profile.ts, jamais écrite avant cette LOOP (aucun écran de réglages n'exposait de sélecteur de langue). */
-    preferred_language?: string;
+    preferred_language?: string | null;
     privacy_settings?: {
         profileVisibility: 'public' | 'network' | 'private';
         allowMessagesFrom: 'all' | 'network' | 'none';
@@ -558,11 +558,16 @@ export const supabaseService = {
         replyToId?: string;
         /** Équipe F1 : durée RÉELLE du vocal (secondes) — persistée dans metadata.audio_duration, jamais une valeur inventée à l'affichage. */
         audioDurationSeconds?: number;
+        /** HL-2 : transcription réelle du vocal faite chez l'auteur (metadata.transcript) + sa langue. */
+        transcript?: string;
+        transcriptLanguage?: string;
     }): Promise<{ id: string; createdAt: string; status: string } | null> {
         if (!isSupabaseConfigured) return null;
         const metadata = {
             ...(params.audioDurationSeconds ? { audio_duration: params.audioDurationSeconds } : {}),
             ...(params.originalLanguage ? { original_language: params.originalLanguage } : {}),
+            ...(params.transcript ? { transcript: params.transcript } : {}),
+            ...(params.transcript && params.transcriptLanguage ? { transcript_language: params.transcriptLanguage } : {}),
         };
         const { data, error } = await supabase
             .from('messages')

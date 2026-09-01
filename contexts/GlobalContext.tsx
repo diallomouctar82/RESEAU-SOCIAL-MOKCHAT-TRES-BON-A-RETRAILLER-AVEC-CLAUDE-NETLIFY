@@ -236,7 +236,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     // mais jamais incluse ici — un nouveau sélecteur de langue
                     // (UnifiedSettingsModal.tsx) aurait mis à jour l'état React
                     // local sans jamais persister le changement.
-                    preferred_language: updates.preferredLanguage || userProfile.preferredLanguage,
+                    // Mission « Harmonisation de la langue » : `null` est une
+                    // valeur légitime (« Par défaut » = aucune traduction) et
+                    // doit être ÉCRITE — un `||` l'aurait silencieusement
+                    // remplacée par l'ancienne langue.
+                    preferred_language: 'preferredLanguage' in updates
+                        ? (updates.preferredLanguage ?? null)
+                        : (userProfile.preferredLanguage ?? null),
                 });
                 return true;
             } catch (err) {
