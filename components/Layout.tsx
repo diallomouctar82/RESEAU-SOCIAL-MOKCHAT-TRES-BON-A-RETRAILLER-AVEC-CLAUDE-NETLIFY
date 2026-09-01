@@ -43,6 +43,8 @@ import { DialloOS } from './DialloOS';
 import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
+import { PushPermissionPrompt } from './push/PushPermissionPrompt';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { MAIN_NAV_ITEMS, NavItemDef } from './navigation/NavigationItems';
 import { TransversalServicesModal } from './navigation/TransversalServicesModal';
 import { UniversalSearchModal } from './navigation/UniversalSearchModal';
@@ -60,6 +62,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES, TRANSLATIONS } from '../constants';
 import { voiceEngine } from '../services/voiceEngine';
 import { adminConfigService } from '../services/adminConfigService';
+import { ExportableModule } from '../modules/moduleRegistry';
+import { MessagingModuleStandalone } from './modules/MessagingModuleStandalone';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -91,6 +95,10 @@ interface LayoutProps {
   // flottante de l'Architecte annonce vocalement ce qu'elle vient de faire et
   // ne doit jamais confirmer un réglage qui n'a pas été enregistré.
   onUpdateProfile?: (updated: Partial<UserProfile>) => Promise<boolean>;
+  // Architecture modulaire exportable : module autonome détecté par App.tsx
+  // (`/messagerie`). Quand il est fourni, Layout rend le module plein écran
+  // à la place de tout le reste (navigation, dock, Architecte, modales).
+  standaloneModule?: ExportableModule | null;
 }
 
 const NEWS_ITEMS = [
@@ -161,8 +169,12 @@ export const Layout: React.FC<LayoutProps> = ({
   pendingDirectChatMember,
   onConsumePendingDirectChatMember,
   onUpdateProfile,
+  standaloneModule,
 }) => {
   const { currentPalette, paletteId } = useTheme();
+  // Équipe P (VF-1) : abonnement push silencieux si la permission est déjà
+  // accordée — la sonnerie doit atteindre un correspondant hors de l'app.
+  usePushNotifications(userProfile.id ?? null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   // Équipe F1 (D12) : une notification de message cliquée OUVRE le widget de
   // chat — compteur-signal consommé par <MoocChatFloating>, jamais une
@@ -303,6 +315,22 @@ export const Layout: React.FC<LayoutProps> = ({
     setDialloInitialPrompt(prompt);
     setIsDialloOSOpen(true);
   };
+
+  // ─── MODE MODULE AUTONOME (messagerie détachée, installée sur le téléphone) ───
+  // Même composant de messagerie, mêmes props/handlers que son montage flottant
+  // ci-dessous — seule la coquille change : rien d'autre n'est rendu.
+  if (standaloneModule?.id === 'messagerie') {
+    return (
+      <MessagingModuleStandalone
+        currentUser={userProfile}
+        onUpdateProfile={onUpdateProfile}
+        pendingDirectChatMember={pendingDirectChatMember}
+        onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
+        openWidgetSignal={chatOpenSignal}
+        onLogout={onLogout}
+      />
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-[#f0f2f5] overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>
@@ -1302,6 +1330,11 @@ export const Layout: React.FC<LayoutProps> = ({
           onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
           openWidgetSignal={chatOpenSignal}
         />
+
+        {/* Équipe P (VF-1) : bandeau « Recevoir les appels et messages même
+            hors de l'application » — visible seulement si le push est
+            supporté et la permission encore non demandée. */}
+        <PushPermissionPrompt userId={userProfile.id ?? null} />
 
       </div>
     </div>

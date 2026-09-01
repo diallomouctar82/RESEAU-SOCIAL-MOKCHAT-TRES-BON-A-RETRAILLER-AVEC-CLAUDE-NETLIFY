@@ -17,6 +17,10 @@ const rig = vi.hoisted(() => ({
     setVolume: vi.fn(),
     translate: vi.fn(),
     spoken: [] as string[],
+    /** VF-4 : transcription serveur — double contrôlable (jsdom n'a pas de Web Audio). */
+    serverSupported: false,
+    serverCaptioners: [] as any[],
+    localAudioTrack: null as MediaStreamTrack | null,
 }));
 
 vi.mock('../hooks/useLiveTransport', () => ({
@@ -45,6 +49,7 @@ vi.mock('../hooks/useLiveTransport', () => ({
             stopScreenShare: vi.fn(),
             disconnect: vi.fn(),
             retry: vi.fn(),
+            getLocalAudioTrack: () => rig.localAudioTrack,
         };
     },
 }));
@@ -61,7 +66,14 @@ vi.mock('../services/calls/callInterpreter', async (importOriginal) => {
         speak(text: string) { rig.spoken.push(text); this.o.onSpeakingChange?.(true); }
         stop() { this.o.onSpeakingChange?.(false); }
     }
-    return { ...real, InterpreterVoice: FakeVoice };
+    class FakeServerCaptioner {
+        static isSupported() { return rig.serverSupported; }
+        stopped = false;
+        constructor(public readonly options: any) { rig.serverCaptioners.push(this); }
+        start() { return true; }
+        stop() { this.stopped = true; }
+    }
+    return { ...real, InterpreterVoice: FakeVoice, ServerCaptioner: FakeServerCaptioner };
 });
 
 const { ChatCallModal } = await import('../components/chat/ChatCallModal');
@@ -87,7 +99,13 @@ beforeEach(() => {
     rig.setVolume.mockClear();
     rig.translate.mockReset();
     rig.spoken.length = 0;
+    rig.serverSupported = false;
+    rig.serverCaptioners.length = 0;
+    rig.localAudioTrack = null;
 });
+
+/** Dernier message envoyé sur le canal de données, décodé. */
+const lastSent = () => decodeCallData(rig.sendData.mock.calls[rig.sendData.mock.calls.length - 1][0] as Uint8Array);
 
 describe('Interprète d’appel (ChatCallModal)', () => {
     it('utilise le profil audio « parole » pour la room d’appel et annonce ma langue', async () => {
@@ -136,5 +154,82 @@ describe('Interprète d’appel (ChatCallModal)', () => {
         expect(await screen.findByText('Bonjour Amina')).toBeTruthy();
         expect(rig.translate).not.toHaveBeenCalled();
         expect(rig.spoken).toEqual([]);
+    });
+});
+
+describe('Transcription serveur de ma voix (VF-4)', () => {
+    it('ma voix part au serveur avec MA langue en indication et celle du correspondant en cible ; le sous-titre voyage avec sa traduction', async () => {
+        rig.serverSupported = true;
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage="fr" onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        // Dès que J'AI une langue, ma voix est transcrite — sans cible tant que l'autre n'a pas annoncé la sienne.
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        expect(rig.serverCaptioners[0].options).toMatchObject({ languageHint: 'fr', targetLanguage: undefined });
+
+        receive({ t: 'hello', v: 1, lang: 'ru' });
+        // Le correspondant parle russe : redémarrage avec la cible, l'ancien captioner est arrêté.
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
+        expect(rig.serverCaptioners[0].stopped).toBe(true);
+        const captioner = rig.serverCaptioners[1];
+        expect(captioner.options).toMatchObject({ languageHint: 'fr', targetLanguage: 'ru' });
+        expect(captioner.options.getTrack).toBeTypeOf('function');
+
+        act(() => { captioner.options.onInterim('Transcription…'); });
+        expect(await screen.findByText(/Vous : Transcription…/)).toBeTruthy();
+        // Aucun texte partiel inventé n'est envoyé au correspondant.
+        expect(rig.sendData.mock.calls.map((c) => decodeCallData(c[0] as Uint8Array)?.t)).not.toContain('caption');
+
+        act(() => { captioner.options.onFinal({ text: 'Bonjour Ivan, on se voit mardi ?', language: 'fr', translated: 'Привет Иван, увидимся во вторник?', targetLang: 'ru' }); });
+        await waitFor(() => expect(lastSent()).toMatchObject({
+            t: 'caption', final: true, lang: 'fr',
+            text: 'Bonjour Ivan, on se voit mardi ?', translated: 'Привет Иван, увидимся во вторник?', targetLang: 'ru',
+        }));
+        expect(rig.translate).not.toHaveBeenCalled();
+    });
+
+    it('sous-titre reçu déjà traduit dans MA langue : affiché et dit immédiatement, sans aucun appel de traduction', async () => {
+        rig.serverSupported = true;
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage="fr" onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        receive({ t: 'hello', v: 1, lang: 'ru' });
+        receive({ t: 'caption', v: 1, id: 'c4', text: 'Привет Амина, увидимся во вторник?', lang: 'ru', final: true, ts: 4, translated: 'Bonjour Amina, on se voit mardi ?', targetLang: 'fr' });
+        expect(await screen.findByText('Bonjour Amina, on se voit mardi ?')).toBeTruthy();
+        expect(screen.getByText('Привет Амина, увидимся во вторник?')).toBeTruthy();
+        expect(rig.translate).not.toHaveBeenCalled();
+        expect(rig.spoken).toEqual(['Bonjour Amina, on se voit mardi ?']);
+        await waitFor(() => expect(rig.setVolume).toHaveBeenCalledWith(DUCKED_REMOTE_VOLUME));
+        // Pendant que l'interprète parle, mon micro l'entend : le captioner serveur est en pause.
+        const captioner = rig.serverCaptioners[rig.serverCaptioners.length - 1];
+        expect(captioner.options.isPaused()).toBe(true);
+    });
+
+    it('traduction jointe dans une AUTRE langue que la mienne : traduite chez moi comme avant', async () => {
+        rig.translate.mockResolvedValue({ status: 'translated', translatedText: 'Hello Amina', originalText: 'Привет Амина', targetLanguage: 'en', targetLanguageLabel: 'English', sourceLanguage: 'ru' });
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage="en" onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        receive({ t: 'caption', v: 1, id: 'c5', text: 'Привет Амина', lang: 'ru', final: true, ts: 5, translated: 'Bonjour Amina', targetLang: 'fr' });
+        expect(await screen.findByText('Hello Amina')).toBeTruthy();
+        expect(rig.translate).toHaveBeenCalledWith(expect.objectContaining({ targetLanguage: 'en' }));
+    });
+
+    it('transcription serveur indisponible et aucune reconnaissance navigateur : l’écran le dit honnêtement', async () => {
+        rig.serverSupported = true;
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage="fr" onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        act(() => { rig.serverCaptioners[0].options.onUnavailable('Micro indisponible pour la transcription.'); });
+        expect(await screen.findByText(/Sous-titres indisponibles : Micro indisponible pour la transcription\./)).toBeTruthy();
+    });
+
+    it('« Par défaut » des deux côtés : aucune capture, aucun captioner', async () => {
+        rig.serverSupported = true;
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage={null} onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        await waitFor(() => expect(rig.sendData).toHaveBeenCalled()); // le « hello » part quand même
+        await new Promise((r) => setTimeout(r, 30));
+        expect(rig.serverCaptioners).toHaveLength(0);
+    });
+
+    it('« Par défaut » chez moi, l’autre a une langue : ma voix est transcrite (détection) et traduite dans SA langue', async () => {
+        rig.serverSupported = true;
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage={null} onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        receive({ t: 'hello', v: 1, lang: 'ru' });
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        expect(rig.serverCaptioners[0].options).toMatchObject({ languageHint: undefined, targetLanguage: 'ru' });
     });
 });

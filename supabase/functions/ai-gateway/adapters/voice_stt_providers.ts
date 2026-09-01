@@ -58,11 +58,16 @@ export const whisperAdapter: ProviderAdapter = {
 export const deepgramAdapter: ProviderAdapter = {
     async call(req: AdapterRequest, apiKey: string): Promise<AdapterResult> {
         const { audioBase64, mimeType } = requireAudio(req);
+        // Langue : indication du client si fournie, sinon détection automatique —
+        // plus jamais « fr » codé en dur (un vocal en russe était transcrit comme
+        // du français).
+        const hint = req.voice?.languageHint?.trim();
+        const languageParam = hint ? `&language=${encodeURIComponent(hint)}` : '&detect_language=true';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30_000);
         let res: Response;
         try {
-            res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=fr', {
+            res = await fetch(`https://api.deepgram.com/v1/listen?model=nova-2${languageParam}`, {
                 method: 'POST',
                 headers: { Authorization: `Token ${apiKey}`, 'Content-Type': mimeType },
                 body: base64ToBytes(audioBase64),
@@ -104,9 +109,11 @@ export const assemblyaiAdapter: ProviderAdapter = {
         const { upload_url } = await uploadRes.json() as { upload_url: string };
 
         // 2) Soumission du job de transcription
+        // Langue : indication du client si fournie, sinon détection automatique.
+        const hint = req.voice?.languageHint?.trim();
         const submitRes = await fetch('https://api.assemblyai.com/v2/transcript', {
             method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audio_url: upload_url, language_code: 'fr' }),
+            body: JSON.stringify(hint ? { audio_url: upload_url, language_code: hint } : { audio_url: upload_url, language_detection: true }),
         });
         if (!submitRes.ok) throw new AdapterError(`Échec de soumission (${submitRes.status}).`, 'other');
         const { id } = await submitRes.json() as { id: string };

@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Maximize2, Minimize2,
-  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff
+  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap
 } from 'lucide-react';
 import { ActiveCallSession } from '../../types';
 import { useLiveTransport } from '../../hooks/useLiveTransport';
 import type { LiveConnectionQuality, SendDataOptions } from '../../services/live/liveTransportTypes';
+import { stopAll as stopAllRingtones } from '../../services/calls/ringtoneService';
+import { computeCallLatency, formatLatency } from '../../services/calls/callFlow';
 import { translationService, getLanguageLabel } from '../../services/translation/translationService';
 import { myEffectiveLanguage } from '../../services/messaging/messageLanguage';
 import {
-  decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
+  captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
 } from '../../services/messaging/speechLanguage';
-import { CallCaptioner, InterpreterVoice, captionLanguageFromTag } from '../../services/calls/callInterpreter';
+import { CallCaptioner, InterpreterVoice, ServerCaptioner, captionLanguageFromTag } from '../../services/calls/callInterpreter';
 
 /**
  * HL-3 : libellé + couleur de la qualité réseau RÉELLE rapportée par le
@@ -127,22 +129,136 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   // COURANT via une ref — le hook ne se reconnecte jamais pour ça.
   const onDataRef = useRef<(payload: Uint8Array) => void>(() => {});
 
-  // Média réel : connexion UNIQUEMENT une fois l'appel accepté des deux
-  // côtés (status 'connected' arrive par la signalisation) — pendant la
-  // sonnerie, rien ne part. HL-3 : profil audio « parole » (Opus speech,
-  // RED, DTX) — moins de coupures qu'un préréglage musique sur réseau mobile.
+  // Mission VF-3 (latence au décroché) : le transport est actif DÈS la
+  // sonnerie. L'audit VF-0 avait mesuré plusieurs secondes entre le décroché
+  // et la première voix : avec `enabled: status === 'connected'`, le jeton
+  // LiveKit, la signalisation et la négociation ne démarraient qu'APRÈS
+  // l'acceptation. Désormais tout cela se fait pendant que ça sonne :
+  //  - appelant : connexion + publication micro (+ caméra si vidéo) — le
+  //    correspondant l'entend dès qu'il décroche ;
+  //  - appelé : connexion SANS aucune publication (`publishAudioOnConnect`
+  //    et `publishVideoOnConnect` à false) — aucun média capté avant le
+  //    décroché ; l'activation passe par `publishMicrophone()` à
+  //    l'acceptation, APRÈS l'arrêt de la sonnerie (VF-2).
+  // Être connecté à la room ne fait pas un appel « en ligne » : seul le
+  // signal `call_accepted` (status 'connected') connecte. HL-3 : profil audio
+  // « parole » (Opus speech, RED, DTX) — moins de coupures sur réseau mobile.
+  const transportEnabled = callSession.status === 'ringing' || callSession.status === 'connected';
   const transport = useLiveTransport({
     roomName: `call-${callSession.conversationId}`,
     participantName: localName,
     canPublish: true,
-    enabled: callSession.status === 'connected',
-    publishVideoOnConnect: callSession.type === 'video',
+    enabled: transportEnabled,
+    publishAudioOnConnect: !isIncoming,
+    publishVideoOnConnect: !isIncoming && callSession.type === 'video',
     audioProfile: 'call',
     onDataReceived: (payload) => onDataRef.current(payload),
   });
 
   const remote = transport.remoteParticipants[0] ?? null;
-  const mediaConnected = transport.connectionState === 'connected';
+  const transportConnected = transport.connectionState === 'connected';
+  // « Média connecté » au sens de l'APPEL : transport connecté ET appel
+  // accepté. Avec la pré-connexion, le transport peut être connecté pendant
+  // la sonnerie — rien de ce qui en dépend (annonce de langue, sous-titres,
+  // durée, qualité, lecture des pistes distantes) ne démarre avant le décroché.
+  const mediaConnected = transportConnected && callSession.status === 'connected';
+  const callAccepted = callSession.status === 'connected';
+
+  // ── VF-2 / VF-3 : arrêt net de la sonnerie, activation différée, latence ──
+  // Chronométrage (horloge locale) : décroché, transport connecté, première
+  // voix distante — voir services/calls/callFlow.ts (computeCallLatency).
+  const acceptedAtRef = useRef<number | null>(callSession.acceptedAt ?? null);
+  const connectedAtRef = useRef<number | null>(null);
+  const firstRemoteAudioAtRef = useRef<number | null>(null);
+  const localMediaRequestedRef = useRef(false);
+  const [latencyBadge, setLatencyBadge] = useState<string | null>(null);
+  const [localMediaError, setLocalMediaError] = useState<string | null>(null);
+  const publishMicrophoneRef = useRef(transport.publishMicrophone);
+  publishMicrophoneRef.current = transport.publishMicrophone;
+  const transportConnectedRef = useRef(transportConnected);
+  transportConnectedRef.current = transportConnected;
+
+  const latencyMarks = useCallback(() => ({
+    offerSentAt: callSession.offerSentAt ?? null,
+    ringStartedAt: callSession.ringStartedAt ?? null,
+    acceptedAt: acceptedAtRef.current,
+    connectedAt: connectedAtRef.current,
+    firstRemoteAudioAt: firstRemoteAudioAtRef.current,
+  }), [callSession.offerSentAt, callSession.ringStartedAt]);
+
+  // Décroché (clic local chez l'appelé, `call_accepted` reçu chez l'appelant) :
+  // 1. plus RIEN ne sonne — avant toute ouverture du micro, sinon il capte la
+  //    fin de la sonnerie et le correspondant l'entend (VF-2) ;
+  // 2. l'appelé active son micro (+ caméra si vidéo) via l'activation
+  //    différée ; l'appelant, s'il publie déjà, n'a rien à faire — mais si sa
+  //    pré-connexion a échoué pendant la sonnerie, la même fonction relance
+  //    jeton + connexion : un appel n'est jamais bloqué par la pré-connexion.
+  useEffect(() => {
+    if (callSession.status !== 'connected') return;
+    acceptedAtRef.current ??= callSession.acceptedAt ?? Date.now();
+    if (localMediaRequestedRef.current) return;
+    localMediaRequestedRef.current = true;
+    stopAllRingtones();
+    if (isIncoming || !transportConnectedRef.current) {
+      publishMicrophoneRef.current({ camera: callSession.type === 'video' }).catch((err) => {
+        setLocalMediaError(err instanceof Error ? err.message : String(err));
+      });
+    }
+    // isIncoming et type sont fixes pour une session ; l'activation ne doit avoir lieu qu'une fois.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callSession.status]);
+
+  // Transport connecté après le décroché : instant « connectedAt ».
+  useEffect(() => {
+    if (!mediaConnected || connectedAtRef.current !== null) return;
+    connectedAtRef.current = Date.now();
+    console.info('[appel] latence', { phase: 'transport', role: isIncoming ? 'appelé' : 'appelant', ...computeCallLatency(latencyMarks()) });
+  }, [mediaConnected, isIncoming, latencyMarks]);
+
+  // Première voix distante réellement disponible après le décroché :
+  // ceinture et bretelles sur la sonnerie (VF-2), mesure de latence et badge
+  // discret « Connecté en 0,9 s » pendant 4 s (VF-3). Chez l'appelé, la piste
+  // de l'appelant est souvent déjà là (il publie pendant la sonnerie) : le
+  // délai mesuré est alors quasi nul — c'est exactement le gain recherché.
+  const remoteAudioReady = callAccepted && !!remote?.audioTrack;
+  useEffect(() => {
+    if (!remoteAudioReady || firstRemoteAudioAtRef.current !== null) return;
+    stopAllRingtones();
+    firstRemoteAudioAtRef.current = Date.now();
+    const latency = computeCallLatency(latencyMarks());
+    console.info('[appel] latence', { phase: 'audio', role: isIncoming ? 'appelé' : 'appelant', ...latency });
+    const shown = latency.acceptToAudioMs ?? latency.acceptToConnectedMs;
+    if (shown !== null) setLatencyBadge(`Connecté en ${formatLatency(shown)}`);
+  }, [remoteAudioReady, isIncoming, latencyMarks]);
+  // Le badge s'efface seul après 4 s — minuteur indépendant de la piste
+  // distante (un badge ne doit jamais rester affiché parce qu'une piste a
+  // disparu entre-temps).
+  useEffect(() => {
+    if (!latencyBadge) return;
+    const timer = setTimeout(() => setLatencyBadge(null), 4000);
+    return () => clearTimeout(timer);
+  }, [latencyBadge]);
+
+  // Démontage de l'écran d'appel (fin, refus, expiration, erreur, pris en
+  // charge ailleurs) : plus rien ne doit sonner, quel que soit le chemin.
+  useEffect(() => () => stopAllRingtones(), []);
+
+  // Décrocher / refuser / raccrocher : la sonnerie s'arrête ICI, de façon
+  // synchrone, avant même que le parent ne change l'état — le micro ne peut
+  // pas s'ouvrir sur une sonnerie encore audible.
+  const handleAccept = () => {
+    stopAllRingtones();
+    acceptedAtRef.current ??= Date.now();
+    onAcceptCall();
+  };
+  const handleReject = () => {
+    stopAllRingtones();
+    onRejectCall();
+  };
+  const handleEnd = () => {
+    stopAllRingtones();
+    onEndCall();
+  };
 
   // ── Interprète IA (HL-4) ────────────────────────────────────────────────
   // Chaque côté transcrit SA voix, dans SA langue, et envoie les segments à
@@ -160,12 +276,20 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   const [captionsUnavailable, setCaptionsUnavailable] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [interpreterSpeaking, setInterpreterSpeaking] = useState(false);
-  const captionerRef = useRef<CallCaptioner | null>(null);
+  // VF-4 : le captioner actif est soit la transcription serveur, soit le
+  // repli navigateur — les deux savent s'arrêter net.
+  const captionerRef = useRef<{ stop: () => void } | null>(null);
   const voiceRef = useRef<InterpreterVoice | null>(null);
   const voiceEnabledRef = useRef(voiceEnabled);
   const sendDataRef = useRef<(payload: Uint8Array, options?: SendDataOptions) => Promise<void>>(transport.sendData);
   sendDataRef.current = transport.sendData;
   const lastInterimSentAtRef = useRef(0);
+  // Miroirs lus par le captioner sans jamais le redémarrer : la piste micro
+  // (publiée un peu après la connexion) et « l'interprète parle » (mon micro
+  // entend alors mon haut-parleur — ce n'est pas ma voix).
+  const getLocalAudioTrackRef = useRef(transport.getLocalAudioTrack);
+  getLocalAudioTrackRef.current = transport.getLocalAudioTrack;
+  const interpreterSpeakingRef = useRef(false);
 
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
@@ -183,9 +307,14 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
       setPeerCaption({ original: msg.text, sourceLang: msg.lang, final: false });
       return;
     }
-    if (!plan.needsTranslation) {
-      const caption: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, translated: msg.text };
+    // VF-4 : si l'émetteur a déjà joint la traduction dans MA langue
+    // (transcription serveur), elle est affichée et dite tout de suite —
+    // zéro appel réseau. Même langue des deux côtés : l'original tel quel.
+    const ready = captionForReceiver(msg, myLanguage);
+    if (!ready.needsTranslation) {
+      const caption: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, translated: ready.text };
       setPeerCaption((prev) => { if (prev?.final && prev.translated) setRecentCaptions((r) => [prev, ...r].slice(0, 2)); return caption; });
+      if (ready.translatedByPeer && voiceEnabledRef.current) voiceRef.current?.speak(ready.text);
       return;
     }
     const pending: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, pending: true };
@@ -210,37 +339,94 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   }, [mediaConnected, remote?.participant.identity, myLang]);
 
   // Ma voix → sous-titres pour l'autre (seulement si l'un de nous a choisi une langue, micro ouvert).
+  // VF-4 : transcription SERVEUR d'abord — ma piste micro est découpée en
+  // segments et la passerelle renvoie le texte, la langue détectée et la
+  // traduction dans la langue du correspondant (le récepteur n'a alors plus
+  // rien à traduire). La reconnaissance du navigateur n'est plus qu'un repli,
+  // et si elle manque aussi, l'écran le dit. Redémarré quand ma langue ou
+  // celle du correspondant change (dépendances ci-dessous).
   useEffect(() => {
     const wanted = mediaConnected && !isMuted && shouldCaptionMyVoice({ myLanguage, peerLanguage });
     if (!wanted) { setMyLiveText(''); return; }
-    const lang = captionLanguageFromTag(mySpeechTag);
-    const send = (text: string, final: boolean) => {
+    const declaredLang = captionLanguageFromTag(mySpeechTag) ?? null;
+    const peerLang = myEffectiveLanguage(peerLanguage);
+    const send = (text: string, final: boolean, detail?: { lang?: string | null; translated?: string | null; targetLang?: string | null }) => {
       const now = Date.now();
       if (!final) { if (now - lastInterimSentAtRef.current < 400) return; lastInterimSentAtRef.current = now; }
+      const lang = detail?.lang !== undefined ? detail.lang : declaredLang;
+      const attached = detail?.translated && detail.targetLang ? { translated: detail.translated, targetLang: detail.targetLang } : {};
       void sendDataRef.current(
-        encodeCallData({ t: 'caption', v: 1, id: crypto.randomUUID(), text, lang, final, ts: now }),
+        encodeCallData({ t: 'caption', v: 1, id: crypto.randomUUID(), text, lang, final, ts: now, ...attached }),
         { reliable: final },
       ).catch(() => {});
     };
-    const captioner = new CallCaptioner({
-      lang: mySpeechTag,
-      onInterim: (text) => { setMyLiveText(text); send(text, false); },
-      onFinal: (text) => { setMyLiveText(''); send(text, true); },
-      onUnavailable: (reason) => setCaptionsUnavailable(reason),
-    });
-    if (!captioner.start()) return;
-    captionerRef.current = captioner;
-    return () => { captioner.stop(); if (captionerRef.current === captioner) captionerRef.current = null; setMyLiveText(''); };
+    let disposed = false;
+    let browser: CallCaptioner | null = null;
+    let server: ServerCaptioner | null = null;
+    const startBrowser = (): boolean => {
+      if (disposed || !CallCaptioner.isSupported()) return false;
+      browser = new CallCaptioner({
+        lang: mySpeechTag,
+        onInterim: (text) => { setMyLiveText(text); send(text, false); },
+        onFinal: (text) => { setMyLiveText(''); send(text, true); },
+        onUnavailable: (reason) => setCaptionsUnavailable(reason),
+      });
+      if (!browser.start()) { browser = null; return false; }
+      captionerRef.current = browser;
+      return true;
+    };
+    setCaptionsUnavailable(null);
+    if (ServerCaptioner.isSupported()) {
+      server = new ServerCaptioner({
+        getTrack: () => getLocalAudioTrackRef.current(),
+        languageHint: myLang,
+        targetLanguage: peerLang && peerLang !== myLang ? peerLang : undefined,
+        // Pas de texte partiel côté serveur : état local honnête seulement, rien n'est envoyé au correspondant.
+        onInterim: (text) => setMyLiveText(text),
+        onFinal: (caption) => {
+          setMyLiveText('');
+          send(caption.text, true, { lang: caption.language || declaredLang, translated: caption.translated, targetLang: caption.targetLang });
+        },
+        onUnavailable: (reason) => {
+          if (captionerRef.current === server) captionerRef.current = null;
+          server = null;
+          setMyLiveText('');
+          // Repli : reconnaissance du navigateur si elle existe ; sinon on le dit, jamais un silence inexpliqué.
+          if (!startBrowser()) setCaptionsUnavailable(`Sous-titres indisponibles : ${reason}`);
+        },
+        isPaused: () => interpreterSpeakingRef.current,
+      });
+      if (server.start()) captionerRef.current = server;
+    } else if (!startBrowser()) {
+      setCaptionsUnavailable('Sous-titres indisponibles sur ce navigateur (ni capture audio, ni reconnaissance vocale).');
+    }
+    return () => {
+      disposed = true;
+      server?.stop();
+      browser?.stop();
+      if (captionerRef.current && (captionerRef.current === server || captionerRef.current === browser)) captionerRef.current = null;
+      setMyLiveText('');
+    };
     // myLanguage est représenté par myLang/mySpeechTag ; peerLanguage déclenche le démarrage quand l'autre choisit une langue.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaConnected, isMuted, myLang, peerLanguage, mySpeechTag]);
 
   // Voix de l'interprète dans MA langue — n'existe qu'avec une langue choisie.
+  // Le miroir `interpreterSpeakingRef` est posé AVANT le rendu : le captioner
+  // serveur jette immédiatement ce que le micro capte pendant que la voix parle.
   useEffect(() => {
     if (!myLang) { voiceRef.current?.stop(); voiceRef.current = null; return; }
-    const voice = new InterpreterVoice({ lang: mySpeechTag, onSpeakingChange: setInterpreterSpeaking });
+    const voice = new InterpreterVoice({
+      lang: mySpeechTag,
+      onSpeakingChange: (speaking) => { interpreterSpeakingRef.current = speaking; setInterpreterSpeaking(speaking); },
+    });
     voiceRef.current = voice;
-    return () => { voice.stop(); if (voiceRef.current === voice) voiceRef.current = null; setInterpreterSpeaking(false); };
+    return () => {
+      voice.stop();
+      if (voiceRef.current === voice) voiceRef.current = null;
+      interpreterSpeakingRef.current = false;
+      setInterpreterSpeaking(false);
+    };
   }, [myLang, mySpeechTag]);
 
   // Pendant que l'interprète parle, l'original est atténué : on n'entend que sa langue.
@@ -487,9 +673,12 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
 
         {/* L'audio distant vit HORS des deux mises en page (audio/vidéo) :
             il doit jouer dans les deux cas, dès que la piste réelle arrive.
-            (+ le son d'un partage d'écran distant, jusqu'ici jeté.) */}
-        {remote?.audioTrack && <audio ref={remoteAudioRef} autoPlay />}
-        {remote?.screenShareAudioTrack && <audio ref={remoteScreenAudioRef} autoPlay />}
+            (+ le son d'un partage d'écran distant, jusqu'ici jeté.)
+            VF-3 : jamais AVANT le décroché — avec la pré-connexion, la piste
+            de l'appelant est souscrite pendant que ça sonne chez l'appelé ;
+            sans élément attaché, rien n'est joué tant qu'il n'a pas décroché. */}
+        {callAccepted && remote?.audioTrack && <audio ref={remoteAudioRef} autoPlay />}
+        {callAccepted && remote?.screenShareAudioTrack && <audio ref={remoteScreenAudioRef} autoPlay />}
 
         {/* Scène : le CORRESPONDANT occupe tout le cadre. */}
         <div ref={stageRef} className="relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden">
@@ -561,11 +750,19 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
               <div className="relative">
                 <div className="absolute -inset-4 rounded-full bg-indigo-600/30 animate-ping opacity-75"></div>
                 <div className="absolute -inset-8 rounded-full bg-indigo-500/20 animate-pulse"></div>
-                <img
-                  src={peerAvatar}
-                  className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-4 ring-indigo-500 shadow-2xl mx-auto"
-                  alt={peerName}
-                />
+                {/* VF-1 : un appel arrivé par push peut ne porter aucun avatar —
+                    un repli neutre plutôt qu'une image vide (src=""). */}
+                {peerAvatar ? (
+                  <img
+                    src={peerAvatar}
+                    className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-4 ring-indigo-500 shadow-2xl mx-auto"
+                    alt={peerName}
+                  />
+                ) : (
+                  <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-slate-800 ring-4 ring-indigo-500 shadow-2xl mx-auto flex items-center justify-center text-slate-300" aria-label={peerName}>
+                    <User size={48} />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -581,6 +778,18 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                         ? 'Appel vocal connecté'
                         : `En attente de ${peerName}…`}
                 </p>
+                {/* VF-3 : pendant la sonnerie, état honnête de la ligne
+                    préparée en avance — visible, discret, jamais alarmant :
+                    un échec ici n'empêche rien, on retente au décroché. */}
+                {callSession.status === 'ringing' && transportConnected && (
+                  <p className="text-[10px] font-semibold text-emerald-300/90 inline-flex items-center gap-1 justify-center">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Ligne prête
+                  </p>
+                )}
+                {callSession.status === 'ringing' && !transportConnected && transport.error && (
+                  <p className="text-[10px] font-semibold text-slate-400">Ligne en attente : la connexion sera établie au décroché.</p>
+                )}
                 {callSession.status === 'connected' && mediaConnected && (
                   <p className="text-2xl font-mono font-bold text-white/90 tabular-nums pt-1">{formatCallDuration(duration)}</p>
                 )}
@@ -601,9 +810,17 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                 </div>
               )}
 
-              {transport.error && (
+              {/* Erreur de transport : montrée comme telle une fois l'appel
+                  accepté seulement — pendant la sonnerie, la ligne « en
+                  attente » ci-dessus suffit (la connexion sera retentée). */}
+              {callAccepted && transport.error && (
                 <p className="text-[11px] font-semibold text-rose-300 max-w-xs">
                   Média indisponible : {transport.error}
+                </p>
+              )}
+              {callAccepted && (localMediaError || transport.mediaError) && (
+                <p className="text-[11px] font-semibold text-amber-300 max-w-xs">
+                  Micro ou caméra indisponible : {localMediaError || transport.mediaError}
                 </p>
               )}
             </div>
@@ -704,6 +921,14 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                 </div>
               )
             )}
+            {/* VF-3 : latence RÉELLE mesurée du décroché à la première voix
+                distante — affichée 4 s, jamais une estimation. */}
+            {latencyBadge && (
+              <div className="px-2.5 py-1 rounded-full bg-slate-800/80 backdrop-blur-md text-[11px] font-bold text-emerald-200 flex items-center gap-1.5" title="Délai mesuré entre le décroché et la première voix de votre correspondant">
+                <Zap size={12} className="text-emerald-300" />
+                <span>{latencyBadge}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -748,7 +973,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
             <div className="flex items-center justify-center gap-12 sm:gap-16 w-full">
               <div className="text-center space-y-1.5">
                 <button
-                  onClick={onRejectCall}
+                  onClick={handleReject}
                   aria-label="Refuser l'appel"
                   className="w-[4.5rem] h-[4.5rem] rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-xl shadow-rose-600/30 transition-all hover:scale-110 active:scale-95"
                 >
@@ -759,7 +984,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
 
               <div className="text-center space-y-1.5">
                 <button
-                  onClick={onAcceptCall}
+                  onClick={handleAccept}
                   aria-label="Décrocher"
                   className="w-[4.5rem] h-[4.5rem] rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xl shadow-emerald-600/30 transition-all hover:scale-110 active:scale-95 animate-bounce"
                 >
@@ -803,7 +1028,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
               {/* Raccrocher : rouge, central, le plus gros — la sortie doit
                   être trouvable en une demi-seconde, comme sur un téléphone. */}
               <button
-                onClick={onEndCall}
+                onClick={handleEnd}
                 className="w-16 h-16 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all hover:scale-105 active:scale-95 mx-1"
                 title="Raccrocher"
                 aria-label="Raccrocher"

@@ -81,9 +81,29 @@ export function remoteVolumeFor(interpreterSpeaking: boolean, speakerMuted: bool
 
 // ── Messages échangés sur le canal de données pendant un appel ─────────────
 
+export interface CallCaptionMessage {
+    t: 'caption';
+    v: 1;
+    id: string;
+    text: string;
+    /** Langue de `text` (déclarée par l'auteur ou DÉTECTÉE par la transcription serveur), null si inconnue. */
+    lang: string | null;
+    final: boolean;
+    ts: number;
+    /**
+     * VF-4 : traduction de `text` déjà faite côté émetteur (transcription
+     * serveur : texte + traduction dans la même réponse), dans la langue
+     * `targetLang`. Facultatifs et tolérés absents : un pair sur une version
+     * antérieure envoie/reçoit toujours des sous-titres, simplement traduits
+     * chez le récepteur comme avant.
+     */
+    translated?: string;
+    targetLang?: string;
+}
+
 export type CallDataMessage =
     | { t: 'hello'; v: 1; lang: string | null }
-    | { t: 'caption'; v: 1; id: string; text: string; lang: string | null; final: boolean; ts: number };
+    | CallCaptionMessage;
 
 const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
@@ -102,17 +122,57 @@ export function decodeCallData(payload: Uint8Array): CallDataMessage | null {
         if (!parsed || parsed.v !== 1) return null;
         if (parsed.t === 'hello') return { t: 'hello', v: 1, lang: typeof parsed.lang === 'string' ? parsed.lang : null };
         if (parsed.t === 'caption' && typeof parsed.text === 'string' && typeof parsed.id === 'string') {
-            return {
+            const caption = parsed as Partial<CallCaptionMessage>;
+            const message: CallCaptionMessage = {
                 t: 'caption', v: 1, id: parsed.id, text: parsed.text,
                 lang: typeof parsed.lang === 'string' ? parsed.lang : null,
                 final: parsed.final === true,
                 ts: typeof parsed.ts === 'number' ? parsed.ts : Date.now(),
             };
+            // Traduction jointe : seulement si elle est réellement là ET que sa
+            // langue cible est connue — une traduction sans langue ne se
+            // laisse pas vérifier, on la traite comme absente.
+            if (typeof caption.translated === 'string' && caption.translated.trim() && typeof caption.targetLang === 'string' && caption.targetLang.trim()) {
+                message.translated = caption.translated;
+                message.targetLang = caption.targetLang;
+            }
+            return message;
         }
         return null;
     } catch {
         return null;
     }
+}
+
+export interface ReceiverCaption {
+    /** Ce que le récepteur affiche (et que l'interprète dit) — original ou traduction. */
+    text: string;
+    /** Vrai s'il faut encore traduire `text` (par translationService), comme avant VF-4. */
+    needsTranslation: boolean;
+    /** Vrai si `text` est la traduction faite chez l'émetteur, dans MA langue — zéro appel réseau. */
+    translatedByPeer: boolean;
+}
+
+/**
+ * VF-4 — règle PURE du récepteur : si le sous-titre arrive déjà traduit dans
+ * ma langue effective (`translated` + `targetLang` = ma langue), on l'utilise
+ * tel quel, sans aucun appel réseau. Sinon, comportement historique : même
+ * langue → original tel quel ; langue différente ou inconnue → à traduire.
+ * « Par défaut » chez moi → jamais rien à traduire (l'appelant n'affiche
+ * d'ailleurs rien, voir interpretationPlan).
+ */
+export function captionForReceiver(
+    message: Pick<CallCaptionMessage, 'text' | 'lang' | 'translated' | 'targetLang'>,
+    myLanguage?: string | null,
+): ReceiverCaption {
+    const mine = myEffectiveLanguage(myLanguage);
+    if (!mine) return { text: message.text, needsTranslation: false, translatedByPeer: false };
+    const translated = typeof message.translated === 'string' ? message.translated.trim() : '';
+    if (translated && myEffectiveLanguage(message.targetLang) === mine) {
+        return { text: translated, needsTranslation: false, translatedByPeer: true };
+    }
+    if (myEffectiveLanguage(message.lang) === mine) return { text: message.text, needsTranslation: false, translatedByPeer: false };
+    return { text: message.text, needsTranslation: true, translatedByPeer: false };
 }
 
 /**

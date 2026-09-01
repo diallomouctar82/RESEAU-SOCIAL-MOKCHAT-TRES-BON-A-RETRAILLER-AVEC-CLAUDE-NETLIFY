@@ -51,3 +51,25 @@
     # navigateur, délibérément : en verrouiller une par excès de zèle casserait
     # un usage existant sans rien protéger de plus.
     Permissions-Policy = "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()"
+
+# ─── Modules exportables — route autonome de la messagerie ───
+#
+# Exception volontaire à la note d'en-tête (« que des en-têtes ») : deux
+# réécritures SPA, et rien d'autre. `/messagerie` est la `start_url` du
+# manifeste du module (public/manifests/messagerie.webmanifest) et l'URL que
+# l'icône installée sur le téléphone ouvre ; sans ces lignes, Netlify
+# répondrait 404 (aucun fichier de ce nom dans `dist/`). Statut 200 : l'URL
+# reste `/messagerie` dans la barre d'adresse, et l'application, servie par
+# index.html, détecte cette route au démarrage (services/modules/
+# standaloneMode.ts) pour ne rendre que le module. Les autres chemins gardent
+# leur comportement : l'application principale navigue par hash (#onglet) et
+# n'a jamais eu besoin d'une réécriture générale.
+[[redirects]]
+  from = "/messagerie"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/messagerie/*"
+  to = "/index.html"
+  status = 200

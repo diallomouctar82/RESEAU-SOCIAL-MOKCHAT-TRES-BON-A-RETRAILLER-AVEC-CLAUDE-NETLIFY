@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
+import { forgetPushSubscription } from './services/push/pushService';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { GoalProvider } from './contexts/GoalContext';
 import { Layout } from './components/Layout';
@@ -35,6 +36,7 @@ import { Agent, LiveStream, MemberProfile } from './types';
 import { getSession, onAuthStateChange, signOut } from './services/auth';
 import { supabaseService } from './services/supabaseClient';
 import { fetchUserProfile } from './services/profile';
+import { detectStandaloneModule } from './services/modules/standaloneMode';
 
 // Composant interne qui consomme le contexte
 const AppContent = () => {
@@ -63,6 +65,17 @@ const AppContent = () => {
   // appelant réel : ces boutons ne faisaient rien pour un vrai membre.
   const [pendingDirectChatMember, setPendingDirectChatMember] = useState<MemberProfile | undefined>(undefined);
 
+  // Mode module autonome (architecture modulaire exportable) : `/messagerie`
+  // (réécriture Netlify) ou `?module=messagerie` → Layout ne rend que le
+  // module, plein écran, avec la même session et les mêmes données. Décidé
+  // une fois au démarrage : l'URL d'un module installé ne change pas en cours
+  // de route. L'authentification reste celle de l'application (écran de
+  // connexion identique, puis retour sur le module).
+  const standaloneModule = useMemo(
+    () => detectStandaloneModule(window.location.pathname, window.location.search),
+    []
+  );
+
   // LIVE STATE
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [customLiveStream, setCustomLiveStream] = useState<LiveStream | undefined>(undefined);
@@ -76,7 +89,9 @@ const AppContent = () => {
   // donc après que supabase-js a déjà consommé et nettoyé ce hash.
   const popNavigationRef = useRef(false);
   useEffect(() => {
-    if (!isAuthenticated) return;
+    // En mode module autonome il n'y a pas d'onglets : ne pas accrocher
+    // `#home` à l'URL du module.
+    if (!isAuthenticated || standaloneModule) return;
     const cameFromPop = popNavigationRef.current;
     popNavigationRef.current = false;
     const st = window.history.state as { mokTab?: string; mokIdx?: number } | null;
@@ -159,6 +174,13 @@ const AppContent = () => {
 
   // ACTIONS
   const handleLogout = async () => {
+      // L'abonnement push de CET appareil est retiré AVANT la fin de session :
+      // la suppression de la ligne push_subscriptions passe par la RLS, donc
+      // exige encore le jeton de l'utilisateur. Après signOut(), l'appel
+      // n'aurait effacé aucune ligne et le téléphone aurait continué à
+      // recevoir les appels d'un compte déconnecté. Ne bloque jamais la
+      // déconnexion (la fonction ne lève pas).
+      await forgetPushSubscription();
       try {
           await signOut();
       } catch (e) {
@@ -283,6 +305,7 @@ const AppContent = () => {
         pendingDirectChatMember={pendingDirectChatMember}
         onConsumePendingDirectChatMember={() => setPendingDirectChatMember(undefined)}
         onUpdateProfile={updateUserProfile}
+        standaloneModule={standaloneModule}
     >
 
       {activeTab === 'home' && <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => setIsSearchModalOpen(true)} onOpenCapModal={() => setIsGoalModalOpen(true)} />}

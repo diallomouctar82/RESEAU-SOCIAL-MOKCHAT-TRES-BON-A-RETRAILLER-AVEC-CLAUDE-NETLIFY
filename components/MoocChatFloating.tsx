@@ -13,12 +13,23 @@ import { summarizeConversation, assistRewriteMessage } from '../services/messagi
 import { translationService, MESSAGING_LANGUAGES } from '../services/translation/translationService';
 import { detectRecipientLanguage, myEffectiveLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
 import { languageCodeFromTag, speechTagFor } from '../services/messaging/speechLanguage';
-import { CallCaptioner, InterpreterVoice } from '../services/calls/callInterpreter';
+import { CallCaptioner, InterpreterVoice, transcribeVoiceRecording } from '../services/calls/callInterpreter';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
-import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
+import { startRinging, stopRinging, startRingback, stopRingback, stopAll as stopAllRingtones } from '../services/calls/ringtoneService';
+import { dedupeCallId, isHandledElsewhere, sessionFromPushPayload } from '../services/calls/callFlow';
+import {
+  isFreshCallPayload, listenPushCallEvents, notifyCallPush, readPushLaunchParams,
+  type CallPushPayload, type PushAction, type PushLaunch,
+} from '../services/calls/callPush';
 import { ChatReportModal } from './chat/ChatReportModal';
 import { ChatMemberInfoModal } from './chat/ChatMemberInfoModal';
+import { ConversationHeader } from './chat/ConversationHeader';
+import { MessagingOwnerCard } from './chat/MessagingOwnerCard';
+import { InitialsAvatar } from './ui/InitialsAvatar';
+import { MessagingDropButton } from './chat/MessagingDropButton';
+import { findModuleById } from '../modules/moduleRegistry';
+import { getInstallState, promptInstall } from '../services/modules/installPrompt';
 
 interface MoocChatFloatingProps {
   currentUser?: UserProfile;
@@ -46,6 +57,13 @@ interface MoocChatFloatingProps {
   onConsumePendingDirectChatMember?: () => void;
   /** Équipe F1 (D12) : compteur-signal incrémenté par Layout quand une notification `target_action='chat'` est cliquée — ouvre le widget. */
   openWidgetSignal?: number;
+  /**
+   * Module exportable (route autonome `/messagerie`, application installée
+   * sur le téléphone) : fenêtre ouverte d'emblée, bouton flottant masqué,
+   * conteneur plein écran calé sous la barre du module (variable CSS
+   * `--moknet-module-topbar`, posée par MessagingModuleStandalone).
+   */
+  standalone?: boolean;
 }
 
 const STORAGE_KEY_CONVERSATIONS = 'lmav_chat_conversations_cache';
@@ -131,13 +149,79 @@ export const incomingCallNotificationText = (
   body: `${callerName || 'Un membre'} vous appelle sur MokNet`,
 });
 
+/** Ce que la notification système d'un appel entrant transporte (même forme que la charge d'un push, v1). */
+interface IncomingCallNotificationData {
+  callId: string;
+  conversationId?: string;
+  callerId?: string;
+  callerAvatar?: string;
+}
+
+/**
+ * Mission VF-1 : affichage d'une notification système. `new Notification()`
+ * JETTE sur mobile (Chrome Android, WebView) — la seule voie qui fonctionne
+ * partout est `ServiceWorkerRegistration.showNotification()`. On passe donc
+ * par le service worker enregistré s'il existe (`getRegistration`, jamais
+ * `ready`, qui n'est jamais résolue sans service worker), avec repli sur le
+ * constructeur direct uniquement en son absence (bureau sans service
+ * worker). Les boutons Décrocher/Refuser et la charge `data` suivent le
+ * contrat du service worker (Équipe P) : au clic, il relaie
+ * `moknet-push-action` vers la fenêtre, ou l'ouvre avec `?pushAction=…`.
+ * Aucun échec ne sort d'ici : l'appel ne dépend jamais de la notification.
+ */
+const showIncomingCallSystemNotification = async (
+  title: string,
+  body: string,
+  data: (IncomingCallNotificationData & { callerName: string; callType: 'audio' | 'video' }) | undefined,
+): Promise<void> => {
+  const payload = data ? {
+    v: 1,
+    type: 'incoming_call',
+    ts: Date.now(),
+    callId: data.callId,
+    conversationId: data.conversationId ?? null,
+    from: { id: data.callerId ?? null, name: data.callerName, avatarUrl: data.callerAvatar ?? null },
+    callType: data.callType,
+    source: 'page',
+  } : undefined;
+  const sw = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined;
+  if (sw && typeof sw.getRegistration === 'function') {
+    try {
+      const registration = await sw.getRegistration();
+      if (registration && typeof registration.showNotification === 'function') {
+        // `tag` : un second signal du même appel REMPLACE la notification au
+        // lieu d'en empiler une nouvelle. Les actions n'existent que sur les
+        // notifications de service worker — le constructeur direct les ignore.
+        await registration.showNotification(title, {
+          body,
+          tag: 'moknet-incoming-call',
+          data: payload,
+          ...({ actions: [{ action: 'accept', title: 'Décrocher' }, { action: 'reject', title: 'Refuser' }], vibrate: VIBRATION_HINT } as NotificationOptions),
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn('[appel] notification via le service worker impossible, repli', err);
+    }
+  }
+  if (typeof Notification === 'undefined') return;
+  const notif = new Notification(title, { body, tag: 'moknet-incoming-call', data: payload });
+  notif.onclick = () => {
+    try { window.focus(); } catch { /* focus refusé — sans gravité */ }
+    notif.close();
+  };
+};
+/** Motif de vibration de la notification (aligné sur VIBRATION_PATTERN du service de sonnerie). */
+const VIBRATION_HINT = [300, 150, 300];
+
 /**
  * Exécution (impure) de la décision ci-dessus. Best-effort intégral : aucun
  * échec (API absente, permission refusée, requestPermission rejetée sans
- * geste utilisateur) ne remonte jamais au flux d'appel — la sonnerie du
- * service reste le canal principal tant que l'onglet vit.
+ * geste utilisateur, service worker absent) ne remonte jamais au flux
+ * d'appel — la sonnerie du service reste le canal principal tant que
+ * l'onglet vit ; hors application, c'est le Web Push (VF-1) qui sonne.
  */
-const notifyIncomingCallIfHidden = (callerName: string, callType: 'audio' | 'video'): void => {
+const notifyIncomingCallIfHidden = (callerName: string, callType: 'audio' | 'video', call?: IncomingCallNotificationData): void => {
   try {
     const hidden = typeof document !== 'undefined' && document.hidden;
     const supported = typeof Notification !== 'undefined';
@@ -147,21 +231,22 @@ const notifyIncomingCallIfHidden = (callerName: string, callType: 'audio' | 'vid
     );
     if (decision === 'none') return;
     const show = () => {
-      try {
-        const { title, body } = incomingCallNotificationText(callerName, callType);
-        // `tag` : un second signal du même appel REMPLACE la notification au
-        // lieu d'en empiler une nouvelle.
-        const notif = new Notification(title, { body, tag: 'moknet-incoming-call' });
-        notif.onclick = () => {
-          try { window.focus(); } catch { /* focus refusé — sans gravité */ }
-          notif.close();
-        };
-      } catch { /* constructeur indisponible (ex. mobile sans SW) — rien à faire */ }
+      const { title, body } = incomingCallNotificationText(callerName, callType);
+      showIncomingCallSystemNotification(title, body, call ? { ...call, callerName, callType } : undefined)
+        .catch((err) => console.warn('[appel] notification système impossible', err));
     };
     if (decision === 'show') show();
     else void Notification.requestPermission().then((p) => { if (p === 'granted') show(); }).catch(() => {});
-  } catch { /* jamais bloquant pour l'appel lui-même */ }
+  } catch (err) {
+    // Jamais bloquant pour l'appel lui-même — mais jamais muet non plus.
+    console.warn('[appel] notification d’appel entrant ignorée', err);
+  }
 };
+
+/** Un appel ENTRANT qui sonne sans fin n'existe pas : 35 s côté appelant + marge pour un `call_ended` perdu. */
+const INCOMING_RING_TIMEOUT_MS = 40_000;
+/** Lancement par notification : temps accordé au chargement des conversations réelles avant d'agir sans elles. */
+const PUSH_LAUNCH_GRACE_MS = 12_000;
 
 export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   currentUser = USER_PROFILE,
@@ -171,9 +256,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   onOpenMemberProfile,
   pendingDirectChatMember,
   onConsumePendingDirectChatMember,
-  openWidgetSignal = 0
+  openWidgetSignal = 0,
+  standalone = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  // Module autonome : la fenêtre est le module, elle s'ouvre d'emblée.
+  const [isOpen, setIsOpen] = useState<boolean>(standalone);
   const [conversations, setConversations] = useState<ChatConversation[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONVERSATIONS);
@@ -224,6 +311,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const [liveVoiceTranscript, setLiveVoiceTranscript] = useState('');
   const [recordedTranscript, setRecordedTranscript] = useState<string | null>(null);
   const [recordedTranscriptLanguage, setRecordedTranscriptLanguage] = useState<string | undefined>(undefined);
+  // VF-4 : quand la reconnaissance du navigateur est absente ou n'a rien
+  // produit (la plupart des téléphones), le vocal est transcrit par le
+  // SERVEUR après l'enregistrement — état visible (« Transcription en
+  // cours… »), message honnête si impossible, et le vocal part quoi qu'il
+  // arrive. Le compteur invalide une réponse arrivée après une annulation,
+  // un rejet ou un envoi.
+  const [voiceTranscriptionPending, setVoiceTranscriptionPending] = useState(false);
+  const [voiceTranscriptionNote, setVoiceTranscriptionNote] = useState<string | null>(null);
+  const voiceTranscriptionSeqRef = useRef(0);
+  const resetVoiceTranscriptionState = () => {
+    voiceTranscriptionSeqRef.current += 1;
+    setVoiceTranscriptionPending(false);
+    setVoiceTranscriptionNote(null);
+  };
 
   // Audio Playback state
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
@@ -390,39 +491,64 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
     // Subscribe to Call Signals
     const unsubCalls = supabaseService.subscribeToCallSignals(currentUser.id, (signal) => {
+      if (!signal || typeof signal !== 'object') return;
       if (signal.type === 'call_invitation') {
+        // Mission VF-1 : un même appel peut arriver DEUX fois (broadcast +
+        // push relayé par le service worker) — un seul écran par callId.
+        // Occupé (autre appel en cours) : l'invitation est ignorée, l'appelant
+        // verra honnêtement « sans réponse » au bout de 35 s — l'ancienne
+        // version remplaçait l'appel en cours par la nouvelle sonnerie.
+        const current = activeCallSessionRef.current;
+        if (current && current.callId !== signal.callId) return;
+        if (!dedupeCallId(seenCallIdsRef.current, signal.callId)) return;
         setActiveCallSession({
           callId: signal.callId,
-          conversationId: signal.conversationId,
+          conversationId: signal.conversationId ?? '',
           type: signal.callType || 'video',
-          initiatorId: signal.callerId,
-          initiatorName: signal.callerName,
-          initiatorAvatar: signal.callerAvatar,
+          initiatorId: signal.callerId ?? '',
+          initiatorName: signal.callerName ?? '',
+          initiatorAvatar: signal.callerAvatar ?? '',
           receiverId: currentUser.id,
           receiverName: currentUser.name,
           receiverAvatar: currentUser.avatarUrl,
           status: 'ringing',
-          durationSeconds: 0
+          durationSeconds: 0,
+          ringStartedAt: Date.now(),
+          origin: 'broadcast',
         });
         setIsIncomingCall(true);
         // Équipe 8 (loop 3) : onglet en arrière-plan au moment de l'appel →
-        // notification navigateur (nom + type réels), clic = focus de la
-        // fenêtre. La permission n'est demandée qu'ICI, au premier appel
-        // concerné — jamais au chargement. Refusée ou API absente : rien
-        // d'autre n'est simulé (la sonnerie du service joue si l'onglet vit).
-        notifyIncomingCallIfHidden(signal.callerName || 'Un membre', signal.callType === 'audio' ? 'audio' : 'video');
+        // notification système (nom + type réels), via le service worker
+        // (VF-1 : le constructeur direct jette sur mobile). La permission
+        // n'est demandée qu'ICI, au premier appel concerné — jamais au
+        // chargement. Refusée ou API absente : rien d'autre n'est simulé
+        // (la sonnerie du service joue si l'onglet vit).
+        notifyIncomingCallIfHidden(signal.callerName || 'Un membre', signal.callType === 'audio' ? 'audio' : 'video', {
+          callId: signal.callId, conversationId: signal.conversationId, callerId: signal.callerId, callerAvatar: signal.callerAvatar,
+        });
       } else if (signal.type === 'call_accepted') {
-        setActiveCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
-        setIsIncomingCall(false);
-      } else if (signal.type === 'call_ended' || signal.type === 'call_rejected') {
+        // Mission VF-2 : côté appelant, le retour d'appel cesse ICI, avant
+        // même le rendu — jamais mêlé à la première voix de l'appelé.
+        stopAllRingtones();
+        const acceptedAt = Date.now();
+        setActiveCallSession(prev => prev && (!signal.callId || prev.callId === signal.callId) ? { ...prev, status: 'connected', acceptedAt } : prev);
+      } else if (signal.type === 'call_ended' || signal.type === 'call_rejected' || signal.type === 'call_cancelled') {
         // Équipe F2 : la notification « Appel manqué » de l'appelé est
         // désormais écrite CÔTÉ SERVEUR par l'APPELANT (notify_missed_call,
         // SECURITY DEFINER gardé par l'appartenance à une conversation
         // commune) — elle atteint la cloche même si l'app de l'appelé est
         // FERMÉE (le broadcast est éphémère). L'ancienne auto-notification
         // locale de l'appelé (LOOP I3) est retirée pour ne pas doubler.
+        // VF : un signal qui concerne un AUTRE appel ne ferme pas le mien.
+        const current = activeCallSessionRef.current;
+        if (current && signal.callId && current.callId !== signal.callId) return;
+        stopAllRingtones();
         setActiveCallSession(null);
         setIsIncomingCall(false);
+      } else if (signal.type === 'call_handled_elsewhere') {
+        // Mission VF-2 : un autre appareil/onglet de MON compte a décroché ou
+        // refusé — ici, ça se tait et se ferme sans « appel manqué ».
+        callActionsRef.current.closeHandledElsewhere(signal.callId);
       }
     });
 
@@ -628,6 +754,29 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   // Total unread count
   const totalUnread = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+
+  /**
+   * VF-9 / VF-10 — maintien long sur la goutte : installer la messagerie comme
+   * application autonome. Depuis l'application principale, l'invitation native
+   * capturée appartient à MokNet, pas au module : on rejoint la page autonome
+   * du module (/messagerie?installer=1) où SA propre invitation est proposée
+   * (ou les consignes iPhone). Module déjà installé : on l'ouvre simplement.
+   */
+  const handleInstallMessagingModule = async () => {
+    const messagingModule = findModuleById('messagerie');
+    if (!messagingModule) return;
+    const state = getInstallState(messagingModule);
+    if (state === 'installable') {
+      await promptInstall(messagingModule);
+      return;
+    }
+    const target = state === 'installed' ? messagingModule.route : `${messagingModule.route}?installer=1`;
+    try {
+      window.location.assign(target);
+    } catch {
+      /* navigation refusée : Paramètres → Modules reste le second point d'installation */
+    }
+  };
   const activeChat = conversations.find(c => c.id === currentChatId);
 
   /**
@@ -716,6 +865,30 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         setRecordedTranscriptLanguage(transcript ? (languageCodeFromTag(voiceSpeechTagRef.current) ?? myLanguage) : undefined);
         const effectiveType = mediaRecorder.mimeType || mime || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: effectiveType });
+        // VF-4 : rien du navigateur → transcription serveur (langue DÉTECTÉE
+        // par le fournisseur, sinon ma langue). Jamais bloquant pour l'envoi.
+        if (!transcript) {
+          const seq = ++voiceTranscriptionSeqRef.current;
+          setVoiceTranscriptionPending(true);
+          setVoiceTranscriptionNote(null);
+          transcribeVoiceRecording(audioBlob, myLanguage)
+            .then((result) => {
+              if (voiceTranscriptionSeqRef.current !== seq) return; // annulé, rejeté ou déjà envoyé entre-temps
+              if (result.text) {
+                setRecordedTranscript(result.text);
+                setRecordedTranscriptLanguage(result.language);
+              } else {
+                setVoiceTranscriptionNote('Aucune parole reconnue dans ce vocal — il part tel quel.');
+              }
+            })
+            .catch((err) => {
+              if (voiceTranscriptionSeqRef.current !== seq) return;
+              console.warn('Transcription serveur du vocal impossible', err);
+              const detail = err instanceof Error && err.message ? ` (${err.message})` : '';
+              setVoiceTranscriptionNote(`Transcription indisponible${detail} — le vocal part tel quel.`);
+            })
+            .finally(() => { if (voiceTranscriptionSeqRef.current === seq) setVoiceTranscriptionPending(false); });
+        }
         const reader = new FileReader();
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
@@ -739,6 +912,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setLiveVoiceTranscript('');
       setRecordedTranscript(null);
       setRecordedTranscriptLanguage(undefined);
+      resetVoiceTranscriptionState();
       voiceSpeechTagRef.current = speechTagFor(myLanguage, typeof navigator !== 'undefined' ? navigator.language : undefined);
       const captioner = new CallCaptioner({
         lang: voiceSpeechTagRef.current,
@@ -773,6 +947,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setLiveVoiceTranscript('');
       setRecordedTranscript(null);
       setRecordedTranscriptLanguage(undefined);
+      resetVoiceTranscriptionState();
       mediaRecorderRef.current.stop();
       setIsRecordingVoice(false);
       clearInterval(recordingTimerRef.current);
@@ -940,6 +1115,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     setRecordedAudioUrl(null);
     setRecordedTranscript(null);
     setRecordedTranscriptLanguage(undefined);
+    // VF-4 : une transcription serveur encore en vol ne s'attachera plus à
+    // rien — le vocal part maintenant, tel quel (jamais retenu par elle).
+    resetVoiceTranscriptionState();
     setReplyingTo(null);
 
     // Équipe F1 (D4) : le vocal partait en BASE64 DANS LA LIGNE — au-delà de
@@ -1219,10 +1397,15 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     const timer = setTimeout(() => {
       const session = activeCallSessionRef.current;
       if (!session || session.status !== 'ringing') return;
-      supabaseService.sendCallSignal(callPeerId(session), { type: 'call_ended', callId: session.callId });
+      stopAllRingtones();
+      supabaseService.sendCallSignal(callPeerId(session), { type: 'call_ended', callId: session.callId, conversationId: session.conversationId });
       // Équipe F2 : trace serveur « Appel manqué » pour l'appelé — atteint
       // sa cloche même si son application est fermée.
       void supabaseService.notifyMissedCall(callPeerId(session));
+      // Mission VF-1 : et son téléphone affiche « Appel manqué » à la place
+      // de l'appel entrant (le push d'annulation remplace celui de l'appel,
+      // même sujet côté service de push).
+      void notifyCallPush({ topic: 'call_cancelled', targetUserId: callPeerId(session), conversationId: session.conversationId, callId: session.callId, payload: { reason: 'missed' } });
       void supabaseService.recordSelfNotification({
         title: 'Appel sans réponse',
         message: `${session.receiverName} n'a pas répondu à votre appel ${session.type === 'video' ? 'vidéo' : 'audio'}.`,
@@ -1234,6 +1417,275 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCallSession?.callId, activeCallSession?.status, isIncomingCall]);
+
+  // Mission VF : un appel ENTRANT qui sonne n'a pas non plus vocation à
+  // sonner sans fin si le `call_ended` de l'appelant s'est perdu (broadcast
+  // éphémère, onglet endormi) : fermeture silencieuse à 40 s — la trace
+  // « manqué » est écrite par l'appelant, jamais ici.
+  useEffect(() => {
+    if (!activeCallSession || activeCallSession.status !== 'ringing' || !isIncomingCall) return;
+    const ringingCallId = activeCallSession.callId;
+    const timer = setTimeout(() => {
+      const session = activeCallSessionRef.current;
+      if (!session || session.status !== 'ringing' || session.callId !== ringingCallId) return;
+      stopAllRingtones();
+      setActiveCallSession(null);
+      setIsIncomingCall(false);
+    }, INCOMING_RING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCallSession?.callId, activeCallSession?.status, isIncomingCall]);
+
+  // ── Mission VF-2 (multi-appareils) & VF-1 (push) : actions d'appel ─────
+  // Identifiants d'appel déjà vus (dédup broadcast / push / lancement),
+  // canal inter-onglets du même navigateur, et miroir de l'utilisateur pour
+  // les écouteurs enregistrés dans des effets (jamais une fermeture périmée).
+  const seenCallIdsRef = useRef<Set<string>>(new Set());
+  const callsChannelRef = useRef<BroadcastChannel | null>(null);
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+  const [callNotice, setCallNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!callNotice) return;
+    const timer = setTimeout(() => setCallNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [callNotice]);
+
+  /**
+   * Quand JE décroche ou refuse sur cet appareil, mes AUTRES appareils et
+   * onglets qui sonnent encore doivent se taire : signal sur MON propre canal
+   * (le broadcast ne revient pas à l'émetteur mais atteint les autres
+   * connexions du compte), canal inter-onglets du même navigateur, et push
+   * `call_cancelled` pour fermer la notification sur les téléphones.
+   */
+  const announceHandledElsewhere = (session: Pick<ActiveCallSession, 'callId' | 'conversationId'>, reason: 'answered' | 'rejected') => {
+    const me = currentUserRef.current;
+    if (!isLikelyRealId(me?.id)) return;
+    supabaseService.sendCallSignal(me.id, { type: 'call_handled_elsewhere', callId: session.callId, conversationId: session.conversationId, reason });
+    try {
+      callsChannelRef.current?.postMessage({ type: 'call_handled_elsewhere', callId: session.callId });
+    } catch (err) {
+      console.warn('[appel] canal inter-onglets indisponible', err);
+    }
+    void notifyCallPush({ topic: 'call_cancelled', targetUserId: me.id, callId: session.callId, payload: { reason } });
+  };
+
+  /** `call_handled_elsewhere` reçu : si c'est l'appel qui sonne ICI, silence et fermeture — sans « appel manqué ». */
+  const closeHandledElsewhere = (callId: string | null | undefined) => {
+    if (!isHandledElsewhere({ type: 'call_handled_elsewhere', callId }, activeCallSessionRef.current)) return;
+    stopAllRingtones();
+    setActiveCallSession(null);
+    setIsIncomingCall(false);
+  };
+
+  /**
+   * Décrocher (bouton de l'écran d'appel, action de la notification, ou
+   * lancement par notification). La sonnerie s'arrête AVANT tout le reste
+   * (VF-2) ; `call_accepted` reste le SEUL signal qui connecte ; l'activation
+   * du micro est faite par ChatCallModal une fois l'état 'connected' posé.
+   * `isIncomingCall` reste VRAI pour tout l'appel : « je suis l'appelé »
+   * détermine le nom/avatar affichés et le rôle du transport — l'ancien
+   * passage à false au décroché faisait afficher à l'appelé son PROPRE nom.
+   */
+  const acceptCall = (session: ActiveCallSession) => {
+    stopAllRingtones();
+    const acceptedAt = Date.now();
+    supabaseService.sendCallSignal(callPeerId(session), { type: 'call_accepted', callId: session.callId, conversationId: session.conversationId });
+    announceHandledElsewhere(session, 'answered');
+    setActiveCallSession({ ...session, status: 'connected', acceptedAt });
+    setIsIncomingCall(true);
+  };
+
+  const rejectCall = (session: ActiveCallSession) => {
+    stopAllRingtones();
+    supabaseService.sendCallSignal(callPeerId(session), { type: 'call_rejected', callId: session.callId, conversationId: session.conversationId });
+    announceHandledElsewhere(session, 'rejected');
+    setActiveCallSession(null);
+    setIsIncomingCall(false);
+  };
+
+  const endCall = (session: ActiveCallSession, incoming: boolean) => {
+    stopAllRingtones();
+    supabaseService.sendCallSignal(callPeerId(session), { type: 'call_ended', callId: session.callId, conversationId: session.conversationId });
+    // Équipe F2 : annulation PENDANT la sonnerie sortante = appel manqué
+    // pour l'appelé — trace serveur, même app fermée ; VF-1 : et « Appel
+    // manqué » sur son téléphone à la place de l'appel entrant.
+    if (session.status === 'ringing' && !incoming) {
+      void supabaseService.notifyMissedCall(callPeerId(session));
+      void notifyCallPush({ topic: 'call_cancelled', targetUserId: callPeerId(session), conversationId: session.conversationId, callId: session.callId, payload: { reason: 'missed' } });
+    }
+    setActiveCallSession(null);
+    setIsIncomingCall(false);
+  };
+
+  /**
+   * Push reçu fenêtre ouverte (relayé par le service worker) : un
+   * `incoming_call` frais (≤ 40 s), non déjà vu, sans appel actif → même
+   * traitement qu'un `call_invitation` (session construite depuis
+   * `payload.from`) ; un `call_cancelled` → l'appel qui sonne ici se ferme.
+   * Pas de notification système ici : le service worker l'a déjà affichée.
+   */
+  const handlePushPayload = (payload: CallPushPayload) => {
+    const me = currentUserRef.current;
+    if (!isLikelyRealId(me?.id)) return;
+    if (payload.type === 'incoming_call') {
+      if (!isFreshCallPayload(payload)) return;
+      if (activeCallSessionRef.current) return;
+      if (!dedupeCallId(seenCallIdsRef.current, payload.callId)) return;
+      const session = sessionFromPushPayload(payload, { id: me.id, name: me.name, avatarUrl: me.avatarUrl }, Date.now());
+      if (!session) return;
+      setActiveCallSession(session);
+      setIsIncomingCall(true);
+      return;
+    }
+    if (payload.type === 'call_cancelled') {
+      const current = activeCallSessionRef.current;
+      if (!current || current.status !== 'ringing' || !payload.callId || current.callId !== payload.callId) return;
+      stopAllRingtones();
+      setActiveCallSession(null);
+      setIsIncomingCall(false);
+    }
+  };
+
+  /** Clic sur la notification (fenêtre existante) : décrocher, refuser ou ouvrir la conversation. */
+  const handlePushAction = (action: PushAction, payload: CallPushPayload) => {
+    const me = currentUserRef.current;
+    if (!isLikelyRealId(me?.id)) return;
+    const current = activeCallSessionRef.current;
+    const sameCall = current && payload.callId && current.callId === payload.callId ? current : null;
+    if (action === 'open') {
+      if (payload.conversationId && isLikelyRealId(payload.conversationId)) {
+        setCurrentChatId(payload.conversationId);
+        setIsOpen(true);
+      }
+      return;
+    }
+    if (sameCall) {
+      if (sameCall.status !== 'ringing') return; // déjà pris en charge ici
+      if (action === 'accept') acceptCall(sameCall); else rejectCall(sameCall);
+      return;
+    }
+    if (current || payload.type !== 'incoming_call') return; // un autre appel est en cours / charge inattendue
+    if (!isFreshCallPayload(payload)) {
+      if (action === 'accept') setCallNotice('Cet appel a expiré.');
+      return;
+    }
+    const session = sessionFromPushPayload(payload, { id: me.id, name: me.name, avatarUrl: me.avatarUrl }, Date.now());
+    if (!session || !dedupeCallId(seenCallIdsRef.current, session.callId)) return;
+    if (action === 'accept') acceptCall(session); else rejectCall(session);
+  };
+
+  /**
+   * Lancement de l'application par un clic sur la notification (aucune
+   * fenêtre n'existait) : une fois l'utilisateur connecté et la conversation
+   * réelle chargée (nom et avatar réels de l'appelant), on ouvre la
+   * conversation puis on sonne/décroche/refuse selon l'action. Un appel
+   * périmé (> 40 s) n'est jamais « accepté » dans le vide : message honnête.
+   */
+  const runPushLaunch = async (launch: PushLaunch, conv: ChatConversation | undefined) => {
+    const me = currentUserRef.current;
+    const convId = launch.conversationId && isLikelyRealId(launch.conversationId) ? launch.conversationId : null;
+    if (convId) {
+      setCurrentChatId(convId);
+      setIsOpen(true);
+    }
+    if (launch.action === 'open' || launch.type !== 'incoming_call') return;
+    const callerId = launch.fromUserId && isLikelyRealId(launch.fromUserId) ? launch.fromUserId : conv?.participantId;
+    if (!launch.callId || !convId || !callerId || !isLikelyRealId(callerId) || !isLikelyRealId(me?.id)) return;
+    if (launch.ts === null || !isFreshCallPayload({ ts: launch.ts })) {
+      if (launch.action === 'accept') setCallNotice('Cet appel a expiré.');
+      return;
+    }
+    if (activeCallSessionRef.current) return; // le broadcast est arrivé entre-temps : déjà pris en charge
+    if (!dedupeCallId(seenCallIdsRef.current, launch.callId)) return;
+    let callerName = conv && conv.participantId === callerId ? conv.participantName : '';
+    let callerAvatar = conv && conv.participantId === callerId ? conv.participantAvatar : '';
+    if (!callerName) {
+      // Conversation absente de la liste : le profil réel de l'appelant, jamais un nom inventé.
+      const profile = await supabaseService.getProfile(callerId);
+      if (profile) { callerName = profile.name; callerAvatar = profile.avatar_url ?? ''; }
+    }
+    const session: ActiveCallSession = {
+      callId: launch.callId,
+      conversationId: convId,
+      type: launch.callType ?? 'audio',
+      initiatorId: callerId,
+      initiatorName: callerName || 'Un membre MokNet',
+      initiatorAvatar: callerAvatar,
+      receiverId: me.id,
+      receiverName: me.name,
+      receiverAvatar: me.avatarUrl,
+      status: 'ringing',
+      durationSeconds: 0,
+      ringStartedAt: Date.now(),
+      origin: 'push_launch',
+    };
+    if (launch.action === 'accept') acceptCall(session);
+    else rejectCall(session);
+  };
+
+  // Les écouteurs (signaux Supabase, canal inter-onglets, service worker)
+  // sont enregistrés dans des effets : ils passent par cette ref pour
+  // toujours appeler la version COURANTE des actions.
+  const callActionsRef = useRef({ closeHandledElsewhere, handlePushPayload, handlePushAction });
+  callActionsRef.current = { closeHandledElsewhere, handlePushPayload, handlePushAction };
+
+  // Canal inter-onglets (même navigateur) pour `call_handled_elsewhere` —
+  // complément instantané du signal Supabase. Un seul objet par composant :
+  // un message posté sur cet objet n'y revient jamais (pas d'auto-fermeture).
+  useEffect(() => {
+    if (!isLikelyRealId(currentUser?.id) || typeof BroadcastChannel === 'undefined') return;
+    let channel: BroadcastChannel;
+    try {
+      channel = new BroadcastChannel('moknet-calls');
+    } catch (err) {
+      console.warn('[appel] canal inter-onglets indisponible — les autres onglets recevront le signal Supabase', err);
+      return;
+    }
+    callsChannelRef.current = channel;
+    channel.onmessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data && typeof data === 'object' && data.type === 'call_handled_elsewhere') {
+        callActionsRef.current.closeHandledElsewhere(typeof data.callId === 'string' ? data.callId : null);
+      }
+    };
+    return () => {
+      if (callsChannelRef.current === channel) callsChannelRef.current = null;
+      channel.close();
+    };
+  }, [currentUser?.id]);
+
+  // Messages du service worker : push arrivé fenêtre ouverte, clic sur la notification.
+  useEffect(() => {
+    if (!isLikelyRealId(currentUser?.id)) return;
+    return listenPushCallEvents({
+      onIncoming: (payload) => callActionsRef.current.handlePushPayload(payload),
+      onAction: (action, payload) => callActionsRef.current.handlePushAction(action, payload),
+    });
+  }, [currentUser?.id]);
+
+  // Lancement par notification : lu UNE fois (l'URL est nettoyée à la
+  // lecture), consommé dès que l'utilisateur est réel et que la conversation
+  // est chargée — ou après un délai borné si elle ne l'est jamais.
+  const pushLaunchRef = useRef<PushLaunch | null | undefined>(undefined);
+  const [launchGraceOver, setLaunchGraceOver] = useState(false);
+  useEffect(() => {
+    if (pushLaunchRef.current === undefined) pushLaunchRef.current = readPushLaunchParams();
+    if (!pushLaunchRef.current) return;
+    const timer = setTimeout(() => setLaunchGraceOver(true), PUSH_LAUNCH_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    const launch = pushLaunchRef.current;
+    if (!launch || !isLikelyRealId(currentUser?.id)) return;
+    const convId = launch.conversationId && isLikelyRealId(launch.conversationId) ? launch.conversationId : null;
+    const conv = convId ? conversations.find(c => c.id === convId) : undefined;
+    if (convId && !conv && !launchGraceOver) return;
+    pushLaunchRef.current = null; // consommé une seule fois
+    void runPushLaunch(launch, conv);
+    // runPushLaunch lit l'état courant via des refs ; seuls l'utilisateur, la liste et le délai déclenchent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, conversations, launchGraceOver]);
 
   const handleStartCall = (type: 'audio' | 'video') => {
     if (!activeChat) return;
@@ -1261,7 +1713,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       receiverName: activeChat.participantName,
       receiverAvatar: activeChat.participantAvatar,
       status: 'ringing',
-      durationSeconds: 0
+      durationSeconds: 0,
+      offerSentAt: Date.now(),
+      origin: 'broadcast',
     };
 
     setActiveCallSession(newSession);
@@ -1277,6 +1731,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       callerName: currentUser.name,
       callerAvatar: currentUser.avatarUrl
     });
+
+    // Mission VF-1 : en tâche de fond, le Web Push qui fait sonner le
+    // téléphone de l'appelé même hors application (onglet fermé, écran
+    // verrouillé) — le broadcast ci-dessus n'atteint que les onglets ouverts.
+    // Sans appareil abonné (`no_subscription`), l'appel continue tel quel.
+    void notifyCallPush({ topic: 'incoming_call', targetUserId: activeChat.participantId, conversationId: activeChat.id, callId, payload: { callType: type } });
 
     // Équipe I (LOOP I1) : l'ancien code passait en « connecté » après 2,5 s
     // QUE L'APPELÉ AIT DÉCROCHÉ OU NON — l'appelant voyait un appel en cours
@@ -1341,6 +1801,15 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       try {
         const conversationId = await supabaseService.createDirectConversation(currentUser.id, member.id);
         if (conversationId) {
+          // Le cache de profils n'est rempli qu'au chargement des conversations
+          // (`loadSupabaseData`) : sans cette ligne, le premier message reçu
+          // dans un fil qui vient d'être créé était estampillé « Membre »
+          // (paquet Realtime sans jointure). L'identité de l'interlocuteur est
+          // connue ici — elle sert donc immédiatement.
+          participantProfilesRef.current[conversationId] = {
+            ...(participantProfilesRef.current[conversationId] || {}),
+            [member.id]: { name: member.name, avatarUrl: member.avatarUrl },
+          };
           const newConv: ChatConversation = {
             id: conversationId,
             participantId: member.id,
@@ -1413,133 +1882,112 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   return (
     <>
       {/* Floating Action Button - Positioned above dock on mobile & bottom right on desktop */}
-      <div 
+      {/* Module autonome : masqué — la fenêtre occupe tout l'écran, rien à basculer. */}
+      {!standalone && (
+      <div
         id="mooc-chat-floating-container"
         className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-40 flex items-center justify-end"
       >
-        <button
-          id="mooc-chat-toggle-btn"
-          type="button"
-          aria-label="Ouvrir la messagerie sécurisée"
-          onClick={() => setIsOpen(!isOpen)}
-          className="relative group p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center border-2 border-white/20"
-        >
-          <MessageCircle size={24} className="text-white" />
-          
-          {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[20px] h-5 bg-rose-500 text-white text-[11px] font-extrabold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-              {totalUnread}
-            </span>
-          )}
-
-          {/* Tooltip on desktop */}
-          <span className="absolute right-full mr-3 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg hidden md:block">
-            Messagerie Souveraine LMAV
-          </span>
-        </button>
+        {/* Bouton « Goutte » (VF-10, maquette 01 validée) : le niveau d'eau
+            suit les VRAIS non-lus, l'état « appel » n'existe que pendant une
+            vraie sonnerie entrante, le maintien long propose d'installer la
+            messagerie comme application autonome (VF-9). */}
+        <MessagingDropButton
+          isOpen={isOpen}
+          unreadCount={totalUnread}
+          incomingCall={isIncomingCall && activeCallSession && activeCallSession.status === 'ringing'
+            ? { callerName: activeCallSession.initiatorName, callType: activeCallSession.type }
+            : null}
+          onToggle={() => setIsOpen(!isOpen)}
+          onInstallRequest={handleInstallMessagingModule}
+        />
       </div>
+      )}
 
       {/* Main Chat Window Panel */}
       {isOpen && (
-        <div 
+        <div
           id="mooc-chat-window"
-          className="fixed inset-x-2 sm:inset-x-auto bottom-20 md:bottom-24 sm:right-6 w-auto sm:w-[420px] md:w-[460px] h-[78vh] sm:h-[620px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-[70] flex flex-col overflow-hidden animate-scale-up"
+          className={standalone
+            // Module autonome : plein écran sous la barre du module — sans bordure, ombre ni animation de fenêtre flottante.
+            ? "fixed inset-x-0 bottom-0 top-[var(--moknet-module-topbar,0px)] bg-white z-[70] flex flex-col overflow-hidden"
+            : "fixed inset-x-2 sm:inset-x-auto bottom-20 md:bottom-24 sm:right-6 w-auto sm:w-[420px] md:w-[460px] h-[78vh] sm:h-[620px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-[70] flex flex-col overflow-hidden animate-scale-up"}
         >
           
           {/* Header */}
           <div className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-white/10 flex-shrink-0">
             {activeChat ? (
-              /* Active Chat Header with participant info & call actions */
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <button 
-                  onClick={() => setCurrentChatId(null)}
-                  className="p-1.5 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-                  title="Retour à la liste"
+              /* En-tête de conversation (VF-8), extrait dans ConversationHeader :
+                 le sélecteur « Ma langue » y est FIXE, à côté du nom du
+                 correspondant, hors de la zone de messages qui défile. Les
+                 boutons d'action restent ici, handlers inchangés. */
+              <ConversationHeader
+                peer={{
+                  name: activeChat.participantName,
+                  avatarUrl: activeChat.participantAvatar,
+                  verified: true,
+                  presence: (activeChat.isOnline || onlinePresences[activeChat.participantId]) ? 'online' : 'offline',
+                  subtitle: activeChat.participantTitle || 'Membre vérifié',
+                }}
+                myLanguage={myLanguage}
+                onLanguageChange={handleChangeMyLanguage}
+                peerReadsIn={recipientLanguage && recipientLanguage !== myLanguage
+                  ? (MESSAGING_LANGUAGES.find((l) => l.code === recipientLanguage)?.label || recipientLanguage)
+                  : undefined}
+                onBack={() => setCurrentChatId(null)}
+                onOpenPeer={() => setShowMemberInfo(true)}
+              >
+                {/* Call buttons in active chat */}
+                <button
+                  onClick={handleSummarizeConversation}
+                  disabled={isSummarizing}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-50"
+                  title="Résumer cette conversation (IA)"
                 >
-                  <ArrowLeft size={18} />
+                  {isSummarizing ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
+                  ) : (
+                    <Sparkles size={16} />
+                  )}
                 </button>
 
-                <div 
-                  className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 flex-1"
-                  onClick={() => setShowMemberInfo(true)}
+                <button
+                  onClick={() => handleStartCall('audio')}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Appel Audio"
                 >
-                  <div className="relative flex-shrink-0">
-                    <img 
-                      src={activeChat.participantAvatar} 
-                      className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-400" 
-                      alt={activeChat.participantName} 
-                    />
-                    <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                  </div>
+                  <Phone size={16} />
+                </button>
 
-                  <div className="min-w-0">
-                    <div className="font-extrabold text-xs text-white truncate flex items-center gap-1.5">
-                      <span>{activeChat.participantName}</span>
-                      <Shield size={12} className="text-blue-400" />
-                    </div>
-                    <div className="text-[10px] text-slate-300 truncate">
-                      {activeChat.isOnline || onlinePresences[activeChat.participantId] ? 'En ligne' : (activeChat.participantTitle || 'Membre vérifié')}
-                    </div>
-                  </div>
-                </div>
+                <button
+                  onClick={() => handleStartCall('video')}
+                  className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm"
+                  title="Appel Vidéo"
+                >
+                  <Video size={16} />
+                </button>
 
-                {/* Call buttons in active chat */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={handleSummarizeConversation}
-                    disabled={isSummarizing}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-50"
-                    title="Résumer cette conversation (IA)"
-                  >
-                    {isSummarizing ? (
-                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
-                    ) : (
-                      <Sparkles size={16} />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => handleStartCall('audio')}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                    title="Appel Audio"
-                  >
-                    <Phone size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => handleStartCall('video')}
-                    className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm"
-                    title="Appel Vidéo"
-                  >
-                    <Video size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => setShowMemberInfo(true)}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                    title="Détails du profil"
-                  >
-                    <Info size={16} />
-                  </button>
-                </div>
-              </div>
+                <button
+                  onClick={() => setShowMemberInfo(true)}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Détails du profil"
+                >
+                  <Info size={16} />
+                </button>
+              </ConversationHeader>
             ) : (
-              /* Global Directory / Conversations List Header */
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-indigo-600 rounded-xl">
-                    <MessageCircle size={18} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-1.5">
-                      <span>Messagerie Privée</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-md text-[9px] font-mono">
-                        Realtime
-                      </span>
-                    </h3>
-                    <p className="text-[10px] text-slate-400">Visible uniquement par les membres de chaque discussion</p>
-                  </div>
-                </div>
+              /* Global Directory / Conversations List Header — VF-7 : la photo
+                 et le nom du PROPRIÉTAIRE du compte, pas seulement une icône.
+                 Le statut n'est affiché qu'une fois la présence Realtime
+                 synchronisée : rien n'est inventé hors connexion. */
+              <div className="flex items-center justify-between w-full gap-2">
+                <MessagingOwnerCard
+                  name={currentUser.name}
+                  avatarUrl={currentUser.avatarUrl}
+                  presence={Object.keys(onlinePresences).length > 0
+                    ? (onlinePresences[currentUser.id] ? 'online' : 'offline')
+                    : undefined}
+                />
 
                 <button
                   onClick={() => setIsOpen(false)}
@@ -1611,7 +2059,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="relative">
-                            <img src={member.avatarUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200" />
+                            <InitialsAvatar name={member.name} avatarUrl={member.avatarUrl} size={40} className="ring-2 ring-slate-200" />
                             {onlinePresences[member.id] && (
                               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
                             )}
@@ -1652,7 +2100,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="relative">
-                              <img src={conv.participantAvatar} className="w-11 h-11 rounded-full object-cover ring-2 ring-slate-100" />
+                              <InitialsAvatar name={conv.participantName} avatarUrl={conv.participantAvatar} size={44} className="ring-2 ring-slate-100" />
                               {(conv.isOnline || onlinePresences[conv.participantId]) && (
                                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></span>
                               )}
@@ -1701,37 +2149,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     <span>Cette conversation n'est visible que par ses membres.</span>
                   </div>
 
-                  {/* Ma langue — unique réglage. « Par défaut » = aucune
-                      traduction (je lis et j'entends l'original). Dès qu'une
-                      langue est choisie, les messages reçus, les vocaux et les
-                      appels me sont rendus dans cette langue ; mon interlocuteur
-                      règle la sienne dans SA boîte, le système la détecte seul.
-                      L'original reste toujours accessible d'un clic. */}
-                  <div className="py-2 px-3 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center gap-2">
-                    <Languages size={14} className="text-indigo-600 flex-shrink-0" />
-                    <label className="flex-1 flex items-center gap-2 min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap">Ma langue</span>
-                      <select
-                        value={myLanguage ?? ''}
-                        onChange={(e) => handleChangeMyLanguage(e.target.value)}
-                        aria-label="Ma langue"
-                        className="flex-1 min-w-0 min-h-[36px] px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
-                      >
-                        <option value="">Par défaut · aucune traduction</option>
-                        {MESSAGING_LANGUAGES.map((lang) => (
-                          <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    {recipientLanguage && recipientLanguage !== myLanguage && (
-                      <span
-                        className="text-[9px] font-bold text-slate-400 whitespace-nowrap"
-                        title="Langue détectée à partir des messages de votre interlocuteur"
-                      >
-                        Il lit en {MESSAGING_LANGUAGES.find((l) => l.code === recipientLanguage)?.label || recipientLanguage}
-                      </span>
-                    )}
-                  </div>
+                  {/* « Ma langue » ne vit plus ici (VF-8) : le sélecteur est
+                      FIXE dans l'en-tête de conversation (ConversationHeader),
+                      à côté du nom — il ne défile plus avec les messages. */}
 
                   {/* Conversation Summary Banner (LOOP 07/17) */}
                   {conversationSummary && (
@@ -1755,6 +2175,10 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                       currentUserId={currentUser.id}
                       isGroup={activeChat.isGroup}
                       participantAvatar={activeChat.participantAvatar}
+                      participantName={activeChat.participantName}
+                      /* VF-7 : mon identité (photo réelle, sinon initiales) à droite de mes bulles. */
+                      currentUserName={currentUser.name}
+                      currentUserAvatar={currentUser.avatarUrl}
                       onReply={(targetMsg) => setReplyingTo(targetMsg)}
                       onReact={handleToggleReaction}
                       onReport={(targetMsg) => {
@@ -1882,13 +2306,18 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                         <Volume2 size={16} className="text-indigo-600" />
                         <span>Message vocal prêt ({recordingDuration}s)</span>
                       </div>
-                      {/* HL-2 : transcription réelle jointe au vocal — l'interlocuteur la lira dans SA langue. */}
-                      <p className="text-[11px] text-indigo-800/80 italic truncate" title={recordedTranscript ?? undefined}>
-                        {recordedTranscript ? `« ${recordedTranscript} »` : 'Aucune transcription disponible sur ce navigateur — le vocal part tel quel.'}
+                      {/* HL-2 : transcription réelle jointe au vocal — l'interlocuteur la lira dans SA langue.
+                          VF-4 : faite par le serveur quand le navigateur n'a rien produit — état visible, jamais bloquant. */}
+                      <p className="text-[11px] text-indigo-800/80 italic truncate" title={recordedTranscript ?? voiceTranscriptionNote ?? undefined}>
+                        {recordedTranscript
+                          ? `« ${recordedTranscript} »`
+                          : voiceTranscriptionPending
+                            ? 'Transcription en cours…'
+                            : (voiceTranscriptionNote ?? 'Aucune transcription disponible — le vocal part tel quel.')}
                       </p>
                     </div>
                     <button
-                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); setRecordedTranscript(null); setRecordedTranscriptLanguage(undefined); }}
+                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); setRecordedTranscript(null); setRecordedTranscriptLanguage(undefined); resetVoiceTranscriptionState(); }}
                       className="p-1 hover:bg-indigo-100 text-slate-500 rounded-full flex-shrink-0"
                     >
                       <X size={14} />
@@ -2035,36 +2464,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           localName={currentUser.name}
           myLanguage={myLanguage}
           isIncoming={isIncomingCall}
-          onAcceptCall={() => {
-            supabaseService.sendCallSignal(callPeerId(activeCallSession), {
-              type: 'call_accepted',
-              callId: activeCallSession.callId
-            });
-            setActiveCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
-            setIsIncomingCall(false);
-          }}
-          onRejectCall={() => {
-            supabaseService.sendCallSignal(callPeerId(activeCallSession), {
-              type: 'call_rejected',
-              callId: activeCallSession.callId
-            });
-            setActiveCallSession(null);
-            setIsIncomingCall(false);
-          }}
-          onEndCall={() => {
-            supabaseService.sendCallSignal(callPeerId(activeCallSession), {
-              type: 'call_ended',
-              callId: activeCallSession.callId
-            });
-            // Équipe F2 : annulation PENDANT la sonnerie sortante = appel
-            // manqué pour l'appelé — trace serveur, même app fermée.
-            if (activeCallSession.status === 'ringing' && !isIncomingCall) {
-              void supabaseService.notifyMissedCall(callPeerId(activeCallSession));
-            }
-            setActiveCallSession(null);
-            setIsIncomingCall(false);
-          }}
+          onAcceptCall={() => acceptCall(activeCallSession)}
+          onRejectCall={() => rejectCall(activeCallSession)}
+          onEndCall={() => endCall(activeCallSession, isIncomingCall)}
         />
+      )}
+
+      {/* Mission VF-1 : message honnête d'une action de notification qui
+          n'a plus d'objet (« Cet appel a expiré. ») — au-dessus de tout,
+          effacé seul après 6 s. */}
+      {callNotice && (
+        <div role="status" className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[212] px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs font-bold shadow-2xl border border-white/10 flex items-center gap-2">
+          <PhoneOff size={14} className="text-rose-300" />
+          <span>{callNotice}</span>
+        </div>
       )}
 
       {/* Member Info & Security Modal */}

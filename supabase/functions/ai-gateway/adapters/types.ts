@@ -57,6 +57,12 @@ export interface AdapterRequest {
         // Parole -> texte (STT/transcription) — audio fourni en base64
         audioBase64?: string;
         audioMimeType?: string;
+        // STT : langue probablement parlée (indication, jamais une contrainte —
+        // l'adaptateur transcrit la langue réellement entendue) et langue
+        // cible d'une traduction demandée dans la même réponse (interprète
+        // d'appel). Codes ISO 639-1. Absents = détection seule, pas de traduction.
+        languageHint?: string;
+        targetLanguage?: string;
     };
     imageVideo?: {
         prompt: string;
