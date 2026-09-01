@@ -18,6 +18,15 @@
 | **v6.1** | 27 Août 2026 | **Socle Cloud Supabase Lazy-Init & Persistance Résiliente** | Auth, Supabase Client, Local-First, Zero White Screen | AI Coding Agent | Stable |
 | **v6.2** | 27 Août 2026 | **Architecture IA Auto-Résiliente (12 Fournisseurs) & Color Lab** | Super-Admin AI Hub, Failover, Auto-Quarantine, Color Lab | AI Coding Agent | Stable |
 | **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | **Courante (Active)** |
+| **v6.6.2** | 1er Septembre 2026 | **Hotfix Messagerie — Frontière UUID Supabase** | Mooc Chat, historique, Realtime | Codex | **Stable** |
+
+---
+
+### [Version 6.6.2] — 1er Septembre 2026 (Hotfix Messagerie — Frontière UUID Supabase)
+- **Incident** : l'ouverture d'un fil local `chat-u5` déclenchait un `GET /rest/v1/messages?...conversation_id=eq.chat-u5` rejeté en HTTP 400 / PostgreSQL `22P02`, car `conversation_id` attend un UUID.
+- **Correction** : la messagerie conserve le fil local à l'écran mais arrête le chemin avant le chargement d'historique, le marquage de lecture et les abonnements Realtime tant que l'identifiant n'est pas un UUID réel.
+- **Preuves** : 2 tests d'intégration dédiés, 256/256 tests globaux, build Vite réussi, prévisualisation Netlify publique `ready`, scan de secrets Netlify vide.
+- **Périmètre** : 1 composant, 1 test; aucune migration, aucune donnée, aucun autre module fonctionnel et aucune fonctionnalité de traduction non validée inclus.
 
 ---
 
