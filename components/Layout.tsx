@@ -1297,6 +1297,7 @@ export const Layout: React.FC<LayoutProps> = ({
         {/* Floating Mooc Chat */}
         <MoocChatFloating
           currentUser={userProfile}
+          onUpdateProfile={onUpdateProfile}
           pendingDirectChatMember={pendingDirectChatMember}
           onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
           openWidgetSignal={chatOpenSignal}

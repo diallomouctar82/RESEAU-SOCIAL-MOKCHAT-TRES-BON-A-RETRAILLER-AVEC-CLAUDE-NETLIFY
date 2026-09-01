@@ -1,7 +1,6 @@
 import { UserProfile, ActiveMemoryItem } from '../types';
 import { cloudService } from './cloud';
 import { supabaseService } from './supabaseClient';
-import { MESSAGING_LANGUAGE_CATEGORY } from './messaging/conversationLanguagePrefs';
 
 /**
  * LOOP 12/17 (moteur de mémoire contextuelle, fondation) : la Mémoire
@@ -59,22 +58,10 @@ class MemoryService {
      * Aucun utilisateur connecté → liste vide, jamais un scénario fictif de
      * remplacement (voir suppression d'`INITIAL_ACTIVE_MEMORIES` ci-dessus).
      */
-    /**
-     * `user_memory` sert aussi de support à des RÉGLAGES d'affichage (couple de
-     * langues d'une conversation, cf. `services/messaging/
-     * conversationLanguagePrefs.ts`). Ce ne sont pas des faits mémorisés du
-     * parcours : ils n'ont leur place ni dans le panneau « Mémoire Active », ni
-     * dans le contexte transmis aux modèles — `retrieveContext` se sert de
-     * cette même méthode, l'exclure ici couvre donc les deux usages d'un seul
-     * point. Aucun effet sur les données existantes : cette catégorie est
-     * nouvelle et n'était encore écrite par personne.
-     */
     async getActiveMemories(): Promise<ActiveMemoryItem[]> {
         if (!this.currentUserId) return [];
         const rows = await supabaseService.getMemories(this.currentUserId);
-        return rows
-            .filter((r) => r.category !== MESSAGING_LANGUAGE_CATEGORY)
-            .map((r) => this.mapRow(r));
+        return rows.map((r) => this.mapRow(r));
     }
 
     /**
