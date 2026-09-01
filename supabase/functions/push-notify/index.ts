@@ -34,10 +34,12 @@ function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
 
-/** Exécute une écriture d'audit sans bloquer la réponse (même patron qu'ai-gateway). */
-function fireAndForget(promise: Promise<unknown>) {
+/** Exécute une écriture d'audit sans bloquer la réponse (même patron qu'ai-gateway).
+ * Accepte un constructeur de requête Supabase (thenable sans `catch`) : il est
+ * d'abord converti en vraie promesse. */
+function fireAndForget(work: PromiseLike<unknown>) {
     const runtime = (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
-    const tracked = promise.catch((err) => console.error('push-notify: écriture différée en échec', err));
+    const tracked = Promise.resolve(work).catch((err) => console.error('push-notify: écriture différée en échec', err));
     if (runtime?.waitUntil) runtime.waitUntil(tracked);
 }
 
