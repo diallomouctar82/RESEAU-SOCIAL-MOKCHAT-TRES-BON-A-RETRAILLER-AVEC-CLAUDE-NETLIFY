@@ -64,6 +64,25 @@ export interface LiveTransportEvents {
     /** HL-3 : qualité de connexion d'un participant (local compris), telle que mesurée par le transport. */
     onConnectionQualityChanged?: (identity: string, quality: LiveConnectionQuality) => void;
     onDisconnected?: (reason?: string) => void;
+    /**
+     * Mission AU : ma piste locale s'est TERMINÉE (micro débranché, capture
+     * interrompue par le système — appel téléphonique, Siri, changement
+     * d'application sur iOS). Le SDK ne la relance pas toujours : l'appelant
+     * décide de republier.
+     */
+    onLocalTrackEnded?: (kind: LiveTrackKind) => void;
+    /** Mission AU : échec de capture rapporté par le transport (permission refusée, périphérique absent) — message brut du navigateur. */
+    onMediaDevicesError?: (message: string, kind: 'audio' | 'video' | undefined) => void;
+}
+
+/** Mission AU : mesure BRUTE de la liaison audio (compteurs WebRTC réels), jamais estimée. */
+export interface LiveAudioStats {
+    at: number;
+    /** Ma piste micro : null si aucune piste n'est publiée. */
+    local: { muted: boolean; bytesSent: number | null; packetsSent: number | null; audioLevel: number } | null;
+    /** Une entrée par piste micro distante SOUSCRITE. */
+    remote: Array<{ identity: string; bytesReceived: number | null; packetsReceived: number | null; concealedSamples: number | null; audioLevel: number }>;
+    canPlaybackAudio: boolean;
 }
 
 export interface LiveConnectParams {
@@ -122,4 +141,6 @@ export interface LiveTransportProvider {
      * cette piste, il l'écoute.
      */
     getLocalAudioTrack(): MediaStreamTrack | null;
+    /** Mission AU : compteurs audio réels (envoi/réception) pour juger chaque sens séparément et journaliser un appel sur vrai appareil. */
+    getAudioStats(): Promise<LiveAudioStats>;
 }

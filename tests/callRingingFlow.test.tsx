@@ -28,9 +28,11 @@ const rig = vi.hoisted(() => {
     return {
         log: [] as string[],
         options: null as any,
-        state: { connectionState: 'connected', error: null as string | null, remoteAudio: false },
+        state: { connectionState: 'connected', error: null as string | null, remoteAudio: false, mediaError: null as string | null, localAudioPublished: true },
         audioTrack,
         publishMicrophone: vi.fn(async (_options?: { camera?: boolean }) => {}),
+        getAudioStats: vi.fn(async () => ({ at: Date.now(), local: null, remote: [], canPlaybackAudio: true })),
+        sendData: vi.fn(async (_payload: Uint8Array, _options?: unknown) => {}),
         stopAll: vi.fn(),
         startRinging: vi.fn(),
         startRingback: vi.fn(),
@@ -65,7 +67,7 @@ vi.mock('../hooks/useLiveTransport', () => ({
             error: rig.state.error,
             connectionQuality: 'good',
             remoteConnectionQuality: 'good',
-            sendData: vi.fn(async () => {}),
+            sendData: rig.sendData,
             localVideoTrack: null,
             localScreenShareTrack: null,
             localIsSpeaking: false,
@@ -79,7 +81,9 @@ vi.mock('../hooks/useLiveTransport', () => ({
             switchCamera: vi.fn(),
             setMicrophoneEnabled: vi.fn(),
             publishMicrophone: rig.publishMicrophone,
-            mediaError: null,
+            mediaError: rig.state.mediaError,
+            localAudioPublished: rig.state.localAudioPublished,
+            getAudioStats: rig.getAudioStats,
             startScreenShare: vi.fn(),
             stopScreenShare: vi.fn(),
             disconnect: vi.fn(),
@@ -118,6 +122,7 @@ vi.mock('../services/calls/callPush', async (importOriginal) => {
 
 const { ChatCallModal } = await import('../components/chat/ChatCallModal');
 const { MoocChatFloating } = await import('../components/MoocChatFloating');
+const { decodeCallData, encodeCallData } = await import('../services/messaging/speechLanguage');
 
 const ME = '11111111-1111-4111-8111-111111111111';
 const CALLER = '33333333-3333-4333-8333-333333333333';
@@ -170,6 +175,11 @@ beforeEach(() => {
     rig.state.connectionState = 'connected';
     rig.state.error = null;
     rig.state.remoteAudio = false;
+    rig.state.mediaError = null;
+    rig.state.localAudioPublished = true;
+    rig.getAudioStats.mockClear();
+    rig.getAudioStats.mockImplementation(async () => ({ at: Date.now(), local: null, remote: [], canPlaybackAudio: true }));
+    rig.sendData.mockClear();
     rig.pushHandlers = null;
     rig.launch = null;
     rig.publishMicrophone.mockClear();
@@ -306,6 +316,119 @@ describe('ChatCallModal — pré-connexion pendant la sonnerie (VF-3) et arrêt 
     });
 });
 
+/**
+ * Mission AU (audio bidirectionnel) — ce que l'écran d'appel fait quand un
+ * sens manque : republier au décroché si mon micro n'est pas RÉELLEMENT
+ * publié (quel que soit le rôle), bannière visible + « Réessayer le micro »,
+ * état de micro annoncé au correspondant et avis reçu de lui, diagnostic sur
+ * compteurs réels, et — côté appelant — média distant pendant la sonnerie =
+ * signal d'acceptation perdu → appel connecté.
+ */
+describe('ChatCallModal — audio bidirectionnel (mission AU)', () => {
+    const mediaMessages = () => rig.sendData.mock.calls.map((c) => decodeCallData(c[0] as Uint8Array)).filter((m): m is Extract<NonNullable<ReturnType<typeof decodeCallData>>, { t: 'media' }> => !!m && m.t === 'media');
+
+    it('appelant connecté pendant la sonnerie mais micro NON publié (capture refusée) : republication au décroché', async () => {
+        rig.state.localAudioPublished = false;
+        render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        await waitFor(() => expect(rig.publishMicrophone).toHaveBeenCalledWith({ camera: false }));
+    });
+
+    it('micro refusé : bannière visible avec la cause en français, et « Réessayer le micro » relance la publication', async () => {
+        rig.state.localAudioPublished = false;
+        rig.state.mediaError = 'NotAllowedError: Permission denied';
+        render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        await waitFor(() => expect(rig.publishMicrophone).toHaveBeenCalledTimes(1));
+        const alert = screen.getByRole('alert');
+        expect(alert.textContent).toContain('Ivan ne vous entend pas');
+        expect(alert.textContent).toContain('Le navigateur a refusé l’accès au micro');
+        rig.publishMicrophone.mockClear();
+        fireEvent.click(screen.getByRole('button', { name: /Réessayer le micro/ }));
+        await waitFor(() => expect(rig.publishMicrophone).toHaveBeenCalledWith({ camera: false }));
+    });
+
+    it('micro publié : aucune bannière, même avec une erreur caméra résiduelle', () => {
+        rig.state.mediaError = 'NotFoundError: caméra absente';
+        render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('j’annonce l’état RÉEL de mon micro au correspondant (media on / off / unavailable + raison)', async () => {
+        const { rerender } = render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        await waitFor(() => expect(mediaMessages().at(-1)).toEqual({ t: 'media', v: 1, mic: 'on' }));
+
+        fireEvent.click(screen.getByTitle('Couper micro'));
+        await waitFor(() => expect(mediaMessages().at(-1)).toEqual({ t: 'media', v: 1, mic: 'off' }));
+
+        rig.state.localAudioPublished = false;
+        rig.state.mediaError = 'NotAllowedError: Permission denied';
+        rerender(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        await waitFor(() => expect(mediaMessages().at(-1)).toMatchObject({ t: 'media', mic: 'unavailable', reason: expect.stringContaining('refusé') }));
+    });
+
+    it('le correspondant annonce un micro indisponible → avis honnête à l’écran ; micro coupé → « a coupé son micro »', async () => {
+        render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        act(() => { rig.options.onDataReceived(encodeCallData({ t: 'media', v: 1, mic: 'unavailable', reason: 'permission refusée' })); });
+        expect(await screen.findByText(/Ivan n’a pas de micro actif \(permission refusée\)/)).toBeTruthy();
+        act(() => { rig.options.onDataReceived(encodeCallData({ t: 'media', v: 1, mic: 'off' })); });
+        expect(await screen.findByText('Ivan a coupé son micro.')).toBeTruthy();
+        act(() => { rig.options.onDataReceived(encodeCallData({ t: 'media', v: 1, mic: 'on' })); });
+        await waitFor(() => expect(screen.queryByText(/micro/i, { selector: '[role="status"] span' })).toBeNull());
+    });
+
+    it('diagnostic sur compteurs réels : mesure, puis « Votre voix part / Vous recevez sa voix », journal [appel] média', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            let bytes = 0;
+            rig.getAudioStats.mockImplementation(async () => {
+                bytes += 1000;
+                return { at: Date.now(), local: { muted: false, bytesSent: bytes, packetsSent: bytes / 100, audioLevel: 0.2 }, remote: [{ identity: 'peer', bytesReceived: bytes * 2, packetsReceived: bytes / 50, concealedSamples: 0, audioLevel: 0.1 }], canPlaybackAudio: true };
+            });
+            rig.state.remoteAudio = true;
+            render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+            await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+            const hud = await screen.findByTestId('audio-link-diagnostic');
+            expect(hud.textContent).toContain('Micro : mesure…');
+            await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+            await waitFor(() => expect(screen.getByTestId('audio-link-diagnostic').textContent).toContain('Votre voix part'));
+            expect(screen.getByTestId('audio-link-diagnostic').textContent).toContain('Vous recevez sa voix');
+            expect(console.info).toHaveBeenCalledWith(expect.stringMatching(/^\[appel\] média role=appelé envoi=ok réception=ok micro=publié octetsEnvoyés=\d+ pistesDistantes=1 octetsReçus=\d+ lecture=ok$/));
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('diagnostic : rien ne part → « Votre voix ne part pas » reste visible', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            rig.getAudioStats.mockImplementation(async () => ({ at: Date.now(), local: { muted: false, bytesSent: 500, packetsSent: 5, audioLevel: 0 }, remote: [], canPlaybackAudio: true }));
+            render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+            await act(async () => { await vi.advanceTimersByTimeAsync(6800); });
+            await waitFor(() => expect(screen.getByTestId('audio-link-diagnostic').textContent).toContain('Votre voix ne part pas'));
+            expect(screen.getByTestId('audio-link-diagnostic').textContent).toContain('Pas encore de micro en face');
+            expect(screen.getByTestId('audio-link-diagnostic').className).toContain('opacity-100');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('appelant en sonnerie : la voix du correspondant arrive → onRemoteMediaStarted (signal call_accepted perdu) ; jamais chez l’appelé', () => {
+        rig.state.remoteAudio = true;
+        const onRemoteMediaStarted = vi.fn();
+        const { unmount } = render(<ChatCallModal callSession={baseSession} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
+        expect(onRemoteMediaStarted).toHaveBeenCalledTimes(1);
+        unmount();
+        onRemoteMediaStarted.mockClear();
+        render(<ChatCallModal callSession={baseSession} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
+        expect(onRemoteMediaStarted).not.toHaveBeenCalled();
+    });
+
+    it('identité par appareil transmise au transport (deviceId), et le correspondant est celui qui publie du média', () => {
+        render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        expect(rig.options.deviceId).toMatch(/^[a-z0-9]{8,32}$/);
+        expect(window.localStorage.getItem('moknet_call_device_id')).toBe(rig.options.deviceId);
+    });
+});
+
 describe('MoocChatFloating — signaux, multi-appareils (VF-2) et push (VF-1)', () => {
     const renderChat = async (props: Record<string, unknown> = {}) => {
         const utils = render(<MoocChatFloating currentUser={me} {...props} />);
@@ -339,6 +462,21 @@ describe('MoocChatFloating — signaux, multi-appareils (VF-2) et push (VF-1)', 
         // Une invitation en double (broadcast après push, ou rejouée) ne fait jamais re-sonner un appel déjà pris.
         signal(invitation);
         expect(screen.queryByRole('button', { name: 'Décrocher' })).toBeNull();
+    });
+
+    it('mission AU — appel sortant : la voix de l’appelé arrive sans call_accepted → appel connecté, retour d’appel coupé', async () => {
+        rig.service.getConversationsForUser.mockResolvedValue([remoteConversation]);
+        const { rerender } = await renderChat({ activeConversationId: CONV });
+        fireEvent.click(await screen.findByTitle('Appel Audio'));
+        expect(await screen.findByText('Sonnerie en cours…')).toBeTruthy();
+        rig.stopAll.mockClear();
+
+        rig.state.remoteAudio = true;
+        rerender(<MoocChatFloating currentUser={me} activeConversationId={CONV} />);
+        await waitFor(() => expect(screen.queryByText('Sonnerie en cours…')).toBeNull());
+        expect(rig.stopAll).toHaveBeenCalled();
+        expect(signalCalls('call_accepted')).toEqual([]); // c'est l'appelé qui accepte ; ici seul son média a parlé
+        expect(screen.getByRole('button', { name: 'Raccrocher' })).toBeTruthy();
     });
 
     it('call_handled_elsewhere (signal Supabase) pour l’appel qui sonne ici → silence et fermeture, sans « appel manqué »', async () => {

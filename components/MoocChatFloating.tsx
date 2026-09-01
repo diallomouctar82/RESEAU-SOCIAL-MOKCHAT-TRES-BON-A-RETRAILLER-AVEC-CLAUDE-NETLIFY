@@ -2467,6 +2467,15 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           onAcceptCall={() => acceptCall(activeCallSession)}
           onRejectCall={() => rejectCall(activeCallSession)}
           onEndCall={() => endCall(activeCallSession, isIncomingCall)}
+          onRemoteMediaStarted={() => {
+            // Mission AU : la voix de l'appelé arrive alors que je suis encore
+            // « en sonnerie » — son `call_accepted` (broadcast éphémère) s'est
+            // perdu. Le média réel prime : même transition qu'à la réception du
+            // signal (retour d'appel coupé, appel connecté).
+            stopAllRingtones();
+            const acceptedAt = Date.now();
+            setActiveCallSession(prev => prev && prev.status === 'ringing' ? { ...prev, status: 'connected', acceptedAt } : prev);
+          }}
         />
       )}
 
