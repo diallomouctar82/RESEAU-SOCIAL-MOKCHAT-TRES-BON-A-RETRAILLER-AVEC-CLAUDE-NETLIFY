@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
-import type { LiveCameraFacing, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle } from '../services/live/liveTransportTypes';
+import type { LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, SendDataOptions } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
 
 export interface RemoteParticipantMedia {
@@ -31,11 +31,24 @@ export interface UseLiveTransportOptions {
      * micro part, jamais un flash de caméra non demandé.
      */
     publishVideoOnConnect?: boolean;
+    /** HL-3 : profil audio du transport — 'call' pour un appel à deux (Opus parole, RED, DTX), 'live' (défaut) inchangé. */
+    audioProfile?: 'live' | 'call';
+    /**
+     * HL-4 : messages du canal de données (sous-titres d'appel…). Lu via une
+     * ref à chaque paquet — changer le callback ne reconnecte jamais la room.
+     */
+    onDataReceived?: (payload: Uint8Array, fromIdentity?: string) => void;
 }
 
 export interface UseLiveTransportResult {
     connectionState: LiveConnectionState;
     error: string | null;
+    /** HL-3 : qualité RÉELLE mesurée par le transport pour MA connexion (jamais estimée). */
+    connectionQuality: LiveConnectionQuality;
+    /** HL-3 : qualité rapportée pour le correspondant (appel à deux : le premier distant). */
+    remoteConnectionQuality: LiveConnectionQuality;
+    /** HL-4 : envoi sur le canal de données (publishData) — fiable par défaut. */
+    sendData: (payload: Uint8Array, options?: SendDataOptions) => Promise<void>;
     localVideoTrack: LiveTrackHandle | null;
     localScreenShareTrack: LiveTrackHandle | null;
     localIsSpeaking: boolean;
@@ -70,8 +83,15 @@ export interface UseLiveTransportResult {
 }
 
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
-    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true } = options;
+    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, audioProfile = 'live' } = options;
     const providerRef = useRef<LiveKitTransportProvider | null>(null);
+    // HL-4 : le callback de données est lu via une ref — jamais dans les
+    // dépendances de l'effet de connexion (un nouveau handler à chaque rendu
+    // ne doit pas déclencher une reconnexion).
+    const onDataReceivedRef = useRef(options.onDataReceived);
+    onDataReceivedRef.current = options.onDataReceived;
+    const [connectionQuality, setConnectionQuality] = useState<LiveConnectionQuality>('unknown');
+    const [remoteConnectionQuality, setRemoteConnectionQuality] = useState<LiveConnectionQuality>('unknown');
     // Équipe 10 (L2) : promesse de démontage de la connexion PRÉCÉDENTE.
     // canPublish fait partie des dépendances de l'effet de connexion (voulu :
     // le jeton d'un spectateur est réellement restreint côté serveur —
@@ -146,8 +166,15 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish);
                 if (cancelled) return;
 
-                await provider.connect({ serverUrl, token }, {
+                await provider.connect({ serverUrl, token, audioProfile }, {
                     onConnectionStateChanged: (state) => { if (!cancelled) setConnectionState(state); },
+                    onDataReceived: (payload, from) => { if (!cancelled) onDataReceivedRef.current?.(payload, from); },
+                    onConnectionQualityChanged: (identity, quality) => {
+                        if (cancelled) return;
+                        const localId = provider.getLocalParticipant()?.identity;
+                        if (identity === localId) setConnectionQuality(quality);
+                        else setRemoteConnectionQuality(quality);
+                    },
                     onParticipantConnected: (p) => { if (!cancelled) upsertRemote(p.identity, { participant: p }); },
                     onParticipantDisconnected: (identity) => {
                         if (cancelled) return;
@@ -220,12 +247,18 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             setLocalVideoTrack(null);
             setLocalScreenShareTrack(null);
             setRemoteParticipants([]);
+            setConnectionQuality('unknown');
+            setRemoteConnectionQuality('unknown');
             // Nouvelle connexion = nouvelle capture, qui repart en face avant.
             cameraFacingRef.current = 'user';
             setCameraFacing('user');
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, roomName, participantName, canPublish, publishVideoOnConnect, connectAttempt]);
+    }, [enabled, roomName, participantName, canPublish, publishVideoOnConnect, audioProfile, connectAttempt]);
+
+    const sendData = useCallback(async (payload: Uint8Array, sendOptions?: SendDataOptions) => {
+        await providerRef.current?.sendData(payload, sendOptions);
+    }, []);
 
     // L4 : relance complète (jeton + connexion) après un échec — utilisée par
     // le bouton « Réessayer » du LIVE. Efface l'erreur pour que l'UI reflète
@@ -272,6 +305,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     return {
         connectionState,
         error,
+        connectionQuality,
+        remoteConnectionQuality,
+        sendData,
         localVideoTrack,
         localScreenShareTrack,
         localIsSpeaking,

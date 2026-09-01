@@ -1,10 +1,39 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Maximize2, Minimize2,
-  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2
+  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff
 } from 'lucide-react';
 import { ActiveCallSession } from '../../types';
 import { useLiveTransport } from '../../hooks/useLiveTransport';
+import type { LiveConnectionQuality, SendDataOptions } from '../../services/live/liveTransportTypes';
+import { translationService, getLanguageLabel } from '../../services/translation/translationService';
+import { myEffectiveLanguage } from '../../services/messaging/messageLanguage';
+import {
+  decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
+} from '../../services/messaging/speechLanguage';
+import { CallCaptioner, InterpreterVoice, captionLanguageFromTag } from '../../services/calls/callInterpreter';
+
+/**
+ * HL-3 : libellé + couleur de la qualité réseau RÉELLE rapportée par le
+ * transport — jamais une estimation locale. Pure et exportée (testée).
+ */
+export const describeConnectionQuality = (quality: LiveConnectionQuality): { label: string; className: string; hint?: string } => {
+  switch (quality) {
+    case 'excellent': return { label: 'Réseau excellent', className: 'bg-emerald-600/80 text-white' };
+    case 'good': return { label: 'Réseau bon', className: 'bg-emerald-700/80 text-white' };
+    case 'poor': return { label: 'Réseau faible', className: 'bg-amber-600/85 text-white', hint: 'Coupures possibles : rapprochez-vous du Wi‑Fi ; des écouteurs évitent l’écho.' };
+    case 'lost': return { label: 'Réseau perdu', className: 'bg-rose-600/85 text-white', hint: 'Reconnexion en cours…' };
+    default: return { label: 'Réseau…', className: 'bg-slate-600/80 text-white' };
+  }
+};
+
+interface PeerCaption {
+  original: string;
+  translated?: string;
+  sourceLang: string | null;
+  final: boolean;
+  pending?: boolean;
+}
 
 /**
  * Appel 1-à-1 réel (Équipe I / LOOP I1 — « deux amis doivent pouvoir
@@ -66,6 +95,13 @@ interface ChatCallModalProps {
   callSession: ActiveCallSession;
   /** Nom d'affichage local, transmis au jeton LiveKit. */
   localName: string;
+  /**
+   * HL-4 : « Ma langue » (profiles.preferred_language). `null`/absent =
+   * « Par défaut » → l'appel est strictement inchangé (aucune reconnaissance,
+   * aucune traduction, aucune voix). Un code = mode interprète : je lis et
+   * j'entends l'autre dans cette langue.
+   */
+  myLanguage?: string | null;
   isIncoming?: boolean;
   onAcceptCall: () => void;
   onRejectCall: () => void;
@@ -75,6 +111,7 @@ interface ChatCallModalProps {
 export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   callSession,
   localName,
+  myLanguage = null,
   isIncoming = false,
   onAcceptCall,
   onRejectCall,
@@ -86,19 +123,139 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [duration, setDuration] = useState(0);
 
+  // HL-4 : les paquets du canal de données sont routés vers le handler
+  // COURANT via une ref — le hook ne se reconnecte jamais pour ça.
+  const onDataRef = useRef<(payload: Uint8Array) => void>(() => {});
+
   // Média réel : connexion UNIQUEMENT une fois l'appel accepté des deux
   // côtés (status 'connected' arrive par la signalisation) — pendant la
-  // sonnerie, rien ne part.
+  // sonnerie, rien ne part. HL-3 : profil audio « parole » (Opus speech,
+  // RED, DTX) — moins de coupures qu'un préréglage musique sur réseau mobile.
   const transport = useLiveTransport({
     roomName: `call-${callSession.conversationId}`,
     participantName: localName,
     canPublish: true,
     enabled: callSession.status === 'connected',
     publishVideoOnConnect: callSession.type === 'video',
+    audioProfile: 'call',
+    onDataReceived: (payload) => onDataRef.current(payload),
   });
 
   const remote = transport.remoteParticipants[0] ?? null;
   const mediaConnected = transport.connectionState === 'connected';
+
+  // ── Interprète IA (HL-4) ────────────────────────────────────────────────
+  // Chaque côté transcrit SA voix, dans SA langue, et envoie les segments à
+  // l'autre par le canal de données ; le RÉCEPTEUR traduit dans SA langue,
+  // affiche les sous-titres et — s'il le veut — entend une voix dans sa
+  // langue pendant que l'original est atténué. « Par défaut » chez moi :
+  // rien de tout cela ne s'exécute pour moi ; je transcris seulement si
+  // l'autre, lui, a choisi une langue (il a besoin de mes sous-titres).
+  const myLang = myEffectiveLanguage(myLanguage);
+  const mySpeechTag = speechTagFor(myLanguage, typeof navigator !== 'undefined' ? navigator.language : undefined);
+  const [peerLanguage, setPeerLanguage] = useState<string | null>(null);
+  const [peerCaption, setPeerCaption] = useState<PeerCaption | null>(null);
+  const [recentCaptions, setRecentCaptions] = useState<PeerCaption[]>([]);
+  const [myLiveText, setMyLiveText] = useState('');
+  const [captionsUnavailable, setCaptionsUnavailable] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [interpreterSpeaking, setInterpreterSpeaking] = useState(false);
+  const captionerRef = useRef<CallCaptioner | null>(null);
+  const voiceRef = useRef<InterpreterVoice | null>(null);
+  const voiceEnabledRef = useRef(voiceEnabled);
+  const sendDataRef = useRef<(payload: Uint8Array, options?: SendDataOptions) => Promise<void>>(transport.sendData);
+  sendDataRef.current = transport.sendData;
+  const lastInterimSentAtRef = useRef(0);
+
+  useEffect(() => {
+    voiceEnabledRef.current = voiceEnabled;
+    if (!voiceEnabled) voiceRef.current?.stop();
+  }, [voiceEnabled]);
+
+  // Réception : « hello » (langue du pair) et sous-titres.
+  onDataRef.current = (payload) => {
+    const msg = decodeCallData(payload);
+    if (!msg) return;
+    if (msg.t === 'hello') { setPeerLanguage(msg.lang); return; }
+    const plan = interpretationPlan({ myLanguage, sourceLanguage: msg.lang });
+    if (!plan.active) return; // « Par défaut » : l'appel reste tel quel.
+    if (!msg.final) {
+      setPeerCaption({ original: msg.text, sourceLang: msg.lang, final: false });
+      return;
+    }
+    if (!plan.needsTranslation) {
+      const caption: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, translated: msg.text };
+      setPeerCaption((prev) => { if (prev?.final && prev.translated) setRecentCaptions((r) => [prev, ...r].slice(0, 2)); return caption; });
+      return;
+    }
+    const pending: PeerCaption = { original: msg.text, sourceLang: msg.lang, final: true, pending: true };
+    setPeerCaption((prev) => { if (prev?.final && prev.translated) setRecentCaptions((r) => [prev, ...r].slice(0, 2)); return pending; });
+    translationService
+      .translateText({ text: msg.text, sourceLanguage: msg.lang ?? undefined, targetLanguage: plan.targetLanguage!, context: 'live' })
+      .then((result) => {
+        const translated = result.status === 'translated' ? result.translatedText : msg.text;
+        setPeerCaption((prev) => (prev && prev.original === msg.text ? { ...prev, translated, pending: false } : prev));
+        if (result.status === 'translated' && voiceEnabledRef.current) voiceRef.current?.speak(translated);
+      })
+      .catch(() => {
+        setPeerCaption((prev) => (prev && prev.original === msg.text ? { ...prev, translated: msg.text, pending: false } : prev));
+      });
+  };
+
+  // « hello » : j'annonce ma langue dès que le média est là, et de nouveau
+  // quand le correspondant apparaît (il aurait pu manquer le premier).
+  useEffect(() => {
+    if (!mediaConnected) return;
+    void sendDataRef.current(encodeCallData({ t: 'hello', v: 1, lang: myLang ?? null }), { reliable: true }).catch(() => {});
+  }, [mediaConnected, remote?.participant.identity, myLang]);
+
+  // Ma voix → sous-titres pour l'autre (seulement si l'un de nous a choisi une langue, micro ouvert).
+  useEffect(() => {
+    const wanted = mediaConnected && !isMuted && shouldCaptionMyVoice({ myLanguage, peerLanguage });
+    if (!wanted) { setMyLiveText(''); return; }
+    const lang = captionLanguageFromTag(mySpeechTag);
+    const send = (text: string, final: boolean) => {
+      const now = Date.now();
+      if (!final) { if (now - lastInterimSentAtRef.current < 400) return; lastInterimSentAtRef.current = now; }
+      void sendDataRef.current(
+        encodeCallData({ t: 'caption', v: 1, id: crypto.randomUUID(), text, lang, final, ts: now }),
+        { reliable: final },
+      ).catch(() => {});
+    };
+    const captioner = new CallCaptioner({
+      lang: mySpeechTag,
+      onInterim: (text) => { setMyLiveText(text); send(text, false); },
+      onFinal: (text) => { setMyLiveText(''); send(text, true); },
+      onUnavailable: (reason) => setCaptionsUnavailable(reason),
+    });
+    if (!captioner.start()) return;
+    captionerRef.current = captioner;
+    return () => { captioner.stop(); if (captionerRef.current === captioner) captionerRef.current = null; setMyLiveText(''); };
+    // myLanguage est représenté par myLang/mySpeechTag ; peerLanguage déclenche le démarrage quand l'autre choisit une langue.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaConnected, isMuted, myLang, peerLanguage, mySpeechTag]);
+
+  // Voix de l'interprète dans MA langue — n'existe qu'avec une langue choisie.
+  useEffect(() => {
+    if (!myLang) { voiceRef.current?.stop(); voiceRef.current = null; return; }
+    const voice = new InterpreterVoice({ lang: mySpeechTag, onSpeakingChange: setInterpreterSpeaking });
+    voiceRef.current = voice;
+    return () => { voice.stop(); if (voiceRef.current === voice) voiceRef.current = null; setInterpreterSpeaking(false); };
+  }, [myLang, mySpeechTag]);
+
+  // Pendant que l'interprète parle, l'original est atténué : on n'entend que sa langue.
+  useEffect(() => {
+    remote?.audioTrack?.setVolume?.(remoteVolumeFor(interpreterSpeaking, isSpeakerMuted));
+  }, [interpreterSpeaking, isSpeakerMuted, remote?.audioTrack]);
+
+  // Fin d'appel / démontage : tout s'arrête net, aucune voix fantôme.
+  useEffect(() => {
+    if (callSession.status !== 'connected') { voiceRef.current?.stop(); setPeerCaption(null); setRecentCaptions([]); }
+  }, [callSession.status]);
+  useEffect(() => () => { captionerRef.current?.stop(); voiceRef.current?.stop(); }, []);
+
+  const interpreterActive = callSession.status === 'connected' && (!!myLang || !!peerLanguage);
+  const quality = describeConnectionQuality(transport.connectionQuality);
 
   // Timer for duration when connected
   useEffect(() => {
@@ -360,7 +517,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                   </div>
                 )}
 
-                <div className={`absolute bottom-28 left-4 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-opacity duration-300 ${chromeClass}`}>
+                <div className={`absolute ${interpreterActive ? 'bottom-[14rem]' : 'bottom-28'} left-4 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-opacity duration-300 ${chromeClass}`}>
                   <span className={`w-2 h-2 rounded-full ${remote ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
                   <span>{peerName}</span>
                   {remoteMainIsScreen && <span className="text-[10px] font-semibold text-indigo-200">— partage d'écran</span>}
@@ -397,8 +554,10 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
             </>
           ) : (
             /* Audio Calling Screen — pb-28 : les contrôles flottants (A5)
-               recouvrent le bas de la scène, le contenu reste au-dessus. */
-            <div className="flex flex-col items-center justify-center px-6 pt-16 pb-28 space-y-6 text-center z-10 animate-fade-in">
+               recouvrent le bas de la scène, le contenu reste au-dessus.
+               HL-5 : avec la carte de l'interprète, le contenu remonte
+               (pb-60) pour que nom, état et durée restent lisibles. */
+            <div className={`flex flex-col items-center justify-center px-6 pt-16 ${interpreterActive ? 'pb-60 space-y-4' : 'pb-28 space-y-6'} text-center z-10 animate-fade-in`}>
               <div className="relative">
                 <div className="absolute -inset-4 rounded-full bg-indigo-600/30 animate-ping opacity-75"></div>
                 <div className="absolute -inset-8 rounded-full bg-indigo-500/20 animate-pulse"></div>
@@ -452,9 +611,68 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
 
         </div>
 
+        {/* ── Interprète IA (HL-4) : sous-titres au-dessus des contrôles ──
+            Visible seulement si l'un des deux a choisi une langue. Chez moi
+            en « Par défaut » alors que l'autre a une langue : une simple
+            transparence (« vos paroles lui sont sous-titrées »). */}
+        {interpreterActive && (
+          <div className="absolute inset-x-3 bottom-[7.25rem] z-30 pointer-events-none">
+            <div className="pointer-events-auto mx-auto max-w-md rounded-2xl bg-slate-950/70 backdrop-blur-md border border-white/10 shadow-2xl px-3.5 py-2.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-indigo-200 min-w-0 truncate">
+                  <Languages size={12} className="flex-shrink-0" />
+                  <span className="truncate">
+                    {myLang
+                      ? `Interprète IA · ${peerLanguage && peerLanguage !== myLang ? `${getLanguageLabel(peerLanguage)} → ` : ''}${getLanguageLabel(myLang)}`
+                      : `Vos paroles sont sous-titrées pour ${peerName}`}
+                  </span>
+                </span>
+                {myLang && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setVoiceEnabled((v) => !v); }}
+                    aria-pressed={voiceEnabled}
+                    className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${voiceEnabled ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
+                    title={voiceEnabled ? 'Voix de l’interprète activée — cliquer pour ne garder que les sous-titres' : 'Activer la voix de l’interprète'}
+                  >
+                    {voiceEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                    <span>{voiceEnabled ? 'Voix' : 'Sous-titres seuls'}</span>
+                  </button>
+                )}
+              </div>
+
+              {myLang && (
+                peerCaption ? (
+                  <div className="space-y-0.5">
+                    {recentCaptions.length > 0 && (
+                      <p className="text-[11px] text-slate-400 truncate">{recentCaptions[0].translated}</p>
+                    )}
+                    <p className={`text-sm sm:text-base font-semibold leading-snug text-white ${peerCaption.final ? '' : 'italic text-slate-200'}`}>
+                      {peerCaption.final
+                        ? (peerCaption.translated ?? (peerCaption.pending ? '…' : peerCaption.original))
+                        : peerCaption.original}
+                    </p>
+                    {peerCaption.final && peerCaption.translated && peerCaption.translated !== peerCaption.original && (
+                      <p className="text-[11px] text-slate-300/90 italic truncate" title={peerCaption.original}>{peerCaption.original}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-300">
+                    {peerLanguage
+                      ? `${peerName} parle ${getLanguageLabel(peerLanguage)} — ses paroles arrivent ici dans votre langue.`
+                      : `En attente des paroles de ${peerName}…`}
+                  </p>
+                )
+              )}
+              {myLiveText && <p className="text-[10px] text-indigo-200/80 truncate">Vous : {myLiveText}</p>}
+              {captionsUnavailable && <p className="text-[10px] text-amber-300">{captionsUnavailable}</p>}
+            </div>
+          </div>
+        )}
+
         {/* Top Floating Bar — s'estompe avec le reste du chrome en vidéo. */}
         <div className={`absolute top-0 inset-x-0 p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 flex items-center justify-between transition-opacity duration-300 ${chromeClass}`}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Libellé HONNÊTE : le média WebRTC est chiffré en transit
                 (DTLS-SRTP) — jamais présenté comme du bout-en-bout, qui
                 n'existe pas ici (le serveur SFU voit les flux). */}
@@ -462,6 +680,17 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
               <Shield size={12} className="text-indigo-200" />
               <span>Média chiffré en transit</span>
             </div>
+            {/* HL-3 : qualité réseau RÉELLE (mesurée par le transport) — la
+                cause la plus fréquente des coupures devient visible. */}
+            {callSession.status === 'connected' && mediaConnected && transport.connectionQuality !== 'unknown' && (
+              <div
+                className={`px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-bold flex items-center gap-1.5 ${quality.className}`}
+                title={quality.hint || 'Qualité de connexion mesurée en direct'}
+              >
+                {transport.connectionQuality === 'lost' ? <WifiOff size={12} /> : <Wifi size={12} />}
+                <span>{quality.label}</span>
+              </div>
+            )}
             {callSession.status === 'connected' && (
               connectionLabel ? (
                 <div className={`px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-bold flex items-center gap-1.5 ${connectionLabel === 'Connexion perdue' ? 'bg-rose-600/80 text-white' : 'bg-amber-600/80 text-white'}`}>
@@ -499,6 +728,13 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
           >
             <Volume2 size={14} /> Activer le son
           </button>
+        )}
+
+        {/* HL-3 : conseil honnête quand le réseau est réellement faible. */}
+        {callSession.status === 'connected' && mediaConnected && quality.hint && !transport.audioPlaybackBlocked && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-[90%] px-3 py-1.5 rounded-xl bg-amber-500/90 text-slate-950 text-[11px] font-semibold shadow-lg text-center">
+            {quality.hint}
+          </div>
         )}
 
         {/* Rangée de contrôles flottante (Équipe 7, A5) — discrète, en bas,

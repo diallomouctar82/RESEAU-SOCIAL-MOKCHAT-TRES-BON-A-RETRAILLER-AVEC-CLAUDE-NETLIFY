@@ -11,7 +11,9 @@ import { supabaseService } from '../services/supabaseClient';
 import { adminConfigService } from '../services/adminConfigService';
 import { summarizeConversation, assistRewriteMessage } from '../services/messaging/messagingIntelligence';
 import { translationService, MESSAGING_LANGUAGES } from '../services/translation/translationService';
-import { detectRecipientLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
+import { detectRecipientLanguage, myEffectiveLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
+import { languageCodeFromTag, speechTagFor } from '../services/messaging/speechLanguage';
+import { CallCaptioner, InterpreterVoice } from '../services/calls/callInterpreter';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { startRinging, stopRinging, startRingback, stopRingback } from '../services/calls/ringtoneService';
@@ -211,6 +213,17 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // doit jamais ressusciter un enregistrement que l'utilisateur a annulé.
   const voiceCancelledRef = useRef(false);
   const recordingTimerRef = useRef<any>(null);
+  // HL-2 : transcription RÉELLE du vocal pendant l'enregistrement, chez
+  // l'auteur, dans SA langue (reconnaissance dédiée — jamais le moteur de
+  // l'Architecte). Elle voyage avec le message ; le lecteur la traduit dans
+  // la sienne. Aucune transcription possible (navigateur sans API, micro
+  // refusé) → le vocal part quand même, sans texte, jamais bloqué.
+  const voiceCaptionerRef = useRef<CallCaptioner | null>(null);
+  const voiceTranscriptPartsRef = useRef<string[]>([]);
+  const voiceSpeechTagRef = useRef<string>('fr-FR');
+  const [liveVoiceTranscript, setLiveVoiceTranscript] = useState('');
+  const [recordedTranscript, setRecordedTranscript] = useState<string | null>(null);
+  const [recordedTranscriptLanguage, setRecordedTranscriptLanguage] = useState<string | undefined>(undefined);
 
   // Audio Playback state
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
@@ -446,6 +459,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       senderRole: raw.sender_id === currentUser.id ? currentUser.role : senderProfile?.role,
       text: isDeleted ? undefined : (raw.content || undefined),
       originalLanguage: isDeleted ? undefined : raw.metadata?.original_language,
+      transcript: isDeleted ? undefined : (typeof raw.metadata?.transcript === 'string' ? raw.metadata.transcript : undefined),
+      transcriptLanguage: isDeleted ? undefined : (typeof raw.metadata?.transcript_language === 'string' ? raw.metadata.transcript_language : undefined),
       mediaType: isDeleted ? undefined : (raw.attachment_url ? (raw.message_type || 'document') : 'text'),
       mediaUrl: isDeleted ? undefined : raw.attachment_url,
       timestamp: raw.created_at ? new Date(raw.created_at) : new Date(),
@@ -617,20 +632,24 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   /**
    * Un seul réglage de langue : la MIENNE (`profiles.preferred_language`,
-   * mémorisée sur le profil, donc retrouvée d'un appareil à l'autre). La
-   * langue de mon interlocuteur n'est jamais choisie : le système la DÉTECTE
-   * à partir de la langue qu'il a lui-même déclarée dans son dernier message.
-   * Tant qu'il n'a rien écrit, elle est inconnue et rien n'est inventé.
+   * mémorisée sur le profil, donc retrouvée d'un appareil à l'autre).
+   * « Par défaut » (`undefined`) = aucune traduction, on lit et on entend
+   * l'original. Dès qu'une langue est choisie, elle pilote texte, vocaux et
+   * appels. La langue de mon interlocuteur n'est jamais choisie : le système
+   * la DÉTECTE à partir de la langue qu'il a lui-même déclarée dans son
+   * dernier message. Tant qu'il n'a rien écrit, elle est inconnue et rien
+   * n'est inventé.
    */
-  const myLanguage = currentUser.preferredLanguage || 'fr';
+  const myLanguage = myEffectiveLanguage(currentUser.preferredLanguage);
   const recipientLanguage = useMemo(
     () => (activeChat && !activeChat.isGroup ? detectRecipientLanguage(activeChat.messages, currentUser.id) : undefined),
     [activeChat, currentUser.id],
   );
 
   const handleChangeMyLanguage = (code: string) => {
-    if (code === myLanguage) return;
-    void onUpdateProfile?.({ preferredLanguage: code });
+    const next = code || null; // '' = « Par défaut » → null persisté, jamais une langue inventée.
+    if ((myLanguage ?? null) === next) return;
+    void onUpdateProfile?.({ preferredLanguage: next });
   };
 
   // Filter conversations
@@ -679,12 +698,22 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         stream.getTracks().forEach(track => track.stop());
         // Équipe F1 : « Annuler » remettait les états à null PUIS ce handler
         // asynchrone les réécrivait — l'enregistrement refusé ressuscitait
         // en « prêt à envoyer ». Le drapeau d'annulation coupe court.
         if (voiceCancelledRef.current) return;
+        // HL-2 : arrêt en douceur de la reconnaissance — ses derniers mots
+        // arrivent AVANT que le vocal soit déclaré prêt.
+        const captioner = voiceCaptionerRef.current;
+        voiceCaptionerRef.current = null;
+        if (captioner) await captioner.finish();
+        if (voiceCancelledRef.current) return;
+        const transcript = voiceTranscriptPartsRef.current.join(' ').replace(/\s+/g, ' ').trim();
+        setLiveVoiceTranscript('');
+        setRecordedTranscript(transcript || null);
+        setRecordedTranscriptLanguage(transcript ? (languageCodeFromTag(voiceSpeechTagRef.current) ?? myLanguage) : undefined);
         const effectiveType = mediaRecorder.mimeType || mime || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: effectiveType });
         const reader = new FileReader();
@@ -703,6 +732,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       mediaRecorder.start(100);
       setIsRecordingVoice(true);
       setRecordingDuration(0);
+
+      // HL-2 : transcription en direct dans MA langue (ou celle du navigateur
+      // en « Par défaut ») — best effort, le vocal n'en dépend jamais.
+      voiceTranscriptPartsRef.current = [];
+      setLiveVoiceTranscript('');
+      setRecordedTranscript(null);
+      setRecordedTranscriptLanguage(undefined);
+      voiceSpeechTagRef.current = speechTagFor(myLanguage, typeof navigator !== 'undefined' ? navigator.language : undefined);
+      const captioner = new CallCaptioner({
+        lang: voiceSpeechTagRef.current,
+        onInterim: (text) => setLiveVoiceTranscript(text),
+        onFinal: (text) => { voiceTranscriptPartsRef.current.push(text); setLiveVoiceTranscript(''); },
+      });
+      voiceCaptionerRef.current = captioner.start() ? captioner : null;
 
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
@@ -724,6 +767,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   const cancelVoiceRecording = () => {
     if (mediaRecorderRef.current && isRecordingVoice) {
       voiceCancelledRef.current = true;
+      voiceCaptionerRef.current?.stop();
+      voiceCaptionerRef.current = null;
+      voiceTranscriptPartsRef.current = [];
+      setLiveVoiceTranscript('');
+      setRecordedTranscript(null);
+      setRecordedTranscriptLanguage(undefined);
       mediaRecorderRef.current.stop();
       setIsRecordingVoice(false);
       clearInterval(recordingTimerRef.current);
@@ -731,6 +780,19 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setRecordedAudioUrl(null);
     }
   };
+
+  // HL-2 : voix qui lit, dans MA langue, la traduction d'un vocal reçu —
+  // instance dédiée (jamais le moteur de l'Architecte), recréée quand ma
+  // langue change, coupée au démontage. Inexistante en « Par défaut ».
+  const transcriptVoiceRef = useRef<InterpreterVoice | null>(null);
+  useEffect(() => {
+    transcriptVoiceRef.current?.stop();
+    transcriptVoiceRef.current = myLanguage
+      ? new InterpreterVoice({ lang: speechTagFor(myLanguage) })
+      : null;
+    return () => { transcriptVoiceRef.current?.stop(); transcriptVoiceRef.current = null; };
+  }, [myLanguage]);
+  const speakTranslatedTranscript = (text: string) => { transcriptVoiceRef.current?.speak(text); };
 
   // Équipe F1 (D10) : émission « en train d'écrire » — un seul signal
   // isTyping=true par rafale de frappe, isTyping=false après 2,5 s
@@ -867,12 +929,17 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     let currentAudioUrl = recordedAudioUrl;
     // Équipe F1 : durée RÉELLE ou rien — l'ancien `|| 5` inventait 5 s.
     const currentAudioDuration = recordingDuration > 0 ? recordingDuration : undefined;
+    // HL-2 : la transcription réelle du vocal voyage avec lui (jamais inventée).
+    const currentTranscript = currentAudioBlob && recordedTranscript ? recordedTranscript : undefined;
+    const currentTranscriptLanguage = currentTranscript ? recordedTranscriptLanguage : undefined;
     const canSync = supabaseService.isConfigured() && isRealConversationId(currentChatId);
 
     setInputText('');
     setAttachedFiles([]);
     setRecordedAudioBlob(null);
     setRecordedAudioUrl(null);
+    setRecordedTranscript(null);
+    setRecordedTranscriptLanguage(undefined);
     setReplyingTo(null);
 
     // Équipe F1 (D4) : le vocal partait en BASE64 DANS LA LIGNE — au-delà de
@@ -895,6 +962,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         setAttachedFiles(filesToSend);
         setRecordedAudioBlob(currentAudioBlob);
         setRecordedAudioUrl(recordedAudioUrl);
+        setRecordedTranscript(currentTranscript ?? null);
+        setRecordedTranscriptLanguage(currentTranscriptLanguage);
         setReplyingTo(currentReplyTo);
         return;
       }
@@ -910,7 +979,9 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       senderName: currentUser.name,
       senderAvatar: currentUser.avatarUrl,
       senderRole: currentUser.role || 'citizen',
-      originalLanguage: currentUser.preferredLanguage || 'fr',
+      // « Par défaut » → aucune langue déclarée : le moteur détecte la source
+      // réelle côté lecteur, rien n'est inventé.
+      originalLanguage: myLanguage,
       timestamp: new Date(),
       isRead: false,
       status: 'sending',
@@ -920,7 +991,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     if (currentAudioUrl) {
       const clientMessageId = crypto.randomUUID();
       pending.push({
-        msg: { ...baseMsg(clientMessageId), text: textToSend || undefined, mediaType: 'audio', mediaUrl: currentAudioUrl, audioDuration: currentAudioDuration },
+        msg: { ...baseMsg(clientMessageId), text: textToSend || undefined, mediaType: 'audio', mediaUrl: currentAudioUrl, audioDuration: currentAudioDuration, transcript: currentTranscript, transcriptLanguage: currentTranscriptLanguage },
         clientMessageId, messageType: 'audio', content: textToSend || undefined, attachmentUrl: currentAudioUrl,
       });
     } else if (filesToSend.length > 0) {
@@ -964,9 +1035,11 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           senderId: currentUser.id,
           clientMessageId: p.clientMessageId,
           content: p.content,
-          originalLanguage: currentUser.preferredLanguage || 'fr',
+          originalLanguage: myLanguage,
           attachmentUrl: p.attachmentUrl,
           messageType: p.messageType,
+          transcript: p.msg.transcript,
+          transcriptLanguage: p.msg.transcriptLanguage,
           // Corrigé : les deux branches de l'ancien ternaire valaient
           // `undefined` (probable copier-coller de la vérification de l'id
           // de CONVERSATION appliquée par erreur à l'id du MESSAGE cité) —
@@ -1628,20 +1701,23 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     <span>Cette conversation n'est visible que par ses membres.</span>
                   </div>
 
-                  {/* Ma langue — unique réglage. Les messages reçus me sont
-                      affichés dans cette langue ; mon interlocuteur lit dans la
-                      sienne, que le système détecte seul. L'original reste
-                      toujours accessible d'un clic. */}
+                  {/* Ma langue — unique réglage. « Par défaut » = aucune
+                      traduction (je lis et j'entends l'original). Dès qu'une
+                      langue est choisie, les messages reçus, les vocaux et les
+                      appels me sont rendus dans cette langue ; mon interlocuteur
+                      règle la sienne dans SA boîte, le système la détecte seul.
+                      L'original reste toujours accessible d'un clic. */}
                   <div className="py-2 px-3 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center gap-2">
                     <Languages size={14} className="text-indigo-600 flex-shrink-0" />
                     <label className="flex-1 flex items-center gap-2 min-w-0">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap">Ma langue</span>
                       <select
-                        value={myLanguage}
+                        value={myLanguage ?? ''}
                         onChange={(e) => handleChangeMyLanguage(e.target.value)}
                         aria-label="Ma langue"
                         className="flex-1 min-w-0 min-h-[36px] px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
                       >
+                        <option value="">Par défaut · aucune traduction</option>
                         {MESSAGING_LANGUAGES.map((lang) => (
                           <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
                         ))}
@@ -1703,12 +1779,18 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                          `unchanged` sans aucun appel réseau. */
                       autoTranslate={Boolean(targetLanguageForMessage({ myLanguage, recipientLanguage, isMine: msg.senderId === currentUser.id, isGroup: activeChat.isGroup }))}
                       translationTargetLanguage={targetLanguageForMessage({ myLanguage, recipientLanguage, isMine: msg.senderId === currentUser.id, isGroup: activeChat.isGroup })}
-                      onTranslate={(text) => translationService.translateText({
-                        text,
-                        sourceLanguage: msg.originalLanguage,
-                        targetLanguage: targetLanguageForMessage({ myLanguage, recipientLanguage, isMine: msg.senderId === currentUser.id, isGroup: activeChat.isGroup }) || myLanguage,
-                        context: 'messaging',
-                      })}
+                      /* « Par défaut » : aucune cible → aucun bouton « Traduire »,
+                         aucun appel réseau — le réglage n'a pas de rôle de traduction. */
+                      onTranslate={targetLanguageForMessage({ myLanguage, recipientLanguage, isMine: msg.senderId === currentUser.id, isGroup: activeChat.isGroup })
+                        ? (text) => translationService.translateText({
+                          text,
+                          sourceLanguage: msg.originalLanguage,
+                          targetLanguage: targetLanguageForMessage({ myLanguage, recipientLanguage, isMine: msg.senderId === currentUser.id, isGroup: activeChat.isGroup })!,
+                          context: 'messaging',
+                        })
+                        : undefined}
+                      /* HL-2 : écouter la traduction d'un vocal dans MA langue — seulement si j'en ai choisi une. */
+                      onSpeakTranslation={myLanguage ? speakTranslatedTranscript : undefined}
                     />
                   ))}
                   
@@ -1762,12 +1844,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
                 {/* Voice Recording In-Progress Banner */}
                 {isRecordingVoice && (
-                  <div className="px-4 py-3 bg-rose-50 border-t border-rose-200 flex items-center justify-between animate-pulse">
-                    <div className="flex items-center gap-2 text-rose-700 text-xs font-bold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping"></span>
-                      <span>Enregistrement audio... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
+                  <div className="px-4 py-3 bg-rose-50 border-t border-rose-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 text-rose-700 text-xs font-bold animate-pulse">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping"></span>
+                        <span>Enregistrement audio... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
+                      </div>
+                      {/* HL-2 : ce que le navigateur comprend, en direct — l'auteur voit sa transcription se former. */}
+                      {(liveVoiceTranscript || voiceTranscriptPartsRef.current.length > 0) && (
+                        <p className="text-[11px] text-slate-600 italic truncate" title={[...voiceTranscriptPartsRef.current, liveVoiceTranscript].join(' ')}>
+                          {[...voiceTranscriptPartsRef.current.slice(-1), liveVoiceTranscript].filter(Boolean).join(' ')}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={cancelVoiceRecording}
                         className="px-3 py-1 bg-white text-rose-600 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100"
@@ -1786,14 +1876,20 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
                 {/* Recorded Audio Ready to Send Banner */}
                 {recordedAudioUrl && !isRecordingVoice && (
-                  <div className="px-4 py-2.5 bg-indigo-50 border-t border-indigo-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-indigo-900 text-xs font-bold">
-                      <Volume2 size={16} className="text-indigo-600" />
-                      <span>Message vocal prêt ({recordingDuration}s)</span>
+                  <div className="px-4 py-2.5 bg-indigo-50 border-t border-indigo-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2 text-indigo-900 text-xs font-bold">
+                        <Volume2 size={16} className="text-indigo-600" />
+                        <span>Message vocal prêt ({recordingDuration}s)</span>
+                      </div>
+                      {/* HL-2 : transcription réelle jointe au vocal — l'interlocuteur la lira dans SA langue. */}
+                      <p className="text-[11px] text-indigo-800/80 italic truncate" title={recordedTranscript ?? undefined}>
+                        {recordedTranscript ? `« ${recordedTranscript} »` : 'Aucune transcription disponible sur ce navigateur — le vocal part tel quel.'}
+                      </p>
                     </div>
                     <button
-                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); }}
-                      className="p-1 hover:bg-indigo-100 text-slate-500 rounded-full"
+                      onClick={() => { setRecordedAudioBlob(null); setRecordedAudioUrl(null); setRecordedTranscript(null); setRecordedTranscriptLanguage(undefined); }}
+                      className="p-1 hover:bg-indigo-100 text-slate-500 rounded-full flex-shrink-0"
                     >
                       <X size={14} />
                     </button>
@@ -1937,6 +2033,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         <ChatCallModal
           callSession={activeCallSession}
           localName={currentUser.name}
+          myLanguage={myLanguage}
           isIncoming={isIncomingCall}
           onAcceptCall={() => {
             supabaseService.sendCallSignal(callPeerId(activeCallSession), {

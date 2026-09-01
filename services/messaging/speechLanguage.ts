@@ -1,0 +1,128 @@
+import { MESSAGING_LANGUAGES, normalizeLanguage } from '../translation/translationService';
+import { myEffectiveLanguage } from './messageLanguage';
+
+const CATALOGUE_CODES = new Set(MESSAGING_LANGUAGES.map((l) => l.code));
+
+/**
+ * Langue parlée — le pont entre « Ma langue » (un code ISO 639-1 du
+ * catalogue MESSAGING_LANGUAGES) et les moteurs de la voix : reconnaissance
+ * vocale du navigateur (attend une étiquette BCP-47 comme `ru-RU`), synthèse
+ * vocale, et les sous-titres échangés pendant un appel.
+ *
+ * Fonctions PURES, sans DOM ni réseau — testées unitairement. Les classes qui
+ * touchent au micro et au haut-parleur vivent dans services/calls/callInterpreter.ts.
+ */
+
+/** Étiquette de reconnaissance/synthèse par langue du catalogue (variante la plus répandue). */
+export const SPEECH_TAGS: Record<string, string> = {
+    fr: 'fr-FR', en: 'en-US', es: 'es-ES', pt: 'pt-BR', de: 'de-DE', ru: 'ru-RU',
+    ar: 'ar-SA', zh: 'zh-CN', hi: 'hi-IN', bn: 'bn-BD', ur: 'ur-PK', id: 'id-ID',
+    ja: 'ja-JP', ko: 'ko-KR', it: 'it-IT', tr: 'tr-TR', nl: 'nl-NL', pl: 'pl-PL',
+    uk: 'uk-UA', vi: 'vi-VN', th: 'th-TH', fa: 'fa-IR', ms: 'ms-MY', ta: 'ta-IN',
+    sw: 'sw-KE', ha: 'ha-NG', yo: 'yo-NG', wo: 'wo-SN',
+};
+
+/**
+ * Étiquette de parole pour une langue choisie. Sans langue choisie (« Par
+ * défaut »), on s'appuie sur la langue du navigateur — la meilleure
+ * information réelle disponible, jamais un « fr-FR » imposé à un russophone.
+ */
+export function speechTagFor(language?: string | null, browserLanguage?: string): string {
+    const code = myEffectiveLanguage(language);
+    if (code && SPEECH_TAGS[code]) return SPEECH_TAGS[code];
+    const fromBrowser = (browserLanguage || '').trim();
+    if (fromBrowser) return fromBrowser;
+    return 'fr-FR';
+}
+
+/** `ru-RU` → `ru` (code du catalogue uniquement), `undefined` si la langue n'est pas au catalogue — jamais une étiquette inventée. */
+export function languageCodeFromTag(tag?: string | null): string | undefined {
+    if (!tag) return undefined;
+    const code = normalizeLanguage(tag.split(/[-_]/)[0]);
+    return code && CATALOGUE_CODES.has(code) ? code : undefined;
+}
+
+export interface InterpretationPlan {
+    /** Vrai dès que J'AI choisi une langue : l'interprétation me concerne. */
+    active: boolean;
+    /** Ma langue effective (cible), absente en « Par défaut ». */
+    targetLanguage?: string;
+    /** Vrai si ce qui arrive doit être traduit (langue source différente ou inconnue). */
+    needsTranslation: boolean;
+}
+
+/**
+ * Ce qu'il faut faire d'une parole/transcription reçue, selon MA langue et
+ * la langue déclarée de la source. « Par défaut » → rien, jamais.
+ */
+export function interpretationPlan(params: { myLanguage?: string | null; sourceLanguage?: string | null }): InterpretationPlan {
+    const target = myEffectiveLanguage(params.myLanguage);
+    if (!target) return { active: false, needsTranslation: false };
+    const source = myEffectiveLanguage(params.sourceLanguage);
+    return { active: true, targetLanguage: target, needsTranslation: source !== target };
+}
+
+/**
+ * Faut-il transcrire ma voix pendant l'appel ? Oui dès que L'UN des deux a
+ * choisi une langue : mon interlocuteur a besoin de mes sous-titres même si,
+ * moi, je suis « Par défaut ». Si personne n'a rien choisi, l'appel reste
+ * strictement inchangé — aucune reconnaissance vocale n'est lancée.
+ */
+export function shouldCaptionMyVoice(params: { myLanguage?: string | null; peerLanguage?: string | null }): boolean {
+    return Boolean(myEffectiveLanguage(params.myLanguage) || myEffectiveLanguage(params.peerLanguage));
+}
+
+/** Volume de l'audio distant pendant que l'interprète parle (on n'entend que sa langue). */
+export const DUCKED_REMOTE_VOLUME = 0.12;
+export function remoteVolumeFor(interpreterSpeaking: boolean, speakerMuted: boolean): number {
+    if (speakerMuted) return 0;
+    return interpreterSpeaking ? DUCKED_REMOTE_VOLUME : 1;
+}
+
+// ── Messages échangés sur le canal de données pendant un appel ─────────────
+
+export type CallDataMessage =
+    | { t: 'hello'; v: 1; lang: string | null }
+    | { t: 'caption'; v: 1; id: string; text: string; lang: string | null; final: boolean; ts: number };
+
+const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
+
+export function encodeCallData(message: CallDataMessage): Uint8Array {
+    const json = JSON.stringify(message);
+    if (encoder) return encoder.encode(json);
+    return Uint8Array.from(Array.from(json).map((c) => c.charCodeAt(0) & 0xff));
+}
+
+/** Décodage tolérant : tout paquet inconnu/corrompu est ignoré (null), jamais une exception. */
+export function decodeCallData(payload: Uint8Array): CallDataMessage | null {
+    try {
+        const json = decoder ? decoder.decode(payload) : String.fromCharCode(...Array.from(payload));
+        const parsed = JSON.parse(json) as Partial<CallDataMessage> & { t?: string };
+        if (!parsed || parsed.v !== 1) return null;
+        if (parsed.t === 'hello') return { t: 'hello', v: 1, lang: typeof parsed.lang === 'string' ? parsed.lang : null };
+        if (parsed.t === 'caption' && typeof parsed.text === 'string' && typeof parsed.id === 'string') {
+            return {
+                t: 'caption', v: 1, id: parsed.id, text: parsed.text,
+                lang: typeof parsed.lang === 'string' ? parsed.lang : null,
+                final: parsed.final === true,
+                ts: typeof parsed.ts === 'number' ? parsed.ts : Date.now(),
+            };
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Découpe une transcription finale en phrases courtes pour l'interprète :
+ * une phrase traduite et dite tôt vaut mieux qu'un paragraphe entier plus
+ * tard — c'est ce qui rend la conversation fluide. Jamais de phrase vide.
+ */
+export function splitForInterpretation(text: string): string[] {
+    return text
+        .split(/(?<=[.!?…])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+}

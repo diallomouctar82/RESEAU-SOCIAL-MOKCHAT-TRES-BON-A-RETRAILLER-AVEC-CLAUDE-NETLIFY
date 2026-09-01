@@ -59,7 +59,13 @@ export interface UserProfile {
     nextLevelXp: number;
     credits: number;
     avatarUrl: string;
-    preferredLanguage: string;
+    /**
+     * Langue choisie par l'utilisateur (« Ma langue » de la messagerie,
+     * `profiles.preferred_language`). `null`/absent = « Par défaut » : aucune
+     * traduction, on lit et on entend l'original. Dès qu'une langue est
+     * choisie, elle pilote texte, vocaux et appels.
+     */
+    preferredLanguage?: string | null;
     twoFactorEnabled: boolean;
     isVerified?: boolean;
     followersCount?: number;
@@ -1119,6 +1125,14 @@ export interface ChatMessage {
     text?: string;
     /** Langue choisie par l'auteur au moment de l'envoi (metadata.original_language). */
     originalLanguage?: string;
+    /**
+     * Vocal : transcription RÉELLE faite par le navigateur de l'auteur pendant
+     * l'enregistrement, dans sa langue (metadata.transcript). Le lecteur la
+     * traduit dans SA langue comme un texte ; l'audio original reste intact.
+     */
+    transcript?: string;
+    /** Langue (code catalogue) de la transcription ci-dessus (metadata.transcript_language). */
+    transcriptLanguage?: string;
     mediaUrl?: string;
     mediaType?: 'text' | 'image' | 'video' | 'audio' | 'document';
     fileName?: string;

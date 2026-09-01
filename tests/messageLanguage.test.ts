@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../types';
-import { detectRecipientLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
+import { detectRecipientLanguage, myEffectiveLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
 import { MESSAGING_LANGUAGES, normalizeLanguage, getLanguageLabel } from '../services/translation/translationService';
 
 const ME = 'me';
@@ -66,8 +66,14 @@ describe('Langue d’affichage d’un message', () => {
         expect(targetLanguageForMessage({ myLanguage: 'fr', recipientLanguage: 'ru', isMine: false, isGroup: true })).toBe('fr');
     });
 
-    it('une préférence vide retombe sur le français, jamais sur une cible vide', () => {
-        expect(targetLanguageForMessage({ myLanguage: '', isMine: false })).toBe('fr');
+    it('« Par défaut » (aucune langue choisie) → aucune traduction, dans aucun sens', () => {
+        for (const mine of ['', null, undefined] as const) {
+            expect(targetLanguageForMessage({ myLanguage: mine, recipientLanguage: 'ru', isMine: false })).toBeUndefined();
+            expect(targetLanguageForMessage({ myLanguage: mine, recipientLanguage: 'ru', isMine: true })).toBeUndefined();
+        }
+        expect(myEffectiveLanguage(null)).toBeUndefined();
+        expect(myEffectiveLanguage('')).toBeUndefined();
+        expect(myEffectiveLanguage('pt-BR')).toBe('pt');
     });
 });
 

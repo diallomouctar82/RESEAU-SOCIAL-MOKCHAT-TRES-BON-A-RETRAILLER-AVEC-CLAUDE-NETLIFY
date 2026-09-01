@@ -28,6 +28,8 @@ interface ChatMessageItemProps {
   autoTranslate?: boolean;
   /** Déclenche une nouvelle traduction si la préférence du lecteur change. */
   translationTargetLanguage?: string;
+  /** HL-2 : lit à voix haute, dans MA langue, la traduction d'un vocal — jamais l'original, jamais sans langue choisie. */
+  onSpeakTranslation?: (text: string) => void;
 }
 
 const COMMON_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💡', '🛡️'];
@@ -51,6 +53,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onTranslate,
   autoTranslate = false,
   translationTargetLanguage,
+  onSpeakTranslation,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onTranslateRef = useRef(onTranslate);
@@ -100,7 +103,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     // du lecteur : l'affichage de l'original est un choix ponctuel, jamais
     // un réglage durable hérité du message précédent.
     setShowOriginal(false);
-  }, [message.id, message.text, translationTargetLanguage]);
+  }, [message.id, message.text, message.transcript, translationTargetLanguage]);
 
   useEffect(() => () => {
     translationRequestIdRef.current += 1;
@@ -114,16 +117,23 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const isTranslated = translation?.status === 'translated';
   const isShowingTranslation = isTranslated && !showOriginal;
 
+  // HL-2 : pour un vocal, le texte traduisible est sa transcription RÉELLE
+  // (faite chez l'auteur, dans sa langue). L'audio original n'est jamais
+  // remplacé — la transcription s'ajoute sous le lecteur.
+  const spokenTranscript = message.mediaType === 'audio' && !message.text ? message.transcript : undefined;
+  const bodyText = message.text || spokenTranscript;
+  const isTranscript = !message.text && !!spokenTranscript;
+
   const handleTranslate = async () => {
     const translate = onTranslateRef.current;
-    if (!translate || !message.text || isTranslating) return;
+    if (!translate || !bodyText || isTranslating) return;
     const requestId = translationRequestIdRef.current + 1;
     translationRequestIdRef.current = requestId;
     setShowMenu(false);
     setIsTranslating(true);
     setTranslationAttempted(true);
     try {
-      const result = await translate(message.text);
+      const result = await translate(bodyText);
       if (translationRequestIdRef.current === requestId) setTranslation(result);
     } finally {
       if (translationRequestIdRef.current === requestId) setIsTranslating(false);
@@ -131,16 +141,16 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   };
 
   useEffect(() => {
-    if (!autoTranslate || !isVisible || translationAttempted || !message.text) return;
+    if (!autoTranslate || !isVisible || translationAttempted || !bodyText) return;
     void handleTranslate();
     // `onTranslate` est lu depuis une ref : un rerender du parent ne doit
     // jamais annuler/rejouer une traduction déjà en vol.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoTranslate, isVisible, translationAttempted, message.id, message.text, translationTargetLanguage]);
+  }, [autoTranslate, isVisible, translationAttempted, message.id, bodyText, translationTargetLanguage]);
 
   const handleCopyText = () => {
-    if (message.text) {
-      navigator.clipboard.writeText(message.text);
+    if (bodyText) {
+      navigator.clipboard.writeText(bodyText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }
@@ -155,6 +165,67 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       return '';
     }
   })();
+
+  /* Contenu texte — le destinataire lit directement dans SA langue.
+     Le texte de départ n'est jamais perdu : il reste la source de
+     vérité (`translation.originalText === bodyText`) et redevient
+     visible d'un clic. Tant que la traduction n'est pas revenue,
+     c'est l'original qui s'affiche : la lecture n'est jamais bloquée
+     par un appel réseau. Pour un vocal (HL-2), ce bloc est la
+     transcription, rendue SOUS le lecteur audio. */
+  const textBlock = bodyText ? (
+    <>
+      {isTranscript && (
+        <div className={`text-[9px] font-bold uppercase tracking-wide pt-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+          Transcription automatique{message.transcriptLanguage ? ` · ${getLanguageLabel(message.transcriptLanguage)}` : ''}
+        </div>
+      )}
+      <p className={`text-xs leading-relaxed whitespace-pre-wrap break-words ${isTranscript ? 'italic' : ''}`}>
+        {isShowingTranslation ? translation!.translatedText : bodyText}
+      </p>
+
+      {/* Bandeau de traduction + bouton « Voir le message original ». */}
+      {isTranslated && (
+        <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-1 mt-1 border-t ${isMe ? 'border-white/20' : 'border-slate-200'}`}>
+          <span className={`text-[9px] font-bold uppercase tracking-wide ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+            {showOriginal
+              ? `Message original${translation!.sourceLanguage ? ` · ${getLanguageLabel(translation!.sourceLanguage)}` : ''}`
+              : `Traduit automatiquement · ${translation!.targetLanguageLabel}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowOriginal((previous) => !previous)}
+            aria-pressed={showOriginal}
+            className={`text-[9px] font-bold underline underline-offset-2 transition-colors ${isMe ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-800'}`}
+          >
+            {showOriginal ? 'Voir la traduction' : 'Voir le message original'}
+          </button>
+          {isTranscript && onSpeakTranslation && (
+            <button
+              type="button"
+              onClick={() => onSpeakTranslation(translation!.translatedText)}
+              className={`inline-flex items-center gap-1 text-[9px] font-bold underline underline-offset-2 transition-colors ${isMe ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-800'}`}
+              title="Écouter la traduction dans ma langue"
+            >
+              <Volume2 size={10} /> Écouter dans ma langue
+            </button>
+          )}
+        </div>
+      )}
+
+      {isTranslating && autoTranslate && (
+        <div className={`text-[10px] pt-1.5 mt-1 border-t ${isMe ? 'border-white/20 text-indigo-200' : 'border-slate-200 text-slate-400'}`}>
+          Traduction automatique…
+        </div>
+      )}
+
+      {translation?.status === 'unavailable' && (
+        <div className={`text-[10px] pt-1.5 mt-1 border-t flex items-center gap-1 ${isMe ? 'border-white/20 text-indigo-200' : 'border-slate-200 text-amber-700'}`}>
+          <AlertCircle size={11} /> Traduction indisponible — l’original reste affiché.
+        </div>
+      )}
+    </>
+  ) : null;
 
   return (
     <div ref={containerRef} className={`group relative flex gap-2.5 my-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -190,48 +261,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             </div>
           )}
 
-          {/* Contenu texte — le destinataire lit directement dans SA langue.
-              Le texte de départ n'est jamais perdu : il reste la source de
-              vérité (`translation.originalText === message.text`) et redevient
-              visible d'un clic. Tant que la traduction n'est pas revenue,
-              c'est l'original qui s'affiche : la lecture n'est jamais bloquée
-              par un appel réseau. */}
-          {message.text && (
-            <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
-              {isShowingTranslation ? translation!.translatedText : message.text}
-            </p>
-          )}
-
-          {/* Bandeau de traduction + bouton « Voir le message original ». */}
-          {isTranslated && message.text && (
-            <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-1 mt-1 border-t ${isMe ? 'border-white/20' : 'border-slate-200'}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wide ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
-                {showOriginal
-                  ? `Message original${translation!.sourceLanguage ? ` · ${getLanguageLabel(translation!.sourceLanguage)}` : ''}`
-                  : `Traduit automatiquement · ${translation!.targetLanguageLabel}`}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowOriginal((previous) => !previous)}
-                aria-pressed={showOriginal}
-                className={`text-[9px] font-bold underline underline-offset-2 transition-colors ${isMe ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-800'}`}
-              >
-                {showOriginal ? 'Voir la traduction' : 'Voir le message original'}
-              </button>
-            </div>
-          )}
-
-          {isTranslating && autoTranslate && (
-            <div className={`text-[10px] pt-1.5 mt-1 border-t ${isMe ? 'border-white/20 text-indigo-200' : 'border-slate-200 text-slate-400'}`}>
-              Traduction automatique…
-            </div>
-          )}
-
-          {translation?.status === 'unavailable' && (
-            <div className={`text-[10px] pt-1.5 mt-1 border-t flex items-center gap-1 ${isMe ? 'border-white/20 text-indigo-200' : 'border-slate-200 text-amber-700'}`}>
-              <AlertCircle size={11} /> Traduction indisponible — l’original reste affiché.
-            </div>
-          )}
+          {/* Texte (ou légende) — avant le média ; la transcription d'un vocal vient APRÈS son lecteur. */}
+          {!isTranscript && textBlock}
 
           {/* Image Content */}
           {message.mediaType === 'image' && message.mediaUrl && (
@@ -330,6 +361,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             </div>
           )}
 
+          {/* HL-2 : transcription réelle du vocal, traduite dans ma langue si
+              j'ai choisi une langue — l'audio original reste intact au-dessus. */}
+          {isTranscript && textBlock}
+
           {/* Footer: Timestamp & Read Status & Pinned */}
           <div className={`flex items-center justify-end gap-1.5 text-[9px] font-medium pt-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
             {message.isPinned && <Pin size={10} className="text-amber-400" />}
@@ -413,7 +448,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           </button>
 
           {/* Copy Button */}
-          {message.text && (
+          {bodyText && (
             <button
               onClick={handleCopyText}
               className="p-1 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-indigo-600 transition-colors"
@@ -444,7 +479,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   </button>
                 )}
 
-                {onTranslate && message.text && translation?.status !== 'translated' && (
+                {onTranslate && bodyText && translation?.status !== 'translated' && (
                   <button
                     onClick={handleTranslate}
                     disabled={isTranslating}

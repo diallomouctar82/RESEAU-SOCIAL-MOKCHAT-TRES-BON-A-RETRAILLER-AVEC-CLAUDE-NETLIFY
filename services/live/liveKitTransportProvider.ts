@@ -4,6 +4,8 @@
  * jamais importer `livekit-client` directement.
  */
 import {
+    AudioPresets,
+    ConnectionQuality,
     ConnectionState,
     LocalParticipant,
     LocalTrackPublication,
@@ -17,6 +19,7 @@ import {
 import type {
     LiveCameraFacing,
     LiveConnectParams,
+    LiveConnectionQuality,
     LiveConnectionState,
     LiveParticipantHandle,
     LiveTrackHandle,
@@ -32,6 +35,14 @@ const CONNECTION_STATE_MAP: Record<ConnectionState, LiveConnectionState> = {
     [ConnectionState.Connected]: 'connected',
     [ConnectionState.Reconnecting]: 'reconnecting',
     [ConnectionState.SignalReconnecting]: 'reconnecting',
+};
+
+const CONNECTION_QUALITY_MAP: Record<ConnectionQuality, LiveConnectionQuality> = {
+    [ConnectionQuality.Excellent]: 'excellent',
+    [ConnectionQuality.Good]: 'good',
+    [ConnectionQuality.Poor]: 'poor',
+    [ConnectionQuality.Lost]: 'lost',
+    [ConnectionQuality.Unknown]: 'unknown',
 };
 
 const TRACK_SOURCE_TO_KIND: Partial<Record<Track.Source, LiveTrackKind>> = {
@@ -58,8 +69,25 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
     private room: Room | null = null;
 
     async connect(params: LiveConnectParams, events: LiveTransportEvents): Promise<void> {
-        const room = new Room({ adaptiveStream: true, dynacast: true });
+        // HL-3 (fluidité des appels) : pour un appel à deux, encodage Opus
+        // « parole » (24 kb/s, bien plus tolérant aux pertes de paquets que le
+        // préréglage musique par défaut → moins de coupures sur réseau mobile)
+        // avec redondance RED et DTX ; capture micro avec annulation d'écho,
+        // réduction de bruit et gain automatique explicitement demandés. Le
+        // LIVE garde strictement ses réglages historiques.
+        const room = params.audioProfile === 'call'
+            ? new Room({
+                adaptiveStream: true,
+                dynacast: true,
+                audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                publishDefaults: { audioPreset: AudioPresets.speech, dtx: true, red: true },
+            })
+            : new Room({ adaptiveStream: true, dynacast: true });
         this.room = room;
+
+        room.on(RoomEvent.ConnectionQualityChanged, (quality: ConnectionQuality, participant: Participant) => {
+            events.onConnectionQualityChanged?.(participant.identity, CONNECTION_QUALITY_MAP[quality] ?? 'unknown');
+        });
 
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
             events.onConnectionStateChanged?.(CONNECTION_STATE_MAP[state] ?? 'disconnected');
@@ -81,6 +109,11 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
                 kind,
                 attach: (el) => { track.attach(el); },
                 detach: (el) => { if (el) track.detach(el); else track.detach(); },
+                // HL-4 : atténuation de l'audio distant pendant que l'interprète
+                // parle — via l'API de piste (s'applique à tous ses éléments).
+                setVolume: kind === 'audio' || kind === 'screen_share_audio'
+                    ? (volume) => { (track as unknown as { setVolume?: (v: number) => void }).setVolume?.(Math.max(0, Math.min(1, volume))); }
+                    : undefined,
             };
             events.onTrackSubscribed?.(handle);
         });
