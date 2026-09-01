@@ -542,6 +542,8 @@ export const supabaseService = {
         senderId: string;
         clientMessageId: string;
         content?: string;
+        /** Langue choisie par l'auteur ; le texte original reste dans `content`. */
+        originalLanguage?: string;
         attachmentUrl?: string;
         messageType?: 'text' | 'image' | 'video' | 'audio' | 'document';
         replyToId?: string;
@@ -549,6 +551,10 @@ export const supabaseService = {
         audioDurationSeconds?: number;
     }): Promise<{ id: string; createdAt: string; status: string } | null> {
         if (!isSupabaseConfigured) return null;
+        const metadata = {
+            ...(params.audioDurationSeconds ? { audio_duration: params.audioDurationSeconds } : {}),
+            ...(params.originalLanguage ? { original_language: params.originalLanguage } : {}),
+        };
         const { data, error } = await supabase
             .from('messages')
             .insert({
@@ -559,7 +565,7 @@ export const supabaseService = {
                 attachment_url: params.attachmentUrl,
                 message_type: params.messageType || 'text',
                 reply_to_id: params.replyToId,
-                ...(params.audioDurationSeconds ? { metadata: { audio_duration: params.audioDurationSeconds } } : {}),
+                ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
             })
             .select('id, created_at, status')
             .single();
