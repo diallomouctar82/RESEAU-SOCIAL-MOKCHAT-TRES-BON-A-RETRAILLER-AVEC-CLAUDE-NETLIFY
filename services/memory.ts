@@ -73,7 +73,16 @@ class MemoryService {
      * parcours (`project`, historique préservé) ; sinon, une activité
      * ponctuelle (`recent_activity`, historique préservé).
      */
-    async addOrUpdateMemory(item: Omit<ActiveMemoryItem, 'id' | 'timestamp'> & { id?: string }): Promise<ActiveMemoryItem> {
+    /**
+     * `verified` et `confidence` sont facultatifs à l'appel : la table
+     * `user_memory` porte déjà les bons défauts (`verified` = true,
+     * `confidence` nullable). Les rendre obligatoires ici forçait les
+     * appelants à inventer un score de confiance qu'ils ne mesurent pas.
+     */
+    async addOrUpdateMemory(
+        item: Omit<ActiveMemoryItem, 'id' | 'timestamp' | 'verified' | 'confidence'>
+            & { id?: string; verified?: boolean; confidence?: number }
+    ): Promise<ActiveMemoryItem> {
         if (!this.currentUserId) {
             throw new Error("Impossible d'enregistrer un élément de mémoire sans utilisateur connecté.");
         }

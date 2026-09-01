@@ -12,7 +12,7 @@ import {
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
   ChatConversation, ChatMessage, MemberProfile, Story, UserProfile, PostDocument, PostVisibility, PostReactionType 
 } from '../types';
-import { AGENTS, REELS, STORIES, ACTIVE_LIVES, TRIBES, LEADERBOARD, MOCK_CHATS, MOCK_MEMBERS, POSTS as INITIAL_POSTS } from '../constants';
+import { AGENTS, REELS, STORIES, ACTIVE_LIVES, TRIBES, LEADERBOARD, MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE, POSTS as INITIAL_POSTS } from '../constants';
 import { ReelsCreator } from './ReelsCreator';
 import { SmartReelViewer } from './SmartReelViewer';
 import { UniversalCreator } from './UniversalCreator';
@@ -646,7 +646,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     setUserReactions(newReactionsMap);
     setShowReactionPickerForPost(null);
 
-    const totalLikes = Object.values(reactions).reduce((a, b) => (a || 0) + (b || 0), 0);
+    const totalLikes = Object.values(reactions).reduce<number>((a, b) => a + (Number(b) || 0), 0);
     const updatedPost: Post = {
       ...post,
       likes: totalLikes,
@@ -964,7 +964,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       likes: 0,
       comments: 0,
       shares: 0,
-      reactions: { like: 0 },
+      reactions: { like: 0, love: 0, celebrate: 0, insightful: 0, support: 0, fire: 0 },
       commentsList: []
     };
 

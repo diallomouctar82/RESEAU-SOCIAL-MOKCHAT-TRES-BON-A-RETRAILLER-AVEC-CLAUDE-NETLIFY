@@ -269,6 +269,16 @@ class DossierService {
         }
     }
 
+    /**
+     * Force l'écriture de l'état courant. `ParcoursDetailView` et `WorldHub`
+     * appelaient directement `persist()` (privé) après avoir modifié un dossier
+     * en mémoire : ce point d'entrée public rend ce besoin légitime explicite
+     * sans exposer le mécanisme d'écriture interne.
+     */
+    public async save(): Promise<void> {
+        this.persist();
+    }
+
     private persist() {
         if (this.dossiersCache) {
             try {

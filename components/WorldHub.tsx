@@ -153,7 +153,7 @@ export const WorldHub: React.FC<WorldHubProps> = ({ onNavigateToAgent, onNavigat
     const handleUpdateParcours = async (updated: DossierParcours) => {
         setDossiers(prev => prev.map(d => d.id === updated.id ? updated : d));
         setSelectedDossier(updated);
-        await dossierService.persist();
+        await dossierService.save();
     };
 
     // --- MOBILITY ACTIONS ---

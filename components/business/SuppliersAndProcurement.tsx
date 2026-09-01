@@ -48,16 +48,18 @@ export const SuppliersAndProcurement: React.FC<SuppliersAndProcurementProps> = (
       orderNumber: `BC-PO-2026-${Math.floor(Math.random() * 9000 + 1000)}`,
       supplierId: supplier.id,
       supplierName: supplier.companyName,
-      createdAt: 'Aujourd\'hui',
+      orderedAt: 'Aujourd\'hui',
       expectedDeliveryDate: 'Sous 14 jours ouvrés',
       status: 'confirmee',
-      destinationWarehouse: poDestWarehouse,
+      paymentStatus: 'en_attente',
+      country: supplier.country,
+      // Entrepôt de destination : le type porte l'identifiant ET le libellé.
+      targetWarehouseId: poDestWarehouse,
+      targetWarehouseName: poDestWarehouse,
       items: poItems.map(i => ({
-        productId: i.sku,
         sku: i.sku,
         title: i.title,
-        quantityOrdered: i.quantity,
-        quantityReceived: 0,
+        quantity: i.quantity,
         unitCost: i.unitCost,
         totalCost: i.quantity * i.unitCost
       })),

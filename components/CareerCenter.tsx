@@ -155,7 +155,9 @@ export const CareerCenter: React.FC<CareerCenterProps> = ({
   const [masterDossier, setMasterDossier] = useState<CareerMasterDossier>(() => {
     return {
       ...INITIAL_MASTER_DOSSIER,
-      pointASummary: INITIAL_POINT_A.situationSummary,
+      // `situationSummary` n'existe pas sur CareerPointA : le résumé du dossier
+      // maître valait donc `undefined`. On le compose à partir des champs réels.
+      pointASummary: `${INITIAL_POINT_A.currentTitle} — ${INITIAL_POINT_A.educationLevel}`,
       pointBSummary: INITIAL_MISSION_PLAN.userGoal.title,
       overallProgressPercentage: 74
     };

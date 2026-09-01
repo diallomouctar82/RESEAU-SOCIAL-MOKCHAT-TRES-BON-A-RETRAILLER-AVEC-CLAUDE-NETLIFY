@@ -1286,7 +1286,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // Live Commerce Order
   const handleOrderProduct = (prod: LiveCommerceProduct) => {
-    addNotification("Commande Initiée 🛍️", `Fiche de commande pour "${prod.title}" transmise à ${prod.sellerName}.`, "success");
+    addNotification("Commande Initiée 🛍️", `Fiche de commande pour "${prod.name}" transmise à ${prod.sellerName}.`, "success");
   };
 
   // Audio-Only Mode Toggle (Data Saver) — Équipe F3 : chez un SPECTATEUR

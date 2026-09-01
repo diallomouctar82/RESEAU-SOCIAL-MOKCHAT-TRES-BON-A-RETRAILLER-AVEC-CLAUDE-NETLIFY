@@ -12,20 +12,20 @@ interface CrmAndSalesCopilotProps {
   followUps: CrmFollowUp[];
   supportTickets: CustomerSupportTicket[];
   onAddFollowUp: (followUp: CrmFollowUp) => void;
-  onUpdateClientStage: (clientId: string, newStage: CrmLeadClient['stage']) => void;
+  onUpdateClientStage: (clientId: string, newStage: CrmLeadClient['pipelineStage']) => void;
   onSendAiFollowUpMessage: (followUp: CrmFollowUp) => void;
   onResolveTicket: (ticketId: string, resolutionNotes: string) => void;
 }
 
-const PIPELINE_STAGES: { id: CrmLeadClient['stage']; label: string; color: string }[] = [
+const PIPELINE_STAGES: { id: CrmLeadClient['pipelineStage']; label: string; color: string }[] = [
   { id: 'prospect', label: '1. Prospect', color: 'bg-slate-800 text-slate-300' },
-  { id: 'contact_etabli', label: '2. Contact', color: 'bg-indigo-950 text-indigo-300' },
+  { id: 'contact_initial', label: '2. Contact', color: 'bg-indigo-950 text-indigo-300' },
   { id: 'qualifie', label: '3. Qualifié', color: 'bg-blue-950 text-blue-300' },
   { id: 'rendez_vous', label: '4. RDV / Visio', color: 'bg-purple-950 text-purple-300' },
-  { id: 'offre_envoyee', label: '5. Offre Émise', color: 'bg-amber-950 text-amber-300' },
+  { id: 'offre_devis', label: '5. Offre Émise', color: 'bg-amber-950 text-amber-300' },
   { id: 'negociation', label: '6. Négociation', color: 'bg-orange-950 text-orange-300' },
-  { id: 'client_gagne', label: '7. Client Actif', color: 'bg-emerald-950 text-emerald-300' },
-  { id: 'fidelisation', label: '8. Fidélisation', color: 'bg-teal-950 text-teal-300' }
+  { id: 'client_actif', label: '7. Client Actif', color: 'bg-emerald-950 text-emerald-300' },
+  { id: 'fidelisation_partenaire', label: '8. Fidélisation', color: 'bg-teal-950 text-teal-300' }
 ];
 
 export const CrmAndSalesCopilot: React.FC<CrmAndSalesCopilotProps> = ({
@@ -59,17 +59,16 @@ export const CrmAndSalesCopilot: React.FC<CrmAndSalesCopilotProps> = ({
     try {
       const text = await generateText(`Tu es l'Agent Commercial IA de l'entreprise exportatrice d'Amadou Diallo.
         Rédige un message de relance B2B chaleureux, professionnel et persuasif pour :
-        - Client : ${followUp.clientName}
-        - Contexte : ${followUp.context}
+        - Client : ${followUp.targetClientName}
+        - Contexte : ${followUp.companyName}
         - Type de relance : ${followUp.type}
-        - Canal prévu : ${followUp.channel}
 
         Le message doit être poli, valoriser notre certification Mok Trust et encourager une réponse rapide sans être agressif. Max 60 mots.`);
 
-      setGeneratedMessage(text || followUp.aiSuggestedMessage || '');
+      setGeneratedMessage(text || followUp.generatedAiMessage || '');
     } catch (e) {
       console.error(e);
-      setGeneratedMessage(followUp.aiSuggestedMessage || 'Bonjour, je reviens vers vous concernant notre offre commerciale.');
+      setGeneratedMessage(followUp.generatedAiMessage || 'Bonjour, je reviens vers vous concernant notre offre commerciale.');
     } finally {
       setIsGeneratingMessage(false);
     }

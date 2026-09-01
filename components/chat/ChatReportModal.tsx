@@ -61,6 +61,7 @@ export const ChatReportModal: React.FC<ChatReportModalProps> = ({
         contentSnippet: targetMessage.text || (targetMessage.mediaType === 'audio' ? 'Message vocal' : 'Fichier multimédia'),
         authorId: conversation.participantId,
         authorName: conversation.participantName,
+        status: 'flagged',
         flagsReason: [reportReasonLabels[reason]],
         moduleOrigin: 'Mooc Chat'
       });

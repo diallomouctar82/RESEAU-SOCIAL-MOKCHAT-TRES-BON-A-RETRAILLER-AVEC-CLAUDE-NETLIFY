@@ -110,6 +110,15 @@ export interface SupabaseUserProfile {
     followers_count?: number;
     following_count?: number;
     interests?: string[];
+    /**
+     * Colonnes réelles de `public.profiles` (vérifiées dans information_schema)
+     * qui manquaient à ce type : `adminConfigService.ts` les lisait déjà pour
+     * construire ses fiches admin, ce qui produisait des erreurs de typage sur
+     * du code pourtant correct au regard du schéma.
+     */
+    status?: string;
+    created_at?: string;
+    updated_at?: string;
     /** LOOP 13/17 : colonne réelle, déjà lue par services/profile.ts, jamais écrite avant cette LOOP (aucun écran de réglages n'exposait de sélecteur de langue). */
     preferred_language?: string;
     privacy_settings?: {
@@ -1373,7 +1382,7 @@ export const supabaseService = {
         const { error } = await supabase.from('profiles').delete().eq('id', id);
         if (error) throw error;
     },
-    async savePlatformSettings(settings: Record<string, unknown>): Promise<void> {
+    async savePlatformSettings(settings: object): Promise<void> {
         if (!isSupabaseConfigured) return;
         // Aucune table de configuration plateforme dédiée pour l'instant :
         // dégradation silencieuse, l'admin console reste utilisable en local.

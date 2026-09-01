@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // par test, sa disponibilité (les tests d'identité vocale simulent un
 // fournisseur en panne — jamais un appel réseau réel dans un test).
 const gateway = vi.hoisted(() => ({
-    generateSpeech: vi.fn(async (): Promise<string> => { throw new Error('fournisseur HD indisponible'); }),
+    generateSpeech: vi.fn(async (_t?: unknown, _o?: unknown): Promise<string> => { throw new Error('fournisseur HD indisponible'); }),
 }));
 vi.mock('../services/aiGateway', () => ({
     generateSpeech: gateway.generateSpeech,

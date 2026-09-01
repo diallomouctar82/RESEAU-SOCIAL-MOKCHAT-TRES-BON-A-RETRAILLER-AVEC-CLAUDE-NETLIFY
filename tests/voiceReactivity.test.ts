@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const gateway = vi.hoisted(() => ({
-    generateSpeech: vi.fn(async (): Promise<string> => 'QVVESU8='),
+    generateSpeech: vi.fn(async (_t?: unknown, _o?: unknown): Promise<string> => 'QVVESU8='),
 }));
 vi.mock('../services/aiGateway', () => ({
     generateSpeech: gateway.generateSpeech,

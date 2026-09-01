@@ -314,7 +314,7 @@ RÈGLES CRUCIALES POUR LES BOÎTES ENCADRANTES (Bounding Boxes) :
                 }
                 return {
                     timestamp: Date.now(),
-                    objects: [{ id: 'obj-default', label: 'Espace de travail / Document', confidence: 0.88, box: { ymin: 150, xmin: 150, ymax: 850, xmax: 850 } }],
+                    objects: [{ id: 'obj-default', label: 'Workspace / Document', labelFr: 'Espace de travail / Document', category: 'document', confidence: 0.88, box: { ymin: 150, xmin: 150, ymax: 850, xmax: 850 } }],
                     motion: { hasMotion: false, motionLevel: 0, activeZones: [], timestamp: Date.now() },
                     ocrBlocks: [{ id: 'ocr-1', text: 'Document sous examen', type: 'document', language: 'fr', confidence: 0.9, box: { ymin: 200, xmin: 200, ymax: 400, xmax: 800 } }],
                     scene: {

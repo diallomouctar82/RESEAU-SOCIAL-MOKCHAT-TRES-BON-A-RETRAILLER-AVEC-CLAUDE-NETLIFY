@@ -258,7 +258,10 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
             if (selectedDossier) {
                 await dossierService.addDeliverable(selectedDossier.id, {
                     title: docTitle,
+                    description: `Document officiel rédigé par ${selectedAgent.name}.`,
                     category: docType === 'contract' ? 'legal' : docType === 'budget' ? 'financial' : 'official',
+                    status: 'final',
+                    authorAgentName: selectedAgent.name,
                     content: content
                 });
                 addNotification("Livrable Archivé", `Le document "${docTitle}" a été rédigé et rattaché au dossier "${selectedDossier.title}".`, "success");
@@ -728,7 +731,10 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                             if (selectedDossier) {
                                 await dossierService.addDeliverable(selectedDossier.id, {
                                     title: deliv.title,
+                                    description: 'Livrable produit dans la suite Chef de Projet.',
                                     category: 'projet',
+                                    status: 'final',
+                                    authorAgentName: 'Chef de Projet Diallo',
                                     content: deliv.content
                                 });
                                 addNotification("Livrable Archivé", `Document rattaché au dossier "${selectedDossier.title}".`, "success");
@@ -748,7 +754,10 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
                             if (selectedDossier) {
                                 await dossierService.addDeliverable(selectedDossier.id, {
                                     title: strat.title,
+                                    description: 'Stratégie arrêtée en Conseil des Experts.',
                                     category: 'strategy',
+                                    status: 'final',
+                                    authorAgentName: 'Conseil des Experts Diallo',
                                     content: strat.content
                                 });
                             }
