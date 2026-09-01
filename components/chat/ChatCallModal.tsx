@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Maximize2, Minimize2,
-  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap
+  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { ActiveCallSession } from '../../types';
 import { useLiveTransport } from '../../hooks/useLiveTransport';
 import type { LiveConnectionQuality, SendDataOptions } from '../../services/live/liveTransportTypes';
 import { stopAll as stopAllRingtones } from '../../services/calls/ringtoneService';
 import { computeCallLatency, formatLatency } from '../../services/calls/callFlow';
+import { getCallDeviceId } from '../../services/calls/callDevice';
+import {
+  assessAudioLink, describeAudioLink, describeMediaError, formatAudioLinkLog, peerMediaNotice, pickRemoteForCall,
+  type AudioLinkSample, type AudioLinkVerdict,
+} from '../../services/calls/callAudio';
 import { translationService, getLanguageLabel } from '../../services/translation/translationService';
 import { myEffectiveLanguage } from '../../services/messaging/messageLanguage';
 import {
   captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
+  type CallMediaMessage,
 } from '../../services/messaging/speechLanguage';
 import { CallCaptioner, InterpreterVoice, ServerCaptioner, captionLanguageFromTag } from '../../services/calls/callInterpreter';
 
@@ -108,6 +114,14 @@ interface ChatCallModalProps {
   onAcceptCall: () => void;
   onRejectCall: () => void;
   onEndCall: () => void;
+  /**
+   * Mission AU : côté APPELANT, la voix du correspondant arrive alors que
+   * l'appel est encore « en sonnerie » chez moi — son signal `call_accepted`
+   * (broadcast éphémère) s'est perdu. Le média réel prime : le parent passe
+   * l'appel en « connecté » (arrêt du retour d'appel, durée, lecture du son).
+   * Sans cela, l'appelé m'entendait et moi jamais lui : audio à sens unique.
+   */
+  onRemoteMediaStarted?: () => void;
 }
 
 export const ChatCallModal: React.FC<ChatCallModalProps> = ({
@@ -117,9 +131,13 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   isIncoming = false,
   onAcceptCall,
   onRejectCall,
-  onEndCall
+  onEndCall,
+  onRemoteMediaStarted,
 }) => {
   const [isMuted, setIsMuted] = useState(false);
+  // Mission AU : identité d'appareil (stable pour ce navigateur), lue une fois.
+  const deviceIdRef = useRef<string | null>(null);
+  if (deviceIdRef.current === null) deviceIdRef.current = getCallDeviceId();
   const [isVideoOff, setIsVideoOff] = useState(callSession.type === 'audio');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
@@ -152,10 +170,14 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     publishAudioOnConnect: !isIncoming,
     publishVideoOnConnect: !isIncoming && callSession.type === 'video',
     audioProfile: 'call',
+    deviceId: deviceIdRef.current,
     onDataReceived: (payload) => onDataRef.current(payload),
   });
 
-  const remote = transport.remoteParticipants[0] ?? null;
+  // Mission AU : le correspondant est celui qui PUBLIE du média — pas
+  // `remoteParticipants[0]`, qui pouvait être un second appareil silencieux
+  // du même compte (connecté pendant la sonnerie, jamais décroché).
+  const remote = pickRemoteForCall(transport.remoteParticipants);
   const transportConnected = transport.connectionState === 'connected';
   // « Média connecté » au sens de l'APPEL : transport connecté ET appel
   // accepté. Avec la pré-connexion, le transport peut être connecté pendant
@@ -177,6 +199,8 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   publishMicrophoneRef.current = transport.publishMicrophone;
   const transportConnectedRef = useRef(transportConnected);
   transportConnectedRef.current = transportConnected;
+  const localAudioPublishedRef = useRef(transport.localAudioPublished);
+  localAudioPublishedRef.current = transport.localAudioPublished;
 
   const latencyMarks = useCallback(() => ({
     offerSentAt: callSession.offerSentAt ?? null,
@@ -199,7 +223,12 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     if (localMediaRequestedRef.current) return;
     localMediaRequestedRef.current = true;
     stopAllRingtones();
-    if (isIncoming || !transportConnectedRef.current) {
+    // Mission AU : quel que soit le rôle, si mon micro n'est PAS réellement
+    // publié au décroché (capture refusée pendant la sonnerie chez
+    // l'appelant, ligne tombée, appareil évincé), on (re)demande — l'ancien
+    // test « appelant déjà connecté = rien à faire » laissait un appelant
+    // muet pour toute la durée de l'appel.
+    if (isIncoming || !transportConnectedRef.current || !localAudioPublishedRef.current) {
       publishMicrophoneRef.current({ camera: callSession.type === 'video' }).catch((err) => {
         setLocalMediaError(err instanceof Error ? err.message : String(err));
       });
@@ -207,6 +236,34 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     // isIncoming et type sont fixes pour une session ; l'activation ne doit avoir lieu qu'une fois.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callSession.status]);
+
+  // Mission AU : « Réessayer le micro » — DANS le geste utilisateur (les
+  // navigateurs mobiles n'accordent la capture qu'à ce moment-là).
+  const [retryingMic, setRetryingMic] = useState(false);
+  const retryMicrophone = async () => {
+    setRetryingMic(true);
+    setLocalMediaError(null);
+    try {
+      await publishMicrophoneRef.current({ camera: callSession.type === 'video' && !isVideoOff });
+    } catch (err) {
+      setLocalMediaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRetryingMic(false);
+    }
+  };
+
+  // Mission AU : la voix du correspondant arrive alors que je suis encore
+  // « en sonnerie » côté APPELANT → son `call_accepted` s'est perdu ; le
+  // parent bascule en connecté. (Chez l'appelé, la piste de l'appelant est
+  // attendue pendant la sonnerie : rien à faire.)
+  const onRemoteMediaStartedRef = useRef(onRemoteMediaStarted);
+  onRemoteMediaStartedRef.current = onRemoteMediaStarted;
+  const remoteAudioDuringRinging = !isIncoming && callSession.status === 'ringing' && !!remote?.audioTrack;
+  useEffect(() => {
+    if (!remoteAudioDuringRinging) return;
+    console.warn('[appel] média voix du correspondant reçue pendant la sonnerie : signal d’acceptation perdu, appel considéré connecté');
+    onRemoteMediaStartedRef.current?.();
+  }, [remoteAudioDuringRinging]);
 
   // Transport connecté après le décroché : instant « connectedAt ».
   useEffect(() => {
@@ -296,11 +353,16 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     if (!voiceEnabled) voiceRef.current?.stop();
   }, [voiceEnabled]);
 
-  // Réception : « hello » (langue du pair) et sous-titres.
+  // Mission AU : état RÉEL du micro du correspondant (message « media ») —
+  // distingue « il se tait » de « son micro ne marche pas ».
+  const [peerMedia, setPeerMedia] = useState<CallMediaMessage | null>(null);
+
+  // Réception : « hello » (langue du pair), « media » (son micro) et sous-titres.
   onDataRef.current = (payload) => {
     const msg = decodeCallData(payload);
     if (!msg) return;
     if (msg.t === 'hello') { setPeerLanguage(msg.lang); return; }
+    if (msg.t === 'media') { setPeerMedia(msg); return; }
     const plan = interpretationPlan({ myLanguage, sourceLanguage: msg.lang });
     if (!plan.active) return; // « Par défaut » : l'appel reste tel quel.
     if (!msg.final) {
@@ -337,6 +399,58 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     if (!mediaConnected) return;
     void sendDataRef.current(encodeCallData({ t: 'hello', v: 1, lang: myLang ?? null }), { reliable: true }).catch(() => {});
   }, [mediaConnected, remote?.participant.identity, myLang]);
+
+  // Mission AU : « media » — j'annonce l'état RÉEL de mon micro (publié /
+  // coupé / indisponible avec la raison) à chaque changement, et de nouveau
+  // quand le correspondant apparaît. Le canal de données passe par le serveur
+  // (fiable), même quand aucun média ne part.
+  const myMicState: CallMediaMessage['mic'] = transport.localAudioPublished ? (isMuted ? 'off' : 'on') : 'unavailable';
+  const myMicReason = transport.localAudioPublished ? undefined : (localMediaError || transport.mediaError ? describeMediaError(localMediaError || transport.mediaError) : (callAccepted ? 'micro en cours d’activation' : undefined));
+  useEffect(() => {
+    if (!mediaConnected) return;
+    const message: CallMediaMessage = { t: 'media', v: 1, mic: myMicState };
+    if (myMicState === 'unavailable' && myMicReason) message.reason = myMicReason.slice(0, 160);
+    void sendDataRef.current(encodeCallData(message), { reliable: true }).catch(() => {});
+  }, [mediaConnected, remote?.participant.identity, myMicState, myMicReason]);
+
+  // Mission AU : DIAGNOSTIC de la liaison, chaque sens jugé sur des compteurs
+  // WebRTC réels toutes les 5 s (jamais estimé) — affiché à l'écran et
+  // journalisé en console (`[appel] média …`), ce qu'un test sur vrai
+  // appareil doit relever. Ne dépend pas de la lecture réussie : mesure
+  // « octets reçus » ET « lecture autorisée » séparément.
+  const [audioLink, setAudioLink] = useState<{ sample: AudioLinkSample; verdict: AudioLinkVerdict } | null>(null);
+  const getAudioStatsRef = useRef(transport.getAudioStats);
+  getAudioStatsRef.current = transport.getAudioStats;
+  useEffect(() => {
+    if (!callAccepted) { setAudioLink(null); return; }
+    let prev: AudioLinkSample | null = null;
+    let disposed = false;
+    const tick = async () => {
+      try {
+        const stats = await getAudioStatsRef.current();
+        if (disposed) return;
+        const remoteAudio = stats.remote;
+        const sample: AudioLinkSample = {
+          at: stats.at,
+          localPublished: !!stats.local,
+          localMuted: !!stats.local?.muted,
+          bytesSent: stats.local?.bytesSent ?? null,
+          remoteAudioTracks: remoteAudio.length,
+          bytesReceived: remoteAudio.length ? remoteAudio.reduce<number | null>((acc, r) => (r.bytesReceived === null ? acc : (acc ?? 0) + r.bytesReceived), null) : null,
+          canPlaybackAudio: stats.canPlaybackAudio,
+        };
+        const verdict = assessAudioLink(prev, sample);
+        prev = sample;
+        setAudioLink({ sample, verdict });
+        console.info(formatAudioLinkLog(isIncoming ? 'appelé' : 'appelant', sample, verdict));
+      } catch (err) {
+        if (!disposed) console.warn('[appel] média mesure indisponible', err);
+      }
+    };
+    const first = setTimeout(() => { void tick(); }, 1500);
+    const timer = setInterval(() => { void tick(); }, 5000);
+    return () => { disposed = true; clearTimeout(first); clearInterval(timer); };
+  }, [callAccepted, isIncoming]);
 
   // Ma voix → sous-titres pour l'autre (seulement si l'un de nous a choisi une langue, micro ouvert).
   // VF-4 : transcription SERVEUR d'abord — ma piste micro est découpée en
@@ -818,15 +932,64 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                   Média indisponible : {transport.error}
                 </p>
               )}
-              {callAccepted && (localMediaError || transport.mediaError) && (
-                <p className="text-[11px] font-semibold text-amber-300 max-w-xs">
-                  Micro ou caméra indisponible : {localMediaError || transport.mediaError}
-                </p>
-              )}
             </div>
           )}
 
         </div>
+
+        {/* Mission AU : BANNIÈRE micro — en haut, au-dessus de tout, jamais
+            masquée par la barre de commandes (l'ancien texte était caché
+            sous elle), avec l'action qui répare : « Réessayer le micro »,
+            exécutée dans le geste utilisateur. Tant que mon micro n'est pas
+            publié, le correspondant N'ENTEND RIEN : c'est l'information la
+            plus importante de l'écran après le bouton « Activer le son ». */}
+        {callAccepted && !transport.localAudioPublished && (localMediaError || transport.mediaError) && (
+          <div role="alert" className="absolute top-14 inset-x-3 z-40 rounded-2xl bg-rose-600/95 text-white shadow-2xl px-3.5 py-2.5 flex items-start gap-2.5">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-amber-200" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p className="text-xs font-extrabold leading-snug">{peerName} ne vous entend pas — micro indisponible</p>
+              <p className="text-[11px] leading-snug text-rose-50/95">{describeMediaError(localMediaError || transport.mediaError)}</p>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); void retryMicrophone(); }}
+                disabled={retryingMic}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-rose-700 text-[11px] font-extrabold shadow disabled:opacity-60"
+              >
+                <RefreshCw size={12} className={retryingMic ? 'animate-spin' : ''} />
+                {retryingMic ? 'Activation…' : 'Réessayer le micro'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mission AU : ce que le correspondant annonce de SON micro — sinon
+            « il se tait » et « son micro ne marche pas » sont indiscernables. */}
+        {callAccepted && transport.localAudioPublished && peerMediaNotice(peerName, peerMedia) && (
+          <div role="status" className={`absolute ${localMediaError || transport.mediaError ? 'top-40' : 'top-14'} inset-x-3 z-30 rounded-2xl ${peerMedia?.mic === 'unavailable' ? 'bg-amber-500/95 text-slate-950' : 'bg-slate-800/90 text-slate-100'} shadow-xl px-3.5 py-2 text-[11px] font-semibold leading-snug flex items-start gap-2`}>
+            <MicOff size={14} className="flex-shrink-0 mt-0.5" />
+            <span>{peerMediaNotice(peerName, peerMedia)}</span>
+          </div>
+        )}
+
+        {/* Mission AU : diagnostic des DEUX sens, mesuré sur les compteurs
+            réels — discret, sous la barre du haut ; ne s'estompe pas quand un
+            sens est en défaut (c'est précisément ce qu'il faut voir). */}
+        {callAccepted && audioLink && (() => {
+          const d = describeAudioLink(audioLink.verdict);
+          const tone = (t: 'ok' | 'warn' | 'bad' | 'muted') => t === 'ok' ? 'text-emerald-300' : t === 'bad' ? 'text-rose-300' : t === 'muted' ? 'text-slate-300' : 'text-amber-200';
+          const dot = (t: 'ok' | 'warn' | 'bad' | 'muted') => t === 'ok' ? 'bg-emerald-400' : t === 'bad' ? 'bg-rose-400' : t === 'muted' ? 'bg-slate-400' : 'bg-amber-300 animate-pulse';
+          const anyBad = d.sending.tone === 'bad' || d.receiving.tone === 'bad';
+          return (
+            <div
+              data-testid="audio-link-diagnostic"
+              className={`absolute bottom-[6.5rem] right-3 z-20 rounded-xl bg-black/55 backdrop-blur-md px-2.5 py-1.5 text-[10px] font-bold flex flex-col gap-0.5 transition-opacity duration-300 ${anyBad ? 'opacity-100' : chromeClass}`}
+              title="Mesuré sur les compteurs audio réels (octets envoyés / reçus), toutes les 5 s"
+            >
+              <span className={`inline-flex items-center gap-1.5 ${tone(d.sending.tone)}`}><span className={`w-1.5 h-1.5 rounded-full ${dot(d.sending.tone)}`}></span>{d.sending.label}</span>
+              <span className={`inline-flex items-center gap-1.5 ${tone(d.receiving.tone)}`}><span className={`w-1.5 h-1.5 rounded-full ${dot(d.receiving.tone)}`}></span>{d.receiving.label}</span>
+            </div>
+          );
+        })()}
 
         {/* ── Interprète IA (HL-4) : sous-titres au-dessus des contrôles ──
             Visible seulement si l'un des deux a choisi une langue. Chez moi

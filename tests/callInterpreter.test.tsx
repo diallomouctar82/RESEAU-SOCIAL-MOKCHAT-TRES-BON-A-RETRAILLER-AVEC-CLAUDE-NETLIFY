@@ -50,6 +50,9 @@ vi.mock('../hooks/useLiveTransport', () => ({
             disconnect: vi.fn(),
             retry: vi.fn(),
             getLocalAudioTrack: () => rig.localAudioTrack,
+            mediaError: null,
+            localAudioPublished: true,
+            getAudioStats: async () => ({ at: Date.now(), local: null, remote: [], canPlaybackAudio: true }),
         };
     },
 }));

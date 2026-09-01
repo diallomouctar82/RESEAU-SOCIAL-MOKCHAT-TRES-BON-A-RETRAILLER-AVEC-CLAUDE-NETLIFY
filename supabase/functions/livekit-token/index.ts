@@ -31,7 +31,18 @@ interface TokenRequestBody {
     participantName?: string;
     /** 'true' uniquement pour les rôles animateur/modérateur — sinon lecture seule (spectateur). */
     canPublish?: boolean;
+    /**
+     * Mission AU : identifiant de l'APPAREIL (aléatoire, propre au
+     * navigateur, sans donnée personnelle). Pris en compte UNIQUEMENT pour
+     * une room d'appel `call-…` : l'identité LiveKit devient
+     * `<userId>::<deviceId>`, une par appareil — deux appareils du même
+     * compte qui se pré-connectent pendant la sonnerie ne s'évincent plus.
+     * Les rooms de LIVE gardent `profiles.id` (rôles, chat, IA).
+     */
+    deviceId?: string;
 }
+
+const DEVICE_ID_PATTERN = /^[A-Za-z0-9_-]{4,32}$/;
 
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
@@ -90,8 +101,14 @@ Deno.serve(async (req: Request) => {
     // L'identité correspond à profiles.id — voir LiveParticipantHandle.identity
     // (services/live/liveTransportTypes.ts) : le reste du système (rôles,
     // chat, IA) s'appuie sur cette correspondance stable.
-    const identity = authData.user.id;
-    const name = (body.participantName ?? '').trim() || identity;
+    // Mission AU : dans une room d'appel, une identité PAR APPAREIL (voir
+    // TokenRequestBody.deviceId et services/calls/callDevice.ts côté client,
+    // qui reconstruit le même format). Un deviceId absent ou mal formé →
+    // comportement historique (identité = compte).
+    const deviceRaw = typeof body.deviceId === 'string' ? body.deviceId.trim() : '';
+    const deviceId = DEVICE_ID_PATTERN.test(deviceRaw) ? deviceRaw : null;
+    const identity = roomName.startsWith('call-') && deviceId ? `${authData.user.id}::${deviceId}` : authData.user.id;
+    const name = (body.participantName ?? '').trim() || authData.user.id;
 
     const at = new AccessToken(config.api_key, config.api_secret, { identity, name });
     at.addGrant({

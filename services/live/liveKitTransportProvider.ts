@@ -7,16 +7,20 @@ import {
     AudioPresets,
     ConnectionQuality,
     ConnectionState,
+    LocalAudioTrack,
     LocalParticipant,
     LocalTrackPublication,
     LocalVideoTrack,
     Participant,
+    RemoteAudioTrack,
     RemoteParticipant,
     Room,
     RoomEvent,
     Track,
+    TrackEvent,
 } from 'livekit-client';
 import type {
+    LiveAudioStats,
     LiveCameraFacing,
     LiveConnectParams,
     LiveConnectionQuality,
@@ -139,6 +143,14 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
                 detach: (el) => { if (el) track.detach(el); else track.detach(); },
             };
             events.onLocalTrackPublished?.(handle);
+            // Mission AU : fin de la capture (micro débranché, interruption
+            // système sur mobile). Un seul abonnement par publication ; le SDK
+            // ne republie pas toujours seul — l'appelant décide.
+            track.once(TrackEvent.Ended, () => { events.onLocalTrackEnded?.(kind); });
+        });
+        room.on(RoomEvent.MediaDevicesError, (error: Error, deviceKind?: MediaDeviceKind) => {
+            const kind = deviceKind === 'audioinput' ? 'audio' : deviceKind === 'videoinput' ? 'video' : undefined;
+            events.onMediaDevicesError?.(error?.name ? `${error.name}: ${error.message}` : String(error), kind);
         });
         room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
             const kind = TRACK_SOURCE_TO_KIND[publication.source];
@@ -226,6 +238,49 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
 
     getLocalAudioTrack(): MediaStreamTrack | null {
         return this.room?.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack ?? null;
+    }
+
+    /**
+     * Mission AU : compteurs WebRTC RÉELS — octets/paquets envoyés par ma
+     * piste micro, reçus par chaque piste micro distante souscrite. `null`
+     * quand le navigateur ne fournit pas la mesure (jamais un chiffre
+     * inventé) ; un échec de getStats sur une piste n'empêche pas les autres.
+     */
+    async getAudioStats(): Promise<LiveAudioStats> {
+        const room = this.room;
+        const at = Date.now();
+        if (!room) return { at, local: null, remote: [], canPlaybackAudio: true };
+
+        const localPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+        const localTrack = localPub?.track;
+        let local: LiveAudioStats['local'] = null;
+        if (localTrack instanceof LocalAudioTrack) {
+            let bytesSent: number | null = null;
+            let packetsSent: number | null = null;
+            try {
+                const stats = await localTrack.getSenderStats();
+                bytesSent = typeof stats?.bytesSent === 'number' ? stats.bytesSent : null;
+                packetsSent = typeof stats?.packetsSent === 'number' ? stats.packetsSent : null;
+            } catch { /* mesure indisponible : null, jamais un chiffre inventé */ }
+            local = { muted: localTrack.isMuted || !!localPub?.isMuted, bytesSent, packetsSent, audioLevel: room.localParticipant.audioLevel };
+        }
+
+        const remote: LiveAudioStats['remote'] = [];
+        for (const participant of room.remoteParticipants.values()) {
+            const track = participant.getTrackPublication(Track.Source.Microphone)?.track;
+            if (!(track instanceof RemoteAudioTrack)) continue;
+            let bytesReceived: number | null = null;
+            let packetsReceived: number | null = null;
+            let concealedSamples: number | null = null;
+            try {
+                const stats = await track.getReceiverStats();
+                bytesReceived = typeof stats?.bytesReceived === 'number' ? stats.bytesReceived : null;
+                packetsReceived = typeof stats?.packetsReceived === 'number' ? stats.packetsReceived : null;
+                concealedSamples = typeof stats?.concealedSamples === 'number' ? stats.concealedSamples : null;
+            } catch { /* idem */ }
+            remote.push({ identity: participant.identity, bytesReceived, packetsReceived, concealedSamples, audioLevel: participant.audioLevel });
+        }
+        return { at, local, remote, canPlaybackAudio: room.canPlaybackAudio };
     }
 
     private requireLocalParticipant(): LocalParticipant {

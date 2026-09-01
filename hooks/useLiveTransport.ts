@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
-import type { LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, SendDataOptions } from '../services/live/liveTransportTypes';
+import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, SendDataOptions } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
 
 export interface RemoteParticipantMedia {
@@ -42,6 +42,13 @@ export interface UseLiveTransportOptions {
     publishAudioOnConnect?: boolean;
     /** HL-3 : profil audio du transport — 'call' pour un appel à deux (Opus parole, RED, DTX), 'live' (défaut) inchangé. */
     audioProfile?: 'live' | 'call';
+    /**
+     * Mission AU : identifiant de CET appareil (services/calls/callDevice.ts),
+     * transmis au serveur de jetons — dans une room d'appel, chaque appareil
+     * reçoit sa propre identité LiveKit, deux appareils du même compte ne
+     * s'évincent plus pendant la sonnerie. Sans effet pour une room de LIVE.
+     */
+    deviceId?: string;
     /**
      * HL-4 : messages du canal de données (sous-titres d'appel…). Lu via une
      * ref à chaque paquet — changer le callback ne reconnecte jamais la room.
@@ -95,6 +102,14 @@ export interface UseLiveTransportResult {
     publishMicrophone: (options?: { camera?: boolean }) => Promise<void>;
     /** Dernier échec de capture micro/caméra (permission refusée, périphérique absent) — null quand tout va bien. */
     mediaError: string | null;
+    /**
+     * Mission AU : ma piste MICRO est réellement publiée sur la room (événement
+     * du transport, jamais déduit d'une intention). false avant publication,
+     * après une dépublication, et hors connexion.
+     */
+    localAudioPublished: boolean;
+    /** Mission AU : compteurs audio réels (envoi / réception / lecture) — référence stable (deps []). */
+    getAudioStats: () => Promise<LiveAudioStats>;
     startScreenShare: () => Promise<void>;
     stopScreenShare: () => Promise<void>;
     disconnect: () => Promise<void>;
@@ -118,18 +133,39 @@ interface WantedMedia {
     video: boolean;
 }
 
-/**
- * Publie le média voulu sur un provider connecté (caméra puis micro — ordre
- * historique du LIVE, conservé). Les erreurs remontent à l'appelant, qui
- * décide (avertissement au LIVE, message dans l'écran d'appel).
- */
-async function publishWanted(provider: LiveKitTransportProvider, wanted: WantedMedia): Promise<void> {
-    if (wanted.video) await provider.setCameraEnabled(true);
-    if (wanted.audio) await provider.setMicrophoneEnabled(true);
+/** Résultat d'une publication : chaque média est jugé séparément. */
+interface PublishOutcome {
+    audioError: string | null;
+    videoError: string | null;
 }
 
+const errorText = (err: unknown): string => (err instanceof Error ? (err.name && err.name !== 'Error' ? `${err.name}: ${err.message}` : err.message) : String(err));
+
+/**
+ * Publie le média voulu sur un provider connecté. Mission AU : le MICRO
+ * d'abord, et chaque média est isolé — une caméra en échec (permission
+ * refusée, périphérique absent, appel vidéo depuis un poste sans webcam) ne
+ * doit plus jamais empêcher la voix de partir : c'était une cause d'audio à
+ * sens unique en appel vidéo. Les erreurs sont RETOURNÉES, pas levées :
+ * l'appelant décide (le micro compte plus que la caméra).
+ */
+async function publishWanted(provider: LiveKitTransportProvider, wanted: WantedMedia): Promise<PublishOutcome> {
+    const outcome: PublishOutcome = { audioError: null, videoError: null };
+    if (wanted.audio) {
+        try { await provider.setMicrophoneEnabled(true); } catch (err) { outcome.audioError = errorText(err); }
+    }
+    if (wanted.video) {
+        try { await provider.setCameraEnabled(true); } catch (err) { outcome.videoError = errorText(err); }
+    }
+    return outcome;
+}
+
+/** Mission AU : tentatives automatiques (jeton + connexion) quand un appel VEUT du média et que la ligne tombe — puis « Réessayer » à la main. */
+const CALL_AUTO_RETRY_MAX = 3;
+const callRetryDelayMs = (attempt: number): number => Math.min(4000, 700 * 2 ** attempt);
+
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
-    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live' } = options;
+    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live', deviceId } = options;
     const providerRef = useRef<LiveKitTransportProvider | null>(null);
     // HL-4 : le callback de données est lu via une ref — jamais dans les
     // dépendances de l'effet de connexion (un nouveau handler à chaque rendu
@@ -150,6 +186,19 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // choisir entre publier maintenant, attendre la connexion, ou relancer.
     const attemptRef = useRef<{ inFlight: boolean; connected: boolean }>({ inFlight: false, connected: false });
     const [mediaError, setMediaError] = useState<string | null>(null);
+    // Mission AU : état RÉEL de publication du micro (événements du transport).
+    const [localAudioPublished, setLocalAudioPublished] = useState(false);
+    // Mission AU : ce que l'utilisateur VEUT pour son micro (true = ouvert).
+    // Lu après chaque publication : un « couper le micro » demandé avant la
+    // publication (pendant la connexion) est appliqué dès qu'elle aboutit —
+    // avant, il était perdu et le correspondant entendait un micro réputé coupé.
+    const micWishRef = useRef(true);
+    // Mission AU : relances automatiques d'un APPEL dont la ligne tombe alors
+    // qu'il veut du média (pré-connexion en échec, déconnexion inattendue).
+    const autoRetryRef = useRef(0);
+    const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Republication après fin de piste : bornée par connexion (jamais une boucle).
+    const audioRepublishRef = useRef(0);
     const [connectionQuality, setConnectionQuality] = useState<LiveConnectionQuality>('unknown');
     const [remoteConnectionQuality, setRemoteConnectionQuality] = useState<LiveConnectionQuality>('unknown');
     // Équipe 10 (L2) : promesse de démontage de la connexion PRÉCÉDENTE.
@@ -187,6 +236,37 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         providerRef.current = provider;
         const previousTeardown = teardownRef.current;
         attemptRef.current = { inFlight: true, connected: false };
+        audioRepublishRef.current = 0;
+        const isCall = audioProfile === 'call';
+        // Mission AU : la ligne d'un appel tombe alors qu'il veut du média →
+        // relance automatique (jeton + connexion), avec délai croissant et
+        // plafond ; au-delà, l'erreur reste affichée et « Réessayer » existe.
+        // Réservé aux appels : le LIVE garde son bouton explicite (une room de
+        // LIVE fermée par l'animateur ne doit pas être rejointe en boucle).
+        const scheduleCallRetry = (reason: string) => {
+            if (!isCall || cancelled) return false;
+            const wanted = wantedMediaRef.current;
+            if (!wanted || !(wanted.audio || wanted.video)) return false;
+            if (autoRetryRef.current >= CALL_AUTO_RETRY_MAX) return false;
+            const n = autoRetryRef.current++;
+            console.warn(`[appel] média ligne perdue (${reason}) — nouvelle tentative ${n + 1}/${CALL_AUTO_RETRY_MAX} dans ${callRetryDelayMs(n)} ms`);
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = setTimeout(() => {
+                retryTimerRef.current = null;
+                if (cancelled) return;
+                setConnectAttempt((k) => k + 1);
+            }, callRetryDelayMs(n));
+            return true;
+        };
+        // Mission AU : appliquer le média voulu et le souhait de micro courant ;
+        // rapporte chaque échec séparément (le micro d'abord).
+        const applyWanted = async (wanted: WantedMedia): Promise<PublishOutcome> => {
+            const outcome = await publishWanted(provider, wanted);
+            if (wanted.audio && !outcome.audioError && !micWishRef.current) {
+                try { await provider.setMicrophoneEnabled(false); } catch { /* le micro reste ouvert : l'UI reflète l'état réel via localAudioPublished */ }
+            }
+            return outcome;
+        };
         // Ce que cette tentative publiera une fois connectée : les options
         // « à la connexion », plus tout ce qu'une activation différée a déjà
         // demandé (appelé qui a décroché pendant que la connexion échouait).
@@ -232,7 +312,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 await previousTeardown;
                 if (cancelled) return;
                 setError(null); // nouvelle tentative : l'erreur précédente ne la décrit plus.
-                const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish);
+                const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish, deviceId);
                 if (cancelled) return;
 
                 await provider.connect({ serverUrl, token, audioProfile }, {
@@ -275,11 +355,41 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         if (cancelled) return;
                         if (track.kind === 'video') setLocalVideoTrack(track);
                         else if (track.kind === 'screen_share') setLocalScreenShareTrack(track);
+                        else if (track.kind === 'audio') setLocalAudioPublished(true);
                     },
                     onLocalTrackUnpublished: (kind) => {
                         if (cancelled) return;
                         if (kind === 'video') setLocalVideoTrack(null);
                         else if (kind === 'screen_share') setLocalScreenShareTrack(null);
+                        else if (kind === 'audio') setLocalAudioPublished(false);
+                    },
+                    // Mission AU : ma capture micro s'est terminée (périphérique
+                    // débranché, interruption système) — republication bornée,
+                    // seulement si le micro est voulu ouvert ; coupé, c'est la
+                    // réactivation qui relancera la capture.
+                    onLocalTrackEnded: (kind) => {
+                        if (cancelled || kind !== 'audio') return;
+                        if (!wantedMediaRef.current?.audio || !attemptRef.current.connected) return;
+                        if (audioRepublishRef.current >= 2) {
+                            setMediaError('Le micro a été coupé par le système et n’a pas pu être relancé. Réessayez le micro.');
+                            return;
+                        }
+                        audioRepublishRef.current += 1;
+                        console.warn('[appel] média piste micro terminée — republication');
+                        (async () => {
+                            try {
+                                await provider.setMicrophoneEnabled(false);
+                                if (cancelled || !micWishRef.current) return;
+                                await provider.setMicrophoneEnabled(true);
+                                if (!cancelled) setMediaError(null);
+                            } catch (err) {
+                                if (!cancelled) setMediaError(errorText(err));
+                            }
+                        })();
+                    },
+                    onMediaDevicesError: (message, kind) => {
+                        if (cancelled || kind === 'video') return;
+                        setMediaError((prev) => prev ?? message);
                     },
                     onActiveSpeakersChanged: (identities) => {
                         if (cancelled) return;
@@ -287,14 +397,19 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         setLocalIsSpeaking(!!localId && identities.includes(localId));
                     },
                     onAudioPlaybackChanged: (canPlay) => { if (!cancelled) setAudioPlaybackBlocked(!canPlay); },
-                    onDisconnected: () => {
+                    onDisconnected: (reason) => {
                         if (cancelled) return;
                         attemptRef.current.connected = false;
+                        setLocalAudioPublished(false);
                         setConnectionState('disconnected');
+                        // Mission AU : déconnexion INATTENDUE d'un appel (pas un
+                        // démontage — `cancelled` l'aurait neutralisée) → relance.
+                        scheduleCallRetry(`déconnexion${reason ? ` ${reason}` : ''}`);
                     },
                 });
                 if (cancelled) return;
                 attemptRef.current = { inFlight: false, connected: true };
+                autoRetryRef.current = 0;
 
                 // Participants déjà présents à la connexion — arrivent via ce
                 // snapshot, pas via onParticipantConnected (réservé aux
@@ -308,20 +423,24 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 // de caméra non demandé ; appelé pendant la sonnerie : rien.
                 const wanted = wantedMediaRef.current;
                 if (canPublish && wanted && (wanted.audio || wanted.video)) {
-                    try {
-                        await publishWanted(provider, wanted);
-                        if (!cancelled) setMediaError(null);
-                    } catch (mediaErr) {
-                        // Permission caméra/micro refusée ou périphérique absent : le
-                        // LIVE reste utilisable (dégradation gracieuse), pas d'échec fatal.
-                        console.warn('useLiveTransport: activation caméra/micro impossible', mediaErr);
-                        if (!cancelled) setMediaError(mediaErr instanceof Error ? mediaErr.message : String(mediaErr));
-                    }
+                    // Permission caméra/micro refusée ou périphérique absent : le
+                    // LIVE reste utilisable (dégradation gracieuse), pas d'échec
+                    // fatal. Mission AU : le micro est jugé à part — une caméra
+                    // en échec ne cache plus un micro qui, lui, est parti.
+                    const outcome = await applyWanted(wanted);
+                    if (cancelled) return;
+                    const firstError = outcome.audioError ?? outcome.videoError;
+                    if (firstError) console.warn('useLiveTransport: activation caméra/micro impossible', outcome);
+                    setMediaError(firstError);
                 }
             } catch (err) {
                 if (!cancelled) {
                     attemptRef.current = { inFlight: false, connected: false };
                     setError(err instanceof Error ? err.message : String(err));
+                    // Mission AU : la pré-connexion d'un appel a échoué alors
+                    // qu'une activation différée (décroché) l'attend, ou l'appelant
+                    // n'a pas pu se connecter — on repart seul, jeton compris.
+                    scheduleCallRetry('connexion en échec');
                 }
             }
         })();
@@ -329,6 +448,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         return () => {
             cancelled = true;
             attemptRef.current = { inFlight: false, connected: false };
+            if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+            setLocalAudioPublished(false);
             // L2 : le démontage devient la promesse que la PROCHAINE tentative
             // attendra — plus jamais deux connexions simultanées à la même
             // identité. disconnect() est sans danger même si connect() était
@@ -346,7 +467,11 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         };
         // publishVideoOnConnect / publishAudioOnConnect : lus via publishOnConnectRef, volontairement hors dépendances (VF-3).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, roomName, participantName, canPublish, audioProfile, connectAttempt]);
+    }, [enabled, roomName, participantName, canPublish, audioProfile, deviceId, connectAttempt]);
+
+    // Le transport se (ré)active : le compteur de relances automatiques repart
+    // de zéro (un nouvel appel n'hérite pas des échecs du précédent).
+    useEffect(() => { autoRetryRef.current = 0; }, [enabled, roomName]);
 
     const sendData = useCallback(async (payload: Uint8Array, sendOptions?: SendDataOptions) => {
         await providerRef.current?.sendData(payload, sendOptions);
@@ -374,6 +499,10 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         setCameraFacing(next);
     }, []);
     const setMicrophoneEnabled = useCallback(async (value: boolean) => {
+        // Mission AU : le souhait est mémorisé AVANT l'appel au transport — s'il
+        // n'y a pas encore de piste (connexion en cours), il sera appliqué à
+        // la publication ; s'il y en a une, l'appel ci-dessous l'applique.
+        micWishRef.current = value;
         await providerRef.current?.setMicrophoneEnabled(value);
     }, []);
     // VF-3 : activation différée (voir UseLiveTransportResult.publishMicrophone).
@@ -383,13 +512,17 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         const provider = providerRef.current;
         const attempt = attemptRef.current;
         if (provider && attempt.connected) {
-            try {
-                await publishWanted(provider, wanted);
-                setMediaError(null);
-            } catch (mediaErr) {
-                setMediaError(mediaErr instanceof Error ? mediaErr.message : String(mediaErr));
-                throw mediaErr;
+            // Mission AU : micro d'abord, caméra isolée ; le souhait « micro
+            // coupé » posé pendant la sonnerie est appliqué après publication.
+            const outcome = await publishWanted(provider, wanted);
+            if (wanted.audio && !outcome.audioError && !micWishRef.current) {
+                try { await provider.setMicrophoneEnabled(false); } catch { /* état réel reflété par localAudioPublished */ }
             }
+            const firstError = outcome.audioError ?? outcome.videoError;
+            setMediaError(firstError);
+            // Seul un micro absent est un échec pour l'appelant : la caméra en
+            // échec est signalée (mediaError) mais la voix, elle, passe.
+            if (outcome.audioError) throw new Error(outcome.audioError);
             return;
         }
         // Tentative encore en vol : elle publiera `wanted` dès la connexion.
@@ -397,7 +530,13 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         // Plus de connexion vivante (pré-connexion en échec, éviction) : on
         // repart — jeton + connexion — et la nouvelle tentative publiera.
         setError(null);
+        autoRetryRef.current = 0;
         setConnectAttempt((n) => n + 1);
+    }, []);
+    const getAudioStats = useCallback(async (): Promise<LiveAudioStats> => {
+        const provider = providerRef.current;
+        if (!provider) return { at: Date.now(), local: null, remote: [], canPlaybackAudio: true };
+        return provider.getAudioStats();
     }, []);
     const startScreenShare = useCallback(async () => {
         await providerRef.current?.startScreenShare();
@@ -438,6 +577,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         setMicrophoneEnabled,
         publishMicrophone,
         mediaError,
+        localAudioPublished,
+        getAudioStats,
         startScreenShare,
         stopScreenShare,
         disconnect,

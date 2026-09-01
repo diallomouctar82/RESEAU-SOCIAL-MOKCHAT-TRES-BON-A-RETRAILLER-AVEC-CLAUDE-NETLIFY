@@ -101,9 +101,23 @@ export interface CallCaptionMessage {
     targetLang?: string;
 }
 
+/**
+ * Mission AU : état RÉEL de mon micro annoncé au correspondant — 'on'
+ * (publié), 'off' (coupé volontairement), 'unavailable' (permission refusée,
+ * périphérique absent…). Sans lui, l'autre côté ne peut pas distinguer « il
+ * se tait » de « son micro ne marche pas ».
+ */
+export interface CallMediaMessage {
+    t: 'media';
+    v: 1;
+    mic: 'on' | 'off' | 'unavailable';
+    reason?: string;
+}
+
 export type CallDataMessage =
     | { t: 'hello'; v: 1; lang: string | null }
-    | CallCaptionMessage;
+    | CallCaptionMessage
+    | CallMediaMessage;
 
 const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
@@ -121,6 +135,13 @@ export function decodeCallData(payload: Uint8Array): CallDataMessage | null {
         const parsed = JSON.parse(json) as Partial<CallDataMessage> & { t?: string };
         if (!parsed || parsed.v !== 1) return null;
         if (parsed.t === 'hello') return { t: 'hello', v: 1, lang: typeof parsed.lang === 'string' ? parsed.lang : null };
+        if (parsed.t === 'media') {
+            const media = parsed as Partial<CallMediaMessage>;
+            if (media.mic !== 'on' && media.mic !== 'off' && media.mic !== 'unavailable') return null;
+            const message: CallMediaMessage = { t: 'media', v: 1, mic: media.mic };
+            if (typeof media.reason === 'string' && media.reason.trim()) message.reason = media.reason.trim().slice(0, 160);
+            return message;
+        }
         if (parsed.t === 'caption' && typeof parsed.text === 'string' && typeof parsed.id === 'string') {
             const caption = parsed as Partial<CallCaptionMessage>;
             const message: CallCaptionMessage = {
