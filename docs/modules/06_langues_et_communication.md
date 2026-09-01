@@ -32,6 +32,20 @@
 - **Accent Authentique** : Utilisation prioritaire des voix natives du moteur de synthèse.
 - **Approche Pédagogique Spaced Repetition** : Réactivation régulière des termes difficiles.
 - **Unicité du chemin de traduction** : aucun composant de messagerie ou d'appel ne doit appeler directement un fournisseur. Le texte original est immuable et toute indisponibilité rend la source plutôt qu'un contenu inventé.
+- **Lecture dans la langue du destinataire (messagerie texte)** : un message reçu est
+  affiché directement dans la langue préférée du lecteur (`profiles.preferred_language`),
+  sans aucune action manuelle. La langue de l'auteur voyage avec le message
+  (`messages.metadata.original_language`, écrite à l'envoi) et sert d'indice ; quand elle
+  est absente ou fausse, le moteur détecte réellement la langue source et c'est cette
+  valeur détectée qui fait foi.
+  Règles d'affichage, valables en conversation privée comme en groupe :
+  - le texte de départ n'est jamais écrasé — il reste la source de vérité en base
+    (`messages.content`) et se réaffiche d'un clic via « Voir le message original » ;
+  - tant que la traduction n'est pas revenue, c'est l'original qui est affiché : la
+    lecture n'est jamais bloquée par un appel réseau, et rien n'est masqué au lecteur ;
+  - même langue des deux côtés, ou moteur indisponible : aucun bandeau, aucun bouton,
+    aucun appel réseau — l'original s'affiche tel quel ;
+  - seul le TEXTE est traduit. Les vocaux, images, vidéos et documents ne le sont pas.
 
 ---
 

@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe('ChatMessageItem — traduction automatique des messages reçus', () => {
-    it('affiche simultanément l’original et la traduction dans la langue du lecteur', async () => {
+    it('remplace le message par sa traduction dans la langue du lecteur, sans action manuelle', async () => {
         vi.stubGlobal('IntersectionObserver', undefined);
         const onTranslate = vi.fn(async () => translatedResult);
 
@@ -54,12 +54,89 @@ describe('ChatMessageItem — traduction automatique des messages reçus', () =>
             />,
         );
 
-        expect(screen.getByText(message.text!)).toBeInTheDocument();
+        // Lecture directe dans la langue du destinataire : l'original n'est
+        // plus affiché tant qu'il n'est pas explicitement demandé.
         expect(await screen.findByText('Hello, how are you?')).toBeInTheDocument();
-        expect(screen.getByText('Traduction automatique · English')).toBeInTheDocument();
-        expect(screen.getByText(message.text!)).toBeInTheDocument();
+        expect(screen.getByText('Traduit automatiquement · English')).toBeInTheDocument();
+        expect(screen.queryByText(message.text!)).not.toBeInTheDocument();
         expect(onTranslate).toHaveBeenCalledTimes(1);
         expect(onTranslate).toHaveBeenCalledWith(message.text);
+    });
+
+    it('« Voir le message original » révèle le texte de départ, puis rebascule sur la traduction', async () => {
+        vi.stubGlobal('IntersectionObserver', undefined);
+        const onTranslate = vi.fn(async () => translatedResult);
+
+        render(
+            <ChatMessageItem
+                {...baseProps}
+                autoTranslate
+                translationTargetLanguage="en"
+                onTranslate={onTranslate}
+            />,
+        );
+
+        const revealButton = await screen.findByRole('button', { name: 'Voir le message original' });
+        await act(async () => { revealButton.click(); });
+
+        expect(screen.getByText(message.text!)).toBeInTheDocument();
+        expect(screen.queryByText('Hello, how are you?')).not.toBeInTheDocument();
+        expect(screen.getByText('Message original · Français')).toBeInTheDocument();
+
+        const backButton = screen.getByRole('button', { name: 'Voir la traduction' });
+        await act(async () => { backButton.click(); });
+
+        expect(screen.getByText('Hello, how are you?')).toBeInTheDocument();
+        expect(screen.queryByText(message.text!)).not.toBeInTheDocument();
+        // Aucun nouvel appel moteur : la bascule est purement locale.
+        expect(onTranslate).toHaveBeenCalledTimes(1);
+    });
+
+    it('affiche l’original tant que la traduction n’est pas revenue — la lecture n’est jamais bloquée', async () => {
+        vi.stubGlobal('IntersectionObserver', undefined);
+        let resolveTranslation!: (value: TranslationResult) => void;
+        const onTranslate = vi.fn(() => new Promise<TranslationResult>((resolve) => {
+            resolveTranslation = resolve;
+        }));
+
+        render(
+            <ChatMessageItem
+                {...baseProps}
+                autoTranslate
+                translationTargetLanguage="en"
+                onTranslate={onTranslate}
+            />,
+        );
+
+        expect(screen.getByText(message.text!)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Voir le message original' })).not.toBeInTheDocument();
+
+        await act(async () => { resolveTranslation(translatedResult); });
+        expect(screen.getByText('Hello, how are you?')).toBeInTheDocument();
+    });
+
+    it('ne propose aucune bascule quand l’auteur écrit déjà dans la langue du lecteur', async () => {
+        vi.stubGlobal('IntersectionObserver', undefined);
+        const onTranslate = vi.fn(async (): Promise<TranslationResult> => ({
+            ...translatedResult,
+            translatedText: message.text!,
+            targetLanguage: 'fr',
+            targetLanguageLabel: 'Français',
+            status: 'unchanged',
+        }));
+
+        render(
+            <ChatMessageItem
+                {...baseProps}
+                autoTranslate
+                translationTargetLanguage="fr"
+                onTranslate={onTranslate}
+            />,
+        );
+
+        await waitFor(() => expect(onTranslate).toHaveBeenCalledTimes(1));
+        expect(screen.getByText(message.text!)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Voir le message original' })).not.toBeInTheDocument();
     });
 
     it('ne déclenche pas de traduction automatique pour un message envoyé par le lecteur', async () => {
