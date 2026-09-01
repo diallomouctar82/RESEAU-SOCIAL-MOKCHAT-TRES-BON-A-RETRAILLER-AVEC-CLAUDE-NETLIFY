@@ -34,6 +34,15 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (!url.protocol.startsWith('http')) return;
 
+  // Requêtes vers d'autres origines (API Supabase, passerelle IA, polices, CDN) :
+  // le service worker ne s'en mêle pas. Elles n'étaient de toute façon jamais
+  // mises en cache (réponses non « basic »), mais leur passage par ce
+  // gestionnaire transformait toute panne réseau en fausse réponse « 503
+  // Offline » servie à l'application — qui retombait alors sur le profil de
+  // démonstration au lieu de signaler l'erreur. Réseau direct, comportement
+  // natif du navigateur.
+  if (url.origin !== self.location.origin) return;
+
   // Navigation (le document HTML) : toujours réseau d'abord — jamais servir un
   // index.html en cache qui référencerait des fichiers JS/CSS hashés qui
   // n'existent plus après un nouveau déploiement (source du fameux "écran

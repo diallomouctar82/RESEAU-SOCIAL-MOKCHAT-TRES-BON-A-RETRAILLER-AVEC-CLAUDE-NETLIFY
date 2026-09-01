@@ -209,7 +209,15 @@ Deno.serve(async (req: Request) => {
         if (membersError || !ids.has(sender.id) || !ids.has(targetUserId)) {
             return json({ error: "Envoi réservé aux membres d'une conversation partagée." }, 403);
         }
-        const { data: blocked } = await service.rpc('are_users_blocked', { a: sender.id, b: targetUserId });
+        // Blocage : arguments nommés EXACTEMENT comme la fonction SQL
+        // (are_users_blocked(p_user_a, p_user_b)) — un nom faux ferait échouer
+        // l'appel sans bloquer personne. Fermé sur erreur : si la vérification
+        // n'a pas pu avoir lieu, on n'envoie pas (jamais « autorisé par défaut »).
+        const { data: blocked, error: blockedError } = await service.rpc('are_users_blocked', { p_user_a: sender.id, p_user_b: targetUserId });
+        if (blockedError) {
+            console.error('push-notify: vérification de blocage impossible', blockedError.message);
+            return json({ error: 'Vérification de blocage impossible, envoi refusé.' }, 503);
+        }
         if (blocked === true) return json({ error: 'Envoi impossible entre ces deux comptes.' }, 403);
     }
 
