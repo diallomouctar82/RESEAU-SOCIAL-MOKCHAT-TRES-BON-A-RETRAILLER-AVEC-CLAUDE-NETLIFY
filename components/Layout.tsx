@@ -43,6 +43,8 @@ import { DialloOS } from './DialloOS';
 import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
+import { PushPermissionPrompt } from './push/PushPermissionPrompt';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { MAIN_NAV_ITEMS, NavItemDef } from './navigation/NavigationItems';
 import { TransversalServicesModal } from './navigation/TransversalServicesModal';
 import { UniversalSearchModal } from './navigation/UniversalSearchModal';
@@ -163,6 +165,9 @@ export const Layout: React.FC<LayoutProps> = ({
   onUpdateProfile,
 }) => {
   const { currentPalette, paletteId } = useTheme();
+  // Équipe P (VF-1) : abonnement push silencieux si la permission est déjà
+  // accordée — la sonnerie doit atteindre un correspondant hors de l'app.
+  usePushNotifications(userProfile.id ?? null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   // Équipe F1 (D12) : une notification de message cliquée OUVRE le widget de
   // chat — compteur-signal consommé par <MoocChatFloating>, jamais une
@@ -1302,6 +1307,11 @@ export const Layout: React.FC<LayoutProps> = ({
           onConsumePendingDirectChatMember={onConsumePendingDirectChatMember}
           openWidgetSignal={chatOpenSignal}
         />
+
+        {/* Équipe P (VF-1) : bandeau « Recevoir les appels et messages même
+            hors de l'application » — visible seulement si le push est
+            supporté et la permission encore non demandée. */}
+        <PushPermissionPrompt userId={userProfile.id ?? null} />
 
       </div>
     </div>

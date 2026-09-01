@@ -6,6 +6,7 @@ import { supabaseService } from '../services/supabaseClient';
 import { memoryService } from '../services/memory';
 import { setSyncQueueUser, startSyncQueueAutoResume } from '../services/architecte/syncQueue';
 import { installSyncTaskHandlers } from '../services/architecte/syncTaskHandlers';
+import { forgetPushSubscription } from '../services/push/pushService';
 
 interface GlobalContextType {
     userProfile: UserProfile;
@@ -294,6 +295,9 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     const logout = () => {
+        // Équipe P (VF-1) : cet appareil ne doit plus sonner pour ce compte
+        // (désabonnement push navigateur + ligne serveur) — jamais bloquant.
+        void forgetPushSubscription();
         localStorage.removeItem('lmav_session_v2');
         supabaseService.signOut();
         setUserProfile(USER_PROFILE);
