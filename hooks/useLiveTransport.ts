@@ -5,8 +5,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
-import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, SendDataOptions } from '../services/live/liveTransportTypes';
+import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, LiveTransportDiagnostics, SendDataOptions } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
+import { recordCallEvent } from '../services/calls/callDiagnostics';
 
 export interface RemoteParticipantMedia {
     participant: LiveParticipantHandle;
@@ -110,6 +111,8 @@ export interface UseLiveTransportResult {
     localAudioPublished: boolean;
     /** Mission AU : compteurs audio réels (envoi / réception / lecture) — référence stable (deps []). */
     getAudioStats: () => Promise<LiveAudioStats>;
+    /** AU-7 : chemin réseau négocié + inventaire des pistes, pour le rapport de diagnostic — référence stable (deps []). */
+    getTransportDiagnostics: () => Promise<LiveTransportDiagnostics>;
     startScreenShare: () => Promise<void>;
     stopScreenShare: () => Promise<void>;
     disconnect: () => Promise<void>;
@@ -185,6 +188,11 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // État réel de la tentative en cours, lu par publishMicrophone pour
     // choisir entre publier maintenant, attendre la connexion, ou relancer.
     const attemptRef = useRef<{ inFlight: boolean; connected: boolean }>({ inFlight: false, connected: false });
+    // AU-7 : publication demandée PENDANT que le SDK rétablit lui-même la
+    // ligne (« reconnecting ») — sur un iPhone réel, publier à cet instant
+    // levait « pcManager is not ready » et le micro ne partait jamais. La
+    // demande attend le retour à « connected » et s'exécute alors.
+    const pendingPublishRef = useRef(false);
     const [mediaError, setMediaError] = useState<string | null>(null);
     // Mission AU : état RÉEL de publication du micro (événements du transport).
     const [localAudioPublished, setLocalAudioPublished] = useState(false);
@@ -260,6 +268,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             if (autoRetryRef.current >= CALL_AUTO_RETRY_MAX) return false;
             const n = autoRetryRef.current++;
             console.warn(`[appel] média ligne perdue (${reason}) — nouvelle tentative ${n + 1}/${CALL_AUTO_RETRY_MAX} dans ${callRetryDelayMs(n)} ms`);
+            recordCallEvent('transport', `ligne perdue (${reason}) — relance ${n + 1}/${CALL_AUTO_RETRY_MAX} dans ${callRetryDelayMs(n)} ms`);
             if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
             retryTimerRef.current = setTimeout(() => {
                 retryTimerRef.current = null;
@@ -332,10 +341,26 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         if (cancelled) return;
                         // Miroir synchrone pour publishMicrophone : après une
                         // éviction (même identité sur un autre appareil) ou une
-                        // perte, la room n'est plus « connectée ».
+                        // perte, la room n'est plus « connectée ». AU-7 : une
+                        // ligne EN RECONNEXION ne l'est pas non plus — publier
+                        // à cet instant échouait (« pcManager is not ready »).
+                        const wasConnected = attemptRef.current.connected;
                         if (state === 'connected') attemptRef.current.connected = true;
-                        else if (state === 'disconnected' || state === 'failed') attemptRef.current.connected = false;
+                        else if (state === 'disconnected' || state === 'failed' || state === 'reconnecting') attemptRef.current.connected = false;
                         setConnectionState(state);
+                        // AU-7 : la ligne est revenue et une publication attendait —
+                        // elle part maintenant (micro d'abord, caméra isolée).
+                        if (state === 'connected' && !wasConnected && pendingPublishRef.current && !attemptRef.current.inFlight) {
+                            pendingPublishRef.current = false;
+                            const wanted = wantedMediaRef.current;
+                            if (wanted && (wanted.audio || wanted.video)) {
+                                recordCallEvent('media', 'ligne rétablie — publication différée exécutée', wanted);
+                                void applyWanted(wanted).then((outcome) => {
+                                    if (cancelled) return;
+                                    setMediaError(outcome.audioError ?? outcome.videoError);
+                                });
+                            }
+                        }
                     },
                     onDataReceived: (payload, from) => { if (!cancelled) onDataReceivedRef.current?.(payload, from); },
                     onConnectionQualityChanged: (identity, quality) => {
@@ -431,6 +456,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 if (cancelled) return;
                 attemptRef.current = { inFlight: false, connected: true };
                 autoRetryRef.current = 0;
+                pendingPublishRef.current = false; // cette tentative publie `wanted` ci-dessous : rien n'attend plus.
 
                 // Participants déjà présents à la connexion — arrivent via ce
                 // snapshot, pas via onParticipantConnected (réservé aux
@@ -457,6 +483,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             } catch (err) {
                 if (!cancelled) {
                     attemptRef.current = { inFlight: false, connected: false };
+                    recordCallEvent('error', 'connexion en échec', err);
                     setError(err instanceof Error ? err.message : String(err));
                     // Mission AU : la pré-connexion d'un appel a échoué alors
                     // qu'une activation différée (décroché) l'attend, ou l'appelant
@@ -469,6 +496,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         return () => {
             cancelled = true;
             attemptRef.current = { inFlight: false, connected: false };
+            pendingPublishRef.current = false;
             if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
             setLocalAudioPublished(false);
             // L2 : le démontage devient la promesse que la PROCHAINE tentative
@@ -558,6 +586,17 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         }
         // Tentative encore en vol : elle publiera `wanted` dès la connexion.
         if (attempt.inFlight) return;
+        // AU-7 : le SDK rétablit lui-même la ligne (« reconnecting ») — on ne
+        // relance PAS une connexion par-dessus (elle démonterait la sienne) et
+        // on ne publie pas dans le vide : la demande part au retour à
+        // « connected » (voir onConnectionStateChanged). L'écran affiche
+        // « Reconnexion… » pendant ce temps, jamais une erreur brute.
+        if (provider && provider.getConnectionState() === 'reconnecting') {
+            pendingPublishRef.current = true;
+            recordCallEvent('media', 'publication différée : ligne en reconnexion', wanted);
+            setMediaError(null);
+            return;
+        }
         // Plus de connexion vivante (pré-connexion en échec, éviction) : on
         // repart — jeton + connexion — et la nouvelle tentative publiera.
         // Revue AU-6 : l'ancienne erreur de capture ne décrit plus cette
@@ -572,6 +611,13 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         const provider = providerRef.current;
         if (!provider) return { at: Date.now(), local: null, remote: [], canPlaybackAudio: true };
         return provider.getAudioStats();
+    }, []);
+    const getTransportDiagnostics = useCallback(async (): Promise<LiveTransportDiagnostics> => {
+        const provider = providerRef.current;
+        if (!provider?.getTransportDiagnostics) {
+            return { at: Date.now(), connectionState: provider?.getConnectionState() ?? 'disconnected', publisher: null, subscriber: null, localTracks: [], remoteTracks: [] };
+        }
+        return provider.getTransportDiagnostics();
     }, []);
     const startScreenShare = useCallback(async () => {
         await providerRef.current?.startScreenShare();
@@ -614,6 +660,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         mediaError,
         localAudioPublished,
         getAudioStats,
+        getTransportDiagnostics,
         startScreenShare,
         stopScreenShare,
         disconnect,
