@@ -926,8 +926,17 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                 ) : (
                   <div className="flex flex-col items-center gap-3 text-slate-300">
                     <img src={peerAvatar} className="w-24 h-24 rounded-full object-cover ring-2 ring-white/20" alt={peerName} />
+                    {/* AU-8 : ne plus AFFIRMER « caméra coupée » alors qu'on ne
+                        le sait pas. `videoEnabled` vient de l'état réel de
+                        publication du correspondant côté SDK : quand il dit
+                        non, c'est un fait ; sinon la caméra est publiée et
+                        c'est nous qui attendons encore son image. */}
                     <span className="text-xs font-semibold">
-                      {remote ? `${peerName} — caméra coupée` : `En attente de ${peerName}…`}
+                      {!remote
+                        ? `En attente de ${peerName}…`
+                        : remote.participant.videoEnabled === false
+                          ? `${peerName} a coupé sa caméra`
+                          : `En attente de l’image de ${peerName}…`}
                     </span>
                   </div>
                 )}
