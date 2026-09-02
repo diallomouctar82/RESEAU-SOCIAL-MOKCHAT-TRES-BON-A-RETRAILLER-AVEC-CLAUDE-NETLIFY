@@ -31,6 +31,9 @@ vi.mock('../services/calls/ringtoneService', () => ({
     stopRinging: vi.fn(),
     startRingback: vi.fn(),
     stopRingback: vi.fn(),
+    // AU-11 : le composant arme le déverrouillage audio au montage — la
+    // doublure doit exposer la fonction, sinon l'appel jette au rendu.
+    primeRingtoneAudio: vi.fn(() => () => {}),
 }));
 
 const { MoocChatFloating } = await import('../components/MoocChatFloating');

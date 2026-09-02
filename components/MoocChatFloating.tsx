@@ -16,7 +16,7 @@ import { languageCodeFromTag, speechTagFor } from '../services/messaging/speechL
 import { CallCaptioner, InterpreterVoice, transcribeVoiceRecording } from '../services/calls/callInterpreter';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
-import { startRinging, stopRinging, startRingback, stopRingback, stopAll as stopAllRingtones } from '../services/calls/ringtoneService';
+import { startRinging, stopRinging, startRingback, stopRingback, stopAll as stopAllRingtones, primeRingtoneAudio } from '../services/calls/ringtoneService';
 import { dedupeCallId, isHandledElsewhere, sessionFromPushPayload } from '../services/calls/callFlow';
 import {
   isFreshCallPayload, listenPushCallEvents, notifyCallPush, readPushLaunchParams,
@@ -1372,6 +1372,13 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   //    démontage du composant et StrictMode (start* du service est
   //    idempotent) ; le service garde en dernier filet son propre arrêt de
   //    sécurité à 45 s (jamais une sonnerie orpheline).
+  // AU-11 : le son d'un appel entrant ne peut démarrer que si l'utilisateur a
+  // déjà touché la page — sinon le navigateur refuse, et la sonnerie ne sort
+  // pas du tout. On saisit donc le PREMIER geste qu'il fait de toute façon
+  // (ouvrir un écran, faire défiler) pour préparer l'audio à ce moment-là.
+  // Rien n'est joué ici, rien n'est demandé à l'utilisateur.
+  useEffect(() => primeRingtoneAudio(), []);
+
   const callRingingPhase = ringingStateForCall(activeCallSession, isIncomingCall);
   const profileRingtoneId = resolveIncomingRingtoneId(currentUser?.privacySettings?.ringtoneId);
   useEffect(() => {
