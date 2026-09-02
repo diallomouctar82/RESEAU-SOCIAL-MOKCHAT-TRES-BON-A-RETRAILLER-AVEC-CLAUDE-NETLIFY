@@ -193,6 +193,16 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // publication (pendant la connexion) est appliqué dès qu'elle aboutit —
     // avant, il était perdu et le correspondant entendait un micro réputé coupé.
     const micWishRef = useRef(true);
+    // Revue AU-6 (défaut majeur) : même miroir pour la CAMÉRA — « couper la
+    // caméra » ne fait qu'une mise en sourdine côté SDK, et la relance
+    // automatique / « Réessayer le micro » la RALLUMAIENT à l'insu de
+    // l'utilisateur (aperçu local « Caméra coupée », correspondant qui voit
+    // l'image). Une caméra coupée n'est plus jamais republiée par le hook ;
+    // seule une action explicite (setCameraEnabled(true)) la relance.
+    // Réservé aux appels : le LIVE garde son comportement historique.
+    const camWishRef = useRef(true);
+    const isCallRef = useRef(audioProfile === 'call');
+    isCallRef.current = audioProfile === 'call';
     // Mission AU : relances automatiques d'un APPEL dont la ligne tombe alors
     // qu'il veut du média (pré-connexion en échec, déconnexion inattendue).
     const autoRetryRef = useRef(0);
@@ -273,7 +283,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         const deferred = wantedMediaRef.current;
         wantedMediaRef.current = {
             audio: publishOnConnectRef.current.audio || !!deferred?.audio,
-            video: publishOnConnectRef.current.video || !!deferred?.video,
+            // Appel : une caméra que l'utilisateur a coupée reste coupée après
+            // une relance (revue AU-6) — jamais republiée à son insu.
+            video: (publishOnConnectRef.current.video || !!deferred?.video) && (!isCallRef.current || camWishRef.current),
         };
 
         const upsertRemote = (identity: string, patch: Partial<RemoteParticipantMedia>) => {
@@ -366,9 +378,13 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     // Mission AU : ma capture micro s'est terminée (périphérique
                     // débranché, interruption système) — republication bornée,
                     // seulement si le micro est voulu ouvert ; coupé, c'est la
-                    // réactivation qui relancera la capture.
+                    // réactivation qui relancera la capture. Revue AU-6 :
+                    // réservé aux APPELS — pour le LIVE, le SDK relance déjà
+                    // seul la capture (LocalParticipant.handleTrackEnded), et
+                    // doubler son travail par un mute/unmute diffusait un
+                    // « micro coupé » à tous les spectateurs.
                     onLocalTrackEnded: (kind) => {
-                        if (cancelled || kind !== 'audio') return;
+                        if (cancelled || !isCall || kind !== 'audio') return;
                         if (!wantedMediaRef.current?.audio || !attemptRef.current.connected) return;
                         if (audioRepublishRef.current >= 2) {
                             setMediaError('Le micro a été coupé par le système et n’a pas pu être relancé. Réessayez le micro.');
@@ -402,8 +418,13 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         attemptRef.current.connected = false;
                         setLocalAudioPublished(false);
                         setConnectionState('disconnected');
-                        // Mission AU : déconnexion INATTENDUE d'un appel (pas un
-                        // démontage — `cancelled` l'aurait neutralisée) → relance.
+                        // Revue AU-6 : un échec de Room.connect émet Disconnected
+                        // PUIS rejette — la relance de cet échec appartient au
+                        // `catch` de la tentative, sinon il était compté deux fois
+                        // (2 relances réelles au lieu de 3).
+                        if (attemptRef.current.inFlight) return;
+                        // Mission AU : déconnexion INATTENDUE d'un appel établi (pas
+                        // un démontage — `cancelled` l'aurait neutralisée) → relance.
                         scheduleCallRetry(`déconnexion${reason ? ` ${reason}` : ''}`);
                     },
                 });
@@ -486,6 +507,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     }, []);
 
     const setCameraEnabled = useCallback(async (value: boolean) => {
+        // Revue AU-6 : le souhait est mémorisé AVANT l'appel au transport —
+        // une caméra coupée ne sera plus republiée par une relance.
+        camWishRef.current = value;
         await providerRef.current?.setCameraEnabled(value);
     }, []);
     const switchCamera = useCallback(async () => {
@@ -507,7 +531,14 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     }, []);
     // VF-3 : activation différée (voir UseLiveTransportResult.publishMicrophone).
     const publishMicrophone = useCallback(async (publishOptions?: { camera?: boolean }) => {
-        const wanted: WantedMedia = { audio: true, video: !!publishOptions?.camera || !!wantedMediaRef.current?.video };
+        // Revue AU-6 : `camera: false` explicite (« Réessayer le micro » avec la
+        // caméra coupée) ne rallume JAMAIS la caméra ; et une caméra coupée par
+        // l'utilisateur pendant l'appel reste coupée quoi qu'ait voulu la
+        // connexion initiale.
+        const cameraWanted = publishOptions?.camera === false
+            ? false
+            : (!!publishOptions?.camera || !!wantedMediaRef.current?.video) && (!isCallRef.current || camWishRef.current);
+        const wanted: WantedMedia = { audio: true, video: cameraWanted };
         wantedMediaRef.current = wanted;
         const provider = providerRef.current;
         const attempt = attemptRef.current;
@@ -529,7 +560,11 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         if (attempt.inFlight) return;
         // Plus de connexion vivante (pré-connexion en échec, éviction) : on
         // repart — jeton + connexion — et la nouvelle tentative publiera.
+        // Revue AU-6 : l'ancienne erreur de capture ne décrit plus cette
+        // relance — effacée, l'UI montre « reconnexion » plutôt qu'un message
+        // périmé avec un bouton réactivé.
         setError(null);
+        setMediaError(null);
         autoRetryRef.current = 0;
         setConnectAttempt((n) => n + 1);
     }, []);

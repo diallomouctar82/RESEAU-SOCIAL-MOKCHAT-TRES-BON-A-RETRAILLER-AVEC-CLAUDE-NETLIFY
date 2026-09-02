@@ -25,11 +25,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const rig = vi.hoisted(() => {
     const audioTrack = { participantIdentity: 'peer', kind: 'audio', attach: vi.fn(), detach: vi.fn(), setVolume: vi.fn() };
+    const videoTrack = { participantIdentity: 'peer', kind: 'video', attach: vi.fn(), detach: vi.fn() };
     return {
         log: [] as string[],
         options: null as any,
-        state: { connectionState: 'connected', error: null as string | null, remoteAudio: false, mediaError: null as string | null, localAudioPublished: true },
+        state: { connectionState: 'connected', error: null as string | null, remoteAudio: false, remoteVideoOnly: false, remoteAccount: '33333333-3333-4333-8333-333333333333', mediaError: null as string | null, localAudioPublished: true },
         audioTrack,
+        videoTrack,
         publishMicrophone: vi.fn(async (_options?: { camera?: boolean }) => {}),
         getAudioStats: vi.fn(async () => ({ at: Date.now(), local: null, remote: [], canPlaybackAudio: true })),
         sendData: vi.fn(async (_payload: Uint8Array, _options?: unknown) => {}),
@@ -71,9 +73,13 @@ vi.mock('../hooks/useLiveTransport', () => ({
             localVideoTrack: null,
             localScreenShareTrack: null,
             localIsSpeaking: false,
+            // Revue AU-6 : identité PAR APPAREIL (`<compte>::<appareil>`) — le
+            // correspondant est reconnu par son compte, jamais par égalité.
             remoteParticipants: rig.state.remoteAudio
-                ? [{ participant: { identity: 'peer', name: 'Ivan', isLocal: false, isSpeaking: false, audioEnabled: true, videoEnabled: false, isScreenSharing: false }, audioTrack: rig.audioTrack }]
-                : [],
+                ? [{ participant: { identity: `${rig.state.remoteAccount}::dev1`, name: 'Ivan', isLocal: false, isSpeaking: false, audioEnabled: true, videoEnabled: false, isScreenSharing: false }, audioTrack: rig.audioTrack }]
+                : rig.state.remoteVideoOnly
+                    ? [{ participant: { identity: `${rig.state.remoteAccount}::dev1`, name: 'Ivan', isLocal: false, isSpeaking: false, audioEnabled: false, videoEnabled: true, isScreenSharing: false }, videoTrack: rig.videoTrack }]
+                    : [],
             audioPlaybackBlocked: false,
             startAudio: vi.fn(),
             setCameraEnabled: vi.fn(),
@@ -175,6 +181,8 @@ beforeEach(() => {
     rig.state.connectionState = 'connected';
     rig.state.error = null;
     rig.state.remoteAudio = false;
+    rig.state.remoteVideoOnly = false;
+    rig.state.remoteAccount = CALLER;
     rig.state.mediaError = null;
     rig.state.localAudioPublished = true;
     rig.getAudioStats.mockClear();
@@ -284,6 +292,7 @@ describe('ChatCallModal — pré-connexion pendant la sonnerie (VF-3) et arrêt 
     });
 
     it('appelant : call_accepted (status connected) arrête le retour d’appel ; première voix distante → silence + badge de latence', async () => {
+        rig.state.remoteAccount = ME; // dans baseSession, l'appelant « Ivan » appelle ME (receiverId)
         const { rerender } = render(<ChatCallModal callSession={{ ...baseSession, offerSentAt: Date.now() - 3000 }} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
         expect(rig.stopAll).not.toHaveBeenCalled();
 
@@ -413,13 +422,81 @@ describe('ChatCallModal — audio bidirectionnel (mission AU)', () => {
 
     it('appelant en sonnerie : la voix du correspondant arrive → onRemoteMediaStarted (signal call_accepted perdu) ; jamais chez l’appelé', () => {
         rig.state.remoteAudio = true;
+        rig.state.remoteAccount = ME;
         const onRemoteMediaStarted = vi.fn();
         const { unmount } = render(<ChatCallModal callSession={baseSession} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
         expect(onRemoteMediaStarted).toHaveBeenCalledTimes(1);
         unmount();
         onRemoteMediaStarted.mockClear();
+        rig.state.remoteAccount = CALLER;
         render(<ChatCallModal callSession={baseSession} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
         expect(onRemoteMediaStarted).not.toHaveBeenCalled();
+    });
+
+    it('revue AU-6 : seul le compte du CORRESPONDANT connecte l’appel — un autre appareil de MON compte ou un inconnu est ignoré ; une caméra seule (micro refusé) suffit', () => {
+        const onRemoteMediaStarted = vi.fn();
+        rig.state.remoteAudio = true;
+        rig.state.remoteAccount = CALLER; // dans baseSession, l'appelant (isIncoming=false) est Ivan = CALLER : un participant de MON compte
+        const { unmount } = render(<ChatCallModal callSession={baseSession} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
+        expect(onRemoteMediaStarted).not.toHaveBeenCalled();
+        unmount();
+        rig.state.remoteAccount = '99999999-9999-4999-8999-999999999999'; // inconnu
+        const r2 = render(<ChatCallModal callSession={baseSession} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
+        expect(onRemoteMediaStarted).not.toHaveBeenCalled();
+        r2.unmount();
+        rig.state.remoteAudio = false;
+        rig.state.remoteVideoOnly = true;
+        rig.state.remoteAccount = ME;
+        render(<ChatCallModal callSession={{ ...baseSession, type: 'video' }} localName="Ivan" isIncoming={false} onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} onRemoteMediaStarted={onRemoteMediaStarted} />);
+        expect(onRemoteMediaStarted).toHaveBeenCalledTimes(1);
+    });
+
+    it('revue AU-6 : correspondant parti de la room depuis 25 s pendant un appel connecté → fin d’appel (onPeerLost) ; jamais s’il n’est pas encore arrivé', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            const onPeerLost = vi.fn();
+            const onEndCall = vi.fn();
+            // Appelé en attente : l'appelant n'a pas encore rejoint → pas de fin d'appel.
+            const { rerender, unmount } = render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={onEndCall} onPeerLost={onPeerLost} />);
+            await act(async () => { await vi.advanceTimersByTimeAsync(26000); });
+            expect(onPeerLost).not.toHaveBeenCalled();
+            // Il arrive, puis disparaît : 25 s après, l'appel se termine.
+            rig.state.remoteAudio = true;
+            rerender(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={onEndCall} onPeerLost={onPeerLost} />);
+            rig.state.remoteAudio = false;
+            rerender(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={onEndCall} onPeerLost={onPeerLost} />);
+            await act(async () => { await vi.advanceTimersByTimeAsync(24000); });
+            expect(onPeerLost).not.toHaveBeenCalled();
+            await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+            expect(onPeerLost).toHaveBeenCalledTimes(1);
+            expect(onEndCall).not.toHaveBeenCalled();
+            unmount();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('revue AU-6 : « micro en cours d’activation » n’est PAS annoncé comme indisponible ; l’erreur CAMÉRA seule est expliquée en appel vidéo', async () => {
+        rig.state.localAudioPublished = false;
+        const { rerender } = render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        await waitFor(() => expect(rig.publishMicrophone).toHaveBeenCalled());
+        expect(mediaMessages()).toEqual([]); // rien tant que la demande est en vol sans erreur
+        expect(screen.queryByRole('alert')).toBeNull();
+        rig.state.localAudioPublished = true;
+        rig.state.mediaError = 'NotFoundError: Requested device not found';
+        rerender(<ChatCallModal callSession={{ ...baseSession, status: 'connected', type: 'video' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        await waitFor(() => expect(mediaMessages().at(-1)).toEqual({ t: 'media', v: 1, mic: 'on' }));
+        expect(screen.queryByRole('alert')).toBeNull(); // micro OK : pas de bannière rouge
+        expect(screen.getByText(/Caméra indisponible : Aucune caméra détectée/)).toBeTruthy();
+    });
+
+    it('revue AU-6 : « Réessayer le micro » sans ligne vivante → « Reconnexion… », bouton en attente', () => {
+        rig.state.localAudioPublished = false;
+        rig.state.connectionState = 'connecting';
+        render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        const alert = screen.getByRole('alert');
+        expect(alert.textContent).toContain('Reconnexion de la ligne et activation du micro…');
+        expect((screen.getByRole('button', { name: /Reconnexion…/ }) as HTMLButtonElement).disabled).toBe(true);
     });
 
     it('identité par appareil transmise au transport (deviceId), et le correspondant est celui qui publie du média', () => {

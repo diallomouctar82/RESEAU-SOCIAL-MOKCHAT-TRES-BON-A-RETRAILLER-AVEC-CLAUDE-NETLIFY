@@ -11,6 +11,18 @@
  */
 
 import type { CallDataMessage } from '../messaging/speechLanguage';
+import { userIdFromIdentity } from './callDevice';
+
+/**
+ * Revue AU-6 : depuis l'identité par appareil, une room d'appel peut contenir
+ * plusieurs participants d'un même compte (mes autres appareils, ceux du
+ * correspondant). Seuls ceux du compte du CORRESPONDANT sont candidats —
+ * jamais un de mes propres appareils, jamais un participant inattendu.
+ */
+export function remotesOfAccount<T extends { participant: { identity: string } }>(list: readonly T[], userId: string | null | undefined): T[] {
+    if (!userId) return [];
+    return list.filter((p) => userIdFromIdentity(p.participant.identity) === userId);
+}
 
 /** Photographie de la liaison audio à un instant (issue du transport). */
 export interface AudioLinkSample {
@@ -41,12 +53,15 @@ const delta = (next: number | null, prev: number | null): number | null =>
  * comptés par WebRTC.
  */
 export function assessAudioLink(prev: AudioLinkSample | null, next: AudioLinkSample): AudioLinkVerdict {
+    // Revue AU-6 : un delta NÉGATIF = compteurs remis à zéro (reconnexion,
+    // nouvelle connexion WebRTC) — c'est une nouvelle référence, pas un
+    // blocage : « mesure… », jamais un faux « ne part pas ».
     let sending: SendingVerdict;
     if (!next.localPublished) sending = 'absent';
     else if (next.localMuted) sending = 'muted';
     else {
         const sent = prev ? delta(next.bytesSent, prev.bytesSent) : null;
-        sending = sent === null ? 'unknown' : sent > 0 ? 'ok' : 'stalled';
+        sending = sent === null || sent < 0 ? 'unknown' : sent > 0 ? 'ok' : 'stalled';
     }
 
     let receiving: ReceivingVerdict;
@@ -54,7 +69,7 @@ export function assessAudioLink(prev: AudioLinkSample | null, next: AudioLinkSam
     else if (!next.canPlaybackAudio) receiving = 'blocked';
     else {
         const received = prev ? delta(next.bytesReceived, prev.bytesReceived) : null;
-        receiving = received === null ? 'unknown' : received > 0 ? 'ok' : 'stalled';
+        receiving = received === null || received < 0 ? 'unknown' : received > 0 ? 'ok' : 'stalled';
     }
     return { sending, receiving };
 }
@@ -82,6 +97,19 @@ export function describeMediaError(raw: string | null | undefined): string {
     if (/overconstrained/.test(m)) return 'Le micro ne prend pas en charge les réglages demandés. Réessayez.';
     if (/aborted/.test(m)) return 'La capture du micro a été interrompue. Réessayez.';
     return raw && raw.trim() ? raw.trim() : 'Micro indisponible.';
+}
+
+/** Revue AU-6 : même explication pour la CAMÉRA (appel vidéo, micro publié mais caméra en échec). */
+export function describeCameraError(raw: string | null | undefined): string {
+    const m = (raw || '').toLowerCase();
+    if (/notallowed|permission denied|permission dismissed|not allowed/.test(m)) {
+        return 'Le navigateur a refusé l’accès à la caméra. Autorisez la caméra pour ce site (icône à gauche de l’adresse, ou Réglages → Safari/Chrome → Caméra), puis réactivez-la.';
+    }
+    if (/notfound|requested device not found|devicenotfound/.test(m)) return 'Aucune caméra détectée sur cet appareil.';
+    if (/notreadable|could not start|trackstarterror|device in use|hardware/.test(m)) return 'La caméra est utilisée par une autre application. Fermez-la, puis réactivez la caméra.';
+    if (/overconstrained/.test(m)) return 'La caméra ne prend pas en charge les réglages demandés. Réessayez.';
+    if (/aborted/.test(m)) return 'La capture de la caméra a été interrompue. Réactivez la caméra.';
+    return raw && raw.trim() ? raw.trim() : 'Caméra indisponible.';
 }
 
 /** Message « media » reçu du correspondant → phrase honnête à afficher (null si tout va bien de son côté). */
