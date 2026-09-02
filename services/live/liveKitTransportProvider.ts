@@ -137,10 +137,28 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         // avec redondance RED et DTX ; capture micro avec annulation d'écho,
         // réduction de bruit et gain automatique explicitement demandés. Le
         // LIVE garde strictement ses réglages historiques.
+        // AU-8 : `adaptiveStream` DÉSACTIVÉ pour un appel — c'est lui qui faisait
+        // disparaître l'image du correspondant au bout de quelques secondes.
+        // Le flux adaptatif observe la taille et la visibilité de l'élément
+        // <video> auquel la piste est attachée et SE DÉSABONNE quand il le juge
+        // invisible ; le SDK émet alors `TrackUnsubscribed`, la piste distante
+        // est retirée de l'état (voir plus bas, RoomEvent.TrackUnsubscribed →
+        // onTrackUnsubscribed) et l'écran d'appel retombe sur la vignette
+        // d'attente : « on ne voit plus la personne ». Or l'écran d'appel a
+        // justement eu, jusqu'à ce correctif, une hauteur nulle sur téléphone
+        // (classe Tailwind 4 ignorée par le Tailwind 3 du site) — condition
+        // parfaite pour être jugé invisible. Même corrigée, la mesure reste
+        // fragile à chaque transition (plein écran, rotation, incrustation
+        // déplacée), et pour un appel À DEUX le flux du correspondant n'est pas
+        // un contenu qu'on peut mettre en pause : c'est TOUT le contenu.
+        // `dynacast` suit, pour la même raison : sans abonné actif il cesse de
+        // publier les couches vidéo, ce qui rallonge la reprise. Le LIVE, lui,
+        // affiche N vignettes dont beaucoup hors écran : les deux réglages y
+        // gardent tout leur sens et restent strictement inchangés.
         const room = params.audioProfile === 'call'
             ? new Room({
-                adaptiveStream: true,
-                dynacast: true,
+                adaptiveStream: false,
+                dynacast: false,
                 audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
                 publishDefaults: { audioPreset: AudioPresets.speech, dtx: true, red: true },
             })

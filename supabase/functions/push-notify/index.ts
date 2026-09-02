@@ -43,12 +43,13 @@ function fireAndForget(work: PromiseLike<unknown>) {
     if (runtime?.waitUntil) runtime.waitUntil(tracked);
 }
 
-type Topic = 'incoming_call' | 'call_cancelled' | 'missed_call' | 'message';
+type Topic = 'incoming_call' | 'call_cancelled' | 'missed_call' | 'message' | 'friend_request';
 
 /** Durée de rétention chez le service de push (secondes) : un appel qui n'a
- * pas pu être remis en 45 s n'a plus de sens ; un appel manqué peut attendre. */
-const TOPIC_TTL: Record<Topic, number> = { incoming_call: 45, call_cancelled: 60, missed_call: 24 * 3600, message: 3600 };
-const TOPIC_URGENCY: Record<Topic, 'high' | 'normal'> = { incoming_call: 'high', call_cancelled: 'high', missed_call: 'normal', message: 'normal' };
+ * pas pu être remis en 45 s n'a plus de sens ; un appel manqué peut attendre.
+ * AU-10 : une demande d'ami reste pertinente une journée entière. */
+const TOPIC_TTL: Record<Topic, number> = { incoming_call: 45, call_cancelled: 60, missed_call: 24 * 3600, message: 3600, friend_request: 24 * 3600 };
+const TOPIC_URGENCY: Record<Topic, 'high' | 'normal'> = { incoming_call: 'high', call_cancelled: 'high', missed_call: 'normal', message: 'normal', friend_request: 'normal' };
 const MAX_PAYLOAD_BYTES = 3500;
 const MAX_SENDS_PER_MINUTE = 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -199,15 +200,36 @@ Deno.serve(async (req: Request) => {
     // Autorisation : soi-même (autres appareils du même compte) ou membre
     // réel d'une conversation partagée — jamais un tiers arbitraire.
     if (targetUserId !== sender.id) {
-        if (!conversationId) return json({ error: 'conversationId requis pour notifier un autre membre.' }, 400);
-        const { data: members, error: membersError } = await service
-            .from('conversation_participants')
-            .select('user_id')
-            .eq('conversation_id', conversationId)
-            .in('user_id', [sender.id, targetUserId]);
-        const ids = new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id));
-        if (membersError || !ids.has(sender.id) || !ids.has(targetUserId)) {
-            return json({ error: "Envoi réservé aux membres d'une conversation partagée." }, 403);
+        if (topic === 'friend_request') {
+            // AU-10 : une demande d'ami s'adresse par nature à quelqu'un avec
+            // qui on ne partage encore AUCUNE conversation. L'autorisation ne
+            // peut donc pas passer par là — elle est adossée au FAIT que la
+            // demande existe réellement en base, envoyée par cet expéditeur
+            // vers cette personne et encore en attente. Sans cette ligne,
+            // rien n'est envoyé : jamais un push vers un inconnu.
+            const { data: pending, error: pendingError } = await service
+                .from('friendships')
+                .select('id')
+                .eq('requester_id', sender.id)
+                .eq('addressee_id', targetUserId)
+                .eq('status', 'pending')
+                .maybeSingle();
+            if (pendingError) {
+                console.error('push-notify: vérification de la demande d’ami impossible', pendingError.message);
+                return json({ error: 'Vérification impossible, envoi refusé.' }, 503);
+            }
+            if (!pending) return json({ error: "Aucune demande d'ami en attente vers cette personne." }, 403);
+        } else {
+            if (!conversationId) return json({ error: 'conversationId requis pour notifier un autre membre.' }, 400);
+            const { data: members, error: membersError } = await service
+                .from('conversation_participants')
+                .select('user_id')
+                .eq('conversation_id', conversationId)
+                .in('user_id', [sender.id, targetUserId]);
+            const ids = new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id));
+            if (membersError || !ids.has(sender.id) || !ids.has(targetUserId)) {
+                return json({ error: "Envoi réservé aux membres d'une conversation partagée." }, 403);
+            }
         }
         // Blocage : arguments nommés EXACTEMENT comme la fonction SQL
         // (are_users_blocked(p_user_a, p_user_b)) — un nom faux ferait échouer

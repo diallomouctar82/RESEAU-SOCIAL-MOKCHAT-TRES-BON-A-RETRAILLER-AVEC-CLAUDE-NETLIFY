@@ -35,7 +35,13 @@
 
 import { isSupabaseConfigured, supabase } from '../supabaseClient';
 
-export type CallPushTopic = 'incoming_call' | 'call_cancelled' | 'missed_call' | 'message';
+/**
+ * Sujets acceptés par `push-notify`. Ce module est le SEUL client applicatif
+ * de cette fonction : tout ce qui doit atteindre un téléphone passe par ici,
+ * jamais par un second canal parallèle. Tous ne sont pas des appels —
+ * `message` ne l'était déjà pas, `friend_request` (AU-10) non plus.
+ */
+export type CallPushTopic = 'incoming_call' | 'call_cancelled' | 'missed_call' | 'message' | 'friend_request';
 export type CallPushReason = 'answered' | 'cancelled' | 'missed' | 'rejected';
 export type PushAction = 'accept' | 'reject' | 'open';
 

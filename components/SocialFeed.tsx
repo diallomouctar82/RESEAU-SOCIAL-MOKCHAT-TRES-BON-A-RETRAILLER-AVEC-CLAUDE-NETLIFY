@@ -29,6 +29,7 @@ import { interpretContentVoiceCommand, ContentVoiceAction } from '../services/co
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { interpretSocialVoiceCommand, SocialVoiceAction } from '../services/social/socialVoiceCommands';
 import { addToQueue } from '../services/architecte/syncQueue';
+import { notifyCallPush } from '../services/calls/callPush';
 import { checkNetworkStatus } from '../services/pwaService';
 import { ShareButton } from './ui/ShareButton';
 import { GrowthDashboard } from './growth/GrowthDashboard';
@@ -499,6 +500,17 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             friendshipStatus: rel?.status === 'accepted' ? 'friends' : 'pending_sent',
             isFollowing: rel?.status === 'accepted'
           } : m));
+          // AU-10 : la demande était jusqu'ici invisible tant que la personne
+          // n'ouvrait pas MokNet — la notification en base ne réveille aucun
+          // téléphone. On pousse donc un Web Push, mais UNIQUEMENT quand une
+          // demande est réellement en attente : si `sendFriendRequest` a
+          // accepté une demande inverse (les deux sont désormais amies), il
+          // n'y a plus rien à demander. Le serveur revérifie de son côté que
+          // la ligne existe vraiment ; l'envoi ne lève jamais et n'empêche
+          // jamais la demande elle-même d'aboutir.
+          if (rel?.status === 'pending') {
+            void notifyCallPush({ topic: 'friend_request', targetUserId: memberId });
+          }
         } catch (err) {
           console.warn('Could not send friend request', err);
           setMembers(prev => prev.map(m => m.id === memberId ? { ...m, friendshipStatus: 'none' } : m));

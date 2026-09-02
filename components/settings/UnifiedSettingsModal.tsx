@@ -25,6 +25,8 @@ import {
 import { UserProfile } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
 import { RingtonePicker } from './RingtonePicker';
+import { OutsideAppRingingCard } from './OutsideAppRingingCard';
+import { MicrophonePermissionCard } from './MicrophonePermissionCard';
 import { getSelectedRingtoneId } from '../../services/calls/ringtoneService';
 import { ModulesSettingsSection } from '../modules/ModulesSettingsSection';
 
@@ -405,6 +407,20 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
             {/* NOTIFICATIONS PANEL */}
             {activeSection === 'notifications' && (
               <div className="space-y-4">
+                {/* AU-9 : état RÉEL de la sonnerie hors application pour CET
+                    appareil — en tête du panneau, parce que c'est la seule
+                    chose qui décide si un appel vous atteint quand MokNet est
+                    fermé. Placée avant le mode silencieux, qui ne concerne
+                    que le badge de la cloche à l'intérieur de l'application. */}
+                <OutsideAppRingingCard userId={userProfile.id ?? null} />
+
+                {/* AU-10 : autorisation du micro. Elle est demandée par le
+                    navigateur pendant la sonnerie, ce qui fait rater le début
+                    de l'appel et donne l'impression qu'elle « revient à chaque
+                    fois ». Ici, elle s'accorde à froid — et quand elle revient
+                    malgré tout (onglet iPhone), la vraie raison est dite. */}
+                <MicrophonePermissionCard />
+
                 {/* LOOP 09/17 (notifications, orchestration proactive) : ce
                     panneau affichait un texte statique prétendant déjà
                     filtrer les alertes par criticité — aucun réglage

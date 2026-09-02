@@ -79,7 +79,7 @@ self.addEventListener('fetch', (event) => {
 // ─── Notifications push (Équipe P — mission VF-1) ───────────────────────────
 // Charge utile déchiffrée par le navigateur (envoyée par la fonction Edge
 // push-notify) :
-//   { v:1, type:'incoming_call'|'call_cancelled'|'missed_call'|'message',
+//   { v:1, type:'incoming_call'|'call_cancelled'|'missed_call'|'message'|'friend_request',
 //     ts:<ms epoch>, callId, conversationId, from:{ id, name, avatarUrl|null },
 //     callType?:'audio'|'video', reason?:'answered'|'cancelled'|'missed'|'rejected',
 //     title?, body?, url?, messagePreview? }
@@ -205,6 +205,23 @@ async function showMessage(payload) {
   });
 }
 
+// AU-10 : demande d'ami. Le titre est composé ICI à partir du nom que LE
+// SERVEUR a lu dans `profiles` (payload.from.name) — jamais d'un texte fourni
+// par l'expéditeur, qui pourrait alors écrire n'importe quoi sur l'écran
+// verrouillé de quelqu'un d'autre. Vibration courte : c'est une invitation,
+// pas un appel.
+async function showFriendRequest(payload) {
+  const fromId = (payload.from && payload.from.id) || 'moknet';
+  await self.registration.showNotification(senderName(payload) + ' souhaite vous ajouter', {
+    body: 'Nouvelle demande d’ami sur MokNet',
+    tag: 'friend-request-' + String(fromId),
+    icon: senderIcon(payload),
+    badge: BADGE_ICON,
+    vibrate: [200, 100, 200],
+    data: payload
+  });
+}
+
 async function handlePush(payload) {
   const type = payload.type;
 
@@ -234,6 +251,10 @@ async function handlePush(payload) {
   }
   if (type === 'message') {
     await showMessage(payload);
+    return;
+  }
+  if (type === 'friend_request') {
+    await showFriendRequest(payload);
     return;
   }
   console.warn('[sw] type de notification push inconnu :', type);
