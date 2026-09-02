@@ -27,6 +27,32 @@ que les deux interlocuteurs s'entendent.
 | I | Côté appelant, la lecture du son distant dépendait du seul signal `call_accepted` (broadcast éphémère). Signal perdu = l'appelé m'entend, je ne l'entends jamais. | Le **média réel prime** : la voix de l'appelé qui arrive pendant « sonnerie » passe l'appel en connecté (retour d'appel coupé, lecture démarrée). | `ChatCallModal.tsx` (`onRemoteMediaStarted`), `MoocChatFloating.tsx` |
 | J | Le « correspondant » était `remoteParticipants[0]`, parfois un second appareil silencieux du même compte. | Le correspondant est celui qui **publie** du média. | `callAudio.ts` (`pickRemoteForCall`) |
 
+### 1 bis. Revue contradictoire du correctif (AU‑6) — défauts résiduels corrigés
+
+Une relecture adversariale en quatre angles (régression du LIVE, machine à
+états du hook, écran d'appel, fonction Edge / identité par appareil) du code
+livré a produit 13 constats, tous traités avant toute nouvelle fusion :
+
+| # | Constat (réel sur la version fusionnée `abb48ca`) | Correctif |
+|---|---|---|
+| K | **Majeur.** Une caméra coupée par l'utilisateur n'était qu'une mise en sourdine côté SDK ; la relance automatique de la ligne et « Réessayer le micro » la **rallumaient à son insu** (aperçu local « Caméra coupée », correspondant qui voit l'image). | Souhait caméra mémorisé (`camWishRef`) : jamais republiée par le hook ; `camera: false` explicite ne rallume rien. Réservé aux appels, LIVE inchangé. |
+| L | **Majeur.** Avec l'identité par appareil, plusieurs participants d'un même compte coexistent : `pickRemoteForCall` ne filtrait pas par compte — un de **mes** appareils ou un inconnu pouvait « connecter » l'appel ou capter l'élément audio. | `remotesOfAccount()` : seuls les appareils du compte du correspondant (`initiatorId`/`receiverId`) sont candidats. |
+| M | **Majeur.** L'éviction par identité partagée servait de nettoyage implicite : un `call_ended` perdu laissait désormais un appel « connecté » sans correspondant, micro publié, sans fin. | Correspondant absent de la room 25 s après y avoir été présent → fin d'appel + « Correspondant déconnecté — appel terminé. » |
+| N | Un échec de `Room.connect` émet `Disconnected` **puis** rejette : compté deux fois par la relance (2 relances réelles au lieu de 3). | Pas de relance depuis `onDisconnected` tant que la tentative est en vol. |
+| O | Fin de piste micro traitée aussi pour le LIVE (doublon avec la relance interne du SDK : « micro coupé » diffusé aux spectateurs). | Réservé aux appels ; écouteur `on` durable retiré à la dépublication (la 2ᵉ coupure atteint bien le hook). |
+| P | Après une reconnexion, compteurs WebRTC remis à zéro → delta négatif → faux « Votre voix ne part pas ». | Delta négatif = « mesure… », jamais un verdict. |
+| Q | Accept‑by‑media ignorait une piste vidéo seule (appelé au micro refusé + signal perdu = appelant bloqué). | Tout média du correspondant compte. |
+| R | « micro en cours d'activation » annoncé comme indisponible à chaque début d'appel (avis alarmant chez l'autre). | Rien n'est annoncé tant que la demande est en vol sans erreur. |
+| S | Erreur caméra seule (micro OK) plus expliquée nulle part. | Ligne « Caméra indisponible : … » (`describeCameraError`). |
+| T | Chevauchements sur 390 px (bannière, avis, conseil réseau, bouton son, diagnostic sous la carte interprète). | Avis empilés dans un seul conteneur ; diagnostic remonté quand l'interprète est actif. |
+| U | « Réessayer le micro » sans ligne vivante : ancienne erreur réaffichée, bouton actif pendant la reconnexion. | Erreur effacée à la relance ; « Reconnexion… », bouton en attente. |
+| V | Transcription serveur abandonnée après 12 s sans micro, jamais relancée après un « Réessayer » réussi. | L'effet redémarre quand le micro est réellement publié. |
+
+Preuves : `tests/useLiveTransportCall.test.tsx` (8 scénarios sur un double de
+transport rejouant les événements réels du SDK), 6 scénarios DOM
+supplémentaires dans `tests/callRingingFlow.test.tsx`, règles pures dans
+`tests/callAudioLink.test.ts` ; banc réel rejoué (cas idéal, A–E).
+
 ## 2. Ce que l'application mesure et journalise pendant un appel
 
 Toutes les 5 s pendant un appel accepté, l'écran interroge les **compteurs

@@ -20,7 +20,12 @@ export type LiveTrackKind = 'audio' | 'video' | 'screen_share' | 'screen_share_a
 export type LiveCameraFacing = 'user' | 'environment';
 
 export interface LiveParticipantHandle {
-    /** Identifiant stable du participant — correspond à `profiles.id` côté MokNet. */
+    /**
+     * Identifiant stable du participant — `profiles.id` dans une room de LIVE.
+     * Mission AU : dans une room d'APPEL (`call-…`), `<profiles.id>::<deviceId>`
+     * (une identité par appareil) — retrouver le compte avec
+     * `userIdFromIdentity()` (services/calls/callDevice.ts), jamais par égalité.
+     */
     identity: string;
     name: string;
     isLocal: boolean;

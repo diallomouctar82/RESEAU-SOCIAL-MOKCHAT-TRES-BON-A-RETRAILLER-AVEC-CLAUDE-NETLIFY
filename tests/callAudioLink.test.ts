@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    assessAudioLink, describeAudioLink, describeMediaError, formatAudioLinkLog, peerMediaNotice, pickRemoteForCall,
+    assessAudioLink, describeAudioLink, describeCameraError, describeMediaError, formatAudioLinkLog, peerMediaNotice, pickRemoteForCall, remotesOfAccount,
     type AudioLinkSample,
 } from '../services/calls/callAudio';
 import { CALL_IDENTITY_SEPARATOR, callIdentity, isSameAccountIdentity, userIdFromIdentity } from '../services/calls/callDevice';
@@ -34,6 +34,9 @@ describe('assessAudioLink — chaque sens jugé sur des octets réels', () => {
         expect(assessAudioLink(sample(), sample({ remoteAudioTracks: 0 })).receiving).toBe('absent');
         expect(assessAudioLink(sample(), sample({ bytesReceived: 9000, canPlaybackAudio: false })).receiving).toBe('blocked');
     });
+    it('compteurs remis à zéro (reconnexion, delta négatif) → unknown, jamais un faux « ne part pas »', () => {
+        expect(assessAudioLink(sample({ bytesSent: 90000, bytesReceived: 80000 }), sample({ at: 6000, bytesSent: 1200, bytesReceived: 900 }))).toEqual({ sending: 'unknown', receiving: 'unknown' });
+    });
     it('mesure manquante (null) → unknown, jamais un verdict inventé', () => {
         expect(assessAudioLink(sample(), sample({ bytesSent: null, bytesReceived: null }))).toEqual({ sending: 'unknown', receiving: 'unknown' });
     });
@@ -50,6 +53,16 @@ describe('pickRemoteForCall — le correspondant est celui qui publie', () => {
         expect(pickRemoteForCall([silent])).toBe(silent);
         expect(pickRemoteForCall([])).toBeNull();
     });
+    it('revue AU-6 : seuls les appareils du compte du CORRESPONDANT sont candidats — jamais un de mes appareils ni un inconnu', () => {
+        const mine = { participant: { identity: 'me::tablet' }, audioTrack: {} };
+        const stranger = { participant: { identity: 'u9::phone' }, audioTrack: {} };
+        const legacy = { participant: { identity: 'u1' }, audioTrack: {} }; // ancien client sans deviceId
+        expect(remotesOfAccount([mine, stranger, silent, withAudio], 'u1')).toEqual([silent, withAudio]);
+        expect(remotesOfAccount([mine, stranger, legacy], 'u1')).toEqual([legacy]);
+        expect(remotesOfAccount([mine, stranger], 'u1')).toEqual([]);
+        expect(remotesOfAccount([mine], null)).toEqual([]);
+        expect(pickRemoteForCall(remotesOfAccount([mine, stranger, silent, withAudio], 'u1'))).toBe(withAudio);
+    });
 });
 
 describe('describeMediaError — explication en français, jamais un code brut seul', () => {
@@ -59,6 +72,12 @@ describe('describeMediaError — explication en français, jamais un code brut s
         expect(describeMediaError('NotReadableError: Could not start audio source')).toMatch(/utilisé par une autre application/);
         expect(describeMediaError('OverconstrainedError')).toMatch(/réglages demandés/);
         expect(describeMediaError('AbortError: aborted')).toMatch(/interrompue/);
+    });
+    it('revue AU-6 : même grille pour la caméra, en français correct', () => {
+        expect(describeCameraError('NotFoundError: Requested device not found')).toBe('Aucune caméra détectée sur cet appareil.');
+        expect(describeCameraError('NotAllowedError: Permission denied')).toMatch(/refusé l’accès à la caméra/);
+        expect(describeCameraError('NotReadableError: Could not start video source')).toMatch(/utilisée par une autre application/);
+        expect(describeCameraError('')).toBe('Caméra indisponible.');
     });
     it('message inconnu conservé tel quel ; vide → « Micro indisponible. »', () => {
         expect(describeMediaError('Erreur bizarre 42')).toBe('Erreur bizarre 42');

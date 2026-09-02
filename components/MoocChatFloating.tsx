@@ -2476,6 +2476,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
             const acceptedAt = Date.now();
             setActiveCallSession(prev => prev && prev.status === 'ringing' ? { ...prev, status: 'connected', acceptedAt } : prev);
           }}
+          onPeerLost={() => {
+            // Revue AU-6 : le correspondant a quitté la room depuis 25 s sans
+            // signal de fin (perdu) — l'appel est terminé proprement, et on le dit.
+            setCallNotice('Correspondant déconnecté — appel terminé.');
+            endCall(activeCallSession, isIncomingCall);
+          }}
         />
       )}
 

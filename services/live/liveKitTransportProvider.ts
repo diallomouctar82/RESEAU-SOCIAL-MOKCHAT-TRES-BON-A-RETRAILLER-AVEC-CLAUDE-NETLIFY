@@ -71,6 +71,8 @@ function toParticipantHandle(p: Participant, isLocal: boolean): LiveParticipantH
 
 export class LiveKitTransportProvider implements LiveTransportProvider {
     private room: Room | null = null;
+    /** Mission AU : désabonnement de `TrackEvent.Ended` par sorte de piste locale (revue AU-6). */
+    private endedListeners = new Map<LiveTrackKind, () => void>();
 
     async connect(params: LiveConnectParams, events: LiveTransportEvents): Promise<void> {
         // HL-3 (fluidité des appels) : pour un appel à deux, encodage Opus
@@ -144,9 +146,14 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             };
             events.onLocalTrackPublished?.(handle);
             // Mission AU : fin de la capture (micro débranché, interruption
-            // système sur mobile). Un seul abonnement par publication ; le SDK
-            // ne republie pas toujours seul — l'appelant décide.
-            track.once(TrackEvent.Ended, () => { events.onLocalTrackEnded?.(kind); });
+            // système sur mobile). Revue AU-6 : abonnement durable (`on`) —
+            // après une relance, le SDK remplace le MediaStreamTrack DANS le
+            // même objet piste sans nouvelle publication, une 2e coupure doit
+            // donc atteindre le même écouteur ; il est retiré à la dépublication.
+            const onEnded = () => { events.onLocalTrackEnded?.(kind); };
+            this.endedListeners.get(kind)?.();
+            track.on(TrackEvent.Ended, onEnded);
+            this.endedListeners.set(kind, () => { track.off(TrackEvent.Ended, onEnded); });
         });
         room.on(RoomEvent.MediaDevicesError, (error: Error, deviceKind?: MediaDeviceKind) => {
             const kind = deviceKind === 'audioinput' ? 'audio' : deviceKind === 'videoinput' ? 'video' : undefined;
@@ -155,6 +162,8 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
             const kind = TRACK_SOURCE_TO_KIND[publication.source];
             if (!kind) return;
+            this.endedListeners.get(kind)?.();
+            this.endedListeners.delete(kind);
             events.onLocalTrackUnpublished?.(kind);
         });
         room.on(RoomEvent.Disconnected, (reason) => {
@@ -171,6 +180,8 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
     }
 
     async disconnect(): Promise<void> {
+        for (const off of this.endedListeners.values()) off();
+        this.endedListeners.clear();
         await this.room?.disconnect();
         this.room = null;
     }
