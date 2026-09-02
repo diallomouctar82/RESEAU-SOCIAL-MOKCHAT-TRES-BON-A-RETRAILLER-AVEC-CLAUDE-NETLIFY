@@ -6,8 +6,10 @@ import {
     getSelectedRingtoneId,
     isRingbackActive,
     isRinging,
+    isRingtoneAudioUnlocked,
     MASTER_GAIN,
     previewRingtone,
+    primeRingtoneAudio,
     RINGBACK_GAIN,
     RINGING_TIMEOUT_MS,
     RINGTONE_STORAGE_KEY,
@@ -441,5 +443,67 @@ describe('getSelectedRingtoneId / setSelectedRingtoneId', () => {
 
         window.localStorage.setItem(RINGTONE_STORAGE_KEY, 'valeur-zombie');
         expect(getSelectedRingtoneId()).toBe(DEFAULT_RINGTONE_ID);
+    });
+});
+
+/* ───────────── AU-11 : déverrouillage de l'audio au premier geste ──────── */
+
+describe('primeRingtoneAudio (AU-11 — la sonnerie qui ne sort pas du tout)', () => {
+    it('sans geste, rien n’est déverrouillé : le service ne prétend pas pouvoir sonner', () => {
+        FakeAudioContext.defaultState = 'suspended';
+        FakeAudioContext.resumeShouldFail = true;
+        primeRingtoneAudio();
+        expect(isRingtoneAudioUnlocked()).toBe(false);
+        expect(FakeAudioContext.instances).toHaveLength(0);
+    });
+
+    it('le premier geste réel démarre le contexte, avant même qu’un appel arrive', async () => {
+        primeRingtoneAudio();
+        window.dispatchEvent(new Event('pointerdown'));
+        await vi.runAllTimersAsync();
+        expect(isRingtoneAudioUnlocked()).toBe(true);
+        expect(FakeAudioContext.instances).toHaveLength(1);
+    });
+
+    it('un geste qui échoue ne perd pas la main : le suivant déverrouille', async () => {
+        FakeAudioContext.defaultState = 'suspended';
+        FakeAudioContext.resumeShouldFail = true;
+        primeRingtoneAudio();
+        window.dispatchEvent(new Event('pointerdown'));
+        await vi.runAllTimersAsync();
+        expect(isRingtoneAudioUnlocked()).toBe(false);
+
+        FakeAudioContext.resumeShouldFail = false;
+        window.dispatchEvent(new Event('keydown'));
+        await vi.runAllTimersAsync();
+        expect(isRingtoneAudioUnlocked()).toBe(true);
+    });
+
+    it('une fois déverrouillé, les gestes suivants ne créent aucun second contexte', async () => {
+        primeRingtoneAudio();
+        window.dispatchEvent(new Event('pointerdown'));
+        await vi.runAllTimersAsync();
+        window.dispatchEvent(new Event('pointerdown'));
+        window.dispatchEvent(new Event('touchend'));
+        await vi.runAllTimersAsync();
+        expect(FakeAudioContext.instances).toHaveLength(1);
+    });
+
+    it('deux appels à primeRingtoneAudio n’installent qu’un seul jeu d’écouteurs', async () => {
+        const stop1 = primeRingtoneAudio();
+        const stop2 = primeRingtoneAudio();
+        expect(stop2).toBe(stop1);
+        stop1();
+        window.dispatchEvent(new Event('pointerdown'));
+        await vi.runAllTimersAsync();
+        expect(isRingtoneAudioUnlocked()).toBe(false);
+        expect(FakeAudioContext.instances).toHaveLength(0);
+    });
+
+    it('une vraie sonnerie déverrouille aussi l’état (source unique de vérité)', async () => {
+        expect(isRingtoneAudioUnlocked()).toBe(false);
+        await startRinging();
+        expect(isRingtoneAudioUnlocked()).toBe(true);
+        stopRinging();
     });
 });

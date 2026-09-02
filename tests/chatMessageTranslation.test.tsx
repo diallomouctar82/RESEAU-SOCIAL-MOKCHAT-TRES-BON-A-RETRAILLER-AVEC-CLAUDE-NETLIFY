@@ -56,6 +56,9 @@ vi.mock('../services/messaging/messagingIntelligence', () => ({
 }));
 vi.mock('../services/calls/ringtoneService', () => ({
     startRinging: vi.fn(), stopRinging: vi.fn(), startRingback: vi.fn(), stopRingback: vi.fn(),
+    // AU-11 : le composant arme le déverrouillage audio au montage — la
+    // doublure doit exposer la fonction, sinon l'appel jette au rendu.
+    primeRingtoneAudio: vi.fn(() => () => {}),
 }));
 vi.mock('../services/memory', () => ({ memoryService: { setCurrentUserId: vi.fn() } }));
 vi.mock('../services/architecte/syncQueue', () => ({ setSyncQueueUser: vi.fn(), startSyncQueueAutoResume: vi.fn(() => () => {}) }));

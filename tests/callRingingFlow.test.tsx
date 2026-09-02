@@ -104,6 +104,9 @@ vi.mock('../services/calls/ringtoneService', () => ({
     startRingback: rig.startRingback,
     stopRingback: vi.fn(),
     stopAll: rig.stopAll,
+    // AU-11 : le composant arme le déverrouillage audio au montage — la
+    // doublure doit exposer la fonction, sinon l'appel jette au rendu.
+    primeRingtoneAudio: vi.fn(() => () => {}),
 }));
 
 vi.mock('../services/supabaseClient', () => ({

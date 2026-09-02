@@ -127,6 +127,14 @@ interface PreviewHandle {
 }
 
 let audioCtx: AudioContext | null = null;
+/**
+ * AU-11 : un contexte audio a-t-il RÉELLEMENT démarré au moins une fois ?
+ * Ce n'est pas une supposition : le drapeau est posé par `ensureAudioContext`
+ * uniquement quand l'état du contexte est `running`.
+ */
+let audioUnlocked = false;
+/** Écouteurs de déverrouillage installés (un seul jeu par page). */
+let primingTeardown: (() => void) | null = null;
 const channels: { ring: LoopHandle | null; ringback: LoopHandle | null } = {
     ring: null,
     ringback: null,
@@ -162,7 +170,71 @@ async function ensureAudioContext(): Promise<AudioContext | null> {
             return null;
         }
     }
-    return audioCtx.state === 'running' ? audioCtx : null;
+    if (audioCtx.state !== 'running') return null;
+    audioUnlocked = true;
+    return audioCtx;
+}
+
+/**
+ * AU-11 — le son est-il réellement possible sur cet appareil, MAINTENANT ?
+ * Répond sur un fait observé (un contexte audio a démarré), jamais sur une
+ * hypothèse. Sert à dire honnêtement « la sonnerie ne pourra pas retentir »
+ * plutôt que de laisser un silence inexpliqué.
+ */
+export function isRingtoneAudioUnlocked(): boolean {
+    return audioUnlocked;
+}
+
+/**
+ * AU-11 — déverrouille l'audio au PREMIER geste réel de l'utilisateur.
+ *
+ * Pourquoi c'est nécessaire : sur téléphone, un navigateur refuse de démarrer
+ * l'audio tant que la personne n'a rien touché. Un appel qui arrive sur une
+ * page ouverte mais jamais touchée depuis son chargement ne peut donc
+ * PHYSIQUEMENT produire aucun son — `resume()` est refusé à ce moment-là,
+ * puisqu'il n'y a pas de geste. C'est très exactement « parfois la sonnerie
+ * ne sort pas, il n'y a même pas de vibration ».
+ *
+ * On ne peut pas déverrouiller à la place de l'utilisateur ; on peut en
+ * revanche saisir le premier geste qu'il fait de toute façon (ouvrir un
+ * écran, faire défiler, taper) pour démarrer le contexte à ce moment-là. Il
+ * reste alors prêt quand l'appel arrive, sans rien demander à personne et
+ * sans qu'aucun son ne soit joué ici.
+ *
+ * Idempotent, sans effet en dehors d'un navigateur. Renvoie la fonction de
+ * retrait des écouteurs.
+ */
+export function primeRingtoneAudio(): () => void {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
+    if (audioUnlocked) return () => {};
+    if (primingTeardown) return primingTeardown;
+
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'touchend', 'keydown'];
+    const onGesture = () => {
+        void ensureAudioContext().then((ctx) => {
+            // Tant que le contexte n'a pas démarré, on garde l'écoute : un
+            // premier geste peut échouer (page encore en arrière-plan), le
+            // suivant réussira. Aucune boucle : on retire dès que c'est fait.
+            if (ctx) teardown();
+        });
+    };
+    const teardown = () => {
+        if (primingTeardown !== teardown) return;
+        primingTeardown = null;
+        for (const type of events) {
+            try { window.removeEventListener(type, onGesture, true); } catch { /* déjà retiré */ }
+        }
+    };
+    primingTeardown = teardown;
+    for (const type of events) {
+        try {
+            window.addEventListener(type, onGesture, { capture: true, passive: true });
+        } catch {
+            // Navigateur sans options d'écouteur : repli sur la forme simple.
+            try { window.addEventListener(type, onGesture, true); } catch { /* écoute impossible */ }
+        }
+    }
+    return teardown;
 }
 
 /**
@@ -554,4 +626,7 @@ export function __resetRingtoneServiceForTests(): void {
         }
     }
     audioCtx = null;
+    primingTeardown?.();
+    primingTeardown = null;
+    audioUnlocked = false;
 }
