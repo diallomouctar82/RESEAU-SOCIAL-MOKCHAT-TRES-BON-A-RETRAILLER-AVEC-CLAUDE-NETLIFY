@@ -300,6 +300,38 @@ describe('push', () => {
         expect(sw.notifications[1].options.body).toBe('Salut !');
     });
 
+    it('AU-10 : demande d’ami → notification au nom lu par le SERVEUR, jamais un titre fourni par l’expéditeur', async () => {
+        const sw = loadServiceWorker();
+        sw.windowClients.push(new FakeWindowClient());
+        await sw.dispatch('push', pushEvent({
+            v: 1,
+            type: 'friend_request',
+            ts: Date.now(),
+            from: { id: 'user-c', name: 'Mariama Diallo', avatarUrl: 'https://cdn.example.org/mariama.png' },
+            // Un expéditeur malveillant tenterait d'écrire lui-même le titre
+            // affiché sur l'écran verrouillé de sa cible : il est ignoré.
+            title: 'ALERTE BANCAIRE — cliquez ici',
+            body: 'Votre compte est bloqué',
+        }));
+        expect(sw.notifications).toHaveLength(1);
+        expect(sw.notifications[0].title).toBe('Mariama Diallo souhaite vous ajouter');
+        expect(sw.notifications[0].options.body).toBe('Nouvelle demande d’ami sur MokNet');
+        expect(sw.notifications[0].options.tag).toBe('friend-request-user-c');
+        expect(sw.notifications[0].options.icon).toBe('https://cdn.example.org/mariama.png');
+        // Une invitation n'est pas un appel : ni sonnerie insistante, ni actions.
+        expect(sw.notifications[0].options.requireInteraction).toBeUndefined();
+        expect(sw.notifications[0].options.actions).toBeUndefined();
+        // La fenêtre ouverte est prévenue comme pour tout autre push.
+        expect(sw.windowClients[0].messages).toHaveLength(1);
+    });
+
+    it('AU-10 : demande d’ami sans profil expéditeur → libellé neutre, jamais un nom inventé', async () => {
+        const sw = loadServiceWorker();
+        await sw.dispatch('push', pushEvent({ v: 1, type: 'friend_request', ts: Date.now(), from: null }));
+        expect(sw.notifications[0].title).toBe('Un membre MokNet souhaite vous ajouter');
+        expect(sw.notifications[0].options.tag).toBe('friend-request-moknet');
+    });
+
     it('JSON invalide → aucune exception, aucune notification, aucun message', async () => {
         const sw = loadServiceWorker();
         sw.windowClients.push(new FakeWindowClient());

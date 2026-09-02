@@ -83,7 +83,7 @@ export const getPushPermissionState = (): PushPermissionState => {
     return permission === 'granted' || permission === 'denied' ? permission : 'default';
 };
 
-const isIosDevice = (): boolean => {
+export const isIosDevice = (): boolean => {
     if (typeof navigator === 'undefined') return false;
     if (/iPhone|iPad|iPod/i.test(navigator.userAgent || '')) return true;
     // iPadOS 13+ se présente comme un Mac de bureau : on le reconnaît à l'écran tactile.

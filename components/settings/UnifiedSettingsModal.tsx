@@ -26,6 +26,7 @@ import { UserProfile } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
 import { RingtonePicker } from './RingtonePicker';
 import { OutsideAppRingingCard } from './OutsideAppRingingCard';
+import { MicrophonePermissionCard } from './MicrophonePermissionCard';
 import { getSelectedRingtoneId } from '../../services/calls/ringtoneService';
 import { ModulesSettingsSection } from '../modules/ModulesSettingsSection';
 
@@ -412,6 +413,13 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
                     fermé. Placée avant le mode silencieux, qui ne concerne
                     que le badge de la cloche à l'intérieur de l'application. */}
                 <OutsideAppRingingCard userId={userProfile.id ?? null} />
+
+                {/* AU-10 : autorisation du micro. Elle est demandée par le
+                    navigateur pendant la sonnerie, ce qui fait rater le début
+                    de l'appel et donne l'impression qu'elle « revient à chaque
+                    fois ». Ici, elle s'accorde à froid — et quand elle revient
+                    malgré tout (onglet iPhone), la vraie raison est dite. */}
+                <MicrophonePermissionCard />
 
                 {/* LOOP 09/17 (notifications, orchestration proactive) : ce
                     panneau affichait un texte statique prétendant déjà

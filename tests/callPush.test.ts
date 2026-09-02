@@ -63,6 +63,25 @@ describe('notifyCallPush (VF-1 — contrat push-notify, jamais une exception)', 
         expect(options.signal).toBeInstanceOf(AbortSignal);
     });
 
+    it('AU-10 : demande d’ami — aucune conversation partagée, aucun texte imposé au destinataire', async () => {
+        rig.invoke.mockResolvedValue({ data: { total: 1, sent: 1, failed: 0, results: [] }, error: null });
+        const result = await notifyCallPush({ topic: 'friend_request', targetUserId: target });
+        expect(result).toEqual({ ok: true, total: 1, sent: 1 });
+        expect(rig.invoke.mock.calls[0][1].body).toEqual({
+            action: 'notify',
+            topic: 'friend_request',
+            targetUserId: target,
+            // Une demande d'ami s'adresse par nature à quelqu'un avec qui on ne
+            // partage aucune conversation : le serveur l'autorise sur la ligne
+            // `friendships` réellement en attente, pas sur celle-ci.
+            conversationId: undefined,
+            callId: undefined,
+            // Le titre affiché est composé par le service worker à partir du
+            // profil lu côté serveur — jamais d'un texte envoyé par l'expéditeur.
+            payload: {},
+        });
+    });
+
     it('vers soi-même (autres appareils) : pas de conversationId, motif transmis', async () => {
         rig.invoke.mockResolvedValue({ data: { total: 1, sent: 1, failed: 0, results: [] }, error: null });
         await notifyCallPush({ topic: 'call_cancelled', targetUserId: target, callId: 'call-1', payload: { reason: 'answered' } });
