@@ -29,7 +29,7 @@ const rig = vi.hoisted(() => {
     return {
         log: [] as string[],
         options: null as any,
-        state: { connectionState: 'connected', error: null as string | null, remoteAudio: false, remoteVideoOnly: false, remoteAccount: '33333333-3333-4333-8333-333333333333', mediaError: null as string | null, localAudioPublished: true },
+        state: { connectionState: 'connected', error: null as string | null, remoteAudio: false, remoteVideoOnly: false, remoteAccount: '33333333-3333-4333-8333-333333333333', mediaError: null as string | null, localAudioPublished: true, reconnectCount: 0 },
         audioTrack,
         videoTrack,
         publishMicrophone: vi.fn(async (_options?: { camera?: boolean }) => {}),
@@ -89,6 +89,7 @@ vi.mock('../hooks/useLiveTransport', () => ({
             publishMicrophone: rig.publishMicrophone,
             mediaError: rig.state.mediaError,
             localAudioPublished: rig.state.localAudioPublished,
+            reconnectCount: rig.state.reconnectCount,
             getAudioStats: rig.getAudioStats,
             startScreenShare: vi.fn(),
             stopScreenShare: vi.fn(),
@@ -188,6 +189,7 @@ beforeEach(() => {
     rig.state.remoteAccount = CALLER;
     rig.state.mediaError = null;
     rig.state.localAudioPublished = true;
+    rig.state.reconnectCount = 0;
     rig.getAudioStats.mockClear();
     rig.getAudioStats.mockImplementation(async () => ({ at: Date.now(), local: null, remote: [], canPlaybackAudio: true }));
     rig.sendData.mockClear();
@@ -252,7 +254,9 @@ describe('ChatCallModal — pré-connexion pendant la sonnerie (VF-3) et arrêt 
     it('appelé qui sonne : transport activé SANS aucune publication, même pour un appel vidéo', () => {
         render(<ChatCallModal callSession={{ ...baseSession, type: 'video' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
         expect(rig.options.enabled).toBe(true);
-        expect(rig.options.roomName).toBe(`call-${CONV}`);
+        // AU-12 : une room par APPEL, plus une room permanente par conversation.
+        expect(rig.options.roomName).toBe(`call-${CONV}--call-1`);
+        expect(rig.options.conversationId).toBe(CONV);
         expect(rig.options.publishAudioOnConnect).toBe(false);
         expect(rig.options.publishVideoOnConnect).toBe(false);
         expect(rig.publishMicrophone).not.toHaveBeenCalled();
@@ -741,5 +745,38 @@ describe('MoocChatFloating — signaux, multi-appareils (VF-2) et push (VF-1)', 
             Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: undefined });
             Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
         }
+    });
+});
+
+/**
+ * AU-13 — la ligne qui se rétablit EN BOUCLE doit être NOMMÉE à l'écran.
+ *
+ * Motif relevé sur les rapports de diagnostic de deux vrais appareils
+ * (public.call_diagnostics, 02/09/2026) : une reconnexion complète toutes les
+ * ~16 s, des deux côtés, chacune coupant le son. L'écran n'affichait alors que
+ * « Micro non publié » — et l'utilisateur en concluait, à tort, que son
+ * téléphone était en cause.
+ */
+describe('ChatCallModal — ligne qui se rétablit en boucle (AU-13)', () => {
+    const connected = { ...baseSession, status: 'connected' as const };
+
+    it('deux rétablissements : rien ne s’affiche (un changement de réseau réel en produit autant)', () => {
+        rig.state.reconnectCount = 2;
+        render(<ChatCallModal callSession={connected} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        expect(screen.queryByTestId('line-flapping-notice')).toBeNull();
+    });
+
+    it('trois rétablissements : l’écran dit que c’est la LIGNE, pas le micro, et donne le compte réel', () => {
+        rig.state.reconnectCount = 3;
+        render(<ChatCallModal callSession={connected} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        const notice = screen.getByTestId('line-flapping-notice');
+        expect(notice.textContent).toContain('se rétablit en boucle (3 fois)');
+        expect(notice.textContent).toContain('Ce n’est pas votre micro');
+    });
+
+    it('appel pas encore décroché : jamais ce message pendant la sonnerie', () => {
+        rig.state.reconnectCount = 9;
+        render(<ChatCallModal callSession={baseSession} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        expect(screen.queryByTestId('line-flapping-notice')).toBeNull();
     });
 });

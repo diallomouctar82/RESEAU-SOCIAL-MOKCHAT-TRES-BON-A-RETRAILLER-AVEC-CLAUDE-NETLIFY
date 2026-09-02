@@ -51,6 +51,12 @@ export interface UseLiveTransportOptions {
      */
     deviceId?: string;
     /**
+     * AU-12 : conversation de l'appel — le nom de room contient désormais
+     * l'identifiant de l'APPEL (une room par appel), le serveur de jetons ne
+     * peut donc plus déduire la conversation du nom seul. Sans effet pour le LIVE.
+     */
+    conversationId?: string;
+    /**
      * HL-4 : messages du canal de données (sous-titres d'appel…). Lu via une
      * ref à chaque paquet — changer le callback ne reconnecte jamais la room.
      */
@@ -109,6 +115,16 @@ export interface UseLiveTransportResult {
      * après une dépublication, et hors connexion.
      */
     localAudioPublished: boolean;
+    /**
+     * AU-13 : la ligne s'est-elle rétablie en BOUCLE pendant cet appel ?
+     * Compte les reconnexions complètes du SDK depuis le début de la
+     * tentative courante. Au-delà de deux, ce n'est plus un incident réseau
+     * ponctuel : c'est une ligne qui ne tient pas, et l'écran doit le dire au
+     * lieu de laisser croire à un problème de micro (le rapport de
+     * diagnostic AU-7 a montré exactement ce motif sur deux vrais appareils :
+     * une reconnexion toutes les ~16 s, chacune coupant le son des deux côtés).
+     */
+    reconnectCount: number;
     /** Mission AU : compteurs audio réels (envoi / réception / lecture) — référence stable (deps []). */
     getAudioStats: () => Promise<LiveAudioStats>;
     /** AU-7 : chemin réseau négocié + inventaire des pistes, pour le rapport de diagnostic — référence stable (deps []). */
@@ -168,7 +184,7 @@ const CALL_AUTO_RETRY_MAX = 3;
 const callRetryDelayMs = (attempt: number): number => Math.min(4000, 700 * 2 ** attempt);
 
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
-    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live', deviceId } = options;
+    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live', deviceId, conversationId } = options;
     const providerRef = useRef<LiveKitTransportProvider | null>(null);
     // HL-4 : le callback de données est lu via une ref — jamais dans les
     // dépendances de l'effet de connexion (un nouveau handler à chaque rendu
@@ -235,6 +251,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // rejouer l'effet de connexion (nouveau jeton compris) après un échec.
     const [connectAttempt, setConnectAttempt] = useState(0);
     const [connectionState, setConnectionState] = useState<LiveConnectionState>('disconnected');
+    // AU-13 : nombre de rétablissements complets de la ligne pendant cette
+    // tentative — mesuré sur les transitions réelles du transport, jamais estimé.
+    const [reconnectCount, setReconnectCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [localVideoTrack, setLocalVideoTrack] = useState<LiveTrackHandle | null>(null);
     const [localScreenShareTrack, setLocalScreenShareTrack] = useState<LiveTrackHandle | null>(null);
@@ -255,6 +274,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         const previousTeardown = teardownRef.current;
         attemptRef.current = { inFlight: true, connected: false };
         audioRepublishRef.current = 0;
+        setReconnectCount(0);
         const isCall = audioProfile === 'call';
         // Mission AU : la ligne d'un appel tombe alors qu'il veut du média →
         // relance automatique (jeton + connexion), avec délai croissant et
@@ -333,7 +353,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 await previousTeardown;
                 if (cancelled) return;
                 setError(null); // nouvelle tentative : l'erreur précédente ne la décrit plus.
-                const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish, deviceId);
+                const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish, deviceId, conversationId);
                 if (cancelled) return;
 
                 await provider.connect({ serverUrl, token, audioProfile }, {
@@ -347,6 +367,10 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         const wasConnected = attemptRef.current.connected;
                         if (state === 'connected') attemptRef.current.connected = true;
                         else if (state === 'disconnected' || state === 'failed' || state === 'reconnecting') attemptRef.current.connected = false;
+                        // AU-13 : une ligne ÉTABLIE qui repart en reconnexion est
+                        // un rétablissement réel — c'est ce qui coupe le son. On
+                        // les compte pour pouvoir le dire honnêtement à l'écran.
+                        if (state === 'reconnecting' && wasConnected) setReconnectCount((n) => n + 1);
                         setConnectionState(state);
                         // AU-7 : la ligne est revenue et une publication attendait —
                         // elle part maintenant (micro d'abord, caméra isolée).
@@ -516,7 +540,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         };
         // publishVideoOnConnect / publishAudioOnConnect : lus via publishOnConnectRef, volontairement hors dépendances (VF-3).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, roomName, participantName, canPublish, audioProfile, deviceId, connectAttempt]);
+    }, [enabled, roomName, participantName, canPublish, audioProfile, deviceId, conversationId, connectAttempt]);
 
     // Le transport se (ré)active : le compteur de relances automatiques repart
     // de zéro (un nouvel appel n'hérite pas des échecs du précédent).
@@ -659,6 +683,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         publishMicrophone,
         mediaError,
         localAudioPublished,
+        reconnectCount,
         getAudioStats,
         getTransportDiagnostics,
         startScreenShare,

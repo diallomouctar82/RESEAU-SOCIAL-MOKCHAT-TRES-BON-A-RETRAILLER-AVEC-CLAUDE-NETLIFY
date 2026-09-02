@@ -98,3 +98,66 @@ changement visible côté interface — c'est le but de cette architecture).
   configurée (l'état Redis de LiveKit est reconstructible : rooms/tokens
   actifs uniquement, pas de données MokNet — la perte de ce volume ne perd
   aucune donnée applicative, seulement les sessions LIVE en cours).
+
+---
+
+## Mettre à jour le serveur (AU-14 — à faire sur le VPS)
+
+**Pourquoi.** Le serveur déployé tourne en **1.8.4** (protocole 15) alors que le
+site utilise `livekit-client` **2.22.1** (protocole 17). Les rapports de
+diagnostic de deux vrais appareils (`public.call_diagnostics`, 02/09/2026) le
+disent explicitement, des deux côtés :
+
+```
+connected to Livekit Server ... version: 1.8.4, protocol: 15
+Initial connection failed: v1 RTC path not found.
+                           Consider upgrading your LiveKit server version
+... puis toutes les ~16 s :
+NegotiationError: negotiation timed out
+```
+
+À chaque expiration, **toutes** les pistes sont retirées, la ligne se
+rétablit complètement, le micro est republié puis dépublié — et le compteur
+`bytesSent` mesuré ne quitte jamais `null` : **la voix ne part jamais**. C'est
+la cause unique des trois symptômes signalés (son absent d'un côté, son qui se
+coupe et revient, connexion instable).
+
+**Procédure (à exécuter sur le VPS, dans le dossier du déploiement LiveKit).**
+Les quatre commandes sont indépendantes du reste de votre configuration : elles
+ne changent QUE la version de l'image.
+
+```bash
+# 1. Où en est-on aujourd'hui ?
+docker compose ps
+docker compose exec livekit /livekit-server --version   # attendu avant : 1.8.4
+
+# 2. Épingler la nouvelle version (remplace l'étiquette flottante v1.8)
+sed -i 's|livekit/livekit-server:v1\.8[^ ]*|livekit/livekit-server:v1.13.6|' docker-compose.yml
+grep -n 'livekit-server:' docker-compose.yml    # doit afficher v1.13.6
+
+# 3. Récupérer l'image et redémarrer LE SEUL service livekit
+docker compose pull livekit
+docker compose up -d livekit
+
+# 4. Vérifier que le serveur répond bien dans la nouvelle version
+docker compose exec livekit /livekit-server --version   # attendu après : 1.13.6
+curl -sS -o /dev/null -w '%{http_code}\n' https://live.moknet.net/    # attendu : 200
+docker compose logs --tail=40 livekit
+```
+
+**Ce qui ne change pas** : les clés `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`
+(donc rien à retoucher côté Supabase `live_transport_config` ni côté Vault), le
+domaine, le reverse-proxy CloudPanel/nginx, la plage TURN, le site existant.
+Aucune modification de code applicatif n'est nécessaire : l'architecture
+ports & adapters fait que seule cette image bouge.
+
+**Retour arrière** si quoi que ce soit se passe mal : remettre `v1.8.4` à la
+ligne `image:` puis `docker compose up -d livekit`. L'état d'avant est
+récupérable en une commande.
+
+**Comment savoir que c'est réglé** — sans lire un journal : passez un appel,
+et regardez l'écran d'appel. Avant, le diagnostic en bas à droite affichait
+« Micro non publié » ; après, il doit afficher « Votre voix part » et
+« Vous recevez sa voix », et le bandeau ambre « La ligne du serveur d'appel se
+rétablit en boucle » ne doit jamais apparaître. Le rapport complet reste écrit
+côté serveur dans `public.call_diagnostics` à chaque appel.

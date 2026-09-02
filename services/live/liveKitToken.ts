@@ -21,10 +21,19 @@ export async function fetchLiveKitToken(
      * s'évincent pendant la sonnerie. Ignoré pour les rooms de LIVE.
      */
     deviceId?: string,
+    /**
+     * AU-12 : conversation à laquelle l'appel appartient. Le nom de room
+     * contient désormais l'identifiant de l'APPEL (une room par appel, voir
+     * services/calls/callRoom.ts) : le serveur ne peut donc plus le déduire du
+     * nom seul et le reçoit explicitement pour vérifier l'appartenance.
+     * Absent → le serveur retombe sur l'ancienne lecture du nom de room.
+     */
+    conversationId?: string,
 ): Promise<LiveKitTokenResult> {
-    const { data, error } = await supabase.functions.invoke('livekit-token', {
-        body: deviceId ? { roomName, participantName, canPublish, deviceId } : { roomName, participantName, canPublish },
-    });
+    const body: Record<string, unknown> = { roomName, participantName, canPublish };
+    if (deviceId) body.deviceId = deviceId;
+    if (conversationId) body.conversationId = conversationId;
+    const { data, error } = await supabase.functions.invoke('livekit-token', { body });
     if (error || !data?.token || !data?.serverUrl) {
         throw new Error(error?.message || "Impossible d'obtenir un accès au LIVE (transport vidéo).");
     }

@@ -40,6 +40,14 @@ interface TokenRequestBody {
      * Les rooms de LIVE gardent `profiles.id` (rôles, chat, IA).
      */
     deviceId?: string;
+    /**
+     * AU-12 : conversation à laquelle l'appel appartient. Le nom de room porte
+     * maintenant l'identifiant de l'APPEL, la conversation ne s'en déduit donc
+     * plus seule. Ce champ n'accorde AUCUN droit par lui-même : c'est
+     * exactement lui qui est vérifié contre `conversation_participants`, comme
+     * l'était auparavant la valeur lue dans le nom de room.
+     */
+    conversationId?: string;
 }
 
 const DEVICE_ID_PATTERN = /^[A-Za-z0-9_-]{4,32}$/;
@@ -72,7 +80,16 @@ Deno.serve(async (req: Request) => {
     // obtenir un jeton (les rooms de LIVE restent joignables comme avant,
     // leur visibilité est gérée par la RLS de live_sessions côté données).
     if (roomName.startsWith('call-')) {
-        const conversationId = roomName.slice('call-'.length);
+        // AU-12 : le nom de room est désormais `call-<conversationId>--<callId>`
+        // (une room par APPEL, plus une room permanente par conversation — voir
+        // services/calls/callRoom.ts). La conversation à contrôler arrive donc
+        // dans le CORPS ; à défaut, on relit le nom comme avant, ce qui garde
+        // valides les bundles déjà servis (`call-<conversationId>` seul) ET la
+        // nouvelle forme (tout ce qui précède le séparateur).
+        const fromBody = typeof body.conversationId === 'string' ? body.conversationId.trim() : '';
+        const rest = roomName.slice('call-'.length);
+        const separatorAt = rest.indexOf('--');
+        const conversationId = fromBody || (separatorAt === -1 ? rest : rest.slice(0, separatorAt));
         const { data: membership, error: membershipError } = await service
             .from('conversation_participants')
             .select('user_id')
