@@ -311,6 +311,98 @@ export const requestPushPermissionAndSubscribe = async (userId: string): Promise
     return ensurePushSubscription(userId);
 };
 
+/* ────────────────────── AU-9 : état RÉEL de cet appareil ───────────────── */
+
+/**
+ * AU-9 — « le téléphone ne sonne jamais hors de l'application ».
+ *
+ * Mesuré avant d'écrire ce code : la table `push_subscriptions` était VIDE,
+ * donc aucun appareil n'avait jamais pu être joint hors de l'application. Le
+ * bandeau d'invitation existait, mais il est effaçable pour sept jours et,
+ * sur iPhone dans un onglet, il ne propose aucun bouton (le push Web n'y
+ * existe pas). Il manquait un endroit PERMANENT où lire l'état réel et agir.
+ *
+ * Cet état croise trois sources, jamais une intention :
+ *  - ce que le navigateur permet (`isPushSupported`, `needsIosHomeScreenInstall`) ;
+ *  - la permission réellement accordée (`Notification.permission`) ;
+ *  - l'abonnement RÉELLEMENT enregistré côté serveur pour CET appareil
+ *    (ligne `push_subscriptions` correspondant à l'endpoint courant).
+ *
+ * `granted_not_registered` est le cas important : la permission est accordée
+ * mais le serveur n'a aucune adresse pour joindre l'appareil — il ne sonnera
+ * jamais. Sans cette vérification, l'interface aurait annoncé « activées »
+ * en se fiant à la seule permission du navigateur.
+ */
+export type PushDeviceState =
+    | 'unsupported'
+    | 'needs_ios_install'
+    | 'denied'
+    | 'default'
+    | 'granted_not_registered'
+    | 'active';
+
+export interface PushDeviceStatus {
+    state: PushDeviceState;
+    /** Endpoint du service de push de cet appareil, quand il en a un. */
+    endpoint: string | null;
+    /** Date du dernier enregistrement serveur (ISO), quand la ligne existe. */
+    registeredAt: string | null;
+    /** Nombre d'appareils enregistrés pour ce compte (null si la lecture a échoué). */
+    deviceCount: number | null;
+    /** Message d'échec réel de la vérification, jamais inventé. */
+    error?: string;
+}
+
+export const getPushDeviceStatus = async (userId: string): Promise<PushDeviceStatus> => {
+    const empty = { endpoint: null, registeredAt: null, deviceCount: null } as const;
+    if (needsIosHomeScreenInstall()) return { state: 'needs_ios_install', ...empty };
+    if (!isPushSupported()) return { state: 'unsupported', ...empty };
+    const permission = getPushPermissionState();
+    if (permission === 'denied') return { state: 'denied', ...empty };
+    if (permission === 'default') return { state: 'default', ...empty };
+    if (!userId || !isSupabaseConfigured) {
+        return { state: 'granted_not_registered', ...empty, error: 'Session absente : impossible de vérifier l’enregistrement.' };
+    }
+
+    let endpoint: string | null = null;
+    try {
+        const registration = await getServiceWorkerRegistration();
+        endpoint = (await registration?.pushManager.getSubscription())?.endpoint ?? null;
+    } catch (err) {
+        return { state: 'granted_not_registered', ...empty, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // La RLS de `push_subscriptions` ne laisse lire que ses propres lignes :
+    // ce compte, cet appareil — jamais l'appareil de quelqu'un d'autre.
+    const { data, error } = await supabase
+        .from('push_subscriptions')
+        .select('endpoint, updated_at')
+        .order('updated_at', { ascending: false });
+    if (error) {
+        return { state: endpoint ? 'granted_not_registered' : 'granted_not_registered', endpoint, registeredAt: null, deviceCount: null, error: error.message };
+    }
+    const rows = (data ?? []) as Array<{ endpoint: string; updated_at: string | null }>;
+    const mine = endpoint ? rows.find((row) => row.endpoint === endpoint) : undefined;
+    return {
+        state: mine ? 'active' : 'granted_not_registered',
+        endpoint,
+        registeredAt: mine?.updated_at ?? null,
+        deviceCount: rows.length,
+    };
+};
+
+/** Phrase honnête pour chaque état — jamais « activé » quand le serveur n'a aucune adresse. */
+export const describePushDeviceState = (state: PushDeviceState): string => {
+    switch (state) {
+        case 'active': return 'Cet appareil sonnera même hors de l’application.';
+        case 'granted_not_registered': return 'Autorisation accordée, mais cet appareil n’est pas encore enregistré auprès du serveur : il ne sonnera pas hors de l’application.';
+        case 'default': return 'Non activé : cet appareil ne sonnera pas quand vous êtes hors de l’application.';
+        case 'denied': return 'Notifications refusées pour ce site : cet appareil ne peut pas sonner hors de l’application.';
+        case 'needs_ios_install': return 'Sur iPhone et iPad, la sonnerie hors application n’existe qu’une fois MokNet ajouté à l’écran d’accueil.';
+        case 'unsupported': return 'Ce navigateur ne permet pas la sonnerie hors application.';
+    }
+};
+
 /**
  * Déconnexion : désabonnement navigateur + suppression de la ligne serveur
  * (par endpoint ; la RLS ne laisse supprimer que ses propres lignes). La
