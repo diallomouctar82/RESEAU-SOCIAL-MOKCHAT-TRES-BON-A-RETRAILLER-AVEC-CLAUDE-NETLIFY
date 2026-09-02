@@ -220,6 +220,31 @@ afterEach(() => {
 
 const noop = () => {};
 
+describe('ChatCallModal — AU-8 : sur téléphone, l’appel occupe tout l’écran', () => {
+    const callCard = (container: HTMLElement) => container.querySelector('.fixed.inset-0.z-\\[210\\] > div') as HTMLElement;
+
+    it('la carte d’appel a une hauteur pleine sur téléphone et ne dépend d’aucune proportion en dessous de 640 px', () => {
+        const { container } = render(<ChatCallModal callSession={{ ...baseSession, type: 'video', status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        const card = callCard(container);
+        expect(card).toBeTruthy();
+        // Hauteur pleine sans condition de largeur : plus de bande étroite.
+        expect(card.className).toContain('h-full');
+        // La proportion et la largeur maximale ne s'appliquent qu'à partir de `sm` (ordinateur).
+        expect(card.className).toContain('sm:aspect-square');
+        expect(card.className).toContain('sm:max-w-lg');
+        // Et surtout : plus aucune proportion en syntaxe Tailwind 4, ignorée par le Tailwind 3 du site.
+        expect(/\baspect-\d+\/\d+/.test(card.className)).toBe(false);
+    });
+
+    it('la vignette de ma caméra garde une proportion VALIDE (syntaxe à crochets)', () => {
+        rig.state.remoteAudio = true;
+        const { container } = render(<ChatCallModal callSession={{ ...baseSession, type: 'video', status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
+        const pip = container.querySelector('[class*="aspect-[3/4]"]') as HTMLElement | null;
+        expect(pip).toBeTruthy();
+        expect(pip!.className).not.toMatch(/\baspect-3\/4\b/);
+    });
+});
+
 describe('ChatCallModal — pré-connexion pendant la sonnerie (VF-3) et arrêt net (VF-2)', () => {
     it('appelé qui sonne : transport activé SANS aucune publication, même pour un appel vidéo', () => {
         render(<ChatCallModal callSession={{ ...baseSession, type: 'video' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);

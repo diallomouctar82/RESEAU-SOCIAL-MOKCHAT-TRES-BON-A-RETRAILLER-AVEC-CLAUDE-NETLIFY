@@ -121,6 +121,51 @@ montrant le diagnostic, et les lignes `[appel] média …` de la console
 Safari → Développement). Un scénario est **validé** uniquement si les deux
 diagnostics sont verts et que chaque personne a entendu l'autre.
 
+## 3 bis. Retour du test réel sur deux téléphones (AU‑7 / AU‑8, 02/09)
+
+Test conduit par l'utilisateur : un côté entend l'autre, l'autre n'a aucun
+retour de son, et l'appel se coupe seul après environ une minute. Captures
+d'écran (iPhone, Safari) : « Micro non publié », « Reconnexion… », puis
+`UnexpectedConnectionState: pcManager is not ready`.
+
+**Ce qui a été mesuré, pas supposé.**
+
+| Fait | Mesure |
+|---|---|
+| Le serveur retire un participant dont le média n'est jamais établi | LEAVE `reason=7` (JOIN_FAILURE) à 61 s, deux sondes indépendantes sur `wss://live.moknet.net` |
+| Le serveur annonce bien son adresse publique | candidats `udp 185.170.58.86:50026` et `tcp 185.170.58.86:7881` |
+| Le repli TCP est joignable de l'extérieur | port 7881 ouvert depuis 4 pays |
+| Un relais TURN est proposé | `turn:185.170.58.86:3478?transport=udp` |
+
+Le serveur n'est donc pas en cause : c'est la publication du micro qui
+n'aboutit jamais sur ce téléphone, et la coupure « à la minute » en est la
+conséquence mécanique.
+
+**Corrigé dans l'application.**
+
+- **Publier pendant que la ligne se rétablit** levait `pcManager is not
+  ready` et le micro ne partait jamais. La demande attend désormais le retour
+  à l'état connecté et s'exécute à ce moment‑là ; aucune connexion n'est
+  lancée par‑dessus celle que le SDK rétablit déjà.
+- **L'écran s'éteignait** au bout de 30 s à 1 min, ce qui suspend la page sur
+  téléphone. L'écran reste allumé pendant tout l'appel (verrou d'écran), et
+  le verrou est repris au retour au premier plan.
+- **Message honnête** : une erreur d'état du transport n'est plus affichée
+  brute, elle est expliquée et n'accuse plus le micro.
+- **Rapport de diagnostic automatique** : chaque appel dépose son journal
+  technique dans `call_diagnostics` (états, raisons de reconnexion données
+  par le SDK, chemin réseau négocié, verdicts audio). Aucun contenu audio,
+  aucun jeton, aucune adresse locale. C'est ce qui permet de lire ce qui se
+  passe sur un vrai téléphone sans console.
+
+**Écran d'appel réduit à une bande sur iPhone (AU‑8).** Le site charge
+Tailwind 3 ; l'écran d'appel imposait sa hauteur avec une proportion écrite
+dans la syntaxe de Tailwind 4, ignorée en silence. En dessous de 640 px la
+carte n'avait donc aucune hauteur et se réduisait à son contenu, la variante
+`sm:` masquant le défaut sur ordinateur. L'appel occupe désormais tout
+l'écran du téléphone. Garde‑fou de non‑régression :
+`tests/tailwindClassValidity.test.ts`.
+
 ## 4. Ce qui reste hors de portée du code de l'application
 
 - **Routage audio iOS (écouteur / haut‑parleur)** : choisi par le système ;

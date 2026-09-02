@@ -32,12 +32,16 @@ vi.mock('../services/live/liveKitTransportProvider', () => ({
             events.onConnectionStateChanged?.('connected');
         }
         async disconnect() { this.connected = false; }
+        /** AU-7 : rejoue la séquence RÉELLE du SDK — Reconnecting (pcManager absent : publier lève) puis Connected. */
+        startReconnecting() { this.reconnecting = true; this.events?.onConnectionStateChanged?.('reconnecting'); }
+        finishReconnecting() { this.reconnecting = false; this.connected = true; this.events?.onConnectionStateChanged?.('connected'); }
         async setCameraEnabled(v: boolean) {
             this.log('setCameraEnabled', v);
             if (v) this.events?.onLocalTrackPublished?.({ participantIdentity: 'me', kind: 'video', attach() {}, detach() {} });
         }
         async setMicrophoneEnabled(v: boolean) {
             this.log('setMicrophoneEnabled', v);
+            if (this.reconnecting) throw new Error('UnexpectedConnectionState: pcManager is not ready');
             // Comme le SDK : activer publie ; couper met en sourdine SANS dépublier.
             if (v) this.events?.onLocalTrackPublished?.({ participantIdentity: 'me', kind: 'audio', attach() {}, detach() {} });
         }
@@ -50,11 +54,16 @@ vi.mock('../services/live/liveKitTransportProvider', () => ({
         canPlaybackAudio() { return true; }
         getLocalParticipant() { return { identity: 'me', name: 'me', isLocal: true, isSpeaking: false, audioEnabled: true, videoEnabled: true, isScreenSharing: false }; }
         getRemoteParticipants() { return []; }
-        getConnectionState() { return this.connected ? 'connected' : 'disconnected'; }
         getLocalAudioTrack() { return null; }
         async getAudioStats() { return { at: 0, local: null, remote: [], canPlaybackAudio: true }; }
+        // AU-7 : état « reconnecting » simulable (le SDK rétablit la ligne seul).
+        reconnecting = false;
+        getConnectionState() { return this.reconnecting ? 'reconnecting' : this.connected ? 'connected' : 'disconnected'; }
+        async getTransportDiagnostics() { return { at: 0, connectionState: this.getConnectionState(), publisher: null, subscriber: null, localTracks: [], remoteTracks: [] }; }
     },
 }));
+
+vi.mock('../services/calls/callDiagnostics', () => ({ recordCallEvent: vi.fn() }));
 
 vi.mock('../services/live/liveKitToken', () => ({
     fetchLiveKitToken: vi.fn(async () => ({ token: 't', serverUrl: 'ws://bench' })),
@@ -160,6 +169,50 @@ describe('useLiveTransport — appel : relance automatique de la ligne (revue AU
         expect(rig.providers.length).toBe(2);
         expect(calls(last(), 'setMicrophoneEnabled')).toEqual([[true]]);
         expect(result.current.localAudioPublished).toBe(true);
+    });
+});
+
+describe('useLiveTransport — AU-7 : décroché pendant que le SDK rétablit la ligne (iPhone réel)', () => {
+    it('appelé : ligne en « reconnecting » au décroché → aucune publication dans le vide, aucune relance par-dessus, micro publié dès le retour à « connected »', async () => {
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'call-7', participantName: 'B', canPublish: true, enabled: true, audioProfile: 'call', publishAudioOnConnect: false, publishVideoOnConnect: false }));
+        await flush();
+        const p = last();
+        act(() => { p.startReconnecting(); });
+        expect(result.current.connectionState).toBe('reconnecting');
+        // Avant : setMicrophoneEnabled(true) était appelé ici et levait « pcManager is not ready ».
+        await act(async () => { await result.current.publishMicrophone({ camera: false }); });
+        expect(calls(p, 'setMicrophoneEnabled')).toEqual([]);
+        expect(result.current.mediaError).toBeNull();
+        await flush(5000);
+        expect(rig.providers.length).toBe(1); // pas de nouvelle connexion lancée par-dessus celle du SDK
+        act(() => { p.finishReconnecting(); });
+        await flush();
+        expect(calls(p, 'setMicrophoneEnabled')).toEqual([[true]]);
+        expect(result.current.localAudioPublished).toBe(true);
+        expect(result.current.connectionState).toBe('connected');
+    });
+
+    it('appel établi : « reconnecting » sans demande en attente → le retour à « connected » ne republie rien de lui-même', async () => {
+        renderHook(() => useLiveTransport({ roomName: 'call-8', participantName: 'A', canPublish: true, enabled: true, audioProfile: 'call', publishAudioOnConnect: true }));
+        await flush();
+        const p = last();
+        expect(calls(p, 'setMicrophoneEnabled')).toEqual([[true]]);
+        act(() => { p.startReconnecting(); });
+        act(() => { p.finishReconnecting(); });
+        await flush();
+        expect(calls(p, 'setMicrophoneEnabled')).toEqual([[true]]); // le SDK republie ses pistes seul
+    });
+
+    it('si le SDK abandonne (Disconnected) alors qu’une demande attendait, la relance automatique publie le micro', async () => {
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'call-9', participantName: 'B', canPublish: true, enabled: true, audioProfile: 'call', publishAudioOnConnect: false, publishVideoOnConnect: false }));
+        await flush();
+        const p1 = last();
+        act(() => { p1.startReconnecting(); });
+        await act(async () => { await result.current.publishMicrophone({ camera: false }); });
+        act(() => { p1.events.onDisconnected('14'); });
+        await flush(1000);
+        expect(rig.providers.length).toBe(2);
+        expect(calls(last(), 'setMicrophoneEnabled')).toEqual([[true]]);
     });
 });
 

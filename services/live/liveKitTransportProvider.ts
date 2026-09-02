@@ -11,13 +11,16 @@ import {
     LocalParticipant,
     LocalTrackPublication,
     LocalVideoTrack,
+    LogLevel,
     Participant,
     RemoteAudioTrack,
     RemoteParticipant,
+    RemoteTrack,
     Room,
     RoomEvent,
     Track,
     TrackEvent,
+    setLogExtension,
 } from 'livekit-client';
 import type {
     LiveAudioStats,
@@ -25,13 +28,66 @@ import type {
     LiveConnectParams,
     LiveConnectionQuality,
     LiveConnectionState,
+    LiveIcePathInfo,
     LiveParticipantHandle,
     LiveTrackHandle,
     LiveTrackKind,
+    LiveTransportDiagnostics,
     LiveTransportEvents,
     LiveTransportProvider,
     SendDataOptions,
 } from './liveTransportTypes';
+import { isCallDiagnosticsActive, recordCallEvent } from '../calls/callDiagnostics';
+
+/**
+ * AU-7 : le journal interne du SDK (raisons de reconnexion, échecs de
+ * négociation, états ICE) est la seule source qui dit POURQUOI une ligne se
+ * rétablit ou tombe sur un vrai téléphone. Il est copié dans le rapport de
+ * diagnostic d'appel quand un rapport est ouvert — le LIVE n'en produit pas,
+ * et la console du navigateur reste alimentée comme avant. Installé une fois.
+ */
+let sdkLogSinkInstalled = false;
+function installSdkLogSink(): void {
+    if (sdkLogSinkInstalled) return;
+    sdkLogSinkInstalled = true;
+    try {
+        setLogExtension((level, msg, context) => {
+            if (!isCallDiagnosticsActive()) return;
+            if (level < LogLevel.info) return;
+            recordCallEvent(level >= LogLevel.warn ? 'error' : 'sdk', String(msg), context);
+        });
+    } catch { /* journal SDK indisponible : le rapport garde les événements de l'application */ }
+}
+
+function pathFromStats(report: RTCStatsReport): LiveIcePathInfo | null {
+    const byId = new Map<string, Record<string, unknown>>();
+    report.forEach((stat) => { byId.set(String((stat as { id: string }).id), stat as unknown as Record<string, unknown>); });
+    let pair: Record<string, unknown> | undefined;
+    for (const stat of byId.values()) {
+        if (stat.type === 'transport' && typeof stat.selectedCandidatePairId === 'string') {
+            pair = byId.get(stat.selectedCandidatePairId);
+            if (pair) break;
+        }
+    }
+    if (!pair) {
+        for (const stat of byId.values()) {
+            if (stat.type === 'candidate-pair' && (stat.nominated === true || stat.state === 'succeeded')) { pair = stat; break; }
+        }
+    }
+    if (!pair) return null;
+    const local = typeof pair.localCandidateId === 'string' ? byId.get(pair.localCandidateId) : undefined;
+    const remote = typeof pair.remoteCandidateId === 'string' ? byId.get(pair.remoteCandidateId) : undefined;
+    const num = (v: unknown) => (typeof v === 'number' ? v : null);
+    const str = (v: unknown) => (typeof v === 'string' ? v : null);
+    return {
+        state: str(pair.state),
+        local: local ? { type: str(local.candidateType), protocol: str(local.protocol) } : null,
+        remote: remote ? { type: str(remote.candidateType), protocol: str(remote.protocol), address: str(remote.address ?? remote.ip), port: num(remote.port) } : null,
+        bytesSent: num(pair.bytesSent),
+        bytesReceived: num(pair.bytesReceived),
+        currentRoundTripTime: num(pair.currentRoundTripTime),
+    };
+}
 
 const CONNECTION_STATE_MAP: Record<ConnectionState, LiveConnectionState> = {
     [ConnectionState.Disconnected]: 'disconnected',
@@ -91,11 +147,40 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             : new Room({ adaptiveStream: true, dynacast: true });
         this.room = room;
 
+        // AU-7 : tout ce que le SDK sait d'une ligne qui vacille va au rapport
+        // de diagnostic (quand un appel en tient un) — raisons de reconnexion,
+        // déconnexion nommée, publications/souscriptions réelles.
+        if (params.audioProfile === 'call') {
+            installSdkLogSink();
+            room.on(RoomEvent.Reconnecting, () => { recordCallEvent('transport', 'SDK : reconnexion complète en cours'); });
+            room.on(RoomEvent.SignalReconnecting, () => { recordCallEvent('transport', 'SDK : signalisation en reconnexion'); });
+            room.on(RoomEvent.Reconnected, () => { recordCallEvent('transport', 'SDK : reconnecté'); });
+            room.on(RoomEvent.Connected, () => { recordCallEvent('transport', 'SDK : connecté', { serverUrl: params.serverUrl }); });
+            room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+                recordCallEvent('media', `piste distante souscrite : ${track.source}`, { from: participant.identity });
+            });
+            room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+                recordCallEvent('media', `piste distante retirée : ${track.source}`, { from: participant.identity });
+            });
+            room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
+                recordCallEvent('media', `ma piste publiée : ${publication.source}`, { codec: publication.mimeType, sid: publication.trackSid });
+            });
+            room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
+                recordCallEvent('media', `ma piste dépubliée : ${publication.source}`);
+            });
+            room.on(RoomEvent.ParticipantConnected, (p: RemoteParticipant) => { recordCallEvent('transport', 'participant arrivé', { identity: p.identity }); });
+            room.on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => { recordCallEvent('transport', 'participant parti', { identity: p.identity }); });
+            room.on(RoomEvent.MediaDevicesError, (error: Error, deviceKind?: MediaDeviceKind) => {
+                recordCallEvent('error', `capture impossible (${deviceKind ?? 'périphérique'})`, error);
+            });
+        }
+
         room.on(RoomEvent.ConnectionQualityChanged, (quality: ConnectionQuality, participant: Participant) => {
             events.onConnectionQualityChanged?.(participant.identity, CONNECTION_QUALITY_MAP[quality] ?? 'unknown');
         });
 
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
+            recordCallEvent('transport', `état de connexion : ${state}`);
             events.onConnectionStateChanged?.(CONNECTION_STATE_MAP[state] ?? 'disconnected');
         });
         room.on(RoomEvent.ParticipantConnected, (p: RemoteParticipant) => {
@@ -167,6 +252,7 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             events.onLocalTrackUnpublished?.(kind);
         });
         room.on(RoomEvent.Disconnected, (reason) => {
+            recordCallEvent('transport', 'SDK : déconnecté', { reason: reason !== undefined ? String(reason) : 'inconnue' });
             events.onDisconnected?.(reason !== undefined ? String(reason) : undefined);
         });
         // Équipe F3 : lecture audio bloquée par la politique d'autoplay du
@@ -292,6 +378,43 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             remote.push({ identity: participant.identity, bytesReceived, packetsReceived, concealedSamples, audioLevel: participant.audioLevel });
         }
         return { at, local, remote, canPlaybackAudio: room.canPlaybackAudio };
+    }
+
+    /**
+     * AU-7 : chemin réseau RÉELLEMENT négocié (candidats ICE retenus, protocole,
+     * aller-retour) pour chaque connexion — celle qui publie (ma piste micro)
+     * et celle qui reçoit (première piste micro distante) — plus l'inventaire
+     * des pistes. Une mesure indisponible vaut null, jamais un chiffre inventé.
+     */
+    async getTransportDiagnostics(): Promise<LiveTransportDiagnostics> {
+        const room = this.room;
+        const at = Date.now();
+        const connectionState: LiveConnectionState = room ? (CONNECTION_STATE_MAP[room.state] ?? 'disconnected') : 'disconnected';
+        if (!room) return { at, connectionState, publisher: null, subscriber: null, localTracks: [], remoteTracks: [] };
+
+        let publisher: LiveIcePathInfo | null = null;
+        const localTracks: LiveTransportDiagnostics['localTracks'] = [];
+        for (const pub of room.localParticipant.trackPublications.values()) {
+            const kind = TRACK_SOURCE_TO_KIND[pub.source];
+            if (kind) localTracks.push({ kind, muted: pub.isMuted });
+            if (!publisher && pub.track?.sender) {
+                try { publisher = pathFromStats(await pub.track.sender.getStats()); } catch { /* mesure indisponible */ }
+            }
+        }
+
+        let subscriber: LiveIcePathInfo | null = null;
+        const remoteTracks: LiveTransportDiagnostics['remoteTracks'] = [];
+        for (const participant of room.remoteParticipants.values()) {
+            for (const pub of participant.trackPublications.values()) {
+                const kind = TRACK_SOURCE_TO_KIND[pub.source];
+                if (kind && pub.track) remoteTracks.push({ identity: participant.identity, kind });
+                const receiver = (pub.track as RemoteTrack | undefined)?.receiver;
+                if (!subscriber && receiver) {
+                    try { subscriber = pathFromStats(await receiver.getStats()); } catch { /* mesure indisponible */ }
+                }
+            }
+        }
+        return { at, connectionState, publisher, subscriber, localTracks, remoteTracks };
     }
 
     private requireLocalParticipant(): LocalParticipant {

@@ -89,6 +89,12 @@ export function pickRemoteForCall<T extends { audioTrack?: unknown; videoTrack?:
 /** Explication en français d'un échec de capture micro/caméra, à partir du message brut du navigateur. */
 export function describeMediaError(raw: string | null | undefined): string {
     const m = (raw || '').toLowerCase();
+    // AU-7 : erreurs d'ÉTAT du transport (publication tentée pendant que la
+    // ligne se rétablissait) — vues telles quelles sur un iPhone réel. Ce n'est
+    // pas un problème de micro : la ligne, une fois prête, publie d'elle-même.
+    if (/pcmanager is not ready|cannot publish track when not connected|unexpectedconnectionstate|not connected/.test(m)) {
+        return 'La ligne se rétablissait au moment d’activer le micro : il sera activé dès qu’elle est prête. Si rien ne change, réessayez.';
+    }
     if (/notallowed|permission denied|permission dismissed|not allowed/.test(m)) {
         return 'Le navigateur a refusé l’accès au micro. Autorisez le micro pour ce site (icône à gauche de l’adresse, ou Réglages → Safari/Chrome → Micro), puis réessayez.';
     }

@@ -90,6 +90,31 @@ export interface LiveAudioStats {
     canPlaybackAudio: boolean;
 }
 
+/**
+ * AU-7 : chemin réseau RÉELLEMENT négocié par chaque connexion pair-à-pair
+ * (publication = ce que j'envoie, souscription = ce que je reçois), lu dans
+ * les statistiques WebRTC — jamais estimé. Aucune adresse locale : seuls le
+ * TYPE de candidat (host/srflx/prflx/relay) et le protocole (udp/tcp) sont
+ * conservés côté local ; côté distant, c'est notre serveur.
+ */
+export interface LiveIcePathInfo {
+    state: string | null;
+    local: { type: string | null; protocol: string | null } | null;
+    remote: { type: string | null; protocol: string | null; address: string | null; port: number | null } | null;
+    bytesSent: number | null;
+    bytesReceived: number | null;
+    currentRoundTripTime: number | null;
+}
+
+export interface LiveTransportDiagnostics {
+    at: number;
+    connectionState: LiveConnectionState;
+    publisher: LiveIcePathInfo | null;
+    subscriber: LiveIcePathInfo | null;
+    localTracks: Array<{ kind: LiveTrackKind; muted: boolean }>;
+    remoteTracks: Array<{ identity: string; kind: LiveTrackKind }>;
+}
+
 export interface LiveConnectParams {
     serverUrl: string;
     /** Jeton signé côté serveur (edge function `livekit-token`) — jamais de clé/secret côté client. */
@@ -148,4 +173,6 @@ export interface LiveTransportProvider {
     getLocalAudioTrack(): MediaStreamTrack | null;
     /** Mission AU : compteurs audio réels (envoi/réception) pour juger chaque sens séparément et journaliser un appel sur vrai appareil. */
     getAudioStats(): Promise<LiveAudioStats>;
+    /** AU-7 : chemin réseau négocié et pistes réelles — pour le rapport de diagnostic d'appel (facultatif pour un double de test). */
+    getTransportDiagnostics?(): Promise<LiveTransportDiagnostics>;
 }

@@ -20,6 +20,8 @@ import {
   type CallMediaMessage,
 } from '../../services/messaging/speechLanguage';
 import { CallCaptioner, InterpreterVoice, ServerCaptioner, captionLanguageFromTag } from '../../services/calls/callInterpreter';
+import { recordCallEvent, startCallDiagnostics, stopCallDiagnostics } from '../../services/calls/callDiagnostics';
+import { useScreenWakeLock } from '../../hooks/useScreenWakeLock';
 
 /**
  * HL-3 : libellé + couleur de la qualité réseau RÉELLE rapportée par le
@@ -172,6 +174,32 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   // signal `call_accepted` (status 'connected') connecte. HL-3 : profil audio
   // « parole » (Opus speech, RED, DTX) — moins de coupures sur réseau mobile.
   const transportEnabled = callSession.status === 'ringing' || callSession.status === 'connected';
+
+  // AU-7 : RAPPORT DE DIAGNOSTIC — ouvert avec l'écran, envoyé au serveur en
+  // cours d'appel puis à la fin avec son issue (ce qu'un vrai téléphone a vu :
+  // états, reconnexions nommées par le SDK, chemin réseau, verdicts audio).
+  const outcomeRef = useRef<string>('sonnerie');
+  useEffect(() => {
+    startCallDiagnostics({
+      callId: callSession.callId,
+      conversationId: callSession.conversationId || null,
+      role: isIncoming ? 'appelé' : 'appelant',
+      deviceId: deviceIdRef.current ?? 'inconnu',
+    });
+    return () => { void stopCallDiagnostics(outcomeRef.current); };
+    // Un rapport par appel : l'identifiant d'appel est fixe pour toute la session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callSession.callId]);
+  useEffect(() => {
+    recordCallEvent('call', `statut de l’appel : ${callSession.status}`, { type: callSession.type });
+    if (callSession.status === 'connected') outcomeRef.current = 'connecté';
+  }, [callSession.status, callSession.type]);
+
+  // AU-7 : ÉCRAN MAINTENU ALLUMÉ tant que l'appel est actif — la veille
+  // automatique (30 s à 1 min) suspendait la page sur téléphone et coupait la
+  // ligne « à la minute ».
+  useScreenWakeLock(transportEnabled, (message) => recordCallEvent('call', message));
+
   const transport = useLiveTransport({
     roomName: `call-${callSession.conversationId}`,
     participantName: localName,
@@ -200,6 +228,15 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   // durée, qualité, lecture des pistes distantes) ne démarre avant le décroché.
   const mediaConnected = transportConnected && callSession.status === 'connected';
   const callAccepted = callSession.status === 'connected';
+
+  // AU-7 : chaque changement d'état du transport est daté dans le rapport.
+  useEffect(() => {
+    recordCallEvent('transport', `hook : ${transport.connectionState}`, { error: transport.error, mediaError: transport.mediaError, micPublié: transport.localAudioPublished, lectureBloquée: transport.audioPlaybackBlocked });
+    if (callAccepted && transport.connectionState === 'failed') outcomeRef.current = 'ligne perdue';
+  }, [transport.connectionState, transport.error, transport.mediaError, transport.localAudioPublished, transport.audioPlaybackBlocked, callAccepted]);
+  useEffect(() => {
+    recordCallEvent('transport', remote ? 'correspondant présent' : 'correspondant absent', remote ? { identity: remote.participant.identity, audio: !!remote.audioTrack, video: !!remote.videoTrack } : undefined);
+  }, [remote?.participant.identity, remote?.audioTrack, remote?.videoTrack]);
 
   // ── VF-2 / VF-3 : arrêt net de la sonnerie, activation différée, latence ──
   // Chronométrage (horloge locale) : décroché, transport connecté, première
@@ -245,6 +282,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     // muet pour toute la durée de l'appel.
     if (isIncoming || !transportConnectedRef.current || !localAudioPublishedRef.current) {
       publishMicrophoneRef.current({ camera: callSession.type === 'video' }).catch((err) => {
+        recordCallEvent('error', 'activation du micro au décroché en échec', err);
         setLocalMediaError(err instanceof Error ? err.message : String(err));
       });
     }
@@ -304,6 +342,8 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     if (callSession.status !== 'connected' || peerPresent || !peerSeenRef.current) return;
     const timer = setTimeout(() => {
       console.warn('[appel] média correspondant absent de la room depuis 25 s — appel terminé');
+      recordCallEvent('call', 'correspondant absent depuis 25 s — appel terminé');
+      outcomeRef.current = 'correspondant perdu';
       stopAllRingtones();
       if (onPeerLostRef.current) onPeerLostRef.current();
       else onEndCallRef.current();
@@ -471,6 +511,8 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   const [audioLink, setAudioLink] = useState<{ sample: AudioLinkSample; verdict: AudioLinkVerdict } | null>(null);
   const getAudioStatsRef = useRef(transport.getAudioStats);
   getAudioStatsRef.current = transport.getAudioStats;
+  const getTransportDiagnosticsRef = useRef(transport.getTransportDiagnostics);
+  getTransportDiagnosticsRef.current = transport.getTransportDiagnostics;
   useEffect(() => {
     if (!callAccepted) { setAudioLink(null); return; }
     let prev: AudioLinkSample | null = null;
@@ -479,6 +521,12 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
       try {
         const stats = await getAudioStatsRef.current();
         if (disposed) return;
+        // AU-7 : chemin réseau réellement négocié, à chaque mesure — c'est ce
+        // qui distingue « aucun paquet ne part » de « la ligne n'existe pas ».
+        try {
+          const net = await getTransportDiagnosticsRef.current();
+          if (!disposed) recordCallEvent('network', `ligne ${net.connectionState}`, net);
+        } catch { /* mesure réseau indisponible : le verdict audio suffit */ }
         const remoteAudio = stats.remote;
         const sample: AudioLinkSample = {
           at: stats.at,
@@ -493,6 +541,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
         prev = sample;
         setAudioLink({ sample, verdict });
         console.info(formatAudioLinkLog(isIncoming ? 'appelé' : 'appelant', sample, verdict));
+        recordCallEvent('audio', `envoi=${verdict.sending} réception=${verdict.receiving}`, sample);
       } catch (err) {
         if (!disposed) console.warn('[appel] média mesure indisponible', err);
       }
@@ -831,9 +880,19 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
        de chat z-[70], lightbox z-90, LIVE plein écran z-[200]) : un appel
        entrant est immédiatement visible où que soit l'utilisateur, sans
        jamais devoir ouvrir la messagerie. */
-    <div className={`fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all ${isFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
+    <div className={`fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all ${isFullscreen ? 'p-0' : 'p-0 sm:p-4'}`}>
+      {/* AU-8 : SUR TÉLÉPHONE, L'APPEL PREND TOUT L'ÉCRAN — comme une vraie
+          application d'appel. L'ancienne carte imposait sa hauteur par une
+          proportion écrite dans la syntaxe de Tailwind 4 alors que le site
+          charge Tailwind 3 (cdn.tailwindcss.com) : la classe était ignorée EN
+          SILENCE, la carte n'avait donc plus aucune hauteur en dessous de
+          640 px et se réduisait à la taille de son contenu — la bande étroite
+          constatée sur iPhone. La variante `sm:` masquait le défaut sur
+          ordinateur. Désormais : hauteur pleine sur téléphone, donc jamais de
+          rétrécissement ; carte carrée seulement à partir de `sm`.
+          Garde-fou de non-régression : tests/tailwindClassValidity.test.ts. */}
       <div
-        className={`relative bg-slate-900 text-white shadow-2xl border border-slate-700/60 overflow-hidden flex flex-col transition-all duration-300 ${isFullscreen ? 'w-full h-full rounded-none border-0' : 'w-full max-w-lg aspect-4/5 sm:aspect-square max-h-[85vh] rounded-3xl'}`}
+        className={`relative bg-slate-900 text-white shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${isFullscreen ? 'w-full h-full rounded-none border-0' : 'w-full h-full rounded-none border-0 sm:h-auto sm:aspect-square sm:max-h-[85vh] sm:max-w-lg sm:rounded-3xl sm:border sm:border-slate-700/60'}`}
         onPointerDown={revealControls}
         onMouseMove={onChromeMouseMove}
       >
@@ -884,7 +943,11 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                   DÉPLAÇABLE — reste visible même quand le chrome s'estompe,
                   comme sur un vrai téléphone. */}
               <div
-                className={`absolute w-24 sm:w-32 aspect-3/4 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl bg-slate-800 z-30 touch-none cursor-grab active:cursor-grabbing select-none ${pipPos ? '' : 'top-16 right-3'}`}
+                /* AU-8 : même défaut ici — la proportion était écrite dans la
+                   syntaxe de Tailwind 4, ignorée par le Tailwind 3 du site : la
+                   vignette de MA caméra n'avait aucune hauteur. Syntaxe valide
+                   en Tailwind 3 : les crochets, ci-dessous. */
+                className={`absolute w-24 sm:w-32 aspect-[3/4] rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl bg-slate-800 z-30 touch-none cursor-grab active:cursor-grabbing select-none ${pipPos ? '' : 'top-16 right-3'}`}
                 style={pipPos ? { left: pipPos.x, top: pipPos.y } : undefined}
                 onPointerDown={onPipPointerDown}
                 onPointerMove={onPipPointerMove}

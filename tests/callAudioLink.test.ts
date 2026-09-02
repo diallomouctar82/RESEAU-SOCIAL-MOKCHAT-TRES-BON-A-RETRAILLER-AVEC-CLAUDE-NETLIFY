@@ -79,6 +79,10 @@ describe('describeMediaError — explication en français, jamais un code brut s
         expect(describeCameraError('NotReadableError: Could not start video source')).toMatch(/utilisée par une autre application/);
         expect(describeCameraError('')).toBe('Caméra indisponible.');
     });
+    it('AU-7 : une erreur d’ÉTAT du transport (vue sur iPhone réel) est expliquée, jamais affichée brute', () => {
+        expect(describeMediaError('UnexpectedConnectionState: pcManager is not ready')).toMatch(/^La ligne se rétablissait/);
+        expect(describeMediaError('UnexpectedConnectionState: cannot publish track when not connected')).toMatch(/^La ligne se rétablissait/);
+    });
     it('message inconnu conservé tel quel ; vide → « Micro indisponible. »', () => {
         expect(describeMediaError('Erreur bizarre 42')).toBe('Erreur bizarre 42');
         expect(describeMediaError('')).toBe('Micro indisponible.');
