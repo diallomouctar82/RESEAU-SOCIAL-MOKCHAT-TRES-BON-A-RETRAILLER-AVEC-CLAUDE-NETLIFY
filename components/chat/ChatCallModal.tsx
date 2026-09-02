@@ -9,6 +9,7 @@ import type { LiveConnectionQuality, SendDataOptions } from '../../services/live
 import { stopAll as stopAllRingtones } from '../../services/calls/ringtoneService';
 import { computeCallLatency, formatLatency } from '../../services/calls/callFlow';
 import { getCallDeviceId } from '../../services/calls/callDevice';
+import { callRoomName } from '../../services/calls/callRoom';
 import {
   assessAudioLink, describeAudioLink, describeCameraError, describeMediaError, formatAudioLinkLog, peerMediaNotice, pickRemoteForCall, remotesOfAccount,
   type AudioLinkSample, type AudioLinkVerdict,
@@ -135,6 +136,14 @@ interface ChatCallModalProps {
 /** Revue AU-6 : absence du correspondant tolérée avant de conclure à un appel orphelin (fenêtre de reconnexion LiveKit comprise). */
 export const PEER_LOST_TIMEOUT_MS = 25000;
 
+/**
+ * AU-13 : au-delà de ce nombre de rétablissements complets de la ligne PENDANT
+ * un appel, ce n'est plus un incident réseau ponctuel — l'écran doit le dire.
+ * Deux tolérées (un changement de réseau réel en produit une, parfois deux) ;
+ * la troisième signe une ligne qui ne tient pas.
+ */
+export const LINE_FLAPPING_THRESHOLD = 3;
+
 export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   callSession,
   localName,
@@ -201,7 +210,13 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   useScreenWakeLock(transportEnabled, (message) => recordCallEvent('call', message));
 
   const transport = useLiveTransport({
-    roomName: `call-${callSession.conversationId}`,
+    // AU-12 : une room par APPEL (`call-<conversation>--<appel>`), plus une
+    // room permanente par conversation. Les rapports de diagnostic de deux
+    // vrais appareils ont montré une session fantôme d'un appel PRÉCÉDENT
+    // encore présente dans la room commune, micro publié : le correspondant
+    // entendait ce qu'elle captait — dont sa sonnerie — mêlé à la voix.
+    roomName: callRoomName(callSession.conversationId, callSession.callId),
+    conversationId: callSession.conversationId,
     participantName: localName,
     canPublish: true,
     enabled: transportEnabled,
@@ -1126,6 +1141,18 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
               <div role="status" className={`pointer-events-auto rounded-2xl ${peerMedia?.mic === 'unavailable' ? 'bg-amber-500/95 text-slate-950' : 'bg-slate-800/90 text-slate-100'} shadow-xl px-3.5 py-2 text-[11px] font-semibold leading-snug flex items-start gap-2`}>
                 <MicOff size={14} className="flex-shrink-0 mt-0.5" />
                 <span>{peerMediaNotice(peerName, peerMedia)}</span>
+              </div>
+            )}
+
+            {/* AU-13 : la ligne se rétablit EN BOUCLE. Les rapports de deux
+                vrais appareils ont montré ce motif exact — une reconnexion
+                toutes les ~16 s, chacune coupant le son des deux côtés. Sans
+                ce message, l'utilisateur ne voit qu'un « micro non publié »
+                et croit que son téléphone est en cause : c'est la LIGNE. */}
+            {callAccepted && transport.reconnectCount >= LINE_FLAPPING_THRESHOLD && (
+              <div role="status" data-testid="line-flapping-notice" className="pointer-events-auto rounded-2xl bg-amber-500/95 text-slate-950 shadow-xl px-3.5 py-2 text-[11px] font-semibold leading-snug flex items-start gap-2">
+                <RefreshCw size={14} className="flex-shrink-0 mt-0.5 animate-spin" />
+                <span>La ligne du serveur d’appel se rétablit en boucle ({transport.reconnectCount} fois) : le son sera coupé par intermittence des deux côtés. Ce n’est pas votre micro — c’est la connexion au serveur.</span>
               </div>
             )}
 
