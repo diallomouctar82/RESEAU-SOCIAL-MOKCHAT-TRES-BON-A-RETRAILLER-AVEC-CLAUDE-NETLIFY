@@ -25,7 +25,7 @@ services:
     # AU-14 — VERSION ÉPINGLÉE, et volontairement PAS une étiquette flottante.
     #
     # Ce qui s'est passé : `v1.8` (flottante) a résolu vers 1.8.4 (mars 2025),
-    # qui parle le protocole 15. Le SDK du site est `livekit-client` 2.22.1,
+    # qui parle le protocole 15. Le SDK du site était `livekit-client` 2.22.1,
     # qui parle le protocole 17 et commence par demander le chemin de
     # signalisation `/rtc/v1`. Les rapports de diagnostic de deux vrais
     # appareils (public.call_diagnostics, 02/09/2026) montrent la suite, mot
@@ -45,7 +45,9 @@ services:
     #
     # Une étiquette flottante a donc figé le serveur sur une version qui a
     # vieilli sous le client : on épingle désormais la version exacte, et on la
-    # monte délibérément (voir README.md, section « Mettre à jour le serveur »).
+    # monte délibérément (voir README.md, section « Version du serveur et
+    # version du SDK »). En attendant cette montée, le site épingle
+    # `livekit-client` 2.17.3 — mesuré sans expiration contre 1.8.4 ET 1.13.6.
     image: livekit/livekit-server:v1.13.6
     restart: unless-stopped
     depends_on:
