@@ -998,3 +998,59 @@ Chaque décision respecte le formalisme strict suivant :
   réel 76 OK / 0 défaut) — **appréciation visuelle en attente de la Direction**.
 
 ---
+
+### [DEC-2026-043] — 3 Septembre 2026
+* **Module(s)** : `Studio Live`, `Direction artistique`
+* **Problème / Besoin initial** : la Direction a fourni une **seconde image de
+  référence**, propre au LIVE (abysse turquoise, ruban de lumière liquide,
+  cartes de verre cyan, vidéo dans le verre, plaque de nom en capitales,
+  orbes, « ● EN DIRECT », bulles dans les cartes) avec la consigne « je veux
+  que le design du live soit à l'image de ceci exactement ». Le Studio portait
+  la matière verre/eau/lumière des LOOP 07-08 et la palette DA-1, mais pas
+  cette esthétique précise — et reposait encore sur des aplats `bg-slate-950`.
+* **Idées envisagées** :
+  1. Déclarer les nouvelles variables sur `:root`, comme la palette DA-1
+     (`--water-accent`).
+  2. Les déclarer sur **`[data-live-universe]`**, un attribut qui n'existe que
+     sur la racine du Studio.
+* **Décision retenue** : option 2. Toutes les variables `--live-*` sont
+  scopées au Studio ; aucune n'est posée sur `:root`.
+* **Justification** : `--water-accent` sur `:root` est **consommé par la
+  goutte de la messagerie** (`--mdb-acc`, maquette 01 validée le 01/09, DEC-2026-035).
+  Une nouvelle variable globale aurait pu déplacer un composant déjà validé
+  ailleurs. Le scope rend l'habillage du LIVE incapable de sortir du LIVE.
+* **Conséquences** :
+  - Une seule architecture pour les 7 univers : seuls `--live-abyss-a/-b` et
+    `--live-glow` sont redéfinis par univers, jamais une famille de classes.
+  - `liveBadge()` expose désormais `isOnAir` : « EN DIRECT » ne s'affiche que
+    quand le direct passe **vraiment** (jamais en aperçu, interruption,
+    reconnexion ou connexion) — la vue ne re-déduit plus l'état.
+  - Les motifs vivants sont **déterministes** (bulles) et **mesurés** (l'onde
+    de voix suit le vrai niveau audio, ne mime rien quand il est absent).
+* **Lacune produit trouvée en construisant les preuves, corrigée** : la scène
+  à une seule carte était **impossible à produire** — `aiAgent` retombait sans
+  condition sur `AGENTS[0]` et `stageAgents` le ré-injectait à chaque rendu,
+  donc **un agent IA ne pouvait jamais être retiré de la scène**, contre la
+  règle « inviter, retirer, gérer humain et agent ». `agentsRetires` corrige
+  la capacité manquante (la croix n'est offerte qu'à l'hôte, une nouvelle
+  invitation fait revenir l'agent).
+* **Pièges techniques consignés** : (1) le vignettage doit être une **couche
+  de `background`**, pas un `::after` — un pseudo-élément est peint après tous
+  les enfants et aurait assombri la vidéo ; (2) `color-mix()` évité pour la
+  tuile agent (non garanti sur Safari 16.0) ; (3) la colonne d'eau est placée
+  par un **style en ligne**, jamais par une valeur arbitraire Tailwind —
+  Tailwind est servi par CDN et injecte ses règles à l'exécution.
+* **Éléments techniques** : `index.html` (variables et classes `.live-*`),
+  `components/live/LiveMatter.tsx`, `components/SocialLive.tsx`,
+  `components/LiveSmartActionBar.tsx`, `hooks/useLiveTransport.ts`
+  (`LiveBadgeState.isOnAir`), `tests/liveStudioMatter.test.tsx`,
+  `docs/DIRECTION_ARTISTIQUE_STUDIO_LIVE.md` § 8.
+* **Statut** : `Développé`, `Testé` (800 tests, tsc 0, build, banc navigateur
+  réel 8/8 sans défaut sur ordinateur et téléphone) — **design validé par la
+  Direction le 03/09/2026** sur les captures d'ordinateur et de téléphone.
+* **Restes assumés** : le cœur rose des réactions n'est pas ramené sur la
+  palette cyan, et trois écrans satellites du LIVE (`LiveCreationModal`,
+  `LiveReplayModal`, `MultimodalCameraHUD`) gardent leur dégradé bleu→indigo —
+  la loupe n'a pas été élargie sans accord de la Direction.
+
+---
