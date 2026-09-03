@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * traduite) par la passerelle. Le découpeur Web Audio est remplacé par un
  * double qui émet des segments à la demande ; la passerelle par un espion.
  * Ce qui est vérifié est la LOGIQUE réelle : attente de la piste micro,
- * forme de la requête (WAV base64, indication de langue, cible), gestion de
- * la file (1 en vol + 1 en attente, le plus récent gagne), texte vide ignoré,
- * 3 échecs → indisponible, pause pendant que l'interprète parle, arrêt net.
+ * forme de la requête (WAV base64, indication de langue, cible, budget de
+ * temps), gestion de la file (1 en vol + une file FIFO bornée à 3 — mission
+ * VT, l'ancienne règle « le plus récent gagne » perdait des phrases), texte
+ * vide ignoré, 3 échecs → indisponible, pause pendant que l'interprète
+ * parle, arrêt net.
  */
 
 const rig = vi.hoisted(() => ({
@@ -41,11 +43,14 @@ vi.mock('../services/calls/pcmSegmenter', async (importOriginal) => {
     return { ...real, PcmSegmenter: FakePcmSegmenter, blobToWav16kMono: rig.wavFromBlob };
 });
 
-const { ServerCaptioner, transcribeVoiceRecording } = await import('../services/calls/callInterpreter');
+const { ServerCaptioner, transcribeVoiceRecording, STT_REQUEST_TIMEOUT_MS, MAX_QUEUED_SEGMENTS } = await import('../services/calls/callInterpreter');
 
 const liveTrack = () => ({ readyState: 'live', addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaStreamTrack);
 
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+/** Durée (ms) du segment WAV 16 kHz 16 bits reçu par la passerelle — identifie sans ambiguïté QUEL segment est parti. */
+const wavMs = (audioBase64: string) => Math.round(((Buffer.from(audioBase64, 'base64').length - 44) / 2 / 16000) * 1000);
 
 beforeEach(() => {
     vi.useFakeTimers();
@@ -96,7 +101,9 @@ describe('ServerCaptioner — transcription serveur de ma voix', () => {
 
         expect(rig.transcribe).toHaveBeenCalledTimes(1);
         const input = rig.transcribe.mock.calls[0][0];
-        expect(input).toMatchObject({ mimeType: 'audio/wav', languageHint: 'ru', targetLanguage: 'fr' });
+        // Mission VT : budget de temps par requête (8 s) — une phrase qui arrive 30 s plus tard est périmée.
+        expect(STT_REQUEST_TIMEOUT_MS).toBe(8000);
+        expect(input).toMatchObject({ mimeType: 'audio/wav', languageHint: 'ru', targetLanguage: 'fr', timeoutMs: STT_REQUEST_TIMEOUT_MS });
         const wav = Buffer.from(input.audioBase64, 'base64');
         expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
         expect(wav.readUInt32LE(24)).toBe(16000);
@@ -128,27 +135,66 @@ describe('ServerCaptioner — transcription serveur de ma voix', () => {
         expect(onFinal).not.toHaveBeenCalled();
     });
 
-    it('au plus 1 requête en vol + 1 en attente : le segment le plus récent gagne, les intermédiaires sont abandonnés', async () => {
+    it('Mission VT — 1 requête en vol + file FIFO : les segments en attente partent dans l’ORDRE de parole, aucun n’est perdu tant que la file n’est pas pleine', async () => {
         let resolveFirst!: (value: unknown) => void;
         rig.transcribe.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
-        rig.transcribe.mockResolvedValue({ text: 'dernier', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        rig.transcribe.mockImplementation(async (input: { audioBase64: string }) => ({ text: `segment-${wavMs(input.audioBase64)}`, language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' }));
+        const onFinal = vi.fn();
+        const captioner = new ServerCaptioner({ getTrack: liveTrack, onFinal });
+        captioner.start();
+        await vi.advanceTimersByTimeAsync(10);
+        const segmenter = rig.segmenters[0];
+        segmenter.emit(400);   // en vol (serveur lent)
+        segmenter.emit(500);   // en attente (1)
+        segmenter.emit(600);   // en attente (2)
+        segmenter.emit(700);   // en attente (3)
+        await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(1);
+        resolveFirst({ text: 'premier', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        for (let i = 0; i < 8; i++) await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(4);
+        expect(rig.transcribe.mock.calls.slice(1).map((c) => wavMs(c[0].audioBase64))).toEqual([500, 600, 700]);
+        expect(onFinal.mock.calls.map((c) => c[0].text)).toEqual(['premier', 'segment-500', 'segment-600', 'segment-700']);
+    });
+
+    it('Mission VT — file pleine (3 en attente) : le plus ANCIEN cède la place, la conversation reste actuelle', async () => {
+        expect(MAX_QUEUED_SEGMENTS).toBe(3);
+        let resolveFirst!: (value: unknown) => void;
+        rig.transcribe.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
+        rig.transcribe.mockImplementation(async (input: { audioBase64: string }) => ({ text: `segment-${wavMs(input.audioBase64)}`, language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' }));
         const onFinal = vi.fn();
         const captioner = new ServerCaptioner({ getTrack: liveTrack, onFinal });
         captioner.start();
         await vi.advanceTimersByTimeAsync(10);
         const segmenter = rig.segmenters[0];
         segmenter.emit(400);   // en vol
-        segmenter.emit(500);   // en attente…
-        segmenter.emit(600);   // …remplacé par celui-ci
-        segmenter.emit(700);   // …puis par celui-ci (le plus récent)
+        segmenter.emit(500);   // en attente — sera le seul abandonné
+        segmenter.emit(600);
+        segmenter.emit(700);
+        segmenter.emit(800);   // file pleine : 500 cède la place
         await flush();
         expect(rig.transcribe).toHaveBeenCalledTimes(1);
         resolveFirst({ text: 'premier', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        for (let i = 0; i < 8; i++) await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(4);
+        expect(rig.transcribe.mock.calls.slice(1).map((c) => wavMs(c[0].audioBase64))).toEqual([600, 700, 800]);
+        expect(onFinal.mock.calls.map((c) => c[0].text)).toEqual(['premier', 'segment-600', 'segment-700', 'segment-800']);
+    });
+
+    it('Mission VT — stop() vide la file : aucun segment en attente ne part après l’arrêt', async () => {
+        let resolveFirst!: (value: unknown) => void;
+        rig.transcribe.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
+        rig.transcribe.mockResolvedValue({ text: 'x', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        const captioner = new ServerCaptioner({ getTrack: liveTrack, onFinal: vi.fn() });
+        captioner.start();
+        await vi.advanceTimersByTimeAsync(10);
+        rig.segmenters[0].emit(400);
+        rig.segmenters[0].emit(500);
         await flush();
-        expect(rig.transcribe).toHaveBeenCalledTimes(2);
-        const secondWav = Buffer.from(rig.transcribe.mock.calls[1][0].audioBase64, 'base64');
-        expect(secondWav.length).toBe(44 + Math.round(16000 * 0.7) * 2); // c'est bien le segment de 700 ms
-        expect(onFinal.mock.calls.map((c) => c[0].text)).toEqual(['premier', 'dernier']);
+        captioner.stop();
+        resolveFirst({ text: 'premier', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        for (let i = 0; i < 4; i++) await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(1);
     });
 
     it('3 échecs consécutifs → indisponible, arrêt, plus aucune requête', async () => {

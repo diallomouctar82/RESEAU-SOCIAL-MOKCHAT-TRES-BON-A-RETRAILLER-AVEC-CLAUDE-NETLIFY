@@ -60,15 +60,26 @@ export class AiGatewayNetworkError extends Error {
  * `nb_fournisseurs × 30 s` en série sans aucun plafond visible. */
 const GATEWAY_TIMEOUT_MS = 45_000;
 
-async function invokeGateway(body: Record<string, unknown>): Promise<any> {
+interface InvokeOptions {
+    /**
+     * Mission VT : budget de temps propre à CET appel (l'interprète d'appel ne
+     * peut pas attendre 45 s une transcription ou une voix : au-delà de
+     * quelques secondes, la phrase est périmée). Borné au budget global.
+     */
+    timeoutMs?: number;
+}
+
+async function invokeGateway(body: Record<string, unknown>, options?: InvokeOptions): Promise<any> {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         throw new AiGatewayNetworkError('Aucune connexion Internet — je réessaierai dès que la connexion revient.');
     }
+    const budgetMs = options?.timeoutMs && options.timeoutMs > 0 ? Math.min(options.timeoutMs, GATEWAY_TIMEOUT_MS) : GATEWAY_TIMEOUT_MS;
+    const budgetLabel = budgetMs >= 1000 ? `${Math.round(budgetMs / 100) / 10} s` : `${budgetMs} ms`;
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
         timeoutHandle = setTimeout(
-            () => reject(new AiGatewayNetworkError("Le service IA n'a pas répondu dans le délai imparti (45 s).")),
-            GATEWAY_TIMEOUT_MS
+            () => reject(new AiGatewayNetworkError(`Le service IA n'a pas répondu dans le délai imparti (${budgetLabel}).`)),
+            budgetMs
         );
     });
     try {
@@ -319,6 +330,8 @@ export interface SpeechOptions {
     modelId?: string;
     /** Réglages fins du fournisseur (ElevenLabs : stability/similarity_boost/style). Optionnels — sans eux, les défauts du fournisseur s'appliquent, comme avant. */
     voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
+    /** Mission VT : budget de temps de CET appel (voix d'interprète : au-delà, repli sur la voix du navigateur). Absent = budget global (45 s). */
+    timeoutMs?: number;
 }
 
 export interface SpeechResult {
@@ -340,7 +353,7 @@ export const generateSpeechDetailed = async (
         providerId: options?.providerId,
         modelId: options?.modelId,
         request: { text, voiceId: options?.voiceId, voiceSettings: options?.voiceSettings },
-    });
+    }, { timeoutMs: options?.timeoutMs });
     const audioBase64 = data?.result?.audioBase64;
     if (!audioBase64) throw new Error("Le fournisseur n'a pas renvoyé d'audio.");
     return {
@@ -382,6 +395,8 @@ export interface SpeechTranscriptionInput {
     languageHint?: string;
     /** Langue cible d'une traduction demandée dans la MÊME réponse (interprète d'appel) — absente = transcription seule. */
     targetLanguage?: string;
+    /** Mission VT : budget de temps de CET appel (interprète d'appel : une phrase qui arrive 30 s plus tard est périmée). Absent = budget global (45 s). */
+    timeoutMs?: number;
 }
 
 export interface SpeechTranscription {
@@ -418,7 +433,7 @@ export const transcribeSpeechDetailed = async (input: SpeechTranscriptionInput):
             languageHint: input.languageHint || undefined,
             targetLanguage: input.targetLanguage || undefined,
         },
-    });
+    }, { timeoutMs: input.timeoutMs });
     const providerId = typeof data?.providerId === 'string' ? data.providerId : null;
     const json = data?.result?.json;
     if (json && typeof json === 'object' && typeof (json as { text?: unknown }).text === 'string') {

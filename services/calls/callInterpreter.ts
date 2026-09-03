@@ -192,6 +192,22 @@ const TRACK_WAIT_MS = 12_000;
 const TRACK_POLL_MS = 250;
 /** Au-delà, la passerelle est considérée indisponible pour cet appel. */
 const MAX_CONSECUTIVE_FAILURES = 3;
+/**
+ * Mission VT : budget de temps d'UNE transcription. Mesuré en production :
+ * p50 1,4 s, p90 1,8 s — mais des requêtes de 30 s ont été vues en panne, et
+ * une phrase qui arrive 30 s plus tard est périmée pour une conversation.
+ * Au-delà, la requête compte comme un échec et la file continue.
+ */
+export const STT_REQUEST_TIMEOUT_MS = 8_000;
+/**
+ * Mission VT : segments en attente pendant qu'un autre est en vol — file
+ * FIFO bornée (l'ancienne règle « le plus récent gagne » ne gardait qu'UN
+ * segment : sur un serveur lent, des phrases entières disparaissaient).
+ * Quand la file est pleine, le plus ancien cède la place : la conversation
+ * reste actuelle, et la perte se limite au cas d'un serveur vraiment à
+ * l'arrêt.
+ */
+export const MAX_QUEUED_SEGMENTS = 3;
 
 export class ServerCaptioner {
     static isSupported(): boolean {
@@ -201,8 +217,8 @@ export class ServerCaptioner {
     private segmenter: PcmSegmenter | null = null;
     private active = false;
     private inFlight = false;
-    /** Segment en attente pendant qu'un autre est en vol — le plus récent seulement, pour garder la latence basse. */
-    private queued: { audioBase64: string } | null = null;
+    /** Segments (WAV base64) en attente pendant qu'un autre est en vol — dans l'ordre de parole. */
+    private queue: string[] = [];
     private consecutiveFailures = 0;
     private trackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -227,7 +243,7 @@ export class ServerCaptioner {
         const segmenter = this.segmenter;
         this.segmenter = null;
         segmenter?.stop();
-        this.queued = null;
+        this.queue = [];
     }
 
     private fail(reason: string): void {
@@ -271,7 +287,11 @@ export class ServerCaptioner {
         if (!this.active) return;
         if (this.options.isPaused?.()) return; // capté pendant que l'interprète parlait : pas ma voix
         const audioBase64 = bytesToBase64(encodeWav16kMono(pcm));
-        if (this.inFlight) { this.queued = { audioBase64 }; return; } // le plus récent gagne, l'ancien est abandonné
+        if (this.inFlight) {
+            if (this.queue.length >= MAX_QUEUED_SEGMENTS) this.queue.shift(); // file pleine : le plus ancien cède la place
+            this.queue.push(audioBase64);
+            return;
+        }
         void this.transcribe(audioBase64);
     }
 
@@ -284,6 +304,7 @@ export class ServerCaptioner {
                 mimeType: 'audio/wav',
                 languageHint: this.options.languageHint,
                 targetLanguage: this.options.targetLanguage,
+                timeoutMs: STT_REQUEST_TIMEOUT_MS,
             });
             this.consecutiveFailures = 0;
             if (!this.active) return;
@@ -307,9 +328,8 @@ export class ServerCaptioner {
         } finally {
             this.inFlight = false;
             if (this.active) this.options.onInterim?.('');
-            const next = this.queued;
-            this.queued = null;
-            if (next && this.active) void this.transcribe(next.audioBase64);
+            const next = this.queue.shift();
+            if (next !== undefined && this.active) void this.transcribe(next);
         }
     }
 }
@@ -370,10 +390,34 @@ export function pickSynthesisVoice(voices: SpeechSynthesisVoice[], lang: string)
         || candidates[0];
 }
 
+/**
+ * Mission VT : budget de la voix HD par phrase (mesuré en production : p50
+ * 3,2 s, p90 7,5 s, jusqu'à 13,7 s, parfois « réponse sans audio »). Au-delà,
+ * la voix du navigateur prend le relais — un silence qui s'allonge pendant
+ * que l'autre parle est pire qu'une voix moins belle.
+ */
+export const HD_VOICE_BUDGET_MS = 6_000;
+/**
+ * Mission VT : nombre de phrases encore en attente à partir duquel la voix du
+ * navigateur (immédiate) est préférée à la voix HD — l'interprète ne doit
+ * jamais prendre plusieurs phrases de retard sur la conversation.
+ */
+export const VOICE_BACKLOG_THRESHOLD = 2;
+/** Chien de garde d'une lecture HD : un élément audio qui ne finit jamais ne doit pas bloquer la file. */
+const HD_PLAYBACK_WATCHDOG_MS = 30_000;
+
 export class InterpreterVoice {
     private queue: string[] = [];
     private running = false;
     private stopped = false;
+    /**
+     * Mission VT : jeton d'époque — chaque stop() l'incrémente. Une file
+     * arrêtée pendant qu'une phrase était en vol se termine en silence, sans
+     * jamais reprendre ni redire « fin de parole » ; un speak() qui suit
+     * aussitôt démarre une file NEUVE, seule à parler (même patron que
+     * `speakEpoch` du moteur vocal de l'Architecte).
+     */
+    private epoch = 0;
     private currentAudio: HTMLAudioElement | null = null;
     private currentUtterance: SpeechSynthesisUtterance | null = null;
 
@@ -391,6 +435,7 @@ export class InterpreterVoice {
     /** Coupe net (fin d'appel, changement de langue, interprète désactivé). */
     stop(): void {
         this.stopped = true;
+        this.epoch += 1;
         this.queue = [];
         if (this.currentAudio) { try { this.currentAudio.pause(); } catch { /* déjà arrêté */ } this.currentAudio = null; }
         if (this.currentUtterance && typeof window !== 'undefined' && window.speechSynthesis) {
@@ -401,31 +446,48 @@ export class InterpreterVoice {
     }
 
     private async drain(): Promise<void> {
+        const epoch = this.epoch;
         this.running = true;
         this.options.onSpeakingChange?.(true);
-        while (!this.stopped && this.queue.length > 0) {
+        while (!this.stopped && epoch === this.epoch && this.queue.length > 0) {
             const phrase = this.queue.shift()!;
-            const spokenHd = await this.speakHd(phrase);
-            if (this.stopped) break;
+            // En retard de plusieurs phrases : voix immédiate du navigateur plutôt qu'une voix HD qui creuse l'écart.
+            const behind = this.queue.length >= VOICE_BACKLOG_THRESHOLD;
+            const spokenHd = behind ? false : await this.speakHd(phrase, epoch);
+            if (this.stopped || epoch !== this.epoch) break;
             if (!spokenHd) await this.speakBrowser(phrase);
         }
+        // Arrêtée en vol : stop() a déjà signalé la fin (et une file neuve parle peut-être déjà) — rien à redire.
+        if (epoch !== this.epoch) return;
         this.running = false;
         this.options.onSpeakingChange?.(false);
     }
 
-    private async speakHd(phrase: string): Promise<boolean> {
+    private async speakHd(phrase: string, epoch: number): Promise<boolean> {
+        let budgetTimer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const detail = await generateSpeechDetailed(phrase);
-            if (this.stopped || !detail?.audioBase64) return false;
+            // Budget local ET budget transmis à la passerelle : la phrase ne
+            // reste jamais en attente au-delà de HD_VOICE_BUDGET_MS.
+            const detail = await Promise.race([
+                generateSpeechDetailed(phrase, { timeoutMs: HD_VOICE_BUDGET_MS }),
+                new Promise<null>((resolve) => { budgetTimer = setTimeout(() => resolve(null), HD_VOICE_BUDGET_MS); }),
+            ]);
+            if (this.stopped || epoch !== this.epoch || !detail?.audioBase64) return false;
             return await new Promise<boolean>((resolve) => {
                 const audio = new Audio(`data:${detail.mimeType || 'audio/mpeg'};base64,${detail.audioBase64}`);
                 this.currentAudio = audio;
-                audio.onended = () => { this.currentAudio = null; resolve(true); };
-                audio.onerror = () => { this.currentAudio = null; resolve(false); };
-                audio.play().catch(() => { this.currentAudio = null; resolve(false); });
+                let settled = false;
+                const settle = (value: boolean) => { if (settled) return; settled = true; if (this.currentAudio === audio) this.currentAudio = null; resolve(value); };
+                audio.onended = () => settle(true);
+                audio.onerror = () => settle(false);
+                const play = audio.play();
+                if (play && typeof play.catch === 'function') play.catch(() => settle(false));
+                setTimeout(() => settle(true), HD_PLAYBACK_WATCHDOG_MS);
             });
         } catch {
-            return false; // fournisseur indisponible : repli navigateur, jamais un silence inexpliqué.
+            return false; // fournisseur indisponible ou budget dépassé : repli navigateur, jamais un silence inexpliqué.
+        } finally {
+            if (budgetTimer) clearTimeout(budgetTimer);
         }
     }
 
