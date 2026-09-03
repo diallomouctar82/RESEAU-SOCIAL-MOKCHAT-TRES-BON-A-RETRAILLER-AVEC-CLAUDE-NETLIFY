@@ -8,6 +8,18 @@
 > **Règle de lecture** : ce document distingue en permanence ce qui **existe et
 > est prouvé**, ce qui est **écrit mais jamais consommé**, et ce qui est **à
 > construire**. Aucune ligne ne décrit une capacité comme acquise sans preuve.
+>
+> **Ce document est la VISION.** Il ne se lit pas seul. Trois documents, trois
+> rôles, jamais mélangés (règle de la Direction, 03/09/2026) :
+>
+> | Rôle | Document |
+> |---|---|
+> | **1. L'existant à protéger** — à lire en premier | `LIVE_SOCLE_EXISTANT.md` |
+> | **2. La vision** — celui-ci, et sa branche éducation | `LIVE_INTELLIGENT.md`, `LIVE_CAMPUS_EDUCATION.md` |
+> | **3. La roadmap priorisée et les preuves** | `LIVE_INTELLIGENT_VALIDATION.md` |
+>
+> Une ambition écrite ici n'autorise **aucune** dérogation aux invariants
+> I1…I9 du socle. En cas de conflit, le socle gagne.
 
 ---
 

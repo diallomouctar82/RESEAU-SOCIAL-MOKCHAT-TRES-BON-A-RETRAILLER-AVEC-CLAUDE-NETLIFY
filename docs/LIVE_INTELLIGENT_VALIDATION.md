@@ -32,22 +32,64 @@
 
 ---
 
+## Le socle à protéger vient d'abord
+
+Avant toute loupe : `docs/LIVE_SOCLE_EXISTANT.md` recense **ce qui marche
+aujourd'hui** et les neuf invariants (I1…I9) qu'aucune loupe ne peut casser.
+Une loupe qui fait bouger une brique de son § 2 sans preuve équivalente est
+une **régression**, pas un progrès — on revient en arrière.
+
+## Priorité — dans quel ordre, et pourquoi
+
+Trois vagues. **On ne commence pas une vague tant que la précédente n'est pas
+prouvée** : c'est ce qui empêche l'ambition de se transformer en dette.
+
+| Vague | Loupes | Ce qu'elle rend possible | Verrou de sortie |
+|---|---|---|---|
+| **A — Le direct est un vrai direct** | LV-1 → LV-6 | On se voit, on rejoint, on parle, on gère la salle, on invite | **LV-6** : deux comptes réels + lien Netlify. Rien après ne démarre avant. |
+| **B — Le direct devient intelligent** | LV-7 → LV-11 | Les trois familles, la mémoire de parcours, l'orientation, les documents, la frontière gratuit/payant | LV-7 et LV-8 prouvés en usage réel |
+| **C — Le direct forme** | LV-12 → LV-18 | La branche Campus Éducation | — |
+
+**Pourquoi LV-6 est le verrou et non une formalité** : LV-1, LV-3 et LV-4 sont
+codés et testés, mais **aucune preuve à deux comptes n'existe encore**. Tant
+que personne n'a vu deux personnes réelles se voir sur la scène, tout ce qui se
+construit au-dessus s'appuie sur une hypothèse. La règle de la Direction du
+30/08 s'applique telle quelle : **TERMINÉ seulement si DÉMONTRÉ en production**.
+
+**Pourquoi la vague C vient après la B, et pas en parallèle** : ordre fixé par
+la Direction — « D'abord le live réel, ensuite les modules éducation ». Les
+loupes éducation réutilisent la mémoire de parcours (LV-8) et l'orientation
+(LV-9) ; les construire avant reviendrait à bâtir un second système parallèle,
+exactement ce que ce dépôt a déjà payé cher trois fois.
+
 ## Vue d'ensemble
 
-| Loupe | Objet | Statut |
-|---|---|---|
-| LV-0 | Audit du socle réel | ✅ **TERMINÉ** |
-| LV-1 | Les vraies personnes sur la scène | 🔵 EN COURS |
-| LV-2 | Rejoindre un direct depuis le fil, avec le son | ⬜ NON COMMENCÉ |
-| LV-3 | Monter, descendre, couper un micro, retirer | 🔵 EN COURS |
-| LV-4 | Inviter un ami ou un agent IA, partager | 🔵 EN COURS |
-| LV-5 | Les agents IA voient par la caméra et en discutent | ⬜ NON COMMENCÉ |
-| LV-6 | Preuve réelle : deux comptes + lien Netlify | ⬜ NON COMMENCÉ |
-| LV-7 | Les trois familles de live | ⬜ NON COMMENCÉ |
-| LV-8 | Mémoire de parcours, niveaux, badges | ⬜ NON COMMENCÉ |
-| LV-9 | Forces, besoins, complémentarités → tribus et cursus | ⬜ NON COMMENCÉ |
-| LV-10 | Du live au projet : documents réels | ⬜ NON COMMENCÉ |
-| LV-11 | Frontière gratuit / payant | ⬜ NON COMMENCÉ |
+| Loupe | Objet | Vague | Statut |
+|---|---|---|---|
+| LV-0 | Audit du socle réel | — | ✅ **TERMINÉ** |
+| LV-1 | Les vraies personnes sur la scène | A | 🟡 **PARTIEL** — codé et testé, preuve réelle manquante |
+| LV-2 | Rejoindre un direct depuis le fil, avec le son | A | ⬜ NON COMMENCÉ |
+| LV-3 | Monter, descendre, couper un micro, retirer | A | 🟡 **PARTIEL** — codé et testé, preuve réelle manquante |
+| LV-4 | Inviter un ami ou un agent IA, partager | A | 🟡 **PARTIEL** — codé et testé, preuve réelle manquante |
+| LV-5 | Les agents IA voient par la caméra et en discutent | A | ⬜ NON COMMENCÉ |
+| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | ⬜ **NON COMMENCÉ — VERROU** |
+| LV-7 | Les trois familles de live | B | ⬜ NON COMMENCÉ |
+| LV-8 | Mémoire de parcours, niveaux, badges | B | ⬜ NON COMMENCÉ |
+| LV-9 | Forces, besoins, complémentarités → tribus et cursus | B | ⬜ NON COMMENCÉ |
+| LV-10 | Du live au projet : documents réels | B | ⬜ NON COMMENCÉ |
+| LV-11 | Frontière gratuit / payant | B | ⬜ NON COMMENCÉ |
+| LV-12 | Le live éducatif : classe, niveau, cursus | C | ⬜ NON COMMENCÉ |
+| LV-13 | L'expert IA éducation, multilingue et par programme | C | ⬜ NON COMMENCÉ |
+| LV-14 | Quiz, exercices, progression mesurée | C | ⬜ NON COMMENCÉ |
+| LV-15 | Motivation : titres, badges, classements bornés | C | ⬜ NON COMMENCÉ |
+| LV-16 | Documents après le live : résumés, fiches, rapports | C | ⬜ NON COMMENCÉ |
+| LV-17 | Décisions officielles : l'IA recommande, l'humain valide | C | ⬜ NON COMMENCÉ |
+| LV-18 | Tribus de niveau, de progression et d'objectif | C | ⬜ NON COMMENCÉ |
+
+**Le statut PARTIEL de LV-1/3/4 est délibéré.** Le code est livré (`f1206b1`),
+`tsc` 0, 801 tests verts. Ce qui manque est nommé : la preuve à deux comptes.
+Les annoncer TERMINÉS serait exactement le mensonge documentaire que la
+règle I9 interdit.
 
 ---
 
@@ -284,6 +326,203 @@ Direction, comme pour les appels.
 3. Aucune retenue cachée.
 4. **Le mouvement réel d'argent est déclaré « INTÉGRATION EXTERNE REQUISE »** —
    aucun encaissement simulé, jamais.
+
+---
+
+# Vague C — la branche Campus Éducation (LV-12 → LV-18)
+
+> Spécification complète : `docs/LIVE_CAMPUS_EDUCATION.md`. Ici, uniquement
+> **ce qu'on prouve** et **dans quel ordre**.
+>
+> **Aucune de ces loupes ne démarre avant LV-6.** Et aucune ne démarre avant
+> LV-8 (mémoire de parcours) pour tout ce qui touche à la progression : le
+> Campus doit s'y brancher, jamais reconstruire une seconde mémoire parallèle.
+
+**Le point de départ mesuré, à ne pas oublier en route** (03/09/2026) :
+`courses`, `enrollments`, `certificates`, `exam_sessions` sont à **0 ligne**
+et **aucune n'a de consommateur `.from()`**. `profile_skills` et
+`profile_badges` sont à 0 et en lecture seule. **Aucune table quiz, leçon,
+progression ou tribu n'existe nulle part.** Le moteur pédagogique vit
+intégralement en mémoire de session : fermer l'onglet efface tout.
+
+Ce qui est **réel** et sur quoi on s'appuie : `services/curriculumRegistry.ts`
+— 962 lignes structurées, 7 systèmes éducatifs, 4 consommateurs réels. C'est
+un **instantané maintenu à la main** (`lastCurriculumReviewYear`,
+`verificationSourceUrl`), pas un flux des ministères : ces deux informations
+doivent être affichées à l'organisateur, qui reste responsable de la
+conformité au programme en vigueur.
+
+---
+
+## LV-12 — Le live éducatif : classe, niveau, cursus ⬜
+
+**Objectif** : créer un direct rattaché à un programme réel du registre, à un
+niveau et à une classe, public ou privé — et que ce rattachement **persiste**.
+
+**Ce qui change** : le rattachement devient une donnée de la session, pas un
+titre libre. Un direct privé n'est pas listé pour qui n'y a pas droit.
+
+**Données** : extension de `live_sessions` (pays, cycle, niveau, matière,
+visibilité pédagogique), toutes tirées du registre — **jamais** une chaîne
+saisie à la main qui ne correspondrait à aucun programme.
+
+**Critères de test**
+1. Un direct créé sur « Terminale SM, Guinée, Mathématiques » se relit avec ces
+   valeurs exactes après rechargement.
+2. Un direct **privé** n'apparaît pas dans le fil d'un compte non invité —
+   vérifié par RLS, pas par l'écran.
+3. L'année de revue du programme et son URL de vérification sont **affichées**
+   à l'organisateur.
+4. Un pays ou niveau absent du registre est **refusé**, pas inventé.
+
+**Preuves attendues** : requête base montrant les colonnes remplies ;
+impersonation d'un compte non invité renvoyant 0 ligne ; capture de l'avertissement
+de fraîcheur du programme.
+
+**Ce que cette loupe ne fait pas** : ni quiz, ni progression, ni classement.
+
+---
+
+## LV-13 — L'expert IA éducation, multilingue et par programme ⬜
+
+**Objectif** : un expert IA qui monte sur scène, explique dans la langue
+demandée, et se réfère au **programme réellement rattaché** au direct.
+
+**Critères de test**
+1. La même notion expliquée en français puis en anglais garde le **même
+   contenu**, seule la langue change.
+2. L'expert cite le programme rattaché ; il **refuse d'inventer** un intitulé
+   de programme absent du registre.
+3. Une question hors programme reçoit une réponse honnête (« ce n'est pas au
+   programme de ce niveau »), pas une improvisation.
+4. Passerelle IA indisponible → le direct **continue** sans l'expert (I6).
+
+**Preuves attendues** : appels réels contre `ai-gateway` avec la trace des
+deux langues ; capture du refus d'invention ; capture du direct fonctionnel
+avec la couche IA coupée.
+
+---
+
+## LV-14 — Quiz, exercices, progression mesurée ⬜
+
+**Objectif** : un quiz posé pendant le direct produit une **trace persistée**,
+et cette trace nourrit une progression **mesurée**, jamais estimée.
+
+**Données** : nouvelles tables (question, réponse d'un participant, résultat),
+RLS stricte — un élève ne lit que ses propres réponses ; l'enseignant lit
+celles de sa classe. La progression se branche sur la mémoire de parcours de
+LV-8, elle ne la duplique pas.
+
+**Critères de test**
+1. Une réponse donnée pendant le direct est **relue après rechargement**.
+2. Un élève ne peut lire ni modifier la réponse d'un autre (`42501` attendu).
+3. La progression affichée est **recalculée** à partir des réponses réelles —
+   aucune valeur stockée, aucun pourcentage fabriqué (I1).
+4. Aucune réponse enregistrée → la progression affiche « pas encore de
+   mesure », **jamais** 0 % (ce n'est pas la même chose).
+
+**Preuves attendues** : parcours à deux comptes (un élève, un enseignant) avec
+impersonation prouvant l'isolation ; capture de l'état « pas encore de mesure ».
+
+---
+
+## LV-15 — Motivation : titres, badges, classements bornés ⬜
+
+**Objectif** : rendre le progrès visible **sans** créer de score social opaque.
+
+**La tension est réelle et se traite ici, pas plus tard.** La Direction demande
+des classements visibles ; le projet interdit un score social opaque. Les
+quatre conditions qui réconcilient les deux, et que cette loupe doit prouver :
+
+1. **Explicable** : chaque rang dit sur quoi il porte et comment il est calculé.
+2. **Borné** : une classe, un direct, un cursus. **Jamais** un classement global.
+3. **Volontaire** : s'en retirer ne coûte **rien d'autre** — ni badge, ni accès.
+4. **Les mineurs ne sont jamais classés publiquement par défaut.**
+
+Et une distinction à ne pas écraser : **« meilleur » et « a le plus progressé »
+sont deux distinctions différentes**, affichées séparément.
+
+**Critères de test**
+1. Le classement d'une classe n'expose personne d'une autre classe.
+2. Un compte qui se retire du classement conserve badges et accès à l'identique.
+3. Un compte mineur n'apparaît dans aucun classement public sans activation
+   explicite.
+4. « Pourquoi je suis à ce rang ? » reçoit une réponse tirée de données
+   réelles, jamais d'une formule cachée.
+5. Aucun badge n'est attribué sans un fait mesuré qui le justifie (I1).
+
+**Preuves attendues** : impersonation de trois comptes (dont un mineur) ;
+capture des deux distinctions côte à côte ; requête base montrant l'origine de
+chaque badge attribué.
+
+---
+
+## LV-16 — Documents après le live : résumés, fiches, rapports ⬜
+
+**Objectif** : le direct produit de **vrais** documents, à partir de son
+contenu réel.
+
+**Dépendance nommée** : `live_messages` est à **0 ligne** — le chat du direct
+n'a jamais persisté un message. **Sans ce pont, un résumé n'aurait rien à
+résumer.** Cette loupe le construit ou échoue honnêtement.
+
+**Critères de test**
+1. Le résumé cite des éléments **réellement dits** pendant le direct.
+2. Un direct sans contenu ne produit **aucun** document fabriqué — il le dit.
+3. Le document produit est réellement téléchargeable et réellement enregistré.
+4. Passerelle IA indisponible → transcription brute proposée, jamais un résumé
+   inventé (I6).
+
+**Preuves attendues** : messages réels en base, document produit, comparaison
+montrant que le contenu vient bien du direct ; capture du cas « rien à résumer ».
+
+---
+
+## LV-17 — Décisions officielles : l'IA recommande, l'humain valide ⬜
+
+**Objectif** : passage, redoublement, orientation — **l'IA recommande, un
+humain nommé tranche**. C'est la loupe la plus sensible de toute la mission.
+
+**Règles non négociables**, chacune vérifiable :
+
+1. La recommandation porte **toujours** les faits sur lesquels elle s'appuie.
+2. **Un humain nommé valide.** La trace enregistre qui, quand, et **si la
+   décision humaine diffère** de la recommandation.
+3. Une recommandation n'est **jamais** montrée à l'élève avant validation.
+4. **MokNet n'est pas un établissement accrédité**, et l'écran de décision doit
+   l'afficher.
+
+**Critères de test**
+1. Aucune décision ne peut être enregistrée sans validateur humain identifié.
+2. Un élève impersonné ne lit **aucune** recommandation non validée (`0` ligne).
+3. Une divergence humain/IA est conservée telle quelle, jamais lissée.
+4. La mention de non-accréditation est présente à l'écran de décision.
+
+**Preuves attendues** : impersonation élève → 0 ligne ; ligne de trace montrant
+une divergence réelle ; capture de la mention.
+
+---
+
+## LV-18 — Tribus de niveau, de progression et d'objectif ⬜
+
+**Objectif** : les tribus ne sont pas seulement thématiques — aussi par
+**niveau** et par **objectif**, et l'orientation vers l'une d'elles reste une
+**proposition**.
+
+**Dépendance nommée** : **aucune table tribu n'existe** dans le schéma réel
+(vérifié par recherche exhaustive). Cette loupe la crée, ou ne prétend rien.
+
+**Critères de test**
+1. Rejoindre une tribu reste un **acte volontaire** — aucune adhésion
+   automatique après un direct (I5).
+2. La recommandation est explicable **sans révéler d'information privée** sur
+   un tiers.
+3. Une tribu de niveau se remplit sur une progression **mesurée** (LV-14),
+   jamais sur une impression.
+4. Quitter une tribu ne retire aucun badge acquis.
+
+**Preuves attendues** : parcours à trois comptes montrant proposition puis
+adhésion volontaire ; capture d'une explication sans fuite.
 
 ---
 

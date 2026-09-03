@@ -67,9 +67,11 @@ La documentation n'est pas un rapport rédigé a posteriori : elle est le **socl
 | **17. Dossiers par Module** | Spécifications complètes des 14 modules fonctionnels de la plateforme. | [`docs/modules/`](./modules/) |
 | **18. Architecture Supabase** | État réel de la base (tables, RLS, fonctions, jobs planifiés) domaine par domaine — décrit ce qui existe, jamais une cible. | [`docs/SUPABASE_ARCHITECTURE.md`](./SUPABASE_ARCHITECTURE.md) |
 | **19. L'Architecte** | Orchestration par intention : registre de capacités, bus d'exécution, permissions, statuts. Couverture réelle et limites. | [`docs/ARCHITECTE.md`](./ARCHITECTE.md) |
-| **20. LIVE Intelligent — spécification** | Le LIVE comme salle intelligente : vision, trois familles de live, logique sociale, logique IA, mémoire de parcours, tribus et cursus, documents, coaching, monétisation. Écrit AVANT le développement. | [`docs/LIVE_INTELLIGENT.md`](./LIVE_INTELLIGENT.md) |
-| **21. LIVE Intelligent — validation** | Feuille de route par loupes, critères de test et **preuves attendues** loupe par loupe. Barème de statut : rien n'est TERMINÉ sans preuve. | [`docs/LIVE_INTELLIGENT_VALIDATION.md`](./LIVE_INTELLIGENT_VALIDATION.md) |
-| **22. Direction artistique du Studio Live** | Matière verre/eau/lumière, 7 univers, et § 8 l'abysse validé par la Direction le 03/09/2026. | [`docs/DIRECTION_ARTISTIQUE_STUDIO_LIVE.md`](./DIRECTION_ARTISTIQUE_STUDIO_LIVE.md) |
+| **20. LIVE — le socle existant à protéger** | **À lire en premier.** Ce qui marche aujourd'hui, mesuré ; les 9 invariants (I1…I9) qu'aucun lot ne peut casser ; les garde-fous de test ; les fragilités connues, nommées. Aucune ambition — que du constat. | [`docs/LIVE_SOCLE_EXISTANT.md`](./LIVE_SOCLE_EXISTANT.md) |
+| **21. LIVE Intelligent — la vision** | Le LIVE comme salle intelligente : trois familles de live, logique sociale, logique IA, mémoire de parcours, tribus et cursus, documents, coaching, monétisation. Écrit AVANT le développement. | [`docs/LIVE_INTELLIGENT.md`](./LIVE_INTELLIGENT.md) |
+| **22. LIVE Campus Éducation — la vision** | La branche éducation : lives par classe/niveau/cursus, expert IA multilingue, quiz et exercices, motivation et classements bornés, décisions officielles (l'IA recommande, l'humain valide), gratuit/Premium. | [`docs/LIVE_CAMPUS_EDUCATION.md`](./LIVE_CAMPUS_EDUCATION.md) |
+| **23. LIVE — roadmap priorisée et preuves** | Trois vagues (direct réel → direct intelligent → direct qui forme), 19 loupes LV-0…LV-18, critères de test et **preuves attendues** loupe par loupe. Barème : rien n'est TERMINÉ sans preuve. | [`docs/LIVE_INTELLIGENT_VALIDATION.md`](./LIVE_INTELLIGENT_VALIDATION.md) |
+| **24. Direction artistique du Studio Live** | Matière verre/eau/lumière, 7 univers, et § 8 l'abysse validé par la Direction le 03/09/2026. | [`docs/DIRECTION_ARTISTIQUE_STUDIO_LIVE.md`](./DIRECTION_ARTISTIQUE_STUDIO_LIVE.md) |
 
 ---
 

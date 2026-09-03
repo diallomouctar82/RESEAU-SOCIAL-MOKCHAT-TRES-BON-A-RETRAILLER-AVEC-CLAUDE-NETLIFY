@@ -1054,3 +1054,70 @@ Chaque décision respecte le formalisme strict suivant :
   la loupe n'a pas été élargie sans accord de la Direction.
 
 ---
+
+### [DEC-2026-044] — 3 Septembre 2026
+
+* **Module(s)** : `Documentation`, `LIVE`, `Campus & Éducation`
+* **Problème / Besoin initial** : consigne explicite de la Direction —
+  « Distingue clairement ce qui existe déjà et ne doit pas être cassé, la
+  vision future à documenter, et ce qu'on code maintenant. Documente d'abord
+  l'existant à protéger, puis la vision, puis une roadmap priorisée. Ne mélange
+  pas tout dans le code. » La documentation du LIVE mélangeait effectivement
+  les trois : `LIVE_INTELLIGENT.md` portait à la fois l'état mesuré du socle et
+  l'ambition, et **aucun document ne recensait ce qui ne doit pas casser**.
+* **Idées envisagées** :
+  1. Ajouter un chapitre « existant » dans le document de vision.
+  2. Créer un **document séparé**, lu en premier, qui ne contient aucune
+     ambition.
+* **Décision retenue** : option 2 — `docs/LIVE_SOCLE_EXISTANT.md`. Trois
+  documents, trois rôles, jamais mélangés : **l'existant à protéger**, **la
+  vision** (`LIVE_INTELLIGENT.md` + `LIVE_CAMPUS_EDUCATION.md`), **la roadmap
+  priorisée et les preuves** (`LIVE_INTELLIGENT_VALIDATION.md`).
+* **Justification** : une ambition rangée à côté d'un constat finit par se lire
+  comme un constat. Ce dépôt en a payé le prix trois fois — sauvegarde de
+  profil en échec depuis l'origine, diffusion admin qui n'écrivait qu'en
+  mémoire, chat du direct sans un seul message persisté —, chaque fois sur une
+  capacité « documentée comme opérationnelle ». Un document qui ne contient
+  **que** du mesuré ne peut pas produire cette confusion.
+* **Conséquences** :
+  - **Neuf invariants** nommés (I1…I9), chacun rattaché au défaut réel qui l'a
+    fait naître. En cas de conflit avec la vision, **le socle gagne**.
+  - Une loupe qui fait bouger une brique du § 2 du socle sans preuve
+    équivalente est une **régression**, pas un progrès.
+  - La roadmap devient **priorisée en trois vagues** — direct réel (LV-1→LV-6),
+    direct intelligent (LV-7→LV-11), direct qui forme (LV-12→LV-18) — au lieu
+    d'une liste plate. **LV-6 est un verrou explicite** : rien de la vague B ne
+    démarre avant la preuve à deux comptes réels.
+  - **LV-1, LV-3 et LV-4 passent de « EN COURS » à `PARTIEL`**, reste-à-faire
+    nommé. Leur code est livré et testé ; la preuve d'usage réel manque. Les
+    annoncer TERMINÉS serait exactement le mensonge que l'invariant I9
+    interdit.
+  - Sept loupes ajoutées (LV-12 à LV-18) pour la branche éducation, chacune
+    avec ses critères et ses preuves, **toutes bloquées derrière LV-6**.
+* **Fragilités désormais nommées plutôt que découvertes deux fois** :
+  `live_messages` = 0 ligne, 21 tables `live_*` sans consommateur, serveur
+  LiveKit du VPS toujours en 1.8.4, aucun identifiant de build exposé au
+  runtime (instances périmées indétectables), doublon acoustique de
+  l'interprète identifié mais jamais mesuré, vocabulaire de rôles
+  d'`AdminConfigService` jamais réconcilié, dossiers de vie et moteurs Carrière
+  100 % `localStorage`.
+* **Correction d'une documentation fausse, dans le même geste** :
+  `docs/modules/04_campus_et_education.md` annonçait « Statut : 100 %
+  Opérationnel » et des « examens blancs opérationnels » alors que `courses`,
+  `enrollments`, `certificates` et `exam_sessions` sont à **0 ligne** et
+  **sans aucun lecteur** dans le code. Remplacé par un partage mesuré
+  RÉEL / NON PERSISTÉ. Une documentation qui ment est un défaut au même titre
+  qu'un bug.
+* **Éléments techniques** : `docs/LIVE_SOCLE_EXISTANT.md` (nouveau),
+  `docs/LIVE_CAMPUS_EDUCATION.md` (nouveau),
+  `docs/LIVE_INTELLIGENT_VALIDATION.md` (priorisation + LV-12→LV-18),
+  `docs/LIVE_INTELLIGENT.md` (rôle de document clarifié),
+  `docs/modules/04_campus_et_education.md`, `docs/README.md` (index 20→24).
+* **Statut** : `Développé`, `Testé` — aucune ligne de code applicatif touchée :
+  tsc 0, **801 tests verts (59 fichiers)**, build propre, tous identiques à
+  l'état d'avant. C'est précisément ce qu'on attend d'un lot documentaire.
+* **Restes assumés** : rien de la vision n'est codé par cette décision. Le
+  prochain lot de code est **LV-6** — la preuve réelle à deux comptes —, verrou
+  de tout ce qui suit.
+
+---
