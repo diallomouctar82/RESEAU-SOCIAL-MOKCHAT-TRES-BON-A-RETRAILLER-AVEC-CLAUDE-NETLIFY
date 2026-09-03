@@ -20,6 +20,23 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-041] — 3 Septembre 2026
+* **Module(s)** : `Sécurité base Supabase (orchestrateur IA)`, `Gouvernance Vision Smart AI Core (pilote consommateur, workflow AR12)`.
+* **Problème / Besoin initial** : premier cycle de preuves réel de MokNet dans le Registre d'applications de Vision Smart AI Core (TASK-0014). Le relevé des advisors Supabase du 2 septembre classait la sécurité **RED CRITIQUE** : la vue `public.ai_spend_by_provider` s'exécutait avec les droits de son propriétaire (`SECURITY DEFINER`, comportement par défaut d'une vue) et exposait l'agrégat de `ai_call_log` à `anon` et à tout utilisateur connecté, en contournant la RLS admin-only de `ai_call_log` — mesuré par impersonation : 37 lignes visibles par `anon` et par un compte non-admin ; la table `ai_provider_credentials` (RLS activée, aucune policy) conservait les droits par défaut d'`anon`/`authenticated` et restait exposée dans le schéma GraphQL des rôles clients.
+* **Options envisagées** :
+  1. Supprimer la vue (aucun consommateur côté client).
+  2. Passer la vue en `security_invoker = true`, retirer tout droit à `anon`, ne laisser que `SELECT` à `authenticated` (la RLS de `ai_call_log` s'applique alors à l'appelant : administrateurs seulement), et retirer les droits `anon`/`authenticated` de `ai_provider_credentials` (secrets au Vault, lecture réservée au rôle service et aux RPC admin `SECURITY DEFINER`).
+* **Décision retenue** : option 2 — migration `security_task0014_view_invoker_credentials_revoke` (version `20260903094327`), appliquée le 3 septembre 2026 dans le cadre du workflow AR04 → AR07 d'AI Core (écart → action → changement matériel → réévaluation).
+* **Justification** : ne jamais supprimer une capacité existante (la vue reste lisible par les administrateurs, via la RLS) ; moindre privilège ; preuve avant/après reproductible par impersonation (`set local role` + `request.jwt.claims`) ; aucun changement de code client nécessaire.
+* **Conséquences** :
+  1. Après migration : `security_invoker=true` ; `anon` → « permission denied » ; non-admin → 0 ligne ; admin → 37 lignes ; `service_role` inchangé (fonctions Edge `ai-gateway`/`push-notify` non affectées) ; advisors 218 → 214 lints, ERROR 1 → 0.
+  2. Écarts restants, documentés et non corrigés par cette décision : protection contre les mots de passe compromis (réglage Auth du tableau de bord Supabase — action propriétaire) ; avertissements génériques d'exposition GraphQL des tables ; fonctions `SECURITY DEFINER` admin exécutables par `authenticated` (toutes gardées par `is_admin()`, risque accepté).
+  3. Version `v6.12.1` (correctif) ; lot de preuves, évaluation à sept dimensions et plan d'écarts publiés dans le dépôt VISION-SMART-AI-CORP.
+* **Éléments techniques** : vue `public.ai_spend_by_provider`, table `public.ai_provider_credentials`, migration `20260903094327_security_task0014_view_invoker_credentials_revoke`, `docs/SUPABASE_ARCHITECTURE.md` (§ Orchestrateur IA) ; dépôt AI Core : `docs/execution/TASK-0014.md`, `evidence/consumer/`, `evidence/registry/`, `evidence/runtime/`.
+* **Statut** : `Testé` (preuves avant/après en base réelle, production sondée après migration).
+
+---
+
 ### [DEC-2026-040] — 3 Septembre 2026
 * **Module(s)** : `Documentation & Continuité Système`, `Green Gate (GitHub Actions)`, `Gouvernance Vision Smart AI Core (source de vérité)`, `Memory Core`.
 * **Problème / Besoin initial** : l'audit de conformité (GV‑0) aux règles du dépôt VISION-SMART-AI-CORP (Constitution 1.6.0, ADR‑0016, ADR‑0021 à 0024, politique documentaire, `AGENTS.md` de MokNet) a mesuré quatre écarts : (1) quatorze fusions sur `main` entre le 1er et le 3 septembre sans aucune entrée DEC ni ligne de version — `docs/ETAT_ACTUEL.md` et la fiche module 05 affirmaient encore que la phase « appels vocaux » n'était pas commencée et qu'aucun transport audio/vidéo n'existait, alors que les appels réels sont en production et validés par l'utilisateur sur deux téléphones ; (2) aucune intégration continue indépendante — seuls les aperçus Netlify existaient, la preuve « verte » reposait donc sur la déclaration de son producteur ; (3) conventions ADR‑0016 (préfixes de commit, sections obligatoires de PR, version sémantique par mission) suivies de façon irrégulière ; (4) Memory Core jamais consulté ni alimenté (PROJECT_CHARTER § 6 : `→ TRACE / MEMORY PROPOSAL`). L'utilisateur a rendu VISION-SMART-AI-CORP source de vérité obligatoire.
