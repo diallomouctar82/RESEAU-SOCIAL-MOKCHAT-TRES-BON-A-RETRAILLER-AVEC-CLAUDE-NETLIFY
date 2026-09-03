@@ -1,0 +1,59 @@
+# Green Gate MokNet — contrôle indépendant, reproductible, sans secret.
+#
+# Règle appliquée (Vision Smart AI Core, ADR-0016 « Review » et Constitution
+# § 7 / § 10) : une modification ne doit jamais dépendre de la seule
+# déclaration de son producteur ; la preuve verte doit être produite par un
+# rôle distinct et rejouable. Ce workflow est ce rôle : il exécute, à partir
+# du verrou de dépendances exact, les trois contrôles qu'un contributeur lance
+# localement — typage, tests unitaires/DOM, build de production.
+#
+# Volontairement absent : `continue-on-error` (un échec masqué n'est pas un
+# vert), tout secret (le build n'en a pas besoin : les clés IA vivent dans le
+# Vault Supabase côté serveur, jamais dans le bundle), tout appel réseau.
+#
+# « NOT_RUN ≠ GREEN » : un contrôle non exécuté ne vaut pas un contrôle vert.
+
+name: CI — Green Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: green-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  green-gate:
+    name: typage · tests · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Node 22 (même majeure que le poste de développement)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances (verrou exact, jamais résolu à la volée)
+        run: npm ci
+
+      - name: Typage TypeScript (zéro erreur attendu)
+        run: npx tsc --noEmit
+
+      - name: Tests unitaires et DOM (vitest)
+        run: npm test
+
+      - name: Build de production (vite)
+        run: npm run build
