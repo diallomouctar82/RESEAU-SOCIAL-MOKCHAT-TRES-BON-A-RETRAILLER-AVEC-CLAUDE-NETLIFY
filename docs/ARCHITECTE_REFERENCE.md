@@ -1,24 +1,95 @@
 # Architecte MokNet — point d’entrée unique
 
-L’Architecte **existe déjà**. Toute évolution de l’Architecte doit partir de ces deux documents, lus ensemble :
+L’Architecte **existe déjà**. Toute évolution doit partir de ce point d’entrée et lire les documents ci-dessous dans l’ordre.
 
-1. [`ARCHITECTE.md`](./ARCHITECTE.md) — **réalité technique** : capacités réellement exécutables, permissions, garde-fous, statuts, tests et architecture du sous-système.
-2. [`ARCHITECTE_GUIDE_MAISON_MOKNET.md`](./ARCHITECTE_GUIDE_MAISON_MOKNET.md) — **mission humaine et produit** : accueil, posture, connaissance de la maison MokNet, argumentaires, scénarios de dialogue, limites et règles de cohérence.
+## 1. Réalité technique — ce qui existe réellement
 
-## Règle de lecture
+[`ARCHITECTE.md`](./ARCHITECTE.md)
 
-- Pour savoir **ce que l’Architecte peut réellement faire aujourd’hui**, lire `ARCHITECTE.md`.
-- Pour savoir **comment il doit accueillir, expliquer et guider**, lire `ARCHITECTE_GUIDE_MAISON_MOKNET.md`.
-- En cas de conflit entre un argumentaire et une capacité réelle, **la réalité technique gagne toujours**.
-- Une idée future ne doit jamais être présentée comme une fonction disponible.
+Source documentaire de la réalité actuelle : architecture du sous-système, capacités exécutables, permissions, garde-fous, statuts d’exécution et tests.
 
-## Règle de maintenance
+Pour savoir **ce que l’Architecte peut réellement faire aujourd’hui**, commencer ici.
 
-Quand une nouvelle capacité importante est ajoutée à MokNet :
+## 2. Guide de toute la maison MokNet
 
-1. elle doit être implantée et testée dans sa source de vérité ;
-2. `ARCHITECTE.md` doit refléter la capacité réelle ;
-3. le guide doit être mis à jour seulement si cette capacité change la façon d’accueillir, d’expliquer ou d’orienter ;
-4. les deux documents doivent rester cohérents.
+[`ARCHITECTE_GUIDE_MAISON_MOKNET.md`](./ARCHITECTE_GUIDE_MAISON_MOKNET.md)
 
-Ce fichier sert de boussole aux développeurs humains, aux agents IA et à toute personne qui reprend le projet.
+Définit la posture d’accueil et la connaissance des pièces de MokNet : réseau social, messagerie, LIVE, Reels, Campus, langues, carrière, santé, habitat, finance/Wallet, démarches, droit, mobilité/expatriation, Studio, Marché mondial, tribus, Experts IA, Conseils de SAGE, tableau de bord, paramètres, sécurité et leurs relations.
+
+Pour savoir **comment l’Architecte doit accueillir, expliquer et orienter**, lire ce guide.
+
+## 3. Mission complète et trajectoire
+
+[`ARCHITECTE_MISSION_COMPLETE_ET_TRAJECTOIRE.md`](./ARCHITECTE_MISSION_COMPLETE_ET_TRAJECTOIRE.md)
+
+Définit le modèle mental complet :
+
+- MokNet vient vers l’utilisateur ;
+- agent conversationnel ;
+- agent d’accueil ;
+- guide de la maison ;
+- agent promotionnel sans fausse promesse ;
+- navigation et action internes ;
+- recherche et exploitation de l’information ;
+- agent d’objectif ;
+- orchestration entre plusieurs pièces ;
+- exemple complet agriculture/financement ;
+- vision d’Architecte détachable ;
+- permissions externes globales/personnalisées ;
+- consentement, révocation, confirmations et contrôle utilisateur ;
+- contrat d’intégration future dans le runtime.
+
+Pour savoir **vers quoi l’Architecte doit évoluer sans être recréé**, lire ce document.
+
+## 4. Matrice de statuts
+
+[`ARCHITECTE_STATUTS_CAPACITES.md`](./ARCHITECTE_STATUTS_CAPACITES.md)
+
+Sépare explicitement :
+
+- **EXISTANT / PRODUCTION** ;
+- **PR / NON FUSIONNÉ** ;
+- **PARTIEL** ;
+- **SPÉCIFIÉ / À DÉVELOPPER** ;
+- **VISION CIBLE**.
+
+Pour savoir **si une promesse est réellement disponible ou seulement prévue**, consulter cette matrice puis vérifier le code.
+
+## 5. La vraie “tête” runtime
+
+La logique d’exécution actuelle n’est pas dans cette documentation. Elle est dans le code, principalement :
+
+- `services/architecte/architecteBrain.ts` — cerveau partagé par les incarnations voix et clavier ;
+- `services/architecte/capabilityRegistry.ts` — catalogue de capacités ;
+- `services/architecte/capabilityBus.ts` — exécution réelle et contexte de permissions ;
+- `services/architecte/architecteSession.ts` — continuité de session ;
+- `services/architecte/consentFlow.ts` — consentements existants ;
+- registres/handlers de domaine — actions réelles.
+
+**Ne jamais remplacer aveuglément le prompt ou le cerveau runtime par le contenu d’un document conceptuel.** Toute modification de cette tête doit être une mission de développement séparée avec tests de non-régression.
+
+## 6. Règle d’autorité
+
+En cas de conflit :
+
+1. la réalité du code et des permissions gagne ;
+2. `ARCHITECTE.md` décrit cette réalité ;
+3. la matrice indique son statut ;
+4. le guide indique comment la présenter ;
+5. la mission complète indique la trajectoire future.
+
+Une idée future ne doit jamais être présentée comme une fonction disponible.
+
+## 7. Règle de maintenance
+
+Quand une capacité importante est ajoutée :
+
+1. elle est implantée dans sa source de vérité ;
+2. elle reçoit les permissions et confirmations nécessaires ;
+3. elle est testée ;
+4. `ARCHITECTE.md` est mis à jour ;
+5. son statut est mis à jour dans la matrice ;
+6. le guide est ajusté si elle change l’accueil ou l’orientation ;
+7. la mission/trajectoire est ajustée si elle change la vision d’ensemble.
+
+Ce fichier est la **boussole permanente** des développeurs humains, agents IA et futurs repreneurs du projet.
