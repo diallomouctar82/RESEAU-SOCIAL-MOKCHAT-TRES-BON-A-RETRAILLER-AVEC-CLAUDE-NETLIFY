@@ -25,13 +25,22 @@
 | **v6.9.0** | 2 Septembre 2026 | **Audio d'appel réellement bidirectionnel — validé sur deux téléphones ; SDK LiveKit épinglé 2.17.3** | Appels, Edge `livekit-token`, `call_diagnostics`, LIVE (LOOP 15/16 fermée) | PR #46 → #53 / DEC-2026-036 | **Stable** |
 | **v6.10.0** | 3 Septembre 2026 | **Voix traduite DANS l'appel (piste « interprète »), appel normal par défaut, langue choisie par appel** | Appels, Transport LiveKit, AI Gateway v24 | PR #54, #55 / DEC-2026-037 | **Stable** |
 | **v6.11.0** | 3 Septembre 2026 | **Connexion quasi immédiate, traduction dès les premiers mots (identité par onglet, préchauffe AI Gateway v25, case de langue)** | Appels, AI Gateway | PR #56 / DEC-2026-038 | **Stable** |
-| **v6.12.0** | 3 Septembre 2026 | **Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan** | Service worker v6.6.0, Push, Messagerie, Appels | PR #57 / DEC-2026-039 | **Courante (Active)** |
+| **v6.12.0** | 3 Septembre 2026 | **Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan** | Service worker v6.6.0, Push, Messagerie, Appels | PR #57 / DEC-2026-039 | **Stable** |
+| **v6.12.1** | 3 Septembre 2026 | **Sécurité base : vue `ai_spend_by_provider` en `security_invoker`, `ai_provider_credentials` retirée des rôles clients (pilote consommateur Vision Smart AI Core, TASK-0014)** | Supabase (orchestrateur IA), Gouvernance AI Core | Migration 20260903094327 / DEC-2026-041 | **Courante (Active)** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.12.1] — 3 Septembre 2026 (Sécurité base — pilote consommateur Vision Smart AI Core, TASK-0014)
+- **Objectif** : fermer le finding CRITIQUE relevé par le Registre d'applications d'AI Core (advisors Supabase : vue `SECURITY DEFINER` contournant la RLS, table de credentials exposée aux rôles clients) sans supprimer de capacité ni toucher au code client.
+- **Réalisations** : migration `security_task0014_view_invoker_credentials_revoke` — `security_invoker = true` sur la vue `ai_spend_by_provider`, droits `anon` retirés, `authenticated` limité à `SELECT` (RLS admin-only de `ai_call_log` appliquée), droits `anon`/`authenticated` retirés de `ai_provider_credentials` (RLS et `service_role` intacts). La vue n'est référencée nulle part dans le code client : aucune régression possible côté application.
+- **Validation** : impersonation avant/après — `anon` 37 lignes → « permission denied » ; non-admin 37 → 0 ; admin 37 → 37 · advisors 218 → 214 lints, ERROR 1 → 0 · production sondée après migration : `/`, `/manifest.webmanifest`, `/sw.js`, `/messagerie` HTTP 200, bundle `index-Drrg-NBT.js` inchangé.
+- **Limite honnête** : la protection contre les mots de passe compromis (Auth) reste à activer dans le tableau de bord Supabase (action propriétaire) ; 208 avertissements génériques subsistent (exposition GraphQL des tables, fonctions `SECURITY DEFINER` admin gardées par `is_admin()`).
+
+---
 
 ### [Version 6.12.0] — 3 Septembre 2026 (Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan — mission SN)
 - **Objectif** : qu'un appel arrive vraiment quand l'application est fermée ou le téléphone verrouillé (sonnerie, vibration, notification visible), et que l'écran pour décrocher s'impose dès qu'un appel entre.
