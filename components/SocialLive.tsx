@@ -34,7 +34,7 @@ import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds } from '../services/live/liveSessionService';
-import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
+import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges, postLiveAgentMessage } from '../services/live/liveChatService';
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
 import { LiveParticipantsPanel } from './live/LiveParticipantsPanel';
@@ -700,6 +700,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [messages, setMessages] = useState<LiveChatMessage[]>([]);
   // realHostId : déclaré plus haut (section 3) pour servir au calcul d'isHost.
   const [chatInput, setChatInput] = useState('');
+  /**
+   * EX-3 — Pont vers le moteur vocal, qui est déclaré plus bas dans ce
+   * composant : l'abonnement temps réel ci-dessous en a besoin, mais sa
+   * closure serait figée sur une valeur inexistante. Une ref remplie après
+   * coup évite de déplacer tout le moteur vocal pour une seule ligne.
+   */
+  const direExpertARef = useRef<(texte: string, messageId?: string) => void>(() => {});
+  /**
+   * Identifiants des prises de parole déjà prononcées chez CE client, pour que
+   * l'animateur qui déclenche l'expert ne l'entende pas deux fois (une fois
+   * localement, une fois par l'écho temps réel de son propre message).
+   */
+  const parolesPrononceesRef = useRef<Set<string>>(new Set());
   const [showGifts, setShowGifts] = useState(false);
   const [activeGiftAnim, setActiveGiftAnim] = useState<{ icon: string; id: number } | null>(null);
   const [likesCount, setLikesCount] = useState(0);
@@ -711,7 +724,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     fetchLiveReactionCount(realSessionId).then((count) => { if (!cancelled) setLikesCount(count); });
 
     const unsubMessages = subscribeToLiveMessages(realSessionId, (m) => {
-      setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+      setMessages((prev) => {
+        if (prev.some((x) => x.id === m.id)) return prev;
+        // EX-3 : la parole d'un expert est prononcée à voix haute CHEZ CHACUN,
+        // pas seulement chez l'animateur qui l'a déclenchée. Un message sans
+        // `authorId` ne peut venir que de `post_live_agent_message` (tout
+        // message humain porte author_id = auth.uid(), la policy l'impose),
+        // c'est donc un discriminant fiable et non devinable.
+        if (!m.authorId) direExpertARef.current(m.text, m.id);
+        return [...prev, m];
+      });
     });
     const unsubReactions = subscribeToLiveReactions(realSessionId, () => {
       setLikesCount((prev) => prev + 1);
@@ -1285,6 +1307,95 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   /**
+   * EX-3 — Faire réellement PARLER un expert, et que tout le monde l'entende.
+   *
+   * AVANT : `setAiCopilotState('speaking')` puis retour à `'idle'` après un
+   * `setTimeout(…, 4000)`. Purement décoratif : aucun appel d'intelligence,
+   * aucun son, aucun message diffusé. L'onde de voix s'agitait quatre
+   * secondes et c'était tout — d'où « les experts n'ont jamais pu répondre ».
+   *
+   * MAINTENANT, trois étapes réelles et vérifiables :
+   *   1. des propos produits par le modèle, avec la persona de CET expert
+   *      (`agentId` → ses propres outils et autorisations, définis en Super
+   *      Admin) ;
+   *   2. publiés dans `live_messages` sous SON identité, via le canal
+   *      `post_live_agent_message` qui vérifie les droits en base ;
+   *   3. prononcés à voix haute chez chaque spectateur, à la réception.
+   *
+   * Consigne anti-invention explicite : un expert qui ne sait pas doit le dire
+   * et proposer la démarche, jamais fabriquer un article de loi ou un chiffre.
+   */
+  const faireParlerExpert = async (agent: Agent, consigne: string): Promise<boolean> => {
+    if (!realSessionId) {
+      addNotification("L'expert ne peut pas parler", "Ce direct n'est pas encore démarré.", 'error');
+      return false;
+    }
+    setAiCopilotState('thinking');
+    setAvatarGrammarState('reflexion');
+    try {
+      const texte = await generateText(consigne, {
+        agentId: agent.id,
+        systemInstruction:
+          `Tu es ${agent.name}, ${agent.title}, spécialiste de ${agent.specialty}. ` +
+          `Tu interviens EN DIRECT dans le live « ${liveData.title} » de MokNet, devant plusieurs personnes qui t'écoutent. ` +
+          `Tu réponds à l'oral : 2 à 4 phrases courtes, en français, sans titre, sans liste à puces, sans formule administrative. ` +
+          `Tu n'inventes jamais un article de loi, un chiffre, un diagnostic ou une référence que tu ne peux pas garantir : ` +
+          `si tu ne sais pas, tu le dis franchement et tu indiques la démarche à suivre.`,
+      });
+      const propos = (texte || '').trim();
+      if (!propos) {
+        setAiCopilotState('idle');
+        setAvatarGrammarState('incertitude');
+        addNotification("L'expert n'a rien pu dire", "Le service d'intelligence n'a pas répondu — réessayez dans un instant.", 'error');
+        return false;
+      }
+      const messageId = await postLiveAgentMessage(realSessionId, agent.id, propos);
+      // Prononcé ici pour l'animateur, et marqué comme déjà dit pour que l'écho
+      // temps réel de ce même message ne le répète pas. Les autres personnes,
+      // elles, l'entendent par ce même écho.
+      direExpertARef.current(propos, messageId);
+      return true;
+    } catch (err) {
+      setAiCopilotState('idle');
+      setAvatarGrammarState('erreur');
+      const message = (err as Error)?.message || 'erreur inconnue';
+      const refus = /permission|policy|42501|row-level/i.test(message);
+      addNotification(
+        "L'expert n'a pas pu prendre la parole",
+        refus
+          ? "Seul l'animateur (ou un modérateur) du direct peut faire parler un expert."
+          : `Sa réponse n'a pas pu être diffusée : ${message}`,
+        'error',
+      );
+      return false;
+    }
+  };
+
+  /**
+   * EX-4 — L'expert RÉPOND à ce qui a été demandé dans le direct.
+   *
+   * Il lit le vrai chat (`live_messages`, réel depuis le LOOP 05/14), pas un
+   * sujet inventé : la réponse porte donc sur ce que les personnes présentes
+   * ont réellement écrit. Sans message, il le dit au lieu de meubler.
+   */
+  const faireRepondreExpertAuxQuestions = async (agent: Agent) => {
+    // Les messages d'expert n'ont pas d'`authorId` : on ne lui redonne jamais
+    // sa propre parole à commenter (pas de boucle sur lui-même).
+    const propos = messages.filter((m) => m.authorId).slice(-12);
+    if (propos.length === 0) {
+      addNotification('Rien à répondre pour le moment', "Personne n'a encore écrit dans ce direct.", 'info');
+      return;
+    }
+    const transcript = propos.map((m) => `${m.authorName} : ${m.text}`).join('\n');
+    await faireParlerExpert(
+      agent,
+      `Voici les derniers messages écrits par les personnes présentes dans ce direct :\n\n${transcript}\n\n` +
+        `Réponds à voix haute à ce qui relève de ta spécialité, en t'adressant directement à la personne concernée et en la nommant. ` +
+        `Si rien ne relève de ta spécialité, dis-le en une phrase et indique ce sur quoi tu peux aider.`,
+    );
+  };
+
+  /**
    * EX-2 — Faire REDESCENDRE un expert de la scène, pour tout le monde.
    *
    * AVANT : le bouton ne faisait qu'ajouter l'identifiant à `agentsRetires`,
@@ -1348,9 +1459,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         prev.some(p => p.agentId === agent.id) ? prev : [...prev, carteLocale],
       );
       setAiAgent(agent);
-      setAiCopilotState('speaking');
       addNotification('Expert sur Scène ⚖️', `${agent.name} a rejoint le Live pour vous conseiller.`, 'success');
-      setTimeout(() => setAiCopilotState('idle'), 4000);
+      // L'ancien `setAiCopilotState('speaking')` suivi d'un retour à 'idle'
+      // après 4 s était purement décoratif : l'onde de voix s'agitait sans
+      // qu'aucun son ne soit produit. L'état suit désormais une vraie prise de
+      // parole (EX-3) ou reste au repos.
     };
 
     // Pas de session persistée (aperçu, direct non démarré) : le comportement
@@ -1381,6 +1494,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl },
         `⚡ J'invite ${agent.name} (${agent.specialty}) sur la scène.`,
       ).catch(() => {});
+      // EX-3 : l'expert se présente RÉELLEMENT — propos produits par le
+      // modèle avec sa persona, diffusés à tout le monde, prononcés à voix
+      // haute. C'est la différence entre « il est apparu » et « il est là ».
+      void faireParlerExpert(
+        agent,
+        `Tu viens d'être invité(e) sur la scène de ce direct. Présente-toi en une phrase et invite les personnes présentes à te poser leurs questions sur ${agent.specialty}.`,
+      );
     } catch (err) {
       const message = (err as Error)?.message || 'erreur inconnue';
       const refus = /permission|policy|42501|row-level/i.test(message);
@@ -2001,6 +2121,36 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     if (voiceAssistant.isSpeaking) setAvatarGrammarState('reponse');
   }, [voiceAssistant.isSpeaking]);
 
+  /**
+   * EX-3 — Le pont annoncé plus haut : dès que le moteur vocal existe, la
+   * parole d'un expert reçue par le canal temps réel est réellement
+   * prononcée, chez CHAQUE spectateur.
+   *
+   * `aiCopilotState` cesse ici d'être décoratif : avant, il passait à
+   * 'speaking' puis revenait à 'idle' après un `setTimeout(…, 4000)`
+   * arbitraire, sans qu'aucun son n'ait jamais été produit. Il suit désormais
+   * la synthèse vocale réelle — et si le navigateur refuse de parler (son non
+   * débloqué, moteur indisponible), l'état retombe au repos plutôt que de
+   * laisser croire à une prise de parole.
+   */
+  useEffect(() => {
+    direExpertARef.current = (texte: string, messageId?: string) => {
+      const propre = texte.replace(/^⚡\s*/, '').trim();
+      if (!propre) return;
+      if (messageId) {
+        if (parolesPrononceesRef.current.has(messageId)) return;
+        parolesPrononceesRef.current.add(messageId);
+      }
+      setAiCopilotState('speaking');
+      setAvatarGrammarState('reponse');
+      const finir = () => {
+        setAiCopilotState('idle');
+        setAvatarGrammarState('repos');
+      };
+      voiceAssistant.speak(propre, { onEnd: finir }).catch(finir);
+    };
+  }, [voiceAssistant]);
+
   // DS-L1 : l'abysse de l'image de référence (03/09/2026) remplace l'aplat
   // slate-950 ; le vignettage est une couche du fond lui-même (index.html).
   return (
@@ -2479,6 +2629,24 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                       <span className="truncate">{aiAgent.name} — {aiAgent.specialty}</span>
                       <span className="shrink-0 opacity-70 tracking-[0.18em]">IA</span>
                     </div>
+
+                    {/* EX-4 : faire RÉPONDRE l'expert à ce qui vient d'être
+                        demandé dans le direct — hôte uniquement (la base
+                        refuse de toute façon les autres, 42501). Le geste est
+                        explicite : on ne déclenche jamais une réponse (ni la
+                        dépense qui va avec) dans le dos de l'animateur. */}
+                    {isHost && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); void faireRepondreExpertAuxQuestions(aiAgent); }}
+                        disabled={aiCopilotState === 'thinking'}
+                        data-testid={`stage-ask-agent-${aiAgent.id}`}
+                        title={`Faire répondre ${aiAgent.name} aux questions du direct`}
+                        aria-label={`Faire répondre ${aiAgent.name} aux questions du direct`}
+                        className="live-orb w-9 h-9 absolute top-3 right-14 z-10 disabled:opacity-50"
+                      >
+                        <MessageSquare size={15} />
+                      </button>
+                    )}
 
                     {/* Retirer l'agent de la scène — hôte uniquement. */}
                     {isHost && (
