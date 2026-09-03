@@ -176,8 +176,16 @@ export interface ServerCaptionerOptions {
     getTrack: () => MediaStreamTrack | null;
     /** Ma langue effective (indication pour le serveur ; absente = détection seule). */
     languageHint?: string;
-    /** Langue du correspondant quand elle diffère de la mienne : la traduction arrive avec la transcription. */
-    targetLanguage?: string;
+    /**
+     * Langue du correspondant quand elle diffère de la mienne : la traduction
+     * arrive avec la transcription. Mission LT : peut être une FONCTION, lue à
+     * chaque requête — la langue du correspondant arrive souvent APRÈS le
+     * début de la capture (il la choisit une fois décroché) et peut changer en
+     * cours d'appel ; avant, chaque changement REDÉMARRAIT la transcription et
+     * jetait le segment en cours (audit LT-0 : première voix traduite 10–20 s
+     * après le micro).
+     */
+    targetLanguage?: string | (() => string | undefined);
     /** État local honnête (« Transcription… » pendant l'aller-retour, '' ensuite) — jamais un texte partiel inventé. */
     onInterim?: (text: string) => void;
     onFinal: (caption: ServerCaption) => void;
@@ -314,15 +322,23 @@ export class ServerCaptioner {
         void this.transcribe(audioBase64);
     }
 
+    /** Langue cible au moment de la requête (mission LT : lue à chaque segment, jamais figée au démarrage). */
+    private currentTargetLanguage(): string | undefined {
+        const target = this.options.targetLanguage;
+        const value = typeof target === 'function' ? target() : target;
+        return value && value.trim() ? value : undefined;
+    }
+
     private async transcribe(audioBase64: string): Promise<void> {
         this.inFlight = true;
         this.options.onInterim?.('Transcription…');
+        const targetLanguage = this.currentTargetLanguage();
         try {
             const result = await transcribeSpeechDetailed({
                 audioBase64,
                 mimeType: 'audio/wav',
                 languageHint: this.options.languageHint,
-                targetLanguage: this.options.targetLanguage,
+                targetLanguage,
                 timeoutMs: STT_REQUEST_TIMEOUT_MS,
             });
             this.consecutiveFailures = 0;
@@ -337,7 +353,7 @@ export class ServerCaptioner {
                 text,
                 language: detected ?? this.options.languageHint ?? '',
                 translated,
-                targetLang: translated ? (result.targetLanguage ?? this.options.targetLanguage ?? null) : null,
+                targetLang: translated ? (result.targetLanguage ?? targetLanguage ?? null) : null,
             });
         } catch (err) {
             if (!this.active) return;
@@ -580,7 +596,8 @@ export function captionLanguageFromTag(tag: string): string | null {
 // récepteur la joue exactement comme la voix originale, qu'il coupe.
 
 export type InterpreterPhraseReport =
-    | { id: string; status: 'generated'; generateMs: number; bytes: number; durationMs: number }
+    /** `merged` (mission LT) : nombre de phrases rendues ENSEMBLE dans cette voix (absent = une seule). */
+    | { id: string; status: 'generated'; generateMs: number; bytes: number; durationMs: number; merged?: number }
     | { id: string; status: 'started'; durationMs: number }
     | { id: string; status: 'ended' }
     | { id: string; status: 'failed'; reason: string };
@@ -633,6 +650,16 @@ const CONTEXT_RESUME_WAIT_MS = 1500;
 export const TRACK_VOICE_BUDGET_MS = 12_000;
 /** Phrases en attente au maximum : au-delà, la plus ancienne est abandonnée (dite en échec) pour rester en temps réel. */
 export const TRACK_QUEUE_MAX = 3;
+/**
+ * Mission LT : les phrases qui attendent pendant qu'une voix se rend sont
+ * FUSIONNÉES en une seule synthèse (le coût d'une voix HD est surtout un
+ * délai fixe de 4 à 6 s, quelle que soit la longueur). Mesuré au banc : avec
+ * des segments courts et une parole continue, rendre les phrases une par une
+ * faisait déborder la file — près d'une phrase sur deux abandonnée et dite
+ * par la voix de secours du correspondant. Longueur maximale d'une voix
+ * fusionnée, pour rester en temps réel.
+ */
+export const TRACK_BATCH_MAX_CHARS = 320;
 /** Contextes vivants — réveillés au prochain geste utilisateur par `unlockInterpreterAudio`. */
 const liveVoiceTracks = new Set<InterpreterVoiceTrack>();
 
@@ -652,8 +679,27 @@ export class InterpreterVoiceTrack {
     private speaking = false;
     private currentSource: AudioBufferSourceNode | null = null;
     private disposed = false;
+    /** Langue de rendu courante (mission LT : modifiable en cours d'appel, la piste reste la même). */
+    private lang: string;
 
-    constructor(private readonly options: InterpreterVoiceTrackOptions) {}
+    constructor(private readonly options: InterpreterVoiceTrackOptions) {
+        this.lang = options.lang;
+    }
+
+    /** Langue (étiquette BCP-47) dans laquelle les prochaines phrases sont rendues. */
+    get language(): string {
+        return this.lang;
+    }
+
+    /**
+     * Mission LT : le correspondant change de langue d'écoute en cours d'appel
+     * — la piste déjà publiée continue, seules les prochaines phrases changent
+     * de langue (avant : la langue était figée à la création de la piste).
+     */
+    setLanguage(lang: string): void {
+        const clean = lang.trim();
+        if (clean) this.lang = clean;
+    }
 
     /** Crée (une fois) le contexte et sa sortie ; renvoie la piste à publier. */
     start(): MediaStreamTrack {
@@ -735,16 +781,30 @@ export class InterpreterVoiceTrack {
         const epoch = this.epoch;
         this.running = true;
         while (epoch === this.epoch && this.queue.length > 0) {
-            const item = this.queue.shift()!;
-            await this.render(item.id, item.text, epoch);
+            await this.render(this.takeBatch(), epoch);
         }
         if (epoch !== this.epoch) return;
         this.running = false;
         this.setSpeaking(false);
     }
 
-    private async render(id: string, text: string, epoch: number): Promise<void> {
-        const fail = (reason: string) => { this.options.onPhrase?.({ id, status: 'failed', reason }); };
+    /** La prochaine voix à rendre : la phrase la plus ancienne, plus celles qui la suivent tant que la longueur reste raisonnable (mission LT). */
+    private takeBatch(): Array<{ id: string; text: string }> {
+        const first = this.queue.shift()!;
+        const batch = [first];
+        let chars = first.text.length;
+        while (this.queue.length > 0 && chars + 1 + this.queue[0].text.length <= TRACK_BATCH_MAX_CHARS) {
+            const next = this.queue.shift()!;
+            batch.push(next);
+            chars += 1 + next.text.length;
+        }
+        return batch;
+    }
+
+    private async render(batch: Array<{ id: string; text: string }>, epoch: number): Promise<void> {
+        const ids = batch.map((item) => item.id);
+        const text = batch.map((item) => item.text).join(' ');
+        const fail = (reason: string) => { for (const id of ids) this.options.onPhrase?.({ id, status: 'failed', reason }); };
         const t0 = Date.now();
         let budgetTimer: ReturnType<typeof setTimeout> | undefined;
         let detail: SpeechResult | null;
@@ -754,7 +814,7 @@ export class InterpreterVoiceTrack {
             // La langue de lecture est TRANSMISE : une voix pilotée par un modèle de
             // langage peut sinon « traduire » en parlant (mesuré au banc).
             detail = await Promise.race([
-                generateSpeechDetailed(text, { timeoutMs: TRACK_VOICE_BUDGET_MS, language: this.options.lang }),
+                generateSpeechDetailed(text, { timeoutMs: TRACK_VOICE_BUDGET_MS, language: this.lang }),
                 new Promise<null>((resolve) => { budgetTimer = setTimeout(() => resolve(null), TRACK_VOICE_BUDGET_MS); }),
             ]);
         } catch (err) {
@@ -786,7 +846,7 @@ export class InterpreterVoiceTrack {
         }
         if (epoch !== this.epoch) return;
         const durationMs = Math.round(buffer.duration * 1000);
-        this.options.onPhrase?.({ id, status: 'generated', generateMs: Date.now() - t0, bytes: detail.audioBase64.length, durationMs });
+        this.options.onPhrase?.({ id: ids[0], status: 'generated', generateMs: Date.now() - t0, bytes: detail.audioBase64.length, durationMs, ...(ids.length > 1 ? { merged: ids.length } : {}) });
         await new Promise<void>((resolve) => {
             const source = context.createBufferSource();
             source.buffer = buffer;
@@ -797,13 +857,13 @@ export class InterpreterVoiceTrack {
                 settled = true;
                 if (this.currentSource === source) this.currentSource = null;
                 this.setSpeaking(false);
-                this.options.onPhrase?.({ id, status: 'ended' });
+                for (const id of ids) this.options.onPhrase?.({ id, status: 'ended' });
                 resolve();
             };
             source.onended = settle;
             this.currentSource = source;
             this.setSpeaking(true); // du son entre dans la piste maintenant — pas avant
-            this.options.onPhrase?.({ id, status: 'started', durationMs });
+            for (const id of ids) this.options.onPhrase?.({ id, status: 'started', durationMs });
             try { source.start(); } catch { settle(); return; }
             setTimeout(settle, durationMs + 2000); // chien de garde : une source qui ne finit jamais ne bloque pas la file
         });

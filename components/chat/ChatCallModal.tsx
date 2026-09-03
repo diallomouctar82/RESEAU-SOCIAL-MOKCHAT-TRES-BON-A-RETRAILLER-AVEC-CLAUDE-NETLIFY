@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Maximize2, Minimize2,
-  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap, RefreshCw, AlertTriangle, Ear, EarOff
+  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap, RefreshCw, AlertTriangle, Ear, EarOff, ChevronDown
 } from 'lucide-react';
 import { ActiveCallSession } from '../../types';
 import { useLiveTransport } from '../../hooks/useLiveTransport';
 import type { LiveConnectionQuality, SendDataOptions } from '../../services/live/liveTransportTypes';
 import { stopAll as stopAllRingtones } from '../../services/calls/ringtoneService';
 import { computeCallLatency, formatLatency } from '../../services/calls/callFlow';
-import { getCallDeviceId } from '../../services/calls/callDevice';
+import { getCallSessionDeviceId } from '../../services/calls/callDevice';
+import { warmUpAiGateway } from '../../services/aiGateway';
 import { callRoomName } from '../../services/calls/callRoom';
 import {
   assessAudioLink, describeAudioLink, describeCameraError, describeMediaError, formatAudioLinkLog, peerMediaNotice, pickRemoteForCall, remotesOfAccount,
@@ -168,9 +169,12 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   onPeerLost,
 }) => {
   const [isMuted, setIsMuted] = useState(false);
-  // Mission AU : identité d'appareil (stable pour ce navigateur), lue une fois.
+  // Mission AU : identité d'appareil, lue une fois. Mission LT : propre à CET
+  // ONGLET (suffixe tiré au chargement de la page) — deux onglets du même
+  // navigateur qui reçoivent le même appel ne s'évincent plus l'un l'autre
+  // (audit LT-0 : la boucle d'évictions faisait attendre 22 s la ligne).
   const deviceIdRef = useRef<string | null>(null);
-  if (deviceIdRef.current === null) deviceIdRef.current = getCallDeviceId();
+  if (deviceIdRef.current === null) deviceIdRef.current = getCallSessionDeviceId();
   const [isVideoOff, setIsVideoOff] = useState(callSession.type === 'audio');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
@@ -420,8 +424,19 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     stopAllRingtones();
     // Mission VT : geste utilisateur → contextes audio de l'interprète réveillés, synthèse amorcée (iOS).
     unlockInterpreterAudio();
+    // Mission LT : la LECTURE AUDIO du transport est débloquée DANS le geste
+    // de décroché. Sur l'iPhone réel de l'audit, la ligne pré-connectée
+    // pendant la sonnerie restait « lecture bloquée » (NotAllowedError) 22 s
+    // après le décroché, jusqu'à un toucher de l'écran : la voix du
+    // correspondant arrivait mais ne sortait pas du haut-parleur.
+    void transport.startAudio();
     acceptedAtRef.current ??= Date.now();
     onAcceptCall();
+  };
+  /** Tout geste sur l'écran d'appel réveille l'audio de l'interprète et, si le navigateur bloque encore la lecture, le transport. */
+  const onCallScreenGesture = () => {
+    unlockInterpreterAudio();
+    if (transport.audioPlaybackBlocked) void transport.startAudio();
   };
   const handleReject = () => {
     stopAllRingtones();
@@ -555,50 +570,90 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   const sendVoiceMessage = (message: Omit<CallVoiceMessage, 't' | 'v'>) => {
     void sendDataRef.current(encodeCallData({ t: 'voice', v: 1, ...message }), { reliable: true }).catch(() => {});
   };
-  const speakToPeer = async (id: string, text: string, targetLang: string | null): Promise<void> => {
-    let track = voiceTrackRef.current;
-    if (!track) {
-      track = new InterpreterVoiceTrack({
-        lang: speechTagFor(targetLang),
-        onPhrase: (report) => {
-          if (report.status === 'generated') {
-            recordCallEvent('voice', `voix HD générée en ${report.generateMs} ms — ${Math.round(report.durationMs / 100) / 10} s d’audio`, { id: report.id });
-            console.info('[appel] voix interprète générée', { generateMs: report.generateMs, durationMs: report.durationMs });
-          } else if (report.status === 'started') {
-            sendVoiceMessage({ id: report.id, state: 'start', durationMs: report.durationMs });
-            recordCallEvent('voice', 'voix envoyée dans la piste de l’appel : début', { id: report.id, durationMs: report.durationMs });
-            console.info('[appel] voix interprète envoyée dans l’appel', { id: report.id, durationMs: report.durationMs });
-          } else if (report.status === 'ended') {
-            sendVoiceMessage({ id: report.id, state: 'end' });
-          } else {
-            sendVoiceMessage({ id: report.id, state: 'failed', reason: report.reason });
-            recordCallEvent('voice', `voix non rendue (${report.reason}) — le correspondant la dira lui-même`, { id: report.id });
-            console.info('[appel] voix interprète non rendue :', report.reason);
-          }
-        },
-      });
-      voiceTrackRef.current = track;
+  /** Le rendu de ma voix d'interprète (une seule instance par appel) — créé à la demande, langue ajustable en cours d'appel. */
+  const ensureVoiceTrack = (targetLang: string | null): InterpreterVoiceTrack => {
+    const lang = speechTagFor(targetLang);
+    const existing = voiceTrackRef.current;
+    if (existing) {
+      // Mission LT : le correspondant change de langue d'écoute → même piste, langue de rendu mise à jour.
+      if (existing.language !== lang) existing.setLanguage(lang);
+      return existing;
     }
-    if (!interpreterPublishedRef.current) {
+    const track = new InterpreterVoiceTrack({
+      lang,
+      onPhrase: (report) => {
+        if (report.status === 'generated') {
+          const merged = report.merged && report.merged > 1 ? ` (${report.merged} phrases rendues ensemble)` : '';
+          recordCallEvent('voice', `voix HD générée en ${report.generateMs} ms — ${Math.round(report.durationMs / 100) / 10} s d’audio${merged}`, { id: report.id });
+          console.info('[appel] voix interprète générée', { generateMs: report.generateMs, durationMs: report.durationMs, ...(report.merged ? { merged: report.merged } : {}) });
+        } else if (report.status === 'started') {
+          sendVoiceMessage({ id: report.id, state: 'start', durationMs: report.durationMs });
+          recordCallEvent('voice', 'voix envoyée dans la piste de l’appel : début', { id: report.id, durationMs: report.durationMs });
+          console.info('[appel] voix interprète envoyée dans l’appel', { id: report.id, durationMs: report.durationMs });
+        } else if (report.status === 'ended') {
+          sendVoiceMessage({ id: report.id, state: 'end' });
+        } else {
+          sendVoiceMessage({ id: report.id, state: 'failed', reason: report.reason });
+          recordCallEvent('voice', `voix non rendue (${report.reason}) — le correspondant la dira lui-même`, { id: report.id });
+          console.info('[appel] voix interprète non rendue :', report.reason);
+        }
+      },
+    });
+    voiceTrackRef.current = track;
+    return track;
+  };
+  /**
+   * Publie (une fois) la piste interprète sur l'appel. Une seule publication
+   * en vol à la fois — la préparation anticipée (mission LT) et la première
+   * phrase peuvent la demander en même temps. Renvoie false (raison dans
+   * `lastPublishFailureRef`) plutôt que de lever : l'appelant décide quoi dire
+   * au correspondant.
+   */
+  const interpreterPublishingRef = useRef<Promise<boolean> | null>(null);
+  const lastPublishFailureRef = useRef<string | null>(null);
+  const publishInterpreterTrack = (track: InterpreterVoiceTrack): Promise<boolean> => {
+    if (interpreterPublishedRef.current) return Promise.resolve(true);
+    if (interpreterPublishingRef.current) return interpreterPublishingRef.current;
+    const attempt = (async () => {
       try {
         const publish = publishInterpreterAudioRef.current;
         if (!publish) throw new Error('transport sans piste auxiliaire');
         await publish(track.start());
         interpreterPublishedRef.current = true;
+        lastPublishFailureRef.current = null;
         recordCallEvent('voice', 'piste interprète publiée dans l’appel');
         console.info('[appel] piste interprète publiée');
+        return true;
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
+        lastPublishFailureRef.current = reason;
         recordCallEvent('voice', `piste interprète : publication impossible (${reason})`);
         console.info('[appel] piste interprète : publication impossible', reason);
-        sendVoiceMessage({ id, state: 'failed', reason: `publication impossible : ${reason.slice(0, 80)}` });
-        return;
+        return false;
+      } finally {
+        interpreterPublishingRef.current = null;
       }
+    })();
+    interpreterPublishingRef.current = attempt;
+    return attempt;
+  };
+  const speakToPeer = async (id: string, text: string, targetLang: string | null): Promise<void> => {
+    const track = ensureVoiceTrack(targetLang);
+    const published = await publishInterpreterTrack(track);
+    if (!published) {
+      sendVoiceMessage({ id, state: 'failed', reason: `publication impossible : ${(lastPublishFailureRef.current ?? 'raison inconnue').slice(0, 80)}` });
+      return;
     }
     track.speak(id, text);
   };
   const speakToPeerRef = useRef(speakToPeer);
   speakToPeerRef.current = speakToPeer;
+  const ensureVoiceTrackRef = useRef(ensureVoiceTrack);
+  ensureVoiceTrackRef.current = ensureVoiceTrack;
+  const publishInterpreterTrackRef = useRef(publishInterpreterTrack);
+  publishInterpreterTrackRef.current = publishInterpreterTrack;
+  const unpublishInterpreterAudioRef = useRef(transport.unpublishInterpreterAudio);
+  unpublishInterpreterAudioRef.current = transport.unpublishInterpreterAudio;
   // Nouvelle connexion (ligne retombée puis relancée) : la piste devra être republiée ; une reconnexion du SDK, elle, la conserve.
   useEffect(() => {
     if (transport.connectionState === 'disconnected' || transport.connectionState === 'failed') interpreterPublishedRef.current = false;
@@ -675,6 +730,48 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     void sendDataRef.current(encodeCallData({ t: 'hello', v: 1, lang: myLang ?? null, voice: voiceEnabled }), { reliable: true }).catch(() => {});
   }, [mediaConnected, remoteIdentities, myLang, voiceEnabled]);
 
+  // ── Mission LT : tout ce qui peut être PRÊT avant la première phrase l'est ──
+  // 1. La passerelle IA est préchauffée (isolat, connexion, classement,
+  //    secrets) dès qu'une traduction devient probable — j'ai choisi une
+  //    langue, ou le correspondant en a choisi une — une fois par appel.
+  const warmedUpRef = useRef(false);
+  const translationLikely = transportEnabled && (!!myLang || !!peerLanguage);
+  useEffect(() => {
+    if (!translationLikely || warmedUpRef.current) return;
+    warmedUpRef.current = true;
+    const startedAt = Date.now();
+    void warmUpAiGateway('voice').then((ok) => {
+      recordCallEvent('captions', `passerelle IA préchauffée : ${ok ? 'oui' : 'non'}`, { ms: Date.now() - startedAt });
+      console.info('[appel] passerelle IA préchauffée', { ok, ms: Date.now() - startedAt });
+    });
+  }, [translationLikely]);
+  // 2. La piste « interpreter » est créée et PUBLIÉE dès que je sais dans quelle
+  //    langue le correspondant veut m'entendre (« hello »), plus seulement à
+  //    la première phrase traduite (audit LT-0 : piste publiée 9–20 s après le
+  //    micro). Elle reste silencieuse tant qu'aucune phrase n'est rendue ; la
+  //    langue suit ses changements de choix sans republication.
+  const earlyVoiceLang = mediaConnected && peerWantsVoice && !agentPresent
+    ? (() => { const peer = myEffectiveLanguage(peerLanguage); return peer && peer !== spokenLang ? peer : null; })()
+    : null;
+  useEffect(() => {
+    if (!earlyVoiceLang || !InterpreterVoiceTrack.isSupported()) return;
+    const track = ensureVoiceTrackRef.current(earlyVoiceLang);
+    void publishInterpreterTrackRef.current(track);
+  }, [earlyVoiceLang]);
+  // 3. Un agent interprète (serveur) s'annonce : c'est lui qui rend la voix —
+  //    ma piste est arrêtée et dépubliée, jamais deux voix pour la même phrase.
+  useEffect(() => {
+    if (!agentPresent) return;
+    const track = voiceTrackRef.current;
+    if (!track) return;
+    track.stop();
+    if (interpreterPublishedRef.current) {
+      interpreterPublishedRef.current = false;
+      recordCallEvent('voice', 'agent interprète présent — ma piste interprète est dépubliée');
+      void unpublishInterpreterAudioRef.current?.().catch(() => {});
+    }
+  }, [agentPresent]);
+
   // Mission AU : « media » — j'annonce l'état RÉEL de mon micro (publié /
   // coupé / indisponible avec la raison) à chaque changement, et de nouveau
   // quand le correspondant apparaît. Le canal de données passe par le serveur
@@ -745,13 +842,28 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   // segments et la passerelle renvoie le texte, la langue détectée et la
   // traduction dans la langue du correspondant (le récepteur n'a alors plus
   // rien à traduire). La reconnaissance du navigateur n'est plus qu'un repli,
-  // et si elle manque aussi, l'écran le dit. Redémarré quand ma langue ou
-  // celle du correspondant change (dépendances ci-dessous).
+  // et si elle manque aussi, l'écran le dit.
+  // Mission LT : la langue du correspondant N'EST PLUS une dépendance de cet
+  // effet — elle est lue via une ref à CHAQUE segment (`targetLanguage` sous
+  // forme de fonction). Avant, chaque « hello » (langue choisie après le
+  // décroché, changée en cours d'appel) REDÉMARRAIT la transcription et
+  // jetait le segment en cours : première voix traduite 10–20 s après le
+  // micro sur les téléphones de l'audit. Le transcripteur ne (re)démarre
+  // plus que quand la transcription devient voulue/non voulue, quand MA
+  // langue parlée change, ou quand le micro est (re)publié.
+  const peerLanguageRef = useRef<string | null>(null);
+  peerLanguageRef.current = peerLanguage;
+  const spokenLangRef = useRef(spokenLang);
+  spokenLangRef.current = spokenLang;
+  const captionWanted = mediaConnected && !isMuted && shouldCaptionMyVoice({ myLanguage: hearLanguage, peerLanguage });
   useEffect(() => {
-    const wanted = mediaConnected && !isMuted && shouldCaptionMyVoice({ myLanguage: hearLanguage, peerLanguage });
-    if (!wanted) { setMyLiveText(''); return; }
+    if (!captionWanted) { setMyLiveText(''); return; }
     const declaredLang = captionLanguageFromTag(mySpeechTag) ?? null;
-    const peerLang = myEffectiveLanguage(peerLanguage);
+    /** Langue cible AU MOMENT du segment : celle du correspondant si elle diffère de la mienne. */
+    const targetLanguageNow = (): string | undefined => {
+      const peerLang = myEffectiveLanguage(peerLanguageRef.current);
+      return peerLang && peerLang !== spokenLangRef.current ? peerLang : undefined;
+    };
     const send = (text: string, final: boolean, detail?: { id?: string; lang?: string | null; translated?: string | null; targetLang?: string | null; voice?: CallCaptionMessage['voice'] }) => {
       const now = Date.now();
       if (!final) { if (now - lastInterimSentAtRef.current < 400) return; lastInterimSentAtRef.current = now; }
@@ -784,7 +896,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
         getTrack: () => getLocalAudioTrackRef.current(),
         // Indication de la langue que je PARLE (profil) — jamais celle que je veux entendre.
         languageHint: spokenLang,
-        targetLanguage: peerLang && peerLang !== spokenLang ? peerLang : undefined,
+        targetLanguage: targetLanguageNow,
         // Pas de texte partiel côté serveur : état local honnête seulement, rien n'est envoyé au correspondant.
         onInterim: (text) => setMyLiveText(text),
         onFinal: (caption) => {
@@ -833,12 +945,13 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
       if (captionerRef.current && (captionerRef.current === server || captionerRef.current === browser)) captionerRef.current = null;
       setMyLiveText('');
     };
-    // myLanguage est représenté par myLang/mySpeechTag ; peerLanguage déclenche le démarrage quand l'autre choisit une langue.
     // Revue AU-6 : localAudioPublished — la transcription serveur abandonne
     // après 12 s sans piste ; elle repart quand le micro est réellement publié
     // (« Réessayer le micro » réussi), au lieu de rester muette tout l'appel.
+    // Mission LT : peerLanguage/hearLanguage n'agissent que par `captionWanted`
+    // (démarrage/arrêt) — la langue cible est lue via une ref à chaque segment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaConnected, isMuted, myLang, peerLanguage, mySpeechTag, transport.localAudioPublished]);
+  }, [captionWanted, spokenLang, mySpeechTag, transport.localAudioPublished]);
 
   // Voix de l'interprète dans MA langue — n'existe qu'avec une langue choisie.
   // Le miroir `interpreterSpeakingRef` est posé AVANT le rendu : le captioner
@@ -1176,7 +1289,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
       <div
         className={`relative bg-slate-900 text-white shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${isFullscreen ? 'w-full h-full rounded-none border-0' : 'w-full h-full rounded-none border-0 sm:h-auto sm:aspect-square sm:max-h-[85vh] sm:max-w-lg sm:rounded-3xl sm:border sm:border-slate-700/60'}`}
         onPointerDown={revealControls}
-        onPointerUp={unlockInterpreterAudio}
+        onPointerUp={onCallScreenGesture}
         onMouseMove={onChromeMouseMove}
       >
 
@@ -1225,7 +1338,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                   </div>
                 )}
 
-                <div className={`absolute ${panelVisible ? 'bottom-[14rem]' : 'bottom-28'} left-4 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-opacity duration-300 ${chromeClass}`}>
+                <div className={`absolute ${panelVisible ? 'bottom-[22rem]' : 'bottom-28'} left-4 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-opacity duration-300 ${chromeClass}`}>
                   <span className={`w-2 h-2 rounded-full ${remote ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
                   <span>{peerName}</span>
                   {remoteMainIsScreen && <span className="text-[10px] font-semibold text-indigo-200">— partage d'écran</span>}
@@ -1269,7 +1382,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                recouvrent le bas de la scène, le contenu reste au-dessus.
                HL-5 : avec la carte de l'interprète, le contenu remonte
                (pb-60) pour que nom, état et durée restent lisibles. */
-            <div className={`flex flex-col items-center justify-center px-6 pt-16 ${panelVisible ? 'pb-60 space-y-4' : 'pb-28 space-y-6'} text-center z-10 animate-fade-in`}>
+            <div className={`flex flex-col items-center justify-center px-6 pt-16 ${panelVisible ? 'pb-72 space-y-3' : 'pb-28 space-y-6'} text-center z-10 animate-fade-in`}>
               <div className="relative">
                 <div className="absolute -inset-4 rounded-full bg-indigo-600/30 animate-ping opacity-75"></div>
                 <div className="absolute -inset-8 rounded-full bg-indigo-500/20 animate-pulse"></div>
@@ -1445,7 +1558,7 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
           return (
             <div
               data-testid="audio-link-diagnostic"
-              className={`absolute ${panelVisible ? 'bottom-[16.5rem]' : 'bottom-[6.5rem]'} right-3 z-20 rounded-xl bg-black/55 backdrop-blur-md px-2.5 py-1.5 text-[10px] font-bold flex flex-col gap-0.5 transition-opacity duration-300 ${anyBad ? 'opacity-100' : chromeClass}`}
+              className={`absolute ${panelVisible ? 'bottom-[22rem]' : 'bottom-[6.5rem]'} right-3 z-20 rounded-xl bg-black/55 backdrop-blur-md px-2.5 py-1.5 text-[10px] font-bold flex flex-col gap-0.5 transition-opacity duration-300 ${anyBad ? 'opacity-100' : chromeClass}`}
               title="Mesuré sur les compteurs audio réels (octets envoyés / reçus), toutes les 5 s"
             >
               <span className={`inline-flex items-center gap-1.5 ${tone(d.sending.tone)}`}><span className={`w-1.5 h-1.5 rounded-full ${dot(d.sending.tone)}`}></span>{d.sending.label}</span>
@@ -1514,24 +1627,47 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                   à CET appel (jamais actif par défaut). Le changement remonte
                   au parent → hearLanguage → hello au correspondant (il rend sa
                   voix traduite dans la piste de l'appel) + interprète relancé
-                  chez moi. Le geste déverrouille aussi l'audio (autoplay mobile). */}
+                  chez moi. Le geste déverrouille aussi l'audio (autoplay mobile).
+                  Mission LT (demande utilisateur) : une CASE bien visible, avec
+                  une liste déroulante clairement identifiable — la langue
+                  active se lit d'un coup d'œil (drapeau + nom, état « Traduction
+                  active » / « Appel normal »), et se change en un geste (44 px,
+                  liste native du téléphone). */}
               {onHearLanguageChange && (
-                <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-300" onClick={(e) => e.stopPropagation()}>
-                  <span className="flex-shrink-0">Entendre {peerName} en</span>
-                  <select
-                    data-testid="call-language-select"
-                    aria-label={`Entendre ${peerName} en`}
-                    value={myLang ?? ''}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => { e.stopPropagation(); unlockInterpreterAudio(); onHearLanguageChange(e.target.value || null); }}
-                    className="min-w-0 flex-1 rounded-lg bg-white/10 border border-white/15 px-2 py-1 text-[11px] font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  >
-                    <option value="" className="text-slate-900">Voix originale · appel normal</option>
-                    {MESSAGING_LANGUAGES.map((l) => (
-                      <option key={l.code} value={l.code} className="text-slate-900">{`${l.flag} ${l.label}`}</option>
-                    ))}
-                  </select>
-                </label>
+                <div
+                  data-testid="call-language-box"
+                  className={`rounded-xl border-2 px-3 py-2 transition-colors ${myLang ? 'border-emerald-400/90 bg-emerald-500/15' : 'border-white/25 bg-white/10'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-white min-w-0 truncate">
+                      <Ear size={13} className="flex-shrink-0" />
+                      <span className="truncate">Entendre {peerName} en</span>
+                    </span>
+                    <span
+                      data-testid="call-language-state"
+                      className={`flex-shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-md ${myLang ? 'bg-emerald-400 text-slate-950' : 'bg-white/15 text-slate-100'}`}
+                    >
+                      {myLang ? 'Traduction active' : 'Appel normal'}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <select
+                      data-testid="call-language-select"
+                      aria-label={`Entendre ${peerName} en`}
+                      value={myLang ?? ''}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => { e.stopPropagation(); unlockInterpreterAudio(); onHearLanguageChange(e.target.value || null); }}
+                      className="w-full h-11 appearance-none rounded-lg bg-white text-slate-900 pl-3 pr-10 text-sm font-extrabold shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
+                    >
+                      <option value="">Voix originale · appel normal</option>
+                      {MESSAGING_LANGUAGES.map((l) => (
+                        <option key={l.code} value={l.code}>{`${l.flag} ${l.label}`}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-600" aria-hidden="true" />
+                  </div>
+                </div>
               )}
               {callSession.status !== 'connected' && (
                 <p className="text-[10px] text-slate-400">

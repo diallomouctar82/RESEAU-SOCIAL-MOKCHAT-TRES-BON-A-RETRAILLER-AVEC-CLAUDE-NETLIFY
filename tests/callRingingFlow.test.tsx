@@ -116,6 +116,11 @@ vi.mock('../services/supabaseClient', () => ({
     isSupabaseConfigured: true,
 }));
 vi.mock('../services/adminConfigService', () => ({ adminConfigService: {} }));
+/** Mission LT : la préchauffe de la passerelle ne fait jamais d'appel réseau depuis un test DOM. */
+vi.mock('../services/aiGateway', async (importOriginal) => {
+    const real = await importOriginal<typeof import('../services/aiGateway')>();
+    return { ...real, warmUpAiGateway: vi.fn(async () => true) };
+});
 vi.mock('../services/messaging/messagingIntelligence', () => ({
     summarizeConversation: vi.fn(),
     assistRewriteMessage: vi.fn(),
@@ -534,8 +539,11 @@ describe('ChatCallModal — audio bidirectionnel (mission AU)', () => {
 
     it('identité par appareil transmise au transport (deviceId), et le correspondant est celui qui publie du média', () => {
         render(<ChatCallModal callSession={{ ...baseSession, status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
-        expect(rig.options.deviceId).toMatch(/^[a-z0-9]{8,32}$/);
-        expect(window.localStorage.getItem('moknet_call_device_id')).toBe(rig.options.deviceId);
+        // Mission LT : identité de SESSION = appareil stable (localStorage) + suffixe propre à l'onglet.
+        expect(rig.options.deviceId).toMatch(/^[a-z0-9]{8,27}-[a-z0-9]{4}$/);
+        const stable = window.localStorage.getItem('moknet_call_device_id');
+        expect(stable).toMatch(/^[a-z0-9]{8,32}$/);
+        expect(rig.options.deviceId.startsWith(`${stable}-`)).toBe(true);
     });
 });
 

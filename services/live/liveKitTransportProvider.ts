@@ -37,7 +37,7 @@ import type {
     LiveTransportProvider,
     SendDataOptions,
 } from './liveTransportTypes';
-import { isInterpreterTrackName } from './liveTransportTypes';
+import { describeDisconnectReason, isInterpreterTrackName } from './liveTransportTypes';
 import { isCallDiagnosticsActive, recordCallEvent } from '../calls/callDiagnostics';
 
 /**
@@ -156,10 +156,18 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         // publier les couches vidéo, ce qui rallonge la reprise. Le LIVE, lui,
         // affiche N vignettes dont beaucoup hors écran : les deux réglages y
         // gardent tout leur sens et restent strictement inchangés.
+        // Mission LT (latence de connexion) : `singlePeerConnection: false` —
+        // le SDK 2.17 tente d'abord le chemin de signalisation « v1 » (une
+        // seule connexion pair-à-pair), que notre serveur 1.8.4 ne connaît
+        // pas : 404, erreur « v1 RTC path not found », puis nouvel essai sur le
+        // chemin « v0 ». Mesuré dans les rapports d'appels réels : 0,8 s
+        // perdu à CHAQUE connexion, avant le premier octet. Le chemin v0 est
+        // de toute façon celui qui finit par servir ; on y va directement.
         const room = params.audioProfile === 'call'
             ? new Room({
                 adaptiveStream: false,
                 dynacast: false,
+                singlePeerConnection: false,
                 audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
                 publishDefaults: { audioPreset: AudioPresets.speech, dtx: true, red: true },
             })
@@ -277,7 +285,8 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             events.onLocalTrackUnpublished?.(kind);
         });
         room.on(RoomEvent.Disconnected, (reason) => {
-            recordCallEvent('transport', 'SDK : déconnecté', { reason: reason !== undefined ? String(reason) : 'inconnue' });
+            // Mission LT : la raison est aussi LISIBLE dans le rapport (« identité dupliquée », « délai de connexion »…).
+            recordCallEvent('transport', 'SDK : déconnecté', { reason: reason !== undefined ? String(reason) : 'inconnue', motif: describeDisconnectReason(reason) });
             events.onDisconnected?.(reason !== undefined ? String(reason) : undefined);
         });
         // Équipe F3 : lecture audio bloquée par la politique d'autoplay du

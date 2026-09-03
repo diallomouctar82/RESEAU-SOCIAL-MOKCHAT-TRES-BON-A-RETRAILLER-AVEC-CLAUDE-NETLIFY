@@ -78,7 +78,8 @@ function json(body: unknown, status = 200): Response {
 }
 
 interface GatewayBody {
-    mode?: 'call' | 'test';
+    // 'warmup' (mission LT) : préchauffe sans appel fournisseur — voir plus bas.
+    mode?: 'call' | 'test' | 'warmup';
     category?: 'llm' | 'voice' | 'image_video';
     providerId?: string; // forcer un fournisseur précis (pas de bascule) — sinon sélection auto
     modelId?: string;
@@ -121,6 +122,41 @@ Deno.serve(async (req: Request) => {
         if (!body.providerId) return json({ error: 'providerId requis en mode test.' }, 400);
         const result = await testProvider(service, body.providerId);
         return json(result, result.ok ? 200 : 400);
+    }
+
+    // ── Préchauffe (mission LT — latence des appels traduits) ────────────────
+    // Appelée par l'écran d'appel dès qu'une traduction devient probable
+    // (langue choisie, ou langue du correspondant reçue) : l'isolat est
+    // réveillé, la connexion du navigateur ouverte, le classement des
+    // fournisseurs de la catégorie et le secret de la tête de chaque
+    // sous-famille (TTS et STT) déjà en cache pour la première vraie requête.
+    // AUCUN fournisseur n'est appelé, rien n'est journalisé : c'est une
+    // préparation, pas un appel IA — et une erreur ici n'en est pas une pour
+    // l'appelant (réponse 200 avec `ok:false`), la première requête réelle se
+    // débrouillera seule.
+    if (body.mode === 'warmup') {
+        const startedAt = Date.now();
+        const category = body.category ?? 'voice';
+        try {
+            const { data, error } = await service.rpc('get_ranked_ai_candidates', { p_category: category });
+            if (error) return json({ ok: false, warmedMs: Date.now() - startedAt });
+            const ranked = (data ?? []) as RankedCandidate[];
+            candidatesCache.set(category, { data: ranked, expiresAt: Date.now() + CANDIDATES_TTL_MS });
+            const sttKinds = new Set(['whisper', 'deepgram', 'assemblyai', 'gemini_stt']);
+            const heads = category === 'voice'
+                ? [ranked.find((c) => !sttKinds.has(c.adapter_kind)), ranked.find((c) => sttKinds.has(c.adapter_kind))]
+                : [ranked[0]];
+            await Promise.all(heads.filter((c): c is RankedCandidate => !!c).map(async (c) => {
+                const cached = secretCache.get(c.provider_id);
+                if (cached && cached.expiresAt > Date.now()) return;
+                const { data: secret, error: secretError } = await service.rpc('get_ai_provider_secret_internal', { p_provider_id: c.provider_id });
+                if (!secretError && secret) secretCache.set(c.provider_id, { key: secret as string, expiresAt: Date.now() + SECRET_TTL_MS });
+            }));
+            return json({ ok: true, category, candidates: ranked.length, warmedMs: Date.now() - startedAt });
+        } catch (err) {
+            console.warn('ai-gateway: préchauffe en échec', err);
+            return json({ ok: false, warmedMs: Date.now() - startedAt });
+        }
     }
 
     if (!body.category) return json({ error: 'category requis.' }, 400);

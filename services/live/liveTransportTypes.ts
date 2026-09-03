@@ -102,6 +102,50 @@ export interface LiveTransportEvents {
     onMediaDevicesError?: (message: string, kind: 'audio' | 'video' | undefined) => void;
 }
 
+/**
+ * Mission LT : raison de déconnexion telle que le SDK la transmet (valeur
+ * numérique de l'énumération `DisconnectReason` du protocole LiveKit, en
+ * chaîne). Le transport la relaie telle quelle ; ces aides la rendent
+ * lisible dans le rapport de diagnostic et permettent au hook de reconnaître
+ * l'ÉVICTION par identité dupliquée — le seul cas où relancer la connexion
+ * est nuisible (chaque relance évince l'autre session à son tour : c'est la
+ * boucle mesurée à 22 s sur un iPhone réel).
+ */
+const DISCONNECT_REASON_LABELS: Record<string, string> = {
+    '0': 'raison inconnue',
+    '1': 'à l’initiative du client',
+    '2': 'identité dupliquée (une autre session porte la même identité)',
+    '3': 'arrêt du serveur',
+    '4': 'participant retiré',
+    '5': 'room supprimée',
+    '6': 'état incohérent',
+    '7': 'échec de jonction',
+    '8': 'migration',
+    '9': 'signalisation fermée',
+    '10': 'room fermée',
+    '11': 'utilisateur injoignable',
+    '12': 'appel refusé',
+    '13': 'défaillance de la passerelle SIP',
+    '14': 'délai de connexion dépassé',
+    '15': 'défaillance média',
+};
+
+export const DUPLICATE_IDENTITY_REASON = '2';
+
+/** Libellé lisible d'une raison de déconnexion du SDK (numéro d'énumération ou nom), sans jamais en inventer une. */
+export function describeDisconnectReason(reason?: string | number | null): string {
+    if (reason === undefined || reason === null || reason === '') return 'raison inconnue';
+    const key = String(reason);
+    return DISCONNECT_REASON_LABELS[key] ?? key;
+}
+
+/** Vrai si la déconnexion est une ÉVICTION par identité dupliquée (raison 2 / DUPLICATE_IDENTITY). */
+export function isDuplicateIdentityReason(reason?: string | number | null): boolean {
+    if (reason === undefined || reason === null) return false;
+    const key = String(reason);
+    return key === DUPLICATE_IDENTITY_REASON || /DUPLICATE_IDENTITY/i.test(key);
+}
+
 /** Mission AU : mesure BRUTE de la liaison audio (compteurs WebRTC réels), jamais estimée. */
 export interface LiveAudioStats {
     at: number;

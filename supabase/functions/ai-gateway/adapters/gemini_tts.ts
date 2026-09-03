@@ -115,11 +115,46 @@ function spokenText(text: string, language?: string): string {
     return `Say the following in ${name}, exactly as written, without translating it: ${text}`;
 }
 
+/**
+ * Mission LT : nombre d'essais quand le modèle répond SANS audio. Mesuré sur
+ * les appels réels du 03/09 : 14 % des synthèses revenaient « Réponse sans
+ * audio » — un aléa du modèle, pas une panne — et la bascule tombait sur un
+ * fournisseur mort (ElevenLabs impayé) : phrase perdue, dite par la voix de
+ * secours du téléphone. Un second essai immédiat sur le MÊME fournisseur
+ * coûte 1,3–2,9 s ; perdre la phrase coûte la conversation.
+ */
+const NO_AUDIO_ATTEMPTS = 2;
+
 export const geminiTtsAdapter: ProviderAdapter = {
     async call(req: AdapterRequest, apiKey: string): Promise<AdapterResult> {
         if (req.category !== 'voice' || !req.voice?.text) {
             throw new AdapterError('Texte requis pour la synthèse vocale.', 'other');
         }
+        for (let attempt = 1; ; attempt++) {
+            const result = await requestSpeechOnce(req, apiKey);
+            if (result) return result;
+            if (attempt >= NO_AUDIO_ATTEMPTS) throw new AdapterError(`Réponse sans audio (${attempt} essais).`, 'other');
+            console.warn(`gemini_tts: réponse sans audio (essai ${attempt}/${NO_AUDIO_ATTEMPTS}) — nouvel essai immédiat`);
+        }
+    },
+
+    async testConnection(apiKey: string): Promise<{ ok: boolean; message: string }> {
+        try {
+            const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
+                headers: { 'x-goog-api-key': apiKey },
+            });
+            if (res.status === 401 || res.status === 403) return { ok: false, message: 'Clé API invalide ou refusée.' };
+            if (!res.ok) return { ok: false, message: `Réponse inattendue (${res.status}).` };
+            return { ok: true, message: 'Connexion réussie.' };
+        } catch (err) {
+            return { ok: false, message: `Erreur réseau : ${(err as Error).message}` };
+        }
+    },
+};
+
+/** Un appel au modèle ; `null` = réponse HTTP correcte mais sans audio (réessayable), toute autre erreur est levée telle quelle. */
+async function requestSpeechOnce(req: AdapterRequest, apiKey: string): Promise<AdapterResult | null> {
+    {
         const model = req.modelId || 'gemini-2.5-flash-preview-tts';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -167,7 +202,7 @@ export const geminiTtsAdapter: ProviderAdapter = {
             candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[];
         };
         const inline = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
-        if (!inline?.data) throw new AdapterError('Réponse sans audio.', 'other');
+        if (!inline?.data) return null; // réponse sans audio : réessayée une fois par l'appelant
 
         // mimeType typique : "audio/L16;codec=pcm;rate=24000" — PCM brut à
         // envelopper en WAV. Si un jour le modèle renvoyait un conteneur déjà
@@ -179,18 +214,5 @@ export const geminiTtsAdapter: ProviderAdapter = {
         const rate = Number(/rate=(\d+)/.exec(mime)?.[1] || 24000);
         const wav = pcmToWav(base64ToBytes(inline.data), rate);
         return { audioBase64: bytesToBase64(wav), audioMimeType: 'audio/wav' };
-    },
-
-    async testConnection(apiKey: string): Promise<{ ok: boolean; message: string }> {
-        try {
-            const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
-                headers: { 'x-goog-api-key': apiKey },
-            });
-            if (res.status === 401 || res.status === 403) return { ok: false, message: 'Clé API invalide ou refusée.' };
-            if (!res.ok) return { ok: false, message: `Réponse inattendue (${res.status}).` };
-            return { ok: true, message: 'Connexion réussie.' };
-        } catch (err) {
-            return { ok: false, message: `Erreur réseau : ${(err as Error).message}` };
-        }
-    },
-};
+    }
+}
