@@ -86,28 +86,35 @@ const PROFIL_CONNU: any = {
     privacySettings: { architecte: { callName: 'Mamadou', scope: 'limite', autoPrepare: false, consentAt: '2026-08-30T00:00:00Z' } },
 };
 
+// DS-M2 (menu « Miroir d'eau ») — la barre n'a plus de pastille flottante
+// indépendante à cliquer/glisser (invariant Direction : l'Architecte vit
+// dans la navigation principale, pas un second bouton flottant). Elle
+// s'ouvre désormais quand `openSignal` augmente, exactement ce que fait
+// Layout.tsx depuis le bouton central du dock et l'entrée de la sidebar —
+// les tests simulent cela avec `rerender`, pas un clic/glissement.
+let currentUtils: ReturnType<typeof render> | null = null;
+let currentProps: React.ComponentProps<typeof ArchitecteFloatingBar> | null = null;
+let currentSignal = 0;
+
 function monter(props: Partial<React.ComponentProps<typeof ArchitecteFloatingBar>> = {}) {
-    return render(
-        <ArchitecteFloatingBar
-            userProfile={PROFIL}
-            onNavigate={vi.fn()}
-            onUpdateProfile={vi.fn(async () => true)}
-            {...props}
-        />
-    );
+    currentSignal = 0;
+    currentProps = {
+        userProfile: PROFIL,
+        onNavigate: vi.fn(),
+        onUpdateProfile: vi.fn(async () => true),
+        openSignal: currentSignal,
+        ...props,
+    };
+    currentUtils = render(<ArchitecteFloatingBar {...currentProps} />);
+    return currentUtils;
 }
 
-const FAB = "Ouvrir L'Architecte et démarrer l'écoute vocale";
-
-/**
- * La pastille s'ouvre sur `pointerup`, pas sur `click` : c'est ce qui permet
- * de la faire glisser sans déclencher l'Architecte. Un test qui utiliserait
- * `fireEvent.click` échouerait donc pour une mauvaise raison.
- */
-function ouvrirALaSouris() {
-    const fab = screen.getByLabelText(FAB);
-    fireEvent.pointerDown(fab, { clientX: 100, clientY: 100 });
-    fireEvent.pointerUp(fab, { clientX: 100, clientY: 100 });
+/** Simule un appui sur le bouton central du dock / l'entrée de la sidebar. */
+function ouvrir() {
+    if (!currentUtils || !currentProps) throw new Error('monter() doit être appelé avant ouvrir()');
+    currentSignal += 1;
+    currentProps = { ...currentProps, openSignal: currentSignal };
+    currentUtils.rerender(<ArchitecteFloatingBar {...currentProps} />);
 }
 
 beforeEach(() => {
@@ -119,9 +126,12 @@ beforeEach(() => {
 });
 
 describe('État fermé', () => {
-    it('affiche la pastille flottante', () => {
-        monter();
-        expect(screen.getByLabelText(FAB)).toBeInTheDocument();
+    it("ne rend RIEN au repos — invariant Direction « un seul élément flottant : la goutte messagerie »", () => {
+        const { container } = monter();
+        // Avant DS-M2, une pastille circulaire restait montée en permanence.
+        // Elle a disparu : le seul point d'entrée est désormais la navigation
+        // principale (Layout.tsx), qui pilote `openSignal`.
+        expect(container).toBeEmptyDOMElement();
     });
 
     it("n'affiche PAS la barre tant qu'on n'a pas ouvert", () => {
@@ -133,20 +143,29 @@ describe('État fermé', () => {
 });
 
 describe('Ouverture', () => {
-    it("ouvre réellement la barre au clic — assertion qui échoue si elle ne s'ouvre pas", async () => {
-        monter();
-        ouvrirALaSouris();
+    it("un nouvel openSignal ouvre réellement la barre — assertion qui échoue si elle ne s'ouvre pas", async () => {
+        const { container } = monter();
+        ouvrir();
 
         // `findBy*` attend le rendu asynchrone et LÈVE si l'élément n'apparaît
         // pas : contrairement au `toBeDefined()` du paquet, ce test devient
         // rouge si l'ouverture cesse de fonctionner.
         expect(await screen.findByText("L'Architecte")).toBeInTheDocument();
-        expect(screen.queryByLabelText(FAB)).toBeNull();
+        expect(container).not.toBeEmptyDOMElement();
+    });
+
+    it("un openSignal inchangé (même valeur au rendu suivant) n'ouvre rien — anti-réouverture parasite", () => {
+        const { rerender, container } = monter();
+        // Même props, même `openSignal` : un rendu React ordinaire (ex. le
+        // parent qui re-rend pour une tout autre raison) ne doit jamais
+        // rouvrir l'Architecte tout seul.
+        rerender(<ArchitecteFloatingBar {...currentProps!} />);
+        expect(container).toBeEmptyDOMElement();
     });
 
     it("démarre l'écoute à l'ouverture — comportement natif de l'original", async () => {
         monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         expect(setConversationalMode).toHaveBeenCalledWith(true);
@@ -155,7 +174,7 @@ describe('Ouverture', () => {
 
     it('présente les trois boutons d\'action alignés', async () => {
         monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         expect(screen.getByLabelText('Joindre un fichier')).toBeInTheDocument();
@@ -169,7 +188,7 @@ describe('Ouverture', () => {
         // la barre et ouvrait DialloOS. Désormais : un champ de saisie
         // apparaît dans la même session, la barre reste ouverte.
         monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
@@ -190,7 +209,7 @@ describe('Ouverture', () => {
         addSessionTurn({ role: 'architecte', kind: 'texte', text: 'Je vois votre photo.' });
 
         monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         expect(screen.getByText('Bonjour Architecte')).toBeInTheDocument();
@@ -199,13 +218,13 @@ describe('Ouverture', () => {
     });
 });
 
-describe('Accessibilité', () => {
-    it("s'ouvre aussi au CLAVIER — Entrée et Espace n'émettent pas d'événement pointeur", async () => {
-        monter();
-        fireEvent.keyDown(screen.getByLabelText(FAB), { key: 'Enter' });
-        expect(await screen.findByText("L'Architecte")).toBeInTheDocument();
-    });
-});
+// L'ancien test d'accessibilité couvrait un gestionnaire clavier bricolé sur
+// la pastille : elle s'ouvrait sur `pointerup` (pour permettre le
+// glissement), donc Entrée/Espace — qui émettent un `click`, pas un
+// événement pointeur — avaient besoin d'un `onKeyDown` dédié. DS-M2 retire
+// cette pastille ; le point d'entrée est maintenant un `<button>` ordinaire
+// dans Layout.tsx (dock/sidebar), nativement accessible au clavier sans
+// code particulier — rien à tester ici pour ce comportement précis.
 
 describe('Échec micro signalé par le moteur', () => {
     it("affiche l'échec micro quand le moteur a définitivement abandonné — au lieu de rester sur « Connexion... »", async () => {
@@ -218,7 +237,7 @@ describe('Échec micro signalé par le moteur', () => {
         voiceState.error = MIC_UNAVAILABLE_MESSAGE;
 
         monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         expect(
@@ -230,7 +249,7 @@ describe('Échec micro signalé par le moteur', () => {
 describe('Démontage', () => {
     it("relâche RÉELLEMENT le micro quand la barre est démontée alors qu'elle est ouverte", async () => {
         const { unmount } = monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         stopListening.mockClear();
@@ -282,7 +301,7 @@ async function ecrire(texte: string) {
 describe('Boucle 1 — accueil différencié (§1-2)', () => {
     it("première rencontre : l'Architecte se présente, souhaite la bienvenue et propose la fiche", async () => {
         monter(); // PROFIL sans fiche de consentement
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
@@ -291,7 +310,7 @@ describe('Boucle 1 — accueil différencié (§1-2)', () => {
 
     it('personne connue : accueil léger avec le nom choisi — jamais un onboarding rejoué', async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?");
@@ -300,20 +319,20 @@ describe('Boucle 1 — accueil différencié (§1-2)', () => {
 
     it("l'accueil se fait UNE fois par session de page — fermer puis rouvrir ne le rejoue pas", async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         const greetings = () => speak.mock.calls.filter(([m]) => String(m).startsWith('Bonjour Mamadou')).length;
         expect(greetings()).toBe(1);
 
         fireEvent.click(screen.getByLabelText('Fermer'));
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         expect(greetings()).toBe(1);
     });
 
     it("un « oui » court après l'accueil de première rencontre démarre la fiche de consentement", async () => {
         monter();
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         await ecrire('oui');
@@ -333,7 +352,7 @@ describe('Boucle 1 — fermé signifie RÉELLEMENT silencieux (§14)', () => {
         );
 
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         await ecrire('Emmène-moi au campus');
         await waitFor(() => expect(generateJSON).toHaveBeenCalled());
@@ -356,7 +375,7 @@ describe('Boucle 1 — voix par défaut, texte quand il apporte une valeur (§16
     it("une simple conversation vocale n'ouvre PAS le panneau de texte", async () => {
         addSessionTurn({ role: 'utilisateur', kind: 'texte', text: 'Bonjour Architecte' });
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         // Les tours existent en session mais ne s'affichent pas : la voix suffit.
@@ -365,7 +384,7 @@ describe('Boucle 1 — voix par défaut, texte quand il apporte une valeur (§16
 
     it('une vraie production écrite (lettre, texte long) fait apparaître le panneau', async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         // `.trim()` : Testing Library normalise les blancs du DOM — un espace
@@ -381,7 +400,7 @@ describe('Boucle 1 — voix par défaut, texte quand il apporte une valeur (§16
 describe('Boucle 1 — outils proposés et pilotés à la voix (§18-19)', () => {
     it('« Ouvre la caméra » est routé sans modèle — et son indisponibilité est dite honnêtement', async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         await ecrire('Ouvre la caméra');
@@ -394,7 +413,7 @@ describe('Boucle 1 — outils proposés et pilotés à la voix (§18-19)', () =>
 
     it("une demande de fichier explique le vrai geste requis — le navigateur exige un appui réel", async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
 
         await ecrire('joins un fichier à la conversation');
@@ -417,7 +436,7 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
 
     it('« Mets-moi une vidéo » ouvre le lecteur DANS la même surface — sans appel au modèle', async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         await ecrire('Mets-moi une vidéo sur la mécanique automobile');
 
@@ -441,7 +460,7 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
 
     it("« Montre-moi le document » sans document répond honnêtement — jamais un aperçu inventé", async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         await ecrire('Montre-moi le document');
 
@@ -458,7 +477,7 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
             docExcerpt: 'Article 1 — Le prix unitaire du ciment est de 85 000 GNF.',
         });
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         await ecrire('Montre-moi le document');
 
@@ -468,13 +487,13 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
 
     it('fermer l\'Architecte referme aussi la surface visuelle — rien ne survit derrière une barre fermée', async () => {
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         await ecrire('Mets-moi une vidéo de musique guinéenne');
         await screen.findByTitle(/Vidéos pour/);
 
         fireEvent.click(screen.getByLabelText('Fermer'));
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         expect(screen.queryByTitle(/Vidéos pour/)).toBeNull();
     });
@@ -487,7 +506,7 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
             'ainsi que les résultats détaillés publiés cette semaine par les agences partenaires de la région, ' +
             'avec les conditions, les salaires proposés et les contacts des recruteurs pour chaque poste ouvert.';
         monter({ userProfile: PROFIL_CONNU });
-        ouvrirALaSouris();
+        ouvrir();
         await screen.findByText("L'Architecte");
         addSessionTurn({ role: 'architecte', kind: 'texte', text: reponse });
 

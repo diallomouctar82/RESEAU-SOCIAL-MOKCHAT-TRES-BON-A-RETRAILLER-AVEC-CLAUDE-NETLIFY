@@ -40,6 +40,10 @@ import { collectMissingAuthorIds, buildAuthorProfileMap, mergePostsWithAuthorPro
 interface SocialFeedProps {
   onOpenLive: (liveId: string, customLive?: LiveStream) => void;
   onOpenDirectChat?: (conversationId?: string, member?: MemberProfile) => void;
+  // DS-M2 (menu « Miroir d'eau ») — remonté depuis App.tsx pour que la
+  // sous-barre « Équipe & Experts » puisse naviguer vers l'écran ExpertsHub
+  // (activeTab='experts'), qui n'était joignable depuis aucun endroit du fil.
+  onNavigate?: (tab: string) => void;
 }
 
 // Les posts de démonstration codés en dur (INITIAL_POSTS) restent mélangés au
@@ -50,7 +54,7 @@ interface SocialFeedProps {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isRealPostId = (id: string) => UUID_RE.test(id);
 
-export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat }) => {
+export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat, onNavigate }) => {
   const { userProfile: currentUser, isSupabaseConnected, updateUserProfile } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
   const [feedFilter, setFeedFilter] = useState<'for_you' | 'following' | 'community' | 'tech' | 'legal' | 'business'>('for_you');
@@ -1596,7 +1600,24 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
-      
+
+      {/* 0. ÉQUIPE & EXPERTS — DS-M2 (menu « Miroir d'eau ») : sous-barre au
+          premier niveau, visible sans défilement, avant la carte Réseau Mooc.
+          N'existait nulle part sur cet écran — « Équipe & Experts » n'était
+          qu'un onglet interne d'ExpertsHub, jamais atteignable depuis le fil. */}
+      {onNavigate && (
+        <button
+          onClick={() => onNavigate('experts')}
+          className="w-full flex items-center gap-2.5 px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-sm font-bold text-slate-800 hover:border-indigo-200 hover:shadow-md transition-all"
+        >
+          <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <Users size={16} />
+          </span>
+          <span>Équipe &amp; Experts</span>
+          <ChevronRight size={16} className="ml-auto text-slate-300" />
+        </button>
+      )}
+
       {/* 1. TOP HEADER & MAIN NAVIGATION */}
       <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         

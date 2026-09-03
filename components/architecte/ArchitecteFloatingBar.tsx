@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
+import { Camera, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
 import { AiGatewayNetworkError, analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
@@ -54,10 +54,7 @@ import type { UserProfile } from '../../types';
  * même présentation, même fonctionnement, plus les améliorations de la
  * feuille de route.
  *
- * Repris à l'identique :
- *   - état fermé : pastille circulaire flottante en bas à droite
- *     (`bottom-36 md:bottom-24 right-4 md:right-8`), cyan sur fond sombre,
- *     bordure `cyan-500/30`, halo `animate-ping`, icône de compas ;
+ * Repris à l'identique (état ouvert) :
  *   - état ouvert : barre-pilule centrée en bas
  *     (`bottom-8 left-1/2 -translate-x-1/2`, `w-[90%] max-w-md`), fond
  *     `#0f172a/90`, `backdrop-blur-xl`, `rounded-full`, anneau cyan ;
@@ -90,8 +87,13 @@ import type { UserProfile } from '../../types';
  *    passe par `useVoiceAssistant` → `ai-gateway`, clés côté serveur.
  * 4. Présent sur mobile ET desktop, alors que le seul point d'entrée
  *    permanent de MokNet était jusqu'ici réservé au desktop.
- * 5. Déplaçable : la pastille fermée se glisse au doigt/à la souris pour ne
- *    jamais masquer un contenu — sa position est mémorisée.
+ * 5. DS-M2 (menu « Miroir d'eau », invariant Direction « L'Architecte vit
+ *    dans la navigation principale, place centrale — pas un second bouton
+ *    flottant ») : l'ancienne pastille fermée déplaçable a été retirée.
+ *    L'état fermé ne rend plus rien ; l'ouverture est pilotée par la
+ *    navigation principale de Layout.tsx (bouton central du dock mobile,
+ *    entrée dédiée de la sidebar desktop) via la prop `openSignal`. L'état
+ *    ouvert (barre-pilule, décrit ci-dessus) reste identique à l'original.
  */
 
 interface ArchitecteFloatingBarProps {
@@ -99,9 +101,17 @@ interface ArchitecteFloatingBarProps {
     onNavigate: (tab: string, context?: any) => void;
     /** Persistance réelle d'un réglage — `false` = rien n'a été enregistré. */
     onUpdateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
+    /**
+     * DS-M2 (menu « Miroir d'eau ») — invariant Direction : « L'Architecte vit
+     * dans la navigation principale, place centrale — pas un second bouton
+     * flottant. » Layout.tsx incrémente ce compteur depuis le bouton central
+     * du dock (mobile) et l'entrée dédiée de la sidebar (desktop) ; toute
+     * nouvelle valeur > 0 ouvre l'Architecte exactement comme le faisait
+     * l'ancienne pastille fermée, qui a disparu (voir plus bas).
+     */
+    openSignal?: number;
 }
 
-const POSITION_STORAGE_KEY = 'lmav_architecte_bar_pos_v1';
 const MIC_TIMEOUT_MESSAGE = "Le micro n'a pas démarré — utilisez la saisie.";
 
 /**
@@ -172,6 +182,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     userProfile,
     onNavigate,
     onUpdateProfile,
+    openSignal,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
@@ -201,8 +212,6 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         const el = conversationRef.current;
         if (el) el.scrollTop = el.scrollHeight;
     }, [sessionTurns]);
-    const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-    const dragState = useRef<{ startX: number; startY: number; baseX: number; baseY: number; moved: boolean } | null>(null);
     const listenWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Lu depuis le watchdog, qui s'exécute hors du rendu et ne verrait sinon
     // que la valeur figée de `isListening` au moment de sa création.
@@ -229,16 +238,6 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // Les commandes vocales caméra sont routées via cette ref (les callbacks
     // caméra sont définis plus bas dans le fichier).
     const cameraControlRef = useRef<{ open: () => void; close: () => void }>({ open: () => {}, close: () => {} });
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(POSITION_STORAGE_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') setOffset(parsed);
-            }
-        } catch { /* position non mémorisée : la valeur par défaut suffit */ }
-    }, []);
 
     // Capacités portées par l'Architecte lui-même (aucun état d'écran requis) :
     // elles restent donc disponibles partout dans l'application.
@@ -1007,73 +1006,31 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         setConversationalMode(false);
     }, [stopListening, stopSpeaking, setConversationalMode]);
 
-    // ── Déplacement de la pastille fermée ───────────────────────────────────
-    const onPointerDown = (e: React.PointerEvent) => {
-        dragState.current = { startX: e.clientX, startY: e.clientY, baseX: offset.x, baseY: offset.y, moved: false };
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    };
-    const onPointerMove = (e: React.PointerEvent) => {
-        const d = dragState.current;
-        if (!d) return;
-        const dx = e.clientX - d.startX;
-        const dy = e.clientY - d.startY;
-        // Seuil : sous 4 px, c'est un clic, pas un glissement — sans quoi un
-        // appui un peu tremblant n'ouvrirait jamais l'Architecte.
-        if (!d.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
-        d.moved = true;
-        setOffset({ x: d.baseX + dx, y: d.baseY + dy });
-    };
-    const onPointerUp = () => {
-        const d = dragState.current;
-        dragState.current = null;
-        if (!d) return;
-        if (d.moved) {
-            try { localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(offset)); } catch { /* non bloquant */ }
-            return;
+    // DS-M2 (menu « Miroir d'eau ») — ouverture pilotée depuis la navigation
+    // principale (bouton central du dock mobile + entrée dédiée de la
+    // sidebar desktop, dans Layout.tsx), qui incrémentent `openSignal` au
+    // lieu d'ouvrir DialloOS. `handledOpenSignalRef` retient la dernière
+    // valeur traitée : sans lui, un changement de référence de `open` (ses
+    // dépendances internes évoluent, ex. `isSupported`) pendant que
+    // `openSignal` est resté au même nombre non nul rejouerait `open()` sans
+    // qu'aucun appui n'ait eu lieu. `!isOpenRef.current` : un second appui
+    // pendant que l'Architecte est déjà ouvert ne relance pas l'écoute.
+    const handledOpenSignalRef = useRef(0);
+    useEffect(() => {
+        if (openSignal && openSignal > handledOpenSignalRef.current) {
+            handledOpenSignalRef.current = openSignal;
+            if (!isOpenRef.current) void open();
         }
-        void open();
-    };
+    }, [openSignal, open]);
 
-    // ── État fermé : pastille flottante (fidèle à l'original) ───────────────
+    // ── État fermé : aucune présence flottante indépendante ─────────────────
+    // Invariant Direction (menu « Miroir d'eau ») : « un seul élément
+    // flottant à l'écran — la goutte messagerie. » L'ancienne pastille
+    // circulaire déplaçable (bottom-44/24, glissable au doigt) disparaît :
+    // le seul point d'entrée est désormais la navigation principale
+    // (dock/sidebar), qui pilote `openSignal` ci-dessus.
     if (!isOpen) {
-        return (
-            <button
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                // L'ouverture se fait sur `pointerup` pour qu'un glissement ne
-                // déclenche pas l'Architecte. Conséquence non voulue : Entrée
-                // et Espace émettent un `click`, pas d'événement pointeur — la
-                // pastille était donc inatteignable au clavier. Ce gestionnaire
-                // rétablit l'accès sans réintroduire de double ouverture : un
-                // clic souris ne passe jamais par ici.
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        dragState.current = null;
-                        void open();
-                    }
-                }}
-                style={{ transform: `translate(${offset.x}px, ${offset.y}px)`, touchAction: 'none' }}
-                // `bottom-44` sur mobile au lieu du `bottom-36` de l'original :
-                // MokNet possède un bouton de messagerie flottant que
-                // l'application d'origine n'avait pas, et à 36 la pastille
-                // arrivait au contact de sa pastille de compteur. Seul écart
-                // de position assumé — l'exigence « entièrement visible »
-                // prime sur une équivalence au pixel dans une mise en page
-                // différente. Desktop inchangé (`md:bottom-24`).
-                // Conforme à la référence de l'état FERMÉ/INACTIF fournie :
-                // disque navy profond et mat, anneau cyan discret, compas de
-                // dessinateur clair au centre. Volontairement calme — pas de
-                // halo pulsant : au repos, l'Architecte ne réclame pas
-                // l'attention, il se tient disponible.
-                className="fixed bottom-44 md:bottom-24 right-4 md:right-8 z-[60] flex items-center justify-center w-14 h-14 rounded-full bg-[#16222f] hover:bg-[#1c2c3d] text-white border border-cyan-300/30 ring-1 ring-inset ring-white/[0.06] shadow-[0_0_26px_rgba(34,211,238,0.30),0_8px_28px_rgba(0,0,0,0.55)] transition-colors backdrop-blur-md"
-                title="L'Architecte (Navigation Vocale)"
-                aria-label="Ouvrir L'Architecte et démarrer l'écoute vocale"
-            >
-                <DraftingCompass size={24} className="text-cyan-100/90" strokeWidth={1.75} />
-            </button>
-        );
+        return null;
     }
 
     // Sous-titre : dernier retour réel, sinon transcription en cours, sinon

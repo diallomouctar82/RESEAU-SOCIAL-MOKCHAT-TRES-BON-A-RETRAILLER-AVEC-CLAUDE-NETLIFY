@@ -46,7 +46,10 @@ const AppContent = () => {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   
-  const [activeTab, setActiveTab] = useState('home');
+  // DS-M2 (menu « Miroir d'eau ») — le réseau social est l'écran d'accueil
+  // par défaut, invariant fixé par la Direction. 'home' (Dashboard) reste
+  // atteignable comme n'importe quel autre onglet, simplement plus par défaut.
+  const [activeTab, setActiveTab] = useState('social');
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
   // Recherche universelle : remontée ici (au lieu d'un état local à Layout)
@@ -318,7 +321,7 @@ const AppContent = () => {
 
       {activeTab === 'google-meet' && <GoogleMeetCenter />}
 
-      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} onOpenDirectChat={(_, member) => member && setPendingDirectChatMember(member)} />}
+      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} onOpenDirectChat={(_, member) => member && setPendingDirectChatMember(member)} onNavigate={setActiveTab} />}
 
       {activeTab === 'world' && <WorldHub onNavigateToAgent={handleNavigateToAgent} onNavigate={setActiveTab} />}
 

@@ -32,6 +32,7 @@ import {
   Clock,
   Layers,
   Compass,
+  DraftingCompass,
   Lock,
   User,
   Shield,
@@ -190,6 +191,13 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isDialloOSOpen, setIsDialloOSOpen] = useState(false);
   const [dialloInitialPrompt, setDialloInitialPrompt] = useState<string | undefined>(undefined);
+  // DS-M2 (menu « Miroir d'eau ») — même patron que `chatOpenSignal` : le
+  // bouton central du dock (mobile) et l'entrée dédiée de la sidebar
+  // (desktop) incrémentent ce compteur au lieu d'ouvrir DialloOS, qui reste
+  // le lanceur de navigation accessible par ses propres entrées (header,
+  // commande rapide) — voir ArchitecteFloatingBar.tsx pour la lecture du
+  // signal.
+  const [architecteOpenSignal, setArchitecteOpenSignal] = useState(0);
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
@@ -707,7 +715,25 @@ export const Layout: React.FC<LayoutProps> = ({
 
           {/* Navigation Scrollable Body */}
           <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-4">
-            
+
+            {/* ✦ L'ARCHITECTE — DS-M2 (menu « Miroir d'eau ») : place
+                centrale de la navigation principale desktop, invariant
+                Direction. Toujours en tête, avant les favoris/récents/
+                catégories — identité visuelle cyan volontairement distincte
+                du reste de la sidebar (même identité que la barre ouverte
+                elle-même), pas la palette de marque figée du reste du menu. */}
+            <div>
+              <button
+                onClick={() => setArchitecteOpenSignal(s => s + 1)}
+                title={isSidebarCollapsed ? "L'Architecte" : ''}
+                aria-label="Ouvrir l'Architecte"
+                className={`w-full flex items-center gap-2.5 py-2 rounded-xl text-xs font-bold text-cyan-100 bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 hover:from-cyan-500/30 hover:to-indigo-500/30 transition-all duration-150 ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}`}
+              >
+                <DraftingCompass size={16} className="shrink-0 text-cyan-300" />
+                {!isSidebarCollapsed && <span className="truncate flex-1 text-left">L'Architecte</span>}
+              </button>
+            </div>
+
             {/* 🌟 1. MES FAVORIS ÉPINGLÉS (si existants) */}
             {favorites.length > 0 && (
               <div>
@@ -1147,12 +1173,18 @@ export const Layout: React.FC<LayoutProps> = ({
                 <FolderKanban size={22} className={activeTab === 'parcours' ? 'stroke-[2.5]' : ''} />
               </button>
 
-              {/* 3. Central Diallo OS Button */}
-              <button 
-                onClick={() => setIsDialloOSOpen(true)}
-                className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
+              {/* 3. L'Architecte — DS-M2 (menu « Miroir d'eau ») : bouton
+                  central du dock, place centrale de la navigation principale,
+                  invariant Direction. N'ouvre plus DialloOS (un lanceur de
+                  navigation distinct, gardé pour ses propres entrées) mais
+                  le vrai Architecte (voix, bus de capacités, session) via
+                  `architecteOpenSignal` — voir ArchitecteFloatingBar.tsx. */}
+              <button
+                onClick={() => setArchitecteOpenSignal(s => s + 1)}
+                className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-cyan-500 via-sky-600 to-indigo-600 rounded-full shadow-lg shadow-cyan-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
+                aria-label="Ouvrir l'Architecte"
               >
-                <Sparkles size={22} className="animate-pulse" />
+                <DraftingCompass size={22} />
               </button>
 
               {/* 4. Réseau MOC */}
@@ -1199,6 +1231,7 @@ export const Layout: React.FC<LayoutProps> = ({
           userProfile={userProfile}
           onNavigate={onTabChange}
           onUpdateProfile={onUpdateProfile ?? (async () => false)}
+          openSignal={architecteOpenSignal}
         />
 
         {/* ─── MODALS & ORCHESTRATION OVERLAYS ─── */}
