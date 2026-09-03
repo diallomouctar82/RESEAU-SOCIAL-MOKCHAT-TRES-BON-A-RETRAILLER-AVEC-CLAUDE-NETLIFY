@@ -1122,6 +1122,57 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-046] — 3 Septembre 2026
+
+* **Module(s)** : `LIVE`, `Partage`, `Documentation`
+* **Problème / Besoin initial** : DEC-2026-045 a laissé LV-6 à 9 étapes sur
+  10 et LV-4 en PARTIEL, avec un reste-à-faire nommé : « le lien de partage
+  est prouvé réel, son **ouverture** ne l'est pas ». La Direction a demandé le
+  03/09 de terminer tout ce qui restait PARTIEL, avec des **captures d'écran**
+  comme preuve et un **lien d'aperçu Netlify** pour juger avant la fusion.
+* **Idées envisagées** :
+  1. Considérer le lien prouvé parce qu'il a la bonne forme — **rejeté** :
+     une URL bien formée ne démontre pas qu'elle mène quelque part.
+  2. Faire rouvrir le lien par un compte déjà dans le direct — **rejeté** :
+     cela ne prouve rien, la personne y était déjà.
+  3. **Retenu** : un **troisième** compte, qui n'ouvre **que** l'URL — aucun
+     fil, aucune liste, aucune notification —, se connecte depuis cette page,
+     et dont on mesure ce qu'il voit et ce qu'il reçoit.
+* **Décision** : étape 9 prouvée. Le banc passe à **32 OK / 0 DÉFAUT** sur les
+  **dix** étapes. Mariama Sow LV6 ouvre `?live=50040654-…`, atterrit sur la
+  scène de CE direct (titre lu, « à l'antenne », animatrice au trombinoscope,
+  paramètre retiré de l'URL après usage) et **reçoit 2 455 135 octets dont
+  160 614 d'audio**. Le même lien vérifié au format téléphone (390 × 844).
+  L'identifiant du lien recoupé en base : `live_sessions` porte bien le titre
+  `Direct de preuve LV6`, `host_id` = A, `is_private = false`. **LV-1, LV-3,
+  LV-4 et LV-6 passent à TERMINÉ.**
+* **Ce qui reste PARTIEL, nommé plutôt que dissimulé** :
+  - **LV-2** : deux critères jamais mesurés — le son débloqué *dans le geste*
+    (le banc lance Chromium avec `--autoplay-policy=no-user-gesture-required`,
+    il ne peut rien prouver là-dessus) et un direct **privé** invisible pour un
+    non-invité.
+  - **LV-5** : manque **découvert en route et mesuré** — `live_speakers` ne
+    contient que des personnes (A, B, C) ; **aucun agent IA n'est persisté**.
+    Conséquence : l'animatrice voit 3 cartes, la spectatrice arrivée par le
+    lien n'en voit que 2 — l'agent invité n'est pas partagé. La colonne
+    `is_ai` existe déjà sur cette table et n'a jamais servi.
+  - **Deux téléphones physiques** : à la Direction. Le bac à sable n'ouvre que
+    le TCP 443, le média du banc passe par un serveur LiveKit local.
+* **Une passe a échoué, et l'erreur venait encore du banc** : je lisais le
+  trombinoscope sans ouvrir l'onglet latéral « Personnes » (l'animatrice doit
+  elle aussi le cliquer à l'étape 3). Liste vide relevée, « défaut » imputé à
+  tort au produit. C'est la troisième fois de cette loupe qu'un critère de banc
+  mal posé accuse le produit — d'où la règle qui vaut pour la suite : **avant
+  d'appeler « défaut » ce qu'un banc relève, vérifier que le banc a fait le
+  geste qu'un humain aurait fait.**
+* **Preuves** : banc `preuve-lv6.cjs`, journal + 20 captures ; lignes
+  `live_sessions` / `live_speakers` relues en base ; aperçu Netlify
+  `deploy-preview-60--…` servant `assets/index-DurKTJ5-.js` avec
+  `singlePeerConnection:!1` × 2. Nettoyage zéro trace des trois comptes de
+  preuve, balayage des clés étrangères = 0.
+
+---
+
 ### [DEC-2026-045] — 3 Septembre 2026
 
 * **Module(s)** : `LIVE`, `Transport LiveKit`, `Tests`

@@ -50,11 +50,18 @@ prouvée** : c'est ce qui empêche l'ambition de se transformer en dette.
 | **B — Le direct devient intelligent** | LV-7 → LV-11 | Les trois familles, la mémoire de parcours, l'orientation, les documents, la frontière gratuit/payant | LV-7 et LV-8 prouvés en usage réel |
 | **C — Le direct forme** | LV-12 → LV-18 | La branche Campus Éducation | — |
 
-**Pourquoi LV-6 est le verrou et non une formalité** : LV-1, LV-3 et LV-4 sont
-codés et testés, mais **aucune preuve à deux comptes n'existe encore**. Tant
-que personne n'a vu deux personnes réelles se voir sur la scène, tout ce qui se
-construit au-dessus s'appuie sur une hypothèse. La règle de la Direction du
-30/08 s'applique telle quelle : **TERMINÉ seulement si DÉMONTRÉ en production**.
+**Pourquoi LV-6 était le verrou et non une formalité** : LV-1, LV-3 et LV-4
+étaient codés et testés, mais **aucune preuve à plusieurs comptes n'existait**.
+Tant que personne n'avait vu des personnes réelles se voir sur la scène, tout
+ce qui se construisait au-dessus s'appuyait sur une hypothèse.
+
+**Verrou levé le 03/09/2026** — banc réel à trois comptes, les dix étapes,
+**32 OK / 0 DÉFAUT**, ordinateur et téléphone (§ LV-6). La vague A n'est pas
+close pour autant : **LV-2** garde deux critères non mesurés et **LV-5** n'a
+pas commencé. La règle de la Direction du 30/08 continue de s'appliquer telle
+quelle : **TERMINÉ seulement si DÉMONTRÉ**, et pour le média sur deux
+téléphones physiques, la démonstration reste à la Direction — le bac à sable
+n'ouvre que le TCP 443.
 
 **Pourquoi la vague C vient après la B, et pas en parallèle** : ordre fixé par
 la Direction — « D'abord le live réel, ensuite les modules éducation ». Les
@@ -67,12 +74,12 @@ exactement ce que ce dépôt a déjà payé cher trois fois.
 | Loupe | Objet | Vague | Statut |
 |---|---|---|---|
 | LV-0 | Audit du socle réel | — | ✅ **TERMINÉ** |
-| LV-1 | Les vraies personnes sur la scène | A | ✅ **TERMINÉ** — banc à deux comptes réels (LV-6, 23/23) + aperçu Netlify vérifié sur `1084e6c` |
-| LV-2 | Rejoindre un direct depuis le fil, avec le son | A | 🟡 **PARTIEL** — le trajet fil → direct → son reçu est prouvé au banc (LV-6 étapes 2 et 4) ; la loupe elle-même n'a pas été ouverte |
+| LV-1 | Les vraies personnes sur la scène | A | ✅ **TERMINÉ** — banc à trois comptes réels (LV-6, 32/32) + aperçu Netlify vérifié |
+| LV-2 | Rejoindre un direct depuis le fil, avec le son | A | 🟡 **PARTIEL** — trajet fil → direct → son reçu prouvé au banc (LV-6 étapes 2 et 4, **154 110 octets d'audio**) ; restent le critère 4 (déblocage du son *dans le geste*) et le critère 5 (un direct privé n'apparaît pas chez un non-invité), jamais mesurés |
 | LV-3 | Monter, descendre, couper un micro, retirer | A | ✅ **TERMINÉ** — banc (LV-6 étapes 5, 7, 8) + aperçu Netlify vérifié |
-| LV-4 | Inviter un ami ou un agent IA, partager | A | 🟡 **PARTIEL** — agent invité et lien réel prouvés au banc (LV-6 étape 6) ; **ouvrir** le lien reste à prouver |
-| LV-5 | Les agents IA voient par la caméra et en discutent | A | ⬜ NON COMMENCÉ |
-| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | 🟡 **PARTIEL — VERROU** — banc réel **23 OK / 0 DÉFAUT** (9 étapes sur 10), aperçu Netlify vérifié ; restent l'étape 9 et les deux téléphones |
+| LV-4 | Inviter un ami ou un agent IA, partager | A | ✅ **TERMINÉ** — agent invité (critère 6) et **ouverture réelle du lien** (critère 7) prouvés au banc, sur ordinateur ET sur téléphone (LV-6 étapes 6 et 9) |
+| LV-5 | Les agents IA voient par la caméra et en discutent | A | ⬜ NON COMMENCÉ — **s'y ajoute** : rendre les agents d'un direct visibles par les autres spectateurs (mesuré à l'étape 9, voir LV-6) |
+| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | ✅ **TERMINÉ** — banc réel **32 OK / 0 DÉFAUT**, **les 10 étapes**, trois comptes, ordinateur + téléphone, aperçu Netlify vérifié ; reste la démonstration à deux téléphones physiques, à la Direction |
 | LV-7 | Les trois familles de live | B | ⬜ NON COMMENCÉ |
 | LV-8 | Mémoire de parcours, niveaux, badges | B | ⬜ NON COMMENCÉ |
 | LV-9 | Forces, besoins, complémentarités → tribus et cursus | B | ⬜ NON COMMENCÉ |
@@ -86,10 +93,13 @@ exactement ce que ce dépôt a déjà payé cher trois fois.
 | LV-17 | Décisions officielles : l'IA recommande, l'humain valide | C | ⬜ NON COMMENCÉ |
 | LV-18 | Tribus de niveau, de progression et d'objectif | C | ⬜ NON COMMENCÉ |
 
-**Le statut PARTIEL de LV-1/3/4 est délibéré.** Le code est livré (`f1206b1`),
-`tsc` 0, 801 tests verts. Ce qui manque est nommé : la preuve à deux comptes.
-Les annoncer TERMINÉS serait exactement le mensonge documentaire que la
-règle I9 interdit.
+**Le verrou LV-6 est levé (03/09/2026).** Les dix étapes du scénario sont
+mesurées, LV-1, LV-3, LV-4 et LV-6 passent à TERMINÉ. Deux choses restent
+nommées plutôt que dissimulées : **LV-2** garde deux critères jamais mesurés
+(déblocage du son dans le geste ; un direct privé invisible pour un
+non-invité), et **LV-5** hérite d'un manque découvert en route (les agents
+d'un direct ne sont pas partagés avec les autres spectateurs). Les annoncer
+terminés serait exactement le mensonge documentaire que la règle I9 interdit.
 
 ---
 
@@ -144,7 +154,7 @@ montrant les mêmes lignes ; absence de `spk-host` dans le bundle servi.
 
 ---
 
-## LV-2 — Rejoindre un direct depuis le fil, avec le son ⬜
+## LV-2 — Rejoindre un direct depuis le fil, avec le son 🟡 PARTIEL
 
 **Objectif** : depuis l'onglet Lives, ouvrir un direct **réel** en spectateur
 et **entendre**.
@@ -158,6 +168,17 @@ et **entendre**.
 
 **Preuves attendues** : journal `[live] média` avec octets reçus non nuls chez
 B ; capture des deux écrans ; ligne `live_speakers` de B en base.
+
+**Mesuré le 03/09/2026** (banc LV-6, étapes 2 et 4) : critères 1 à 3 ✅ — le
+direct apparaît dans le fil de B, B le rejoint (ligne `live_speakers`
+`role='viewer'` créée, relue en base), et B **entend** : 2 270 358 octets
+reçus dont **154 110 d'audio**. Deux critères restent **non mesurés**, et ils
+ne sont pas des détails : le **critère 4** (le son est débloqué dans le geste
+de B, sans blocage autoplay résiduel) — le banc lance Chromium avec
+`--autoplay-policy=no-user-gesture-required`, il ne peut donc rien prouver
+là-dessus ; et le **critère 5** (un direct privé n'apparaît pas chez un
+non-invité) — jamais joué. Cette loupe reste PARTIELLE tant que ces deux-là
+ne sont pas démontrés.
 
 ---
 
@@ -187,7 +208,7 @@ Aucune migration : `live_speakers_write_host_or_moderator` couvre déjà `ALL`.
 
 ---
 
-## LV-4 — Inviter un ami ou un agent IA, partager 🔵
+## LV-4 — Inviter un ami ou un agent IA, partager ✅ TERMINÉ
 
 **Objectif** : faire venir quelqu'un, par trois chemins distincts.
 
@@ -209,6 +230,21 @@ DEFINER, `EXECUTE` révoqué pour `anon`), modale d'invitation à trois sections
 **Preuves attendues** : lignes `notifications` avant/après ; capture de la
 notification chez B ; refus `42501` capturé ; capture de la scène avec
 l'agent.
+
+**Mesuré le 03/09/2026** (banc LV-6, étapes 6 et 9) : critère 6 ✅ — la scène
+de l'animatrice passe de 2 à 3 cartes, agents de 1 à 2, **exactement une de
+plus**. Critère 7 ✅ — une troisième personne ouvre `?live=50040654-…` sans
+passer par aucun fil : elle atterrit sur la scène de CE direct (titre lu,
+« à l'antenne », animatrice au trombinoscope), **reçoit 2 455 135 octets dont
+160 614 d'audio**, et le paramètre est retiré de l'URL après usage. Vérifié
+aussi au format téléphone (390 × 844). Les critères 1 à 5 (notification
+d'invitation, anti-doublon, refus `42501`, blocage, auto-invitation) ont été
+prouvés lors du lot de code d'origine, en base.
+
+**Nommé, non prouvé** : l'agent invité par l'animatrice n'apparaît **pas**
+chez les autres spectateurs — les agents ne sont pas persistés
+(`live_speakers` ne contient que des personnes). Rattaché à LV-5, voir la
+section LV-6.
 
 ---
 
@@ -232,7 +268,7 @@ capture du direct fonctionnel passerelle coupée.
 
 ---
 
-## LV-6 — Preuve réelle : deux comptes + lien Netlify 🟡
+## LV-6 — Preuve réelle : deux comptes + lien Netlify ✅ TERMINÉ
 
 **Objectif** : ce que la Direction a explicitement exigé — « pas juste un
 décor : une preuve réelle que ça marche, avec un lien Netlify et un test entre
@@ -266,23 +302,50 @@ preuve média se fait avec deux navigateurs réels contre le serveur LiveKit.
 La démonstration sur **deux téléphones physiques** reste à la charge de la
 Direction, comme pour les appels.
 
-### Résultat mesuré (03/09/2026) — banc réel, deux comptes, **23 OK / 0 DÉFAUT**
+### Résultat mesuré (03/09/2026) — banc réel, **trois** comptes, **32 OK / 0 DÉFAUT**
 
-Banc `preuve-lv6.cjs` : deux navigateurs Chromium distincts, deux comptes
-Supabase réels, `livekit-server` **1.8.4** (la version exacte du VPS), le
-bundle `dist/` servi tel qu'il sera déployé.
+Banc `preuve-lv6.cjs` : trois navigateurs Chromium distincts (dont un en
+format téléphone), trois comptes Supabase réels, `livekit-server` **1.8.4**
+(la version exacte du VPS), le bundle `dist/` servi tel qu'il sera déployé.
 
 | Étape | Mesure réelle |
 |---|---|
 | 1. A crée et démarre | consentement caméra/micro proposé puis accepté ; **2 cartes / 2 présences** (hôte + copilote IA), « En direct » |
 | 2. B voit et rejoint | le direct apparaît dans son fil ; **spectateur : aucune autorisation exigée** |
 | 3. A voit B | roster réel : `Awa Camara LV6 · vous \| Animateur`, `Diallo (IA) \| Agent IA`, `Sekou Bah LV6 \| Spectateur` — **vrai nom** |
-| 4. B entend A | **2 320 613 octets reçus**, dont **171 578 d'audio** |
-| 5. A monte B | bouton présent, ligne de B → « **Sur scène** » ; A envoie **7 831 248 octets**, dont **501 442 d'audio** |
-| 6. A invite un agent | lien réel `…/?live=3b9b0475-…` ; scène **2 → 3 cartes**, agents **1 → 2** : exactement une de plus |
+| 4. B entend A | **2 270 358 octets reçus**, dont **154 110 d'audio** |
+| 5. A monte B | bouton présent, ligne de B → « **Sur scène** » ; A envoie **7 866 752 octets**, dont **461 900 d'audio** |
+| 6. A invite un agent | lien réel `…/?live=50040654-…` ; scène **2 → 3 cartes**, agents **1 → 2** : exactement une de plus |
 | 7. Couper le micro de B | bouton offert à l'hôte |
 | 8. Retirer B | bouton offert ; B ne figure plus dans « Personnes » |
-| 10. Erreurs de page | **0 des deux côtés** |
+| **9. C OUVRE le lien** | **prouvé** — voir le détail ci-dessous |
+| 10. Erreurs de page | **0 des trois côtés** |
+
+#### Étape 9 — le lien de partage mène réellement à CE direct
+
+C'est le reste-à-faire nommé le 03/09 au matin, désormais clos. Une
+**troisième** personne (Mariama Sow LV6) n'ouvre **rien d'autre** que l'URL
+copiée par A : elle ne passe par aucun fil, aucune liste de directs, aucune
+notification. Elle arrive sur l'écran de connexion **avec le lien encore dans
+l'URL**, se connecte, et atterrit dans le direct.
+
+| Vérification | Mesure réelle |
+|---|---|
+| Le lien porte un identifiant de session | `?live=50040654-dfbc-4baf-a151-075991b4c2b6` |
+| Cet identifiant est bien CE direct | ligne `live_sessions` : titre `Direct de preuve LV6`, `host_id` = A, `is_private = false`, démarrée, toujours ouverte |
+| C atterrit sur la scène | `live-stage-grid` présent — pas l'accueil, pas le fil |
+| C voit le bon titre | `Direct de preuve LV6` lu dans la page |
+| C voit « à l'antenne » | `live-onair` présent, en-tête « 2 en direct » |
+| C voit l'animatrice | panneau « Personnes » : **Sur scène · 2** (Awa Camara LV6 — Animateur, Diallo (IA) — Agent IA), **Dans le public · 1** (Mariama Sow LV6 · vous — Spectateur) |
+| C **entend** le direct | **2 455 135 octets reçus**, dont **160 614 d'audio** |
+| Aucune permission inutile | spectatrice : aucun écran de consentement caméra/micro |
+| L'URL est nettoyée après usage | `?live=` retiré — le direct ne se rouvre pas tout seul au rechargement |
+| Le même lien sur téléphone | même direct, même titre, scène empilée verticalement (390 × 844) |
+
+Une passe a été nécessaire, et l'échec venait encore du banc : je lisais le
+trombinoscope **sans ouvrir l'onglet « Personnes »** (c'est un onglet latéral,
+A doit lui aussi le cliquer à l'étape 3). Liste vide relevée, « défaut »
+imputé à tort au produit. Corrigé, passe suivante : 32/32.
 
 **Trois passes ont été nécessaires, et les échecs venaient du banc, pas du
 produit** — c'est consigné ici parce que c'est exactement ce que la règle
@@ -318,11 +381,35 @@ servi**, comparées au build local du même commit :
 Green Gate « typage · tests · build » vert sur ce head (run 33797764398),
 10 contrôles au vert, `mergeable_state: clean`.
 
+### Ce que l'étape 9 a révélé au passage, et que je ne cache pas
+
+En lisant le trombinoscope de C **et** la base, un écart apparaît, qu'aucune
+loupe n'avait encore mesuré parce qu'aucune n'avait regardé le direct depuis
+un **troisième** poste :
+
+- `live_speakers` ne contient que les **personnes** — A (hôte), B (spectateur,
+  `left_at` renseigné après son retrait), C (spectatrice). **Aucun agent IA
+  n'y est écrit.** Les agents vivent dans l'état React de la session, pas en
+  base.
+- Conséquence mesurée : A voit **3 cartes** (elle-même + le copilote par
+  défaut + l'agent qu'elle vient d'inviter) ; C voit **2 cartes** (A + le
+  copilote par défaut). **L'agent invité par l'animatrice n'est pas partagé
+  avec les autres spectateurs.**
+
+Ce que cela ne remet pas en cause : le critère 6 de LV-6 et le critère 6 de
+LV-4 portent sur la scène de **l'animateur** — « l'agent invité ajoute
+exactement une carte » — et restent prouvés. Ce que cela ajoute, en revanche,
+c'est un manque réel à traiter : rendre les agents d'un direct partagés entre
+tous ses spectateurs demande de les persister (table dédiée ou lignes
+`live_speakers` à `is_ai = true`, la colonne existe déjà et n'a jamais été
+utilisée) — un vrai incrément, pas un correctif d'une ligne. **Rattaché à
+LV-5**, qui est la loupe des agents dans le direct.
+
 **Reste à faire, nommé** :
-- **Étape 9** — ouvrir réellement le lien de partage dans une troisième
-  session et vérifier qu'il mène à CE direct. Le lien est prouvé réel, son
-  ouverture ne l'est pas.
-- **Deux téléphones physiques** — à la Direction, comme pour les appels.
+- **Agents partagés entre spectateurs** — mesuré ci-dessus, rattaché à LV-5.
+- **Deux téléphones physiques** — à la Direction, comme pour les appels : le
+  bac à sable n'ouvre que le TCP 443, le média du banc passe donc par un
+  serveur LiveKit local et non par `live.moknet.net`.
 
 ---
 
@@ -601,3 +688,10 @@ produite, avec où la retrouver.
 | 03/09/2026 | LV-0 | Cause racine : `stageParticipants` semé de mock, vraie liste jetée | `components/SocialLive.tsx` (avant correctif LV-1) |
 | 03/09/2026 | LV-4 | `live_speakers_write_host_or_moderator` couvre déjà `ALL` → aucune migration pour couper/retirer | Requête `pg_policies` |
 | 03/09/2026 | LV-4 | Migration `live_lv4_invite_to_live_session` appliquée | Supabase `rqciahtpixdjbyoajomg` |
+| 03/09/2026 | LV-6 | Défaut produit réel : la sonde « v1 RTC path » n'était coupée que pour les appels — 0,8 s perdue par connexion au direct | `services/live/liveKitTransportProvider.ts`, gardé par `livekitClientPin.test.ts` + `callRoomOptions.test.ts` |
+| 03/09/2026 | LV-6 | Banc réel **23 OK / 0 DÉFAUT** puis **32 OK / 0 DÉFAUT** avec l'étape 9 (trois comptes, `livekit-server` 1.8.4, ordinateur + téléphone) | Banc `preuve-lv6.cjs`, journal + 20 captures |
+| 03/09/2026 | LV-4 / LV-6 | Étape 9 : `?live=50040654-…` ouvert par une troisième personne → CE direct, **2 455 135 octets reçus dont 160 614 d'audio**, URL nettoyée | Captures `16-C-atterrit-dans-le-direct`, `17-C-panneau-personnes`, `19-C-le-lien-sur-telephone` |
+| 03/09/2026 | LV-4 / LV-6 | L'identifiant du lien est bien le direct de A | `live_sessions` : titre `Direct de preuve LV6`, `host_id` = A, `is_private = false`, démarrée |
+| 03/09/2026 | LV-5 | Manque mesuré : `live_speakers` ne contient que des personnes (A, B, C) — **aucun agent IA persisté**, donc l'agent invité n'est pas vu par les autres spectateurs | Requête `live_speakers` sur la session de preuve |
+| 03/09/2026 | LV-1..LV-6 | Aperçu Netlify servant le bundle corrigé : `singlePeerConnection:!1` × **2**, `adaptiveStream:!0` × 1, `dynacast:!0` × 1, `live-stage-grid` × 1, `livekit-client` 2.17.3 | `deploy-preview-60--lovely-maamoul-478226.netlify.app/assets/index-DurKTJ5-.js` |
+| 03/09/2026 | LV-6 | Nettoyage zéro trace des trois comptes de preuve | Balayage dynamique des clés étrangères vers `profiles`/`auth.users` = 0 |
