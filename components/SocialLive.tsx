@@ -31,7 +31,7 @@ import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
 import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
-import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage } from '../hooks/useLiveTransport';
+import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage, orderStageAgents } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds, setFeaturedAgent, fetchFeaturedAgent, subscribeToFeaturedAgent } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges, postLiveAgentMessage } from '../services/live/liveChatService';
@@ -510,7 +510,100 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const humainsVisibles = new Set(
     stage.tiles.filter(t => t.kind === 'human').map(t => t.id.slice('human:'.length)),
   );
-  const agentsVisibles = stageAgents.filter(a => stage.tiles.some(t => t.id === `agent:${a.id}`));
+  // EX-6 : la scène est peinte DANS L'ORDRE décidé par `composeStage`, pas dans
+  // l'ordre où le JSX se trouve écrit — règle isolée et testée à part.
+  const { visibles: agentsVisibles, enTete: agentsEnTete } = orderStageAgents(stageAgents, stage.tiles);
+
+  /**
+   * La carte d'un expert sur la scène. Extraite du JSX pour pouvoir être
+   * placée DEVANT ou APRÈS les cartes humaines selon `agentsEnTete` — c'est
+   * ce qui donne son sens réel à « mettre à la une » (EX-5/EX-6) : la carte
+   * passe vraiment en tête, elle ne reçoit pas qu'un libellé.
+   */
+  const renduTuileExpert = (aiAgent: Agent) => (
+      <div key={aiAgent.id} data-testid={`stage-tile-agent-${aiAgent.id}`} className="live-pane live-pane--agent flex items-center justify-center">
+        <LiveBubbles count={4} />
+        <Avatar3D
+          avatarId={aiAgent.id}
+          state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
+          grammarState={avatarGrammarState}
+          className="w-full h-full"
+        />
+
+        {/* Une présence IA, pas une ligne d'annuaire : même pastille
+            et même onde de voix qu'un humain — c'est ce qui la met
+            sur un pied d'égalité sur la scène. */}
+        <div className="absolute top-3 left-3 flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10">
+          <Bot size={15} style={{ color: 'var(--live-accent)' }} />
+          <LiveVoiceWave muted={aiCopilotState !== 'speaking'} />
+        </div>
+
+        <div className="live-nameplate">
+          <span className="truncate">{aiAgent.name} — {aiAgent.specialty}</span>
+          {/* EX-5 : la mise en avant est lue depuis la session, donc
+              ce libellé apparaît chez TOUT LE MONDE, pas seulement
+              chez l'animateur qui a appuyé. */}
+          {expertEnAvant === aiAgent.id && (
+            <span className="shrink-0 tracking-[0.18em]" data-testid={`stage-featured-${aiAgent.id}`}>À LA UNE</span>
+          )}
+          <span className="shrink-0 opacity-70 tracking-[0.18em]">IA</span>
+        </div>
+
+        {/* EX-5 : mettre en avant / faire redescendre au rang des
+            autres. Écrit sur la session, donc appliqué chez tous. */}
+        {isHost && (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handleBasculerMiseEnAvant(aiAgent.id); }}
+            data-testid={`stage-feature-agent-${aiAgent.id}`}
+            title={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
+            aria-label={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
+            aria-pressed={expertEnAvant === aiAgent.id}
+            className={`live-orb w-9 h-9 absolute top-3 right-[6.25rem] z-10 ${expertEnAvant === aiAgent.id ? 'live-orb--active' : ''}`}
+          >
+            <Award size={15} />
+          </button>
+        )}
+
+        {/* EX-4 : faire RÉPONDRE l'expert à ce qui vient d'être
+            demandé dans le direct — hôte uniquement (la base
+            refuse de toute façon les autres, 42501). Le geste est
+            explicite : on ne déclenche jamais une réponse (ni la
+            dépense qui va avec) dans le dos de l'animateur. */}
+        {isHost && (
+          <button
+            onClick={(e) => { e.stopPropagation(); void faireRepondreExpertAuxQuestions(aiAgent); }}
+            disabled={aiCopilotState === 'thinking'}
+            data-testid={`stage-ask-agent-${aiAgent.id}`}
+            title={`Faire répondre ${aiAgent.name} aux questions du direct`}
+            aria-label={`Faire répondre ${aiAgent.name} aux questions du direct`}
+            className="live-orb w-9 h-9 absolute top-3 right-14 z-10 disabled:opacity-50"
+          >
+            <MessageSquare size={15} />
+          </button>
+        )}
+
+        {/* Retirer l'agent de la scène — hôte uniquement. */}
+        {isHost && (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handleRetirerAgentDeLaScene(aiAgent.id); }}
+            data-testid={`stage-remove-agent-${aiAgent.id}`}
+            title={`Retirer ${aiAgent.name} de la scène`}
+            aria-label={`Retirer ${aiAgent.name} de la scène`}
+            className="live-orb w-9 h-9 absolute top-3 right-3 z-10"
+          >
+            <X size={15} />
+          </button>
+        )}
+
+        {/* Thinking Glow Overlay */}
+        {aiCopilotState === 'thinking' && (
+          <div className="absolute top-14 left-3 z-10 px-3 py-1 rounded-full text-[10px] font-bold animate-pulse text-white flex items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 tracking-[0.16em]">
+            <Sparkles size={12} style={{ color: 'var(--live-accent)' }} /> DÉLIBÉRATION
+          </div>
+        )}
+      </div>
+  );
+
 
   // Équipe 10 (L4) : badge et compteur dérivés de l'état RÉEL (session +
   // transport) — jamais un « LIVE » pulsant codé en dur ni un 1420 fictif.
@@ -907,9 +1000,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   useEffect(() => {
     if (!realSessionId) { setExpertEnAvant(null); return; }
     let annule = false;
-    fetchFeaturedAgent(realSessionId).then((id) => { if (!annule) setExpertEnAvant(id); });
+    const relire = () => fetchFeaturedAgent(realSessionId).then((id) => { if (!annule) setExpertEnAvant(id); });
+    relire();
     const stop = subscribeToFeaturedAgent(realSessionId, (id) => { if (!annule) setExpertEnAvant(id); });
-    return () => { annule = true; stop(); };
+    // Même filet de sécurité que le roster juste au-dessus, et pour la même
+    // raison mesurée : les UPDATE de `live_sessions` ne sont pas toujours
+    // livrés par Realtime. Sans cette relecture, « À LA UNE » ne descendait
+    // que chez l'animateur — exactement le défaut que EX-5 corrige.
+    const sonde = setInterval(relire, 4000);
+    return () => { annule = true; stop(); clearInterval(sonde); };
   }, [realSessionId]);
 
   const copilotePersisteRef = useRef<string | null>(null);
@@ -1372,6 +1471,22 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         return false;
       }
       const messageId = await postLiveAgentMessage(realSessionId, agent.id, propos);
+      // EX-6 : la parole s'affiche AUSSI sur l'écran de qui l'a déclenchée,
+      // sans attendre l'écho temps réel — même convention que l'envoi d'un
+      // message ordinaire (dédoublonnage par identifiant). L'écriture est déjà
+      // confirmée par le serveur, qui vient de renvoyer cet identifiant : on
+      // n'affiche donc rien qui n'existe pas. Sans cela, l'animateur voyait un
+      // chat vide juste après avoir fait parler l'expert — et `faire répondre`
+      // se croyait sans matière.
+      const nomAffiche = agent.isHuman ? agent.name : `${agent.name} (IA)`;
+      setMessages((prev) => (prev.some((m) => m.id === messageId) ? prev : [...prev, {
+        id: messageId,
+        sessionId: realSessionId,
+        authorName: nomAffiche,
+        authorAvatar: agent.avatarUrl,
+        text: propos,
+        createdAt: new Date().toISOString(),
+      }]));
       // Prononcé ici pour l'animateur, et marqué comme déjà dit pour que l'écho
       // temps réel de ce même message ne le répète pas. Les autres personnes,
       // elles, l'entendent par ce même écho.
@@ -1425,9 +1540,22 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
    * ont réellement écrit. Sans message, il le dit au lieu de meubler.
    */
   const faireRepondreExpertAuxQuestions = async (agent: Agent) => {
+    // EX-6 : on relit le chat EN BASE avant de répondre, au lieu de se fier au
+    // seul miroir local. Ce miroir dépend de l'écho temps réel : s'il manque un
+    // message, l'expert répondrait à côté — ou se croirait sans matière alors
+    // que des gens ont écrit. La base est la seule source honnête ; le miroir
+    // local sert de repli si la relecture échoue (réseau).
+    const relus = realSessionId ? await fetchRecentLiveMessages(realSessionId).catch(() => null) : null;
+    if (relus && relus.length) {
+      setMessages((prev) => {
+        const connus = new Set(prev.map((m) => m.id));
+        const nouveaux = relus.filter((m) => !connus.has(m.id));
+        return nouveaux.length ? [...prev, ...nouveaux] : prev;
+      });
+    }
     // Les messages d'expert n'ont pas d'`authorId` : on ne lui redonne jamais
     // sa propre parole à commenter (pas de boucle sur lui-même).
-    const propos = messages.filter((m) => m.authorId).slice(-12);
+    const propos = (relus && relus.length ? relus : messages).filter((m) => m.authorId).slice(-12);
     if (propos.length === 0) {
       addNotification('Rien à répondre pour le moment', "Personne n'a encore écrit dans ce direct.", 'info');
       return;
@@ -1539,7 +1667,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         realSessionId,
         { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl },
         `⚡ J'invite ${agent.name} (${agent.specialty}) sur la scène.`,
-      ).catch(() => {});
+      )
+        // Même convention que l'envoi d'un message ordinaire : l'annonce
+        // apparaît aussi sur l'écran de qui l'a faite, sans dépendre de l'écho
+        // temps réel (dédoublonnage par identifiant).
+        .then((envoye) => setMessages(prev => (prev.some(m => m.id === envoye.id) ? prev : [...prev, envoye])))
+        .catch(() => {});
       // EX-3 : l'expert se présente RÉELLEMENT — propos produits par le
       // modèle avec sa persona, diffusés à tout le monde, prononcés à voix
       // haute. C'est la différence entre « il est apparu » et « il est là ».
@@ -2574,6 +2707,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                  présentateur seul sur une demi-scène. */
               <div data-testid="live-stage-grid" className={`w-full h-full p-4 sm:p-5 grid ${stageGridClass(cameraTileCount)} gap-4`}>
 
+                {/* EX-5/EX-6 — Un expert MIS À LA UNE occupe réellement la
+                    première carte : son bloc passe devant la caméra et les
+                    humains. Sans cela, « à la une » n'était qu'une étiquette
+                    posée sur une carte restée à sa place. */}
+                {agentsEnTete && agentsVisibles.map(renduTuileExpert)}
+
                 {/* Slot 1 : MA caméra — UNIQUEMENT quand je suis sur scène.
                     Équipe F3 : un SPECTATEUR voyait ici sa propre caméra
                     morte étiquetée « {hôte} (Hôte) » avec une barre de niveau
@@ -2653,89 +2792,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Slot 2: copilote IA en pleine cellule UNIQUEMENT quand
                     aucun humain distant ne PUBLIE de média — sinon il cède la
                     place aux vrais participants (vignette compacte plus bas). */}
-                {agentsVisibles.map(aiAgent => (
-                  <div key={aiAgent.id} data-testid={`stage-tile-agent-${aiAgent.id}`} className="live-pane live-pane--agent flex items-center justify-center">
-                    <LiveBubbles count={4} />
-                    <Avatar3D
-                      avatarId={aiAgent.id}
-                      state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
-                      grammarState={avatarGrammarState}
-                      className="w-full h-full"
-                    />
-
-                    {/* Une présence IA, pas une ligne d'annuaire : même pastille
-                        et même onde de voix qu'un humain — c'est ce qui la met
-                        sur un pied d'égalité sur la scène. */}
-                    <div className="absolute top-3 left-3 flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10">
-                      <Bot size={15} style={{ color: 'var(--live-accent)' }} />
-                      <LiveVoiceWave muted={aiCopilotState !== 'speaking'} />
-                    </div>
-
-                    <div className="live-nameplate">
-                      <span className="truncate">{aiAgent.name} — {aiAgent.specialty}</span>
-                      {/* EX-5 : la mise en avant est lue depuis la session, donc
-                          ce libellé apparaît chez TOUT LE MONDE, pas seulement
-                          chez l'animateur qui a appuyé. */}
-                      {expertEnAvant === aiAgent.id && (
-                        <span className="shrink-0 tracking-[0.18em]" data-testid={`stage-featured-${aiAgent.id}`}>À LA UNE</span>
-                      )}
-                      <span className="shrink-0 opacity-70 tracking-[0.18em]">IA</span>
-                    </div>
-
-                    {/* EX-5 : mettre en avant / faire redescendre au rang des
-                        autres. Écrit sur la session, donc appliqué chez tous. */}
-                    {isHost && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); void handleBasculerMiseEnAvant(aiAgent.id); }}
-                        data-testid={`stage-feature-agent-${aiAgent.id}`}
-                        title={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
-                        aria-label={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
-                        aria-pressed={expertEnAvant === aiAgent.id}
-                        className={`live-orb w-9 h-9 absolute top-3 right-[6.25rem] z-10 ${expertEnAvant === aiAgent.id ? 'live-orb--active' : ''}`}
-                      >
-                        <Award size={15} />
-                      </button>
-                    )}
-
-                    {/* EX-4 : faire RÉPONDRE l'expert à ce qui vient d'être
-                        demandé dans le direct — hôte uniquement (la base
-                        refuse de toute façon les autres, 42501). Le geste est
-                        explicite : on ne déclenche jamais une réponse (ni la
-                        dépense qui va avec) dans le dos de l'animateur. */}
-                    {isHost && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); void faireRepondreExpertAuxQuestions(aiAgent); }}
-                        disabled={aiCopilotState === 'thinking'}
-                        data-testid={`stage-ask-agent-${aiAgent.id}`}
-                        title={`Faire répondre ${aiAgent.name} aux questions du direct`}
-                        aria-label={`Faire répondre ${aiAgent.name} aux questions du direct`}
-                        className="live-orb w-9 h-9 absolute top-3 right-14 z-10 disabled:opacity-50"
-                      >
-                        <MessageSquare size={15} />
-                      </button>
-                    )}
-
-                    {/* Retirer l'agent de la scène — hôte uniquement. */}
-                    {isHost && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); void handleRetirerAgentDeLaScene(aiAgent.id); }}
-                        data-testid={`stage-remove-agent-${aiAgent.id}`}
-                        title={`Retirer ${aiAgent.name} de la scène`}
-                        aria-label={`Retirer ${aiAgent.name} de la scène`}
-                        className="live-orb w-9 h-9 absolute top-3 right-3 z-10"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
-
-                    {/* Thinking Glow Overlay */}
-                    {aiCopilotState === 'thinking' && (
-                      <div className="absolute top-14 left-3 z-10 px-3 py-1 rounded-full text-[10px] font-bold animate-pulse text-white flex items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 tracking-[0.16em]">
-                        <Sparkles size={12} style={{ color: 'var(--live-accent)' }} /> DÉLIBÉRATION
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {!agentsEnTete && agentsVisibles.map(renduTuileExpert)}
 
                 {/* Participants distants réels (LOOP 04/14) — publication/abonnement LiveKit, pas de simulation.
                     Équipe 10 (L3) : une tuile UNIQUEMENT pour qui publie un
@@ -3429,6 +3486,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   return (
                   <div
                     key={msg.id}
+                    // EX-6 : repère de lecture pour la preuve « l'expert parle
+                    // chez TOUT LE MONDE ». Un message d'expert n'a pas de
+                    // compte derrière (`author_id` nul) : c'est CE fait, et pas
+                    // une classe de style, qui distingue sa parole.
+                    data-testid="live-chat-message"
+                    data-ai={isAiMsg ? '1' : '0'}
+                    data-author={msg.authorName}
                     className={`flex items-start gap-2.5 p-2 rounded-2xl transition-all ${isAiMsg ? 'bg-indigo-950/40 border border-indigo-500/20' : 'hover:bg-white/5'}`}
                   >
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAiMsg ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>

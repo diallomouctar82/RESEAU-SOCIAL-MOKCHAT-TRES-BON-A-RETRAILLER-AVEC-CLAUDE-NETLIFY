@@ -3,7 +3,7 @@ import {
   splitRosterHumansAndAgents,
   deriveStageAgentIds,
 } from '../services/live/liveSessionService';
-import { composeStage } from '../hooks/useLiveTransport';
+import { composeStage, orderStageAgents } from '../hooks/useLiveTransport';
 import type { LiveStageParticipant } from '../types';
 
 /**
@@ -240,5 +240,63 @@ describe("EX-5 — mettre l'expert en avant, puis le faire redescendre", () => {
       isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: undefined,
     });
     expect(apres).toEqual(avant);
+  });
+});
+
+/**
+ * EX-6 — Ce que le banc réel a trouvé et que les tests précédents ne pouvaient
+ * pas voir : `composeStage` décidait bien la première place, mais le rendu
+ * peignait ses cartes d'agent dans un bloc fixe, toujours après la caméra et
+ * les humains. « À LA UNE » posait donc un libellé sans rien déplacer.
+ * `orderStageAgents` est la règle qui réconcilie les deux — testée ici pour
+ * qu'aucune réécriture du JSX ne puisse la reperdre en silence.
+ */
+describe("EX-6 — la scène est PEINTE dans l'ordre décidé, pas dans l'ordre du code", () => {
+  const humains = [{ id: 'u-1', name: 'Awa' }];
+  const experts = [{ id: '1', name: 'Diallo' }, { id: '2', name: 'Maître Diallo' }];
+
+  it("sans mise en avant, les experts restent APRÈS les présences humaines", () => {
+    const scene = composeStage({ isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts });
+    const { visibles, enTete } = orderStageAgents(experts, scene.tiles);
+    expect(enTete).toBe(false);
+    expect(visibles.map(a => a.id)).toEqual(['1', '2']);
+  });
+
+  it("l'expert mis en avant fait passer le bloc des experts EN TÊTE", () => {
+    const scene = composeStage({
+      isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: '2',
+    });
+    const { visibles, enTete } = orderStageAgents(experts, scene.tiles);
+    expect(enTete).toBe(true);
+    // …et il est le PREMIER de ce bloc : sa carte est donc bien la première de
+    // toute la scène, ce qui est le sens même de « mettre en avant ».
+    expect(visibles[0].id).toBe('2');
+  });
+
+  it('un expert resté dans le débordement n\'est pas peint du tout', () => {
+    const beaucoup = [{ id: '1', name: 'a' }, { id: '2', name: 'b' }, { id: '5', name: 'c' }, { id: 'h1', name: 'd' }];
+    const foule = [
+      { id: 'u-1', name: 'A' }, { id: 'u-2', name: 'B' }, { id: 'u-3', name: 'C' }, { id: 'u-4', name: 'D' },
+    ];
+    const scene = composeStage({ isUserOnStage: true, selfName: 'Moi', humans: foule, agents: beaucoup });
+    const { visibles } = orderStageAgents(beaucoup, scene.tiles);
+    expect(scene.overflow).toBeGreaterThan(0);
+    expect(visibles.map(a => a.id)).toEqual(['1']);
+  });
+
+  it("l'ordre suit la scène, jamais l'ordre d'arrivée dans le catalogue", () => {
+    const scene = composeStage({
+      isUserOnStage: false, humans: [], agents: experts, spotlightAgentId: '2',
+    });
+    // Le catalogue reste dans son ordre à lui : c'est bien la scène qui décide.
+    const { visibles } = orderStageAgents([...experts].reverse(), scene.tiles);
+    expect(visibles.map(a => a.id)).toEqual(['2', '1']);
+  });
+
+  it('aucun agent sur scène : rien à peindre, et surtout rien en tête', () => {
+    const scene = composeStage({ isUserOnStage: true, selfName: 'Moi', humans: humains, agents: [] });
+    const { visibles, enTete } = orderStageAgents(experts, scene.tiles);
+    expect(visibles).toEqual([]);
+    expect(enTete).toBe(false);
   });
 });

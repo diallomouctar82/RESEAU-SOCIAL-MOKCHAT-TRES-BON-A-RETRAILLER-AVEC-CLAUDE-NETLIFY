@@ -878,6 +878,29 @@ export function composeStage(input: {
     };
 }
 
+/**
+ * EX-6 — De l'ordre DÉCIDÉ par `composeStage` à l'ordre réellement PEINT.
+ *
+ * `composeStage` place l'expert mis en avant en première carte, mais le rendu
+ * écrivait ses cartes d'agent dans un bloc fixe, toujours après la caméra et
+ * les humains : la mise en avant ne déplaçait rien à l'écran (mesuré au banc,
+ * position 2 sur 3 pour l'expert « à la une »). Cette règle rend les deux
+ * cohérents — et elle est testable, contrairement au JSX.
+ *
+ * `enTete` dit si le bloc des experts doit passer DEVANT le reste : c'est le
+ * cas exactement quand la toute première carte revient à un agent.
+ */
+export function orderStageAgents<T extends { id: string }>(
+    agents: ReadonlyArray<T>,
+    tiles: ReadonlyArray<StageTile>,
+): { visibles: T[]; enTete: boolean } {
+    const rang = new Map(tiles.map((t, i) => [t.id, i] as const));
+    const visibles = agents
+        .filter((a) => rang.has(`agent:${a.id}`))
+        .sort((x, y) => (rang.get(`agent:${x.id}`) as number) - (rang.get(`agent:${y.id}`) as number));
+    return { visibles, enTete: tiles[0]?.kind === 'agent' };
+}
+
 export interface LiveBadgeState {
     label: string;
     className: string;
