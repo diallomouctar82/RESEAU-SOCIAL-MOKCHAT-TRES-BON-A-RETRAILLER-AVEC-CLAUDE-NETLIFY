@@ -33,7 +33,7 @@ import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession } from '../services/live/liveSessionService';
+import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
@@ -467,21 +467,22 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // ET tous les experts convoqués (santé, enseignement, partenariats,
   // commercial, architecte…). `stageParticipants` les accumulait déjà
   // correctement ; c'est la SCÈNE qui ne leur donnait pas de carte.
+  // DS-L1 : « inviter, retirer, gérer humain ET agent ».
+  // EX-2 : la règle « qui est en scène » vit désormais dans une fonction pure
+  // et testée (`deriveStageAgentIds`) — dès qu'un direct RÉEL existe, c'est
+  // `live_speakers` qui fait autorité, y compris pour le copilote. Sans cela
+  // la scène n'était identique chez tous que par coïncidence, et un retrait
+  // décidé par l'animateur ne descendait que chez lui.
   const stageAgents = useMemo(() => {
-    const parIdentifiant = new Map<string, Agent>();
-    if (aiAgent) parIdentifiant.set(aiAgent.id, aiAgent);
-    for (const p of stageParticipants) {
-      if (!p.isAi || !p.agentId) continue;
-      const trouve = AGENTS.find(a => a.id === p.agentId);
-      if (trouve) parIdentifiant.set(trouve.id, trouve);
-    }
-    // DS-L1 : « inviter, retirer, gérer humain ET agent ». RETIRER un agent
-    // était impossible : le copilote par défaut (AGENTS[0]) était réinjecté à
-    // chaque rendu, quoi qu'il arrive. L'hôte peut désormais libérer la place
-    // sur la scène ; l'inviter à nouveau le fait revenir (voir handleSummonExpert).
-    for (const id of agentsRetires) parIdentifiant.delete(id);
-    return [...parIdentifiant.values()];
-  }, [aiAgent, stageParticipants, agentsRetires]);
+    const ids = deriveStageAgentIds({
+      hasRealSession: !!realSessionId,
+      copilotId: aiAgent?.id,
+      rosterAgentIds: stageParticipants.filter(p => p.isAi && p.agentId).map(p => p.agentId as string),
+      retiredAgentIds: agentsRetires,
+      knownAgentIds: AGENTS.map(a => a.id),
+    });
+    return ids.map(id => AGENTS.find(a => a.id === id)).filter((a): a is Agent => !!a);
+  }, [aiAgent, realSessionId, stageParticipants, agentsRetires]);
 
   // Règle centrale (Direction, 03/09/2026) : six cartes au minimum, humains et
   // agents confondus. Une seule source de vérité — `composeStage`, testée à
@@ -799,8 +800,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         if (cancelled) return;
         // LV-1 : LA correction de la cause racine — la vraie liste alimente
         // enfin la scène. Elle était lue ici depuis toujours, puis jetée.
-        setRealParticipants(participants);
-        const me = participants.find((p) => p.id === userProfile.id);
+        //
+        // EX-2 : cette MÊME lecture alimente désormais aussi les experts
+        // convoqués, qui ont enfin une ligne `live_speakers` (user_id NULL,
+        // agent_id renseigné). Les deux listes restent séparées pour que tout
+        // le code « humain » (couper un micro, retirer quelqu'un, mains
+        // levées, ma propre ligne) continue de ne voir que des comptes —
+        // aucune régression sur LV-1/LV-3.
+        const { humans: humains, agents: experts } = splitRosterHumansAndAgents(participants);
+        setRealParticipants(humains);
+        setAgentParticipants(experts);
+        const me = humains.find((p) => p.id === userProfile.id);
         if (me) {
           applyMyRole(me.role, null); // left_at IS NULL garanti par fetchActiveParticipants
           // LV-3 : l'hôte a coupé mon micro → je le coupe réellement, je ne me
@@ -819,7 +829,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           applyRemovalByHost();
         }
         if (isHost) {
-          setRaisedHands(participants.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
+          setRaisedHands(humains.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
         }
       });
     };
@@ -844,6 +854,38 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     const pollInterval = setInterval(refresh, 4000);
     return () => { cancelled = true; unsub(); clearInterval(pollInterval); };
   }, [realSessionId, isHost]);
+
+  /**
+   * EX-2 — Le copilote de la session est lui aussi inscrit en base, une fois,
+   * par l'animateur.
+   *
+   * Sans cela la scène n'était partagée que par COÏNCIDENCE : chaque client
+   * affichait le copilote parce que son propre `aiAgent` retombait sur le même
+   * défaut, pas parce qu'une source commune le disait. Conséquence concrète :
+   * l'animateur pouvait le retirer sans que personne d'autre ne le voie
+   * disparaître. Une ligne réelle règle les deux.
+   *
+   * Une seule tentative par session (la ref) : si l'animateur le retire
+   * ensuite, il ne réapparaît pas dans son dos.
+   */
+  const copilotePersisteRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!realSessionId || !isHost || !aiAgent) return;
+    const cle = `${realSessionId}:${aiAgent.id}`;
+    if (copilotePersisteRef.current === cle) return;
+    copilotePersisteRef.current = cle;
+    summonExpertToLive(realSessionId, {
+      id: aiAgent.id,
+      name: aiAgent.name,
+      avatarUrl: aiAgent.avatarUrl,
+      specialty: aiAgent.specialty,
+      isHuman: aiAgent.isHuman,
+      // Échec silencieux assumé ici, et seulement ici : ce n'est pas un geste
+      // de l'utilisateur mais une mise en cohérence d'arrière-plan. La carte
+      // reste affichée localement dans tous les cas (stageAgents injecte
+      // `aiAgent`), donc rien n'est masqué à l'écran.
+    }).catch(() => {});
+  }, [realSessionId, isHost, aiAgent]);
 
   /**
    * LV-3 — Commandes d'animation. Toutes écrivent EN BASE d'abord ; l'écran ne
@@ -1242,38 +1284,114 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
   };
 
-  // Summon Expert ("Appeler un Expert")
-  const handleSummonExpert = (agent: Agent) => {
-    setShowSummonExpertModal(false);
-    // DS-L1 : réinviter un agent précédemment retiré lui rend sa carte.
-    setAgentsRetires(prev => prev.filter(id => id !== agent.id));
+  /**
+   * EX-2 — Faire REDESCENDRE un expert de la scène, pour tout le monde.
+   *
+   * AVANT : le bouton ne faisait qu'ajouter l'identifiant à `agentsRetires`,
+   * une liste d'exclusion purement locale — l'expert restait affiché chez tous
+   * les autres. Maintenant on pose `left_at` en base d'abord ; la liste locale
+   * reste nécessaire pour le copilote par défaut, que `stageAgents` réinjecte
+   * depuis `aiAgent` à chaque rendu.
+   */
+  const handleRetirerAgentDeLaScene = async (agentId: string) => {
+    const retirerLocalement = () =>
+      setAgentsRetires(prev => (prev.includes(agentId) ? prev : [...prev, agentId]));
 
-    // Add to stage participants
-    if (!agentParticipants.some(p => p.agentId === agent.id)) {
-      setAgentParticipants(prev => [
-        ...prev,
-        {
-          id: `spk-ai-${agent.id}`,
-          name: `${agent.name} (IA)`,
-          avatar: agent.avatarUrl,
-          role: 'expert_ai',
-          isMuted: false,
-          isVideoOn: true,
-          isAi: true,
-          specialty: agent.specialty,
-          agentId: agent.id
-        }
-      ]);
+    if (!realSessionId) { retirerLocalement(); return; }
+
+    try {
+      await dismissExpertFromLive(realSessionId, agentId);
+      setAgentParticipants(prev => prev.filter(p => p.agentId !== agentId));
+      retirerLocalement();
+    } catch (err) {
+      addNotification(
+        "L'expert n'a pas pu être retiré",
+        `La scène est inchangée : ${(err as Error)?.message || 'erreur inconnue'}`,
+        'error',
+      );
+    }
+  };
+
+  /**
+   * EX-2 — Faire monter un expert sur la scène, RÉELLEMENT et pour tout le
+   * monde.
+   *
+   * AVANT : cette fonction ne faisait que des `setState`. L'expert
+   * n'apparaissait que dans l'onglet de la personne qui avait appuyé ; aucun
+   * spectateur ne le voyait, ce que le banc LV-6 avait mesuré (l'animatrice
+   * voyait 3 cartes, la personne arrivée par le lien 2). C'est la raison pour
+   * laquelle « appuyer ne donnait rien » depuis le début.
+   *
+   * MAINTENANT : on écrit d'abord une vraie ligne `live_speakers`, et l'écran
+   * ne bouge qu'ensuite. Un refus (spectateur qui n'a pas le droit) est dit
+   * franchement au lieu d'être maquillé en succès.
+   */
+  const handleSummonExpert = async (agent: Agent) => {
+    setShowSummonExpertModal(false);
+
+    const carteLocale: LiveStageParticipant = {
+      id: `spk-ai-${agent.id}`,
+      name: agent.isHuman ? agent.name : `${agent.name} (IA)`,
+      avatar: agent.avatarUrl,
+      role: agent.isHuman ? 'expert_human' : 'expert_ai',
+      isMuted: false,
+      isVideoOn: true,
+      isAi: !agent.isHuman,
+      specialty: agent.specialty,
+      agentId: agent.id,
+    };
+
+    const monterSurScene = () => {
+      // DS-L1 : réinviter un agent précédemment retiré lui rend sa carte.
+      setAgentsRetires(prev => prev.filter(id => id !== agent.id));
+      setAgentParticipants(prev =>
+        prev.some(p => p.agentId === agent.id) ? prev : [...prev, carteLocale],
+      );
+      setAiAgent(agent);
+      setAiCopilotState('speaking');
+      addNotification('Expert sur Scène ⚖️', `${agent.name} a rejoint le Live pour vous conseiller.`, 'success');
+      setTimeout(() => setAiCopilotState('idle'), 4000);
+    };
+
+    // Pas de session persistée (aperçu, direct non démarré) : le comportement
+    // local d'origine reste le meilleur possible — on ne prétend rien de plus.
+    if (!realSessionId) {
+      monterSurScene();
+      pushLocalSystemMessage('Diallo OS', `⚡ L'expert ${agent.name} (${agent.specialty}) a rejoint la scène.`);
+      return;
     }
 
-    setAiAgent(agent);
-    setAiCopilotState('speaking');
-
-    const welcomeMsg = `L'expert ${agent.name} (${agent.specialty}) a rejoint la scène en direct ! Posez vos questions spécialisées.`;
-    pushLocalSystemMessage("Diallo OS", `⚡ ${welcomeMsg}`);
-    addNotification("Expert sur Scène ⚖️", `${agent.name} a rejoint le Live pour vous conseiller.`, "success");
-
-    setTimeout(() => setAiCopilotState('idle'), 4000);
+    try {
+      await summonExpertToLive(realSessionId, {
+        id: agent.id,
+        name: agent.name,
+        avatarUrl: agent.avatarUrl,
+        specialty: agent.specialty,
+        isHuman: agent.isHuman,
+      });
+      monterSurScene();
+      // L'arrivée est annoncée à TOUT LE MONDE, plus seulement dans l'onglet de
+      // l'animateur : `live_messages` exige `author_id = auth.uid()`, donc le
+      // message part sous le nom de la personne qui invite — ce qui est
+      // exactement ce qui s'est passé. La parole propre de l'expert (avec sa
+      // propre identité) demande un canal dédié : c'est EX-3, pas un bricolage
+      // d'attribution ici.
+      sendLiveMessage(
+        realSessionId,
+        { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl },
+        `⚡ J'invite ${agent.name} (${agent.specialty}) sur la scène.`,
+      ).catch(() => {});
+    } catch (err) {
+      const message = (err as Error)?.message || 'erreur inconnue';
+      const refus = /permission|policy|42501|row-level/i.test(message);
+      addNotification(
+        "L'expert n'est pas monté sur scène",
+        refus
+          ? "Seul l'animateur (ou un modérateur) du direct peut faire monter un expert."
+          : `L'invitation n'a pas pu être enregistrée : ${message}`,
+        'error',
+      );
+    }
   };
 
   // "Réunir le Conseil" (Council Room inside Live)
@@ -2365,7 +2483,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     {/* Retirer l'agent de la scène — hôte uniquement. */}
                     {isHost && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setAgentsRetires(prev => prev.includes(aiAgent.id) ? prev : [...prev, aiAgent.id]); }}
+                        onClick={(e) => { e.stopPropagation(); void handleRetirerAgentDeLaScene(aiAgent.id); }}
                         data-testid={`stage-remove-agent-${aiAgent.id}`}
                         title={`Retirer ${aiAgent.name} de la scène`}
                         aria-label={`Retirer ${aiAgent.name} de la scène`}
