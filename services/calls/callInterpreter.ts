@@ -1,6 +1,6 @@
 import { generateSpeechDetailed, transcribeSpeechDetailed, type SpeechResult } from '../aiGateway';
 import { languageCodeFromTag } from '../messaging/speechLanguage';
-import { PcmSegmenter, blobToWav16kMono, bytesToBase64, encodeWav16kMono, readBlobBytes } from './pcmSegmenter';
+import { PcmSegmenter, blobToWav16kMono, bytesToBase64, encodeWav16kMono, readBlobBytes, type SegmentClose } from './pcmSegmenter';
 
 /**
  * Interprète d'appel — les briques qui touchent au matériel :
@@ -278,7 +278,7 @@ export class ServerCaptioner {
         const segmenter = new PcmSegmenter({
             track,
             isPaused: this.options.isPaused,
-            onSegment: (pcm) => this.enqueue(pcm),
+            onSegment: (pcm, _durationMs, closedBy) => this.enqueue(pcm, closedBy),
             onError: () => {
                 // Piste terminée (changement de micro, reprise LiveKit) : on
                 // se rattache à la nouvelle publication au lieu de se taire.
@@ -298,9 +298,12 @@ export class ServerCaptioner {
         }
     }
 
-    private enqueue(pcm: Int16Array): void {
+    private enqueue(pcm: Int16Array, closedBy?: SegmentClose): void {
         if (!this.active) return;
-        if (this.options.isPaused?.()) return; // capté pendant que l'interprète parlait : pas ma voix
+        // Capté pendant que l'interprète parlait : pas ma voix. Exception : un
+        // segment que le découpeur clôt PARCE QUE la pause commence contient ma
+        // voix d'AVANT — il est transcrit (mission VT, banc VT-1b).
+        if (closedBy !== 'pause' && this.options.isPaused?.()) return;
         if (Date.now() < this.cooldownUntil) return; // passerelle en pause après une série d'échecs : on réessaie après
         const audioBase64 = bytesToBase64(encodeWav16kMono(pcm));
         if (this.inFlight) {

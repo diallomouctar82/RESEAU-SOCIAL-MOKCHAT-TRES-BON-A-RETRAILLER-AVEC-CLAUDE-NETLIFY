@@ -35,9 +35,9 @@ vi.mock('../services/calls/pcmSegmenter', async (importOriginal) => {
         stop() { this.stopped = true; }
         pause() {}
         resume() {}
-        /** Simule un segment détecté : 500 ms de PCM. */
-        emit(durationMs = 500) {
-            this.options.onSegment(new Int16Array(Math.round((16000 * durationMs) / 1000)).fill(1234), durationMs);
+        /** Simule un segment détecté : 500 ms de PCM, clos par un silence sauf indication contraire. */
+        emit(durationMs = 500, closedBy: 'silence' | 'max' | 'pause' | 'flush' = 'silence') {
+            this.options.onSegment(new Int16Array(Math.round((16000 * durationMs) / 1000)).fill(1234), durationMs, closedBy);
         }
     }
     return { ...real, PcmSegmenter: FakePcmSegmenter, blobToWav16kMono: rig.wavFromBlob };
@@ -280,6 +280,19 @@ describe('ServerCaptioner — transcription serveur de ma voix', () => {
         segmenter.emit();
         await flush();
         expect(rig.transcribe).toHaveBeenCalledTimes(1);
+    });
+
+    it('segment clos PAR l\'entrée en pause (ma voix d\'avant que l\'interprète parle) : transcrit même si la pause est en cours', async () => {
+        rig.transcribe.mockResolvedValue({ text: 'oui', language: 'fr', translated: 'да', targetLanguage: 'ru', providerId: 'gemini_stt' });
+        const onFinal = vi.fn();
+        const captioner = new ServerCaptioner({ getTrack: liveTrack, targetLanguage: 'ru', onFinal, isPaused: () => true });
+        captioner.start();
+        await vi.advanceTimersByTimeAsync(10);
+        rig.segmenters[0].emit(6000, 'pause');
+        await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(1);
+        expect(wavMs(rig.transcribe.mock.calls[0][0].audioBase64)).toBe(6000);
+        expect(onFinal).toHaveBeenCalledWith({ text: 'oui', language: 'fr', translated: 'да', targetLang: 'ru' });
     });
 
     it('stop() pendant une requête en vol : la réponse tardive n\'est jamais remontée', async () => {

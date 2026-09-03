@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
     SEGMENT_SAMPLE_RATE, SegmenterCore, bytesToBase64, concatInt16, downsampleFloat32, encodeWav16kMono,
-    floatTo16BitPcm, mixToMono, rms,
+    floatTo16BitPcm, mixToMono, rms, type SegmentClose,
 } from '../services/calls/pcmSegmenter';
 
 /**
@@ -125,7 +125,7 @@ describe('Fonctions pures — rééchantillonnage, niveau, PCM, WAV, base64', ()
 
 describe('SegmenterCore — détection de parole et découpage', () => {
     const build = (overrides: Partial<ConstructorParameters<typeof SegmenterCore>[0]> = {}) => {
-        const onSegment = vi.fn<(pcm: Int16Array, durationMs: number) => void>();
+        const onSegment = vi.fn<(pcm: Int16Array, durationMs: number, closedBy: SegmentClose) => void>();
         const core = new SegmenterCore({ onSegment, ...overrides });
         return { core, onSegment };
     };
@@ -163,7 +163,9 @@ describe('SegmenterCore — détection de parole et découpage', () => {
         expect(onSegment).toHaveBeenCalledTimes(2);
         expect(onSegment.mock.calls[0][1]).toBeLessThanOrEqual(9000);
         expect(onSegment.mock.calls[0][1]).toBeGreaterThanOrEqual(8980);
+        expect(onSegment.mock.calls[0][2]).toBe('max');
         expect(onSegment.mock.calls[1][1]).toBeGreaterThan(3000);
+        expect(onSegment.mock.calls[1][2]).toBe('silence');
     });
 
     it('seuil adaptatif : un bruit de fond installé relève le seuil, la vraie parole passe toujours', () => {
@@ -214,18 +216,56 @@ describe('SegmenterCore — détection de parole et découpage', () => {
         }
     });
 
-    it('en pause (l\'interprète parle dans mon haut-parleur) : tout est jeté, y compris un segment entamé', () => {
+    it('en pause (l\'interprète parle dans mon haut-parleur) : ma voix captée AVANT est émise (close par « pause »), ce qui arrive PENDANT est jeté', () => {
         let paused = false;
         const { core, onSegment } = build({ isPaused: () => paused });
         feed(core, concatFloat([tone(400, 0.001), speech(500, 0.2)]));
         expect(core.isCapturing).toBe(true);
+        expect(onSegment).not.toHaveBeenCalled();
         paused = true;
         feed(core, concatFloat([speech(1000, 0.2), tone(1000, 0.001)]));
         expect(core.isCapturing).toBe(false);
-        expect(onSegment).not.toHaveBeenCalled();
+        // Les 500 ms de MA voix d'avant la pause sont partis ; la seconde de voix de l'interprète pendant la pause, jamais.
+        expect(onSegment).toHaveBeenCalledTimes(1);
+        const [pcm, durationMs, closedBy] = onSegment.mock.calls[0];
+        expect(closedBy).toBe('pause');
+        expect(durationMs).toBeGreaterThanOrEqual(700); // 240 ms de pré-roll + 500 ms de parole
+        expect(durationMs).toBeLessThanOrEqual(800);
+        expect(pcm.length).toBe((durationMs * RATE) / 1000);
         paused = false;
         feed(core, concatFloat([tone(300, 0.001), speech(1000, 0.2), tone(1000, 0.001)]));
-        expect(onSegment).toHaveBeenCalledTimes(1);
+        expect(onSegment).toHaveBeenCalledTimes(2);
+        expect(onSegment.mock.calls[1][2]).toBe('silence');
+    });
+
+    it('en pause après moins de 350 ms de parole : rien n\'est émis (bruit bref), rien pendant la pause non plus', () => {
+        let paused = false;
+        const { core, onSegment } = build({ isPaused: () => paused });
+        feed(core, concatFloat([tone(400, 0.001), tone(200, 0.3)]));
+        expect(core.isCapturing).toBe(true);
+        paused = true;
+        feed(core, concatFloat([speech(1000, 0.2), tone(1000, 0.001)]));
+        expect(onSegment).not.toHaveBeenCalled();
+        expect(core.isCapturing).toBe(false);
+    });
+
+    it('parole continue face à un interprète bavard : chaque fenêtre entre deux phrases de l\'interprète donne un segment (banc VT-1b : avant, zéro segment en 88 s)', () => {
+        // L'interprète parle 9 s, se tait 6 s, reparle… et je parle sans arrêt : jamais 700 ms de
+        // silence, jamais 9 s d'affilée hors pause — l'ancienne règle jetait chaque segment entamé.
+        let paused = false;
+        const { core, onSegment } = build({ isPaused: () => paused });
+        for (let cycle = 0; cycle < 3; cycle++) {
+            paused = false;
+            feed(core, speech(6000, 0.2));
+            paused = true;
+            feed(core, speech(9000, 0.2));
+        }
+        expect(onSegment).toHaveBeenCalledTimes(3);
+        for (const call of onSegment.mock.calls) {
+            expect(call[2]).toBe('pause');
+            expect(call[1]).toBeGreaterThanOrEqual(5900);
+            expect(call[1]).toBeLessThanOrEqual(6300);
+        }
     });
 
     it('flush() clôt un segment en cours (fin d\'enregistrement) ; reset() l\'abandonne', () => {
@@ -234,6 +274,7 @@ describe('SegmenterCore — détection de parole et découpage', () => {
         expect(a.onSegment).not.toHaveBeenCalled();
         a.core.flush();
         expect(a.onSegment).toHaveBeenCalledTimes(1);
+        expect(a.onSegment.mock.calls[0][2]).toBe('flush');
         const b = build();
         feed(b.core, concatFloat([tone(300, 0.001), speech(1000, 0.2)]));
         b.core.reset();

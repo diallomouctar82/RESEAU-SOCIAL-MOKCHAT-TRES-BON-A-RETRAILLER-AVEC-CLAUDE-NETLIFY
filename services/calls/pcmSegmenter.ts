@@ -152,10 +152,21 @@ export interface SegmenterCoreOptions {
     minThreshold?: number;
     /** Seuil = max(minThreshold, noiseFactor × plancher de bruit glissant) (défaut 3). */
     noiseFactor?: number;
-    /** Vrai pendant que l'interprète parle dans mon haut-parleur : ce que le micro capte alors est jeté. */
+    /**
+     * Vrai pendant que l'interprète parle dans mon haut-parleur : ce que le
+     * micro capte ALORS est jeté. Ce qui a été capté AVANT est ma voix — un
+     * segment entamé est clos et émis (`closedBy: 'pause'`), jamais jeté.
+     */
     isPaused?: () => boolean;
-    onSegment: (pcm: Int16Array, durationMs: number) => void;
+    onSegment: (pcm: Int16Array, durationMs: number, closedBy: SegmentClose) => void;
 }
+
+/**
+ * Ce qui a clos un segment : un silence (fin de phrase), la durée maximale,
+ * l'entrée en pause (l'interprète se met à parler — la parole d'avant est
+ * gardée), ou la fin de la capture.
+ */
+export type SegmentClose = 'silence' | 'max' | 'pause' | 'flush';
 
 /** Pas d'analyse : 20 ms — toutes les durées sont comptées en multiples de ce pas. */
 const HOP_MS = 20;
@@ -228,10 +239,15 @@ export class SegmenterCore {
         if (frame.length === 0) return;
         if (this.options.isPaused?.()) {
             // L'interprète parle dans mon haut-parleur : le micro l'entend.
-            // Rien de ce qui arrive maintenant n'est ma voix — on jette, y
-            // compris un segment commencé juste avant et le pré-roll (qui
-            // contiendrait sa voix à la reprise).
-            this.discardCurrent();
+            // Rien de ce qui arrive MAINTENANT n'est ma voix — on jette, y
+            // compris le pré-roll (qui contiendrait sa voix à la reprise).
+            // Mais ce qui a été capté AVANT cet instant est bien ma voix (le
+            // signal « il parle » précède le son) : un segment entamé est
+            // clos et émis, jamais jeté — sinon, face à un interprète qui
+            // parle 60 % du temps, une parole continue n'était plus jamais
+            // transcrite (banc VT-1b : 88 s sans une seule phrase envoyée,
+            // chaque segment tué par la pause suivante avant de se clore).
+            if (this.inSpeech) this.finishSegment('pause');
             this.pending = new Float32Array(0);
             this.preRoll = [];
             return;
@@ -249,7 +265,7 @@ export class SegmenterCore {
 
     /** Clôt un segment en cours (fin d'enregistrement) s'il contient assez de parole. */
     flush(): void {
-        if (this.inSpeech) this.finishSegment();
+        if (this.inSpeech) this.finishSegment('flush');
         this.pending = new Float32Array(0);
     }
 
@@ -288,16 +304,17 @@ export class SegmenterCore {
         if (isSpeech) { this.speechMs += HOP_MS; this.trailingSilenceMs = 0; }
         else this.trailingSilenceMs += HOP_MS;
 
-        if (this.trailingSilenceMs >= this.silenceMs || this.segmentMs >= this.maxSegmentMs) this.finishSegment();
+        if (this.trailingSilenceMs >= this.silenceMs) this.finishSegment('silence');
+        else if (this.segmentMs >= this.maxSegmentMs) this.finishSegment('max');
     }
 
-    private finishSegment(): void {
+    private finishSegment(closedBy: SegmentClose): void {
         const parts = this.segment;
         const durationMs = this.segmentMs;
         const speechMs = this.speechMs;
         this.discardCurrent();
         if (speechMs < this.minSpeechMs) return; // bruit bref, jamais envoyé
-        this.options.onSegment(concatInt16(parts), durationMs);
+        this.options.onSegment(concatInt16(parts), durationMs, closedBy);
     }
 
     private discardCurrent(): void {

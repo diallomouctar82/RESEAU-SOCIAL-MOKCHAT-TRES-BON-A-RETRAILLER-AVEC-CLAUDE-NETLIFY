@@ -248,18 +248,40 @@ contrat est prêt pour un agent serveur (piste `interpreter:<compte>`,
 message `agent`) — renfort GPU reporté après validation de la base.
 
 **Mesuré au banc (deux navigateurs à lecture automatique STRICTE, serveur
-LiveKit 1.8.4 exact, passerelle réelle, voix française et russe réelles,
-03/09/2026 — passe finale : voir le rapport de fin de tâche).** Sélecteur
+LiveKit 1.8.4 exact, passerelle réelle v24, voix française et russe réelles,
+03/09/2026 — cinq passes, la dernière à 62 OK / 0 défaut).** Sélecteur
 visible chez l'appelante 3 ms après la sonnerie ; côté sans choix = appel
-normal (original `muted=false`, volume 1, ≈ 17 000 octets / 3 s reçus) ;
+normal (original `muted=false`, volume 1, ≈ 16–17 000 octets / 3 s reçus) ;
 chez l'auditrice : langue russe **détectée** en 7–8 s (rien déclaré),
-original muet, piste interprète reçue 250 ms après sa publication, son reçu
-(niveau RMS 0,18–0,20 sur 5 s) transcrit par la passerelle en **français** ;
-choix « ru » pendant l'appel côté Ivan : original coupé en 2 ms, voix reçue
-transcrite en **russe** ; identique en appel vidéo. Voix HD `gemini_tts` :
-5,7 à 7,1 s par phrase sous charge → décalage d'interprétation consécutive
-de l'ordre de 8 à 12 s par phrase ; c'est l'objet de la tâche 2 (voix
-rapide).
+original muet, piste interprète reçue 0–250 ms après sa publication, son
+reçu (niveau RMS 0,15–0,20 sur 5 s) transcrit par la passerelle en
+**français** ; choix « ru » pendant l'appel côté Ivan : original coupé en
+2 ms, piste interprète d'Amina publiée 11,5 s après ce choix et reçue
+aussitôt, voix reçue transcrite en **russe** ; identique en appel vidéo ;
+retour à « Voix originale » = original entier aussitôt ; aucune voix de
+secours utilisée. Voix HD `gemini_tts` : 5,7 à 10,7 s par phrase sous
+charge → décalage d'interprétation consécutive de l'ordre de 8 à 12 s par
+phrase ; c'est l'objet de la tâche 2 (voix rapide).
+
+**Défaut trouvé par la passe 4 et corrigé — prouvé, pas supposé.** Après le
+choix d'Ivan, la piste d'Amina n'était publiée qu'au bout de 88 s. En base
+(`ai_call_log`, `call_diagnostics`) : pendant ces 88 s, aucune
+transcription d'Amina n'atteint la passerelle, alors que celles d'Ivan
+continuent toutes les 9 s — le réseau n'y est pour rien. Pendant qu'une
+voix d'interprète joue dans mon haut-parleur, mon micro est « en pause »
+(ce qu'il capte alors n'est pas ma voix) ; or le découpeur jetait, à
+l'entrée en pause, le segment entamé juste avant — de la parole captée
+AVANT que cette voix n'atteigne le haut-parleur (le message « début »
+précède le son). Face à un interprète qui parle 60 % du temps (phrases de
+8–10 s, silences de 6–7 s), une parole continue ne se clôt jamais dans la
+fenêtre (ni 700 ms de silence, ni 9 s) : zéro phrase envoyée. Désormais la
+parole d'avant la pause est close et émise (raison `pause`, au moins
+350 ms de voix) et seul ce qui arrive pendant la pause est jeté
+(`SegmenterCore`, `ServerCaptioner`, quatre tests dont « parole continue
+face à un interprète bavard : trois fenêtres, trois segments — avant,
+zéro »). Sur deux téléphones, c'est le cas où l'on répond pendant que
+l'interprète finit la phrase précédente : le début de la réponse n'est plus
+perdu.
 
 **Protocole sur deux téléphones.** (1) A appelle B (audio). Pendant la
 sonnerie, sur A : « Entendre *B* en » → Français. (2) B décroche sans rien
