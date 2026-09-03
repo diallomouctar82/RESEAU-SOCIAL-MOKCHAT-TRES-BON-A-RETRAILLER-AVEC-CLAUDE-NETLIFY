@@ -786,7 +786,81 @@ export function stageGridClass(tileCount: number): string {
     if (tileCount <= 1) return 'grid-cols-1 grid-rows-1';
     if (tileCount === 2) return 'grid-cols-1 sm:grid-cols-2';
     if (tileCount <= 4) return 'grid-cols-2';
+    // DS-L0 : cinq et six cartes sont la charge NOMINALE d'un LIVE MokNet
+    // (1 hôte + 5 invités, humains et agents confondus), pas un cas extrême.
+    // Deux colonnes sur téléphone (3 rangées), trois sur ordinateur (2
+    // rangées) — l'auto-fit précédent laissait des cartes de 220 px perdues
+    // au milieu d'un écran large dès qu'on dépassait quatre présences.
+    if (tileCount <= STAGE_VISIBLE_MAX) return 'grid-cols-2 md:grid-cols-3';
     return 'grid-cols-2 md:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]';
+}
+
+/**
+ * DS-L0 — règle centrale posée par la Direction le 3 septembre 2026 : la scène
+ * d'un LIVE MokNet montre **six cartes au minimum** (1 hôte + 5 invités),
+ * **humains et agents IA confondus**.
+ *
+ * Le défaut corrigé ici était structurel, pas cosmétique : le comptage de
+ * l'ancienne scène n'accordait de carte à l'agent IA que
+ * `si aucun humain distant ne publiait`. On pouvait donc inviter cinq experts
+ * (santé, enseignement, partenariats, commercial, architecte…) — ils
+ * entraient bien dans la liste des intervenants — et n'en voir AUCUN dès
+ * qu'une seule personne allumait sa caméra. « Humains plus agents confondus »
+ * était donc impossible à l'écran.
+ */
+export const STAGE_VISIBLE_MAX = 6;
+
+export type StageTileKind = 'self' | 'human' | 'agent' | 'placeholder';
+
+export interface StageTile {
+    /** Identifiant stable : clé de rendu et ancre de vérification. */
+    id: string;
+    name: string;
+    kind: StageTileKind;
+}
+
+export interface StageComposition {
+    tiles: StageTile[];
+    /** Présences réelles qui ne tiennent pas dans les cartes visibles. */
+    overflow: number;
+    /** Total réel, cartes visibles + débordement — jamais un chiffre décoratif. */
+    presenceCount: number;
+}
+
+/**
+ * Compose la scène : moi (si je suis sur scène), puis les humains qui
+ * publient, puis les agents invités — **toujours**, jamais sous condition.
+ * L'emplacement d'attente n'apparaît que si la scène serait autrement vide.
+ */
+export function composeStage(input: {
+    isUserOnStage: boolean;
+    selfName?: string;
+    humans: ReadonlyArray<{ id: string; name: string }>;
+    agents: ReadonlyArray<{ id: string; name: string }>;
+    max?: number;
+}): StageComposition {
+    const max = Math.max(1, input.max ?? STAGE_VISIBLE_MAX);
+    const toutes: StageTile[] = [];
+
+    if (input.isUserOnStage) {
+        toutes.push({ id: 'self', name: input.selfName || 'Vous', kind: 'self' });
+    }
+    for (const h of input.humans) toutes.push({ id: `human:${h.id}`, name: h.name, kind: 'human' });
+    for (const a of input.agents) toutes.push({ id: `agent:${a.id}`, name: a.name, kind: 'agent' });
+
+    if (toutes.length === 0) {
+        return {
+            tiles: [{ id: 'placeholder', name: 'En attente du présentateur', kind: 'placeholder' }],
+            overflow: 0,
+            presenceCount: 0,
+        };
+    }
+
+    return {
+        tiles: toutes.slice(0, max),
+        overflow: Math.max(0, toutes.length - max),
+        presenceCount: toutes.length,
+    };
 }
 
 export interface LiveBadgeState {

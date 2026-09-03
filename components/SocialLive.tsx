@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   X, Users, Send, Bot, Settings, Signal, Wifi, Activity, Check, Heart, 
   Sparkles, Zap, MessageSquare, Mic, MicOff, Video, VideoOff, Layout, 
@@ -31,7 +31,7 @@ import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
 import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
-import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed } from '../hooks/useLiveTransport';
+import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, mergeLiveStreamWithRealSession } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
@@ -415,11 +415,38 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // plus bas) : ma tuile si je suis sur scène, la tuile d'attente d'un
   // spectateur sans présentateur, le copilote IA en pleine cellule quand
   // aucun humain distant ne publie, puis les participants qui publient.
-  const cameraTileCount =
-    (isUserOnStage ? 1 : 0)
-    + (!isUserOnStage && presentableRemotes.length === 0 ? 1 : 0)
-    + (aiAgent && presentableRemotes.length === 0 ? 1 : 0)
-    + presentableRemotes.length;
+  // DS-L0 — les agents IA présents sur la scène : le copilote de la session
+  // ET tous les experts convoqués (santé, enseignement, partenariats,
+  // commercial, architecte…). `stageParticipants` les accumulait déjà
+  // correctement ; c'est la SCÈNE qui ne leur donnait pas de carte.
+  const stageAgents = useMemo(() => {
+    const parIdentifiant = new Map<string, Agent>();
+    if (aiAgent) parIdentifiant.set(aiAgent.id, aiAgent);
+    for (const p of stageParticipants) {
+      if (!p.isAi || !p.agentId) continue;
+      const trouve = AGENTS.find(a => a.id === p.agentId);
+      if (trouve) parIdentifiant.set(trouve.id, trouve);
+    }
+    return [...parIdentifiant.values()];
+  }, [aiAgent, stageParticipants]);
+
+  // Règle centrale (Direction, 03/09/2026) : six cartes au minimum, humains et
+  // agents confondus. Une seule source de vérité — `composeStage`, testée à
+  // part — décide qui occupe la scène ; le rendu ne fait que la suivre.
+  // AVANT : la carte de l'agent n'existait que `si aucun humain distant ne
+  // publiait`. On pouvait donc convoquer cinq experts et n'en voir aucun.
+  const stage = composeStage({
+    isUserOnStage,
+    humans: presentableRemotes.map(m => ({ id: m.participant.identity, name: m.participant.identity })),
+    agents: stageAgents.map(a => ({ id: a.id, name: a.name })),
+  });
+  // La pastille de débordement occupe elle aussi une cellule : la grille doit
+  // la compter, sinon la dernière rangée se déséquilibre.
+  const cameraTileCount = stage.tiles.length + (stage.overflow > 0 ? 1 : 0);
+  const humainsVisibles = new Set(
+    stage.tiles.filter(t => t.kind === 'human').map(t => t.id.slice('human:'.length)),
+  );
+  const agentsVisibles = stageAgents.filter(a => stage.tiles.some(t => t.id === `agent:${a.id}`));
 
   // Équipe 10 (L4) : badge et compteur dérivés de l'état RÉEL (session +
   // transport) — jamais un « LIVE » pulsant codé en dur ni un 1420 fictif.
@@ -2033,8 +2060,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Slot 2: copilote IA en pleine cellule UNIQUEMENT quand
                     aucun humain distant ne PUBLIE de média — sinon il cède la
                     place aux vrais participants (vignette compacte plus bas). */}
-                {aiAgent && presentableRemotes.length === 0 && (
-                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-2xl flex items-center justify-center">
+                {agentsVisibles.map(aiAgent => (
+                  <div key={aiAgent.id} data-testid={`stage-tile-agent-${aiAgent.id}`} className="relative rounded-3xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-2xl flex items-center justify-center">
                     <Avatar3D
                       avatarId={aiAgent.id}
                       state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
@@ -2058,15 +2085,28 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                       </div>
                     )}
                   </div>
-                )}
+                ))}
 
                 {/* Participants distants réels (LOOP 04/14) — publication/abonnement LiveKit, pas de simulation.
                     Équipe 10 (L3) : une tuile UNIQUEMENT pour qui publie un
                     média (caméra/écran/micro de scène) — les spectateurs
                     muets, qui se connectent tous à la room, n'en ont pas. */}
-                {presentableRemotes.map((media) => (
-                  <RemoteParticipantTile key={media.participant.identity} media={media} />
-                ))}
+                {presentableRemotes
+                  .filter(media => humainsVisibles.has(media.participant.identity))
+                  .map((media) => (
+                    <RemoteParticipantTile key={media.participant.identity} media={media} />
+                  ))}
+
+                {/* Débordement : au-delà des six cartes, on le DIT — jamais des
+                    présences qui disparaissent en silence. */}
+                {stage.overflow > 0 && (
+                  <div data-testid="stage-overflow" className="relative rounded-3xl bg-slate-900/80 border border-white/10 flex flex-col items-center justify-center text-center p-3">
+                    <span className="text-2xl font-black text-white">+{stage.overflow}</span>
+                    <span className="text-[10px] font-bold text-slate-400 mt-1">
+                      {stage.overflow > 1 ? 'autres présences' : 'autre présence'}
+                    </span>
+                  </div>
+                )}
 
               </div>
             )}
@@ -2077,23 +2117,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 presentableRemotes, pas les simples connectés). `absolute` le
                 sort du flux de la grille ; positionné par rapport à la scène
                 (conteneur `relative`). */}
-            {mainStageMode === 'camera' && aiAgent && presentableRemotes.length > 0 && (
-              <div className="absolute bottom-4 right-4 w-40 sm:w-48 aspect-video z-10 rounded-2xl overflow-hidden bg-slate-900 border border-indigo-500/40 shadow-2xl">
-                <Avatar3D
-                  avatarId={aiAgent.id}
-                  state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
-                  grammarState={avatarGrammarState}
-                  className="w-full h-full"
-                />
-                <div className="absolute bottom-1.5 left-1.5 right-1.5 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-lg border border-indigo-500/40 flex items-center gap-1">
-                  <Bot size={10} className="text-indigo-400 shrink-0" />
-                  <span className="text-[9px] font-bold text-indigo-200 truncate">{aiAgent.name}</span>
-                  {aiCopilotState === 'thinking' && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shrink-0" aria-label="IA en réflexion"></span>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* DS-L0 : la vignette compacte du copilote est RETIRÉE. Elle
+                existait parce que l'agent perdait sa carte dès qu'un humain
+                publiait ; maintenant qu'il garde sa place sur la grille, la
+                garder afficherait le même agent deux fois. */}
 
             {/* MODE 2: SCREEN SHARE WITH PIP */}
             {mainStageMode === 'screen' && (
