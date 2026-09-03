@@ -79,6 +79,48 @@ export function remoteVolumeFor(interpreterSpeaking: boolean, speakerMuted: bool
     return interpreterSpeaking ? DUCKED_REMOTE_VOLUME : 1;
 }
 
+export interface OriginalVoiceVolumeInput {
+    /** Ma langue (« Ma langue ») — null = « Par défaut ». */
+    myLanguage?: string | null;
+    /** Langue du correspondant : celle qu'il a DÉCLARÉE (hello), sinon celle DÉTECTÉE dans ses dernières paroles. */
+    peerLanguage?: string | null;
+    /** Voix de l'interprète activée (bouton « Voix » / « Sous-titres seuls »). */
+    voiceEnabled: boolean;
+    /** « Entendre aussi l'original » : l'original reste audible, atténué pendant que l'interprète parle. */
+    hearOriginal: boolean;
+    interpreterSpeaking: boolean;
+    speakerMuted: boolean;
+}
+
+/**
+ * Mission VT — règle PURE du volume de la voix ORIGINALE du correspondant.
+ *
+ * « J'active le français : même s'il me parle dans une autre langue, je
+ * n'entends que le français. » Dès que l'interprète me concerne (j'ai une
+ * langue, lui en parle une autre, la voix est activée), sa voix originale est
+ * COUPÉE — pas seulement atténuée — sauf si j'ai demandé à l'entendre aussi
+ * (alors atténuée pendant que l'interprète parle, comme avant). Sans
+ * interprétation (même langue, « Par défaut », sous-titres seuls, langue de
+ * l'autre encore inconnue), l'appel reste tel quel : original audible,
+ * atténué seulement pendant qu'une voix d'interprète parle. Haut-parleur
+ * coupé → 0, toujours.
+ */
+export function originalVoiceVolume(input: OriginalVoiceVolumeInput): number {
+    if (input.speakerMuted) return 0;
+    const mine = myEffectiveLanguage(input.myLanguage);
+    const peer = myEffectiveLanguage(input.peerLanguage);
+    const interpreting = !!mine && !!peer && peer !== mine && input.voiceEnabled;
+    if (interpreting && !input.hearOriginal) return 0;
+    return input.interpreterSpeaking ? DUCKED_REMOTE_VOLUME : 1;
+}
+
+/** Vrai quand la voix de l'interprète remplace celle du correspondant (mêmes conditions que `originalVoiceVolume` = 0 hors haut-parleur). */
+export function isInterpreting(input: Pick<OriginalVoiceVolumeInput, 'myLanguage' | 'peerLanguage' | 'voiceEnabled'>): boolean {
+    const mine = myEffectiveLanguage(input.myLanguage);
+    const peer = myEffectiveLanguage(input.peerLanguage);
+    return !!mine && !!peer && peer !== mine && input.voiceEnabled;
+}
+
 // ── Messages échangés sur le canal de données pendant un appel ─────────────
 
 export interface CallCaptionMessage {

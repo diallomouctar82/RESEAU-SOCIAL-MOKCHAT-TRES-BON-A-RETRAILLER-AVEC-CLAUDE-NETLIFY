@@ -75,6 +75,8 @@ export interface UseLiveTransportResult {
     localVideoTrack: LiveTrackHandle | null;
     localScreenShareTrack: LiveTrackHandle | null;
     localIsSpeaking: boolean;
+    /** Mission VT : identités qui PARLENT en ce moment (détection de parole du serveur, toutes langues) — « X parle… » à l'écran d'appel même quand sa voix originale est coupée. */
+    activeSpeakerIds: string[];
     remoteParticipants: RemoteParticipantMedia[];
     /** Équipe F3 : true quand le navigateur bloque la lecture audio (autoplay sans geste) — afficher un bouton qui appelle startAudio(). */
     audioPlaybackBlocked: boolean;
@@ -258,6 +260,10 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     const [localVideoTrack, setLocalVideoTrack] = useState<LiveTrackHandle | null>(null);
     const [localScreenShareTrack, setLocalScreenShareTrack] = useState<LiveTrackHandle | null>(null);
     const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
+    // Mission VT : identités qui PARLENT en ce moment (serveur, toutes
+    // langues) — l'écran d'appel montre que le correspondant parle même quand
+    // sa voix originale est coupée au profit de l'interprète.
+    const [activeSpeakerIds, setActiveSpeakerIds] = useState<string[]>([]);
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantMedia[]>([]);
     const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
     const [cameraFacing, setCameraFacing] = useState<LiveCameraFacing>('user');
@@ -460,6 +466,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         if (cancelled) return;
                         const localId = provider.getLocalParticipant()?.identity;
                         setLocalIsSpeaking(!!localId && identities.includes(localId));
+                        setActiveSpeakerIds(identities);
                     },
                     onAudioPlaybackChanged: (canPlay) => { if (!cancelled) setAudioPlaybackBlocked(!canPlay); },
                     onDisconnected: (reason) => {
@@ -673,6 +680,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         localVideoTrack,
         localScreenShareTrack,
         localIsSpeaking,
+        activeSpeakerIds,
         remoteParticipants,
         audioPlaybackBlocked,
         startAudio,

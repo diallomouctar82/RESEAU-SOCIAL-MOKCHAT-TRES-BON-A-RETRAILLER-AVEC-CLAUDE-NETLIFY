@@ -73,6 +73,7 @@ vi.mock('../hooks/useLiveTransport', () => ({
             localVideoTrack: null,
             localScreenShareTrack: null,
             localIsSpeaking: false,
+            activeSpeakerIds: [],
             // Revue AU-6 : identité PAR APPAREIL (`<compte>::<appareil>`) — le
             // correspondant est reconnu par son compte, jamais par égalité.
             remoteParticipants: rig.state.remoteAudio

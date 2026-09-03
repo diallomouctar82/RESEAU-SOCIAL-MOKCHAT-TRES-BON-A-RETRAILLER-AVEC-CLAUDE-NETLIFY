@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, languageCodeFromTag, remoteVolumeFor,
+    captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, isInterpreting, languageCodeFromTag, originalVoiceVolume, remoteVolumeFor,
     shouldCaptionMyVoice, speechTagFor, splitForInterpretation, DUCKED_REMOTE_VOLUME,
 } from '../services/messaging/speechLanguage';
 import { pickSynthesisVoice } from '../services/calls/callInterpreter';
@@ -75,6 +75,42 @@ describe('Volume de l’original pendant l’interprétation', () => {
     });
 });
 
+describe('Mission VT — volume de la voix ORIGINALE du correspondant (« ma langue seulement »)', () => {
+    const base = { myLanguage: 'fr', peerLanguage: 'ru', voiceEnabled: true, hearOriginal: false, interpreterSpeaking: false, speakerMuted: false };
+
+    it('j’ai choisi ma langue, il en parle une autre, la voix est activée → original COUPÉ, qu’il parle ou non', () => {
+        expect(originalVoiceVolume(base)).toBe(0);
+        expect(originalVoiceVolume({ ...base, interpreterSpeaking: true })).toBe(0);
+        expect(isInterpreting(base)).toBe(true);
+    });
+
+    it('« Entendre aussi l’original » → audible, atténué seulement pendant que l’interprète parle', () => {
+        expect(originalVoiceVolume({ ...base, hearOriginal: true })).toBe(1);
+        expect(originalVoiceVolume({ ...base, hearOriginal: true, interpreterSpeaking: true })).toBe(DUCKED_REMOTE_VOLUME);
+    });
+
+    it('hors interprétation, l’appel reste tel quel : même langue, « Par défaut », sous-titres seuls, langue de l’autre inconnue', () => {
+        expect(originalVoiceVolume({ ...base, peerLanguage: 'fr' })).toBe(1);
+        expect(originalVoiceVolume({ ...base, myLanguage: null })).toBe(1);
+        expect(originalVoiceVolume({ ...base, voiceEnabled: false })).toBe(1);
+        expect(originalVoiceVolume({ ...base, peerLanguage: null })).toBe(1);
+        expect(isInterpreting({ ...base, peerLanguage: null })).toBe(false);
+        expect(isInterpreting({ ...base, voiceEnabled: false })).toBe(false);
+        // Une voix d'interprète qui parle (sous-titre traduit) atténue quand même l'original — jamais deux voix à plein volume.
+        expect(originalVoiceVolume({ ...base, peerLanguage: null, interpreterSpeaking: true })).toBe(DUCKED_REMOTE_VOLUME);
+    });
+
+    it('haut-parleur coupé → 0, toujours', () => {
+        expect(originalVoiceVolume({ ...base, speakerMuted: true, hearOriginal: true })).toBe(0);
+        expect(originalVoiceVolume({ ...base, speakerMuted: true, myLanguage: null })).toBe(0);
+    });
+
+    it('étiquettes régionales acceptées (fr-FR / ru-RU) comme partout ailleurs', () => {
+        expect(originalVoiceVolume({ ...base, myLanguage: 'fr-FR', peerLanguage: 'ru-RU' })).toBe(0);
+        expect(originalVoiceVolume({ ...base, myLanguage: 'fr-FR', peerLanguage: 'fr-CA' })).toBe(1);
+    });
+});
+
 describe('Canal de données — codec des sous-titres', () => {
     it('aller-retour fidèle', () => {
         const msg = { t: 'caption' as const, v: 1 as const, id: 'a1', text: 'Привет, Амина!', lang: 'ru', final: true, ts: 123 };
@@ -129,6 +165,12 @@ describe('transcribeSpeechDetailed — requête voix STT et lecture des deux for
     it('erreur de la passerelle → exception avec le vrai message serveur', async () => {
         gateway.invoke.mockResolvedValue({ data: { error: 'Aucun fournisseur actif et configuré pour cette catégorie.' }, error: null });
         await expect(transcribeSpeechDetailed({ audioBase64: 'x', mimeType: 'audio/wav' })).rejects.toThrow('Aucun fournisseur actif');
+    });
+
+    it('Mission VT : budget de temps PAR requête (timeoutMs) → erreur réseau explicite, au lieu d’une attente de 45 s ; jamais transmis au serveur', async () => {
+        gateway.invoke.mockImplementation(() => new Promise(() => {}));
+        await expect(transcribeSpeechDetailed({ audioBase64: 'x', mimeType: 'audio/wav', timeoutMs: 40 })).rejects.toThrow(/délai imparti \(40 ms\)/);
+        expect(gateway.invoke.mock.calls[0][1].body.request).not.toHaveProperty('timeoutMs');
     });
 });
 

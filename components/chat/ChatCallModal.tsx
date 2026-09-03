@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Maximize2, Minimize2,
-  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap, RefreshCw, AlertTriangle
+  Volume2, VolumeX, Shield, SwitchCamera, User, Loader2, Languages, Wifi, WifiOff, Zap, RefreshCw, AlertTriangle, Ear, EarOff
 } from 'lucide-react';
 import { ActiveCallSession } from '../../types';
 import { useLiveTransport } from '../../hooks/useLiveTransport';
@@ -17,7 +17,7 @@ import {
 import { translationService, getLanguageLabel } from '../../services/translation/translationService';
 import { myEffectiveLanguage } from '../../services/messaging/messageLanguage';
 import {
-  captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, remoteVolumeFor, shouldCaptionMyVoice, speechTagFor,
+  captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, isInterpreting, originalVoiceVolume, shouldCaptionMyVoice, speechTagFor,
   type CallMediaMessage,
 } from '../../services/messaging/speechLanguage';
 import { CallCaptioner, InterpreterVoice, ServerCaptioner, captionLanguageFromTag } from '../../services/calls/callInterpreter';
@@ -434,6 +434,15 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   const [captionsUnavailable, setCaptionsUnavailable] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [interpreterSpeaking, setInterpreterSpeaking] = useState(false);
+  // Mission VT : « ma langue seulement » — la voix ORIGINALE du correspondant
+  // est COUPÉE dès que l'interprète me parle dans ma langue (elle n'était
+  // qu'atténuée : on entendait les deux voix mélangées). « Entendre aussi
+  // l'original » la rétablit, atténuée pendant que l'interprète parle. Sa
+  // langue : celle qu'il a DÉCLARÉE (« hello »), sinon celle DÉTECTÉE dans
+  // ses dernières paroles (correspondant en « Par défaut » qui parle une
+  // autre langue) — jamais une coupure tant qu'on ignore ce qu'il parle.
+  const [hearOriginal, setHearOriginal] = useState(false);
+  const [peerSpokenLanguage, setPeerSpokenLanguage] = useState<string | null>(null);
   // VF-4 : le captioner actif est soit la transcription serveur, soit le
   // repli navigateur — les deux savent s'arrêter net.
   const captionerRef = useRef<{ stop: () => void } | null>(null);
@@ -470,6 +479,11 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
       setPeerCaption({ original: msg.text, sourceLang: msg.lang, final: false });
       return;
     }
+    // Mission VT : langue réellement PARLÉE par le correspondant (détectée par
+    // la transcription) — pilote la coupure de sa voix originale quand il n'a
+    // pas déclaré de langue.
+    const spokenLanguage = myEffectiveLanguage(msg.lang);
+    if (spokenLanguage) setPeerSpokenLanguage(spokenLanguage);
     // VF-4 : si l'émetteur a déjà joint la traduction dans MA langue
     // (transcription serveur), elle est affichée et dite tout de suite —
     // zéro appel réseau. Même langue des deux côtés : l'original tel quel.
@@ -619,8 +633,22 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
           if (captionerRef.current === server) captionerRef.current = null;
           server = null;
           setMyLiveText('');
+          console.info('[appel] sous-titres serveur indisponibles :', reason);
+          recordCallEvent('captions', `serveur indisponible : ${reason}`);
           // Repli : reconnaissance du navigateur si elle existe ; sinon on le dit, jamais un silence inexpliqué.
           if (!startBrowser()) setCaptionsUnavailable(`Sous-titres indisponibles : ${reason}`);
+        },
+        // Mission VT : passerelle en difficulté → pause puis nouvel essai, dit honnêtement à l'écran ; effacé au retour.
+        onDegraded: (reason, retryInMs) => {
+          console.info('[appel] sous-titres serveur en difficulté :', reason, `nouvel essai dans ${Math.round(retryInMs / 1000)} s`);
+          recordCallEvent('captions', `serveur en difficulté : ${reason}`, { retryInMs });
+          setMyLiveText('');
+          setCaptionsUnavailable(`${reason} — nouvel essai dans ${Math.round(retryInMs / 1000)} s.`);
+        },
+        onRecovered: () => {
+          console.info('[appel] sous-titres serveur rétablis');
+          recordCallEvent('captions', 'serveur rétabli');
+          setCaptionsUnavailable(null);
         },
         isPaused: () => interpreterSpeakingRef.current,
       });
@@ -660,10 +688,25 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
     };
   }, [myLang, mySpeechTag]);
 
-  // Pendant que l'interprète parle, l'original est atténué : on n'entend que sa langue.
+  // Mission VT : volume de la voix ORIGINALE du correspondant — COUPÉE quand
+  // l'interprète me parle dans ma langue (« j'active le français : je
+  // n'entends que le français »), sauf « Entendre aussi l'original » ;
+  // inchangée hors interprétation (même langue, « Par défaut », sous-titres
+  // seuls, langue de l'autre encore inconnue). Règle pure testée
+  // (originalVoiceVolume), commune aux appels AUDIO et VIDÉO : c'est la même
+  // piste audio distante dans les deux mises en page.
+  const peerLanguageForVoice = peerLanguage ?? peerSpokenLanguage;
+  const interpreting = isInterpreting({ myLanguage: myLang, peerLanguage: peerLanguageForVoice, voiceEnabled });
   useEffect(() => {
-    remote?.audioTrack?.setVolume?.(remoteVolumeFor(interpreterSpeaking, isSpeakerMuted));
-  }, [interpreterSpeaking, isSpeakerMuted, remote?.audioTrack]);
+    remote?.audioTrack?.setVolume?.(originalVoiceVolume({
+      myLanguage: myLang, peerLanguage: peerLanguageForVoice, voiceEnabled, hearOriginal, interpreterSpeaking, speakerMuted: isSpeakerMuted,
+    }));
+  }, [interpreterSpeaking, isSpeakerMuted, remote?.audioTrack, myLang, peerLanguageForVoice, voiceEnabled, hearOriginal]);
+
+  // Mission VT : le correspondant PARLE en ce moment (détection de parole du
+  // serveur, toutes langues) — indispensable quand sa voix originale est
+  // coupée : l'écran montre qu'il parle, l'interprète suit.
+  const peerSpeaking = !!remote && (transport.activeSpeakerIds ?? []).includes(remote.participant.identity);
 
   // Fin d'appel / démontage : tout s'arrête net, aucune voix fantôme.
   useEffect(() => {
@@ -1202,18 +1245,52 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                   </span>
                 </span>
                 {myLang && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setVoiceEnabled((v) => !v); }}
-                    aria-pressed={voiceEnabled}
-                    className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${voiceEnabled ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
-                    title={voiceEnabled ? 'Voix de l’interprète activée — cliquer pour ne garder que les sous-titres' : 'Activer la voix de l’interprète'}
-                  >
-                    {voiceEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
-                    <span>{voiceEnabled ? 'Voix' : 'Sous-titres seuls'}</span>
-                  </button>
+                  <div className="flex-shrink-0 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setVoiceEnabled((v) => !v); }}
+                      aria-pressed={voiceEnabled}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${voiceEnabled ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
+                      title={voiceEnabled ? 'Voix de l’interprète activée — cliquer pour ne garder que les sous-titres' : 'Activer la voix de l’interprète'}
+                    >
+                      {voiceEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                      <span>{voiceEnabled ? 'Voix' : 'Sous-titres seuls'}</span>
+                    </button>
+                    {/* Mission VT : « ma langue seule » (voix originale coupée) ↔ « original aussi » (atténuée pendant l'interprète). */}
+                    {interpreting && (
+                      <button
+                        type="button"
+                        data-testid="hear-original-toggle"
+                        onClick={(e) => { e.stopPropagation(); setHearOriginal((v) => !v); }}
+                        aria-pressed={hearOriginal}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${hearOriginal ? 'bg-amber-500 text-slate-950' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
+                        title={hearOriginal
+                          ? 'Vous entendez aussi la voix originale (atténuée pendant l’interprète) — cliquer pour n’entendre que votre langue'
+                          : 'Vous n’entendez que votre langue — cliquer pour entendre aussi la voix originale'}
+                      >
+                        {hearOriginal ? <Ear size={12} /> : <EarOff size={12} />}
+                        <span>{hearOriginal ? 'Original aussi' : 'Ma langue seule'}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
+
+              {/* Mission VT : le correspondant parle (détection serveur) — visible
+                  surtout quand sa voix originale est coupée ; sinon l'état
+                  d'écoute honnête. */}
+              {myLang && interpreting && (
+                <p data-testid="peer-speaking" className={`text-[10px] font-semibold flex items-center gap-1.5 ${peerSpeaking ? 'text-emerald-300' : 'text-slate-400'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${peerSpeaking ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                  <span className="truncate">
+                    {peerSpeaking
+                      ? `${peerName} parle…`
+                      : hearOriginal
+                        ? `Voix originale audible, atténuée pendant l’interprète`
+                        : `Voix originale coupée — vous n’entendez que ${getLanguageLabel(myLang)}`}
+                  </span>
+                </p>
+              )}
 
               {myLang && (
                 peerCaption ? (
