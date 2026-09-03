@@ -242,6 +242,25 @@ describe('habillage « Miroir d’eau » — garde-fou des classes', () => {
         expect(missing).toEqual([]);
     });
 
+    /**
+     * DS-M2c — le défaut le plus coûteux de cette mission : l'habillage ne
+     * vivait que dans `Layout`, c'est-à-dire APRÈS connexion. Quiconque
+     * ouvrait un simple lien (un aperçu de déploiement est une autre origine,
+     * aucune session n'y suit) arrivait sur `Auth` et voyait l'ancienne page —
+     * « aucun changement visible ». Le code était livré, jamais peint.
+     * Ces trois écrans d'avant-connexion doivent donc porter le monde.
+     */
+    it('les écrans d’avant-connexion portent l’habillage (sinon il est invisible sur un lien)', () => {
+        for (const fichier of ['components/Auth.tsx', 'components/ResetPassword.tsx']) {
+            const src = readFileSync(join(ROOT, fichier), 'utf8');
+            expect(src, `${fichier} : data-miroir`).toMatch(/data-miroir/);
+            expect(src, `${fichier} : nappe d’eau`).toMatch(/<WaterMirror\s*\/>/);
+            expect(src, `${fichier} : ancien fond opaque retiré`).not.toMatch(/bg-\[#f0f2f5\]/);
+        }
+        // L'écran de chargement d'App.tsx, entre les deux, ne doit pas trancher.
+        expect(readFileSync(join(ROOT, 'App.tsx'), 'utf8')).toMatch(/data-miroir className="h-screen/);
+    });
+
     it('le périmètre est bien scopé : aucune règle .mir-* hors de [data-miroir]', () => {
         const css = readFileSync(join(ROOT, 'index.html'), 'utf8');
         const unscoped = (css.match(/^\s*\.mir-[a-z-]+/gm) ?? []).map(s => s.trim());
