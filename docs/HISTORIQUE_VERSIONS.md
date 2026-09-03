@@ -26,7 +26,8 @@
 | **v6.10.0** | 3 Septembre 2026 | **Voix traduite DANS l'appel (piste « interprète »), appel normal par défaut, langue choisie par appel** | Appels, Transport LiveKit, AI Gateway v24 | PR #54, #55 / DEC-2026-037 | **Stable** |
 | **v6.11.0** | 3 Septembre 2026 | **Connexion quasi immédiate, traduction dès les premiers mots (identité par onglet, préchauffe AI Gateway v25, case de langue)** | Appels, AI Gateway | PR #56 / DEC-2026-038 | **Stable** |
 | **v6.12.0** | 3 Septembre 2026 | **Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan** | Service worker v6.6.0, Push, Messagerie, Appels | PR #57 / DEC-2026-039 | **Stable** |
-| **v6.12.1** | 3 Septembre 2026 | **Sécurité base : vue `ai_spend_by_provider` en `security_invoker`, `ai_provider_credentials` retirée des rôles clients (pilote consommateur Vision Smart AI Core, TASK-0014)** | Supabase (orchestrateur IA), Gouvernance AI Core | Migration 20260903094327 / DEC-2026-041 | **Courante (Active)** |
+| **v6.12.1** | 3 Septembre 2026 | **Sécurité base : vue `ai_spend_by_provider` en `security_invoker`, `ai_provider_credentials` retirée des rôles clients (pilote consommateur Vision Smart AI Core, TASK-0014)** | Supabase (orchestrateur IA), Gouvernance AI Core | Migration 20260903094327 / DEC-2026-041 | **Stable** |
+| **v6.13.0** | 3 Septembre 2026 | **Menu « Miroir d'eau » (proposition 06 retenue par la Direction) — habillage verre/eau scopé, nappe d'eau animée avec onde à l'appui, Architecte en goutte au centre du dock** | Navigation globale, Accueil réseau social, Goutte messagerie | DS-M2a `61ca0fd` + DS-M2b / DEC-2026-042 | **Courante (Active)** |
 
 ---
 

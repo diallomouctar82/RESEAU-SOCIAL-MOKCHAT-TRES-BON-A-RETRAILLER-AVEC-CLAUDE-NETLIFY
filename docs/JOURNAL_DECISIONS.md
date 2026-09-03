@@ -953,3 +953,48 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
+
+### [DEC-2026-042] — 3 Septembre 2026
+* **Module(s)** : `Navigation globale`, `Réseau social (accueil)`, `Direction artistique`
+* **Problème / Besoin initial** : la Direction a retenu la proposition 06
+  « Miroir d'eau » parmi les six traitements du menu construits dans le
+  laboratoire isolé `design-lab/`. Il fallait la porter en production sans
+  toucher aux systèmes visuels déjà gelés ni au périmètre du LIVE.
+* **Idées envisagées** :
+  1. Réécrire le thème global (`ThemeContext` / `DesignTokens`) pour y loger
+     la palette aqua.
+  2. Ajouter un système de tokens **scopé** sous un attribut `[data-miroir]`,
+     posé sur la racine de l'application, sans toucher aux 10 palettes de
+     marque ni au système verre/eau/lumière du LIVE.
+* **Décision retenue** : option 2. Les couleurs et les matières vivent dans
+  des variables CSS `--mir-*` dans le bloc `<style>` d'`index.html` ; les
+  composants ne portent que des classes `.mir-*`.
+* **Justification** : `palette-10` est gelée par une décision antérieure de la
+  Direction pour toutes les surfaces pas encore redessinées, et le LIVE a sa
+  propre matière (7 univers). Un habillage scopé permet d'appliquer le choix
+  de la Direction sans casser ni l'un ni l'autre — et prépare le futur
+  sélecteur d'univers de l'Administrateur Général (hors périmètre ici) sans
+  qu'il faille retoucher un composant.
+* **Conséquences** :
+  - Le réseau social est l'écran d'accueil par défaut ; l'Architecte occupe la
+    place centrale de la navigation ; la goutte de la messagerie est le seul
+    élément flottant ; « Équipe & Experts » est au premier niveau.
+  - La barre latérale desktop conserve `palette-10` et ses 17 entrées — choix
+    assumé, documenté, pas un oubli.
+  - La goutte de la messagerie reçoit l'arête de lumière et le reflet **par
+    CSS uniquement** : `MessagingDropButton.tsx` n'est pas modifié, ses quatre
+    états et leurs tests restent intacts.
+* **Piège technique consigné** : `-webkit-box-reflect: none` est ignoré
+  silencieusement par Chromium (valeur calculée inchangée, aucun
+  avertissement) — il faut `unset`. Même famille que les teintes `brand-*`
+  absentes de la config Tailwind : une déclaration qui ne peint rien sans le
+  dire. Un garde-fou de test vérifie désormais que toute classe `.mir-*`
+  utilisée existe réellement, et qu'aucune ne vit hors du périmètre scopé.
+* **Éléments techniques** : `index.html` (tokens + classes `.mir-*`),
+  `components/miroir/WaterMirror.tsx`, `services/miroir/waterRipple.ts`,
+  `components/Layout.tsx`, `components/SocialFeed.tsx`,
+  `tests/miroirWater.test.tsx`, `docs/DIRECTION_ARTISTIQUE_MENU_MIROIR_EAU.md`.
+* **Statut** : `Développé`, `Testé` (777 tests, tsc 0, build, banc navigateur
+  réel 76 OK / 0 défaut) — **appréciation visuelle en attente de la Direction**.
+
+---

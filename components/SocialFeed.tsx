@@ -1608,9 +1608,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       {onNavigate && (
         <button
           onClick={() => onNavigate('experts')}
-          className="w-full flex items-center gap-2.5 px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-sm font-bold text-slate-800 hover:border-indigo-200 hover:shadow-md transition-all"
+          className="mir-exp w-full flex items-center gap-2.5 px-4 py-3 rounded-full text-sm font-bold text-slate-800 hover:-translate-y-0.5 transition-all"
         >
-          <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <span className="w-8 h-8 rounded-xl bg-cyan-50/80 text-cyan-700 flex items-center justify-center shrink-0">
             <Users size={16} />
           </span>
           <span>Équipe &amp; Experts</span>
@@ -1619,7 +1619,9 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       )}
 
       {/* 1. TOP HEADER & MAIN NAVIGATION */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* DS-M2b : carte « Réseau Mooc » en verre soufflé translucide, comme
+          `.mooc.glass` dans la maquette — la nappe d'eau se voit à travers. */}
+      <div className="mir-glass rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         
         {/* Network Brand & Search */}
         <div className="flex items-center gap-4 flex-1">
@@ -1729,7 +1731,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       </div>
 
       {/* 2. STORIES RAIL (Instagram / WhatsApp style) */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm overflow-hidden">
+      {/* DS-M2b : rail des stories en verre, comme `.st.glass`. */}
+      <div className="mir-glass rounded-3xl p-4 overflow-hidden">
         <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
           
           {/* Add My Story Button */}
@@ -1777,7 +1780,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           <div className="lg:col-span-2 space-y-6">
             
             {/* A. POST COMPOSER */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <div className="mir-sheet rounded-3xl p-5 space-y-4">
               
               {/* Top Row: User Avatar, Input & AI Enhancement Trigger */}
               <div className="flex items-start gap-3.5">
@@ -2006,7 +2009,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             {/* C. POSTS STREAM */}
             <div className="space-y-5">
               {filteredPosts.length === 0 ? (
-                <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm space-y-3">
+                <div className="mir-sheet rounded-3xl p-12 text-center space-y-3">
                   <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
                     <Sparkles size={28} />
                   </div>
@@ -2024,7 +2027,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                   return (
                     <article 
                       key={post.id} 
-                      className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4 transition-all hover:shadow-md"
+                      className="mir-sheet rounded-3xl p-5 space-y-4 transition-all hover:-translate-y-0.5"
                     >
                       
                       {/* Post Header */}
@@ -2347,7 +2350,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           <div className="space-y-6">
             
             {/* 1. Discover Community Members / Friend Requests */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <div className="mir-sheet rounded-3xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <Users size={18} className="text-indigo-600" />
@@ -2451,7 +2454,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             </div>
 
             {/* 2. Active Lives & Streams */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <div className="mir-sheet rounded-3xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <Radio size={18} className="text-red-500 animate-pulse" />
@@ -2493,7 +2496,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
             </div>
 
             {/* 3. Community Tribus & Groups */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <div className="mir-sheet rounded-3xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <Users size={18} className="text-purple-600" />

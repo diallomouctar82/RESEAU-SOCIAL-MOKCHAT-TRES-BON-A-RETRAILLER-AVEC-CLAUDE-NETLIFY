@@ -1,0 +1,221 @@
+# 💧 DIRECTION ARTISTIQUE — MENU « MIROIR D'EAU »
+> **Proposition 06, choisie par la Direction le 3 septembre 2026**
+> *Mission DS · loupe « menu » · tâches DS-M2a (structure) et DS-M2b (habillage)*
+
+---
+
+## 1. Ce qui a été choisi, et pourquoi ce document existe
+
+La Direction a examiné six traitements du menu construits dans le laboratoire
+isolé `design-lab/` (mission DS-M1) et a retenu la **proposition 06 « Miroir
+d'eau »** : une nappe d'eau vivante sur laquelle flotte un dock de verre
+soufflé, l'Architecte matérialisé en goutte d'eau au centre de la navigation.
+
+La maquette de référence est `design-lab/menu-06-miroir-eau.html` (thème
+`.t6`). Elle reste dans le dépôt : c'est la **source de vérité visuelle** de
+cet habillage. Toute évolution se compare à elle.
+
+L'implantation s'est faite en deux temps délibérément séparés, pour que la
+Direction puisse juger la structure avant la matière :
+
+| Étape | Objet | Livraison |
+| :--- | :--- | :--- |
+| **DS-M2a** | Les invariants **structurels** (où vivent les choses) | commit `61ca0fd` |
+| **DS-M2b** | L'habillage **visuel** verre/eau (de quoi elles ont l'air) | ce document |
+
+---
+
+## 2. Les quatre invariants fixés par la Direction (DS-M2a)
+
+Ils ne sont pas négociables et doivent survivre à tout habillage futur :
+
+1. **Le réseau social est l'écran d'accueil par défaut** — `App.tsx`,
+   `useState('social')`. Le Dashboard `home` reste atteignable comme
+   n'importe quel autre onglet, simplement plus par défaut.
+2. **L'Architecte vit dans la navigation principale, à la place centrale** —
+   bouton central du dock (mobile) et entrée dédiée de la barre latérale
+   (desktop), dans `Layout.tsx`. Ce n'est plus un second bouton flottant.
+3. **Un seul élément flottant à l'écran : la goutte de la messagerie.** La
+   pastille indépendante de l'Architecte a été retirée
+   (`ArchitecteFloatingBar` ne rend plus rien au repos).
+4. **« Équipe & Experts » au premier niveau**, visible sans défilement, avant
+   la carte Réseau Mooc (`SocialFeed.tsx`).
+
+---
+
+## 3. L'habillage (DS-M2b) — où vit quoi
+
+### 3.1 Les tokens, scopés sous `[data-miroir]`
+
+Tout le CSS de l'habillage vit dans le bloc `<style>` d'`index.html`, sous le
+sélecteur `[data-miroir]` posé par `Layout.tsx` sur la racine de
+l'application. Les valeurs sont des **variables CSS**, jamais des couleurs en
+dur : c'est ce qui permettra plus tard à l'Administrateur Général de proposer
+d'autres univers sans retoucher un seul composant.
+
+| Token | Valeur | Rôle |
+| :--- | :--- | :--- |
+| `--mir-bg` | `#EAF7FB` | fond aqua de la maquette |
+| `--mir-ink` | `#0B3A46` | encre, bleu profond |
+| `--mir-acc` | `#0F9EC2` | accent eau (onglet actif, liens) |
+| `--mir-pros` | `#12A579` | vert « prospect » (point de lumière) |
+| `--mir-band` | `rgba(255,255,255,.44)` | bandeau des en-têtes |
+| `--mir-panel` | `rgba(255,255,255,.44)` | panneaux de verre (Réseau Mooc, stories, dock) |
+| `--mir-sheet` | `rgba(255,255,255,.94)` | **feuilles de lecture** (publications du fil) |
+| `--mir-exp` | `rgba(255,255,255,.58)` | sous-barre « Équipe & Experts » |
+| `--mir-blur` | `blur(20px) saturate(1.2)` | flou d'arrière-plan du verre |
+| `--mir-arch-shape` | `50% 50% 46% 46% / 58% 58% 42% 42%` | géométrie de la goutte de l'Architecte |
+
+**Pourquoi 0,44 pour les panneaux mais 0,94 pour les publications** : c'est la
+maquette elle-même qui fait cette distinction (`.glass` vs `.sheet`). Un
+paragraphe ne se lit pas à travers de l'eau. Le verre très transparent est
+réservé au chrome et aux surfaces qu'on survole ; les surfaces où l'on **lit**
+restent quasi opaques.
+
+### 3.2 Les classes
+
+| Classe | Appliquée à | Effet |
+| :--- | :--- | :--- |
+| `.mir-scene` | le canevas de la nappe d'eau | `fixed`, `z-0`, jamais cliquable |
+| `.mir-band` | les deux en-têtes | verre translucide + flou, bordure de lumière |
+| `.mir-glass` | carte Réseau Mooc, rail des stories, dock | verre soufflé + reflet spéculaire `::before` |
+| `.mir-sheet` | publications du fil, composeur, états vides | feuille de lecture quasi opaque |
+| `.mir-exp` | bouton « Équipe & Experts » | verre intermédiaire, pilule |
+| `.mir-dock` | la pilule du dock | verre + ombre portée teintée eau |
+| `.mir-edge` | dock (et `.mdb` pour la goutte) | arête de lumière conique qui tourne en 9 s |
+| `.mir-reflect` | dock (et `.mdb`) | reflet dans l'eau (`-webkit-box-reflect`) |
+| `.mir-orb` | bouton Architecte du dock | goutte : lumière radiale, point spéculaire, anneau qui respire |
+| `.mir-tab-active` | emplacement actif du dock | couleur accent + point de lumière vert |
+| `.mir-mode` | ligne d'état de l'en-tête mobile | « Réseau · en éveil », capitales espacées |
+
+### 3.3 La nappe d'eau
+
+`components/miroir/WaterMirror.tsx` — portage fidèle du moteur `waterScene()`
+de la maquette : ciel dégradé, ligne d'eau à **58 %** de la hauteur qui ondule
+(deux sinusoïdes de périodes différentes), nappe de lumière qui dérive, trois
+passes de caustiques en composition additive, étincelles sur les crêtes, lueur
+sous le dock.
+
+`services/miroir/waterRipple.ts` — un bus minuscule (un `Set` d'abonnés, une
+fraction horizontale) pour qu'un appui sur le dock envoie une **vraie onde**
+là où le doigt s'est posé, sans faire descendre une fonction par les props à
+travers tout l'arbre.
+
+Décisions propres à la mise en production, absentes de la maquette (qui ne
+vivait que dans un cadre de 390 px) :
+
+- **`prefers-reduced-motion`** : une seule image fixe est peinte, aucune
+  boucle d'animation n'est lancée, aucun abonnement aux ondes n'est pris.
+  L'arête de lumière, l'anneau de l'Architecte et les reflets sont éteints.
+- **Onglet en arrière-plan** : la boucle s'arrête et reprend au retour.
+- **Écrans larges** : le pas d'échantillonnage de la ligne s'élargit
+  (4 px sur téléphone, 8 px au-delà de 1 200 px) — à 1 920 px, un pas de 4 px
+  demanderait 480 points × 4 passes à chaque image.
+- **Densité de pixels plafonnée à 1,5**, comme dans la maquette.
+- **Sans contexte 2D** (navigateur sans canevas), l'application reste
+  entièrement utilisable : le fond `--mir-bg` prend le relais.
+
+### 3.4 Ce qui n'a PAS été touché, volontairement
+
+- **`contexts/ThemeContext.tsx` / `components/ui/DesignTokens.ts`** — les 10
+  palettes de marque, `palette-10` par défaut, sont **gelées** par une
+  décision antérieure de la Direction pour toutes les surfaces pas encore
+  redessinées. La barre latérale desktop continue donc de tirer ses couleurs
+  de `palette-10` : c'est un choix, pas un oubli. Elle conserve ses **17
+  entrées** et sa richesse fonctionnelle — la maquette montre un dock
+  simplifié à 5 icônes en mode « desktop », le dégrader aurait appauvri la
+  navigation réelle.
+- **Le système verre/eau/lumière du LIVE** (`[data-live-universe]`, classes
+  `.water-*`, 7 univers) — il a sa propre matière et son propre périmètre.
+- **La goutte de la messagerie** (`MessagingDropButton.tsx`, VF-10) — elle
+  était **déjà** en matière d'eau. Elle ne reçoit ici que l'arête de lumière
+  et le reflet qui lui manquaient, **par CSS uniquement** (`[data-miroir] .mdb`) :
+  aucune ligne du composant n'est modifiée, ses quatre états
+  (repos / non-lus / appel / ouvert) et leurs tests restent intacts.
+- **Le contenu interne des autres écrans** — seuls le chrome global et
+  l'écran d'accueil sont habillés à ce stade.
+- **Le sélecteur d'univers pour l'Administrateur Général** — explicitement
+  hors périmètre (lot 1, point 3). L'architecture en variables CSS le rend
+  possible plus tard sans retoucher les composants.
+
+---
+
+## 4. Un piège CSS trouvé au banc, à retenir
+
+`-webkit-box-reflect: none` est **ignoré silencieusement par Chromium** : la
+valeur calculée reste le reflet précédent, sans le moindre avertissement. Le
+reflet survivait donc à une demande de mouvement réduit. Il faut écrire
+`unset` (ou `initial`).
+
+C'est la même famille de piège que les teintes `brand-*` absentes de la
+configuration Tailwind (corrigées le 30 août) : **une déclaration qui ne peint
+rien sans le dire**. Un garde-fou de test a été ajouté en conséquence — voir
+§ 5.
+
+---
+
+## 5. Preuves
+
+### 5.1 Tests automatisés
+
+`tests/miroirWater.test.tsx` — 14 tests :
+
+- **Bus d'ondes** : transmission, désabonnement, bornage à `[0, 1]`, valeur
+  non finie ramenée au milieu, un abonné qui lève n'empêche pas les autres,
+  calcul du centre depuis un élément.
+- **Nappe d'eau** : canevas décoratif (`aria-hidden`), dessin réel du ciel /
+  du corps de l'eau / de la ligne de surface, abonnement pendant le montage et
+  désabonnement au démontage, mouvement réduit (une seule image, aucune
+  boucle, aucun abonnement), absence de contexte 2D non fatale.
+- **Garde-fou des classes** : toute classe `.mir-*` écrite dans un composant
+  existe bien dans `index.html`, et aucune règle `.mir-*` ne vit hors du
+  périmètre `[data-miroir]`. *Ce garde-fou a été vérifié comme non complaisant :
+  en injectant volontairement une classe inexistante, il échoue.*
+- **Échantillonnage** : pas adaptatif à la largeur, défensif sur une largeur
+  absurde, ligne d'eau à 58 %.
+
+Suite complète : **777 tests** (57 fichiers) · `tsc --noEmit` **0 erreur** ·
+`npm run build` propre.
+
+### 5.2 Banc navigateur réel — **76 OK / 0 défaut**
+
+Tout le CSS de cet habillage étant **inline dans `index.html`**, il ne dépend
+d'aucun CDN : il est donc vérifiable en vrai navigateur dans ce bac à sable,
+contrairement aux parcours qui exigent Supabase.
+
+- **Le CSS réellement servi par `dist/index.html`** (desktop + mobile) : les
+  10 tokens et les 11 classes relus par `getComputedStyle` — verre à 44 %,
+  feuille à 94 %, flou réel, ombre teintée eau, reflet spéculaire, arête de
+  lumière animée en 9 s avec son masque de contour, goutte de l'Architecte
+  avec sa géométrie non circulaire et son point spéculaire, reflets, arête de
+  la goutte décalée de 4 s.
+- **Accessibilité** : sous `prefers-reduced-motion`, arêtes éteintes, anneau
+  figé, reflets retirés.
+- **La nappe d'eau peinte par le VRAI composant** (bundle esbuild du fichier
+  du dépôt, monté dans une page vierge) : ciel et eau mesurés au pixel, ligne
+  d'eau détectée à **57,2 %** (mobile) et **57,9 %** (desktop), caustiques
+  prouvées par comparaison à un témoin plat, et un appui qui perturbe la zone
+  touchée **4,7×** plus que la zone témoin (mobile) / **1,7×** (desktop),
+  contre ~1,0× au repos — mesure appariée, la houle de fond s'annule.
+- **Mouvement réduit** : l'image est figée sur 900 ms, mais une image a bien
+  été peinte.
+
+Captures : `scratchpad/dsm2b/captures/`.
+
+### 5.3 Ce qui reste à votre jugement
+
+Aucun test ne peut dire si l'eau **a l'air d'eau**. Le banc prouve que les
+bonnes opérations de dessin sont émises et que les bonnes valeurs sont
+appliquées ; l'appréciation visuelle et le confort de lecture sur un vrai
+téléphone restent votre décision, sur l'aperçu de déploiement ou en
+production.
+
+Deux points sur lesquels votre avis est explicitement attendu :
+
+1. **La ligne d'état « Réseau · en éveil »** n'est portée que par l'en-tête
+   **mobile**. Sur desktop, l'en-tête est déjà dense (logo, navigation,
+   recherche, palette, crédits, avatar) et une ligne de plus déborderait. Si
+   vous la voulez aussi sur ordinateur, il faudra libérer de la place.
+2. **La barre latérale desktop garde la palette gelée.** Elle cohabite donc
+   avec un chrome aqua. Si vous souhaitez l'habiller aussi, cela demande de
+   lever le gel de `palette-10` — une décision qui vous revient.

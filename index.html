@@ -804,6 +804,314 @@
           animation: none !important;
         }
       }
+
+      /* ══════════════════════════════════════════════════════════════════
+         MENU « MIROIR D'EAU » — habillage verre/eau (DS-M2b)
+         Proposition 06 choisie par la Direction le 3 septembre 2026, portée
+         depuis `design-lab/menu-06-miroir-eau.html` (thème `.t6`).
+
+         Tout est SCOPÉ sous `[data-miroir]`, posé par Layout.tsx sur la
+         racine de l'application. Aucune de ces règles ne touche :
+           - `contexts/ThemeContext.tsx` / `components/ui/DesignTokens.ts`
+             (les 10 palettes de marque, palette-10 par défaut, gelées par une
+             décision antérieure de la Direction pour toutes les surfaces pas
+             encore redessinées — la barre latérale desktop continue donc de
+             tirer ses couleurs de palette-10, voir la note dans Layout.tsx) ;
+           - le système verre/eau/lumière du LIVE (`[data-live-universe]`,
+             classes `.water-*`), qui a sa propre matière et ses 7 univers ;
+           - la goutte de la messagerie (`.mdb-*`), déjà en matière d'eau
+             depuis VF-10 — elle ne reçoit ici que l'arête de lumière et le
+             reflet qui lui manquaient.
+
+         Les valeurs sont des variables CSS et non des couleurs en dur : c'est
+         ce qui permettra à l'Administrateur Général de proposer plus tard
+         d'autres univers sans retoucher un seul composant. Ce sélecteur
+         d'univers n'est PAS construit ici (hors périmètre, lot 1 point 3).
+         ══════════════════════════════════════════════════════════════════ */
+      [data-miroir] {
+        --mir-bg: #EAF7FB;
+        --mir-ink: #0B3A46;
+        --mir-acc: #0F9EC2;
+        --mir-pros: #12A579;
+        --mir-pros-glow: rgba(18, 165, 121, 0.55);
+        /* Bandeaux de chrome (en-têtes) : verre très transparent. */
+        --mir-band: rgba(255, 255, 255, 0.44);
+        --mir-band-bd: rgba(255, 255, 255, 0.7);
+        /* Panneaux « glass » (carte Réseau Mooc, rail des stories, dock). */
+        --mir-panel: rgba(255, 255, 255, 0.44);
+        --mir-panel-solid: #EEF9FC;
+        /* Feuilles « sheet » : les publications du fil, où l'on LIT — la
+           maquette elle-même les met à 0.94 et non à 0.44, parce qu'un texte
+           de paragraphe ne se lit pas à travers de l'eau. */
+        --mir-sheet: rgba(255, 255, 255, 0.94);
+        --mir-sheet-bd: rgba(255, 255, 255, 0.9);
+        --mir-exp: rgba(255, 255, 255, 0.58);
+        --mir-bd: rgba(255, 255, 255, 0.85);
+        --mir-blur: blur(20px) saturate(1.2);
+        --mir-hi: rgba(255, 255, 255, 0.95);
+        --mir-lo: rgba(11, 58, 70, 0.05);
+        --mir-spec: linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 40%);
+        --mir-sh-sm: 0 10px 22px -10px rgba(10, 70, 90, 0.32);
+        --mir-sh-md: 0 18px 40px -20px rgba(10, 70, 90, 0.4);
+        --mir-sh-lg: 0 28px 56px -24px rgba(10, 70, 90, 0.45);
+        /* L'Architecte : une goutte d'eau soufflée, pas un bouton rond. */
+        --mir-arch-shape: 50% 50% 46% 46% / 58% 58% 42% 42%;
+        --mir-arch-bg: radial-gradient(circle at 36% 28%, #FFFFFF 0 12%, #BFF3FF 30%, #3FC7E0 66%, #0E7A93 100%);
+        --mir-arch-ring: rgba(191, 243, 255, 0.65);
+        --mir-arch-sh: 0 14px 30px -12px rgba(10, 70, 90, 0.55),
+          inset 0 -6px 12px rgba(0, 60, 75, 0.16),
+          inset 0 4px 10px rgba(255, 255, 255, 0.75);
+        background: var(--mir-bg);
+        color: var(--mir-ink);
+      }
+
+      /* La nappe d'eau (components/miroir/WaterMirror.tsx) : purement
+         décorative, sous tout le reste, jamais cliquable. */
+      [data-miroir] .mir-scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+        display: block;
+      }
+      /* Tout le contenu réel de l'application passe AU-DESSUS de l'eau.
+         On ne touche SURTOUT PAS `position` ici : les deux en-têtes sont en
+         `sticky`, et ce sélecteur (0,2,0) l'emporterait sur la classe
+         Tailwind `.sticky` (0,1,0) — les en-têtes cesseraient de coller en
+         haut de l'écran. Un `z-index` seul suffit : les enfants de la racine
+         sont des éléments flex, et un élément flex honore `z-index` même en
+         position statique. */
+      [data-miroir] > *:not(.mir-scene) {
+        z-index: 1;
+      }
+
+      /* Bandeau de verre : les deux en-têtes (mobile et desktop). */
+      [data-miroir] .mir-band {
+        background: var(--mir-band);
+        border-bottom: 1px solid var(--mir-band-bd);
+        backdrop-filter: var(--mir-blur);
+        -webkit-backdrop-filter: var(--mir-blur);
+        color: var(--mir-ink);
+      }
+
+      /* Panneau de verre soufflé : reflet spéculaire en haut, arêtes
+         internes claire et sombre — c'est ce qui donne l'épaisseur. */
+      [data-miroir] .mir-glass,
+      [data-miroir] .mir-sheet,
+      [data-miroir] .mir-dock {
+        position: relative;
+        border: 1px solid var(--mir-bd);
+        backdrop-filter: var(--mir-blur);
+        -webkit-backdrop-filter: var(--mir-blur);
+        box-shadow: var(--mir-sh-md), inset 0 1px 0 var(--mir-hi), inset 0 -1px 0 var(--mir-lo);
+      }
+      [data-miroir] .mir-glass::before,
+      [data-miroir] .mir-dock::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: var(--mir-spec);
+      }
+      [data-miroir] .mir-glass {
+        background: var(--mir-panel);
+      }
+      [data-miroir] .mir-sheet {
+        background: var(--mir-sheet);
+        border-color: var(--mir-sheet-bd);
+        box-shadow: var(--mir-sh-sm);
+      }
+      [data-miroir] .mir-exp {
+        background: var(--mir-exp);
+        border: 1px solid rgba(255, 255, 255, 0.92);
+        box-shadow: var(--mir-sh-md);
+      }
+      /* Un utilisateur qui demande moins de transparence obtient du verre
+         opaque, pas une bouillie illisible. */
+      @media (prefers-reduced-transparency: reduce) {
+        [data-miroir] .mir-band,
+        [data-miroir] .mir-glass,
+        [data-miroir] .mir-dock,
+        [data-miroir] .mir-exp {
+          background: var(--mir-panel-solid);
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+      }
+
+      /* Le dock : une pilule de verre soufflé posée sur l'eau. */
+      [data-miroir] .mir-dock {
+        background: var(--mir-panel);
+        box-shadow: var(--mir-sh-lg), inset 0 1px 0 var(--mir-hi), inset 0 -1px 0 var(--mir-lo);
+      }
+      /* L'arête de lumière qui tourne en continu autour du verre — le
+         « dock pilule » du repère de la Direction. */
+      [data-miroir] .mir-edge::after {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        pointer-events: none;
+        padding: 1.4px;
+        background: conic-gradient(
+          from var(--mir-sp, 0deg),
+          transparent 0 74%,
+          rgba(255, 255, 255, 0.95) 84%,
+          rgba(159, 230, 255, 1) 91%,
+          transparent 98%
+        );
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        animation: mir-edge 9s linear infinite;
+      }
+      /* Sans cette déclaration, `--mir-sp` reste une chaîne pour le moteur
+         CSS : l'animation sauterait de 0 à 360° au lieu de faire tourner
+         l'arête. C'est la même mécanique que `--rg` dans la maquette. */
+      @property --mir-sp {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+      @keyframes mir-edge {
+        to {
+          --mir-sp: 360deg;
+        }
+      }
+      /* L'eau reflète ce qui flotte dessus (dock et goutte). */
+      [data-miroir] .mir-reflect {
+        -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(10, 70, 90, 0.28));
+      }
+
+      /* La goutte de la messagerie (VF-10) : elle est DÉJÀ en matière d'eau,
+         on ne la reconstruit pas. Elle reçoit seulement les deux effets de la
+         proposition 06 qui lui manquaient — l'arête de lumière et le reflet.
+         Purement CSS, en visant `.mdb` depuis ce périmètre : aucune ligne de
+         `MessagingDropButton.tsx` n'est touchée, donc ses quatre états
+         (repos / non-lus / appel / ouvert) et leurs tests restent intacts.
+         L'arête tourne avec 4 s de décalage sur celle du dock, pour que les
+         deux ne s'allument jamais en même temps. */
+      [data-miroir] .mdb {
+        -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(10, 70, 90, 0.28));
+      }
+      [data-miroir] .mdb::after {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        pointer-events: none;
+        padding: 1.4px;
+        background: conic-gradient(
+          from var(--mir-sp, 0deg),
+          transparent 0 74%,
+          rgba(255, 255, 255, 0.95) 84%,
+          rgba(159, 230, 255, 1) 91%,
+          transparent 98%
+        );
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        animation: mir-edge 9s linear infinite -4s;
+      }
+
+      /* L'Architecte, au centre de la navigation principale : une goutte
+         d'eau soufflée avec sa lumière interne, son point spéculaire et son
+         anneau qui respire. Invariant Direction — un seul flottant à
+         l'écran (la goutte messagerie), l'Architecte vit dans le dock. */
+      [data-miroir] .mir-orb {
+        border-radius: var(--mir-arch-shape);
+        background: var(--mir-arch-bg);
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        color: #0E4C5C;
+        box-shadow: var(--mir-arch-sh);
+      }
+      [data-miroir] .mir-orb::before {
+        content: '';
+        position: absolute;
+        inset: -7px;
+        border-radius: var(--mir-arch-shape);
+        border: 1.5px solid var(--mir-arch-ring);
+        pointer-events: none;
+        animation: mir-pulse 4.2s ease-in-out infinite;
+      }
+      /* Le point de lumière sur le flanc de la goutte : c'est lui qui la
+         fait lire comme du verre plein et non comme un disque coloré. */
+      [data-miroir] .mir-orb::after {
+        content: '';
+        position: absolute;
+        left: 23%;
+        top: 15%;
+        width: 28%;
+        height: 20%;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+        filter: blur(1.4px);
+        pointer-events: none;
+      }
+      @keyframes mir-pulse {
+        0%, 100% {
+          transform: scale(0.9);
+          opacity: 0.75;
+        }
+        50% {
+          transform: scale(1.18);
+          opacity: 0;
+        }
+      }
+
+      /* L'emplacement actif du dock : la lumière dit où l'on est (idée
+         retenue du repère « Model 14 » de la Direction). */
+      [data-miroir] .mir-tab-active {
+        color: var(--mir-acc);
+      }
+      [data-miroir] .mir-tab-active::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 2px;
+        width: 4px;
+        height: 4px;
+        margin-left: -2px;
+        border-radius: 50%;
+        background: var(--mir-pros);
+        box-shadow: 0 0 8px 2px var(--mir-pros-glow);
+      }
+
+      /* « L'interface déclare son état » — la ligne de mode du repère
+         « Model 14 », reprise telle quelle par la proposition 06. */
+      [data-miroir] .mir-mode {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--mir-ink);
+        opacity: 0.7;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-miroir] .mir-edge::after,
+        [data-miroir] .mdb::after {
+          display: none;
+        }
+        [data-miroir] .mir-orb::before {
+          animation: none;
+        }
+        /* `unset` et non `none` : Chromium IGNORE silencieusement
+           `-webkit-box-reflect: none` (valeur calculée inchangée, aucun
+           avertissement) — vérifié au banc, le reflet survivait à la demande
+           de mouvement réduit. Même famille de piège que les teintes
+           `brand-*` absentes de la config Tailwind : une déclaration qui ne
+           peint rien sans le dire. */
+        [data-miroir] .mir-reflect,
+        [data-miroir] .mdb {
+          -webkit-box-reflect: unset;
+        }
+      }
     </style>
   <script type="importmap">
 {

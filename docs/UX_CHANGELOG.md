@@ -31,10 +31,24 @@
 | **`MessagingOwnerCard`** | Carte du propriétaire (« Vous ») en tête de liste | **ACTIVE** | Nom, avatar réel ou initiales (jamais de cliché) | WCAG AA | Messagerie |
 | **`ChatCallModal`** | Écran d'appel audio/vidéo | **ACTIVE** | Sonnerie, Décrocher 72×72 px, case de langue « Entendre X en … » (« Appel normal » / « Traduction active »), diagnostics média réels, z-index 400 au-dessus des boîtes du LIVE | WCAG AA (cibles ≥ 44 px, états lisibles) | Messagerie, appels |
 | **`RingingPanel`** | Panneau « Sonnerie » de la barre de messagerie | **ACTIVE** | Interrupteurs Sonnerie / Vibration (`role="switch"`), sonnerie du profil, état « Hors application » (Active / Incomplète / Non activée / Refusée / À installer / Indisponible), « Tester la sonnerie » | WCAG AA (focus visible, aria-checked) | Messagerie |
+| **`WaterMirror`** | Nappe d'eau vivante du menu « Miroir d'eau » | **ACTIVE** | Canevas décoratif plein écran (`aria-hidden`, non cliquable) : ciel dégradé, ligne d'eau à 58 %, caustiques, étincelles, onde réelle à l'appui | Décoratif — jamais annoncé aux lecteurs d'écran ; image unique et figée sous `prefers-reduced-motion` | Transversal (chrome global) |
+| **`.mir-*` (habillage Miroir d'eau)** | Matière verre/eau scopée sous `[data-miroir]` | **ACTIVE** | `mir-band` (en-têtes), `mir-glass` 44 % (panneaux), `mir-sheet` 94 % (surfaces de lecture), `mir-exp`, `mir-dock`, `mir-edge` (arête de lumière 9 s), `mir-reflect`, `mir-orb` (Architecte en goutte), `mir-tab-active`, `mir-mode` | Verre opaque sous `prefers-reduced-transparency` ; animations éteintes sous `prefers-reduced-motion` ; texte de lecture à 94 % d'opacité | Navigation globale, Accueil réseau social |
 
 ---
 
 ## 🔄 2. JOURNAL DES ÉVOLUTIONS UX/UI (UX CHANGELOG)
+
+### [V1.2.0] — 3 Septembre 2026 — Menu « Miroir d'eau » : le chrome global et l'accueil passent au verre/eau
+* **Écrans / Modules concernés** : navigation globale (`Layout`), accueil réseau social (`SocialFeed`), goutte de la messagerie (par CSS uniquement).
+* **Ancien comportement** : fond gris plat `#f0f2f5`, en-têtes blancs opaques, dock blanc posé sur un voile dégradé gris, Architecte en disque dégradé cyan/indigo cerclé de gris, cartes blanches à bordure `slate-100`.
+* **Nouveau comportement** :
+  - Une **nappe d'eau animée** (`WaterMirror`) sous toute l'application : ligne d'eau à 58 %, caustiques, étincelles, lueur sous le dock — et une **onde réelle** là où le doigt se pose sur le dock.
+  - En-têtes en **bandeau de verre** translucide (44 %) avec flou d'arrière-plan ; ligne d'état « Réseau · en éveil » sur l'en-tête mobile.
+  - Dock en **pilule de verre soufflé** qui flotte sur l'eau, avec une arête de lumière qui tourne en 9 s et son reflet ; emplacement actif marqué par la couleur accent et un point de lumière vert.
+  - **L'Architecte devient une goutte d'eau** au centre du dock (géométrie non circulaire, lumière interne radiale, point spéculaire, anneau qui respire).
+  - Accueil : carte Réseau Mooc et rail des stories en verre (44 %) ; publications du fil en **feuille de lecture** (94 %) — un paragraphe ne se lit pas à travers de l'eau.
+* **Justification** : proposition 06 retenue par la Direction (DEC-2026-042). Tokens `--mir-*` **scopés** sous `[data-miroir]` : ni `palette-10` (gelée) ni le système verre/eau/lumière du LIVE ne sont touchés, et le futur sélecteur d'univers de l'Administrateur Général devient possible sans retoucher un composant. Accessibilité : verre opaque sous `prefers-reduced-transparency`, toutes les animations décoratives éteintes sous `prefers-reduced-motion`.
+* **Statut** : **DÉVELOPPÉ ET TESTÉ** (777 tests, tsc 0, build, banc navigateur réel 76 OK / 0 défaut sur le CSS effectivement servi par `dist/`) — **appréciation visuelle en attente de la Direction**. Détail : `docs/DIRECTION_ARTISTIQUE_MENU_MIROIR_EAU.md`.
 
 ### [V1.1.0] — 3 Septembre 2026 — Messagerie et appels : goutte, « Ma langue », écran d'appel, panneau « Sonnerie »
 * **Écrans / Modules concernés** : messagerie (`MoocChatFloating`), appels (`ChatCallModal`), Layout (bouton flottant).

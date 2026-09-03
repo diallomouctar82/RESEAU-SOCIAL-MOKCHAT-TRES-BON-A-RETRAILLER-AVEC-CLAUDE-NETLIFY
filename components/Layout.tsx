@@ -42,6 +42,8 @@ import {
 import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
 import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
+import { WaterMirror } from './miroir/WaterMirror';
+import { emitWaterRippleFrom } from '../services/miroir/waterRipple';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
 import { PushPermissionPrompt } from './push/PushPermissionPrompt';
@@ -341,10 +343,18 @@ export const Layout: React.FC<LayoutProps> = ({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#f0f2f5] overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>
-      
+    // DS-M2b (menu « Miroir d'eau ») — `data-miroir` active l'habillage
+    // verre/eau scopé défini dans le bloc <style> d'index.html (tokens
+    // --mir-*, classes .mir-*). Le fond n'est plus la classe Tailwind
+    // `bg-[#f0f2f5]` mais le token `--mir-bg` : la nappe d'eau animée est
+    // peinte par-dessus par <WaterMirror /> et doit pouvoir transparaître.
+    <div data-miroir className="h-screen flex flex-col overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>
+
+      {/* La surface d'eau : décor, sous tout le reste, jamais cliquable. */}
+      <WaterMirror />
+
       {/* ─── DESKTOP HEADER ─── */}
-      <header className="hidden md:block bg-white/90 backdrop-blur-md border-b border-gray-200 z-20 sticky top-0">
+      <header className="hidden md:block mir-band z-20 sticky top-0">
         <div className="max-w-[1920px] mx-auto px-6 py-2.5 flex items-center justify-between gap-4">
           
           {/* Logo & Platform Name */}
@@ -640,7 +650,15 @@ export const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* ─── MOBILE HEADER ─── */}
-      <header className="md:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-2.5 flex justify-between items-center sticky top-0 z-30">
+      {/* DS-M2b : bandeau de verre (.mir-band) au lieu du blanc opaque, et
+          la ligne d'état « Réseau · en éveil » au-dessus — l'idée « l'interface
+          déclare son mode » retenue du repère « Model 14 » de la Direction et
+          reprise par la proposition 06. Elle est portée par l'en-tête mobile
+          seulement : sur desktop l'en-tête est déjà dense (logo, navigation,
+          recherche, crédits, avatar) et une ligne de plus déborderait. */}
+      <header className="md:hidden mir-band px-4 pt-1.5 pb-2.5 sticky top-0 z-30">
+        <div className="mir-mode leading-none pb-1.5">Réseau · en éveil</div>
+        <div className="flex justify-between items-center">
         <div className="flex items-center gap-2" onClick={() => onTabChange('home')}>
           <div className="bg-gradient-to-tr from-brand-600 to-purple-600 p-1.5 rounded-lg">
             <Globe className="text-white" size={16} />
@@ -664,6 +682,7 @@ export const Layout: React.FC<LayoutProps> = ({
           <button onClick={() => onTabChange('profile')} className="w-7 h-7 rounded-full overflow-hidden border border-gray-200">
             <img src={userProfile.avatarUrl} className="w-full h-full object-cover" />
           </button>
+        </div>
         </div>
       </header>
 
@@ -982,7 +1001,11 @@ export const Layout: React.FC<LayoutProps> = ({
         {/* pb-56 mobile : réserve le dock (h-16 + marges) ET la pastille
             Architecte (bottom-44 + h-14) — avec pb-36, la fin du contenu
             restait cachée derrière elle. */}
-        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-56 md:pb-0">
+        {/* DS-M2b : plus de fond opaque `bg-[#f8fafc]` — le contenu défile
+            AU-DESSUS de la nappe d'eau, exactement comme `.scroll` par-dessus
+            `.scene` dans la maquette. Les surfaces qui portent du texte
+            reprennent leur opacité localement (classes .mir-glass/.mir-sheet). */}
+        <main className="flex-1 overflow-y-auto relative w-full scroll-smooth pb-56 md:pb-0">
           <div className="max-w-[1700px] mx-auto h-full flex flex-col">
             {activeTab !== 'home' && (() => {
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
@@ -1154,21 +1177,25 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Bottom Dock Bar (5 Essential Actions) */}
-          <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5]/90 to-transparent pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
-              
+          {/* DS-M2b : le voile dégradé `from-[#f0f2f5]` qui masquait le bas de
+              l'écran est retiré — la pilule doit FLOTTER sur l'eau, pas être
+              posée sur un socle gris. Chaque appui envoie une vraie onde à
+              l'endroit touché (services/miroir/waterRipple.ts). */}
+          <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 pointer-events-auto">
+            <div className="mir-dock mir-edge mir-reflect rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
+
               {/* 1. Home */}
-              <button 
-                onClick={() => {onTabChange('home'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); onTabChange('home'); setIsMobileMenuExpanded(false);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'mir-tab-active' : 'text-slate-400'}`}
               >
                 <LayoutGrid size={22} className={activeTab === 'home' ? 'stroke-[2.5]' : ''} />
               </button>
 
               {/* 2. Mon Parcours */}
-              <button 
-                onClick={() => {onTabChange('parcours'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); onTabChange('parcours'); setIsMobileMenuExpanded(false);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'mir-tab-active' : 'text-slate-400'}`}
               >
                 <FolderKanban size={22} className={activeTab === 'parcours' ? 'stroke-[2.5]' : ''} />
               </button>
@@ -1179,26 +1206,31 @@ export const Layout: React.FC<LayoutProps> = ({
                   navigation distinct, gardé pour ses propres entrées) mais
                   le vrai Architecte (voix, bus de capacités, session) via
                   `architecteOpenSignal` — voir ArchitecteFloatingBar.tsx. */}
+              {/* DS-M2b : l'Architecte n'est plus un disque dégradé cerclé de
+                  gris mais une GOUTTE D'EAU soufflée (.mir-orb) — forme de
+                  goutte, lumière interne radiale, point spéculaire sur le
+                  flanc, anneau qui respire. C'est la pièce signature de la
+                  proposition 06 retenue par la Direction. */}
               <button
-                onClick={() => setArchitecteOpenSignal(s => s + 1)}
-                className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-cyan-500 via-sky-600 to-indigo-600 rounded-full shadow-lg shadow-cyan-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); setArchitecteOpenSignal(s => s + 1);}}
+                className="mir-orb relative flex flex-col items-center justify-center w-14 h-14 transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform z-20 shrink-0"
                 aria-label="Ouvrir l'Architecte"
               >
-                <DraftingCompass size={22} />
+                <DraftingCompass size={22} className="relative" />
               </button>
 
               {/* 4. Réseau MOC */}
-              <button 
-                onClick={() => {onTabChange('social'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); onTabChange('social'); setIsMobileMenuExpanded(false);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'mir-tab-active' : 'text-slate-400'}`}
               >
                 <Users size={22} className={activeTab === 'social' ? 'stroke-[2.5]' : ''} />
               </button>
 
               {/* 5. Menu Drawer Toggle */}
-              <button 
-                onClick={() => setIsMobileMenuExpanded(!isMobileMenuExpanded)} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); setIsMobileMenuExpanded(!isMobileMenuExpanded);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-white/70 text-slate-900' : 'text-slate-400'}`}
               >
                 {isMobileMenuExpanded ? <ChevronDown size={22} /> : <Menu size={22} />}
               </button>
