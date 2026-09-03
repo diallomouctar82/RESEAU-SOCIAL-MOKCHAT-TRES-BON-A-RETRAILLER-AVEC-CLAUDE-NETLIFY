@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, isInterpreting, languageCodeFromTag, originalVoiceVolume, remoteVolumeFor,
+    captionForReceiver, decodeCallData, encodeCallData, interpretationPlan, isInterpreterTrackForMe, isInterpreting, languageCodeFromTag, originalVoiceVolume,
+    peerLanguageForInterpretation, remoteVolumeFor, shouldRenderVoiceForPeer,
     shouldCaptionMyVoice, speechTagFor, splitForInterpretation, DUCKED_REMOTE_VOLUME,
 } from '../services/messaging/speechLanguage';
 import { pickSynthesisVoice } from '../services/calls/callInterpreter';
@@ -98,6 +99,13 @@ describe('Mission VT — volume de la voix ORIGINALE du correspondant (« ma lan
         expect(isInterpreting({ ...base, voiceEnabled: false })).toBe(false);
         // Une voix d'interprète qui parle (sous-titre traduit) atténue quand même l'original — jamais deux voix à plein volume.
         expect(originalVoiceVolume({ ...base, peerLanguage: null, interpreterSpeaking: true })).toBe(DUCKED_REMOTE_VOLUME);
+    });
+
+    it('appel NORMAL (aucune langue choisie) : l’original reste entier même si une voix traduite finit d’arriver', () => {
+        // Mesuré au banc VT-1b : au retour en « Voix originale » en pleine phrase traduite,
+        // l'original restait atténué (0,12) jusqu'à la fin de la phrase en vol.
+        expect(originalVoiceVolume({ ...base, myLanguage: null, interpreterSpeaking: true })).toBe(1);
+        expect(originalVoiceVolume({ ...base, myLanguage: null, interpreterSpeaking: true, hearOriginal: true })).toBe(1);
     });
 
     it('haut-parleur coupé → 0, toujours', () => {
@@ -210,6 +218,72 @@ describe('Voix système par langue', () => {
         const voices = [voice('Google français', 'fr-FR'), voice('Milena', 'ru-RU'), voice('Google русский', 'ru-RU')];
         expect(pickSynthesisVoice(voices, 'ru-RU')?.name).toBe('Google русский');
         expect(pickSynthesisVoice(voices, 'de-DE')).toBeNull();
+    });
+});
+
+describe('Mission VT — langue du correspondant : la langue DÉTECTÉE prime sur la déclarée', () => {
+    it('détectée d’abord, déclarée sinon, null si aucune (un « anglais » déclaré qui parle français est interprété depuis le français)', () => {
+        expect(peerLanguageForInterpretation('en', 'fr')).toBe('fr');
+        expect(peerLanguageForInterpretation('en', null)).toBe('en');
+        expect(peerLanguageForInterpretation(null, 'ru')).toBe('ru');
+        expect(peerLanguageForInterpretation(null, null)).toBeNull();
+        expect(peerLanguageForInterpretation(undefined, undefined)).toBeNull();
+    });
+});
+
+describe('Mission VT — l’émetteur rend-il la voix de l’interprète dans l’appel ?', () => {
+    it('oui seulement avec une traduction, une langue cible, un correspondant qui veut la voix et un rendu possible', () => {
+        const base = { translated: 'Bonjour', targetLang: 'fr', peerWantsVoice: true, trackSupported: true };
+        expect(shouldRenderVoiceForPeer(base)).toBe(true);
+        expect(shouldRenderVoiceForPeer({ ...base, translated: '  ' })).toBe(false);
+        expect(shouldRenderVoiceForPeer({ ...base, translated: null })).toBe(false);
+        expect(shouldRenderVoiceForPeer({ ...base, targetLang: undefined })).toBe(false);
+        expect(shouldRenderVoiceForPeer({ ...base, peerWantsVoice: false })).toBe(false);
+        expect(shouldRenderVoiceForPeer({ ...base, trackSupported: false })).toBe(false);
+        // Langue détectée = langue cible : jamais une seconde voix par-dessus la mienne.
+        expect(shouldRenderVoiceForPeer({ ...base, sourceLang: 'fr' })).toBe(false);
+        expect(shouldRenderVoiceForPeer({ ...base, sourceLang: 'en' })).toBe(true);
+        expect(shouldRenderVoiceForPeer({ ...base, sourceLang: null })).toBe(true);
+    });
+});
+
+describe('Mission VT — piste d’interprète qui m’est destinée', () => {
+    it('« interpreter » (rendue par mon correspondant) ou « interpreter:<mon compte> » (agent), jamais celle d’un autre', () => {
+        expect(isInterpreterTrackForMe('interpreter', 'u1')).toBe(true);
+        expect(isInterpreterTrackForMe('interpreter:u1', 'u1')).toBe(true);
+        expect(isInterpreterTrackForMe('interpreter:u2', 'u1')).toBe(false);
+        expect(isInterpreterTrackForMe('microphone', 'u1')).toBe(false);
+        expect(isInterpreterTrackForMe(undefined, 'u1')).toBe(false);
+        expect(isInterpreterTrackForMe(null, 'u1')).toBe(false);
+    });
+});
+
+describe('Canal de données — « hello.voice », « agent », « voice » et « caption.voice » (Mission VT)', () => {
+    it('hello : « voice » conservé quand il est booléen, ignoré sinon', () => {
+        expect(decodeCallData(encodeCallData({ t: 'hello', v: 1, lang: 'fr', voice: false }))).toEqual({ t: 'hello', v: 1, lang: 'fr', voice: false });
+        expect(decodeCallData(new TextEncoder().encode('{"t":"hello","v":1,"lang":"fr","voice":"oui"}'))).toEqual({ t: 'hello', v: 1, lang: 'fr' });
+    });
+    it('agent : rôle interprète obligatoire, langues filtrées', () => {
+        expect(decodeCallData(encodeCallData({ t: 'agent', v: 1, role: 'interpreter', langs: ['fr', 'ru'] }))).toEqual({ t: 'agent', v: 1, role: 'interpreter', langs: ['fr', 'ru'] });
+        expect(decodeCallData(new TextEncoder().encode('{"t":"agent","v":1,"role":"interpreter","langs":["fr",3]}'))).toEqual({ t: 'agent', v: 1, role: 'interpreter', langs: ['fr'] });
+        expect(decodeCallData(new TextEncoder().encode('{"t":"agent","v":1,"role":"other"}'))).toBeNull();
+    });
+    it('voice : identifiant et état obligatoires, durée finie, raison bornée à 160 caractères', () => {
+        const start = { t: 'voice' as const, v: 1 as const, id: 'p1', state: 'start' as const, durationMs: 1200 };
+        expect(decodeCallData(encodeCallData(start))).toEqual(start);
+        expect(decodeCallData(encodeCallData({ t: 'voice', v: 1, id: 'p1', state: 'end' }))).toEqual({ t: 'voice', v: 1, id: 'p1', state: 'end' });
+        expect(decodeCallData(encodeCallData({ t: 'voice', v: 1, id: 'p1', state: 'failed', reason: 'x'.repeat(200) })))
+            .toEqual({ t: 'voice', v: 1, id: 'p1', state: 'failed', reason: 'x'.repeat(160) });
+        expect(decodeCallData(new TextEncoder().encode('{"t":"voice","v":1,"state":"start"}'))).toBeNull();
+        expect(decodeCallData(new TextEncoder().encode('{"t":"voice","v":1,"id":"p1","state":"paused"}'))).toBeNull();
+        expect(decodeCallData(new TextEncoder().encode('{"t":"voice","v":1,"id":"p1","state":"start","durationMs":"1200"}'))).toEqual({ t: 'voice', v: 1, id: 'p1', state: 'start' });
+    });
+    it('caption : « voice » (sent / agent / none) voyage avec le sous-titre', () => {
+        const msg = { t: 'caption' as const, v: 1 as const, id: 'c1', text: 'Привет', lang: 'ru', final: true, ts: 1, translated: 'Bonjour', targetLang: 'fr', voice: 'sent' as const };
+        expect(decodeCallData(encodeCallData(msg))).toEqual(msg);
+        expect(decodeCallData(encodeCallData({ ...msg, voice: 'agent' }))).toMatchObject({ voice: 'agent' });
+        expect(decodeCallData(encodeCallData({ ...msg, voice: 'none' }))).toMatchObject({ voice: 'none' });
+        expect(decodeCallData(new TextEncoder().encode('{"t":"caption","v":1,"id":"c2","text":"x","lang":"ru","final":true,"ts":1,"voice":"maybe"}'))).not.toHaveProperty('voice');
     });
 });
 

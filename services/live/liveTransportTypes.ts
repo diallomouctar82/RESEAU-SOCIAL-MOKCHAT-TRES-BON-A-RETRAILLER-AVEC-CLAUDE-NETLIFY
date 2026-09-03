@@ -37,9 +37,30 @@ export interface LiveParticipantHandle {
     metadata?: string;
 }
 
+/**
+ * Mission VT : nom de la piste audio AUXILIAIRE qui porte la voix de
+ * l'interprète — rendue par l'émetteur dans la langue de son correspondant et
+ * envoyée dans l'appel comme n'importe quelle piste WebRTC. Le récepteur la
+ * joue par le même chemin que la voix de l'appel (celui qui a fonctionné sur
+ * les vrais téléphones), jamais par une lecture locale de fichier audio.
+ */
+export const INTERPRETER_TRACK_NAME = 'interpreter';
+
+/**
+ * Nom de piste d'interprète : `interpreter` (rendue par le CORRESPONDANT lui-même,
+ * pour moi) ou `interpreter:<compte>` (rendue par un AGENT interprète —
+ * serveur GPU — pour l'auditeur désigné). Le transport ne juge pas la cible :
+ * il reconnaît la famille, l'écran d'appel choisit la sienne.
+ */
+export function isInterpreterTrackName(name?: string | null): boolean {
+    return !!name && (name === INTERPRETER_TRACK_NAME || name.startsWith(`${INTERPRETER_TRACK_NAME}:`));
+}
+
 export interface LiveTrackHandle {
     participantIdentity: string;
     kind: LiveTrackKind;
+    /** Nom de publication quand il distingue la piste (Mission VT : `INTERPRETER_TRACK_NAME`) ; absent pour micro/caméra/écran. */
+    name?: string;
     attach: (el: HTMLMediaElement) => void;
     detach: (el?: HTMLMediaElement) => void;
     /** Pistes audio distantes uniquement : volume 0..1 (HL-4, l'interprète atténue l'original pendant qu'il parle). */
@@ -52,7 +73,8 @@ export interface LiveTransportEvents {
     onParticipantDisconnected?: (identity: string) => void;
     onParticipantMetadataChanged?: (identity: string, metadata: string | undefined) => void;
     onTrackSubscribed?: (track: LiveTrackHandle) => void;
-    onTrackUnsubscribed?: (participantIdentity: string, kind: LiveTrackKind) => void;
+    /** `name` : nom de publication quand il distingue la piste (Mission VT, piste interprète), sinon absent. */
+    onTrackUnsubscribed?: (participantIdentity: string, kind: LiveTrackKind, name?: string) => void;
     /** Ma propre piste (caméra/micro/partage d'écran) vient d'être publiée — pour l'auto-aperçu, même contrat attach/detach que les pistes distantes. */
     onLocalTrackPublished?: (track: LiveTrackHandle) => void;
     onLocalTrackUnpublished?: (kind: LiveTrackKind) => void;
@@ -175,4 +197,12 @@ export interface LiveTransportProvider {
     getAudioStats(): Promise<LiveAudioStats>;
     /** AU-7 : chemin réseau négocié et pistes réelles — pour le rapport de diagnostic d'appel (facultatif pour un double de test). */
     getTransportDiagnostics?(): Promise<LiveTransportDiagnostics>;
+    /**
+     * Mission VT : publie une piste audio AUXILIAIRE (voix de l'interprète
+     * rendue localement dans un MediaStreamTrack), distincte du micro et
+     * reconnue chez le récepteur par son `name`. Idempotent pour un même nom.
+     * Facultatif pour un double de test.
+     */
+    publishAuxiliaryAudio?(track: MediaStreamTrack, name: string): Promise<void>;
+    unpublishAuxiliaryAudio?(name: string): Promise<void>;
 }

@@ -54,6 +54,12 @@ export interface AdapterRequest {
         // fournis par le client (ElevenLabs : stability/similarity_boost/
         // style). Absents = défauts du fournisseur, comportement historique.
         voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
+        // TTS : langue dans laquelle le texte doit être LU (code ISO 639-1 ou
+        // étiquette BCP-47). Indication pour les voix pilotées par un modèle de
+        // langage (Gemini TTS), qui peuvent sinon « traduire » en parlant —
+        // mesuré au banc de la mission VT : une phrase française lue en anglais.
+        // Absente = comportement historique (langue devinée par le fournisseur).
+        language?: string;
         // Parole -> texte (STT/transcription) — audio fourni en base64
         audioBase64?: string;
         audioMimeType?: string;

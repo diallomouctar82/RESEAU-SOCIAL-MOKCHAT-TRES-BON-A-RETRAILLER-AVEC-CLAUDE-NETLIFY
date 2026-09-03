@@ -21,7 +21,7 @@ vi.mock('../services/aiGateway', () => ({
     transcribeSpeechDetailed: vi.fn(),
 }));
 
-const { InterpreterVoice, HD_VOICE_BUDGET_MS, VOICE_BACKLOG_THRESHOLD } = await import('../services/calls/callInterpreter');
+const { InterpreterVoice, InterpreterVoiceTrack, HD_VOICE_BUDGET_MS, TRACK_VOICE_BUDGET_MS, TRACK_QUEUE_MAX, VOICE_BACKLOG_THRESHOLD, unlockInterpreterAudio, __resetInterpreterAudioForTests } = await import('../services/calls/callInterpreter');
 
 /** Élément audio factice : « joue » 50 ms puis signale la fin. */
 class FakeAudio {
@@ -65,6 +65,244 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
+/**
+ * Mission VT — `InterpreterVoiceTrack` : la voix de l'interprète que J'ENVOIE
+ * au correspondant DANS l'appel (Web Audio → MediaStream → piste WebRTC),
+ * vérifiée sur un contexte audio factice : décodage, source branchée sur la
+ * sortie de la piste, « started » seulement quand du son entre, « ended » à la
+ * fin (ou par le chien de garde), échecs honnêtes (budget, fournisseur,
+ * contexte suspendu, audio illisible), stop() net, réveil au geste.
+ */
+describe('InterpreterVoiceTrack — la voix de l’interprète rendue DANS l’appel (Mission VT)', () => {
+    class FakeSource {
+        buffer: unknown = null;
+        onended: (() => void) | null = null;
+        started = false;
+        stopped = false;
+        connectedTo: unknown = null;
+        connect(dest: unknown) { this.connectedTo = dest; }
+        start() { this.started = true; }
+        stop() { this.stopped = true; }
+    }
+    const destTrack = { kind: 'audio', id: 'interp', stop: vi.fn() };
+    class FakeDestination { stream = { getAudioTracks: () => [destTrack], getTracks: () => [destTrack] }; }
+    const audio = { contexts: [] as FakeAudioContext[], sources: [] as FakeSource[], resumeWorks: true, decodeFails: false, durationSec: 1.5 };
+    class FakeAudioContext {
+        state: 'suspended' | 'running' | 'closed' = 'running';
+        resumeCalls = 0;
+        constructor() { audio.contexts.push(this); }
+        createMediaStreamDestination() { return new FakeDestination(); }
+        createBufferSource() { const s = new FakeSource(); audio.sources.push(s); return s; }
+        decodeAudioData(_buffer: ArrayBuffer, ok: (b: unknown) => void, fail: (e: unknown) => void) {
+            if (audio.decodeFails) fail(new Error('corrompu')); else ok({ duration: audio.durationSec });
+        }
+        resume() { this.resumeCalls += 1; if (audio.resumeWorks) this.state = 'running'; return Promise.resolve(); }
+        close() { this.state = 'closed'; return Promise.resolve(); }
+    }
+    const tick = async (ms = 1) => { await vi.advanceTimersByTimeAsync(ms); };
+    const hd = () => rig.tts.mockResolvedValue({ audioBase64: btoa('abcd'), mimeType: 'audio/wav' });
+
+    beforeEach(() => {
+        audio.contexts.length = 0;
+        audio.sources.length = 0;
+        audio.resumeWorks = true;
+        audio.decodeFails = false;
+        audio.durationSec = 1.5;
+        destTrack.stop.mockClear();
+        vi.stubGlobal('AudioContext', FakeAudioContext);
+        vi.stubGlobal('MediaStream', class {});
+        (window as unknown as { AudioContext: unknown }).AudioContext = FakeAudioContext;
+        (window as unknown as { MediaStream: unknown }).MediaStream = class {};
+        __resetInterpreterAudioForTests();
+    });
+
+    it('isSupported : Web Audio avec sortie MediaStream requis — faux sans AudioContext', () => {
+        expect(InterpreterVoiceTrack.isSupported()).toBe(true);
+        vi.stubGlobal('AudioContext', undefined);
+        (window as unknown as { AudioContext: unknown }).AudioContext = undefined;
+        expect(InterpreterVoiceTrack.isSupported()).toBe(false);
+    });
+
+    it('start() crée le contexte UNE fois et renvoie la piste à publier (toujours la même)', () => {
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU' });
+        expect(voice.track).toBeNull();
+        const t1 = voice.start();
+        const t2 = voice.start();
+        expect(t1).toBe(destTrack);
+        expect(t2).toBe(destTrack);
+        expect(voice.track).toBe(destTrack);
+        expect(audio.contexts).toHaveLength(1);
+    });
+
+    it('phrase rendue : voix HD décodée → source branchée sur la sortie de la piste → « started » quand le son entre → « ended » à la fin', async () => {
+        hd();
+        const reports: Array<Record<string, unknown>> = [];
+        const speaking: boolean[] = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r), onSpeakingChange: (s) => speaking.push(s) });
+        voice.start();
+        voice.speak('p1', ' Привет Иван ');
+        await tick();
+        // La langue de lecture voyage avec le texte (une voix-modèle de langage traduisait sinon en parlant).
+        expect(rig.tts).toHaveBeenCalledWith('Привет Иван', expect.objectContaining({ timeoutMs: TRACK_VOICE_BUDGET_MS, language: 'ru-RU' }));
+        expect(reports.map((r) => r.status)).toEqual(['generated', 'started']);
+        expect(reports[0]).toMatchObject({ id: 'p1', durationMs: 1500, bytes: btoa('abcd').length });
+        expect(reports[1]).toMatchObject({ id: 'p1', durationMs: 1500 });
+        expect(audio.sources).toHaveLength(1);
+        expect(audio.sources[0].started).toBe(true);
+        expect(audio.sources[0].connectedTo).toBeInstanceOf(FakeDestination);
+        expect(voice.isSpeaking).toBe(true);
+        expect(speaking).toEqual([true]);
+        audio.sources[0].onended?.();
+        await tick();
+        expect(reports.map((r) => r.status)).toEqual(['generated', 'started', 'ended']);
+        expect(voice.isSpeaking).toBe(false);
+        expect(speaking).toEqual([true, false]);
+    });
+
+    it('les phrases se suivent, jamais ne se chevauchent : la seconde n’est générée qu’après la fin de la première', async () => {
+        hd();
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU' });
+        voice.start();
+        voice.speak('p1', 'Une');
+        voice.speak('p2', 'Deux');
+        await tick();
+        expect(rig.tts).toHaveBeenCalledTimes(1);
+        expect(audio.sources).toHaveLength(1);
+        audio.sources[0].onended?.();
+        await tick();
+        expect(rig.tts).toHaveBeenCalledTimes(2);
+        expect(rig.tts).toHaveBeenLastCalledWith('Deux', expect.anything());
+        expect(audio.sources).toHaveLength(2);
+    });
+
+    it('voix HD au-delà du budget de la piste (12 s, plus large que les 6 s de la voix locale) : phrase déclarée en échec — le correspondant la dira lui-même — et la file continue', async () => {
+        expect(TRACK_VOICE_BUDGET_MS).toBeGreaterThan(HD_VOICE_BUDGET_MS);
+        rig.tts.mockReturnValueOnce(new Promise(() => {})).mockResolvedValue({ audioBase64: btoa('ok'), mimeType: 'audio/wav' });
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        voice.speak('p1', 'Lente');
+        voice.speak('p2', 'Rapide');
+        await tick(HD_VOICE_BUDGET_MS + 5);
+        expect(reports).toEqual([]); // 6 s : rien n'est encore abandonné
+        await tick(TRACK_VOICE_BUDGET_MS - HD_VOICE_BUDGET_MS + 5);
+        expect(reports[0]).toEqual({ id: 'p1', status: 'failed', reason: 'voix HD au-delà du budget (12 s)' });
+        expect(reports.filter((r) => r.id === 'p2').map((r) => r.status)).toEqual(['generated', 'started']);
+    });
+
+    it('file bornée : au-delà de 3 phrases en attente, la plus ancienne est abandonnée et signalée — jamais un retard qui s’accumule', async () => {
+        rig.tts.mockReturnValue(new Promise(() => {})); // la première phrase ne finit jamais de se générer
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        voice.speak('p0', 'En cours');
+        await tick();
+        for (let i = 1; i <= TRACK_QUEUE_MAX + 2; i++) voice.speak(`p${i}`, `Phrase ${i}`);
+        expect(reports.map((r) => `${r.id}:${r.status}`)).toEqual(['p1:failed', 'p2:failed']);
+        expect(reports[0].reason).toMatch(/en retard de 3 phrases/);
+    });
+
+    it('fournisseur en échec : la raison réelle est rapportée, rien n’est joué', async () => {
+        rig.tts.mockRejectedValue(new Error('réponse sans audio'));
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        voice.speak('p1', 'Bonjour');
+        await tick();
+        expect(reports).toEqual([{ id: 'p1', status: 'failed', reason: 'réponse sans audio' }]);
+        expect(audio.sources).toHaveLength(0);
+        expect(voice.isSpeaking).toBe(false);
+    });
+
+    it('contexte audio suspendu (iOS hors geste) : échec honnête ; unlockInterpreterAudio() dans un geste le réveille et la phrase suivante passe', async () => {
+        hd();
+        audio.resumeWorks = false;
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        audio.contexts[0].state = 'suspended';
+        voice.speak('p1', 'Bonjour');
+        await tick();
+        expect(reports).toEqual([{ id: 'p1', status: 'failed', reason: 'contexte audio suspendu — un toucher de l’écran le réveille' }]);
+        audio.resumeWorks = true;
+        unlockInterpreterAudio();
+        expect(audio.contexts[0].state).toBe('running');
+        voice.speak('p2', 'Encore');
+        await tick();
+        expect(reports.filter((r) => r.id === 'p2').map((r) => r.status)).toEqual(['generated', 'started']);
+    });
+
+    it('audio HD illisible : échec avec la cause du décodage', async () => {
+        hd();
+        audio.decodeFails = true;
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        voice.speak('p1', 'Bonjour');
+        await tick();
+        expect(reports).toEqual([{ id: 'p1', status: 'failed', reason: 'audio HD illisible (corrompu)' }]);
+    });
+
+    it('stop() coupe net : source arrêtée, file vidée (la phrase suivante n’est jamais générée), « parle » à faux', async () => {
+        hd();
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU' });
+        voice.start();
+        voice.speak('p1', 'Une');
+        voice.speak('p2', 'Deux');
+        await tick();
+        expect(voice.isSpeaking).toBe(true);
+        voice.stop();
+        expect(audio.sources[0].stopped).toBe(true);
+        expect(voice.isSpeaking).toBe(false);
+        await tick(10_000);
+        expect(rig.tts).toHaveBeenCalledTimes(1);
+        // Une nouvelle phrase après stop() repart normalement.
+        voice.speak('p3', 'Trois');
+        await tick();
+        expect(rig.tts).toHaveBeenCalledTimes(2);
+    });
+
+    it('chien de garde : une source qui ne signale jamais sa fin libère la file après sa durée + 2 s', async () => {
+        hd();
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        voice.speak('p1', 'Une');
+        await tick();
+        expect(reports.map((r) => r.status)).toEqual(['generated', 'started']);
+        await tick(1500 + 2000 + 5);
+        expect(reports.map((r) => r.status)).toEqual(['generated', 'started', 'ended']);
+        expect(voice.isSpeaking).toBe(false);
+    });
+
+    it('unlockInterpreterAudio() : réveille les contextes vivants et amorce la synthèse du navigateur UNE seule fois, sans jamais lever', () => {
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU' });
+        voice.start();
+        audio.contexts[0].state = 'suspended';
+        const before = audio.contexts[0].resumeCalls;
+        unlockInterpreterAudio();
+        unlockInterpreterAudio();
+        expect(audio.contexts[0].resumeCalls).toBeGreaterThan(before);
+        expect(audio.contexts[0].state).toBe('running');
+        expect(rig.utterances).toHaveLength(1);
+        expect(rig.utterances[0].text).toBe('');
+        expect((rig.utterances[0] as unknown as { volume: number }).volume).toBe(0);
+    });
+
+    it('dispose() : piste et contexte libérés, plus jamais réveillé par un geste', () => {
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU' });
+        voice.start();
+        voice.dispose();
+        expect(destTrack.stop).toHaveBeenCalled();
+        expect(audio.contexts[0].state).toBe('closed');
+        expect(voice.track).toBeNull();
+        const calls = audio.contexts[0].resumeCalls;
+        unlockInterpreterAudio();
+        expect(audio.contexts[0].resumeCalls).toBe(calls);
+        expect(() => voice.start()).toThrow(/déjà libéré/);
+    });
+});
+
 describe('InterpreterVoice — voix de l’interprète garantie (Mission VT)', () => {
     it('voix HD dans le budget : jouée telle quelle, le navigateur n’est pas sollicité, l’état « parle » encadre la lecture', async () => {
         rig.tts.mockResolvedValue({ audioBase64: 'QUJD', mimeType: 'audio/mpeg' });
@@ -72,7 +310,8 @@ describe('InterpreterVoice — voix de l’interprète garantie (Mission VT)', (
         const voice = new InterpreterVoice({ lang: 'fr-FR', onSpeakingChange: (s) => speaking.push(s) });
         voice.speak('Bonjour Ivan.');
         await vi.advanceTimersByTimeAsync(200);
-        expect(rig.tts).toHaveBeenCalledWith('Bonjour Ivan.', { timeoutMs: HD_VOICE_BUDGET_MS });
+        // La langue de LECTURE part avec le texte : Gemini TTS, modèle de langage, traduisait sinon en parlant (banc VT).
+        expect(rig.tts).toHaveBeenCalledWith('Bonjour Ivan.', { timeoutMs: HD_VOICE_BUDGET_MS, language: 'fr-FR' });
         expect(rig.audios.map((a) => a.src)).toEqual(['data:audio/mpeg;base64,QUJD']);
         expect(rig.utterances).toHaveLength(0);
         expect(speaking).toEqual([true, false]);

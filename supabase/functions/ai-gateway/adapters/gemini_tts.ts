@@ -90,6 +90,31 @@ async function readErrorDetail(res: Response): Promise<string> {
     return text ? ` Détail fournisseur : ${text.slice(0, 300)}` : '';
 }
 
+/** Nom anglais de la langue (le modèle suit mieux une consigne en anglais) — code inconnu : renvoyé tel quel. */
+const LANGUAGE_NAMES: Record<string, string> = {
+    fr: 'French', en: 'English', es: 'Spanish', de: 'German', it: 'Italian', pt: 'Portuguese', ru: 'Russian', ar: 'Arabic',
+    zh: 'Mandarin Chinese', ja: 'Japanese', ko: 'Korean', hi: 'Hindi', tr: 'Turkish', nl: 'Dutch', pl: 'Polish', uk: 'Ukrainian',
+    ro: 'Romanian', sv: 'Swedish', id: 'Indonesian', vi: 'Vietnamese', th: 'Thai', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
+    mr: 'Marathi', sw: 'Swahili', wo: 'Wolof', ff: 'Fula', ha: 'Hausa', yo: 'Yoruba', ig: 'Igbo', am: 'Amharic', so: 'Somali',
+    el: 'Greek', cs: 'Czech', hu: 'Hungarian', fi: 'Finnish', da: 'Danish', no: 'Norwegian', he: 'Hebrew', fa: 'Persian', ur: 'Urdu',
+    ms: 'Malay', tl: 'Filipino', ca: 'Catalan', bg: 'Bulgarian', sr: 'Serbian', hr: 'Croatian', sk: 'Slovak', lt: 'Lithuanian',
+};
+
+/**
+ * Mission VT — Gemini TTS est un modèle de langage : sans consigne, il lui
+ * arrive de « traduire » en parlant (mesuré au banc : une phrase française
+ * rendue en anglais dans un appel). Quand le client indique la langue, le
+ * texte est précédé d'une consigne de STYLE (forme documentée « Say … : »,
+ * jamais prononcée) qui fixe la langue de lecture et interdit la traduction.
+ * Sans langue indiquée : texte tel quel, comportement historique.
+ */
+function spokenText(text: string, language?: string): string {
+    const code = (language || '').trim().toLowerCase().split(/[-_]/)[0];
+    if (!code) return text;
+    const name = LANGUAGE_NAMES[code] || code;
+    return `Say the following in ${name}, exactly as written, without translating it: ${text}`;
+}
+
 export const geminiTtsAdapter: ProviderAdapter = {
     async call(req: AdapterRequest, apiKey: string): Promise<AdapterResult> {
         if (req.category !== 'voice' || !req.voice?.text) {
@@ -106,7 +131,7 @@ export const geminiTtsAdapter: ProviderAdapter = {
                 // dans des journaux ; un en-tête, non).
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: req.voice.text }] }],
+                    contents: [{ parts: [{ text: spokenText(req.voice.text, req.voice.language) }] }],
                     generationConfig: {
                         responseModalities: ['AUDIO'],
                         speechConfig: {

@@ -1,6 +1,6 @@
-import { generateSpeechDetailed, transcribeSpeechDetailed } from '../aiGateway';
+import { generateSpeechDetailed, transcribeSpeechDetailed, type SpeechResult } from '../aiGateway';
 import { languageCodeFromTag } from '../messaging/speechLanguage';
-import { PcmSegmenter, blobToWav16kMono, bytesToBase64, encodeWav16kMono, readBlobBytes } from './pcmSegmenter';
+import { PcmSegmenter, blobToWav16kMono, bytesToBase64, encodeWav16kMono, readBlobBytes, type SegmentClose } from './pcmSegmenter';
 
 /**
  * Interprète d'appel — les briques qui touchent au matériel :
@@ -278,7 +278,7 @@ export class ServerCaptioner {
         const segmenter = new PcmSegmenter({
             track,
             isPaused: this.options.isPaused,
-            onSegment: (pcm) => this.enqueue(pcm),
+            onSegment: (pcm, _durationMs, closedBy) => this.enqueue(pcm, closedBy),
             onError: () => {
                 // Piste terminée (changement de micro, reprise LiveKit) : on
                 // se rattache à la nouvelle publication au lieu de se taire.
@@ -298,9 +298,12 @@ export class ServerCaptioner {
         }
     }
 
-    private enqueue(pcm: Int16Array): void {
+    private enqueue(pcm: Int16Array, closedBy?: SegmentClose): void {
         if (!this.active) return;
-        if (this.options.isPaused?.()) return; // capté pendant que l'interprète parlait : pas ma voix
+        // Capté pendant que l'interprète parlait : pas ma voix. Exception : un
+        // segment que le découpeur clôt PARCE QUE la pause commence contient ma
+        // voix d'AVANT — il est transcrit (mission VT, banc VT-1b).
+        if (closedBy !== 'pause' && this.options.isPaused?.()) return;
         if (Date.now() < this.cooldownUntil) return; // passerelle en pause après une série d'échecs : on réessaie après
         const audioBase64 = bytesToBase64(encodeWav16kMono(pcm));
         if (this.inFlight) {
@@ -433,7 +436,7 @@ export const VOICE_BACKLOG_THRESHOLD = 2;
 const HD_PLAYBACK_WATCHDOG_MS = 30_000;
 
 export class InterpreterVoice {
-    private queue: string[] = [];
+    private queue: Array<{ text: string; browserOnly: boolean }> = [];
     private running = false;
     private stopped = false;
     /**
@@ -458,12 +461,17 @@ export class InterpreterVoice {
 
     constructor(private readonly options: InterpreterVoiceOptions) {}
 
-    /** Ajoute une phrase à dire ; les phrases se suivent, jamais ne se chevauchent. */
-    speak(text: string): void {
+    /**
+     * Ajoute une phrase à dire ; les phrases se suivent, jamais ne se chevauchent.
+     * `browserOnly` (Mission VT) : repli quand l'ÉMETTEUR n'a pas pu rendre la
+     * voix dans la piste de l'appel — la voix de l'appareil, tout de suite,
+     * sans redemander une voix HD qui vient d'échouer chez lui.
+     */
+    speak(text: string, options?: { browserOnly?: boolean }): void {
         const clean = text.trim();
         if (!clean) return;
         this.stopped = false;
-        this.queue.push(clean);
+        this.queue.push({ text: clean, browserOnly: !!options?.browserOnly });
         if (!this.running) void this.drain();
     }
 
@@ -491,12 +499,12 @@ export class InterpreterVoice {
         const epoch = this.epoch;
         this.running = true;
         while (!this.stopped && epoch === this.epoch && this.queue.length > 0) {
-            const phrase = this.queue.shift()!;
+            const item = this.queue.shift()!;
             // En retard de plusieurs phrases : voix immédiate du navigateur plutôt qu'une voix HD qui creuse l'écart.
             const behind = this.queue.length >= VOICE_BACKLOG_THRESHOLD;
-            const spokenHd = behind ? false : await this.speakHd(phrase, epoch);
+            const spokenHd = behind || item.browserOnly ? false : await this.speakHd(item.text, epoch);
             if (this.stopped || epoch !== this.epoch) break;
-            if (!spokenHd) await this.speakBrowser(phrase, epoch);
+            if (!spokenHd) await this.speakBrowser(item.text, epoch);
         }
         // Arrêtée en vol : stop() a déjà tout signalé (et une file neuve parle peut-être déjà) — rien à redire.
         if (epoch !== this.epoch) return;
@@ -510,7 +518,7 @@ export class InterpreterVoice {
             // Budget local ET budget transmis à la passerelle : la phrase ne
             // reste jamais en attente au-delà de HD_VOICE_BUDGET_MS.
             const detail = await Promise.race([
-                generateSpeechDetailed(phrase, { timeoutMs: HD_VOICE_BUDGET_MS }),
+                generateSpeechDetailed(phrase, { timeoutMs: HD_VOICE_BUDGET_MS, language: this.options.lang }),
                 new Promise<null>((resolve) => { budgetTimer = setTimeout(() => resolve(null), HD_VOICE_BUDGET_MS); }),
             ]);
             if (this.stopped || epoch !== this.epoch || !detail?.audioBase64) return false;
@@ -556,4 +564,274 @@ export class InterpreterVoice {
 /** Langue (code catalogue) réellement parlée par la reconnaissance, pour l'étiquette des sous-titres. */
 export function captionLanguageFromTag(tag: string): string | null {
     return languageCodeFromTag(tag) ?? null;
+}
+
+// ── Mission VT : la voix de l'interprète rendue PAR L'ÉMETTEUR, dans l'appel ──
+//
+// Retour du test sur deux téléphones (03/09) : la voix HD était bien générée
+// des deux côtés (dix synthèses réussies dans le journal de la passerelle)
+// mais JAMAIS entendue — la lecture locale d'un fichier audio sur téléphone
+// dépend de la politique d'autoplay, du volume « média » distinct du volume
+// d'appel, et iPhone ignore le réglage de volume. Ce qui a fonctionné sur ces
+// mêmes téléphones, c'est la voix de l'appel : une piste WebRTC. La voix de
+// l'interprète emprunte donc ce chemin : l'ÉMETTEUR rend la voix HD (dans la
+// langue de son correspondant) dans un contexte Web Audio dont la sortie est
+// un MediaStreamTrack, publié dans la room comme piste `interpreter`. Le
+// récepteur la joue exactement comme la voix originale, qu'il coupe.
+
+export type InterpreterPhraseReport =
+    | { id: string; status: 'generated'; generateMs: number; bytes: number; durationMs: number }
+    | { id: string; status: 'started'; durationMs: number }
+    | { id: string; status: 'ended' }
+    | { id: string; status: 'failed'; reason: string };
+
+export interface InterpreterVoiceTrackOptions {
+    /** Étiquette BCP-47 de la langue du CORRESPONDANT — celle de la voix rendue (informative aujourd'hui, pilote la voix par langue demain). */
+    lang: string;
+    /** Du son sort réellement dans la piste (début/fin de chaque phrase). */
+    onSpeakingChange?: (speaking: boolean) => void;
+    /** Ce qui s'est passé pour chaque phrase — pour prévenir le correspondant et le rapport de diagnostic ; jamais le texte. */
+    onPhrase?: (report: InterpreterPhraseReport) => void;
+}
+
+type AudioContextCtor = new () => AudioContext;
+
+function getAudioContextCtor(): AudioContextCtor | null {
+    if (typeof window === 'undefined') return null;
+    const w = window as unknown as { AudioContext?: AudioContextCtor; webkitAudioContext?: AudioContextCtor };
+    return w.AudioContext || w.webkitAudioContext || null;
+}
+
+/** Base64 → octets (l'inverse de bytesToBase64), sans dépasser la pile d'arguments. */
+export function base64ToBytes(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+}
+
+/** Décodage par le navigateur (WAV, MP3, OGG…) — forme à rappel ET promesse (anciens WebKit). */
+function decodeAudioBytes(context: AudioContext, bytes: Uint8Array): Promise<AudioBuffer> {
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    return new Promise((resolve, reject) => {
+        const maybe = context.decodeAudioData(buffer, resolve, reject);
+        if (maybe && typeof (maybe as Promise<AudioBuffer>).then === 'function') (maybe as Promise<AudioBuffer>).then(resolve, reject);
+    });
+}
+
+/** Attente maximale du réveil d'un contexte suspendu avant de déclarer la phrase en échec. */
+const CONTEXT_RESUME_WAIT_MS = 1500;
+/**
+ * Budget de la voix HD rendue DANS l'appel — plus large que celui de la voix
+ * locale : ici, une phrase déclarée en échec ne bascule pas sur une voix
+ * immédiate chez moi, elle est renvoyée au correspondant qui la dira avec la
+ * voix de son appareil (peu fiable sur téléphone). Mesuré au banc : la
+ * passerelle met 4,8–7,5 s par phrase sous charge — un budget de 6 s
+ * abandonnait la plupart des phrases. 12 s couvre le p90 mesuré ; la voix
+ * rapide (tâche VT-2) ramènera ce délai.
+ */
+export const TRACK_VOICE_BUDGET_MS = 12_000;
+/** Phrases en attente au maximum : au-delà, la plus ancienne est abandonnée (dite en échec) pour rester en temps réel. */
+export const TRACK_QUEUE_MAX = 3;
+/** Contextes vivants — réveillés au prochain geste utilisateur par `unlockInterpreterAudio`. */
+const liveVoiceTracks = new Set<InterpreterVoiceTrack>();
+
+export class InterpreterVoiceTrack {
+    /** Web Audio avec sortie vers un MediaStream — c'est ce qui permet de publier la voix dans l'appel. */
+    static isSupported(): boolean {
+        const Ctx = getAudioContextCtor();
+        return !!Ctx && typeof MediaStream !== 'undefined'
+            && typeof (Ctx.prototype as { createMediaStreamDestination?: unknown }).createMediaStreamDestination === 'function';
+    }
+
+    private context: AudioContext | null = null;
+    private destination: MediaStreamAudioDestinationNode | null = null;
+    private queue: Array<{ id: string; text: string }> = [];
+    private running = false;
+    private epoch = 0;
+    private speaking = false;
+    private currentSource: AudioBufferSourceNode | null = null;
+    private disposed = false;
+
+    constructor(private readonly options: InterpreterVoiceTrackOptions) {}
+
+    /** Crée (une fois) le contexte et sa sortie ; renvoie la piste à publier. */
+    start(): MediaStreamTrack {
+        if (this.disposed) throw new Error('Rendu de la voix déjà libéré.');
+        if (!this.context || !this.destination) {
+            const Ctx = getAudioContextCtor();
+            if (!Ctx) throw new Error('Web Audio indisponible sur ce navigateur.');
+            const context = new Ctx();
+            this.context = context;
+            this.destination = context.createMediaStreamDestination();
+            liveVoiceTracks.add(this);
+        }
+        this.resume();
+        const track = this.destination.stream.getAudioTracks()[0];
+        if (!track) throw new Error('Aucune piste audio produite pour la voix de l’interprète.');
+        return track;
+    }
+
+    get track(): MediaStreamTrack | null {
+        return this.destination?.stream.getAudioTracks()[0] ?? null;
+    }
+
+    get isSpeaking(): boolean {
+        return this.speaking;
+    }
+
+    /** Réveil d'un contexte suspendu (iOS : possible dans un geste utilisateur, ou dès que la page capture le micro). */
+    resume(): void {
+        const context = this.context;
+        if (!context || context.state === 'running' || context.state === 'closed') return;
+        try { void context.resume().catch(() => { /* retenté au prochain geste */ }); } catch { /* idem */ }
+    }
+
+    /** Rend une phrase (identifiant du sous-titre) dans la piste ; les phrases se suivent, jamais ne se chevauchent. */
+    speak(id: string, text: string): void {
+        const clean = text.trim();
+        if (!clean || this.disposed) return;
+        // File bornée : une conversation ne doit jamais prendre plusieurs phrases
+        // de retard — la plus ancienne en attente est abandonnée, et le
+        // correspondant en est prévenu (il la lit, ou la dit lui-même).
+        while (this.queue.length >= TRACK_QUEUE_MAX) {
+            const dropped = this.queue.shift()!;
+            this.options.onPhrase?.({ id: dropped.id, status: 'failed', reason: `en retard de ${TRACK_QUEUE_MAX} phrases — abandonnée pour rester en temps réel` });
+        }
+        this.queue.push({ id, text: clean });
+        if (!this.running) void this.drain();
+    }
+
+    /** Coupe net : file vidée, phrase en cours arrêtée, aucune voix fantôme d'une génération encore en vol. */
+    stop(): void {
+        this.epoch += 1;
+        this.queue = [];
+        const source = this.currentSource;
+        this.currentSource = null;
+        if (source) { try { source.stop(); } catch { /* déjà arrêtée */ } }
+        this.running = false;
+        this.setSpeaking(false);
+    }
+
+    /** Fin d'appel : arrête tout, libère la piste et le contexte. */
+    dispose(): void {
+        this.stop();
+        this.disposed = true;
+        liveVoiceTracks.delete(this);
+        try { this.destination?.stream.getTracks().forEach((t) => t.stop()); } catch { /* rien à arrêter */ }
+        const context = this.context;
+        this.context = null;
+        this.destination = null;
+        if (context && context.state !== 'closed') { try { void context.close().catch(() => { /* déjà fermé */ }); } catch { /* idem */ } }
+    }
+
+    private setSpeaking(value: boolean): void {
+        if (this.speaking === value) return;
+        this.speaking = value;
+        this.options.onSpeakingChange?.(value);
+    }
+
+    private async drain(): Promise<void> {
+        const epoch = this.epoch;
+        this.running = true;
+        while (epoch === this.epoch && this.queue.length > 0) {
+            const item = this.queue.shift()!;
+            await this.render(item.id, item.text, epoch);
+        }
+        if (epoch !== this.epoch) return;
+        this.running = false;
+        this.setSpeaking(false);
+    }
+
+    private async render(id: string, text: string, epoch: number): Promise<void> {
+        const fail = (reason: string) => { this.options.onPhrase?.({ id, status: 'failed', reason }); };
+        const t0 = Date.now();
+        let budgetTimer: ReturnType<typeof setTimeout> | undefined;
+        let detail: SpeechResult | null;
+        try {
+            // Budget de la piste (TRACK_VOICE_BUDGET_MS) : au-delà, la phrase est
+            // déclarée en échec et le correspondant la dit avec sa propre voix d'appareil.
+            // La langue de lecture est TRANSMISE : une voix pilotée par un modèle de
+            // langage peut sinon « traduire » en parlant (mesuré au banc).
+            detail = await Promise.race([
+                generateSpeechDetailed(text, { timeoutMs: TRACK_VOICE_BUDGET_MS, language: this.options.lang }),
+                new Promise<null>((resolve) => { budgetTimer = setTimeout(() => resolve(null), TRACK_VOICE_BUDGET_MS); }),
+            ]);
+        } catch (err) {
+            if (epoch !== this.epoch) return;
+            fail(err instanceof Error ? err.message : 'voix HD indisponible');
+            return;
+        } finally {
+            if (budgetTimer) clearTimeout(budgetTimer);
+        }
+        if (epoch !== this.epoch) return;
+        if (!detail?.audioBase64) { fail(`voix HD au-delà du budget (${Math.round(TRACK_VOICE_BUDGET_MS / 1000)} s)`); return; }
+        const context = this.context;
+        const destination = this.destination;
+        if (!context || !destination) { fail('rendu audio non démarré'); return; }
+        if (context.state !== 'running') {
+            try {
+                await Promise.race([context.resume(), new Promise<void>((resolve) => setTimeout(resolve, CONTEXT_RESUME_WAIT_MS))]);
+            } catch { /* jugé sur l'état ci-dessous */ }
+        }
+        if (epoch !== this.epoch) return;
+        if (context.state !== 'running') { fail('contexte audio suspendu — un toucher de l’écran le réveille'); return; }
+        let buffer: AudioBuffer;
+        try {
+            buffer = await decodeAudioBytes(context, base64ToBytes(detail.audioBase64));
+        } catch (err) {
+            if (epoch !== this.epoch) return;
+            fail(`audio HD illisible (${err instanceof Error ? err.message : 'décodage'})`);
+            return;
+        }
+        if (epoch !== this.epoch) return;
+        const durationMs = Math.round(buffer.duration * 1000);
+        this.options.onPhrase?.({ id, status: 'generated', generateMs: Date.now() - t0, bytes: detail.audioBase64.length, durationMs });
+        await new Promise<void>((resolve) => {
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(destination);
+            let settled = false;
+            const settle = () => {
+                if (settled) return;
+                settled = true;
+                if (this.currentSource === source) this.currentSource = null;
+                this.setSpeaking(false);
+                this.options.onPhrase?.({ id, status: 'ended' });
+                resolve();
+            };
+            source.onended = settle;
+            this.currentSource = source;
+            this.setSpeaking(true); // du son entre dans la piste maintenant — pas avant
+            this.options.onPhrase?.({ id, status: 'started', durationMs });
+            try { source.start(); } catch { settle(); return; }
+            setTimeout(settle, durationMs + 2000); // chien de garde : une source qui ne finit jamais ne bloque pas la file
+        });
+    }
+}
+
+let speechSynthesisPrimed = false;
+
+/**
+ * Mission VT — à appeler DANS un geste utilisateur (décrocher, appeler,
+ * toucher l'écran d'appel) : réveille les contextes audio de l'interprète
+ * (iOS les laisse suspendus hors geste) et « amorce » la synthèse vocale du
+ * navigateur, muette sur iOS tant qu'aucune phrase n'a été demandée dans un
+ * geste — le repli local en dépend. Idempotent, jamais d'exception.
+ */
+export function unlockInterpreterAudio(): void {
+    for (const track of liveVoiceTracks) track.resume();
+    if (speechSynthesisPrimed || typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    speechSynthesisPrimed = true;
+    try {
+        const utterance = new SpeechSynthesisUtterance('');
+        utterance.volume = 0;
+        window.speechSynthesis.speak(utterance);
+    } catch { /* synthèse absente : le repli local sera simplement muet, ce que l'écran dit */ }
+}
+
+/** Tests uniquement. */
+export function __resetInterpreterAudioForTests(): void {
+    speechSynthesisPrimed = false;
+    liveVoiceTracks.clear();
 }

@@ -28,6 +28,7 @@ import { isSupabaseConfigured, supabase } from '../supabaseClient';
 export type CallDiagnosticKind =
     | 'call'      // écran d'appel (statut, décroché, fin)
     | 'captions'  // Mission VT : sous-titres/interprète (transcription serveur en difficulté, rétablie, indisponible)
+    | 'voice'     // Mission VT : voix de l'interprète (générée, publiée dans l'appel, reçue, en échec → repli) — jamais le texte dit
     | 'transport' // hook de transport (état, relances)
     | 'sdk'       // journal interne du SDK de transport
     | 'media'     // publication/souscription/capture

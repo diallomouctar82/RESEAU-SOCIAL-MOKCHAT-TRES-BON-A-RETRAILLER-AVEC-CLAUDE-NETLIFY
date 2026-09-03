@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
 import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, LiveTransportDiagnostics, SendDataOptions } from '../services/live/liveTransportTypes';
+import { INTERPRETER_TRACK_NAME, isInterpreterTrackName } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
 import { recordCallEvent } from '../services/calls/callDiagnostics';
 
@@ -16,6 +17,14 @@ export interface RemoteParticipantMedia {
     screenShareTrack?: LiveTrackHandle;
     /** Équipe F3 : le SON d'un partage d'écran (onglet avec vidéo, extrait…) — souscrit par LiveKit mais jeté avant ce champ. */
     screenShareAudioTrack?: LiveTrackHandle;
+    /**
+     * Mission VT : la VOIX DE L'INTERPRÈTE rendue par le correspondant dans
+     * MA langue, reçue comme piste audio de l'appel (jamais un fichier lu
+     * localement — c'est ce qui restait muet sur les vrais téléphones).
+     * Distincte de `audioTrack` (sa voix originale), que l'écran coupe
+     * pendant l'interprétation.
+     */
+    interpreterAudioTrack?: LiveTrackHandle;
 }
 
 export interface UseLiveTransportOptions {
@@ -146,6 +155,14 @@ export interface UseLiveTransportResult {
      * transcription serveur. Référence stable (deps []).
      */
     getLocalAudioTrack: () => MediaStreamTrack | null;
+    /**
+     * Mission VT : publie la piste audio de l'INTERPRÈTE (voix rendue
+     * localement dans la langue du correspondant) sur la room — rejette si la
+     * ligne n'est pas connectée, l'appelant décide alors du repli (message
+     * « voix indisponible » au correspondant). Référence stable (deps []).
+     */
+    publishInterpreterAudio: (track: MediaStreamTrack) => Promise<void>;
+    unpublishInterpreterAudio: () => Promise<void>;
 }
 
 /** Média local voulu pour une connexion : micro et/ou caméra. */
@@ -407,13 +424,16 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     onTrackSubscribed: (track) => {
                         if (cancelled) return;
                         if (track.kind === 'video') upsertRemote(track.participantIdentity, { videoTrack: track });
+                        // Mission VT : la piste nommée « interpreter[:compte] » est la voix de l'interprète, jamais le micro.
+                        else if (track.kind === 'audio' && isInterpreterTrackName(track.name)) upsertRemote(track.participantIdentity, { interpreterAudioTrack: track });
                         else if (track.kind === 'audio') upsertRemote(track.participantIdentity, { audioTrack: track });
                         else if (track.kind === 'screen_share') upsertRemote(track.participantIdentity, { screenShareTrack: track });
                         else if (track.kind === 'screen_share_audio') upsertRemote(track.participantIdentity, { screenShareAudioTrack: track });
                     },
-                    onTrackUnsubscribed: (identity, kind) => {
+                    onTrackUnsubscribed: (identity, kind, name) => {
                         if (cancelled) return;
                         if (kind === 'video') upsertRemote(identity, { videoTrack: undefined });
+                        else if (kind === 'audio' && isInterpreterTrackName(name)) upsertRemote(identity, { interpreterAudioTrack: undefined });
                         else if (kind === 'audio') upsertRemote(identity, { audioTrack: undefined });
                         else if (kind === 'screen_share') upsertRemote(identity, { screenShareTrack: undefined });
                         else if (kind === 'screen_share_audio') upsertRemote(identity, { screenShareAudioTrack: undefined });
@@ -670,6 +690,17 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     const getLocalAudioTrack = useCallback((): MediaStreamTrack | null => {
         return providerRef.current?.getLocalAudioTrack() ?? null;
     }, []);
+    // Mission VT : la piste de l'interprète part par le transport de l'appel.
+    // Rejet honnête hors connexion — jamais une publication « en attente »
+    // silencieuse : l'appelant prévient le correspondant que la voix manque.
+    const publishInterpreterAudio = useCallback(async (track: MediaStreamTrack): Promise<void> => {
+        const provider = providerRef.current;
+        if (!provider || provider.getConnectionState() !== 'connected') throw new Error('Ligne non connectée : la piste de l’interprète ne peut pas être publiée maintenant.');
+        await provider.publishAuxiliaryAudio(track, INTERPRETER_TRACK_NAME);
+    }, []);
+    const unpublishInterpreterAudio = useCallback(async (): Promise<void> => {
+        await providerRef.current?.unpublishAuxiliaryAudio(INTERPRETER_TRACK_NAME);
+    }, []);
 
     return {
         connectionState,
@@ -699,6 +730,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         disconnect,
         retry,
         getLocalAudioTrack,
+        publishInterpreterAudio,
+        unpublishInterpreterAudio,
     };
 }
 

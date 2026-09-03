@@ -111,6 +111,11 @@ export function originalVoiceVolume(input: OriginalVoiceVolumeInput): number {
     const peer = myEffectiveLanguage(input.peerLanguage);
     const interpreting = !!mine && !!peer && peer !== mine && input.voiceEnabled;
     if (interpreting && !input.hearOriginal) return 0;
+    // Appel NORMAL (aucune langue choisie pour cet appel) : l'original reste
+    // entier même si une voix d'interprète finit d'arriver — mesuré au banc :
+    // au retour en « Voix originale » en pleine phrase traduite, l'original
+    // restait atténué à 0,12 jusqu'à la fin de la phrase.
+    if (!mine) return 1;
     return input.interpreterSpeaking ? DUCKED_REMOTE_VOLUME : 1;
 }
 
@@ -119,6 +124,32 @@ export function isInterpreting(input: Pick<OriginalVoiceVolumeInput, 'myLanguage
     const mine = myEffectiveLanguage(input.myLanguage);
     const peer = myEffectiveLanguage(input.peerLanguage);
     return !!mine && !!peer && peer !== mine && input.voiceEnabled;
+}
+
+/**
+ * Mission VT (retour du test sur deux téléphones) : la langue du correspondant
+ * qui pilote la coupure de sa voix est celle qu'il PARLE RÉELLEMENT (détectée
+ * par la transcription de ses dernières paroles), et seulement à défaut
+ * celle qu'il a DÉCLARÉE. Au test, un correspondant avait déclaré « anglais »
+ * mais parlait français : sa voix était coupée chez l'auditeur francophone
+ * alors qu'il n'y avait rien à interpréter — silence total, texte seul.
+ */
+export function peerLanguageForInterpretation(declared?: string | null, detected?: string | null): string | null {
+    return myEffectiveLanguage(detected) ?? myEffectiveLanguage(declared) ?? null;
+}
+
+/**
+ * Mission VT : l'ÉMETTEUR rend-il la voix de l'interprète dans l'appel pour
+ * cette phrase ? Oui si la passerelle a fourni une traduction dans une langue
+ * cible connue, si le correspondant veut la voix (« hello ».voice ≠ false) et
+ * si le rendu local est possible. Pure, testée.
+ */
+export function shouldRenderVoiceForPeer(input: { translated: string | null | undefined; targetLang: string | null | undefined; peerWantsVoice: boolean; trackSupported: boolean; sourceLang?: string | null }): boolean {
+    if (!(input.translated && input.translated.trim()) || !(input.targetLang && input.targetLang.trim())) return false;
+    // Langue détectée = langue cible : le correspondant entend déjà ma voix telle quelle — jamais une seconde voix par-dessus.
+    const source = myEffectiveLanguage(input.sourceLang);
+    if (source && source === myEffectiveLanguage(input.targetLang)) return false;
+    return input.peerWantsVoice && input.trackSupported;
 }
 
 // ── Messages échangés sur le canal de données pendant un appel ─────────────
@@ -141,6 +172,39 @@ export interface CallCaptionMessage {
      */
     translated?: string;
     targetLang?: string;
+    /**
+     * Mission VT : la VOIX de cette phrase, dans la langue du récepteur —
+     * 'sent' = l'émetteur la rend et l'envoie dans la piste audio de l'appel
+     * (le récepteur ne lit rien localement ; un message « voice » suit) ;
+     * 'none' = pas de voix rendue par l'émetteur (rendu impossible chez lui) ;
+     * absent = pair d'une version antérieure → le récepteur lit lui-même,
+     * comme avant.
+     */
+    voice?: 'sent' | 'none' | 'agent';
+}
+
+/**
+ * Mission VT : un AGENT interprète (serveur GPU, participant tiers de la room)
+ * s'annonce — les navigateurs lui laissent la voix (leurs sous-titres portent
+ * alors `voice: 'agent'`) et attendent sa piste `interpreter:<compte>`.
+ */
+export interface CallAgentMessage {
+    t: 'agent';
+    v: 1;
+    role: 'interpreter';
+    /** Langues que l'agent sait rendre (codes catalogue) — informatif. */
+    langs?: string[];
+}
+
+/**
+ * Mission VT : cette piste d'interprète m'est-elle destinée ? `interpreter`
+ * (rendue par mon correspondant, pour moi) ou `interpreter:<mon compte>`
+ * (rendue par un agent pour moi) ; une piste `interpreter:<autre compte>`
+ * est celle de l'autre auditeur — jamais jouée chez moi.
+ */
+export function isInterpreterTrackForMe(name: string | undefined | null, myUserId: string): boolean {
+    if (!name) return false;
+    return name === 'interpreter' || name === `interpreter:${myUserId}`;
 }
 
 /**
@@ -156,10 +220,41 @@ export interface CallMediaMessage {
     reason?: string;
 }
 
+/**
+ * Mission VT : « hello » — ma langue, et si je veux ENTENDRE la voix de
+ * l'interprète (absent = oui, pair d'une version antérieure). L'émetteur ne
+ * rend pas de voix pour un correspondant qui n'en veut pas (« Sous-titres seuls »).
+ */
+export interface CallHelloMessage {
+    t: 'hello';
+    v: 1;
+    lang: string | null;
+    voice?: boolean;
+}
+
+/**
+ * Mission VT : état de la voix de l'interprète rendue par l'ÉMETTEUR pour
+ * la phrase `id` (celui du sous-titre) — 'start'/'end' : du son sort
+ * réellement dans la piste de l'appel (le récepteur affiche « l'interprète
+ * parle » et met son propre micro en pause) ; 'failed' : la voix n'a pas pu
+ * être rendue (fournisseur, budget, contexte audio) — le récepteur la dit
+ * lui-même avec la voix de son appareil, jamais un silence inexpliqué.
+ */
+export interface CallVoiceMessage {
+    t: 'voice';
+    v: 1;
+    id: string;
+    state: 'start' | 'end' | 'failed';
+    durationMs?: number;
+    reason?: string;
+}
+
 export type CallDataMessage =
-    | { t: 'hello'; v: 1; lang: string | null }
+    | CallHelloMessage
     | CallCaptionMessage
-    | CallMediaMessage;
+    | CallMediaMessage
+    | CallVoiceMessage
+    | CallAgentMessage;
 
 const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
@@ -176,7 +271,28 @@ export function decodeCallData(payload: Uint8Array): CallDataMessage | null {
         const json = decoder ? decoder.decode(payload) : String.fromCharCode(...Array.from(payload));
         const parsed = JSON.parse(json) as Partial<CallDataMessage> & { t?: string };
         if (!parsed || parsed.v !== 1) return null;
-        if (parsed.t === 'hello') return { t: 'hello', v: 1, lang: typeof parsed.lang === 'string' ? parsed.lang : null };
+        if (parsed.t === 'hello') {
+            const hello = parsed as Partial<CallHelloMessage>;
+            const message: CallHelloMessage = { t: 'hello', v: 1, lang: typeof hello.lang === 'string' ? hello.lang : null };
+            if (typeof hello.voice === 'boolean') message.voice = hello.voice;
+            return message;
+        }
+        if (parsed.t === 'agent') {
+            const agent = parsed as Partial<CallAgentMessage>;
+            if (agent.role !== 'interpreter') return null;
+            const message: CallAgentMessage = { t: 'agent', v: 1, role: 'interpreter' };
+            if (Array.isArray(agent.langs)) message.langs = agent.langs.filter((l): l is string => typeof l === 'string').slice(0, 64);
+            return message;
+        }
+        if (parsed.t === 'voice') {
+            const voice = parsed as Partial<CallVoiceMessage>;
+            if (typeof voice.id !== 'string' || !voice.id) return null;
+            if (voice.state !== 'start' && voice.state !== 'end' && voice.state !== 'failed') return null;
+            const message: CallVoiceMessage = { t: 'voice', v: 1, id: voice.id, state: voice.state };
+            if (typeof voice.durationMs === 'number' && Number.isFinite(voice.durationMs)) message.durationMs = voice.durationMs;
+            if (typeof voice.reason === 'string' && voice.reason.trim()) message.reason = voice.reason.trim().slice(0, 160);
+            return message;
+        }
         if (parsed.t === 'media') {
             const media = parsed as Partial<CallMediaMessage>;
             if (media.mic !== 'on' && media.mic !== 'off' && media.mic !== 'unavailable') return null;
@@ -199,6 +315,7 @@ export function decodeCallData(payload: Uint8Array): CallDataMessage | null {
                 message.translated = caption.translated;
                 message.targetLang = caption.targetLang;
             }
+            if (caption.voice === 'sent' || caption.voice === 'none' || caption.voice === 'agent') message.voice = caption.voice;
             return message;
         }
         return null;
