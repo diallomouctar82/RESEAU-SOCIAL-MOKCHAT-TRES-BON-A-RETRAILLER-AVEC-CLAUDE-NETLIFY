@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
 import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, LiveTransportDiagnostics, SendDataOptions } from '../services/live/liveTransportTypes';
-import { INTERPRETER_TRACK_NAME, isInterpreterTrackName } from '../services/live/liveTransportTypes';
+import { INTERPRETER_TRACK_NAME, describeDisconnectReason, isDuplicateIdentityReason, isInterpreterTrackName } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
 import { recordCallEvent } from '../services/calls/callDiagnostics';
 
@@ -499,9 +499,21 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         // `catch` de la tentative, sinon il était compté deux fois
                         // (2 relances réelles au lieu de 3).
                         if (attemptRef.current.inFlight) return;
+                        // Mission LT : ÉVINCÉ par une autre session portant la même
+                        // identité (raison 2). Relancer ici évincerait l'autre à son
+                        // tour — la boucle mesurée sur un iPhone réel (22 s pour se
+                        // connecter). L'identité est désormais propre à l'onglet
+                        // (callDevice.ts) ; si cela arrive quand même, on le dit et
+                        // on laisse la main : « Réessayer » reste possible.
+                        if (isDuplicateIdentityReason(reason)) {
+                            recordCallEvent('transport', 'évincé : une autre session porte la même identité — aucune relance automatique', { reason });
+                            console.warn('[appel] média ligne reprise par une autre session de cet appel (identité dupliquée) — aucune relance automatique');
+                            setError('Connexion remplacée par une autre session de cet appel (identité dupliquée).');
+                            return;
+                        }
                         // Mission AU : déconnexion INATTENDUE d'un appel établi (pas
                         // un démontage — `cancelled` l'aurait neutralisée) → relance.
-                        scheduleCallRetry(`déconnexion${reason ? ` ${reason}` : ''}`);
+                        scheduleCallRetry(`déconnexion${reason ? ` ${reason} (${describeDisconnectReason(reason)})` : ''}`);
                     },
                 });
                 if (cancelled) return;

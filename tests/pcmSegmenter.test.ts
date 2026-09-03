@@ -135,9 +135,9 @@ describe('SegmenterCore — détection de parole et découpage', () => {
         feed(core, concatFloat([tone(600, 0.001), speech(1000, 0.2), tone(1500, 0.001)]));
         expect(onSegment).toHaveBeenCalledTimes(1);
         const [pcm, durationMs] = onSegment.mock.calls[0];
-        // 240 ms de pré-roll + 1000 ms de parole + 700 ms de silence de clôture (à un pas de 20 ms près).
-        expect(durationMs).toBeGreaterThanOrEqual(1900);
-        expect(durationMs).toBeLessThanOrEqual(1980);
+        // 240 ms de pré-roll + 1000 ms de parole + 550 ms de silence de clôture (mission LT : 700 ms avant), à un pas de 20 ms près.
+        expect(durationMs).toBeGreaterThanOrEqual(1750);
+        expect(durationMs).toBeLessThanOrEqual(1830);
         expect(pcm.length).toBe((durationMs * RATE) / 1000);
         // Le début du segment est bien le pré-roll silencieux, la parole vient après.
         expect(Math.abs(pcm[0])).toBeLessThan(100);
@@ -157,15 +157,42 @@ describe('SegmenterCore — détection de parole et découpage', () => {
         expect(onSegment.mock.calls[0][1]).toBeGreaterThanOrEqual(1500);
     });
 
-    it('parole continue : coupée à 9 s au plus, puis un second segment', () => {
+    it('parole continue : coupée à 6,5 s au plus (mission LT : 9 s avant), puis un second segment', () => {
         const { core, onSegment } = build();
         feed(core, concatFloat([tone(300, 0.001), speech(12000, 0.2), tone(1000, 0.001)]));
         expect(onSegment).toHaveBeenCalledTimes(2);
-        expect(onSegment.mock.calls[0][1]).toBeLessThanOrEqual(9000);
-        expect(onSegment.mock.calls[0][1]).toBeGreaterThanOrEqual(8980);
+        expect(onSegment.mock.calls[0][1]).toBeLessThanOrEqual(6500);
+        expect(onSegment.mock.calls[0][1]).toBeGreaterThanOrEqual(6480);
         expect(onSegment.mock.calls[0][2]).toBe('max');
         expect(onSegment.mock.calls[1][1]).toBeGreaterThan(3000);
         expect(onSegment.mock.calls[1][2]).toBe('silence');
+    });
+
+    it('mission LT — clôture anticipée : après 2,5 s de parole, un creux de 320 ms suffit (la phrase part sans attendre 550 ms)', () => {
+        const { core, onSegment } = build();
+        // speech(3500) contient ≈ 2,6 s de parole effective (syllabes de 120 ms) : au-delà du seuil de 2,5 s.
+        feed(core, concatFloat([tone(300, 0.001), speech(3500, 0.2), tone(400, 0.001), speech(1000, 0.2), tone(1000, 0.001)]));
+        expect(onSegment).toHaveBeenCalledTimes(2);
+        const [, firstMs, firstClosedBy] = onSegment.mock.calls[0];
+        // 240 ms de pré-roll + 3500 ms + un creux de 320 ms — pas 550.
+        expect(firstMs).toBeGreaterThanOrEqual(4000);
+        expect(firstMs).toBeLessThanOrEqual(4100);
+        expect(firstClosedBy).toBe('silence');
+        const [, secondMs, secondClosedBy] = onSegment.mock.calls[1];
+        expect(secondMs).toBeGreaterThanOrEqual(1500);
+        expect(secondMs).toBeLessThanOrEqual(1750);
+        expect(secondClosedBy).toBe('silence');
+    });
+
+    it('mission LT — sous 2,5 s de parole, un creux de 400 ms ne coupe PAS : un mot isolé n’est pas tranché au premier souffle', () => {
+        const { core, onSegment } = build();
+        feed(core, concatFloat([tone(300, 0.001), speech(1500, 0.2), tone(400, 0.001), speech(1500, 0.2), tone(1000, 0.001)]));
+        expect(onSegment).toHaveBeenCalledTimes(1);
+        const [, durationMs, closedBy] = onSegment.mock.calls[0];
+        // 240 + 1500 + 400 + 1500 + 550 : un seul segment, clos par le silence habituel.
+        expect(durationMs).toBeGreaterThanOrEqual(4150);
+        expect(durationMs).toBeLessThanOrEqual(4230);
+        expect(closedBy).toBe('silence');
     });
 
     it('seuil adaptatif : un bruit de fond installé relève le seuil, la vraie parole passe toujours', () => {

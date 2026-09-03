@@ -147,6 +147,21 @@ describe('useLiveTransport — appel : relance automatique de la ligne (revue AU
         ]);
     });
 
+    it('mission LT : ÉVINCÉ par une identité dupliquée (raison 2) → AUCUNE relance (elle évincerait l’autre session à son tour), erreur explicite', async () => {
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'call-dup', participantName: 'A', canPublish: true, enabled: true, audioProfile: 'call', publishAudioOnConnect: true }));
+        await flush();
+        const p = last();
+        act(() => { p.events.onDisconnected('2'); });
+        for (let i = 0; i < 4; i++) await flush(5000);
+        expect(rig.providers.length).toBe(1);
+        expect(result.current.connectionState).toBe('disconnected');
+        expect(result.current.error).toMatch(/identité dupliquée/);
+        // Une autre raison (délai de connexion, 14) relance bien, comme avant.
+        act(() => { p.events.onDisconnected('14'); });
+        await flush(1000);
+        expect(rig.providers.length).toBe(2);
+    });
+
     it('LIVE : aucune relance automatique (bouton « Réessayer » explicite)', async () => {
         rig.connectImpl = async (events) => { events.onDisconnected('7'); throw new Error('boom'); };
         renderHook(() => useLiveTransport({ roomName: 'live-2', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live' }));

@@ -31,6 +31,8 @@ const rig = vi.hoisted(() => ({
     voiceTrackSupported: true,
     unlock: vi.fn(),
     spokenOptions: [] as unknown[],
+    /** Mission LT : préchauffe de la passerelle (espion). */
+    warmUp: vi.fn(async (_category?: string) => true),
 }));
 
 vi.mock('../hooks/useLiveTransport', () => ({
@@ -76,6 +78,12 @@ vi.mock('../services/translation/translationService', async (importOriginal) => 
     return { ...real, translationService: { translateText: rig.translate } };
 });
 
+/** Mission LT : la préchauffe de la passerelle est un espion — jamais un appel réseau depuis un test DOM. */
+vi.mock('../services/aiGateway', async (importOriginal) => {
+    const real = await importOriginal<typeof import('../services/aiGateway')>();
+    return { ...real, warmUpAiGateway: rig.warmUp };
+});
+
 vi.mock('../services/calls/callInterpreter', async (importOriginal) => {
     const real = await importOriginal<typeof import('../services/calls/callInterpreter')>();
     class FakeVoice {
@@ -92,6 +100,8 @@ vi.mock('../services/calls/callInterpreter', async (importOriginal) => {
         disposed = false;
         track = { kind: 'audio', id: 'interp-track' };
         constructor(public readonly options: any) { rig.voiceTracks.push(this); }
+        get language() { return this.options.lang; }
+        setLanguage(lang: string) { this.options.lang = lang; }
         start() { this.started += 1; return this.track; }
         speak(id: string, text: string) { this.spoken.push({ id, text }); }
         stop() { this.stopped = true; }
@@ -142,6 +152,7 @@ beforeEach(() => {
     rig.voiceTrackSupported = true;
     rig.unlock.mockClear();
     rig.spokenOptions.length = 0;
+    rig.warmUp.mockClear();
 });
 
 /** Dernier message envoyé sur le canal de données, décodé. */
@@ -209,15 +220,20 @@ describe('Transcription serveur de ma voix (VF-4)', () => {
         render(<ChatCallModal callSession={session} localName="Amina" myLanguage="fr" hearLanguage="fr" onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
         // Dès que J'AI une langue, ma voix est transcrite — sans cible tant que l'autre n'a pas annoncé la sienne.
         await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
-        expect(rig.serverCaptioners[0].options).toMatchObject({ languageHint: 'fr', targetLanguage: undefined });
+        const captioner = rig.serverCaptioners[0];
+        expect(captioner.options.languageHint).toBe('fr');
+        expect(captioner.options.targetLanguage()).toBeUndefined();
+        // Mission LT : la passerelle est préchauffée dès qu'une traduction devient probable — une fois.
+        await waitFor(() => expect(rig.warmUp).toHaveBeenCalledTimes(1));
 
         receive({ t: 'hello', v: 1, lang: 'ru' });
-        // Le correspondant parle russe : redémarrage avec la cible, l'ancien captioner est arrêté.
-        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
-        expect(rig.serverCaptioners[0].stopped).toBe(true);
-        const captioner = rig.serverCaptioners[1];
-        expect(captioner.options).toMatchObject({ languageHint: 'fr', targetLanguage: 'ru' });
+        // Mission LT : le correspondant parle russe → la cible est lue à chaque segment, le captioner N'EST PAS
+        // redémarré (avant : arrêt + nouveau captioner, segment en cours perdu).
+        await waitFor(() => expect(captioner.options.targetLanguage()).toBe('ru'));
+        expect(rig.serverCaptioners.length).toBe(1);
+        expect(captioner.stopped).toBe(false);
         expect(captioner.options.getTrack).toBeTypeOf('function');
+        expect(rig.warmUp).toHaveBeenCalledTimes(1);
 
         act(() => { captioner.options.onInterim('Transcription…'); });
         expect(await screen.findByText(/Vous : Transcription…/)).toBeTruthy();
@@ -288,7 +304,8 @@ describe('Transcription serveur de ma voix (VF-4)', () => {
         render(<ChatCallModal callSession={session} localName="Amina" hearLanguage={null} onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
         receive({ t: 'hello', v: 1, lang: 'ru' });
         await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
-        expect(rig.serverCaptioners[0].options).toMatchObject({ languageHint: undefined, targetLanguage: 'ru' });
+        expect(rig.serverCaptioners[0].options.languageHint).toBeUndefined();
+        expect(rig.serverCaptioners[0].options.targetLanguage()).toBe('ru');
     });
 });
 
@@ -371,20 +388,30 @@ describe('Mission VT — la voix de l’interprète voyage DANS l’appel (piste
     const props = { localName: 'Amina', onAcceptCall: () => {}, onRejectCall: () => {}, onEndCall: () => {} };
     const finalPhrase = (captioner: any, text: string, translatedText: string) => act(() => { captioner.options.onFinal({ text, language: 'fr', translated: translatedText, targetLang: 'ru' }); });
 
-    it('ÉMETTEUR : ma phrase traduite part avec voice=sent, la piste interprète est publiée UNE fois, la voix y est rendue, « voice » start/end/failed préviennent le correspondant', async () => {
+    it('ÉMETTEUR : ma phrase traduite part avec voice=sent, la piste interprète est publiée UNE fois (dès le « hello », mission LT), la voix y est rendue, « voice » start/end/failed préviennent le correspondant', async () => {
         rig.serverSupported = true;
         render(<ChatCallModal callSession={session} hearLanguage="fr" {...props} />);
         receive({ t: 'hello', v: 1, lang: 'ru' });
-        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
-        const captioner = rig.serverCaptioners[1];
-        finalPhrase(captioner, 'Bonjour Ivan', 'Привет Иван');
-        await waitFor(() => expect(lastSent()).toMatchObject({ t: 'caption', voice: 'sent', translated: 'Привет Иван', targetLang: 'ru' }));
-        const sentId = (lastSent() as { id: string }).id;
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        const captioner = rig.serverCaptioners[0];
+        // Mission LT : la piste est créée et publiée dès que la langue du correspondant est connue — AVANT toute phrase.
         await waitFor(() => expect(rig.publishInterpreterAudio).toHaveBeenCalledTimes(1));
         expect(rig.voiceTracks).toHaveLength(1);
         expect(rig.publishInterpreterAudio).toHaveBeenCalledWith(rig.voiceTracks[0].track);
+        expect(rig.voiceTracks[0].spoken).toEqual([]);
+        finalPhrase(captioner, 'Bonjour Ivan', 'Привет Иван');
+        await waitFor(() => expect(lastSent()).toMatchObject({ t: 'caption', voice: 'sent', translated: 'Привет Иван', targetLang: 'ru' }));
+        const sentId = (lastSent() as { id: string }).id;
         await waitFor(() => expect(rig.voiceTracks[0].spoken).toEqual([{ id: sentId, text: 'Привет Иван' }]));
+        expect(rig.publishInterpreterAudio).toHaveBeenCalledTimes(1);
         expect(rig.voiceTracks[0].options.lang).toMatch(/^ru/);
+        // Le correspondant change de langue d'écoute : même piste, langue de rendu mise à jour, aucune republication.
+        receive({ t: 'hello', v: 1, lang: 'en' });
+        await waitFor(() => expect(rig.voiceTracks[0].options.lang).toMatch(/^en/));
+        expect(rig.voiceTracks).toHaveLength(1);
+        expect(rig.publishInterpreterAudio).toHaveBeenCalledTimes(1);
+        receive({ t: 'hello', v: 1, lang: 'ru' });
+        await waitFor(() => expect(rig.voiceTracks[0].options.lang).toMatch(/^ru/));
         // Deuxième phrase : même piste, aucune seconde publication.
         finalPhrase(captioner, 'À mardi', 'До вторника');
         await waitFor(() => expect(rig.voiceTracks[0].spoken).toHaveLength(2));
@@ -405,8 +432,8 @@ describe('Mission VT — la voix de l’interprète voyage DANS l’appel (piste
         rig.serverSupported = true;
         render(<ChatCallModal callSession={session} hearLanguage="fr" {...props} />);
         receive({ t: 'hello', v: 1, lang: 'ru', voice: false });
-        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
-        finalPhrase(rig.serverCaptioners[1], 'Bonjour Ivan', 'Привет Иван');
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        finalPhrase(rig.serverCaptioners[0], 'Bonjour Ivan', 'Привет Иван');
         await waitFor(() => expect(lastSent()).toMatchObject({ t: 'caption', translated: 'Привет Иван' }));
         expect((lastSent() as { voice?: string }).voice).toBeUndefined();
         await new Promise((r) => setTimeout(r, 20));
@@ -414,17 +441,22 @@ describe('Mission VT — la voix de l’interprète voyage DANS l’appel (piste
         expect(rig.voiceTracks).toHaveLength(0);
     });
 
-    it('ÉMETTEUR : un agent interprète est dans la room → voice=agent, mon navigateur ne publie rien (l’agent rend la voix)', async () => {
+    it('ÉMETTEUR : un agent interprète est dans la room → voice=agent, mon navigateur lui laisse la voix (piste préparée dépubliée, rien rendu)', async () => {
         rig.serverSupported = true;
         render(<ChatCallModal callSession={session} hearLanguage="fr" {...props} />);
         receive({ t: 'hello', v: 1, lang: 'ru' });
+        // Mission LT : la piste est préparée dès le « hello »…
+        await waitFor(() => expect(rig.publishInterpreterAudio).toHaveBeenCalledTimes(1));
         receive({ t: 'agent', v: 1, role: 'interpreter', langs: ['fr', 'ru'] });
-        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
-        finalPhrase(rig.serverCaptioners[1], 'Bonjour Ivan', 'Привет Иван');
+        // …et rendue à l'agent dès qu'il s'annonce : dépubliée, arrêtée, jamais deux voix.
+        await waitFor(() => expect(rig.unpublishInterpreterAudio).toHaveBeenCalledTimes(1));
+        expect(rig.voiceTracks[0].stopped).toBe(true);
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        finalPhrase(rig.serverCaptioners[0], 'Bonjour Ivan', 'Привет Иван');
         await waitFor(() => expect(lastSent()).toMatchObject({ t: 'caption', voice: 'agent' }));
         await new Promise((r) => setTimeout(r, 20));
-        expect(rig.publishInterpreterAudio).not.toHaveBeenCalled();
-        expect(rig.voiceTracks).toHaveLength(0);
+        expect(rig.publishInterpreterAudio).toHaveBeenCalledTimes(1); // aucune republication après l'arrivée de l'agent
+        expect(rig.voiceTracks[0].spoken).toEqual([]);
     });
 
     it('ÉMETTEUR : rendu impossible ici (Web Audio absent) → voice=none, le correspondant la dira avec sa propre voix', async () => {
@@ -432,20 +464,21 @@ describe('Mission VT — la voix de l’interprète voyage DANS l’appel (piste
         rig.voiceTrackSupported = false;
         render(<ChatCallModal callSession={session} hearLanguage="fr" {...props} />);
         receive({ t: 'hello', v: 1, lang: 'ru' });
-        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
-        finalPhrase(rig.serverCaptioners[1], 'Bonjour Ivan', 'Привет Иван');
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        finalPhrase(rig.serverCaptioners[0], 'Bonjour Ivan', 'Привет Иван');
         await waitFor(() => expect(lastSent()).toMatchObject({ t: 'caption', voice: 'none' }));
         await new Promise((r) => setTimeout(r, 20));
         expect(rig.publishInterpreterAudio).not.toHaveBeenCalled();
     });
 
-    it('ÉMETTEUR : publication de la piste refusée → le correspondant est prévenu (voice failed), jamais un silence', async () => {
+    it('ÉMETTEUR : publication de la piste refusée (à la préparation ET à la phrase) → le correspondant est prévenu (voice failed), jamais un silence', async () => {
         rig.serverSupported = true;
-        rig.publishInterpreterAudio.mockRejectedValueOnce(new Error('Ligne non connectée'));
+        rig.publishInterpreterAudio.mockRejectedValue(new Error('Ligne non connectée'));
         render(<ChatCallModal callSession={session} hearLanguage="fr" {...props} />);
         receive({ t: 'hello', v: 1, lang: 'ru' });
-        await waitFor(() => expect(rig.serverCaptioners.length).toBe(2));
-        finalPhrase(rig.serverCaptioners[1], 'Bonjour Ivan', 'Привет Иван');
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        await waitFor(() => expect(rig.publishInterpreterAudio).toHaveBeenCalledTimes(1)); // préparation anticipée, en échec
+        finalPhrase(rig.serverCaptioners[0], 'Bonjour Ivan', 'Привет Иван');
         await waitFor(() => expect(lastSent()).toMatchObject({ t: 'voice', state: 'failed', reason: 'publication impossible : Ligne non connectée' }));
         const captionId = (decodeCallData(rig.sendData.mock.calls.find((c) => decodeCallData(c[0] as Uint8Array)?.t === 'caption')![0] as Uint8Array) as { id: string }).id;
         expect((lastSent() as { id: string }).id).toBe(captionId);
@@ -518,6 +551,11 @@ describe('Mission VT — la voix de l’interprète voyage DANS l’appel (piste
         expect(select.value).toBe('');
         expect(screen.getByText(/Vous entendez la voix originale de Ivan\. Choisissez une langue pour l’entendre traduit/)).toBeTruthy();
         expect(screen.getByText('Appel normal · voix originales')).toBeTruthy();
+        // Mission LT (demande utilisateur) : une case bien visible qui dit l'état d'un coup d'œil, liste de 44 px.
+        expect(screen.getByTestId('call-language-box')).toBeTruthy();
+        expect(screen.getByTestId('call-language-state').textContent).toBe('Appel normal');
+        expect(select.className).toContain('h-11');
+        expect(select.getAttribute('aria-label')).toBe('Entendre Ivan en');
         fireEvent.change(select, { target: { value: 'fr' } });
         expect(onLanguageChange).toHaveBeenCalledWith('fr');
         expect(rig.unlock).toHaveBeenCalled();
@@ -525,8 +563,11 @@ describe('Mission VT — la voix de l’interprète voyage DANS l’appel (piste
         // Appel entrant, pas encore décroché : je choisis ma langue AVANT de répondre.
         render(<ChatCallModal callSession={{ ...session, status: 'ringing' }} hearLanguage="fr" isIncoming onHearLanguageChange={onLanguageChange} {...props} />);
         expect((await screen.findByTestId('call-language-select') as HTMLSelectElement).value).toBe('fr');
+        expect(screen.getByTestId('call-language-state').textContent).toBe('Traduction active');
         expect(screen.getByText('Traduction vocale pour cet appel')).toBeTruthy();
         expect(screen.getByText(/Vous entendrez Amina en Français/)).toBeTruthy();
+        // Mission LT : une langue choisie pendant la sonnerie préchauffe déjà la passerelle.
+        await waitFor(() => expect(rig.warmUp).toHaveBeenCalled());
     });
 
     it('sans possibilité de changer la langue (pas de profil), aucun sélecteur ; le panneau reste celui de l’interprète', async () => {

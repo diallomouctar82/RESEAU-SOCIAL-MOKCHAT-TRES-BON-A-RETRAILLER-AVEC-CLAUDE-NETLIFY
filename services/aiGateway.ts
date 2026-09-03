@@ -103,6 +103,24 @@ async function invokeGateway(body: Record<string, unknown>, options?: InvokeOpti
 }
 
 /**
+ * Mission LT (latence des appels traduits) : PRÉCHAUFFE la passerelle avant
+ * la première phrase — réveil de l'isolat serveur, ouverture de la connexion
+ * HTTP du navigateur vers les fonctions, classement des fournisseurs voix et
+ * secrets déjà en cache côté serveur. Aucun fournisseur IA n'est appelé,
+ * rien n'est journalisé dans ai_call_log. Jamais d'exception : un échec de
+ * préchauffe n'a aucune conséquence (la première requête réelle fera le
+ * travail elle-même). Renvoie true si la passerelle a répondu.
+ */
+export const warmUpAiGateway = async (category: 'voice' | 'llm' = 'voice'): Promise<boolean> => {
+    try {
+        const data = await invokeGateway({ mode: 'warmup', category }, { timeoutMs: 6000 });
+        return !!data?.ok;
+    } catch {
+        return false;
+    }
+};
+
+/**
  * Action que l'expert souhaite exécuter dans l'application et qui ATTEND
  * l'accord explicite de la personne. Rien n'a encore été écrit : l'orchestrateur
  * a interrompu son tour et ne reprendra que si `confirmedAction` lui est

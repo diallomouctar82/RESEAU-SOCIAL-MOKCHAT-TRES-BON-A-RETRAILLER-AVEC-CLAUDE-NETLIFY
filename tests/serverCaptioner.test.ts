@@ -112,6 +112,28 @@ describe('ServerCaptioner — transcription serveur de ma voix', () => {
         expect(onInterim.mock.calls.map((c) => c[0])).toEqual(['Transcription…', '']);
     });
 
+    it('mission LT — langue cible sous forme de FONCTION, lue à chaque segment : la langue du correspondant arrivée après le démarrage est prise en compte sans redémarrage', async () => {
+        rig.transcribe.mockImplementation(async (input: { targetLanguage?: string }) => ({ text: 'bonjour', language: 'fr', translated: input.targetLanguage ? 'привет' : null, targetLanguage: input.targetLanguage ?? null, providerId: 'gemini_stt' }));
+        let peerLang: string | undefined;
+        const onFinal = vi.fn();
+        const captioner = new ServerCaptioner({ getTrack: liveTrack, languageHint: 'fr', targetLanguage: () => peerLang, onFinal });
+        captioner.start();
+        await vi.advanceTimersByTimeAsync(10);
+        const segmenter = rig.segmenters[0];
+        segmenter.emit(500);
+        await flush();
+        expect(rig.transcribe.mock.calls[0][0].targetLanguage).toBeUndefined();
+        expect(onFinal).toHaveBeenLastCalledWith({ text: 'bonjour', language: 'fr', translated: null, targetLang: null });
+        peerLang = 'ru'; // « hello » du correspondant, après le démarrage
+        segmenter.emit(600);
+        await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(2);
+        expect(rig.transcribe.mock.calls[1][0].targetLanguage).toBe('ru');
+        expect(onFinal).toHaveBeenLastCalledWith({ text: 'bonjour', language: 'fr', translated: 'привет', targetLang: 'ru' });
+        expect(rig.segmenters).toHaveLength(1); // même capture, jamais redémarrée
+        expect(segmenter.stopped).toBe(false);
+    });
+
     it('fournisseur sans langue ni traduction (Deepgram) : langue = indication donnée, traduction null', async () => {
         rig.transcribe.mockResolvedValue({ text: 'Bonjour à tous', language: '', translated: null, targetLanguage: null, providerId: 'deepgram' });
         const onFinal = vi.fn();

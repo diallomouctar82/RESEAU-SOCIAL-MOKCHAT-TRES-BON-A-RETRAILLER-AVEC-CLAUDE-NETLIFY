@@ -305,3 +305,89 @@ encore réveillé, le premier toucher de l'écran d'appel le réveille (message
 dédié) ; si la publication de la piste est impossible, le correspondant
 l'entend par la voix de son propre appareil — repli signalé, jamais un
 silence inexpliqué.
+
+## 6. Connexion quasi immédiate, traduction active dès les premiers mots (mission LT, 03/09)
+
+**Ce que les vrais téléphones montraient (LT‑0, sept appels iPhone ↔ Android
+lus dans `call_diagnostics` et `ai_call_log`).** Connexion : « connecté »
+normalement en 3,7–5,8 s ; le cas à 30 s était une **éviction en boucle par
+identité LiveKit dupliquée** — deux onglets du même navigateur partageaient
+l'identifiant d'appareil, la seconde session évinçait la première (raison 2
+du SDK, « DUPLICATE_IDENTITY »), la tentative suivante mourait en délai ICE,
+la relance automatique recommençait, connecté à 22 s ; lecture audio bloquée
+(« NotAllowed ») jusqu'à 23,6 s faute de geste ; 0,8 s perdu à chaque
+connexion par la sonde « v1 RTC path » du SDK 2.17 face au serveur 1.8.4.
+Traduction : première voix 10–20 s après le micro — langue du correspondant
+reçue tard, transcripteur redémarré à chaque changement de langue (segment
+en cours perdu), segments jusqu'à 9 s, piste interprète publiée seulement à
+la première phrase traduite, Gemini TTS « réponse sans audio » dans 14 % des
+cas → phrase perdue (ElevenLabs, fournisseur suivant, impayé).
+
+**Correctifs LT‑1 (connexion).** Identité LiveKit **par onglet**
+(`services/calls/callDevice.ts` : préfixe stable de l'appareil + suffixe
+d'onglet, motif `^[a-z0-9]{8,27}-[a-z0-9]{4}$`, accepté tel quel par
+`livekit-token` v5) — deux onglets du même navigateur ne s'évincent plus ;
+sur une éviction pour identité dupliquée, **aucune relance automatique** :
+l'écran dit « Connexion remplacée par une autre session de cet appel
+(identité dupliquée) » et le rapport nomme la raison (`describeDisconnectReason`,
+libellés des seize raisons du SDK) au lieu de relancer une ligne
+condamnée ; `singlePeerConnection: false` sur la room d'appel — le SDK
+n'essaie plus `/rtc/v1` avant `/rtc` (le serveur 1.8.4 ne connaît que le
+second) ; `startAudio()` du transport **dans le geste** de décroché et à
+tout toucher de l'écran d'appel.
+
+**Correctifs LT‑2 (traduction).** Transcripteur **jamais redémarré** : la
+langue cible est lue à chaque segment (`targetLanguage` sous forme de
+fonction) ; segments 550 ms de silence / 6,5 s au plus, **clôture anticipée**
+après 2,5 s de parole et un creux de 320 ms ; piste interprète **publiée dès
+le « hello »** du correspondant (langue ajustable en cours d'appel sur la
+même piste, `setLanguage`), l'agent serveur restant prioritaire s'il est
+présent ; passerelle IA **préchauffée** (`ai-gateway` v25, mode `warmup` :
+classement des candidats et secrets du premier TTS et du premier STT mis en
+cache côté serveur) dès qu'une traduction devient probable — pendant la
+sonnerie si la langue est choisie à ce moment ; Gemini TTS **réessayé une
+fois** sur « réponse sans audio » ; phrases arrivées pendant qu'une voix se
+rend **fusionnées en une seule synthèse** (≤ 320 caractères) — révélé par
+le banc : avec des segments courts et une parole continue, la file de trois
+phrases débordait et près d'une phrase sur deux était abandonnée puis dite
+par la voix de secours du correspondant ; sélecteur de langue devenu une
+**case bien visible** : état « Traduction active » / « Appel normal » lisible
+d'un coup d'œil, liste déroulante de 44 px « Entendre *X* en », choix affiché
+avec son drapeau, un geste pour changer.
+
+**Mesuré au banc (deux navigateurs à lecture automatique stricte, serveur
+LiveKit 1.8.4 exact, passerelle réelle v25, voix française et russe réelles,
+03/09/2026 — passe 2 : 82 OK / 0 défaut).**
+
+| Mesure | Avant (banc VT‑1b passe 5 · téléphones LT‑0) | Après (banc LT passe 2) |
+|---|---|---|
+| Décroché → écran « connecté » | 99–110 ms au banc · 3,7–5,8 s, 22 s sur éviction (téléphones) | 233 / 471 ms (audio), 436 / 1 207 ms (vidéo) ; identifiant par onglet transmis à la fonction jeton, 0 éviction |
+| Passerelle IA préchauffée | jamais | pendant la sonnerie, 1 130 ms, 2,1 s après le clic d'appel |
+| Piste interprète publiée après le décroché (Ivan → Amina) | à la première phrase traduite (≈ 7 s) | 473 ms |
+| Piste publiée après le choix de langue de l'autre (Amina) | 11 512 ms | 158 ms (audio) · 314 / 339 ms (vidéo) |
+| Première voix traduite | 10–20 s après le micro (téléphones) · 16 s (banc vidéo) | 13,2 s après le décroché · 7,3–12,0 s après le choix de l'autre |
+| Génération d'une voix HD | 6,7–10,7 s | 2,9–5,8 s (médianes 4,2–5,4 s) |
+| Phrases abandonnées → voix de secours | 0 (segments longs) ; passe 1 LT : 6 + 2 | 0 |
+
+**Limites honnêtes.** Une phrase traduite ne peut pas précéder la fin de la
+phrase, sa transcription (2–4 s) et sa voix HD (4–6 s) : 7–13 s au premier
+mot ; c'est la voix rapide (tâche VT‑2) qui abaissera ce plancher. Lecture
+Gemini en anglais d'une phrase française : observée une fois sur onze voix
+au banc, 0 sur 12 en A/B REST avec deux consignes — aléa du fournisseur,
+non reproductible, aucune consigne ne l'a mesurablement corrigé. Le serveur
+LiveKit du VPS reste en 1.8.4 (montée recommandée, action SSH). Aucun
+abonnement Web Push n'existait sur les deux téléphones du test LT‑0. Le
+constat sur deux vrais téléphones reste à faire par l'utilisateur.
+
+**Protocole sur deux téléphones (ajout).** (1) A appelle B et choisit la
+langue **pendant la sonnerie** : dès le décroché, B lit « A vous entend
+en … » et la case de langue de A affiche « Traduction active » ; la voix
+traduite arrive après la première phrase de B. (2) B change de langue en
+cours d'appel : sa case passe à « Traduction active » aussitôt, la voix
+traduite de A suit en moins de 15 s. (3) Deux onglets ouverts sur le même
+téléphone : plus d'éviction en boucle ; s'il y en a une, l'écran dit
+« Connexion remplacée par une autre session de cet appel (identité
+dupliquée) » sans relancer. (4) Journaux à relever : `[appel] passerelle IA
+préchauffée`, `[appel] piste interprète publiée`, `[appel] voix interprète
+générée {generateMs, durationMs, merged}`, et en base les événements
+`transport` (raison de déconnexion nommée) et `voice` de `call_diagnostics`.

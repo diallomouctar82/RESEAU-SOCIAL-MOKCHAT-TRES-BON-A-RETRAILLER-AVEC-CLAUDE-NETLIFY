@@ -202,6 +202,51 @@ describe('InterpreterVoiceTrack — la voix de l’interprète rendue DANS l’a
         expect(reports[0].reason).toMatch(/en retard de 3 phrases/);
     });
 
+    it('mission LT : les phrases arrivées pendant qu’une voix se rend sont FUSIONNÉES en une seule voix HD — aucune abandonnée, chaque phrase annoncée début/fin', async () => {
+        hd();
+        const reports: Array<Record<string, unknown>> = [];
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU', onPhrase: (r) => reports.push(r) });
+        voice.start();
+        voice.speak('p0', 'Première');
+        await tick(); // p0 se rend (source en cours de lecture)
+        expect(rig.tts).toHaveBeenCalledTimes(1);
+        for (let i = 1; i <= TRACK_QUEUE_MAX; i++) voice.speak(`p${i}`, `Phrase ${i}`);
+        audio.sources[0].onended?.();
+        await tick();
+        // UNE seule synthèse pour les trois phrases en attente, texte joint dans l'ordre.
+        expect(rig.tts).toHaveBeenCalledTimes(2);
+        expect(rig.tts).toHaveBeenLastCalledWith('Phrase 1 Phrase 2 Phrase 3', expect.anything());
+        expect(reports.filter((r) => r.status === 'failed')).toEqual([]);
+        const generated = reports.filter((r) => r.status === 'generated');
+        expect(generated).toHaveLength(2);
+        expect(generated[1]).toMatchObject({ id: 'p1', merged: 3 });
+        expect(reports.filter((r) => r.status === 'started').map((r) => r.id)).toEqual(['p0', 'p1', 'p2', 'p3']);
+        audio.sources[1].onended?.();
+        await tick();
+        expect(reports.filter((r) => r.status === 'ended').map((r) => r.id)).toEqual(['p0', 'p1', 'p2', 'p3']);
+        expect(audio.sources).toHaveLength(2);
+    });
+
+    it('mission LT : la fusion s’arrête à la longueur maximale (temps réel) — au-delà, une nouvelle voix', async () => {
+        hd();
+        const voice = new InterpreterVoiceTrack({ lang: 'ru-RU' });
+        voice.start();
+        voice.speak('p0', 'Première');
+        await tick();
+        const longue = 'x'.repeat(200);
+        voice.speak('p1', longue);
+        voice.speak('p2', longue); // 200 + 1 + 200 > TRACK_BATCH_MAX_CHARS : ne tient pas avec p1
+        voice.speak('p3', 'courte');
+        audio.sources[0].onended?.();
+        await tick();
+        expect(rig.tts).toHaveBeenCalledTimes(2);
+        expect(rig.tts).toHaveBeenLastCalledWith(longue, expect.anything());
+        audio.sources[1].onended?.();
+        await tick();
+        expect(rig.tts).toHaveBeenCalledTimes(3);
+        expect(rig.tts).toHaveBeenLastCalledWith(`${longue} courte`, expect.anything());
+    });
+
     it('fournisseur en échec : la raison réelle est rapportée, rien n’est joué', async () => {
         rig.tts.mockRejectedValue(new Error('réponse sans audio'));
         const reports: Array<Record<string, unknown>> = [];

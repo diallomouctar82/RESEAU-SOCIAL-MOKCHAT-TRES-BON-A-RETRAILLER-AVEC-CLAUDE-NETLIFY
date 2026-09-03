@@ -45,6 +45,47 @@ export function getCallDeviceId(): string {
     }
 }
 
+/**
+ * Mission LT (latence) — identité par ONGLET, pas seulement par appareil.
+ *
+ * L'audit des appels réels (03/09) a montré le cas « 30 s pour se
+ * connecter » : l'identifiant d'appareil vit dans localStorage, PARTAGÉ par
+ * tous les onglets d'un même navigateur (site + module messagerie installé,
+ * ou deux onglets). Deux onglets qui reçoivent le même appel se
+ * pré-connectent avec la MÊME identité LiveKit → le serveur évince l'un puis
+ * l'autre (raison 2, identité dupliquée), chaque éviction relance une
+ * connexion, la ligne s'établit après 22 s au lieu de 4.
+ *
+ * Correctif : l'identité de transport porte un suffixe propre à CET onglet
+ * (tiré au chargement de la page, jamais stocké — un rechargement en tire un
+ * autre, ce qui est le comportement voulu : l'ancienne session n'est plus la
+ * nôtre). L'identifiant stable d'appareil reste tel quel pour tout le reste
+ * (rapport de diagnostic, préfixe reconnaissable d'un appel à l'autre).
+ * Le serveur de jetons accepte `^[A-Za-z0-9_-]{4,32}$` : préfixe borné à
+ * 27 caractères + « - » + 4.
+ */
+const TAB_SUFFIX_LENGTH = 4;
+const STABLE_PREFIX_MAX = 27;
+let tabSuffix: string | null = null;
+
+function currentTabSuffix(): string {
+    tabSuffix ??= randomDeviceId().slice(0, TAB_SUFFIX_LENGTH);
+    return tabSuffix;
+}
+
+/** Forme d'une identité d'appareil de SESSION : `<appareil stable>-<onglet>`. */
+export const CALL_SESSION_DEVICE_PATTERN = /^[a-z0-9]{8,27}-[a-z0-9]{4}$/;
+
+/** Identifiant d'appareil transmis au serveur de jetons pour CET onglet : stable d'appareil + suffixe d'onglet. */
+export function getCallSessionDeviceId(): string {
+    return `${getCallDeviceId().slice(0, STABLE_PREFIX_MAX)}-${currentTabSuffix()}`;
+}
+
+/** Tests uniquement : oublie le suffixe d'onglet tiré pour cette page. */
+export function __resetCallTabForTests(): void {
+    tabSuffix = null;
+}
+
 export const CALL_IDENTITY_SEPARATOR = '::';
 
 /** Identité LiveKit d'un appareil dans une room d'appel — miroir exact de la fonction Edge `livekit-token`. */

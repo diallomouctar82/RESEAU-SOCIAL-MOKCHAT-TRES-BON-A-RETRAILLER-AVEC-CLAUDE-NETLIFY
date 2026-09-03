@@ -142,10 +142,21 @@ export interface SegmenterCoreOptions {
     sampleRate?: number;
     /** Audio conservé AVANT le premier son détecté — le début du mot n'est jamais coupé (défaut 240 ms). */
     preRollMs?: number;
-    /** Silence qui clôt un segment (défaut 700 ms). */
+    /** Silence qui clôt un segment (défaut 550 ms — mission LT : 700 ms avant). */
     silenceMs?: number;
-    /** Durée maximale d'un segment, silence ou pas (défaut 9 s) — garde la latence bornée. */
+    /** Durée maximale d'un segment, silence ou pas (défaut 6,5 s — mission LT : 9 s avant) — garde la latence bornée. */
     maxSegmentMs?: number;
+    /**
+     * Mission LT (latence de la traduction) : clôture ANTICIPÉE — dès que le
+     * segment contient au moins `earlyCloseAfterMs` de parole (défaut 2,5 s),
+     * un creux de `earlyCloseSilenceMs` (défaut 320 ms — la respiration entre
+     * deux propositions) suffit à le clore, sans attendre le silence de fin
+     * de phrase. La première phrase traduite part plus tôt ; en dessous de
+     * 2,5 s de parole, la règle habituelle s'applique (un mot isolé n'est pas
+     * coupé au premier souffle).
+     */
+    earlyCloseAfterMs?: number;
+    earlyCloseSilenceMs?: number;
     /** En dessous, le segment est un bruit bref (toux, clic) : ignoré (défaut 350 ms de parole). */
     minSpeechMs?: number;
     /** Plancher absolu du seuil de parole (défaut 0,008). */
@@ -189,6 +200,8 @@ export class SegmenterCore {
     private readonly preRollHops: number;
     private readonly silenceMs: number;
     private readonly maxSegmentMs: number;
+    private readonly earlyCloseAfterMs: number;
+    private readonly earlyCloseSilenceMs: number;
     private readonly minSpeechMs: number;
     private readonly minThreshold: number;
     private readonly noiseFactor: number;
@@ -209,8 +222,10 @@ export class SegmenterCore {
         this.sampleRate = options.sampleRate ?? SEGMENT_SAMPLE_RATE;
         this.hopSamples = Math.max(1, Math.round((this.sampleRate * HOP_MS) / 1000));
         this.preRollHops = Math.max(0, Math.round((options.preRollMs ?? 240) / HOP_MS));
-        this.silenceMs = options.silenceMs ?? 700;
-        this.maxSegmentMs = options.maxSegmentMs ?? 9000;
+        this.silenceMs = options.silenceMs ?? 550;
+        this.maxSegmentMs = options.maxSegmentMs ?? 6500;
+        this.earlyCloseAfterMs = options.earlyCloseAfterMs ?? 2500;
+        this.earlyCloseSilenceMs = options.earlyCloseSilenceMs ?? 320;
         this.minSpeechMs = options.minSpeechMs ?? 350;
         this.minThreshold = options.minThreshold ?? 0.008;
         this.noiseFactor = options.noiseFactor ?? 3;
@@ -305,6 +320,8 @@ export class SegmenterCore {
         else this.trailingSilenceMs += HOP_MS;
 
         if (this.trailingSilenceMs >= this.silenceMs) this.finishSegment('silence');
+        // Mission LT : assez de parole déjà captée et un creux de respiration → la phrase part maintenant.
+        else if (this.speechMs >= this.earlyCloseAfterMs && this.trailingSilenceMs >= this.earlyCloseSilenceMs) this.finishSegment('silence');
         else if (this.segmentMs >= this.maxSegmentMs) this.finishSegment('max');
     }
 

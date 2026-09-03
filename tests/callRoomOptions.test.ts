@@ -54,9 +54,15 @@ describe('options de la room selon le profil (AU-8)', () => {
         expect(options.publishDefaults).toMatchObject({ dtx: true, red: true });
     });
 
-    it('LIVE : le flux adaptatif reste ACTIVÉ — des dizaines de vignettes, dont beaucoup hors écran', async () => {
+    it('appel (mission LT) : la sonde « v1 RTC path » du SDK est désactivée — connexion directe sur le chemin v0 du serveur 1.8.4 (0,8 s de moins)', async () => {
+        const options = await connecter('call');
+        expect(options.singlePeerConnection).toBe(false);
+    });
+
+    it('LIVE : le flux adaptatif reste ACTIVÉ — des dizaines de vignettes, dont beaucoup hors écran ; options du SDK inchangées', async () => {
         const options = await connecter();
         expect(options.adaptiveStream).toBe(true);
         expect(options.dynacast).toBe(true);
+        expect(options.singlePeerConnection).toBeUndefined();
     });
 });
