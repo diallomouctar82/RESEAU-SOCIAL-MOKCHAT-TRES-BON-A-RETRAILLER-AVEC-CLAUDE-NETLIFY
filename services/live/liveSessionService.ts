@@ -582,6 +582,55 @@ export async function summonExpertToLive(
 }
 
 /**
+ * EX-5 — Mettre un expert EN AVANT sur la scène (ou l'en retirer avec `null`).
+ *
+ * Écrit sur la session elle-même pour que la mise en avant soit la même sur
+ * tous les écrans : dans l'état React de l'animateur, lui seul l'aurait vue.
+ * `live_sessions_update_host` réserve déjà l'écriture à l'animateur — un
+ * spectateur reçoit un refus, il n'y a rien de plus à vérifier ici.
+ */
+export async function setFeaturedAgent(sessionId: string, agentId: string | null): Promise<void> {
+    const { error } = await supabase
+        .from('live_sessions')
+        .update({ featured_agent_id: agentId })
+        .eq('id', sessionId);
+    if (error) throw new Error(error.message);
+}
+
+/** EX-5 — Qui est en avant à l'instant où je rejoins (l'abonnement ne livre que les CHANGEMENTS). */
+export async function fetchFeaturedAgent(sessionId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .select('featured_agent_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+    if (error || !data) return null;
+    return (data as { featured_agent_id: string | null }).featured_agent_id ?? null;
+}
+
+/**
+ * EX-5 — Diffuse la mise en avant à tous les participants. Canal distinct de
+ * `subscribeToLiveSessionUniverse` à dessein : ce chemin-là est déjà testé et
+ * en production, on ne le modifie pas pour ajouter une fonctionnalité.
+ */
+export function subscribeToFeaturedAgent(sessionId: string, onChange: (agentId: string | null) => void): () => void {
+    if (!isSupabaseConfigured) return () => {};
+    try {
+        const channel = supabase
+            .channel(`live-session-featured:${sessionId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: `id=eq.${sessionId}` },
+                (payload) => onChange((payload.new as { featured_agent_id: string | null }).featured_agent_id ?? null),
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    } catch {
+        return () => {};
+    }
+}
+
+/**
  * EX-2 — Faire REDESCENDRE un expert. Même mécanique que pour un humain
  * (`removeParticipant`) : on pose `left_at`, on ne supprime jamais la ligne,
  * et c'est ce que TOUS les clients relisent — la carte disparaît donc chez

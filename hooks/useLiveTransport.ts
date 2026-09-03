@@ -838,6 +838,13 @@ export function composeStage(input: {
     humans: ReadonlyArray<{ id: string; name: string }>;
     agents: ReadonlyArray<{ id: string; name: string }>;
     max?: number;
+    /**
+     * EX-5 — expert mis en avant par l'animateur (live_sessions.featured_agent_id).
+     * Sa carte passe en PREMIÈRE position et ne peut jamais tomber dans le
+     * débordement : « mettre en avant » n'aurait aucun sens si la personne
+     * mise en avant pouvait rester invisible parce que la scène est pleine.
+     */
+    spotlightAgentId?: string;
 }): StageComposition {
     const max = Math.max(1, input.max ?? STAGE_VISIBLE_MAX);
     const toutes: StageTile[] = [];
@@ -847,6 +854,14 @@ export function composeStage(input: {
     }
     for (const h of input.humans) toutes.push({ id: `human:${h.id}`, name: h.name, kind: 'human' });
     for (const a of input.agents) toutes.push({ id: `agent:${a.id}`, name: a.name, kind: 'agent' });
+
+    if (input.spotlightAgentId) {
+        const cle = `agent:${input.spotlightAgentId}`;
+        const index = toutes.findIndex((t) => t.id === cle);
+        // Mettre en avant un expert absent de la scène ne fabrique pas sa carte :
+        // on ne montre jamais une présence qui n'est pas là.
+        if (index > 0) toutes.unshift(...toutes.splice(index, 1));
+    }
 
     if (toutes.length === 0) {
         return {

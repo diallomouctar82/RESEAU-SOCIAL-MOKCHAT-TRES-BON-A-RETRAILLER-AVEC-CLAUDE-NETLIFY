@@ -3,6 +3,7 @@ import {
   splitRosterHumansAndAgents,
   deriveStageAgentIds,
 } from '../services/live/liveSessionService';
+import { composeStage } from '../hooks/useLiveTransport';
 import type { LiveStageParticipant } from '../types';
 
 /**
@@ -174,5 +175,70 @@ describe('EX-2 — qui occupe la scène côté agents, et depuis quelle source',
         knownAgentIds: catalogue,
       }),
     ).toEqual(['h1', '2', '5']);
+  });
+});
+
+describe("EX-5 — mettre l'expert en avant, puis le faire redescendre", () => {
+  const humains = [
+    { id: 'u-1', name: 'Awa' },
+    { id: 'u-2', name: 'Sekou' },
+    { id: 'u-3', name: 'Mariama' },
+    { id: 'u-4', name: 'Fatou' },
+  ];
+  const experts = [
+    { id: '1', name: 'Diallo' },
+    { id: '2', name: 'Maître Diallo' },
+    { id: '5', name: 'Docteur Diallo' },
+  ];
+
+  it("sans mise en avant, l'ordre historique est conservé (aucune régression)", () => {
+    const scene = composeStage({ isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts });
+    expect(scene.tiles.map(t => t.id)).toEqual([
+      'self', 'human:u-1', 'human:u-2', 'human:u-3', 'human:u-4', 'agent:1',
+    ]);
+    expect(scene.overflow).toBe(2); // les experts 2 et 5 débordent
+  });
+
+  it("l'expert mis en avant passe en PREMIÈRE carte", () => {
+    const scene = composeStage({
+      isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: '2',
+    });
+    expect(scene.tiles[0].id).toBe('agent:2');
+  });
+
+  it("un expert mis en avant ne peut JAMAIS rester dans le débordement — sinon la mise en avant ne veut rien dire", () => {
+    // Sans mise en avant, l'expert « 5 » est invisible (scène pleine).
+    const sans = composeStage({ isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts });
+    expect(sans.tiles.some(t => t.id === 'agent:5')).toBe(false);
+    // Mis en avant, il est visible.
+    const avec = composeStage({
+      isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: '5',
+    });
+    expect(avec.tiles.some(t => t.id === 'agent:5')).toBe(true);
+    expect(avec.tiles[0].id).toBe('agent:5');
+  });
+
+  it('le nombre total de présences et le débordement restent exacts', () => {
+    const scene = composeStage({
+      isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: '5',
+    });
+    expect(scene.presenceCount).toBe(8); // 1 + 4 humains + 3 experts
+    expect(scene.tiles.length + scene.overflow).toBe(8);
+  });
+
+  it("mettre en avant un expert ABSENT de la scène ne fabrique pas sa carte", () => {
+    const scene = composeStage({
+      isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: 'h1',
+    });
+    expect(scene.tiles.some(t => t.id === 'agent:h1')).toBe(false);
+    expect(scene.tiles[0].id).toBe('self');
+  });
+
+  it("faire redescendre (spotlight retiré) rend exactement la scène d'origine", () => {
+    const avant = composeStage({ isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts });
+    const apres = composeStage({
+      isUserOnStage: true, selfName: 'Moi', humans: humains, agents: experts, spotlightAgentId: undefined,
+    });
+    expect(apres).toEqual(avant);
   });
 });

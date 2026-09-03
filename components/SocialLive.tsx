@@ -33,7 +33,7 @@ import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds } from '../services/live/liveSessionService';
+import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds, setFeaturedAgent, fetchFeaturedAgent, subscribeToFeaturedAgent } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges, postLiveAgentMessage } from '../services/live/liveChatService';
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
@@ -232,6 +232,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
    * pas l'assistant qui disparaît du direct.
    */
   const [agentsRetires, setAgentsRetires] = useState<string[]>([]);
+
+  /**
+   * EX-5 — Expert actuellement mis en avant, lu depuis la SESSION
+   * (`live_sessions.featured_agent_id`) et non depuis un état local : c'est ce
+   * qui fait que la mise en avant est la même sur tous les écrans.
+   */
+  const [expertEnAvant, setExpertEnAvant] = useState<string | null>(null);
 
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
   // Consentement caméra/micro/vision (LOOP 12/16) — au-delà du simple
@@ -493,6 +500,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     isUserOnStage,
     humans: presentableRemotes.map(m => ({ id: m.participant.identity, name: m.participant.identity })),
     agents: stageAgents.map(a => ({ id: a.id, name: a.name })),
+    // EX-5 : l'expert mis en avant occupe la première carte et ne peut jamais
+    // tomber dans le débordement.
+    spotlightAgentId: expertEnAvant || undefined,
   });
   // La pastille de débordement occupe elle aussi une cellule : la grille doit
   // la compter, sinon la dernière rangée se déséquilibre.
@@ -890,6 +900,18 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
    * Une seule tentative par session (la ref) : si l'animateur le retire
    * ensuite, il ne réapparaît pas dans son dos.
    */
+  // EX-5 : qui est en avant à mon arrivée, puis à chaque changement décidé par
+  // l'animateur. L'abonnement ne livre que les CHANGEMENTS — d'où la lecture
+  // initiale, sans laquelle une personne rejoignant en cours de direct ne
+  // verrait pas la mise en avant déjà décidée.
+  useEffect(() => {
+    if (!realSessionId) { setExpertEnAvant(null); return; }
+    let annule = false;
+    fetchFeaturedAgent(realSessionId).then((id) => { if (!annule) setExpertEnAvant(id); });
+    const stop = subscribeToFeaturedAgent(realSessionId, (id) => { if (!annule) setExpertEnAvant(id); });
+    return () => { annule = true; stop(); };
+  }, [realSessionId]);
+
   const copilotePersisteRef = useRef<string | null>(null);
   useEffect(() => {
     if (!realSessionId || !isHost || !aiAgent) return;
@@ -1368,6 +1390,30 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         'error',
       );
       return false;
+    }
+  };
+
+  /**
+   * EX-5 — Mettre l'expert EN AVANT, puis l'en retirer. Un seul geste, qui
+   * bascule : appuyer sur l'expert déjà en avant le fait redescendre au rang
+   * des autres (il reste sur scène — le faire quitter la scène, c'est le
+   * bouton de retrait, EX-2).
+   */
+  const handleBasculerMiseEnAvant = async (agentId: string) => {
+    if (!realSessionId) return;
+    const cible = expertEnAvant === agentId ? null : agentId;
+    try {
+      await setFeaturedAgent(realSessionId, cible);
+      setExpertEnAvant(cible); // l'écho temps réel confirmera chez les autres
+    } catch (err) {
+      const message = (err as Error)?.message || 'erreur inconnue';
+      addNotification(
+        "La mise en avant n'a pas pu être appliquée",
+        /permission|policy|42501|row-level/i.test(message)
+          ? "Seul l'animateur du direct peut mettre un expert en avant."
+          : message,
+        'error',
+      );
     }
   };
 
@@ -2627,8 +2673,29 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
                     <div className="live-nameplate">
                       <span className="truncate">{aiAgent.name} — {aiAgent.specialty}</span>
+                      {/* EX-5 : la mise en avant est lue depuis la session, donc
+                          ce libellé apparaît chez TOUT LE MONDE, pas seulement
+                          chez l'animateur qui a appuyé. */}
+                      {expertEnAvant === aiAgent.id && (
+                        <span className="shrink-0 tracking-[0.18em]" data-testid={`stage-featured-${aiAgent.id}`}>À LA UNE</span>
+                      )}
                       <span className="shrink-0 opacity-70 tracking-[0.18em]">IA</span>
                     </div>
+
+                    {/* EX-5 : mettre en avant / faire redescendre au rang des
+                        autres. Écrit sur la session, donc appliqué chez tous. */}
+                    {isHost && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); void handleBasculerMiseEnAvant(aiAgent.id); }}
+                        data-testid={`stage-feature-agent-${aiAgent.id}`}
+                        title={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
+                        aria-label={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
+                        aria-pressed={expertEnAvant === aiAgent.id}
+                        className={`live-orb w-9 h-9 absolute top-3 right-[6.25rem] z-10 ${expertEnAvant === aiAgent.id ? 'live-orb--active' : ''}`}
+                      >
+                        <Award size={15} />
+                      </button>
+                    )}
 
                     {/* EX-4 : faire RÉPONDRE l'expert à ce qui vient d'être
                         demandé dans le direct — hôte uniquement (la base
