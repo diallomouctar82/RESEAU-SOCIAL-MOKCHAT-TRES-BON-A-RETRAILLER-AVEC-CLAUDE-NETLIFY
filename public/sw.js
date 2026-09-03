@@ -1,18 +1,32 @@
 // Service Worker PWA Souverain - Le Monde à Vous (LMAV)
 // Fichier servi tel quel par le navigateur (jamais transpilé par Vite) :
 // JavaScript pur obligatoire, aucune syntaxe TypeScript ici.
-const CACHE_NAME = 'lmav-app-v6.5.0';
-const STATIC_ASSETS = [
-  '/metadata.json'
-];
+const CACHE_NAME = 'lmav-app-v6.6.0';
+
+// Mission SN (sonnerie hors application) — réglages « sonnerie » /
+// « vibration » de CET appareil, écrits par la page (Cache API) et lus ici
+// avant d'afficher une notification d'appel. Ce cache survit aux mises à
+// jour du worker : il n'est jamais purgé à l'activation. Les deux valeurs
+// doivent rester identiques à services/calls/ringtoneService.ts.
+const RING_PREFERENCES_CACHE = 'lmav-ring-prefs-v1';
+const RING_PREFERENCES_URL = '/__moknet/ring-preferences';
 
 self.addEventListener('install', (event) => {
+  // Mission SN — l'installation ne dépend d'AUCUN fichier. Constaté en
+  // production (03/09/2026) : l'ancien `cache.addAll(['/metadata.json'])`
+  // échouait (le fichier répond 404 sur moknet.net), l'installation
+  // échouait avec lui, aucun worker n'était jamais actif, et
+  // `pushManager.subscribe()` refusait avec « Subscription failed - no
+  // active Service Worker » : aucun téléphone ne pouvait s'enregistrer pour
+  // sonner hors application. Les fichiers sont désormais mis en cache au
+  // fil des requêtes (gestionnaire fetch ci-dessous) ; ouvrir le cache ici
+  // ne fait que le créer, et même cet échec-là ne bloque pas l'activation.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    }).then(() => {
-      return self.skipWaiting();
-    })
+    caches.open(CACHE_NAME)
+      .catch((err) => {
+        console.warn('[sw] ouverture du cache impossible à l\'installation (sans conséquence) :', err);
+      })
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -20,7 +34,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys
+          .filter((key) => key !== CACHE_NAME && key !== RING_PREFERENCES_CACHE)
+          .map((key) => caches.delete(key))
       );
     }).then(() => {
       return self.clients.claim();
@@ -159,23 +175,56 @@ function isStaleCall(payload) {
   return Number.isFinite(ts) && Date.now() - ts > CALL_MAX_AGE_MS;
 }
 
+/**
+ * Mission SN — réglages « sonnerie » / « vibration » posés par la page dans
+ * la Cache API (bouton « Sonnerie » de la messagerie). Sans réglage, ou si la
+ * lecture échoue : sonnerie ET vibration, comme avant. Un réglage ne peut
+ * jamais empêcher la notification elle-même : elle s'affiche toujours.
+ */
+async function readRingPreferences() {
+  const defaults = { ringtoneEnabled: true, vibrationEnabled: true };
+  try {
+    const cache = await caches.open(RING_PREFERENCES_CACHE);
+    const stored = await cache.match(RING_PREFERENCES_URL);
+    if (!stored) return defaults;
+    const parsed = await stored.json();
+    if (!parsed || typeof parsed !== 'object') return defaults;
+    return {
+      ringtoneEnabled: parsed.ringtoneEnabled !== false,
+      vibrationEnabled: parsed.vibrationEnabled !== false
+    };
+  } catch (err) {
+    console.warn('[sw] réglages de sonnerie illisibles, valeurs par défaut :', err);
+    return defaults;
+  }
+}
+
 async function showIncomingCall(payload) {
   const isVideo = payload.callType === 'video';
   const title = (isVideo ? 'Appel vidéo de ' : 'Appel de ') + senderName(payload);
-  await self.registration.showNotification(title, {
+  const prefs = await readRingPreferences();
+  const options = {
     body: 'Touchez pour répondre',
     tag: callTag(payload),
     renotify: true,
     requireInteraction: true,
     icon: senderIcon(payload),
     badge: BADGE_ICON,
-    vibrate: CALL_VIBRATION,
     actions: [
       { action: 'accept', title: 'Répondre' },
       { action: 'reject', title: 'Refuser' }
     ],
     data: payload
-  });
+  };
+  if (!prefs.ringtoneEnabled) {
+    // Sonnerie coupée : notification silencieuse. Le navigateur interdit de
+    // combiner `silent` et un motif de vibration — une sonnerie coupée coupe
+    // donc aussi la vibration de la notification (dit tel quel dans le panneau).
+    options.silent = true;
+  } else if (prefs.vibrationEnabled) {
+    options.vibrate = CALL_VIBRATION;
+  }
+  await self.registration.showNotification(title, options);
 }
 
 async function showMissedCall(payload) {

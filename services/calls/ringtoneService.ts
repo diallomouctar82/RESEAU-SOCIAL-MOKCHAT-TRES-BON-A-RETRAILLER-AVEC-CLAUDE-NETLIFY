@@ -59,6 +59,22 @@
  *                                profil (profiles.privacy_settings.ringtoneId)
  *                                est faite par UnifiedSettingsModal via
  *                                onUpdateProfile — pas par ce service.
+ *
+ * ── Réglages « sonnerie » / « vibration » de CET appareil (mission SN) ────
+ *   getRingPreferences()       → { ringtoneEnabled, vibrationEnabled }
+ *                                (cache localStorage, défaut : tout activé).
+ *   setRingPreferences(patch)  → écrit le cache local, prévient les
+ *                                écouteurs ET transmet les réglages au
+ *                                service worker (Cache API) pour que la
+ *                                notification d'appel hors application les
+ *                                respecte aussi. `startRinging` les honore :
+ *                                sonnerie coupée = aucun son (la vibration
+ *                                et l'écran d'appel restent), vibration
+ *                                coupée = aucune vibration.
+ *   subscribeRingPreferences() → abonnement aux changements (panneau).
+ *   canVibrateHere()           → l'appareil expose-t-il navigator.vibrate ?
+ *                                (jamais sur iPhone : le réglage est alors
+ *                                affiché comme indisponible, pas caché).
  */
 
 import {
@@ -72,6 +88,30 @@ export { DEFAULT_RINGTONE_ID, type RingtoneSpec } from './ringtones';
 
 /** Clé du cache local de la sonnerie choisie. */
 export const RINGTONE_STORAGE_KEY = 'lmav_ringtone_v1';
+
+/** Clé du cache local des réglages « sonnerie » / « vibration » de CET appareil (mission SN). */
+export const RING_PREFERENCES_STORAGE_KEY = 'lmav_ring_prefs_v1';
+
+/**
+ * Mission SN — les mêmes réglages sont déposés dans la Cache API pour le
+ * service worker (public/sw.js), qui les lit avant d'afficher une notification
+ * d'appel : nom du cache et URL de la réponse qui les porte. Les deux valeurs
+ * doivent rester identiques des deux côtés.
+ */
+export const RING_PREFERENCES_CACHE = 'lmav-ring-prefs-v1';
+export const RING_PREFERENCES_CACHE_URL = '/__moknet/ring-preferences';
+
+export interface RingPreferences {
+    /** Sonnerie audible à l'appel entrant (appli ouverte) et notification sonore (appli fermée). */
+    ringtoneEnabled: boolean;
+    /** Vibration à l'appel entrant (appli ouverte) et sur la notification d'appel (appli fermée). */
+    vibrationEnabled: boolean;
+}
+
+export const DEFAULT_RING_PREFERENCES: Readonly<RingPreferences> = Object.freeze({
+    ringtoneEnabled: true,
+    vibrationEnabled: true,
+});
 
 /** Arrêt de sécurité : aucune boucle ne dépasse 45 s. */
 export const RINGING_TIMEOUT_MS = 45_000;
@@ -141,6 +181,9 @@ const channels: { ring: LoopHandle | null; ringback: LoopHandle | null } = {
 };
 let currentPreview: PreviewHandle | null = null;
 let vibrationInterval: number | null = null;
+/** Mission SN : derniers réglages écrits (repli si localStorage est indisponible). */
+let memoryRingPreferences: RingPreferences | null = null;
+const ringPreferenceListeners = new Set<(prefs: RingPreferences) => void>();
 
 /* ─────────────────────────── AudioContext & bus ────────────────────────── */
 
@@ -408,12 +451,15 @@ function stopChannel(name: ChannelName): void {
  * Démarre une boucle sur un canal : arrêt implicite de la précédente
  * (idempotence), timeout de sécurité armé de façon SYNCHRONE, puis audio si
  * possible. Renvoie `true` seulement si la boucle est réellement audible.
+ * `silent` (mission SN, sonnerie coupée) : le canal existe — l'appel
+ * « sonne » (état + coupe-circuit) — mais aucun son n'est produit.
  */
 async function startChannel(
     name: ChannelName,
     spec: RingtoneSpec,
     level: number,
     onSafetyStop: () => void,
+    options: { silent?: boolean } = {},
 ): Promise<boolean> {
     stopChannel(name);
     const handle: LoopHandle = {
@@ -427,6 +473,7 @@ async function startChannel(
     handle.safetyTimeout = window.setTimeout(() => {
         if (channels[name] === handle) onSafetyStop();
     }, RINGING_TIMEOUT_MS);
+    if (options.silent) return false;
 
     const ctx = await ensureAudioContext();
     if (handle.stopped || channels[name] !== handle) return false;
@@ -451,18 +498,22 @@ async function startChannel(
 /* ──────────────────────────── API appel ENTRANT ────────────────────────── */
 
 /**
- * Fait sonner l'appel entrant : boucle audio + vibration coordonnées.
- * `true` = audible ; `false` = vibration seule (audio impossible ici).
- * Idempotent : un `startRinging` en cours est d'abord arrêté proprement.
+ * Fait sonner l'appel entrant : boucle audio + vibration coordonnées, selon
+ * les réglages de cet appareil (mission SN : sonnerie coupée = aucun son,
+ * vibration coupée = aucune vibration ; l'appel s'affiche dans tous les cas).
+ * `true` = audible ; `false` = pas de son (vibration seule, audio impossible
+ * ici, ou sonnerie coupée). Idempotent : un `startRinging` en cours est
+ * d'abord arrêté proprement.
  */
 export async function startRinging(ringtoneId?: string): Promise<boolean> {
     stopPreview();
     stopVibration();
+    const prefs = getRingPreferences();
     const spec =
         getRingtone(ringtoneId ?? getSelectedRingtoneId()) ??
         getRingtone(DEFAULT_RINGTONE_ID)!;
-    startVibration();
-    return startChannel('ring', spec, MASTER_GAIN, stopRinging);
+    if (prefs.vibrationEnabled) startVibration();
+    return startChannel('ring', spec, MASTER_GAIN, stopRinging, { silent: !prefs.ringtoneEnabled });
 }
 
 /**
@@ -613,6 +664,93 @@ export function setSelectedRingtoneId(id: string): void {
     }
 }
 
+/* ─────────── Réglages sonnerie / vibration de cet appareil (SN) ───────────── */
+
+function normalizeRingPreferences(raw: unknown): RingPreferences {
+    const source = raw && typeof raw === 'object' ? (raw as Partial<Record<keyof RingPreferences, unknown>>) : {};
+    return {
+        ringtoneEnabled: source.ringtoneEnabled !== false,
+        vibrationEnabled: source.vibrationEnabled !== false,
+    };
+}
+
+/**
+ * Réglages de CET appareil (cache localStorage). Tout est activé par défaut,
+ * et toute valeur illisible retombe sur ce défaut : couper la sonnerie est
+ * toujours un choix explicite, jamais un accident de stockage.
+ */
+export function getRingPreferences(): RingPreferences {
+    try {
+        const raw = window.localStorage.getItem(RING_PREFERENCES_STORAGE_KEY);
+        if (raw) return normalizeRingPreferences(JSON.parse(raw));
+    } catch {
+        /* localStorage indisponible ou valeur corrompue → repli ci-dessous */
+    }
+    return memoryRingPreferences ? { ...memoryRingPreferences } : { ...DEFAULT_RING_PREFERENCES };
+}
+
+/**
+ * Écrit les réglages (cache local + copie pour le service worker), prévient
+ * les écouteurs, et renvoie l'état résultant. La transmission au service
+ * worker est asynchrone et jamais bloquante : si elle échoue, l'appli ouverte
+ * respecte quand même le réglage (elle lit le cache local).
+ */
+export function setRingPreferences(patch: Partial<RingPreferences>): RingPreferences {
+    const next = normalizeRingPreferences({ ...getRingPreferences(), ...patch });
+    memoryRingPreferences = { ...next };
+    try {
+        window.localStorage.setItem(RING_PREFERENCES_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+        /* cache impossible : le réglage vaut pour cette page (mémoire module) */
+    }
+    void publishRingPreferencesToServiceWorker(next);
+    for (const listener of ringPreferenceListeners) {
+        try {
+            listener({ ...next });
+        } catch (err) {
+            console.warn('Écouteur de réglages de sonnerie en erreur :', err);
+        }
+    }
+    return next;
+}
+
+/** Abonnement aux changements de réglages (panneau « Sonnerie »). Renvoie la fonction de désabonnement. */
+export function subscribeRingPreferences(listener: (prefs: RingPreferences) => void): () => void {
+    ringPreferenceListeners.add(listener);
+    return () => {
+        ringPreferenceListeners.delete(listener);
+    };
+}
+
+/** L'appareil expose-t-il la vibration ? (jamais sur iPhone/iPad — Safari n'implémente pas `navigator.vibrate`). */
+export function canVibrateHere(): boolean {
+    return canVibrate();
+}
+
+/**
+ * Dépose les réglages dans la Cache API, où le service worker les lit avant
+ * d'afficher une notification d'appel (public/sw.js : `readRingPreferences`).
+ * `true` si l'écriture a eu lieu ; `false` si la Cache API n'existe pas ici
+ * (test, navigateur ancien) ou si elle a refusé — jamais une exception.
+ */
+export async function publishRingPreferencesToServiceWorker(
+    prefs: RingPreferences = getRingPreferences(),
+): Promise<boolean> {
+    try {
+        const store: CacheStorage | undefined = typeof caches !== 'undefined' ? caches : undefined;
+        if (!store || typeof store.open !== 'function' || typeof Response === 'undefined') return false;
+        const cache = await store.open(RING_PREFERENCES_CACHE);
+        await cache.put(
+            RING_PREFERENCES_CACHE_URL,
+            new Response(JSON.stringify(prefs), { headers: { 'content-type': 'application/json' } }),
+        );
+        return true;
+    } catch (err) {
+        console.info('Réglages de sonnerie non transmis au service worker :', err instanceof Error ? err.message : err);
+        return false;
+    }
+}
+
 /* ────────────────────────────── Tests only ─────────────────────────────── */
 
 /** Réinitialisation complète de l'état module — réservé aux tests. */
@@ -629,4 +767,6 @@ export function __resetRingtoneServiceForTests(): void {
     primingTeardown?.();
     primingTeardown = null;
     audioUnlocked = false;
+    memoryRingPreferences = null;
+    ringPreferenceListeners.clear();
 }

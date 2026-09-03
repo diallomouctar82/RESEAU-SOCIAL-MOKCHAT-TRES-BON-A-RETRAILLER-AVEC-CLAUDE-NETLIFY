@@ -358,7 +358,7 @@ describe('ensurePushSubscription', () => {
         useNominalRpc();
         const result = await ensurePushSubscription(USER_A);
         expect(result.status).toBe('error');
-        expect(result.error).toMatch(/Service worker indisponible/);
+        expect(result.error).toMatch(/Service worker inactif/);
     });
 });
 
@@ -443,6 +443,92 @@ describe('getServiceWorkerRegistration', () => {
 
     it('null sans support — jamais une exception', async () => {
         expect(await getServiceWorkerRegistration()).toBeNull();
+    });
+});
+
+/* ────── Mission SN : un enregistrement n'est rendu qu'avec un worker ACTIF ────── */
+
+class FakeWorker {
+    private listeners = new Set<() => void>();
+    constructor(public state: ServiceWorkerState = 'installing') {}
+    addEventListener(type: string, handler: () => void) {
+        if (type === 'statechange') this.listeners.add(handler);
+    }
+    removeEventListener(_type: string, handler: () => void) {
+        this.listeners.delete(handler);
+    }
+    transition(state: ServiceWorkerState) {
+        this.state = state;
+        this.listeners.forEach((handler) => handler());
+    }
+}
+
+function makeRegistration(worker: FakeWorker | null, pushManager: FakePushManager, active: object | null = null) {
+    return { active, installing: worker, waiting: null, scope: 'http://localhost:3000/', pushManager };
+}
+
+describe('getServiceWorkerRegistration — worker ACTIF exigé (mission SN)', () => {
+    it('worker en cours d’installation : l’enregistrement n’est rendu qu’une fois ACTIVÉ — l’abonnement réussit ensuite', async () => {
+        const env = installPushEnvironment('granted', { hasRegistration: false });
+        useNominalRpc();
+        const worker = new FakeWorker('installing');
+        const registration = makeRegistration(worker, env.pushManager);
+        env.serviceWorker.register.mockResolvedValue(registration);
+
+        let settled = false;
+        const pending = getServiceWorkerRegistration().then((result) => {
+            settled = true;
+            return result;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        expect(settled).toBe(false); // pas d'enregistrement inactif rendu à pushManager.subscribe
+
+        worker.transition('installed');
+        (registration as { active: object | null }).active = worker;
+        worker.transition('activating');
+        expect(await pending).toBe(registration);
+        expect(env.serviceWorker.register).toHaveBeenCalledTimes(1);
+
+        expect((await ensurePushSubscription(USER_A)).status).toBe('subscribed');
+        expect(env.pushManager.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it('installation en échec (worker redondant) : /sw.js est ré-enregistré UNE fois et l’enregistrement actif est rendu', async () => {
+        const env = installPushEnvironment('granted', { hasRegistration: false });
+        const brokenWorker = new FakeWorker('installing');
+        const broken = makeRegistration(brokenWorker, env.pushManager);
+        const fresh = makeRegistration(null, env.pushManager, { state: 'activated' });
+        env.serviceWorker.register.mockResolvedValueOnce(broken).mockResolvedValueOnce(fresh);
+
+        const pending = getServiceWorkerRegistration();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        brokenWorker.transition('redundant'); // ce que le navigateur fait quand cache.addAll échoue à l'installation
+
+        expect(await pending).toBe(fresh);
+        expect(env.serviceWorker.register).toHaveBeenCalledTimes(2);
+        expect(env.serviceWorker.register).toHaveBeenNthCalledWith(2, '/sw.js');
+    });
+
+    it('jamais activé (deux délais écoulés) : null, et ensurePushSubscription dit « Service worker inactif » — pas de faux enregistrement', async () => {
+        vi.useFakeTimers();
+        try {
+            const env = installPushEnvironment('granted', { hasRegistration: false });
+            useNominalRpc();
+            env.serviceWorker.register.mockImplementation(async () => makeRegistration(new FakeWorker('installing'), env.pushManager));
+
+            const pending = ensurePushSubscription(USER_A);
+            await vi.advanceTimersByTimeAsync(8_100);
+            await vi.advanceTimersByTimeAsync(8_100);
+            const result = await pending;
+
+            expect(result.status).toBe('error');
+            expect(result.error).toMatch(/Service worker inactif/);
+            expect(env.serviceWorker.register).toHaveBeenCalledTimes(2);
+            expect(env.pushManager.subscribe).not.toHaveBeenCalled();
+            expect(saveCalls()).toHaveLength(0);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

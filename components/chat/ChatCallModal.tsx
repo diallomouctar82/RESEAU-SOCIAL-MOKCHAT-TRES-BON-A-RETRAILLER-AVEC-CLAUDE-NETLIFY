@@ -1270,12 +1270,17 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
   useEffect(() => { setPipPos(null); }, [isFullscreen]);
 
   return (
-    /* Équipe 8 (loop 2) : z-[210] — l'interface d'appel passe AU-DESSUS de
-       tout le reste de l'app (dock mobile et barre Architecte z-[60], fenêtre
-       de chat z-[70], lightbox z-90, LIVE plein écran z-[200]) : un appel
-       entrant est immédiatement visible où que soit l'utilisateur, sans
-       jamais devoir ouvrir la messagerie. */
-    <div className={`fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all ${isFullscreen ? 'p-0' : 'p-0 sm:p-4'}`}>
+    /* Équipe 8 (loop 2) : l'interface d'appel passe AU-DESSUS de tout le
+       reste de l'app (dock mobile et barre Architecte z-[60], fenêtre de chat
+       z-[70], lightbox z-90, LIVE plein écran z-[200]) : un appel entrant est
+       immédiatement visible où que soit l'utilisateur, sans jamais devoir
+       ouvrir la messagerie.
+       Mission SN-2b : z-[400] — au-dessus AUSSI des boîtes de dialogue du LIVE
+       (consentement caméra/micro z-[260], sortie z-[300]) : un appel qui
+       arrive pendant qu'une de ces boîtes est ouverte n'est plus caché
+       derrière elle. Seul l'avis « Cet appel a expiré. » (z-[402]) passe
+       au-dessus. */
+    <div data-testid="call-screen" className={`fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all ${isFullscreen ? 'p-0' : 'p-0 sm:p-4'}`}>
       {/* AU-8 : SUR TÉLÉPHONE, L'APPEL PREND TOUT L'ÉCRAN — comme une vraie
           application d'appel. L'ancienne carte imposait sa hauteur par une
           proportion écrite dans la syntaxe de Tailwind 4 alors que le site
@@ -1328,12 +1333,17 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
                         publication du correspondant côté SDK : quand il dit
                         non, c'est un fait ; sinon la caméra est publiée et
                         c'est nous qui attendons encore son image. */}
+                    {/* Mission SN-2b : pendant la sonnerie, dire qu'un appel
+                        vidéo ARRIVE (ou sonne chez l'autre) — « En attente
+                        de X… » laissait croire à une image qui tarde. */}
                     <span className="text-xs font-semibold">
-                      {!remote
-                        ? `En attente de ${peerName}…`
-                        : remote.participant.videoEnabled === false
-                          ? `${peerName} a coupé sa caméra`
-                          : `En attente de l’image de ${peerName}…`}
+                      {callSession.status === 'ringing'
+                        ? (isIncoming ? 'Appel vidéo entrant…' : 'Sonnerie en cours…')
+                        : !remote
+                          ? `En attente de ${peerName}…`
+                          : remote.participant.videoEnabled === false
+                            ? `${peerName} a coupé sa caméra`
+                            : `En attente de l’image de ${peerName}…`}
                     </span>
                   </div>
                 )}
