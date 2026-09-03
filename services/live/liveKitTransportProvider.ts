@@ -37,6 +37,7 @@ import type {
     LiveTransportProvider,
     SendDataOptions,
 } from './liveTransportTypes';
+import { isInterpreterTrackName } from './liveTransportTypes';
 import { isCallDiagnosticsActive, recordCallEvent } from '../calls/callDiagnostics';
 
 /**
@@ -174,14 +175,14 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             room.on(RoomEvent.SignalReconnecting, () => { recordCallEvent('transport', 'SDK : signalisation en reconnexion'); });
             room.on(RoomEvent.Reconnected, () => { recordCallEvent('transport', 'SDK : reconnecté'); });
             room.on(RoomEvent.Connected, () => { recordCallEvent('transport', 'SDK : connecté', { serverUrl: params.serverUrl }); });
-            room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
-                recordCallEvent('media', `piste distante souscrite : ${track.source}`, { from: participant.identity });
+            room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub, participant: RemoteParticipant) => {
+                recordCallEvent('media', `piste distante souscrite : ${track.source}${pub.trackName ? ` (${pub.trackName})` : ''}`, { from: participant.identity });
             });
-            room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
-                recordCallEvent('media', `piste distante retirée : ${track.source}`, { from: participant.identity });
+            room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, pub, participant: RemoteParticipant) => {
+                recordCallEvent('media', `piste distante retirée : ${track.source}${pub.trackName ? ` (${pub.trackName})` : ''}`, { from: participant.identity });
             });
             room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
-                recordCallEvent('media', `ma piste publiée : ${publication.source}`, { codec: publication.mimeType, sid: publication.trackSid });
+                recordCallEvent('media', `ma piste publiée : ${publication.source}${publication.trackName ? ` (${publication.trackName})` : ''}`, { codec: publication.mimeType, sid: publication.trackSid });
             });
             room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
                 recordCallEvent('media', `ma piste dépubliée : ${publication.source}`);
@@ -210,12 +211,17 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         room.on(RoomEvent.ParticipantMetadataChanged, (metadata: string | undefined, p: Participant) => {
             events.onParticipantMetadataChanged?.(p.identity, metadata);
         });
-        room.on(RoomEvent.TrackSubscribed, (track, _publication, participant: RemoteParticipant) => {
-            const kind = TRACK_SOURCE_TO_KIND[track.source];
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant: RemoteParticipant) => {
+            // Mission VT : la piste AUXILIAIRE de l'interprète (source « inconnue »
+            // pour le SDK) est reconnue par son nom de publication — c'est de
+            // l'audio, distinct du micro du correspondant.
+            const auxiliary = track.kind === Track.Kind.Audio && isInterpreterTrackName(publication.trackName);
+            const kind = auxiliary ? 'audio' : TRACK_SOURCE_TO_KIND[track.source];
             if (!kind) return;
             const handle: LiveTrackHandle = {
                 participantIdentity: participant.identity,
                 kind,
+                name: auxiliary ? publication.trackName : undefined,
                 attach: (el) => { track.attach(el); },
                 detach: (el) => { if (el) track.detach(el); else track.detach(); },
                 // HL-4 : atténuation de l'audio distant pendant que l'interprète
@@ -226,10 +232,11 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
             };
             events.onTrackSubscribed?.(handle);
         });
-        room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant: RemoteParticipant) => {
-            const kind = TRACK_SOURCE_TO_KIND[track.source];
+        room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant: RemoteParticipant) => {
+            const auxiliary = track.kind === Track.Kind.Audio && isInterpreterTrackName(publication.trackName);
+            const kind = auxiliary ? 'audio' : TRACK_SOURCE_TO_KIND[track.source];
             if (!kind) return;
-            events.onTrackUnsubscribed?.(participant.identity, kind);
+            events.onTrackUnsubscribed?.(participant.identity, kind, auxiliary ? publication.trackName : undefined);
         });
         room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
             events.onActiveSpeakersChanged?.(speakers.map((s) => s.identity));
@@ -307,6 +314,26 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
 
     async setMicrophoneEnabled(enabled: boolean): Promise<void> {
         await this.requireLocalParticipant().setMicrophoneEnabled(enabled);
+    }
+
+    /**
+     * Mission VT : la voix de l'interprète part dans l'appel comme une piste
+     * audio ordinaire (même encodage « parole » que le micro). Source
+     * « inconnue » côté SDK — jamais un second micro, qui perturberait l'état
+     * `isMicrophoneEnabled` — reconnue chez le récepteur par son nom.
+     * Idempotent : une piste déjà publiée sous ce nom n'est pas republiée.
+     */
+    async publishAuxiliaryAudio(track: MediaStreamTrack, name: string): Promise<void> {
+        const local = this.requireLocalParticipant();
+        if (local.getTrackPublicationByName(name)?.track) return;
+        await local.publishTrack(track, { name, source: Track.Source.Unknown, audioPreset: AudioPresets.speech, dtx: true, red: true, stopMicTrackOnMute: false });
+    }
+
+    async unpublishAuxiliaryAudio(name: string): Promise<void> {
+        const local = this.room?.localParticipant;
+        const track = local?.getTrackPublicationByName(name)?.track;
+        // La piste appartient au rendu (contexte audio de l'interprète) : dépubliée sans être arrêtée.
+        if (local && track) await local.unpublishTrack(track, false);
     }
 
     async startScreenShare(): Promise<void> {

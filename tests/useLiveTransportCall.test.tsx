@@ -49,6 +49,9 @@ vi.mock('../services/live/liveKitTransportProvider', () => ({
         async startScreenShare() {}
         async stopScreenShare() {}
         async sendData() {}
+        // Mission VT : piste auxiliaire (voix de l'interprète) — journalisée, jamais de Web Audio ici.
+        async publishAuxiliaryAudio(track: unknown, name: string) { this.log('publishAuxiliaryAudio', track, name); }
+        async unpublishAuxiliaryAudio(name: string) { this.log('unpublishAuxiliaryAudio', name); }
         async setLocalMetadata() {}
         async startAudio() {}
         canPlaybackAudio() { return true; }
@@ -213,6 +216,41 @@ describe('useLiveTransport — AU-7 : décroché pendant que le SDK rétablit la
         await flush(1000);
         expect(rig.providers.length).toBe(2);
         expect(calls(last(), 'setMicrophoneEnabled')).toEqual([[true]]);
+    });
+});
+
+describe('useLiveTransport — piste « interprète » dans l’appel (Mission VT)', () => {
+    const handle = (name: string | undefined) => ({ participantIdentity: 'peer::d1', kind: 'audio', name, attach() {}, detach() {} });
+
+    it('une piste audio nommée « interpreter » est rangée à part (interpreterAudioTrack), jamais prise pour le micro ; sa dépublication ne touche pas le micro', async () => {
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'call-3', participantName: 'A', canPublish: true, enabled: true, audioProfile: 'call' }));
+        await flush();
+        const p = last();
+        act(() => { p.events.onTrackSubscribed(handle(undefined)); });
+        act(() => { p.events.onTrackSubscribed(handle('interpreter')); });
+        expect(result.current.remoteParticipants).toHaveLength(1);
+        expect(result.current.remoteParticipants[0].audioTrack?.name).toBeUndefined();
+        expect(result.current.remoteParticipants[0].interpreterAudioTrack?.name).toBe('interpreter');
+        act(() => { p.events.onTrackUnsubscribed('peer::d1', 'audio', 'interpreter'); });
+        expect(result.current.remoteParticipants[0].interpreterAudioTrack).toBeUndefined();
+        expect(result.current.remoteParticipants[0].audioTrack).toBeTruthy();
+        // Piste d'un agent, nommée pour un compte précis : même rangement.
+        act(() => { p.events.onTrackSubscribed(handle('interpreter:u1')); });
+        expect(result.current.remoteParticipants[0].interpreterAudioTrack?.name).toBe('interpreter:u1');
+    });
+
+    it('publishInterpreterAudio publie sous le nom « interpreter » quand la ligne est connectée, refuse honnêtement sinon', async () => {
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'call-4', participantName: 'A', canPublish: true, enabled: true, audioProfile: 'call' }));
+        await flush();
+        const p = last();
+        const track = { id: 't', kind: 'audio' } as unknown as MediaStreamTrack;
+        await act(async () => { await result.current.publishInterpreterAudio(track); });
+        expect(calls(p, 'publishAuxiliaryAudio')).toEqual([[track, 'interpreter']]);
+        await act(async () => { await result.current.unpublishInterpreterAudio(); });
+        expect(calls(p, 'unpublishAuxiliaryAudio')).toEqual([['interpreter']]);
+        p.connected = false;
+        await expect(result.current.publishInterpreterAudio(track)).rejects.toThrow(/Ligne non connectée/);
+        expect(calls(p, 'publishAuxiliaryAudio')).toHaveLength(1);
     });
 });
 

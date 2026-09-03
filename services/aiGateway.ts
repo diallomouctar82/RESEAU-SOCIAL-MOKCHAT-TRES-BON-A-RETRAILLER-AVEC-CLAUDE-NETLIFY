@@ -332,6 +332,13 @@ export interface SpeechOptions {
     voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
     /** Mission VT : budget de temps de CET appel (voix d'interprète : au-delà, repli sur la voix du navigateur). Absent = budget global (45 s). */
     timeoutMs?: number;
+    /**
+     * Mission VT : langue dans laquelle le texte doit être LU (code catalogue ou
+     * étiquette BCP‑47). Une voix pilotée par un modèle de langage peut sinon
+     * « traduire » en parlant (mesuré au banc : phrase française lue en
+     * anglais). Optionnelle — sans elle, comportement inchangé.
+     */
+    language?: string;
 }
 
 export interface SpeechResult {
@@ -352,7 +359,7 @@ export const generateSpeechDetailed = async (
         category: 'voice',
         providerId: options?.providerId,
         modelId: options?.modelId,
-        request: { text, voiceId: options?.voiceId, voiceSettings: options?.voiceSettings },
+        request: { text, voiceId: options?.voiceId, voiceSettings: options?.voiceSettings, ...(options?.language ? { language: options.language } : {}) },
     }, { timeoutMs: options?.timeoutMs });
     const audioBase64 = data?.result?.audioBase64;
     if (!audioBase64) throw new Error("Le fournisseur n'a pas renvoyé d'audio.");

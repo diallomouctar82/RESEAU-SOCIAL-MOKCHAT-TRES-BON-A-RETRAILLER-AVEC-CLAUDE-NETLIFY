@@ -13,7 +13,7 @@ import { summarizeConversation, assistRewriteMessage } from '../services/messagi
 import { translationService, MESSAGING_LANGUAGES } from '../services/translation/translationService';
 import { detectRecipientLanguage, myEffectiveLanguage, targetLanguageForMessage } from '../services/messaging/messageLanguage';
 import { languageCodeFromTag, speechTagFor } from '../services/messaging/speechLanguage';
-import { CallCaptioner, InterpreterVoice, transcribeVoiceRecording } from '../services/calls/callInterpreter';
+import { CallCaptioner, InterpreterVoice, transcribeVoiceRecording, unlockInterpreterAudio } from '../services/calls/callInterpreter';
 import { ChatMessageItem } from './chat/ChatMessageItem';
 import { ChatCallModal } from './chat/ChatCallModal';
 import { startRinging, stopRinging, startRingback, stopRingback, stopAll as stopAllRingtones, primeRingtoneAudio } from '../services/calls/ringtoneService';
@@ -334,6 +334,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
   // Calls & WebRTC state
   const [activeCallSession, setActiveCallSession] = useState<ActiveCallSession | null>(null);
   const [isIncomingCall, setIsIncomingCall] = useState(false);
+  // Mission VT : langue dans laquelle j'entends le correspondant pour CET appel
+  // (choisie dans l'écran d'appel, avant ou pendant) — null = appel normal,
+  // voix originales. Remise à zéro à chaque nouvel appel : jamais active par
+  // défaut, indépendante de la langue du profil (messagerie).
+  const [callHearLanguage, setCallHearLanguage] = useState<string | null>(null);
+  useEffect(() => { setCallHearLanguage(null); }, [activeCallSession?.callId]);
 
   // Modals state
   const [showMemberInfo, setShowMemberInfo] = useState(false);
@@ -1708,6 +1714,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       return;
     }
 
+    // Mission VT : ce clic est un geste utilisateur — il déverrouille la lecture
+    // audio (contexte WebAudio de l'interprète + voix du téléphone) AVANT que
+    // l'appel n'ait besoin de parler. Sans ce geste, iOS/Android refusent de
+    // jouer une voix générée plus tard (NotAllowedError vue au test réel).
+    unlockInterpreterAudio();
+
     const callId = `call-${Date.now()}`;
     const newSession: ActiveCallSession = {
       callId,
@@ -2470,6 +2482,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           callSession={activeCallSession}
           localName={currentUser.name}
           myLanguage={myLanguage}
+          hearLanguage={callHearLanguage}
+          onHearLanguageChange={setCallHearLanguage}
           isIncoming={isIncomingCall}
           onAcceptCall={() => acceptCall(activeCallSession)}
           onRejectCall={() => rejectCall(activeCallSession)}

@@ -208,54 +208,78 @@ le dernier point ouvert de la mission LIVE (`docs/RAPPORT_FINAL_LIVE.md`).
   le 02/09/2026** (§ 3 ter). À rejouer après toute montée de version du
   serveur LiveKit ou du SDK.
 
-## 5. Interprète « ma langue seulement » — audio ET vidéo (mission VT, tâche 1, 03/09)
+## 5. Traduction vocale DANS l'appel, voix à voix — audio ET vidéo (mission VT, tâche 1b, 03/09)
 
-**Ce que ça fait.** Chacun choisit « Ma langue » (Paramètres). Dès que mon
-correspondant parle une autre langue que la mienne et que la voix de
-l'interprète est activée, **sa voix originale est coupée** (volume 0, plus
-seulement atténuée) : je n'entends que l'interprète, dans ma langue. Le
-bouton « Ma langue seule / Original aussi » du panneau rétablit l'original
-(atténué pendant que l'interprète parle). « X parle… » s'affiche pendant
-qu'il parle, même si je ne l'entends pas. Même règle et même panneau en appel
-vidéo. Sans interprétation (même langue, « Par défaut », « Sous‑titres
-seuls », langue de l'autre encore inconnue), l'appel reste exactement comme
-avant.
+**Pourquoi 1b.** La tâche 1 (voix de l'interprète jouée LOCALEMENT sur le
+téléphone qui écoute) a été refusée au test sur deux téléphones : les
+journaux prouvaient que la voix était bien générée des deux côtés, mais la
+lecture locale d'un fichier audio sur téléphone n'est pas fiable
+(lecture automatique refusée par iOS, `volume` ignoré, langue déclarée
+différente de la langue parlée). La voix traduite voyage désormais **dans
+l'appel**, par le même chemin WebRTC que la voix — celui validé sur deux
+téléphones le 02/09.
 
-**Ce qui est garanti sous le capot.** Transcription : file ordonnée (3 en
-attente) et budget de 8 s par requête ; après trois échecs d'affilée, pause
-de 8 s, 16 s puis 30 s et nouvel essai — le panneau dit « Transcription
-serveur en difficulté (…) — nouvel essai dans N s » et s'efface au retour
-(jamais plus de sous‑titres morts jusqu'au raccroché). Voix : voix HD si elle
-arrive sous 6 s, sinon la voix du téléphone prend le relais ; en retard de
-plusieurs phrases, voix immédiate ; « l'interprète parle » ne coupe mon micro
-que pendant que du son sort réellement.
+**Ce que ça fait.** Par défaut, l'appel est **normal** : chacun entend la
+voix originale de l'autre, comme dans un appel classique. Dans l'écran
+d'appel — pendant la sonnerie ou pendant l'appel — le sélecteur
+« Entendre *X* en … » permet de choisir la langue dans laquelle je veux
+entendre mon correspondant. Ce choix ne vaut que pour cet appel et ne dépend
+pas de « Ma langue » du profil (qui ne sert plus qu'à aider la
+transcription de ma propre voix). Dès que je choisis une langue, la voix
+originale de *X* est **coupée** (`muted`, et non le seul volume que
+l'iPhone ignore) et je n'entends qu'une voix dans ma langue, rendue chez
+l'ÉMETTEUR (WebAudio → piste LiveKit nommée `interpreter`) et reçue chez moi
+dans un élément audio dédié. Chaque côté choisit pour lui‑même : *X* voit
+« *Moi* vous entend en Français (voix traduite) ». « Voix originale · appel
+normal » rétablit l'original **entier aussitôt**, même si une phrase
+traduite est encore en vol ; « Original aussi » garde l'original atténué
+sous la voix traduite. Langue de *X* : celle qu'il **parle réellement**
+(détectée) prime sur celle qu'il a déclarée ; jamais de seconde voix quand
+il parle déjà ma langue.
 
-**Mesuré au banc (deux navigateurs, LiveKit 1.8.4, passerelle réelle, voix
-russe et française réelles, 03/09/2026 — 44/44).** Des deux côtés : la voix
-originale arrive (≈ 18 000 octets / 3 s, niveau mesuré sur le flux) mais
-l'élément qui la joue est à **volume 0** ; « Ivan VF parle… » en 3–4 ms ;
-la voix HD de l'interprète, capturée puis transcrite par la passerelle, est
-en français chez Amina et en russe chez Ivan ; la voix de secours du
-navigateur porte le même texte dans la même langue ; « Original aussi » →
-volume 1 → « Ma langue seule » → 0 ; identique en appel vidéo. Latence
-mesurée de la voix HD (`gemini_tts`) : 4,4 à 8,5 s par phrase — au‑delà de
-6 s, c'est la voix du téléphone que l'on entend (c'est l'objet de la tâche
-suivante, voix rapide).
+**Sous le capot.** Émetteur : segments micro → transcription + traduction
+serveur (`gemini_stt`) → voix HD (`gemini_tts`, avec la **langue de
+lecture** : ce modèle de langage traduisait sinon en parlant ; budget 12 s,
+file de 3 phrases dont la plus ancienne est abandonnée pour rester en temps
+réel) → rendue dans la piste `interpreter`. Messages `voice`
+(start/end/failed) sur le canal de données : le récepteur ne bascule sur la
+voix de son appareil **que** sur un échec signalé, jamais par défaut. Le
+contrat est prêt pour un agent serveur (piste `interpreter:<compte>`,
+message `agent`) — renfort GPU reporté après validation de la base.
 
-**Protocole sur deux téléphones.** (1) Téléphone A : Paramètres → « Ma
-langue » = français ; téléphone B : une autre langue (par ex. anglais).
-(2) Appel audio A → B, décrocher. (3) B parle dans sa langue : sur A, on ne
-doit **pas** entendre la voix de B, seulement, quelques secondes plus tard,
-une voix française qui dit la même chose ; le sous‑titre français s'affiche ;
-« *B* parle… » apparaît pendant que B parle. (4) Sur A, toucher « Ma langue
-seule » → « Original aussi » : la voix de B revient, atténuée pendant
-l'interprète ; retoucher pour revenir. (5) Toucher « Voix » → « Sous‑titres
-seuls » : la voix de B revient entière, plus de voix d'interprète.
-(6) Raccrocher, refaire un **appel vidéo** : mêmes attentes.
-(7) En cas d'écart, relever sur l'écran le message ambre éventuel du panneau
-et, en base, les événements `captions` du rapport `call_diagnostics`.
+**Mesuré au banc (deux navigateurs à lecture automatique STRICTE, serveur
+LiveKit 1.8.4 exact, passerelle réelle, voix française et russe réelles,
+03/09/2026 — passe finale : voir le rapport de fin de tâche).** Sélecteur
+visible chez l'appelante 3 ms après la sonnerie ; côté sans choix = appel
+normal (original `muted=false`, volume 1, ≈ 17 000 octets / 3 s reçus) ;
+chez l'auditrice : langue russe **détectée** en 7–8 s (rien déclaré),
+original muet, piste interprète reçue 250 ms après sa publication, son reçu
+(niveau RMS 0,18–0,20 sur 5 s) transcrit par la passerelle en **français** ;
+choix « ru » pendant l'appel côté Ivan : original coupé en 2 ms, voix reçue
+transcrite en **russe** ; identique en appel vidéo. Voix HD `gemini_tts` :
+5,7 à 7,1 s par phrase sous charge → décalage d'interprétation consécutive
+de l'ordre de 8 à 12 s par phrase ; c'est l'objet de la tâche 2 (voix
+rapide).
 
-**Limite honnête.** La voix de l'interprète sera le plus souvent celle du
-téléphone (voix système) tant que la voix HD met plus de 6 s à arriver ;
-la qualité de cette voix système dépend des voix installées sur l'appareil
-pour la langue choisie.
+**Protocole sur deux téléphones.** (1) A appelle B (audio). Pendant la
+sonnerie, sur A : « Entendre *B* en » → Français. (2) B décroche sans rien
+choisir : B entend la voix normale de A. (3) B parle sa langue : sur A, on
+n'entend **pas** la voix de B, mais quelques secondes plus tard une voix
+française qui dit la même chose ; « *B* parle… » pendant qu'il parle ; le
+panneau affiche « Interprète IA · *langue de B* → Français ». Sur B, le
+panneau dit « *A* vous entend en Français (voix traduite) ». (4) Sur B, en
+cours d'appel : « Entendre *A* en » → sa langue : la voix de A est coupée et
+remplacée par une voix traduite. (5) Sur A : « Original aussi » (voix de B
+atténuée sous l'interprète) puis « Ma langue seule » ; puis « Voix
+originale · appel normal » : la voix de B revient entière aussitôt.
+(6) Raccrocher, refaire un **appel vidéo**, choisir les langues pendant
+l'appel : mêmes attentes. (7) En cas d'écart : message ambre du panneau,
+journaux console `[appel] piste interprète …` / `[appel] voix …`, et en
+base les événements `voice` du rapport `call_diagnostics`.
+
+**Limites honnêtes.** Délai de 8 à 12 s par phrase tant que la voix rapide
+(tâche 2) n'est pas livrée ; sur un appareil dont le rendu audio n'est pas
+encore réveillé, le premier toucher de l'écran d'appel le réveille (message
+dédié) ; si la publication de la piste est impossible, le correspondant
+l'entend par la voix de son propre appareil — repli signalé, jamais un
+silence inexpliqué.
