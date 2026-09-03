@@ -378,6 +378,104 @@ export async function updateParticipantRole(
     if (error) throw new Error(error.message);
 }
 
+/**
+ * LV-3 — Coupe (ou rend) le micro d'un participant. La MÊME fonction sert à
+ * l'hôte sur autrui et à chacun sur soi-même : la policy
+ * `live_speakers_write_host_or_moderator` couvre déjà les deux cas
+ * (`is_live_moderator_or_host(session_id) OR user_id = auth.uid()`), aucune
+ * migration n'est nécessaire. C'est la BASE qui fait autorité — la personne
+ * visée applique la coupure en relisant sa propre ligne (voir
+ * `deriveSelfMediaDirective`), jamais sur un message éphémère qui pourrait se
+ * perdre.
+ */
+export async function setParticipantMuted(sessionId: string, targetUserId: string, muted: boolean): Promise<void> {
+    const { error } = await supabase
+        .from('live_speakers')
+        .update({ is_muted: muted })
+        .eq('session_id', sessionId)
+        .eq('user_id', targetUserId);
+    if (error) throw new Error(error.message);
+}
+
+/** LV-1 — Reflète en base l'état réel de MON micro/ma caméra, pour que les autres le voient dans le panneau. */
+export async function setOwnMediaState(
+    sessionId: string,
+    userId: string,
+    state: { isMuted?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean },
+): Promise<void> {
+    const patch: Record<string, boolean> = {};
+    if (state.isMuted !== undefined) patch.is_muted = state.isMuted;
+    if (state.isVideoOn !== undefined) patch.is_video_on = state.isVideoOn;
+    if (state.isScreenSharing !== undefined) patch.is_screen_sharing = state.isScreenSharing;
+    if (Object.keys(patch).length === 0) return;
+    const { error } = await supabase
+        .from('live_speakers')
+        .update(patch)
+        .eq('session_id', sessionId)
+        .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * LV-3 — Retire un participant du direct (hôte/modérateur). Même mécanique que
+ * `leaveLiveSession` (on pose `left_at`, on ne supprime jamais la ligne :
+ * l'historique de présence est conservé) — la personne visée le découvre en
+ * relisant sa propre ligne et quitte d'elle-même.
+ */
+export async function removeParticipant(sessionId: string, targetUserId: string): Promise<void> {
+    const { error } = await supabase
+        .from('live_speakers')
+        .update({ left_at: new Date().toISOString(), role: 'viewer', is_hand_raised: false })
+        .eq('session_id', sessionId)
+        .eq('user_id', targetUserId);
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * LV-3 — Décision pure : que doit-il m'arriver, d'après MA ligne en base ?
+ *
+ * Séparée du composant pour être testable sans navigateur, comme
+ * `deriveSelfStagePresence`. Deux règles seulement, mais toutes deux
+ * indispensables à l'honnêteté du direct :
+ *
+ * - `'kick'` : ma ligne porte un `left_at` alors que je me crois encore
+ *   présent — l'hôte m'a retiré, je dois réellement quitter le transport, pas
+ *   seulement afficher un message.
+ * - `'force-mute'` : la base me dit coupé alors que mon micro est ouvert. On
+ *   ne rend JAMAIS le micro automatiquement dans l'autre sens (base ouverte,
+ *   micro fermé) : je peux m'être coupé moi-même, et un « démute » subi serait
+ *   une prise de parole que je n'ai pas voulue.
+ */
+export function deriveSelfMediaDirective(input: {
+    leftAt: string | null;
+    isMutedInDb: boolean;
+    isMicOpenLocally: boolean;
+    isCurrentlyPresent: boolean;
+}): 'kick' | 'force-mute' | 'none' {
+    if (input.leftAt && input.isCurrentlyPresent) return 'kick';
+    if (input.leftAt) return 'none';
+    if (input.isMutedInDb && input.isMicOpenLocally) return 'force-mute';
+    return 'none';
+}
+
+/**
+ * LV-4 — Invite une personne dans le direct : une VRAIE notification chez
+ * elle, avec `target_action = 'live:<id>'` pour que le clic ouvre ce direct.
+ *
+ * Passe par la fonction `invite_to_live_session` (SECURITY DEFINER) parce que
+ * la policy `notifications_owner` interdit d'écrire une notification pour
+ * autrui — c'est précisément pourquoi l'invitation n'existait nulle part
+ * jusqu'ici. Les droits sont vérifiés côté base (animateur du direct,
+ * blocage respecté), jamais seulement à l'écran.
+ */
+export async function inviteToLiveSession(sessionId: string, inviteeId: string): Promise<void> {
+    const { error } = await supabase.rpc('invite_to_live_session', {
+        p_session_id: sessionId,
+        p_invitee_id: inviteeId,
+    });
+    if (error) throw new Error(error.message);
+}
+
 /** Lève/baisse sa propre main — c'est la demande de parole (pas de table séparée). */
 export async function setHandRaised(sessionId: string, userId: string, raised: boolean): Promise<void> {
     const { error } = await supabase

@@ -28,13 +28,31 @@ const MATTER = readFileSync(join(ROOT, 'components/live/LiveMatter.tsx'), 'utf8'
 // La barre d'actions vit DANS le Studio : elle consomme les mêmes variables,
 // et doit donc être couverte par le même garde-fou.
 const BARRE = readFileSync(join(ROOT, 'components/LiveSmartActionBar.tsx'), 'utf8');
+// LV-1 / LV-4 : le panneau « Personnes » et la modale d'invitation habillent
+// eux aussi la matière du Studio — le garde-fou doit les couvrir, sinon une
+// classe absente y peindrait le vide sans que rien ne le dise.
+const PANNEAU = readFileSync(join(ROOT, 'components/live/LiveParticipantsPanel.tsx'), 'utf8');
+const INVITE = readFileSync(join(ROOT, 'components/live/LiveInviteModal.tsx'), 'utf8');
 
 afterEach(() => cleanup());
+
+/**
+ * Les identifiants de test (`data-testid="live-participant-…"`) ne sont PAS
+ * des classes CSS : les garder ferait échouer le garde-fou sur des noms qui
+ * n'ont jamais eu vocation à peindre quoi que ce soit. On les retire avant de
+ * scanner — le garde-fou continue de couvrir tout ce qui vit dans un
+ * `className`, c'est-à-dire exactement ce qu'il doit protéger.
+ */
+function sansIdentifiantsDeTest(source: string): string {
+    return source
+        .replace(/data-testid=\{[^}]*\}/g, '')
+        .replace(/data-testid="[^"]*"/g, '');
+}
 
 describe('DS-L1 — la matière du Studio existe réellement dans la feuille de style', () => {
     it('chaque classe .live-* utilisée par le Studio est définie dans index.html', () => {
         const utilisees = new Set<string>();
-        for (const source of [STUDIO, MATTER, BARRE]) {
+        for (const source of [STUDIO, MATTER, BARRE, PANNEAU, INVITE].map(sansIdentifiantsDeTest)) {
             // Le `(?<!-)` écarte les VARIABLES (`--live-line`) : elles sont
             // vérifiées séparément juste en dessous, avec un autre critère.
             for (const m of source.matchAll(/(?<!-)\blive-[a-z-]+(?:--[a-z]+)?/g)) {
@@ -50,9 +68,19 @@ describe('DS-L1 — la matière du Studio existe réellement dans la feuille de 
         }
     });
 
+    it('le garde-fou reste mordant : une classe .live-* inexistante DOIT être vue', () => {
+        // Le filtre `data-testid` ci-dessus retire du bruit — il ne doit pas
+        // avoir retiré la capacité de détecter une vraie classe manquante.
+        const faux = 'const x = <div data-testid="live-truc" className="live-inexistante-xyz" />;';
+        const trouvees = [...sansIdentifiantsDeTest(faux).matchAll(/(?<!-)\blive-[a-z-]+(?:--[a-z]+)?/g)].map(m => m[0]);
+        expect(trouvees).toContain('live-inexistante-xyz'); // la classe est bien vue…
+        expect(trouvees).not.toContain('live-truc');        // …et l'identifiant de test ne l'est plus
+        expect(INDEX).not.toContain('.live-inexistante-xyz'); // et elle échouerait bien à l'assertion
+    });
+
     it('chaque variable --live-* référencée est réellement déclarée', () => {
         const referencees = new Set<string>();
-        for (const source of [STUDIO, MATTER, BARRE, INDEX]) {
+        for (const source of [STUDIO, MATTER, BARRE, PANNEAU, INVITE, INDEX]) {
             for (const m of source.matchAll(/var\((--live-[a-z-]+)/g)) referencees.add(m[1]);
         }
         expect(referencees.size).toBeGreaterThan(3);

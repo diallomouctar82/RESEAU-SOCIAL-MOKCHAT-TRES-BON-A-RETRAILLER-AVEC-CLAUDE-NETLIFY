@@ -33,10 +33,12 @@ import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, mergeLiveStreamWithRealSession } from '../services/live/liveSessionService';
+import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
+import { LiveParticipantsPanel } from './live/LiveParticipantsPanel';
+import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
@@ -184,28 +186,44 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const isHost = realHostId && userProfile.id
     ? realHostId === userProfile.id || userProfile.role === 'admin'
     : liveData.hostName === userProfile.name || userProfile.role === 'admin';
-  const [stageParticipants, setStageParticipants] = useState<LiveStageParticipant[]>([
-    {
-      id: 'spk-host',
-      name: liveData.hostName,
-      avatar: liveData.hostAvatar,
-      role: 'host',
-      isMuted: false,
-      isVideoOn: true,
-      isVerified: true
-    },
-    ...(aiAgent ? [{
-      id: `spk-ai-${aiAgent.id}`,
-      name: `${aiAgent.name} (IA)`,
-      avatar: aiAgent.avatarUrl,
-      role: 'expert_ai' as const,
-      isMuted: false,
-      isVideoOn: true,
-      isAi: true,
-      specialty: aiAgent.specialty,
-      agentId: aiAgent.id
-    }] : [])
-  ]);
+  /**
+   * LV-1 — LA CAUSE RACINE de « personne ne voit rien, il n'y a pas de
+   * spectateurs ».
+   *
+   * AVANT : un seul état `stageParticipants` initialisé sur un participant
+   * FICTIF (`id: 'spk-host'`, nom repris de la carte du fil) — et la vraie
+   * liste, pourtant relue en base toutes les 4 secondes par
+   * `fetchActiveParticipants`, était JETÉE : on n'en gardait que mon propre
+   * rôle et les mains levées. La scène ne montrait donc jamais les personnes
+   * réellement connectées, quel qu'en soit le nombre.
+   *
+   * MAINTENANT, deux sources séparées et honnêtes :
+   * - `realParticipants` : les humains, tels qu'ils sont EN BASE
+   *   (`live_speakers`, `left_at IS NULL`). Personne d'inventé, jamais.
+   * - `agentParticipants` : les agents IA convoqués, qui n'ont pas de ligne
+   *   `live_speakers` — ce sont des présences pilotées par le client, et le
+   *   code doit pouvoir le dire au lieu de les confondre avec des comptes.
+   */
+  const [realParticipants, setRealParticipants] = useState<LiveStageParticipant[]>([]);
+  const [agentParticipants, setAgentParticipants] = useState<LiveStageParticipant[]>(
+    aiAgent
+      ? [{
+          id: `spk-ai-${aiAgent.id}`,
+          name: `${aiAgent.name} (IA)`,
+          avatar: aiAgent.avatarUrl,
+          role: 'expert_ai' as const,
+          isMuted: false,
+          isVideoOn: true,
+          isAi: true,
+          specialty: aiAgent.specialty,
+          agentId: aiAgent.id,
+        }]
+      : [],
+  );
+  const stageParticipants = useMemo(
+    () => [...realParticipants, ...agentParticipants],
+    [realParticipants, agentParticipants],
+  );
 
   /**
    * DS-L1 : agents que l'hôte a retirés de la scène. Une liste d'exclusion
@@ -235,6 +253,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   useEffect(() => { isUserOnStageRef.current = isUserOnStage; }, [isUserOnStage]);
   const hasMediaConsentRef = useRef(hasMediaConsent);
   useEffect(() => { hasMediaConsentRef.current = hasMediaConsent; }, [hasMediaConsent]);
+  // LV-3 : mêmes miroirs pour les deux décisions subies (micro coupé par
+  // l'hôte, retrait du direct) — le polling toutes les 4 s lit ces refs, pas
+  // l'état figé de sa closure.
+  const isMicMutedRef = useRef(isMicMuted);
+  useEffect(() => { isMicMutedRef.current = isMicMuted; }, [isMicMuted]);
+  const presentInSessionRef = useRef(false);
+  const removedByHostRef = useRef(false);
   const handleAcceptMediaConsent = () => {
     mediaConsentAnsweredRef.current = true;
     hasMediaConsentRef.current = true; // miroir à jour immédiatement (les callbacks temps réel n'attendent pas le re-rendu)
@@ -383,9 +408,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   useEffect(() => {
     if (!realSessionId) return;
     hasLeftSessionRef.current = false; // nouvelle session réelle confirmée : on repart d'un état "présent".
+    removedByHostRef.current = false;
     joinLiveSession(realSessionId, { id: userProfile.id, name: userProfile.name, avatar: userProfile.avatarUrl }, isHost ? 'host' : 'viewer')
+      .then(() => { presentInSessionRef.current = true; })
       .catch((err) => console.error('SocialLive: échec pour rejoindre la session', err));
     return () => {
+      presentInSessionRef.current = false;
       leaveRealSession();
     };
   }, [realSessionId]);
@@ -564,7 +592,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [isAudioOnlyMode, setIsAudioOnlyMode] = useState(false);
 
   // 7. Interactive Sidebar Tabs
-  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant' | 'solidarity'>('chat');
+  const [activeSideTab, setActiveSideTab] = useState<'chat' | 'participants' | 'qa' | 'notes' | 'decisions' | 'agenda' | 'products' | 'campus' | 'docs' | 'assistant' | 'solidarity'>('chat');
   // Onglets secondaires repliés dans "Plus" (décongestion mobile — cf. audit UX) :
   // évite d'afficher 10 onglets sur une seule barre défilante.
   const [showMoreTabs, setShowMoreTabs] = useState(false);
@@ -703,6 +731,37 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setHandRaised(realSessionId, userProfile.id, next).catch(() => setIsHandRaisedByMe(!next));
   };
 
+  /**
+   * LV-3 — L'hôte a coupé mon micro. On coupe RÉELLEMENT la piste, on ne se
+   * contente pas de l'afficher : une icône barrée pendant que la voix continue
+   * de partir serait un mensonge à l'écran.
+   */
+  const applyForcedMute = () => {
+    isMicMutedRef.current = true;
+    setIsMicMuted(true);
+    liveTransport.setMicrophoneEnabled(false).catch(() => {});
+    addNotification('Micro coupé par l’animateur', "Votre micro a été coupé dans ce direct. Vous pouvez lever la main pour demander la parole.", 'info');
+  };
+
+  /**
+   * LV-3 — L'hôte m'a retiré du direct : ma ligne `live_speakers` porte un
+   * `left_at` que je n'ai pas posé. On quitte pour de bon (transport coupé,
+   * écran fermé) — `hasLeftSessionRef` empêche de ré-écrire une sortie déjà
+   * actée par l'hôte, et `removedByHostRef` empêche de répéter l'avis à
+   * chaque tour de polling.
+   */
+  const applyRemovalByHost = () => {
+    if (removedByHostRef.current) return;
+    removedByHostRef.current = true;
+    hasLeftSessionRef.current = true; // la sortie est déjà écrite en base par l'hôte
+    presentInSessionRef.current = false;
+    isUserOnStageRef.current = false;
+    setIsUserOnStage(false);
+    liveTransport.disconnect();
+    addNotification('Vous avez quitté ce direct', "L'animateur vous a retiré du direct.", 'info');
+    onClose();
+  };
+
   // Équipe 10 (L1) : abonnement au roster live_speakers pour TOUS les
   // participants — l'ancienne garde `!isHost` réservait ce flux à l'hôte,
   // donc un invité promu par handlePromoteToSpeaker (role='speaker' écrit en
@@ -738,8 +797,27 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     const refresh = () => {
       fetchActiveParticipants(realSessionId).then((participants) => {
         if (cancelled) return;
+        // LV-1 : LA correction de la cause racine — la vraie liste alimente
+        // enfin la scène. Elle était lue ici depuis toujours, puis jetée.
+        setRealParticipants(participants);
         const me = participants.find((p) => p.id === userProfile.id);
-        if (me) applyMyRole(me.role, null); // left_at IS NULL garanti par fetchActiveParticipants
+        if (me) {
+          applyMyRole(me.role, null); // left_at IS NULL garanti par fetchActiveParticipants
+          // LV-3 : l'hôte a coupé mon micro → je le coupe réellement, je ne me
+          // contente pas d'un affichage. Décision pure et testée.
+          const directive = deriveSelfMediaDirective({
+            leftAt: null,
+            isMutedInDb: me.isMuted,
+            isMicOpenLocally: !isMicMutedRef.current,
+            isCurrentlyPresent: true,
+          });
+          if (directive === 'force-mute') applyForcedMute();
+        } else if (isUserOnStageRef.current || presentInSessionRef.current) {
+          // Ma ligne a disparu des présents alors que j'étais là : l'hôte m'a
+          // retiré (left_at posé). Un simple message serait malhonnête — on
+          // quitte réellement.
+          applyRemovalByHost();
+        }
         if (isHost) {
           setRaisedHands(participants.filter(p => p.isHandRaised).map(p => ({ id: p.id, name: p.name })));
         }
@@ -766,6 +844,37 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     const pollInterval = setInterval(refresh, 4000);
     return () => { cancelled = true; unsub(); clearInterval(pollInterval); };
   }, [realSessionId, isHost]);
+
+  /**
+   * LV-3 — Commandes d'animation. Toutes écrivent EN BASE d'abord ; l'écran ne
+   * ment jamais sur une action qui a échoué (message explicite, état inchangé),
+   * et la personne visée l'apprend en relisant sa propre ligne.
+   */
+  const handleDemoteToViewer = (participantId: string) => {
+    if (!realSessionId) return;
+    updateParticipantRole(realSessionId, participantId, 'viewer')
+      .then(() => setRealParticipants(prev => prev.map(p => p.id === participantId ? { ...p, role: 'viewer' } : p)))
+      .catch((err) => addNotification('Action impossible', `Le rôle n'a pas pu être modifié : ${err?.message || 'erreur inconnue'}`, 'error'));
+  };
+
+  const handleToggleParticipantMute = (participantId: string, nextMuted: boolean) => {
+    if (!realSessionId) return;
+    setParticipantMuted(realSessionId, participantId, nextMuted)
+      .then(() => setRealParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isMuted: nextMuted } : p)))
+      .catch((err) => addNotification('Action impossible', `Le micro n'a pas pu être modifié : ${err?.message || 'erreur inconnue'}`, 'error'));
+  };
+
+  const handleRemoveParticipant = (participantId: string) => {
+    if (!realSessionId) return;
+    const cible = realParticipants.find(p => p.id === participantId);
+    if (!window.confirm(`Retirer ${cible?.name || 'cette personne'} du direct ?`)) return;
+    removeParticipant(realSessionId, participantId)
+      .then(() => {
+        setRealParticipants(prev => prev.filter(p => p.id !== participantId));
+        addNotification('Personne retirée', `${cible?.name || 'La personne'} a été retirée du direct.`, 'info');
+      })
+      .catch((err) => addNotification('Action impossible', `Le retrait a échoué : ${err?.message || 'erreur inconnue'}`, 'error'));
+  };
 
   /** Retourne la promesse des deux écritures réelles (LOOP 13/16) — voir handleChangeVisualUniverse. */
   const handlePromoteToSpeaker = (participantId: string): Promise<void> => {
@@ -1044,7 +1153,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
     const next = !isMicMuted;
     setIsMicMuted(next);
-    liveTransport.setMicrophoneEnabled(!next).catch(() => setIsMicMuted(!next));
+    isMicMutedRef.current = next;
+    liveTransport.setMicrophoneEnabled(!next).catch(() => {
+      setIsMicMuted(!next);
+      isMicMutedRef.current = !next;
+    });
+    // LV-1 : les autres doivent voir mon vrai état dans le panneau des
+    // participants — sans cette écriture, la colonne `is_muted` resterait
+    // figée à sa valeur d'arrivée pour tout le monde.
+    if (realSessionId) setOwnMediaState(realSessionId, userProfile.id, { isMuted: next }).catch(() => {});
   };
 
   // Toggle Camera — même garde que le micro.
@@ -1056,6 +1173,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     const next = !isVideoMuted;
     setIsVideoMuted(next);
     liveTransport.setCameraEnabled(!next).catch(() => setIsVideoMuted(!next));
+    if (realSessionId) setOwnMediaState(realSessionId, userProfile.id, { isVideoOn: !next }).catch(() => {});
   };
 
   // Real Screen Share — publié via l'adaptateur LiveKit, visible par tous les
@@ -1131,8 +1249,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setAgentsRetires(prev => prev.filter(id => id !== agent.id));
 
     // Add to stage participants
-    if (!stageParticipants.some(p => p.agentId === agent.id)) {
-      setStageParticipants(prev => [
+    if (!agentParticipants.some(p => p.agentId === agent.id)) {
+      setAgentParticipants(prev => [
         ...prev,
         {
           id: `spk-ai-${agent.id}`,
@@ -1163,8 +1281,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setMainStageMode('council');
     const councilAgents = AGENTS.slice(0, 4);
     
+    // LV-1 : le conseil ne remplace QUE les agents. Les humains présents
+    // viennent de la base et ne doivent jamais disparaître de la scène parce
+    // qu'on a convoqué une table ronde (l'ancien code repartait de
+    // `stageParticipants[0]`, c'est-à-dire de l'hôte FICTIF).
     const newParticipants: LiveStageParticipant[] = [
-      stageParticipants[0],
       ...councilAgents.map(ag => ({
         id: `spk-ai-${ag.id}`,
         name: `${ag.name} (IA)`,
@@ -1177,7 +1298,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         agentId: ag.id
       }))
     ];
-    setStageParticipants(newParticipants);
+    setAgentParticipants(newParticipants);
 
     pushLocalSystemMessage("Diallo OS", "🏛️ Le Conseil des Experts est réuni en direct : Projet, Juridique, Finance et Mobilité délibèrent conjointement sur votre dossier.");
 
@@ -1397,6 +1518,63 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     } catch (err) {
       addNotification("Copie impossible", "Impossible de copier le lien automatiquement — réessayez.", "alert");
     }
+  };
+
+  // ---------------------------------------------------------------------
+  // LV-4 — INVITER. Trois chemins distincts (ami / agent IA / lien), parce
+  // qu'ils n'ont pas les mêmes conséquences. Voir components/live/LiveInviteModal.
+  // ---------------------------------------------------------------------
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteFriends, setInviteFriends] = useState<{ id: string; name: string; avatar?: string; title?: string }[]>([]);
+  const [inviteFriendsLoading, setInviteFriendsLoading] = useState(false);
+  const [inviteStates, setInviteStates] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({});
+  const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
+  const [shareCopied, setShareCopied] = useState(false);
+  const liveShareUrl = realSessionId
+    ? `${window.location.origin}${window.location.pathname}?live=${realSessionId}`
+    : '';
+
+  // Chargement des VRAIS amis (relation acceptée uniquement) à l'ouverture.
+  useEffect(() => {
+    if (!showInviteModal || inviteFriends.length > 0) return;
+    let annule = false;
+    setInviteFriendsLoading(true);
+    supabaseService.getFriendshipsForUser(userProfile.id)
+      .then((relations) => {
+        if (annule) return;
+        const amis = (relations || [])
+          .filter((r: any) => r.status === 'accepted')
+          .map((r: any) => (r.requester_id === userProfile.id ? r.addressee : r.requester))
+          .filter((p: any) => p && p.id)
+          .map((p: any) => ({ id: p.id, name: p.name || 'Membre', avatar: p.avatar_url || undefined, title: p.title || undefined }));
+        setInviteFriends(amis);
+      })
+      .catch(() => { if (!annule) setInviteFriends([]); })
+      .finally(() => { if (!annule) setInviteFriendsLoading(false); });
+    return () => { annule = true; };
+  }, [showInviteModal, userProfile.id, inviteFriends.length]);
+
+  const handleInviteFriend = (friendId: string) => {
+    if (!realSessionId) return;
+    setInviteStates(prev => ({ ...prev, [friendId]: 'sending' }));
+    inviteToLiveSession(realSessionId, friendId)
+      .then(() => setInviteStates(prev => ({ ...prev, [friendId]: 'sent' })))
+      .catch((err) => {
+        // Jamais un « Invité » affiché sur un échec : l'état revient à
+        // « erreur » et porte la vraie raison renvoyée par la base.
+        setInviteStates(prev => ({ ...prev, [friendId]: 'error' }));
+        setInviteErrors(prev => ({ ...prev, [friendId]: err?.message || 'Invitation impossible' }));
+      });
+  };
+
+  const handleCopyShareFromInvite = () => {
+    if (!liveShareUrl) return;
+    navigator.clipboard.writeText(liveShareUrl)
+      .then(() => {
+        setShareCopied(true);
+        window.setTimeout(() => setShareCopied(false), 2200);
+      })
+      .catch(() => addNotification('Copie impossible', "Impossible de copier le lien automatiquement — sélectionnez-le à la main.", 'alert'));
   };
 
   // End Live & Launch "Et Maintenant ?" Post-Continuity Dashboard — génère un
@@ -2767,8 +2945,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           <div className="flex items-stretch gap-1 border-b border-white/10 bg-black/40 p-1">
             {[
               { id: 'chat', label: 'Chat', icon: MessageSquare },
+              // LV-1 : « voir qui est en ligne » est ESSENTIEL, pas un réglage
+              // avancé — la pastille porte le nombre RÉEL de présents.
+              { id: 'participants', label: 'Personnes', icon: Users, badge: stageParticipants.length },
               { id: 'qa', label: 'Q&A', icon: HelpCircle },
-              { id: 'decisions', label: 'Décisions', icon: Award },
               { id: 'agenda', label: 'Agenda', icon: CheckSquare },
             ].map(t => {
               const Icon = t.icon;
@@ -2776,16 +2956,26 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 <button
                   key={t.id}
                   onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
-                  className={`flex-1 min-w-0 px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeSideTab === t.id ? 'live-orb--active shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  data-testid={`live-side-tab-${t.id}`}
+                  className={`relative flex-1 min-w-0 px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeSideTab === t.id ? 'live-orb--active shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   <Icon size={13} />
                   <span className="truncate w-full text-center">{t.label}</span>
+                  {'badge' in t && (t as { badge: number }).badge > 0 && (
+                    <span
+                      className="absolute -top-0.5 right-1 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
+                      style={{ background: 'var(--live-accent)', color: '#04202a' }}
+                    >
+                      {(t as { badge: number }).badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
 
             {(() => {
               const moreTabs = [
+                { id: 'decisions', label: 'Décisions', icon: Award },
                 { id: 'notes', label: 'Mémoire', icon: BookOpen },
                 { id: 'products', label: 'Boutique', icon: ShoppingBag },
                 { id: 'polls', label: 'Sondage', icon: PieChart },
@@ -2846,7 +3036,24 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
           {/* Sidebar Body */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            
+
+            {/* LV-1 — QUI EST LÀ. La liste vient de live_speakers, jamais d'un
+                état local : ce panneau n'existait pas, et c'est la première
+                chose que la Direction a réclamée (« voir qui est en ligne »). */}
+            {activeSideTab === 'participants' && (
+              <LiveParticipantsPanel
+                participants={stageParticipants}
+                currentUserId={userProfile.id}
+                isHost={!!isHost}
+                onPromote={(id) => handlePromoteToSpeaker(id).catch((err) => addNotification('Action impossible', `La montée sur scène a échoué : ${err?.message || 'erreur inconnue'}`, 'error'))}
+                onDemote={handleDemoteToViewer}
+                onToggleMute={handleToggleParticipantMute}
+                onRemove={handleRemoveParticipant}
+                onInvite={() => setShowInviteModal(true)}
+                onRemoveAgent={(agentId) => setAgentsRetires(prev => prev.includes(agentId) ? prev : [...prev, agentId])}
+              />
+            )}
+
             {/* 1. CHAT DIRECT */}
             {activeSideTab === 'chat' && (
               <div className="space-y-3">
@@ -3500,6 +3707,24 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           </div>
         </div>
       )}
+
+      {/* LV-4 — Inviter : un ami (vraie notification), un agent IA (monte tout
+          de suite), ou le lien du direct. */}
+      <LiveInviteModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        friends={inviteFriends}
+        friendsLoading={inviteFriendsLoading}
+        inviteStates={inviteStates}
+        inviteErrors={inviteErrors}
+        onInviteFriend={handleInviteFriend}
+        agents={AGENTS.filter(a => !stageAgents.some(sa => sa.id === a.id))}
+        onInviteAgent={(agent) => { handleSummonExpert(agent); setShowInviteModal(false); }}
+        shareUrl={liveShareUrl}
+        onCopyShareUrl={handleCopyShareFromInvite}
+        shareCopied={shareCopied}
+        canInviteFriends={!!isHost && !!realSessionId}
+      />
 
       {showSummonExpertModal && (
         <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">

@@ -67,6 +67,9 @@ La documentation n'est pas un rapport rédigé a posteriori : elle est le **socl
 | **17. Dossiers par Module** | Spécifications complètes des 14 modules fonctionnels de la plateforme. | [`docs/modules/`](./modules/) |
 | **18. Architecture Supabase** | État réel de la base (tables, RLS, fonctions, jobs planifiés) domaine par domaine — décrit ce qui existe, jamais une cible. | [`docs/SUPABASE_ARCHITECTURE.md`](./SUPABASE_ARCHITECTURE.md) |
 | **19. L'Architecte** | Orchestration par intention : registre de capacités, bus d'exécution, permissions, statuts. Couverture réelle et limites. | [`docs/ARCHITECTE.md`](./ARCHITECTE.md) |
+| **20. LIVE Intelligent — spécification** | Le LIVE comme salle intelligente : vision, trois familles de live, logique sociale, logique IA, mémoire de parcours, tribus et cursus, documents, coaching, monétisation. Écrit AVANT le développement. | [`docs/LIVE_INTELLIGENT.md`](./LIVE_INTELLIGENT.md) |
+| **21. LIVE Intelligent — validation** | Feuille de route par loupes, critères de test et **preuves attendues** loupe par loupe. Barème de statut : rien n'est TERMINÉ sans preuve. | [`docs/LIVE_INTELLIGENT_VALIDATION.md`](./LIVE_INTELLIGENT_VALIDATION.md) |
+| **22. Direction artistique du Studio Live** | Matière verre/eau/lumière, 7 univers, et § 8 l'abysse validé par la Direction le 03/09/2026. | [`docs/DIRECTION_ARTISTIQUE_STUDIO_LIVE.md`](./DIRECTION_ARTISTIQUE_STUDIO_LIVE.md) |
 
 ---
 
