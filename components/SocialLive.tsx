@@ -35,7 +35,8 @@ import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGri
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, mergeLiveStreamWithRealSession } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges } from '../services/live/liveChatService';
-import { glassSurfaceClass, liveMaterialClass, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
+import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
+import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
@@ -69,17 +70,28 @@ const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ me
   }, [media.videoTrack]);
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center">
+    <div className="live-pane flex items-center justify-center">
       {media.videoTrack ? (
         <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
       ) : (
-        <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-xl font-bold text-white">
-          {media.participant.name.charAt(0).toUpperCase()}
-        </div>
+        <>
+          {/* Sans caméra, la carte n'est pas un trou noir : la matière vit. */}
+          <LiveBubbles count={4} />
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-light relative z-10 border-2"
+            style={{ borderColor: 'var(--live-line)', color: 'var(--live-ink)', background: 'rgba(255,255,255,0.06)' }}
+          >
+            {media.participant.name.charAt(0).toUpperCase()}
+          </div>
+        </>
       )}
-      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
-        {media.participant.isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>}
-        <span className="text-xs font-bold text-white">{media.participant.name}</span>
+      {/* DS-L1 : pastille + onde de voix en tête de carte, plaque de nom en
+          pied — le même vocabulaire que la carte de l'expert dans l'image. */}
+      <div className="absolute top-3 left-3 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10">
+        <LiveVoiceWave muted={!media.participant.isSpeaking} />
+      </div>
+      <div className="live-nameplate">
+        <span className="truncate">{media.participant.name}</span>
       </div>
     </div>
   );
@@ -194,6 +206,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       agentId: aiAgent.id
     }] : [])
   ]);
+
+  /**
+   * DS-L1 : agents que l'hôte a retirés de la scène. Une liste d'exclusion
+   * plutôt qu'une suppression de `aiAgent` : le copilote reste disponible
+   * (chat, commandes vocales, résumé) — c'est SA CARTE qui quitte la scène,
+   * pas l'assistant qui disparaît du direct.
+   */
+  const [agentsRetires, setAgentsRetires] = useState<string[]>([]);
 
   const [isUserOnStage, setIsUserOnStage] = useState(isHost);
   // Consentement caméra/micro/vision (LOOP 12/16) — au-delà du simple
@@ -427,8 +447,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       const trouve = AGENTS.find(a => a.id === p.agentId);
       if (trouve) parIdentifiant.set(trouve.id, trouve);
     }
+    // DS-L1 : « inviter, retirer, gérer humain ET agent ». RETIRER un agent
+    // était impossible : le copilote par défaut (AGENTS[0]) était réinjecté à
+    // chaque rendu, quoi qu'il arrive. L'hôte peut désormais libérer la place
+    // sur la scène ; l'inviter à nouveau le fait revenir (voir handleSummonExpert).
+    for (const id of agentsRetires) parIdentifiant.delete(id);
     return [...parIdentifiant.values()];
-  }, [aiAgent, stageParticipants]);
+  }, [aiAgent, stageParticipants, agentsRetires]);
 
   // Règle centrale (Direction, 03/09/2026) : six cartes au minimum, humains et
   // agents confondus. Une seule source de vérité — `composeStage`, testée à
@@ -1102,7 +1127,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // Summon Expert ("Appeler un Expert")
   const handleSummonExpert = (agent: Agent) => {
     setShowSummonExpertModal(false);
-    
+    // DS-L1 : réinviter un agent précédemment retiré lui rend sa carte.
+    setAgentsRetires(prev => prev.filter(id => id !== agent.id));
+
     // Add to stage participants
     if (!stageParticipants.some(p => p.agentId === agent.id)) {
       setStageParticipants(prev => [
@@ -1678,12 +1705,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     if (voiceAssistant.isSpeaking) setAvatarGrammarState('reponse');
   }, [voiceAssistant.isSpeaking]);
 
+  // DS-L1 : l'abysse de l'image de référence (03/09/2026) remplace l'aplat
+  // slate-950 ; le vignettage est une couche du fond lui-même (index.html).
   return (
     <div
       ref={liveRootRef}
       data-live-universe={visualUniverse}
       onPointerDown={(e) => spawnWaterRipple(e, liveRootRef.current)}
-      className="fixed inset-0 bg-slate-950 z-[200] flex flex-col overflow-hidden font-sans text-white select-none"
+      className="fixed inset-0 live-abyss z-[200] flex flex-col overflow-hidden font-sans text-white select-none"
     >
 
       {/* 1. TOP HEADER BAR — matière verre/eau/lumière (LOOP 07/14), surface de
@@ -1697,13 +1726,21 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             dérivé de l'état réel (liveBadge), plus un rouge pulsant codé en
             dur pendant une reconnexion, une panne ou un simple aperçu. */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`px-3 py-1 rounded-xl font-black text-xs flex items-center gap-2 ${stageBadge.className}`}>
-            <span className="w-2 h-2 bg-white rounded-full"></span> {stageBadge.label}
-          </div>
+          {/* DS-L1 : à l'antenne, l'image de référence dit « ● EN DIRECT » en
+              petites capitales espacées — pas une pastille rouge. Les états
+              ANORMAUX (aperçu, interruption, reconnexion) gardent au contraire
+              leur pastille de couleur : une anomalie doit rester bruyante. */}
+          {stageBadge.isOnAir ? (
+            <span className="live-onair shrink-0" data-testid="live-onair">En direct</span>
+          ) : (
+            <div className={`px-3 py-1 rounded-xl font-black text-xs flex items-center gap-2 ${stageBadge.className}`}>
+              <span className="w-2 h-2 bg-white rounded-full"></span> {stageBadge.label}
+            </div>
+          )}
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-xs sm:max-w-md">
+              <h1 className="live-title text-[13px] sm:text-base truncate max-w-xs sm:max-w-md">
                 {liveData.title}
               </h1>
               <span className="px-2 py-0.5 bg-white/10 text-[10px] font-bold text-indigo-300 rounded-md hidden sm:inline capitalize">
@@ -1737,19 +1774,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         <div className={`hidden lg:flex items-center gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-xl ${contextualChromeClass}`}>
           <button
             onClick={() => setMainStageMode('camera')}
-            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'camera' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'camera' ? 'live-orb--active !rounded-xl shadow-md' : 'text-slate-400 hover:text-white'}`}
           >
             <Video size={13} /> Vidéo
           </button>
           <button
             onClick={handleToggleScreenShare}
-            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'screen' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'screen' ? 'live-orb--active !rounded-xl shadow-md' : 'text-slate-400 hover:text-white'}`}
           >
             <Layout size={13} /> Écran
           </button>
           <button
             onClick={() => setMainStageMode('whiteboard')}
-            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'whiteboard' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap ${mainStageMode === 'whiteboard' ? 'live-orb--active !rounded-xl shadow-md' : 'text-slate-400 hover:text-white'}`}
           >
             <BarChart3 size={13} /> Tableau
           </button>
@@ -1875,7 +1912,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {isUserOnStage && (
               <button
                 onClick={() => setShowSummonExpertModal(true)}
-                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+                className="px-3 py-1.5 live-orb live-orb--active !rounded-xl font-bold text-xs tracking-[0.08em] uppercase flex items-center gap-1.5 whitespace-nowrap"
               >
                 <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
               </button>
@@ -1902,12 +1939,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
       {/* PROACTIVE EXPERT RECOMMENDATION BANNER */}
       {proactiveExpertSuggestion && (
-        <div className="bg-gradient-to-r from-amber-950/80 via-slate-900/90 to-indigo-950/80 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between z-20 backdrop-blur-md animate-fade-down">
+        <div className={`${glassSurfaceClass('surface')} border-x-0 border-t-0 px-4 py-2 flex items-center justify-between z-20 animate-fade-down`}>
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-1.5 bg-amber-500/20 text-amber-400 rounded-lg flex-shrink-0">
+            <div className="p-1.5 rounded-lg flex-shrink-0 bg-white/5" style={{ color: 'var(--live-accent)' }}>
               <Sparkles size={14} />
             </div>
-            <p className="text-xs font-medium text-amber-100 truncate">
+            <p className="text-xs font-medium truncate" style={{ color: 'var(--live-ink)' }}>
               {proactiveExpertSuggestion.message}
             </p>
           </div>
@@ -1917,7 +1954,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 handleSummonExpert(proactiveExpertSuggestion.agent);
                 setProactiveExpertSuggestion(null);
               }}
-              className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg transition-colors flex items-center gap-1"
+              className="px-3 py-1 live-orb live-orb--active !rounded-lg font-bold text-xs flex items-center gap-1"
             >
               Inviter {proactiveExpertSuggestion.agent.name}
             </button>
@@ -1957,9 +1994,30 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
       {/* 2. MAIN WORKSPACE (STAGE + SIDEBAR) */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        
+
+        {/* DS-L1 — LA COLONNE D'EAU. Dans l'image de référence, ce n'est pas
+            une bordure entre les deux zones : c'est une matière lumineuse qui
+            s'écoule et QUI FAIT LA MISE EN PAGE. Positionnée en style inline
+            (jamais une valeur arbitraire Tailwind) pour ne dépendre d'aucun
+            ordre de feuille de style : le panneau fait 24rem = 384 px, la
+            colonne en fait 130 et chevauche la couture (384 − 65 = 319).
+            z-index 1 : au-dessus de la scène, JAMAIS au-dessus du texte du
+            panneau de conversation. */}
+        <span
+          aria-hidden="true"
+          className="live-current hidden md:block"
+          style={{ right: isPanelCollapsed ? -65 : 319 }}
+        />
+        {!isPanelCollapsed && (
+          <span
+            aria-hidden="true"
+            className="live-current live-current--h md:hidden"
+            style={{ bottom: 'calc(50% - 55px)' }}
+          />
+        )}
+
         {/* A. LEFT MAIN STAGE (70%) */}
-        <div className="flex-1 relative bg-slate-950 flex flex-col overflow-hidden">
+        <div className="flex-1 relative flex flex-col overflow-hidden">
           
           {/* Active Stage View Switcher — tap = geste mobile équivalent au
               survol souris pour révéler/masquer le chrome contextuel
@@ -2022,7 +2080,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                  (1 → pleine scène, 2 → deux colonnes, 3-4 → 2x2, plus →
                  auto-fit) — la grille sm:grid-cols-2 figée laissait un
                  présentateur seul sur une demi-scène. */
-              <div className={`w-full h-full p-3 grid ${stageGridClass(cameraTileCount)} gap-3 bg-slate-950`}>
+              <div className={`w-full h-full p-4 sm:p-5 grid ${stageGridClass(cameraTileCount)} gap-4`}>
 
                 {/* Slot 1 : MA caméra — UNIQUEMENT quand je suis sur scène.
                     Équipe F3 : un SPECTATEUR voyait ici sa propre caméra
@@ -2030,7 +2088,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     pilotée par SON micro — il croyait le direct cassé. Le
                     présentateur réel lui arrive par sa tuile distante. */}
                 {isUserOnStage && (
-                <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex items-center justify-center group">
+                <div className="live-pane flex items-center justify-center group">
                   <video
                     ref={localVideoTrackRef}
                     autoPlay
@@ -2042,23 +2100,36 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     <img src={liveData.hostAvatar} className="w-full h-full object-cover opacity-60" />
                   )}
 
-                  {/* Speaker Label & Audio Wave */}
-                  <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span className="text-xs font-bold text-white">{isHost ? `${liveData.hostName} (Hôte)` : `${userProfile.name} (Sur scène)`}</span>
-                    <div className="w-12 h-2 bg-slate-800 rounded-full overflow-hidden ml-1">
-                      <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${audioVolume}%` }} />
-                    </div>
+                  {/* DS-L1 — la pastille du visage et L'ONDE DE VOIX en tête de
+                      carte, exactement comme l'image de référence : on voit qui
+                      parle sans avoir à le deviner. L'onde suit le VRAI niveau
+                      audio (audioVolume), elle ne mime pas une parole absente. */}
+                  <div className="absolute top-3 left-3 flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10">
+                    <img
+                      src={isHost ? liveData.hostAvatar : userProfile.avatarUrl}
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover border-2"
+                      style={{ borderColor: 'var(--live-accent)' }}
+                    />
+                    <LiveVoiceWave level={audioVolume} muted={isMicMuted} />
                   </div>
 
-                  {/* Host Quick Controls */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Plaque de nom en capitales espacées (registre de l'image). */}
+                  <div className="live-nameplate">
+                    <span className="truncate">{isHost ? `${liveData.hostName} — Hôte` : `${userProfile.name} — Sur scène`}</span>
+                    {isMicMuted && <MicOff size={13} className="shrink-0 opacity-80" />}
+                  </div>
+
+                  {/* Host Quick Controls — en orbe, dans le coin de la carte. */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button
                       onClick={handleTriggerVisionAnalysis}
                       disabled={isVisionAnalyzing}
-                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg shadow-md flex items-center gap-1"
+                      title={isVisionAnalyzing ? 'Analyse en cours' : 'Analyser la scène (Vision IA)'}
+                      aria-label="Analyser la scène avec la Vision IA"
+                      className="live-orb w-9 h-9 disabled:opacity-50"
                     >
-                      <Eye size={12} /> {isVisionAnalyzing ? 'Analyse...' : 'Vision IA'}
+                      <Eye size={15} />
                     </button>
                   </div>
                 </div>
@@ -2070,10 +2141,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     pas sur les simples connectés — des spectateurs muets ne
                     sont pas « le direct ». */}
                 {!isUserOnStage && presentableRemotes.length === 0 && (
-                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex flex-col items-center justify-center gap-3">
-                    <img src={liveData.hostAvatar} className="w-20 h-20 rounded-full object-cover opacity-80" alt={liveData.hostName} />
-                    <span className="text-xs font-bold text-slate-300">
-                      {realSessionId ? `En attente du direct de ${liveData.hostName}…` : `Aperçu de « ${liveData.title} »`}
+                  <div className="live-pane flex flex-col items-center justify-center gap-3">
+                    {/* Les bulles n'habillent QUE les tuiles sans vidéo — jamais
+                        par-dessus une image réelle (l'image de référence les met
+                        dans les cartes de débat, pas sur le visage). */}
+                    <LiveBubbles />
+                    <img
+                      src={liveData.hostAvatar}
+                      className="w-20 h-20 rounded-full object-cover opacity-85 border-2 relative z-10"
+                      style={{ borderColor: 'var(--live-line)' }}
+                      alt={liveData.hostName}
+                    />
+                    <span className="live-title text-[11px] relative z-10 text-center px-4">
+                      {realSessionId ? `En attente du direct de ${liveData.hostName}` : `Aperçu — ${liveData.title}`}
                     </span>
                   </div>
                 )}
@@ -2082,7 +2162,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     aucun humain distant ne PUBLIE de média — sinon il cède la
                     place aux vrais participants (vignette compacte plus bas). */}
                 {agentsVisibles.map(aiAgent => (
-                  <div key={aiAgent.id} data-testid={`stage-tile-agent-${aiAgent.id}`} className="relative rounded-3xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-2xl flex items-center justify-center">
+                  <div key={aiAgent.id} data-testid={`stage-tile-agent-${aiAgent.id}`} className="live-pane live-pane--agent flex items-center justify-center">
+                    <LiveBubbles count={4} />
                     <Avatar3D
                       avatarId={aiAgent.id}
                       state={aiCopilotState === 'thinking' ? 'thinking' : aiCopilotState === 'speaking' ? 'speaking' : 'idle'}
@@ -2090,19 +2171,36 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                       className="w-full h-full"
                     />
 
-                    {/* AI Agent Label */}
-                    <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-indigo-500/40 flex items-center gap-2">
-                      <Bot size={14} className="text-indigo-400" />
-                      <span className="text-xs font-bold text-indigo-200">{aiAgent.name} (IA Vérifiée)</span>
-                      <span className="px-1.5 py-0.5 bg-indigo-500/30 text-[9px] font-bold rounded text-indigo-300">
-                        {aiAgent.specialty}
-                      </span>
+                    {/* Une présence IA, pas une ligne d'annuaire : même pastille
+                        et même onde de voix qu'un humain — c'est ce qui la met
+                        sur un pied d'égalité sur la scène. */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10">
+                      <Bot size={15} style={{ color: 'var(--live-accent)' }} />
+                      <LiveVoiceWave muted={aiCopilotState !== 'speaking'} />
                     </div>
+
+                    <div className="live-nameplate">
+                      <span className="truncate">{aiAgent.name} — {aiAgent.specialty}</span>
+                      <span className="shrink-0 opacity-70 tracking-[0.18em]">IA</span>
+                    </div>
+
+                    {/* Retirer l'agent de la scène — hôte uniquement. */}
+                    {isHost && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setAgentsRetires(prev => prev.includes(aiAgent.id) ? prev : [...prev, aiAgent.id]); }}
+                        data-testid={`stage-remove-agent-${aiAgent.id}`}
+                        title={`Retirer ${aiAgent.name} de la scène`}
+                        aria-label={`Retirer ${aiAgent.name} de la scène`}
+                        className="live-orb w-9 h-9 absolute top-3 right-3 z-10"
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
 
                     {/* Thinking Glow Overlay */}
                     {aiCopilotState === 'thinking' && (
-                      <div className="absolute top-4 left-4 bg-indigo-600/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-mono font-bold animate-pulse text-white flex items-center gap-1.5">
-                        <Sparkles size={12} /> DÉLIBÉRATION NEURALE...
+                      <div className="absolute top-14 left-3 z-10 px-3 py-1 rounded-full text-[10px] font-bold animate-pulse text-white flex items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 tracking-[0.16em]">
+                        <Sparkles size={12} style={{ color: 'var(--live-accent)' }} /> DÉLIBÉRATION
                       </div>
                     )}
                   </div>
@@ -2121,9 +2219,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {/* Débordement : au-delà des six cartes, on le DIT — jamais des
                     présences qui disparaissent en silence. */}
                 {stage.overflow > 0 && (
-                  <div data-testid="stage-overflow" className="relative rounded-3xl bg-slate-900/80 border border-white/10 flex flex-col items-center justify-center text-center p-3">
-                    <span className="text-2xl font-black text-white">+{stage.overflow}</span>
-                    <span className="text-[10px] font-bold text-slate-400 mt-1">
+                  <div data-testid="stage-overflow" className="live-pane flex flex-col items-center justify-center text-center p-3">
+                    <LiveBubbles count={3} />
+                    <span className="text-3xl font-light relative z-10" style={{ color: 'var(--live-accent)' }}>+{stage.overflow}</span>
+                    <span className="live-title text-[10px] mt-1.5 relative z-10">
                       {stage.overflow > 1 ? 'autres présences' : 'autre présence'}
                     </span>
                   </div>
@@ -2182,7 +2281,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             {/* MODE 4: LIVE COUNCIL TABLE RONDE */}
             {mainStageMode === 'council' && (
-              <div className="w-full h-full p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-950">
+              <div className="w-full h-full p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {stageParticipants.map(spk => (
                   <div key={spk.id} className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 p-4 flex flex-col items-center justify-center gap-2 text-center shadow-xl">
                     <img src={spk.avatar} className="w-16 h-16 rounded-2xl object-cover ring-2 ring-indigo-500/30" />
@@ -2202,7 +2301,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             {/* MODE 5: RÉUNION DE TRAVAIL & PROCÈS-VERBAL AUTOMATIQUE */}
             {mainStageMode === 'meeting' && (
-              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
+              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-y-auto">
                 {/* Left (1 col): Video & Speaker */}
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
@@ -2309,7 +2408,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             {/* MODE 6: LIVE COMMERCE & VITRINE EN DIRECT */}
             {mainStageMode === 'commerce' && (
-              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
+              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-y-auto">
                 {/* Presenter Stage */}
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
@@ -2376,7 +2475,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             {/* MODE 7: MASTERCLASS & CAMPUS D'APPRENTISSAGE */}
             {mainStageMode === 'masterclass' && (
-              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-950 overflow-y-auto">
+              <div className="w-full h-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-y-auto">
                 <div className="lg:col-span-1 space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-white/10 aspect-video shadow-xl">
                     <video ref={localVideoTrackRef} autoPlay playsInline muted className={`w-full h-full object-cover ${isVideoMuted ? 'hidden' : ''}`} />
@@ -2515,9 +2614,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             {/* Media Toggles */}
             <div className="flex items-center gap-2">
+              {/* DS-L1 — commandes en ORBES, comme dans l'image de référence :
+                  rondes, en verre, halo qui s'intensifie au survol. Un état
+                  coupé reste rouge (une anomalie doit se voir), un état actif
+                  prend l'accent de l'univers courant. 44 px = cible tactile. */}
               <button
                 onClick={toggleMic}
-                className={`p-3 rounded-2xl transition-all shadow-md ${isMicMuted ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
+                className={`live-orb w-11 h-11 ${isMicMuted ? 'live-orb--danger' : ''}`}
                 title={isMicMuted ? "Réactiver le micro" : "Couper le micro"}
               >
                 {isMicMuted ? <MicOff size={18} /> : <Mic size={18} />}
@@ -2525,7 +2628,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
               <button
                 onClick={toggleVideo}
-                className={`p-3 rounded-2xl transition-all shadow-md ${isVideoMuted ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
+                className={`live-orb w-11 h-11 ${isVideoMuted ? 'live-orb--danger' : ''}`}
                 title={isVideoMuted ? "Activer la caméra" : "Couper la caméra"}
               >
                 {isVideoMuted ? <VideoOff size={18} /> : <Video size={18} />}
@@ -2533,7 +2636,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
               <button
                 onClick={handleToggleScreenShare}
-                className={`p-3 rounded-2xl transition-all shadow-md ${isScreenSharing ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                className={`live-orb w-11 h-11 ${isScreenSharing ? 'live-orb--active' : ''}`}
                 title="Partager mon écran"
               >
                 <Layout size={18} />
@@ -2543,7 +2646,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               {voiceAssistant.isSupported && (
                 <button
                   onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : voiceAssistant.startListening())}
-                  className={`p-3 rounded-2xl transition-all shadow-md ${voiceAssistant.isListening ? `${liveMaterialClass('voice')} text-white` : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                  className={`live-orb w-11 h-11 ${voiceAssistant.isListening ? `live-orb--active ${LIVE_MATERIAL_ANIMATION.voice}` : ''}`}
                   title={voiceAssistant.isListening ? "Arrêter l'écoute des commandes vocales" : 'Activer les commandes vocales'}
                 >
                   <Command size={18} />
@@ -2559,7 +2662,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               {!isHost && (
                 <button
                   onClick={handleToggleHandRaise}
-                  className={`p-3 rounded-2xl transition-all shadow-md ${isHandRaisedByMe ? 'bg-amber-500 text-white' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                  className={`live-orb w-11 h-11 ${isHandRaisedByMe ? 'bg-amber-500 text-white border-amber-300' : ''}`}
                   title={isHandRaisedByMe ? "Baisser la main" : "Demander la parole"}
                 >
                   <Hand size={18} />
@@ -2587,14 +2690,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
               <button
                 onClick={handleTransformToParcours}
-                className="px-3 sm:px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all"
+                className="px-3 sm:px-3.5 py-2 live-orb live-orb--active !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
               >
                 <ListTodo size={14} /> <span className="hidden sm:inline">Transformer en Parcours</span>
               </button>
 
               <button
                 onClick={handleBookPrivateSession}
-                className="px-3 sm:px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-white/10 flex items-center gap-1.5 transition-all"
+                className="px-3 sm:px-3.5 py-2 live-orb !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
               >
                 <Lock size={14} /> <span className="hidden sm:inline">Continuer en Privé</span>
               </button>
@@ -2613,7 +2716,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
               <button
                 onClick={() => setShowGifts(!showGifts)}
-                className="p-3 bg-pink-600/20 hover:bg-pink-600 text-pink-400 hover:text-white rounded-2xl border border-pink-500/30 transition-all"
+                className={`live-orb w-11 h-11 ${showGifts ? 'live-orb--active' : ''}`}
                 title="Envoyer un cadeau"
               >
                 <Gift size={18} />
@@ -2644,7 +2747,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             onClick={() => setIsPanelCollapsed(false)}
             title="Rouvrir le panneau d'interaction"
             aria-label="Rouvrir le panneau d'interaction"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 bg-slate-900/90 border border-white/15 border-r-0 rounded-l-xl px-1.5 py-4 text-slate-300 hover:text-white hover:bg-indigo-600 shadow-xl backdrop-blur-md transition-colors"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 live-orb !rounded-r-none !rounded-l-xl border-r-0 px-1.5 py-4 shadow-xl transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
@@ -2673,7 +2776,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 <button
                   key={t.id}
                   onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
-                  className={`flex-1 min-w-0 px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 min-w-0 px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeSideTab === t.id ? 'live-orb--active shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   <Icon size={13} />
                   <span className="truncate w-full text-center">{t.label}</span>

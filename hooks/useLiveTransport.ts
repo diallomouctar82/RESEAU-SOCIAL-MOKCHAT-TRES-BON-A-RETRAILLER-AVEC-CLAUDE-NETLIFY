@@ -866,6 +866,14 @@ export function composeStage(input: {
 export interface LiveBadgeState {
     label: string;
     className: string;
+    /**
+     * DS-L1 : vrai UNIQUEMENT quand le direct passe réellement. L'image de
+     * référence affiche « ● EN DIRECT » en petites capitales, pas une pastille
+     * rouge — mais les états anormaux (aperçu, interruption, reconnexion)
+     * doivent rester bruyants. Ce champ évite de redériver la condition dans
+     * la vue : une seule source de vérité pour « on est à l'antenne ».
+     */
+    isOnAir: boolean;
 }
 
 /**
@@ -874,11 +882,11 @@ export interface LiveBadgeState {
  * panne, une reconnexion ou un simple aperçu de démonstration.
  */
 export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean): LiveBadgeState {
-    if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200' };
-    if (hasError) return { label: 'INTERROMPU', className: 'bg-rose-700 text-white' };
-    if (state === 'connected') return { label: 'LIVE', className: 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/40' };
-    if (state === 'reconnecting') return { label: 'RECONNEXION', className: 'bg-amber-500 text-slate-950 animate-pulse' };
-    return { label: 'CONNEXION', className: 'bg-amber-500/80 text-slate-950' };
+    if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200', isOnAir: false };
+    if (hasError) return { label: 'INTERROMPU', className: 'bg-rose-700 text-white', isOnAir: false };
+    if (state === 'connected') return { label: 'LIVE', className: 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/40', isOnAir: true };
+    if (state === 'reconnecting') return { label: 'RECONNEXION', className: 'bg-amber-500 text-slate-950 animate-pulse', isOnAir: false };
+    return { label: 'CONNEXION', className: 'bg-amber-500/80 text-slate-950', isOnAir: false };
 }
 
 /**

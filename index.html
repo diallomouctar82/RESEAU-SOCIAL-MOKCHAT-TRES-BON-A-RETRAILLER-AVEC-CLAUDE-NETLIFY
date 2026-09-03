@@ -465,6 +465,310 @@
         background-repeat: no-repeat;
         animation: droplet-float 14s ease-in-out infinite;
       }
+
+      /* ================= DS-L1 — STUDIO LIVE, image de référence =========
+         Direction arrêtée par la Direction le 03/09/2026 sur une image
+         précise : un abysse bleu-vert très sombre, une COLONNE D'EAU
+         lumineuse qui sépare les deux zones (la matière fait la mise en
+         page, ce n'est pas une bordure), des panneaux de verre à filet
+         cyan, la vidéo DANS le verre avec pastille + onde de voix, des
+         commandes en orbes ronds, des bulles qui montent À L'INTÉRIEUR des
+         cartes, et « ● EN DIRECT » en petites capitales espacées.
+
+         Ces variables sont posées sur [data-live-universe] (attribut porté
+         par la racine du LIVE uniquement) et NON sur :root : --water-accent
+         de :root est consommé par la goutte de la messagerie (validée le
+         01/09) — la recalibrer ici l'aurait déplacée sans qu'on le demande.
+         Les 6 autres univers ne redéfinissent que la teinte de l'abysse :
+         une architecture, 7 ambiances, jamais 7 familles de classes. */
+      [data-live-universe] {
+        --live-abyss-a: #0a2430;
+        --live-abyss-b: #04121a;
+        --live-glow: rgba(127, 217, 230, 0.18);
+        --live-line: rgba(160, 235, 245, 0.2);
+        --live-line-top: rgba(214, 248, 253, 0.42);
+        --live-pane-a: rgba(255, 255, 255, 0.055);
+        --live-pane-b: rgba(9, 38, 48, 0.42);
+        --live-ink: #e6f8fb;
+        --live-ink-soft: #93bcc7;
+        --live-accent: var(--water-accent, #7fd9e6);
+      }
+      [data-live-universe="crystal"] { --live-accent: #7fd9e6; }
+      [data-live-universe="futuristic_blue"] {
+        --live-abyss-a: #0a1a3a; --live-abyss-b: #03081c;
+        --live-glow: rgba(56, 189, 248, 0.18);
+      }
+      [data-live-universe="natural_fresh"] {
+        --live-abyss-a: #0d2a20; --live-abyss-b: #05130e;
+        --live-glow: rgba(74, 222, 128, 0.16);
+      }
+      [data-live-universe="solaire_chaud"] {
+        --live-abyss-a: #2a1608; --live-abyss-b: #140902;
+        --live-glow: rgba(245, 158, 11, 0.16);
+      }
+      [data-live-universe="violet_luxe"] {
+        --live-abyss-a: #1e0c2c; --live-abyss-b: #0d0417;
+        --live-glow: rgba(192, 132, 252, 0.17);
+      }
+      [data-live-universe="deep_ocean"] {
+        --live-abyss-a: #062430; --live-abyss-b: #020c11;
+        --live-glow: rgba(45, 212, 191, 0.17);
+      }
+      [data-live-universe="rose_doux"] {
+        --live-abyss-a: #2c1220; --live-abyss-b: #160810;
+        --live-glow: rgba(244, 114, 182, 0.16);
+      }
+
+      /* L'abysse. Le vignettage est une COUCHE DE FOND (pas un pseudo-élément
+         posé par-dessus) : un ::after aurait été peint après tous les enfants
+         et aurait assombri la vidéo elle-même. */
+      .live-abyss {
+        background:
+          radial-gradient(150% 100% at 50% 55%, transparent 40%, rgba(0, 0, 0, 0.5) 100%),
+          radial-gradient(110% 80% at 50% -5%, var(--live-glow) 0%, transparent 60%),
+          linear-gradient(180deg, var(--live-abyss-a) 0%, var(--live-abyss-b) 100%);
+      }
+
+      /* La colonne d'eau. Deux nappes de lumière qui dérivent à des vitesses
+         différentes derrière un flou : c'est ce décalage qui fait « courant »
+         plutôt que « dégradé animé ». Décorative et sous le panneau latéral
+         (z-index 1) — jamais au-dessus d'un texte de conversation. */
+      @keyframes live-current-drift {
+        0%, 100% { transform: translateX(0) scaleX(1); opacity: 0.7; }
+        50% { transform: translateX(7px) scaleX(1.12); opacity: 0.95; }
+      }
+      @keyframes live-current-flow {
+        0% { transform: translateY(-14%); }
+        100% { transform: translateY(14%); }
+      }
+      .live-current {
+        position: absolute;
+        top: -6%;
+        bottom: -6%;
+        width: 130px;
+        pointer-events: none;
+        z-index: 1;
+        filter: blur(14px);
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          var(--live-glow) 32%,
+          rgba(214, 248, 253, 0.3) 50%,
+          var(--live-glow) 68%,
+          transparent 100%
+        );
+        -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+        mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+        animation: live-current-drift 16s ease-in-out infinite;
+      }
+      .live-current::before,
+      .live-current::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(60% 22% at 50% 20%, rgba(224, 250, 255, 0.5), transparent 70%),
+          radial-gradient(45% 18% at 40% 62%, rgba(224, 250, 255, 0.32), transparent 70%);
+        animation: live-current-flow 22s linear infinite alternate;
+      }
+      .live-current::after {
+        animation-duration: 31s;
+        animation-direction: alternate-reverse;
+        opacity: 0.6;
+      }
+      /* Variante horizontale : sur téléphone la couture scène/panneau est
+         horizontale — le courant la suit au lieu de disparaître. */
+      .live-current--h {
+        top: auto;
+        bottom: auto;
+        left: -6%;
+        right: -6%;
+        width: auto;
+        height: 110px;
+        background: linear-gradient(
+          180deg,
+          transparent 0%,
+          var(--live-glow) 32%,
+          rgba(214, 248, 253, 0.28) 50%,
+          var(--live-glow) 68%,
+          transparent 100%
+        );
+        -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+        mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+      }
+
+      /* Le panneau de verre des tuiles : filet cyan, arête haute plus claire
+         (la lumière vient d'en haut), lueur intérieure, ombre portée douce. */
+      .live-pane {
+        position: relative;
+        border-radius: 20px;
+        background: linear-gradient(180deg, var(--live-pane-a) 0%, var(--live-pane-b) 100%);
+        border: 1px solid var(--live-line);
+        border-top-color: var(--live-line-top);
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+          inset 0 0 40px -12px var(--live-glow),
+          0 18px 40px -20px rgba(0, 0, 0, 0.85);
+        overflow: hidden;
+      }
+      /* Une présence IA se distingue par une arête plus vive et une lueur
+         intérieure plus marquée — jamais par une couleur étrangère à
+         l'univers courant (color-mix évité : pas garanti sur Safari 16.0). */
+      .live-pane--agent {
+        border-color: var(--live-line-top);
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+          inset 0 0 56px -10px var(--live-glow),
+          0 18px 40px -20px rgba(0, 0, 0, 0.85);
+      }
+
+      /* Commande en orbe. Le halo s'intensifie au survol/à l'appui : la
+         lumière confirme, elle ne décore pas. */
+      .live-orb {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.22), rgba(10, 42, 54, 0.55) 70%);
+        border: 1px solid var(--live-line);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 14px -4px rgba(0, 0, 0, 0.7);
+        color: var(--live-ink);
+        transition: box-shadow 0.25s ease, transform 0.2s ease, background 0.25s ease;
+      }
+      .live-orb:hover {
+        transform: translateY(-1px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 6px 18px -4px rgba(0, 0, 0, 0.75), 0 0 18px 2px var(--live-glow);
+      }
+      /* L'accent doit DOMINER : à 130 %, le dégradé restait quasi blanc et
+         l'action principale du Studio passait pour une case grise. */
+      .live-orb--active {
+        background: radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.38), var(--live-accent) 72%);
+        border-color: var(--live-line-top);
+        color: #04202a;
+        text-shadow: none;
+      }
+      .live-orb--danger {
+        background: radial-gradient(circle at 35% 25%, rgba(255, 190, 190, 0.35), rgba(190, 40, 60, 0.9) 75%);
+        border-color: rgba(255, 140, 150, 0.45);
+        color: #fff;
+      }
+
+      /* « ● EN DIRECT » : petites capitales espacées, point vert qui respire. */
+      @keyframes live-onair-pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 8px 2px rgba(61, 220, 151, 0.7); }
+        50% { opacity: 0.55; box-shadow: 0 0 3px 1px rgba(61, 220, 151, 0.35); }
+      }
+      .live-onair {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #9fe8f2;
+      }
+      .live-onair::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 9999px;
+        background: #3ddc97;
+        animation: live-onair-pulse 2.4s ease-in-out infinite;
+      }
+
+      /* Titre de zone : fin, très espacé, en capitales — le registre exact
+         de « MON ESPACE CITOYEN » / « CONSULTATION AVEC EXPERTS ». */
+      .live-title {
+        font-weight: 300;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--live-ink);
+      }
+
+      /* Onde de voix : la voix devient visible à côté du visage — on sait
+         qui parle sans avoir à le deviner. */
+      @keyframes live-wave-bar {
+        0%, 100% { transform: scaleY(0.32); }
+        50% { transform: scaleY(1); }
+      }
+      .live-wave {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        height: 16px;
+      }
+      .live-wave i {
+        display: block;
+        width: 2px;
+        height: 100%;
+        border-radius: 2px;
+        background: var(--live-accent);
+        transform-origin: center;
+        animation: live-wave-bar 1.1s ease-in-out infinite;
+        opacity: 0.9;
+      }
+      .live-wave--muted i {
+        animation: none;
+        transform: scaleY(0.22);
+        opacity: 0.4;
+      }
+
+      /* Plaque de nom : dégradé de lisibilité + capitales espacées. */
+      .live-nameplate {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 2.1rem 0.85rem 0.7rem;
+        background: linear-gradient(180deg, transparent 0%, rgba(3, 16, 22, 0.78) 55%, rgba(3, 16, 22, 0.93) 100%);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--live-ink);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+
+      /* Bulles qui montent DANS la carte (la vie est dans les contenants, pas
+         seulement dans le fond). Jamais au-dessus d'une vidéo réelle : elles
+         n'habillent que les tuiles sans image (agent, attente, débordement). */
+      @keyframes live-bubble-rise {
+        0% { transform: translateY(0) scale(0.85); opacity: 0; }
+        14% { opacity: 0.55; }
+        100% { transform: translateY(-150px) scale(1.05); opacity: 0; }
+      }
+      .live-bubbles {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        border-radius: inherit;
+      }
+      .live-bubbles span {
+        position: absolute;
+        bottom: -16px;
+        border-radius: 9999px;
+        background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.55), rgba(160, 235, 245, 0.1) 60%, transparent 72%);
+        border: 1px solid rgba(200, 245, 252, 0.28);
+        animation: live-bubble-rise 9s ease-in infinite;
+      }
+
+      /* Mouvement réduit : la matière se fige, la lisibilité reste entière. */
+      @media (prefers-reduced-motion: reduce) {
+        .live-current,
+        .live-current::before,
+        .live-current::after,
+        .live-bubbles span,
+        .live-wave i,
+        .live-onair::before {
+          animation: none !important;
+        }
+      }
+
       /* Bouton de messagerie « Goutte » (mission VF-10, maquette n° 01
          validée le 01/09/2026 — components/chat/MessagingDropButton.tsx).
          Une goutte de verre épais où flotte un niveau d'eau : le prolongement

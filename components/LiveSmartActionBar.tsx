@@ -69,10 +69,10 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
         {/* Main Quick Action: Retenir pour moi */}
         <button
           onClick={() => setShowNoteInput(!showNoteInput)}
-          className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/30 transition-all hover:scale-102 active:scale-98"
+          className="px-3 py-1.5 live-orb live-orb--active !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-98"
           title="Mémoire Personnelle : Diallo, retiens ceci pour moi"
         >
-          <Sparkles size={13} className="text-amber-300" />
+          <Sparkles size={13} />
           <span className="hidden sm:inline">Diallo,</span> Retiens ceci
         </button>
 
