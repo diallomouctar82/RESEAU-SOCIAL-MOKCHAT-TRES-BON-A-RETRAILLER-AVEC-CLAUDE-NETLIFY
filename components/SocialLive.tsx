@@ -986,6 +986,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // 8. Summon Expert / Council Modal
   const [showSummonExpertModal, setShowSummonExpertModal] = useState(false);
+  // DS-L0 — « Sur mobile, toutes les commandes essentielles doivent être
+  // accessibles (inviter, retirer, gérer humain et agent) » (Direction,
+  // 03/09/2026). Convoquer un expert était en `hidden md:flex`, la salle
+  // d'attente et le sélecteur d'univers en `hidden lg:flex` : sur téléphone,
+  // ces commandes n'existaient tout simplement pas. Cette feuille les rend
+  // atteignables sans toucher à la disposition desktop.
+  const [showMobileStageSheet, setShowMobileStageSheet] = useState(false);
   const [summonSearchQuery, setSummonSearchQuery] = useState('');
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
 
@@ -1809,6 +1816,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             >
               <LifeBuoy size={14} />
               <span className="hidden sm:inline">SOS Aide</span>
+            </button>
+
+            {/* DS-L0 — accès mobile aux commandes de scène. `lg:hidden` : sur
+                ordinateur les mêmes commandes restent à leur place, rien n'est
+                dupliqué à l'écran. */}
+            <button
+              onClick={() => setShowMobileStageSheet(true)}
+              data-testid="mobile-stage-commands"
+              className="lg:hidden px-2.5 py-1.5 bg-white/5 hover:bg-cyan-600/30 text-slate-200 border border-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              title="Gérer la scène : inviter, retirer, agents, univers"
+              aria-label="Gérer la scène"
+            >
+              <Sliders size={14} />
+              <span className="hidden sm:inline">Scène</span>
             </button>
 
             {/* Fact-Check Sources */}
@@ -3310,6 +3331,73 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       </div>
 
       {/* 3. SUMMON EXPERT MODAL DIALOG */}
+      {/* DS-L0 — feuille mobile des commandes de scène : inviter un agent,
+          gérer les personnes (monter/retirer), choisir l'univers. Elle ne
+          duplique aucune logique : elle ouvre exactement les mêmes écrans que
+          les boutons desktop. */}
+      {showMobileStageSheet && (
+        <div className="fixed inset-0 z-[260] lg:hidden flex items-end" role="dialog" aria-label="Commandes de la scène">
+          <button
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowMobileStageSheet(false)}
+            aria-label="Fermer"
+          />
+          <div className={`relative w-full rounded-t-3xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${glassSurfaceClass('primary')} border-t border-white/15`}>
+            <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mb-4" aria-hidden="true" />
+            <h3 className="text-sm font-black text-white mb-3">Gérer la scène</h3>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                data-testid="mobile-invite-agent"
+                onClick={() => { setShowMobileStageSheet(false); setShowSummonExpertModal(true); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-indigo-600/25 border border-indigo-400/40 text-left"
+              >
+                <Bot size={18} className="text-indigo-300" />
+                <span className="text-xs font-bold text-white">Inviter un agent</span>
+                <span className="text-[10px] text-indigo-200/80">Santé, enseignement, commercial…</span>
+              </button>
+
+              <button
+                data-testid="mobile-manage-people"
+                onClick={() => { setShowMobileStageSheet(false); setShowWaitingRoomModal(true); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-cyan-600/25 border border-cyan-400/40 text-left"
+              >
+                <Sliders size={18} className="text-cyan-300" />
+                <span className="text-xs font-bold text-white">Personnes</span>
+                <span className="text-[10px] text-cyan-200/80">Monter sur scène, retirer</span>
+              </button>
+            </div>
+
+            {isHost && (
+              <div className="mt-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Univers de la salle</p>
+                <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                  {LIVE_VISUAL_UNIVERSES.map((universe) => (
+                    <button
+                      key={universe.id}
+                      onClick={() => handleChangeVisualUniverse(universe.id)}
+                      // 44 px : cible tactile réelle, pas la pastille de 20 px du desktop.
+                      className={`shrink-0 w-11 h-11 rounded-full transition-all ${glassSurfaceClass('surface')} ${visualUniverse === universe.id ? 'ring-2 ring-white scale-105' : 'opacity-70'}`}
+                      data-live-universe={universe.id}
+                      style={{ boxShadow: 'inset 0 0 0 3px var(--water-accent)' }}
+                      aria-label={universe.label}
+                      title={universe.label}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowMobileStageSheet(false)}
+              className="mt-4 w-full py-2.5 rounded-2xl bg-white/10 border border-white/15 text-xs font-bold text-slate-200"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+
       {showSummonExpertModal && (
         <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-xl space-y-4 shadow-2xl animate-scale-in">
