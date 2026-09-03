@@ -67,12 +67,12 @@ exactement ce que ce dépôt a déjà payé cher trois fois.
 | Loupe | Objet | Vague | Statut |
 |---|---|---|---|
 | LV-0 | Audit du socle réel | — | ✅ **TERMINÉ** |
-| LV-1 | Les vraies personnes sur la scène | A | 🟡 **PARTIEL** — prouvé au banc à deux comptes réels (LV-6, 23/23) ; reste l'aperçu Netlify |
+| LV-1 | Les vraies personnes sur la scène | A | ✅ **TERMINÉ** — banc à deux comptes réels (LV-6, 23/23) + aperçu Netlify vérifié sur `1084e6c` |
 | LV-2 | Rejoindre un direct depuis le fil, avec le son | A | 🟡 **PARTIEL** — le trajet fil → direct → son reçu est prouvé au banc (LV-6 étapes 2 et 4) ; la loupe elle-même n'a pas été ouverte |
-| LV-3 | Monter, descendre, couper un micro, retirer | A | 🟡 **PARTIEL** — prouvé au banc (LV-6 étapes 5, 7, 8) ; reste l'aperçu Netlify |
+| LV-3 | Monter, descendre, couper un micro, retirer | A | ✅ **TERMINÉ** — banc (LV-6 étapes 5, 7, 8) + aperçu Netlify vérifié |
 | LV-4 | Inviter un ami ou un agent IA, partager | A | 🟡 **PARTIEL** — agent invité et lien réel prouvés au banc (LV-6 étape 6) ; **ouvrir** le lien reste à prouver |
 | LV-5 | Les agents IA voient par la caméra et en discutent | A | ⬜ NON COMMENCÉ |
-| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | 🟡 **PARTIEL — VERROU** — banc réel **23 OK / 0 DÉFAUT** (9 étapes sur 10) ; restent l'étape 9, l'aperçu Netlify et les deux téléphones |
+| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | 🟡 **PARTIEL — VERROU** — banc réel **23 OK / 0 DÉFAUT** (9 étapes sur 10), aperçu Netlify vérifié ; restent l'étape 9 et les deux téléphones |
 | LV-7 | Les trois familles de live | B | ⬜ NON COMMENCÉ |
 | LV-8 | Mémoire de parcours, niveaux, badges | B | ⬜ NON COMMENCÉ |
 | LV-9 | Forces, besoins, complémentarités → tribus et cursus | B | ⬜ NON COMMENCÉ |
@@ -302,12 +302,26 @@ produit** — c'est consigné ici parce que c'est exactement ce que la règle
    (`livekitClientPin.test.ts`, `callRoomOptions.test.ts`). Après correction :
    **zéro erreur de page**.
 
+### Aperçu Netlify — vérifié le 03/09/2026 sur le head `1084e6c`
+
+`deploy-preview-60--lovely-maamoul-478226.netlify.app` sert
+`assets/index-DurKTJ5-.js`. Empreintes relevées dans le bundle **réellement
+servi**, comparées au build local du même commit :
+
+| Empreinte | Aperçu | Build local | Ce que ça prouve |
+|---|---|---|---|
+| `singlePeerConnection:!1` | **2** | 2 | Les **deux** constructions de Room — appel ET direct — désactivent la sonde. C'était 1 avant le correctif. |
+| `adaptiveStream:!0` | 1 | 1 | Le LIVE garde son flux adaptatif : je n'ai pas éteint par erreur ce qui lui est propre. |
+| `dynacast:!0` | 1 | 1 | Idem. |
+| `live-stage-grid` | 1 | 1 | L'ancrage de mesure de la scène est bien servi. |
+
+Green Gate « typage · tests · build » vert sur ce head (run 33797764398),
+10 contrôles au vert, `mergeable_state: clean`.
+
 **Reste à faire, nommé** :
 - **Étape 9** — ouvrir réellement le lien de partage dans une troisième
   session et vérifier qu'il mène à CE direct. Le lien est prouvé réel, son
   ouverture ne l'est pas.
-- **Aperçu Netlify** — le barème exige le lien d'aperçu vérifié ; il demande
-  la PR poussée.
 - **Deux téléphones physiques** — à la Direction, comme pour les appels.
 
 ---
