@@ -41,7 +41,35 @@ Définit le modèle mental complet :
 
 Pour savoir **vers quoi l’Architecte doit évoluer sans être recréé**, lire ce document.
 
-## 4. Matrice de statuts
+## 4. Suite validation, exécution future et mémoire
+
+[`ARCHITECTE_SUITE_VALIDATION_EXECUTION_MEMOIRE.md`](./ARCHITECTE_SUITE_VALIDATION_EXECUTION_MEMOIRE.md)
+
+Complète la trajectoire avec :
+
+- connaissance de l’état réel de chaque module ;
+- cartographie structurée de la maison ;
+- distinction information/navigation/action/objectif ;
+- mémoire contrôlée des objectifs ;
+- états de suivi d’objectif ;
+- proactivité non intrusive ;
+- modes discret, guidé et accompagnement renforcé ;
+- passage de relais vers experts ou professionnels ;
+- réalisme des permissions Android/iOS/macOS/Windows ;
+- registre de permissions ;
+- journal des actions importantes ;
+- échec honnête et résultat vérifiable ;
+- multilinguisme transversal ;
+- accessibilité ;
+- visite guidée de MokNet ;
+- contrat développeur ;
+- critères de validation conceptuelle ;
+- test conceptuel final ;
+- règle de non-régression.
+
+Pour savoir **comment transformer la vision en futures capacités testables, traçables et sûres**, lire cette suite.
+
+## 5. Matrice de statuts
 
 [`ARCHITECTE_STATUTS_CAPACITES.md`](./ARCHITECTE_STATUTS_CAPACITES.md)
 
@@ -55,7 +83,7 @@ Sépare explicitement :
 
 Pour savoir **si une promesse est réellement disponible ou seulement prévue**, consulter cette matrice puis vérifier le code.
 
-## 5. La vraie “tête” runtime
+## 6. La vraie “tête” runtime
 
 La logique d’exécution actuelle n’est pas dans cette documentation. Elle est dans le code, principalement :
 
@@ -68,7 +96,7 @@ La logique d’exécution actuelle n’est pas dans cette documentation. Elle es
 
 **Ne jamais remplacer aveuglément le prompt ou le cerveau runtime par le contenu d’un document conceptuel.** Toute modification de cette tête doit être une mission de développement séparée avec tests de non-régression.
 
-## 6. Règle d’autorité
+## 7. Règle d’autorité
 
 En cas de conflit :
 
@@ -76,11 +104,12 @@ En cas de conflit :
 2. `ARCHITECTE.md` décrit cette réalité ;
 3. la matrice indique son statut ;
 4. le guide indique comment la présenter ;
-5. la mission complète indique la trajectoire future.
+5. la mission complète indique la trajectoire ;
+6. la suite validation/mémoire précise comment cette trajectoire devra être rendue exploitable et sûre.
 
 Une idée future ne doit jamais être présentée comme une fonction disponible.
 
-## 7. Règle de maintenance
+## 8. Règle de maintenance
 
 Quand une capacité importante est ajoutée :
 
@@ -90,6 +119,7 @@ Quand une capacité importante est ajoutée :
 4. `ARCHITECTE.md` est mis à jour ;
 5. son statut est mis à jour dans la matrice ;
 6. le guide est ajusté si elle change l’accueil ou l’orientation ;
-7. la mission/trajectoire est ajustée si elle change la vision d’ensemble.
+7. la mission/trajectoire est ajustée si elle change la vision d’ensemble ;
+8. la suite validation/mémoire est ajustée si elle change le suivi, les permissions, la traçabilité, l’accessibilité ou les critères de preuve.
 
 Ce fichier est la **boussole permanente** des développeurs humains, agents IA et futurs repreneurs du projet.
