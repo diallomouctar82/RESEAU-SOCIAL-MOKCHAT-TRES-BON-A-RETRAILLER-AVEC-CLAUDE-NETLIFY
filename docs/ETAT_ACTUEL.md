@@ -1,7 +1,9 @@
 # 📊 ÉTAT ACTUEL DE LA PLATEFORME — « OÙ EN EST LE MONDE À VOUS ? »
 > **Synthèse Opérationnelle & Bilan d'Avancement en Temps Réel**  
-> *Date de Mise à Jour : 1er Septembre 2026*
-> *Version Courante : v6.6.3 (TRADUCTION CENTRALISÉE — MESSAGERIE TEXTE)*
+> *Date de Mise à Jour : 3 Septembre 2026*
+> *Version Courante : v6.12.0 (APPELS AUDIO/VIDÉO RÉELS, TRADUITS VOIX À VOIX, SONNERIE FIABLE APPLI FERMÉE)*
+
+**Jalons du 1er au 3 septembre 2026 (v6.7.0 → v6.12.0, voir `docs/HISTORIQUE_VERSIONS.md` et DEC-2026-034 à 039)** : la messagerie et les appels sont passés d'une signalisation sans média à des appels audio/vidéo réels sur le serveur LiveKit de production (`live.moknet.net`), **validés par l'utilisateur sur deux téléphones le 2 septembre 2026** ; la traduction vocale voyage dans l'appel (piste « interprète », appel normal par défaut, langue choisie par appel) ; la sonnerie et la notification d'appel fonctionnent appli fermée (Web Push serveur, service worker réparé, bouton « Sonnerie »). Le détail vérifié, mission par mission, est dans `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
 
 ---
 
@@ -13,7 +15,7 @@
 La version **v6.6.3** ajoute, sans élargir le périmètre fonctionnel :
 - **Service central unique de traduction** (`services/translation/translationService.ts`) : contrat `TranslationEngine` remplaçable, routage par `aiGateway`, cache mémoire borné, mutualisation des appels et dégradation gracieuse.
 - **Messages texte bilingues** : langue de l'auteur enregistrée dans `messages.metadata.original_language`, original conservé dans `messages.content`, traduction automatique affichée séparément dans `profiles.preferred_language` du destinataire.
-- **Phase appels vocaux non commencée** : elle reste bloquée jusqu'à validation explicite de cette livraison texte.
+- **Phase appels vocaux — livrée depuis** (elle était bloquée jusqu'à validation de la livraison texte, obtenue le 1er septembre) : interprète d'appel puis voix traduite dans l'appel (v6.7.0, v6.10.0, v6.11.0) — voir la section 1.5 ci-dessous.
 
 Le socle **v6.6.1** consacre également :
 - **Absorption Automatique des Pointes de Charge (503 UNAVAILABLE / High Demand)** : Détection proactive et gestion résiliente des surcharges d'API distantes dans l'Edge Function orchestratrice `supabase/functions/ai-gateway/index.ts`.
@@ -176,7 +178,7 @@ Le socle **v6.6.1** consacre également :
   - Envoi d'images/vidéos/documents/messages vocaux avec aperçu — pièces jointes réellement persistées (colonne `attachment_url`), mais encore en base64 (upload Storage réel non fait, voir Chantier Messagerie LOOP 06/17 dans `docs/SUPABASE_ARCHITECTURE.md`).
   - Citations/réponses, réactions emoji (atomiques, `toggle_message_reaction`), résumé de conversation et traduction automatique par le service central dans la langue préférée du destinataire ; `messages.content` reste toujours l'original et `metadata.original_language` en conserve la langue déclarée.
   - **Épinglage** : bouton présent dans l'UI mais **non fonctionnel** — `onPin` n'est câblé par aucun appelant, aucune colonne `is_pinned` n'existe sur `messages`. Non implémenté, pas un correctif à faire passer pour acquis.
-  - **Appels audio/vidéo** : la signalisation (sonnerie/acceptation/refus) est réelle (Supabase Broadcast), mais **aucun transport audio/vidéo pair-à-pair n'est établi entre les deux personnes** (`ChatCallModal.tsx` ne capture que la caméra locale de l'utilisateur — pas de `RTCPeerConnection`) : un appel ne délivre donc pas encore le son/l'image de l'autre participant. Non chiffré pour la même raison qu'il n'y a pas de flux média à chiffrer.
+  - **Appels audio/vidéo — réels depuis le 2 septembre 2026** (état vérifié, `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`) : la signalisation reste sur Supabase Broadcast ; le média passe par le serveur LiveKit de production `live.moknet.net` (une room par appel, identité LiveKit par onglet, SDK `livekit-client` épinglé 2.17.3 — la seule ligne qui tient face au serveur 1.8.4 déployé). **Audio bidirectionnel validé par l'utilisateur sur deux téléphones** ; image du correspondant ; connexion en moins de deux secondes après le décroché (mission LT) ; sonnerie hors application par Web Push serveur (`push-notify`) avec service worker réparé et bouton « Sonnerie » (mission SN) ; traduction vocale dans l'appel : appel normal par défaut, langue choisie par appel dans l'écran d'appel, voix traduite publiée comme piste « interprète » (missions VT‑1b et LT). Chiffrement : transport WebRTC (DTLS‑SRTP) entre chaque participant et le serveur — **aucun chiffrement de bout en bout**, à ne jamais présenter comme acquis. Diagnostics d'appel réels dans `call_diagnostics`.
 - **Réseau Social de Confiance (`SocialFeed.tsx`)** :
   - Publications de posts enrichis (texte, images HD, vidéos avec relecture continue), likes, commentaires, partages et direct live.
   - Système de réputation décentralisée Mok Trust Hub avec notation d'intégrité.

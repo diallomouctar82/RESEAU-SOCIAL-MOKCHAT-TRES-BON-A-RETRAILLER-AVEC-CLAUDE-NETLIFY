@@ -26,10 +26,26 @@
 | **`FocusAndPresentationControls`**| Contrôles Concentration & Présentation | **ACTIVE** | `isFocusMode`, `isPresentationMode` | WCAG AA | Barre supérieure |
 | **`UnifiedSettingsModal`** | Paramètres unifiés & Connecteurs | **ACTIVE** | Accessibilité (taille police, contraste, voix), Connecteurs Workspace | WCAG AA | Menu Profil & Paramètres |
 | **`ComponentShowcaseModal`** | Vitrine interactive du Design System | **ACTIVE** | Navigation par onglets (Tokens, Cartes, Badges, Trajectoires, IA) | WCAG AA | Console & Paramètres |
+| **`MessagingDropButton`** | « Goutte » : bouton flottant de la messagerie | **ACTIVE** | Niveau d'eau = non-lus réels, appel entrant = sonnerie, ouvert = croix, maintien long 500 ms = installer le module | WCAG AA (cible 44 px, libellé « Ouvrir la messagerie ») | Layout (transversal) |
+| **`ConversationHeader`** | En-tête de conversation avec sélecteur « Ma langue » fixe | **ACTIVE** | Sélecteur unique de la langue du lecteur (immobile au défilement), identité du correspondant | WCAG AA | Messagerie |
+| **`MessagingOwnerCard`** | Carte du propriétaire (« Vous ») en tête de liste | **ACTIVE** | Nom, avatar réel ou initiales (jamais de cliché) | WCAG AA | Messagerie |
+| **`ChatCallModal`** | Écran d'appel audio/vidéo | **ACTIVE** | Sonnerie, Décrocher 72×72 px, case de langue « Entendre X en … » (« Appel normal » / « Traduction active »), diagnostics média réels, z-index 400 au-dessus des boîtes du LIVE | WCAG AA (cibles ≥ 44 px, états lisibles) | Messagerie, appels |
+| **`RingingPanel`** | Panneau « Sonnerie » de la barre de messagerie | **ACTIVE** | Interrupteurs Sonnerie / Vibration (`role="switch"`), sonnerie du profil, état « Hors application » (Active / Incomplète / Non activée / Refusée / À installer / Indisponible), « Tester la sonnerie » | WCAG AA (focus visible, aria-checked) | Messagerie |
 
 ---
 
 ## 🔄 2. JOURNAL DES ÉVOLUTIONS UX/UI (UX CHANGELOG)
+
+### [V1.1.0] — 3 Septembre 2026 — Messagerie et appels : goutte, « Ma langue », écran d'appel, panneau « Sonnerie »
+* **Écrans / Modules concernés** : messagerie (`MoocChatFloating`), appels (`ChatCallModal`), Layout (bouton flottant).
+* **Ancien comportement** : bouton de messagerie générique ; deux sélecteurs de langue par conversation ; écran d'appel sans média réel ni case de langue ; aucun réglage de sonnerie accessible depuis la messagerie ; toucher une notification d'appel n'ouvrait que la conversation.
+* **Nouveau comportement** :
+  - « Goutte » (`MessagingDropButton`, maquette 01 validée par l'utilisateur) : niveau d'eau = non-lus réels, sonnerie visible sur appel entrant, maintien long = installer le module messagerie.
+  - Un seul sélecteur « Ma langue » fixé dans l'en-tête (`ConversationHeader`), carte du propriétaire (`MessagingOwnerCard`), initiales à la place du cliché.
+  - Écran d'appel (`ChatCallModal`) : Décrocher 72×72 px, case de langue bien visible (« Appel normal » par défaut, « Traduction active » après choix), avis honnêtes (« X ne vous entend pas — micro indisponible », « Reconnexion… »), au-dessus de toutes les boîtes (z-index 400).
+  - Barre de messagerie : bouton « Sonnerie » après « Annuaire », panneau `RingingPanel` (sonnerie / vibration, état hors application, test).
+* **Justification** : réglages branchés aux services existants (`ringtoneService`, `pushService`), cibles tactiles ≥ 44 px, états lisibles avant toute action (Future UI/UX Standard : états vide/chargement/erreur/succès présents, aucun futurisme décoratif).
+* **Statut** : **VALIDÉ ET TESTÉ EN PRODUCTION** (missions VF, AU, VT‑1b, LT, SN — captures `vf-preuve/prod/`).
 
 ### [V1.0.0] — 27 Août 2026 — Jalon Premium Experience V1
 * **Écrans / Modules concernés** : Ensemble de la plateforme (14 modules, Layout, Dashboard, Navigation).

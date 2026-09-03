@@ -17,13 +17,68 @@
 | **v6.0** | 27 Août 2026 | **Jalon Officiel — PREMIUM EXPERIENCE V1** | Design System V1 (26 chapitres), Manifeste, Golden Screens, Handoff | AI Coding Agent | Stable |
 | **v6.1** | 27 Août 2026 | **Socle Cloud Supabase Lazy-Init & Persistance Résiliente** | Auth, Supabase Client, Local-First, Zero White Screen | AI Coding Agent | Stable |
 | **v6.2** | 27 Août 2026 | **Architecture IA Auto-Résiliente (12 Fournisseurs) & Color Lab** | Super-Admin AI Hub, Failover, Auto-Quarantine, Color Lab | AI Coding Agent | Stable |
-| **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | **Courante (Active)** |
+| **v6.3** | 27 Août 2026 | **Sauvegarde, Versioning & Restauration Intelligente + Realtime RBAC** | Super-Admin Versioning, Snapshots, Smart Restore, Realtime | AI Coding Agent | Stable |
 | **v6.6.2** | 1er Septembre 2026 | **Hotfix Messagerie — Frontière UUID Supabase** | Mooc Chat, historique, Realtime | Codex | **Stable** |
-| **v6.6.3** | 1er Septembre 2026 | **Traduction centralisée — Messagerie texte** | Messagerie, Profil, AI Gateway | Vision Smart AI Core / DEC-2026-033 | **Courante (Active)** |
+| **v6.6.3** | 1er Septembre 2026 | **Traduction centralisée — Messagerie texte** | Messagerie, Profil, AI Gateway | Vision Smart AI Core / DEC-2026-033 | **Stable** |
+| **v6.7.0** | 1er Septembre 2026 | **« Ma langue » harmonisée — texte, vocaux transcrits, interprète d'appel audio/vidéo** | Messagerie, Appels, AI Gateway | PR #42, #43 / DEC-2026-034 | **Stable** |
+| **v6.8.0** | 1er Septembre 2026 | **Sonnerie hors application (Web Push serveur), arrêt net multi-appareils, pré-connexion, transcription serveur, identité du propriétaire, module messagerie installable, goutte** | Appels, Messagerie, Edge `push-notify`, Service worker, PWA | PR #44, #45 / DEC-2026-035 | **Stable** |
+| **v6.9.0** | 2 Septembre 2026 | **Audio d'appel réellement bidirectionnel — validé sur deux téléphones ; SDK LiveKit épinglé 2.17.3** | Appels, Edge `livekit-token`, `call_diagnostics`, LIVE (LOOP 15/16 fermée) | PR #46 → #53 / DEC-2026-036 | **Stable** |
+| **v6.10.0** | 3 Septembre 2026 | **Voix traduite DANS l'appel (piste « interprète »), appel normal par défaut, langue choisie par appel** | Appels, Transport LiveKit, AI Gateway v24 | PR #54, #55 / DEC-2026-037 | **Stable** |
+| **v6.11.0** | 3 Septembre 2026 | **Connexion quasi immédiate, traduction dès les premiers mots (identité par onglet, préchauffe AI Gateway v25, case de langue)** | Appels, AI Gateway | PR #56 / DEC-2026-038 | **Stable** |
+| **v6.12.0** | 3 Septembre 2026 | **Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan** | Service worker v6.6.0, Push, Messagerie, Appels | PR #57 / DEC-2026-039 | **Courante (Active)** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
+
+> **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.12.0] — 3 Septembre 2026 (Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan — mission SN)
+- **Objectif** : qu'un appel arrive vraiment quand l'application est fermée ou le téléphone verrouillé (sonnerie, vibration, notification visible), et que l'écran pour décrocher s'impose dès qu'un appel entre.
+- **Cause racine prouvée** : `/metadata.json` répond 404 sur Netlify ; l'ancien service worker le pré-cachait à l'installation → installation en échec → aucun worker jamais actif → « Subscription failed - no active Service Worker » ; `push_subscriptions` = 0 en base depuis l'origine.
+- **Réalisations** : `public/sw.js` v6.6.0 (installation jamais fatale, réglages de sonnerie lus depuis la Cache API, notification silencieuse ou sans vibration selon les réglages) ; attente du worker actif avant abonnement ; bouton « Sonnerie » après « Annuaire » et panneau `RingingPanel` branché aux réglages existants ; toucher la notification ouvre l'écran d'appel qui sonne (fenêtre existante et lancement à froid), Décrocher 72×72 px, écran au-dessus de toutes les boîtes.
+- **Validation** : tsc 0 · vitest 763/763 · build · banc 21/21 · production « avant » (défaut reproduit sur les vrais fichiers servis) puis « après » 43/43 (worker actif sur miroir octet-exact, push réel → notification → écran d'appel, desktop + mobile) · zéro trace (74 clés étrangères balayées = 0).
+- **Limite honnête** : la sonnerie sur un vrai téléphone verrouillé se constate par l'utilisateur (aucun service de push dans le bac à sable).
+
+---
+
+### [Version 6.11.0] — 3 Septembre 2026 (Connexion quasi immédiate, traduction dès les premiers mots — mission LT)
+- **Objectif** : après le test utilisateur (établissement ~30 s, traduction 20–30 s plus tard), rendre la connexion quasi immédiate et la traduction active dès les premiers mots.
+- **Causes mesurées sur 7 appels réels iPhone ↔ Android** : identité LiveKit dupliquée entre deux onglets → éviction en boucle ; lecture audio bloquée faute de geste ; 0,8 s perdu par sonde ; transcripteur redémarré à chaque changement de langue, segments jusqu'à 9 s, piste interprète publiée seulement à la première phrase.
+- **Réalisations** : identité LiveKit par onglet, aucune relance sur identité dupliquée (raison nommée), son débloqué dans le geste de décroché ; transcripteur jamais redémarré, segments 550 ms / 6,5 s avec clôture anticipée, piste interprète publiée dès le « hello », passerelle `ai-gateway` v25 préchauffée pendant la sonnerie, phrases en attente fusionnées, case de langue bien visible (« Appel normal » / « Traduction active »).
+- **Validation** : banc réel 82/82 (piste publiée 473 ms après le décroché, première voix traduite 7–13 s) · tsc 0 · vitest 737/737 · build · production 24/24 · zéro trace.
+
+---
+
+### [Version 6.10.0] — 3 Septembre 2026 (Voix traduite DANS l'appel, appel normal par défaut, langue par appel — mission VT‑1/VT‑1b)
+- **Objectif** : la traduction voix à voix doit être entendue sur de vrais téléphones, pas seulement lue.
+- **Constat** : VT‑1 (original coupé quand l'interprète parle, lecture locale) refusé au test utilisateur — la voix HD était générée mais jamais entendue (lecture locale non fiable sur téléphone).
+- **Réalisations** : la voix traduite est rendue par l'émetteur et publiée dans l'appel comme piste LiveKit « interprète » (même chemin WebRTC que la voix) ; le récepteur la joue et coupe l'original par `muted` ; appel normal par défaut, traduction activée seulement par le choix « Entendre X en … » pendant la sonnerie ou l'appel, propre à cet appel ; langue détectée prioritaire ; découpeur corrigé (la parole d'avant la pause « l'interprète parle » n'est plus jetée) ; passerelle v24 (lecture dans la bonne langue).
+- **Validation** : banc réel 62/62 (son reçu transcrit en français chez l'un, en russe chez l'autre, audio et vidéo) · vitest 730/730 · tsc 0 · build · production 20/20 · zéro trace.
+
+---
+
+### [Version 6.9.0] — 2 Septembre 2026 (Audio d'appel réellement bidirectionnel, validé sur deux téléphones — mission AU)
+- **Objectif** : « corrigez le bug d'audio unidirectionnel ».
+- **Causes prouvées** : même identité LiveKit pour deux appareils d'un compte (éviction), micro refusé sans message, caméra en échec bloquant le micro, signal d'acceptation perdu = son à sens unique ; puis, contre le binaire `livekit-server` 1.8.4 exact : `livekit-client` ≥ 2.18 = négociation en échec (aucun octet envoyé), 2.17.3 = OK.
+- **Réalisations** : identité par appareil (`livekit-token` v4→v5), micro publié avant la caméra, relance bornée, bannière « Réessayer le micro », correspondant = celui qui publie, décroché par média, diagnostics sur compteurs WebRTC réels (`call_diagnostics`), revue contradictoire (caméra jamais rallumée à l'insu de l'utilisateur, appel orphelin terminé), une room par appel, audio préparé au premier geste, SDK épinglé 2.17.3 avec test garde-fou.
+- **Validation** : utilisateur sur deux téléphones le 2 septembre 2026 — « l'appel passe correctement et les deux personnes parlent et s'entendent » ; cette même preuve ferme LOOP 15/16 de la mission LIVE. Reste recommandé, non bloquant : montée du serveur LiveKit du VPS de 1.8.4 à 1.13.6.
+
+---
+
+### [Version 6.8.0] — 1er Septembre 2026 (Sonnerie hors application, arrêt net, pré-connexion, transcription serveur, identité, module installable, goutte — mission VF)
+- **Objectif** : lever le refus de validation (sonnerie hors app, sonnerie résiduelle, latence, traduction non appliquée sur téléphone, propriétaire non identifié).
+- **Réalisations** : serveur Web Push `push-notify` (RFC 8291/8292, clé VAPID au Vault), abonnement push et service worker côté client ; arrêt net multi-appareils (`call_handled_elsewhere`, canal `moknet-calls`, push d'annulation) ; transport connecté dès la sonnerie ; transcription serveur `gemini_stt` (texte + langue + traduction) ; carte du propriétaire, avatar sur mes bulles, sélecteur « Ma langue » fixe dans l'en-tête ; messagerie exportable en module installable (`/messagerie`, manifeste dédié) ; bouton « goutte » (maquette 01 choisie par l'utilisateur parmi 10).
+- **Validation** : tsc 0 · vitest 568/568 · build · banc 16/16 · production 26/26 + 7/7 · zéro trace (97 lignes, 70 clés étrangères = 0).
+
+---
+
+### [Version 6.7.0] — 1er Septembre 2026 (« Ma langue » harmonisée — texte, vocaux, appels — missions UL/HL)
+- **Objectif** : un seul réglage de langue par personne, appliqué au texte, aux vocaux et aux appels, sans jamais choisir la langue de l'interlocuteur.
+- **Réalisations** : sélecteur unique « Ma langue » avec détection automatique de la langue du destinataire, « Par défaut » = aucune traduction ; vocaux transcrits chez l'auteur et traduits chez le lecteur (« Écouter dans ma langue ») ; interprète d'appel audio et vidéo (sous-titres par canal de données, voix dans ma langue) ; profil audio « parole » et qualité réseau réelle affichée.
+- **Validation** : vitest 306/306 · tsc 0 · build · preuves réelles ru → fr · production vérifiée en navigateur · zéro trace.
+
+---
 
 ### [Version 6.6.3] — 1er Septembre 2026 (Traduction centralisée — Messagerie texte)
 - **Objectif** : traduire automatiquement chaque message reçu dans la langue préférée du lecteur sans jamais remplacer ni supprimer le texte original.
