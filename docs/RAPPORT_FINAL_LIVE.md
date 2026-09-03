@@ -19,9 +19,12 @@ persistés et temps réel, copilote vocal à registre de capacités, Live Solida
 (causes, ledger, preuves vision, IA d'anomalie), continuité Live→Contenu, appels 1-à-1.
 Le serveur de production `wss://live.moknet.net` est **en ligne et vérifié depuis le bac
 à sable jusqu'au join de room au niveau signalisation** (percée LOOP 15 : WebSocket Node
-traverse le proxy — sondes 6-8). Le seul point non prouvable d'ici reste le **flux média
-WebRTC réel entre deux appareils**, à vérifier côté utilisateur (instruction permanente,
-répétée en fin de rapport).
+traverse le proxy — sondes 6-8). Le dernier point, le **flux média WebRTC réel entre deux
+appareils**, non prouvable depuis le bac à sable, a été **apporté par l'utilisateur le
+02/09/2026** : un appel entre deux téléphones réels, à travers `live.moknet.net`, où les
+deux personnes parlent et s'entendent (mission AU, clôturée par l'utilisateur). Il ne
+reste aucun point ouvert côté transport ; la montée de version du serveur (`deploy/livekit/README.md`)
+reste une recommandation, plus une condition.
 
 **Passe de validation (LOOP 16, mesurée le 30/08/2026)** :
 - `npx tsc --noEmit` → **140 erreurs** = baseline attendue exactement (toutes localisées
@@ -115,13 +118,16 @@ l'état React local, souvent pré-rempli de données d'exemple :
 
 ## 4. RESTANT / LIMITATION
 
-1. **⏳ INSTRUCTION PERMANENTE — preuve d'usage réel à deux appareils sur
-   `live.moknet.net` : RESTANT, côté utilisateur.** Ouvrir un LIVE réel depuis deux
-   navigateurs/appareils différents et constater que l'audio/vidéo passent par le serveur
-   de production (étape 5 du `deploy/livekit/README.md`). Le bac à sable a prouvé tout le
-   chemin jusqu'au **join de room en signalisation** (sonde 8) ; il ne peut pas établir de
-   média WebRTC (UDP/ICE) ni faire vivre deux navigateurs réels. **Ce point est répété à
-   chaque rapport tant qu'il n'est pas fait.**
+1. **✅ FERMÉ le 02/09/2026 — preuve d'usage réel à deux appareils sur
+   `live.moknet.net`, apportée par l'utilisateur.** Le bac à sable avait prouvé tout le
+   chemin jusqu'au **join de room en signalisation** (sonde 8) sans pouvoir établir de
+   média WebRTC (UDP/ICE). L'utilisateur a passé un appel entre **deux téléphones réels**
+   à travers le serveur de production : les deux personnes parlent et s'entendent
+   (mission AU, LOOP 3, SDK `livekit-client` épinglé 2.17.3 face au serveur 1.8.4 —
+   `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`, § 3 ter). Le média (UDP/ICE/TURN) du VPS
+   est donc vérifié en conditions réelles. Reste **recommandée, non requise** : la montée
+   du serveur en 1.13.6 (`deploy/livekit/README.md`, « Version du serveur et version du
+   SDK »).
 2. **WebSockets Chromium via le proxy du bac à sable** : toujours morts en cours
    d'échange (mesure des missions précédentes, non re-testée ici) — mais **percée
    LOOP 15** : depuis **Node**, l'échange WS complet passe (sondes 6-8). Toute future
@@ -133,10 +139,11 @@ l'état React local, souvent pré-rempli de données d'exemple :
 4. **Baseline TypeScript** : 140 erreurs `tsc --noEmit`, toutes dans
    `supabase/functions/*` (code Deno lu par un tsc Node) — connu, stable, non bloquant
    (le build Vite exclut ces fichiers et passe).
-5. Appels 1-1 : la signalisation, le jeton 403 non-membre et le transport sont réels ;
-   la **preuve navigateur** de la mission amont a utilisé un courtier local fidèle au
-   protocole (WS Chromium morts dans le sandbox) — la confirmation 100 % production
-   relève du même test à deux appareils que le point 1 (doc ligne « Interactions »).
+5. Appels 1-1 : **✅ confirmés à 100 % en production le 02/09/2026** — même test à deux
+   téléphones que le point 1 (l'appel passe, les deux personnes parlent et s'entendent).
+   La signalisation, le jeton 403 non-membre et le transport étaient déjà réels ; la
+   preuve navigateur de la mission amont avait utilisé un courtier local fidèle au
+   protocole (WS Chromium morts dans le sandbox).
 
 ---
 
@@ -217,6 +224,8 @@ frontière de transport qui permettra tout changement de fournisseur sans touche
 l'application. Les briques d'interaction cœur (sessions, rôles, chat, réactions, univers,
 voix, solidarité) sont opérationnelles et persistées ; les briques d'atelier (Q&R,
 sondages, agenda, tableau blanc, cadeaux, replays, sous-titres) sont des prototypes UI
-assumés dont le schéma serveur est prêt. **Il reste UNE étape, côté utilisateur, répétée
-en instruction permanente : ouvrir un LIVE réel depuis deux appareils différents et
-constater l'audio/vidéo via `live.moknet.net`.**
+assumés dont le schéma serveur est prêt. **L'étape qui restait côté utilisateur — le
+média réel entre deux appareils via `live.moknet.net` — a été constatée le 02/09/2026
+(appel entre deux téléphones, les deux personnes s'entendent) : la mission LIVE n'a plus
+de point ouvert.** Seule recommandation restante, non bloquante : monter le serveur
+LiveKit du VPS de 1.8.4 à 1.13.6 (`deploy/livekit/README.md`).

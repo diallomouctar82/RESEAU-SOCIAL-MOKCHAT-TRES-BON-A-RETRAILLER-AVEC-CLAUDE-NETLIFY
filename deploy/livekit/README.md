@@ -144,6 +144,12 @@ version. Un test (`tests/livekitClientPin.test.ts`) empêche une remontée
 accidentelle du SDK au-delà de 2.17.x ; toute montée future du SDK se décide
 APRÈS vérification de la version du serveur réellement déployé.
 
+**Validé en conditions réelles le 02/09/2026** : appel entre deux téléphones
+réels à travers `live.moknet.net` (serveur 1.8.4 + SDK 2.17.3) — l'appel
+passe, les deux personnes parlent et s'entendent. C'est la preuve d'usage
+réel du média (UDP/ICE/TURN) de ce déploiement que le bac à sable ne pouvait
+pas produire.
+
 **Procédure de montée du serveur (recommandée, plus urgente : à exécuter sur
 le VPS, dans le dossier du déploiement LiveKit).** Les quatre commandes sont
 indépendantes du reste de votre configuration : elles ne changent QUE la
