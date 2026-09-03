@@ -166,6 +166,33 @@ carte n'avait donc aucune hauteur et se réduisait à son contenu, la variante
 l'écran du téléphone. Garde‑fou de non‑régression :
 `tests/tailwindClassValidity.test.ts`.
 
+## 3 ter. Résultat final sur deux téléphones (AU‑12 à AU‑14, 02/09) — ✅ VALIDÉ
+
+Second retest utilisateur, après les correctifs AU‑7/AU‑8 : la voix restait
+mêlée à la sonnerie et la connexion se perdait. Les rapports `call_diagnostics`
+des deux appareils donnaient la cause, côté infrastructure : serveur LiveKit
+du VPS en **1.8.4** (protocole 15) face à un SDK `livekit-client` **2.22.1**
+(protocole 17) — négociation de publication qui expire toutes les ~16 s,
+`bytesSent` jamais autre chose que `null`.
+
+Corrigé en trois temps, sans dépendre d'une action SSH sur le VPS :
+
+- **Une room par appel** (`call-<conversationId>--<callId>`) : plus aucune
+  session fantôme d'un appel précédent ne peut publier son micro dans la
+  room (c'était la « sonnerie mêlée à la voix »).
+- **L'écran dit la vraie cause** : « la ligne du serveur d'appel se rétablit
+  en boucle (N fois) » au lieu d'accuser le micro.
+- **SDK épinglé à 2.17.3**, mesuré contre le binaire `livekit-server` 1.8.4
+  exact (2.18 et au‑delà : 3 expirations / 50 s, 0 octet ; 2.17.3 :
+  0 expiration, octets envoyés) et contre 1.13.6 (cible de montée de
+  version). Table complète dans `deploy/livekit/README.md`.
+
+**Test utilisateur du 02/09/2026, deux téléphones réels, serveur de
+production `live.moknet.net` : l'appel passe, les deux personnes parlent et
+s'entendent correctement. Mission déclarée close par l'utilisateur.** C'est
+la preuve que le bac à sable ne pouvait pas produire (§ 4) ; elle ferme aussi
+le dernier point ouvert de la mission LIVE (`docs/RAPPORT_FINAL_LIVE.md`).
+
 ## 4. Ce qui reste hors de portée du code de l'application
 
 - **Routage audio iOS (écouteur / haut‑parleur)** : choisi par le système ;
@@ -177,4 +204,6 @@ l'écran du téléphone. Garde‑fou de non‑régression :
   sens ; l'ajout de TURN/TLS (443) côté serveur (`deploy/livekit`) est une
   action d'infrastructure sur le VPS, à faire par son administrateur.
 - **Deux appareils physiques** : non disponibles dans l'environnement de
-  développement ; le protocole ci‑dessus est la preuve à apporter.
+  développement ; le protocole ci‑dessus est la preuve à apporter — **apportée
+  le 02/09/2026** (§ 3 ter). À rejouer après toute montée de version du
+  serveur LiveKit ou du SDK.
