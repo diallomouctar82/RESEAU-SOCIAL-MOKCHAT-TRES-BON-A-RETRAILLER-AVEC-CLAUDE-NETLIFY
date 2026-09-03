@@ -391,3 +391,111 @@ dupliquée) » sans relancer. (4) Journaux à relever : `[appel] passerelle IA
 préchauffée`, `[appel] piste interprète publiée`, `[appel] voix interprète
 générée {generateMs, durationMs, merged}`, et en base les événements
 `transport` (raison de déconnexion nommée) et `voice` de `call_diagnostics`.
+
+## 7. Sonnerie et notification fiables appli fermée, bouton « Sonnerie », appel entrant au premier plan (mission SN, 03/09)
+
+**Plainte.** « Si l'appli n'est pas ouverte, l'appel n'arrive pas vraiment :
+pas de sonnerie, pas de vibration, pas de notif visible, et parfois la
+sonnerie n'est perçue que d'un seul côté. » La capture jointe montrait
+l'erreur exacte : `Failed to execute 'subscribe' on 'PushManager':
+Subscription failed - no active Service Worker`.
+
+**Cause racine, prouvée (SN‑0).** `/metadata.json` n'existe qu'à la racine
+du dépôt, pas dans `public/` : moknet.net (Netlify) répond **404**. Or
+l'ancien `public/sw.js` faisait `cache.addAll(['/metadata.json'])` à
+l'installation : l'installation échouait, le navigateur effaçait
+l'enregistrement, aucun worker n'était jamais actif, et
+`pushManager.subscribe` refusait avec l'erreur de la capture. Conséquence
+mesurée en base : `push_subscriptions` = 0 ligne, `push_delivery_log` =
+0 ligne — aucun appareil n'a jamais été enregistré, aucun push n'a jamais
+été tenté. Le serveur d'envoi (`push-notify`, prouvé 15/15 en VF‑1) n'avait
+simplement aucun abonné. Le banc ne l'avait pas vu parce que `vite preview`
+renvoie `index.html` en 200 pour un fichier absent, là où Netlify renvoie un
+vrai 404 : le banc SN sert désormais `dist/` avec un serveur statique fidèle
+à Netlify (404 réel, réécritures de `netlify.toml` seulement).
+
+**Correctifs.**
+
+- **SN‑1 — la chaîne push tient sans dépendre d'un fichier.** `public/sw.js`
+  (cache `lmav-app-v6.6.0`) n'installe plus rien en pré-cache et son
+  installation ne peut plus échouer (un cache inaccessible est journalisé,
+  jamais fatal). `services/pwaService.ts` attend un worker **actif**
+  (`statechange` + sondage, 8 s), ré-enregistre `/sw.js` une fois si
+  nécessaire, sinon renvoie `null` ; `services/push/pushService.ts` dit
+  alors la vérité : « Service worker inactif : notifications push
+  impossibles pour l'instant (rechargez la page, puis réessayez) ».
+- **SN‑2 — un bouton « Sonnerie », branché aux réglages existants.** Dans
+  la barre de la fenêtre de messagerie, après « Annuaire » : Tout · Directs
+  · Groupes · Annuaire · **Sonnerie**. Le panneau
+  (`components/chat/RingingPanel.tsx`) offre deux interrupteurs — Sonnerie
+  et Vibration — lus et écrits par `ringtoneService` (`lmav_ring_prefs_v1`,
+  honorés par `startRinging` : sonnerie coupée = appel silencieux mais
+  l'écran d'appel sonne toujours, vibration coupée = aucune vibration), le
+  nom de la sonnerie du profil (se change dans les Paramètres, comme avant),
+  l'état « Hors application » lu par `pushService` (Active · Incomplète ·
+  Non activée · Refusée · À installer · Indisponible, avec « Activer sur
+  cet appareil » et « Revérifier »), et « Tester la sonnerie ». Les réglages
+  sont aussi publiés pour le service worker (Cache API
+  `lmav-ring-prefs-v1`, entrée `/__moknet/ring-preferences`) : la
+  notification d'appel appli fermée est **silencieuse** si la sonnerie est
+  coupée et **sans vibration** si la vibration est coupée.
+- **SN‑2b — quand ça sonne, on voit où décrocher.** Toucher le **corps** de
+  la notification (action « open ») n'ouvrait que la conversation ; appli
+  fermée, le signal temps réel de l'appel est perdu, donc aucun
+  « Décrocher » n'apparaissait. Désormais l'écran d'appel **sonne** dans les
+  deux chemins (fenêtre existante par le message `moknet-push-action`,
+  lancement à froid par `?pushAction=open…`), avec le bouton Décrocher de
+  72 × 72 px ; l'écran d'appel passe en `z-[400]`, au-dessus des boîtes de
+  dialogue du LIVE (z‑260/300), et le toast d'appel en `z-[402]` ; en vidéo,
+  la sonnerie affiche « Appel vidéo entrant… » au lieu d'un libellé de
+  connexion.
+
+**Mesuré au banc (Chromium Playwright avec service worker réel, serveur
+statique fidèle à Netlify — `/metadata.json` en vrai 404 —, Supabase réel,
+comptes de preuve réels, 03/09/2026 — passe 2 : 21 OK / 0 défaut).**
+
+| Mesure | Avant (ancien `sw.js`, 404) | Après |
+|---|---|---|
+| Worker de service actif | jamais — enregistrement effacé après l'échec d'installation | actif (`activated`) 608 ms après le début de la navigation, malgré le 404 |
+| `pushManager.subscribe` | « Subscription failed - no active Service Worker » (défaut de la capture reproduit) | passe la barrière du worker ; en headless, seul refus possible « Registration failed - permission denied » (pas de service de push) ; avec un service de push simulé côté page (même règle que le navigateur), 1 ligne réelle écrite dans `push_subscriptions` par `save_push_subscription`, panneau « Active » |
+| Barre de la messagerie | Tout · Directs · Groupes · Annuaire | + Sonnerie (mobile 390 px : bouton 89 px, aucun débordement, panneau 369/390 px) |
+| Réglages Sonnerie / Vibration | — | écrits pour l'appli (`localStorage`) **et** pour le worker (Cache API) |
+| Notification d'appel du worker, sonnerie coupée | toujours sonore, avec vibration | `silent = true`, vibration `[]`, persistante, actions Répondre / Refuser |
+| Notification, sonnerie et vibration remises | — | `silent = false`, vibration `[300,150,300,800,300,150,300]` |
+| Push livré au worker → écran d'appel | — | Décrocher visible, z‑index 400, 72 × 72 px dans l'écran, touchable au centre (mobile : y = 721 sur 844) |
+| Corps de la notification touché, fenêtre ouverte | conversation seule, pas de Décrocher | écran d'appel qui sonne, Décrocher visible |
+| Lancement à froid par la notification | conversation seule | écran d'appel qui sonne 2 198 ms après l'ouverture, appelant nommé |
+
+Tests automatisés : tsc 0, vitest 763/763 (56 fichiers ; +26 : installation
+et activation du worker, réglages lus par le worker, attente du worker
+actif, panneau Sonnerie, écran d'appel sur « open » et au lancement à
+froid).
+
+**Limites honnêtes.** Le bac à sable n'a pas de service de push :
+l'abonnement accepté par le navigateur et la remise réelle d'un push sur un
+téléphone appli fermée ou verrouillée se constatent sur de vrais appareils.
+Sur iPhone, les notifications Web Push exigent l'application ajoutée à
+l'écran d'accueil (iOS 16.4 et plus) ; sur Android, l'autorisation
+« Notifications » du site. Le son de la notification appli fermée est celui
+du système, pas la sonnerie MokNet (limite du Web Push) ; la sonnerie MokNet
+démarre dès que l'écran d'appel s'ouvre. Sonnerie coupée ⇒ la notification
+est aussi sans vibration (`silent` et `vibrate` ne se combinent pas dans le
+navigateur). « La sonnerie n'est perçue que d'un seul côté » : côté
+appelant, le retour d'appel est joué par l'application ouverte (inchangé) ;
+côté appelé appli fermée, tout dépend de l'abonnement de cet appareil — le
+panneau « Hors application » doit afficher « Active ».
+
+**Protocole sur deux téléphones.** (1) Sur chaque téléphone, ouvrir la
+messagerie → « Sonnerie » : « Hors application » doit afficher « Active »
+(sinon « Activer sur cet appareil » et accorder l'autorisation ; sur iPhone,
+d'abord « Ajouter à l'écran d'accueil » et ouvrir l'application depuis
+l'icône). (2) Fermer complètement l'application sur B, ou verrouiller le
+téléphone ; A appelle B : B reçoit la notification « Appel de A » avec le
+son et la vibration du système et les actions Répondre / Refuser ; toucher
+le corps de la notification ouvre l'écran d'appel qui sonne avec
+« Décrocher ». (3) Sur B, couper la sonnerie dans le panneau, rappeler : la
+notification arrive silencieuse ; remettre la sonnerie. (4) B avec
+l'application ouverte : couper la vibration, rappeler : sonnerie sans
+vibration. (5) À relever en base : `push_subscriptions` (une ligne par
+appareil) et `push_delivery_log` (`ok = true` à chaque appel) ; dans le
+navigateur, les lignes `[sw]` et « Service Worker PWA LMAV enregistré ».

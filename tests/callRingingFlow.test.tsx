@@ -109,6 +109,15 @@ vi.mock('../services/calls/ringtoneService', () => ({
     // AU-11 : le composant arme le déverrouillage audio au montage — la
     // doublure doit exposer la fonction, sinon l'appel jette au rendu.
     primeRingtoneAudio: vi.fn(() => () => {}),
+    // Mission SN : le panneau « Sonnerie » lit/écrit les réglages de l'appareil.
+    getRingPreferences: () => ({ ringtoneEnabled: true, vibrationEnabled: true }),
+    setRingPreferences: vi.fn((patch: Record<string, boolean>) => ({ ringtoneEnabled: true, vibrationEnabled: true, ...patch })),
+    subscribeRingPreferences: () => () => {},
+    canVibrateHere: () => false,
+    getRingtones: () => [{ id: 'signature', name: 'Signature MokNet' }],
+    getSelectedRingtoneId: () => 'signature',
+    previewRingtone: vi.fn(async () => {}),
+    stopPreview: vi.fn(),
 }));
 
 vi.mock('../services/supabaseClient', () => ({
@@ -232,7 +241,7 @@ afterEach(() => {
 const noop = () => {};
 
 describe('ChatCallModal — AU-8 : sur téléphone, l’appel occupe tout l’écran', () => {
-    const callCard = (container: HTMLElement) => container.querySelector('.fixed.inset-0.z-\\[210\\] > div') as HTMLElement;
+    const callCard = (container: HTMLElement) => container.querySelector('[data-testid="call-screen"] > div') as HTMLElement;
 
     it('la carte d’appel a une hauteur pleine sur téléphone et ne dépend d’aucune proportion en dessous de 640 px', () => {
         const { container } = render(<ChatCallModal callSession={{ ...baseSession, type: 'video', status: 'connected' }} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
@@ -713,6 +722,40 @@ describe('MoocChatFloating — signaux, multi-appareils (VF-2) et push (VF-1)', 
         expect(signalCalls('call_accepted')).toHaveLength(1);
     });
 
+    it('SN-2b : corps de la notification touché (« open ») sur un appel frais sans écran → l’écran d’appel SONNE (Décrocher visible), rien n’est accepté à l’aveugle', async () => {
+        await renderChat();
+        const payload = { v: 1, type: 'incoming_call', ts: Date.now() - 1500, callId: 'call-open', conversationId: CONV, from: { id: CALLER, name: 'Ivan', avatarUrl: null }, callType: 'audio', reason: null };
+        act(() => { rig.pushHandlers!.onAction('open', payload); });
+        expect(await screen.findByRole('button', { name: 'Décrocher' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: "Refuser l'appel" })).toBeTruthy();
+        expect(screen.getByText('Appel audio entrant…')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Ivan' })).toBeTruthy();
+        expect(rig.startRinging).toHaveBeenCalledTimes(1);
+        expect(signalCalls('call_accepted')).toEqual([]);
+        // L'écran d'appel passe au-dessus de TOUT (boîtes de dialogue du LIVE comprises).
+        expect(screen.getByTestId('call-screen').className).toContain('z-[400]');
+
+        // Le même « open » rejoué n'ouvre pas un second écran ; un appel périmé n'en ouvre aucun.
+        act(() => { rig.pushHandlers!.onAction('open', payload); });
+        act(() => { rig.pushHandlers!.onAction('open', { ...payload, callId: 'call-open-vieux', ts: Date.now() - 50_000 }); });
+        expect(screen.getAllByRole('button', { name: 'Décrocher' })).toHaveLength(1);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Décrocher' }));
+        await waitFor(() => expect(signalCalls('call_accepted')).toEqual([[CALLER, { type: 'call_accepted', callId: 'call-open', conversationId: CONV }]]));
+    });
+
+    it('SN-2b : lancement par le corps de la notification (« open », fenêtre fermée) → conversation ouverte ET écran d’appel qui sonne, avec le nom réel de l’appelant', async () => {
+        rig.service.getConversationsForUser.mockResolvedValue([remoteConversation]);
+        rig.launch = { action: 'open', type: 'incoming_call', callId: 'call-launch-open', conversationId: CONV, fromUserId: CALLER, callType: 'video', ts: Date.now() - 3000 };
+        await renderChat();
+        expect(await screen.findByRole('button', { name: 'Décrocher' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Ivan' })).toBeTruthy();
+        expect(screen.getByText('Appel vidéo entrant…')).toBeTruthy(); // mise en page vidéo : l'appel entrant est nommé, pas « en attente de l'image »
+        expect(screen.getByTitle('Appel Audio')).toBeTruthy(); // la conversation est ouverte derrière l'écran d'appel
+        expect(signalCalls('call_accepted')).toEqual([]);
+        expect(rig.startRinging).toHaveBeenCalled();
+    });
+
     it('lancement par la notification (fenêtre fermée) : conversation ouverte, appel frais accepté avec le nom réel de l’appelant', async () => {
         rig.service.getConversationsForUser.mockResolvedValue([remoteConversation]);
         rig.launch = { action: 'accept', type: 'incoming_call', callId: 'call-launch', conversationId: CONV, fromUserId: CALLER, callType: 'audio', ts: Date.now() - 3000 };
@@ -787,5 +830,37 @@ describe('ChatCallModal — ligne qui se rétablit en boucle (AU-13)', () => {
         rig.state.reconnectCount = 9;
         render(<ChatCallModal callSession={baseSession} localName="Amina" isIncoming onAcceptCall={noop} onRejectCall={noop} onEndCall={noop} />);
         expect(screen.queryByTestId('line-flapping-notice')).toBeNull();
+    });
+});
+
+/**
+ * Mission SN — bouton « Sonnerie » à côté d'« Annuaire » dans la barre de la
+ * fenêtre de messagerie : il ouvre un petit panneau (sonnerie, vibration, état
+ * hors application) et rien d'autre ne change dans la barre.
+ */
+describe('MoocChatFloating — bouton « Sonnerie » (mission SN)', () => {
+    it('placé juste après « Annuaire », il ouvre puis ferme le panneau ; les quatre onglets existants restent intacts', async () => {
+        render(<MoocChatFloating currentUser={me} standalone />);
+        const directory = await screen.findByRole('button', { name: /^Annuaire \(/ });
+        const tab = screen.getByTestId('ringing-tab');
+        expect(directory.nextElementSibling).toBe(tab);
+        expect(tab.textContent).toContain('Sonnerie');
+        expect(tab.getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByTestId('ringing-panel')).toBeNull();
+        const bar = directory.parentElement as HTMLElement;
+        expect(Array.from(bar.children).map((el) => (el.textContent || '').trim().replace(/\s*\(\d+\)$/, ''))).toEqual(['Tout', 'Directs', 'Groupes', 'Annuaire', 'Sonnerie']);
+
+        fireEvent.click(tab);
+
+        expect(tab.getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByTestId('ringing-panel').id).toBe('mooc-chat-ringing-panel');
+        expect(screen.getByRole('switch', { name: 'Sonnerie' })).toBeTruthy();
+        expect(screen.getByRole('switch', { name: 'Vibration' })).toBeTruthy();
+        expect(await screen.findByText('Hors application')).toBeTruthy(); // utilisateur réel (uuid) → état hors application affiché
+
+        fireEvent.click(screen.getByRole('button', { name: 'Fermer le panneau Sonnerie' }));
+        expect(screen.queryByTestId('ringing-panel')).toBeNull();
+        fireEvent.click(tab);
+        expect(screen.getByTestId('ringing-panel')).toBeTruthy();
     });
 });

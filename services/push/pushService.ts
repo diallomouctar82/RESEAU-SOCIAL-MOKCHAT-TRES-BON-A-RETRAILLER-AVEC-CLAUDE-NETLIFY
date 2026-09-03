@@ -259,7 +259,10 @@ export const ensurePushSubscription = async (
 
     const registration = await getServiceWorkerRegistration();
     if (!registration) {
-        return { status: 'error', error: 'Service worker indisponible : notifications push impossibles sur cet appareil.' };
+        // Mission SN : `getServiceWorkerRegistration` a déjà attendu un worker
+        // ACTIF et ré-enregistré /sw.js une fois — s'il rend `null`, aucun
+        // worker n'a pu s'activer sur cet appareil pour l'instant.
+        return { status: 'error', error: 'Service worker inactif : notifications push impossibles pour l’instant (rechargez la page, puis réessayez).' };
     }
 
     try {

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     __resetRingtoneServiceForTests,
+    canVibrateHere,
+    DEFAULT_RING_PREFERENCES,
     DEFAULT_RINGTONE_ID,
+    getRingPreferences,
     getRingtones,
     getSelectedRingtoneId,
     isRingbackActive,
@@ -10,15 +13,21 @@ import {
     MASTER_GAIN,
     previewRingtone,
     primeRingtoneAudio,
+    publishRingPreferencesToServiceWorker,
+    RING_PREFERENCES_CACHE,
+    RING_PREFERENCES_CACHE_URL,
+    RING_PREFERENCES_STORAGE_KEY,
     RINGBACK_GAIN,
     RINGING_TIMEOUT_MS,
     RINGTONE_STORAGE_KEY,
+    setRingPreferences,
     setSelectedRingtoneId,
     startRingback,
     startRinging,
     stopPreview,
     stopRingback,
     stopRinging,
+    subscribeRingPreferences,
     VIBRATION_PATTERN,
 } from '../services/calls/ringtoneService';
 
@@ -139,6 +148,104 @@ afterEach(() => {
     vi.useRealTimers();
     delete (window as any).AudioContext;
     delete (window.navigator as any).vibrate;
+    delete (globalThis as any).caches;
+    window.localStorage.removeItem(RING_PREFERENCES_STORAGE_KEY);
+});
+
+/* ─────── Mission SN : réglages « sonnerie » / « vibration » de l'appareil ─────── */
+
+describe('réglages sonnerie / vibration (mission SN)', () => {
+    it('par défaut tout est activé, et une valeur illisible retombe sur ce défaut', () => {
+        expect(getRingPreferences()).toEqual({ ringtoneEnabled: true, vibrationEnabled: true });
+        expect(DEFAULT_RING_PREFERENCES).toEqual({ ringtoneEnabled: true, vibrationEnabled: true });
+        window.localStorage.setItem(RING_PREFERENCES_STORAGE_KEY, '{corrompu');
+        expect(getRingPreferences()).toEqual({ ringtoneEnabled: true, vibrationEnabled: true });
+        window.localStorage.setItem(RING_PREFERENCES_STORAGE_KEY, JSON.stringify({ ringtoneEnabled: 'non' }));
+        expect(getRingPreferences()).toEqual({ ringtoneEnabled: true, vibrationEnabled: true });
+    });
+
+    it('sonnerie coupée : aucun son, la vibration continue, l’appel « sonne » quand même (état + coupe-circuit)', async () => {
+        setRingPreferences({ ringtoneEnabled: false });
+        const audible = await startRinging();
+        expect(audible).toBe(false);
+        expect(FakeAudioContext.instances).toHaveLength(0); // pas même un contexte audio créé
+        expect(vibrateMock).toHaveBeenCalledWith(VIBRATION_PATTERN);
+        expect(isRinging()).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(RINGING_TIMEOUT_MS);
+        expect(isRinging()).toBe(false);
+        expect(vibrateMock).toHaveBeenCalledWith(0);
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('vibration coupée : la sonnerie joue sans jamais vibrer', async () => {
+        setRingPreferences({ vibrationEnabled: false });
+        const audible = await startRinging();
+        expect(audible).toBe(true);
+        expect(FakeAudioContext.instances[0].oscillators.length).toBeGreaterThan(0);
+        expect(vibrateMock.mock.calls.filter((call) => Array.isArray(call[0]))).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(vibrateMock.mock.calls.filter((call) => Array.isArray(call[0]))).toHaveLength(0);
+        stopRinging();
+    });
+
+    it('les deux coupés : l’appel s’affiche en silence total, et le retour d’appel de l’appelant n’est pas concerné', async () => {
+        setRingPreferences({ ringtoneEnabled: false, vibrationEnabled: false });
+        expect(await startRinging()).toBe(false);
+        expect(vibrateMock.mock.calls.filter((call) => Array.isArray(call[0]))).toHaveLength(0);
+        expect(isRinging()).toBe(true);
+        stopRinging();
+        expect(await startRingback()).toBe(true); // la tonalité côté appelant ne dépend pas du réglage
+        stopRingback();
+    });
+
+    it('un aperçu explicite (« Tester la sonnerie ») joue même si la sonnerie est coupée', async () => {
+        setRingPreferences({ ringtoneEnabled: false });
+        const preview = previewRingtone('signature');
+        await vi.advanceTimersByTimeAsync(50);
+        expect(FakeAudioContext.instances[0].oscillators.length).toBeGreaterThan(0);
+        stopPreview();
+        await preview;
+    });
+
+    it('setRingPreferences persiste, prévient les écouteurs et dépose une copie pour le service worker (Cache API)', async () => {
+        const put = vi.fn(async () => undefined);
+        const open = vi.fn(async () => ({ put }));
+        (globalThis as any).caches = { open };
+        const seen: unknown[] = [];
+        const unsubscribe = subscribeRingPreferences((prefs) => seen.push(prefs));
+
+        const next = setRingPreferences({ vibrationEnabled: false });
+        await vi.runAllTimersAsync();
+
+        expect(next).toEqual({ ringtoneEnabled: true, vibrationEnabled: false });
+        expect(JSON.parse(window.localStorage.getItem(RING_PREFERENCES_STORAGE_KEY) || 'null')).toEqual(next);
+        expect(seen).toEqual([next]);
+        expect(open).toHaveBeenCalledWith(RING_PREFERENCES_CACHE);
+        expect(put).toHaveBeenCalledTimes(1);
+        const [url, response] = put.mock.calls[0] as unknown as [string, Response];
+        expect(url).toBe(RING_PREFERENCES_CACHE_URL);
+        expect(await response.json()).toEqual(next);
+
+        unsubscribe();
+        setRingPreferences({ vibrationEnabled: true });
+        expect(seen).toHaveLength(1);
+    });
+
+    it('sans Cache API (ou si elle refuse) : le réglage vaut quand même pour l’appli ouverte, sans exception', async () => {
+        expect(await publishRingPreferencesToServiceWorker()).toBe(false);
+        (globalThis as any).caches = { open: vi.fn(async () => { throw new Error('SecurityError'); }) };
+        expect(await publishRingPreferencesToServiceWorker()).toBe(false);
+        setRingPreferences({ ringtoneEnabled: false });
+        await vi.runAllTimersAsync();
+        expect(getRingPreferences().ringtoneEnabled).toBe(false);
+    });
+
+    it('canVibrateHere reflète navigator.vibrate (absent sur iPhone)', () => {
+        expect(canVibrateHere()).toBe(true);
+        delete (window.navigator as any).vibrate;
+        expect(canVibrateHere()).toBe(false);
+    });
 });
 
 /* ─────────────────────────────── Catalogue ─────────────────────────────── */

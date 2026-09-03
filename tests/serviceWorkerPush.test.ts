@@ -82,10 +82,10 @@ function loadServiceWorker() {
         clients,
         skipWaiting: vi.fn(async () => undefined),
     };
-    const cacheStore = { addAll: vi.fn(async () => undefined), put: vi.fn() };
+    const cacheStore = { addAll: vi.fn(async () => undefined), put: vi.fn(), match: vi.fn(async (_key: string) => undefined as Response | undefined) };
     const caches = {
         open: vi.fn(async () => cacheStore),
-        keys: vi.fn(async () => ['lmav-app-v6.4.1', 'lmav-app-v6.5.0', 'autre-cache']),
+        keys: vi.fn(async () => ['lmav-app-v6.4.1', 'lmav-app-v6.5.0', 'lmav-app-v6.6.0', 'lmav-ring-prefs-v1', 'autre-cache']),
         delete: vi.fn(async () => true),
         match: vi.fn(async () => undefined),
     };
@@ -113,7 +113,14 @@ function loadServiceWorker() {
         await Promise.all(pending);
     }
 
-    return { dispatch, listeners, registration, clients, windowClients, notifications, subscribe, caches, cacheStore, fetchMock, consoleMock };
+    return { dispatch, listeners, registration, clients, windowClients, notifications, subscribe, caches, cacheStore, fetchMock, consoleMock, self };
+}
+
+/** Mission SN : dépose des réglages « sonnerie / vibration » comme le fait la page (Cache API). */
+function storeRingPreferences(sw: ReturnType<typeof loadServiceWorker>, prefs: unknown) {
+    sw.cacheStore.match.mockImplementation(async (key: string) =>
+        key === '/__moknet/ring-preferences' ? new Response(JSON.stringify(prefs)) : undefined,
+    );
 }
 
 const pushEvent = (payload: unknown, options: { invalidJson?: boolean } = {}) => ({
@@ -140,25 +147,39 @@ const incomingCall = (overrides: Record<string, unknown> = {}) => ({
 /* ───────────────────────────── Cache existant ──────────────────────────── */
 
 describe('cache (comportement historique conservé)', () => {
-    it('version de cache montée à lmav-app-v6.5.0, précache de /metadata.json, skipWaiting', async () => {
-        expect(SW_SOURCE).toMatch(/const CACHE_NAME = 'lmav-app-v6\.5\.0'/);
+    it('version de cache montée à lmav-app-v6.6.0, installation SANS précache obligatoire, skipWaiting', async () => {
+        expect(SW_SOURCE).toMatch(/const CACHE_NAME = 'lmav-app-v6\.6\.0'/);
         const sw = loadServiceWorker();
         expect([...sw.listeners.keys()]).toEqual(
             expect.arrayContaining(['install', 'activate', 'fetch', 'push', 'notificationclick', 'pushsubscriptionchange']),
         );
 
         await sw.dispatch('install', {});
-        expect(sw.caches.open).toHaveBeenCalledWith('lmav-app-v6.5.0');
-        expect(sw.cacheStore.addAll).toHaveBeenCalledWith(['/metadata.json']);
-        expect(sw.registration).toBeDefined();
+        expect(sw.caches.open).toHaveBeenCalledWith('lmav-app-v6.6.0');
+        // Mission SN : plus AUCUN fichier n'est exigé à l'installation — le
+        // précache de /metadata.json (404 en production) faisait échouer
+        // l'installation, donc jamais de worker actif, donc jamais de push.
+        expect(sw.cacheStore.addAll).not.toHaveBeenCalled();
+        expect(sw.fetchMock).not.toHaveBeenCalled();
+        expect(sw.self.skipWaiting).toHaveBeenCalledTimes(1);
     });
 
-    it('activate purge les anciens caches (et seulement eux) puis prend le contrôle des pages', async () => {
+    it('mission SN : même un cache inaccessible ne fait pas échouer l’installation (skipWaiting quand même, sans exception)', async () => {
+        const sw = loadServiceWorker();
+        sw.caches.open.mockRejectedValueOnce(new Error('QuotaExceededError'));
+        await expect(sw.dispatch('install', {})).resolves.toBeUndefined();
+        expect(sw.self.skipWaiting).toHaveBeenCalledTimes(1);
+        expect(sw.consoleMock.warn).toHaveBeenCalled();
+    });
+
+    it('activate purge les anciens caches (et seulement eux) puis prend le contrôle des pages — le cache des réglages de sonnerie survit', async () => {
         const sw = loadServiceWorker();
         await sw.dispatch('activate', {});
         expect(sw.caches.delete).toHaveBeenCalledWith('lmav-app-v6.4.1');
+        expect(sw.caches.delete).toHaveBeenCalledWith('lmav-app-v6.5.0');
         expect(sw.caches.delete).toHaveBeenCalledWith('autre-cache');
-        expect(sw.caches.delete).not.toHaveBeenCalledWith('lmav-app-v6.5.0');
+        expect(sw.caches.delete).not.toHaveBeenCalledWith('lmav-app-v6.6.0');
+        expect(sw.caches.delete).not.toHaveBeenCalledWith('lmav-ring-prefs-v1');
         expect(sw.clients.claim).toHaveBeenCalledTimes(1);
     });
 
@@ -348,6 +369,53 @@ describe('push', () => {
         sw.registration.showNotification.mockRejectedValue(new TypeError('actions non supportées'));
         await expect(sw.dispatch('push', pushEvent(incomingCall()))).resolves.toBeUndefined();
         expect(sw.consoleMock.warn).toHaveBeenCalled();
+    });
+});
+
+/* ──────────── Mission SN : réglages sonnerie / vibration honorés ──────────── */
+
+describe('push — réglages « Sonnerie » de l’appareil (mission SN)', () => {
+    it('sonnerie coupée → notification d’appel toujours affichée, mais silencieuse et sans motif de vibration (le navigateur interdit les deux ensemble)', async () => {
+        const sw = loadServiceWorker();
+        storeRingPreferences(sw, { ringtoneEnabled: false, vibrationEnabled: true });
+        await sw.dispatch('push', pushEvent(incomingCall()));
+        expect(sw.caches.open).toHaveBeenCalledWith('lmav-ring-prefs-v1');
+        expect(sw.registration.showNotification).toHaveBeenCalledTimes(1);
+        const [, options] = sw.registration.showNotification.mock.calls[0];
+        expect(options.silent).toBe(true);
+        expect(options.vibrate).toBeUndefined();
+        expect(options).toMatchObject({ requireInteraction: true, renotify: true, tag: 'call-call-42' });
+        expect(options.actions).toHaveLength(2);
+    });
+
+    it('vibration coupée (sonnerie active) → notification sonore sans motif de vibration', async () => {
+        const sw = loadServiceWorker();
+        storeRingPreferences(sw, { ringtoneEnabled: true, vibrationEnabled: false });
+        await sw.dispatch('push', pushEvent(incomingCall()));
+        const [, options] = sw.registration.showNotification.mock.calls[0];
+        expect(options.silent).toBeUndefined();
+        expect(options.vibrate).toBeUndefined();
+    });
+
+    it('réglages illisibles ou absents → sonnerie ET vibration, comme avant (jamais une notification perdue)', async () => {
+        const sw = loadServiceWorker();
+        sw.cacheStore.match.mockImplementation(async () => new Response('{pas du json'));
+        await sw.dispatch('push', pushEvent(incomingCall()));
+        expect(sw.registration.showNotification).toHaveBeenCalledTimes(1);
+        expect(sw.registration.showNotification.mock.calls[0][1].vibrate).toEqual([300, 150, 300, 800, 300, 150, 300]);
+
+        sw.caches.open.mockRejectedValueOnce(new Error('cache indisponible'));
+        await sw.dispatch('push', pushEvent(incomingCall({ callId: 'call-43' })));
+        expect(sw.registration.showNotification).toHaveBeenCalledTimes(2);
+        expect(sw.registration.showNotification.mock.calls[1][1].vibrate).toEqual([300, 150, 300, 800, 300, 150, 300]);
+    });
+
+    it('les réglages ne concernent que l’appel entrant : une demande d’ami vibre brièvement quoi qu’il arrive', async () => {
+        const sw = loadServiceWorker();
+        storeRingPreferences(sw, { ringtoneEnabled: false, vibrationEnabled: false });
+        await sw.dispatch('push', pushEvent({ v: 1, type: 'friend_request', ts: Date.now(), from: { id: 'user-c', name: 'Mariama' } }));
+        expect(sw.notifications[0].options.vibrate).toEqual([200, 100, 200]);
+        expect(sw.notifications[0].options.silent).toBeUndefined();
     });
 });
 

@@ -3,7 +3,7 @@ import {
   MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall,
   PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2,
   Sparkles, Pin, ShieldAlert, ArrowLeft, CheckCheck, UserPlus, MoreVertical,
-  Maximize2, Minimize2, Eye, Wand2, Languages
+  Maximize2, Minimize2, Eye, Wand2, Languages, BellRing
 } from 'lucide-react';
 import { ChatConversation, ChatMessage, MemberProfile, UserProfile, ActiveCallSession } from '../types';
 import { MOCK_CHATS, MOCK_MEMBERS, USER_PROFILE } from '../constants';
@@ -28,6 +28,8 @@ import { ConversationHeader } from './chat/ConversationHeader';
 import { MessagingOwnerCard } from './chat/MessagingOwnerCard';
 import { InitialsAvatar } from './ui/InitialsAvatar';
 import { MessagingDropButton } from './chat/MessagingDropButton';
+import { RingingPanel } from './chat/RingingPanel';
+import { isRealUserId } from '../hooks/usePushNotifications';
 import { findModuleById } from '../modules/moduleRegistry';
 import { getInstallState, promptInstall } from '../services/modules/installPrompt';
 
@@ -271,6 +273,8 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 
   const [currentChatId, setCurrentChatId] = useState<string | null>(activeConversationId || null);
   const [activeTab, setActiveTab] = useState<'all' | 'direct' | 'groups' | 'members'>('all');
+  // Mission SN : panneau « Sonnerie » (bouton à côté d'« Annuaire »).
+  const [isRingingPanelOpen, setIsRingingPanelOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Replying state
@@ -1571,6 +1575,21 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
         setCurrentChatId(payload.conversationId);
         setIsOpen(true);
       }
+      // Mission SN-2b : toucher le CORPS de la notification « Appel de X » (le
+      // geste normal sur téléphone — les boutons Répondre/Refuser y sont
+      // repliés) arrive ici comme « open ». N'ouvrir que la conversation
+      // laissait la personne devant un fil de messages, sans aucun
+      // « Décrocher » : l'écran d'appel n'existait pas encore si le signal
+      // temps réel s'était perdu (onglet en arrière-plan, appli rouverte).
+      // Un appel entrant encore frais fait donc SONNER l'écran d'appel —
+      // Décrocher / Refuser visibles — exactement comme une invitation.
+      if (payload.type === 'incoming_call' && !current && isFreshCallPayload(payload)) {
+        const session = sessionFromPushPayload(payload, { id: me.id, name: me.name, avatarUrl: me.avatarUrl }, Date.now());
+        if (session && dedupeCallId(seenCallIdsRef.current, session.callId)) {
+          setActiveCallSession(session);
+          setIsIncomingCall(true);
+        }
+      }
       return;
     }
     if (sameCall) {
@@ -1594,6 +1613,10 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
    * réelle chargée (nom et avatar réels de l'appelant), on ouvre la
    * conversation puis on sonne/décroche/refuse selon l'action. Un appel
    * périmé (> 40 s) n'est jamais « accepté » dans le vide : message honnête.
+   * Mission SN-2b : « open » (corps de la notification touché) sur un appel
+   * entrant encore frais fait SONNER l'écran d'appel — Décrocher / Refuser
+   * visibles dès l'ouverture — au lieu de laisser la personne devant la seule
+   * conversation, sans savoir où décrocher.
    */
   const runPushLaunch = async (launch: PushLaunch, conv: ChatConversation | undefined) => {
     const me = currentUserRef.current;
@@ -1602,7 +1625,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       setCurrentChatId(convId);
       setIsOpen(true);
     }
-    if (launch.action === 'open' || launch.type !== 'incoming_call') return;
+    if (launch.type !== 'incoming_call') return;
     const callerId = launch.fromUserId && isLikelyRealId(launch.fromUserId) ? launch.fromUserId : conv?.participantId;
     if (!launch.callId || !convId || !callerId || !isLikelyRealId(callerId) || !isLikelyRealId(me?.id)) return;
     if (launch.ts === null || !isFreshCallPayload({ ts: launch.ts })) {
@@ -1634,7 +1657,12 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
       origin: 'push_launch',
     };
     if (launch.action === 'accept') acceptCall(session);
-    else rejectCall(session);
+    else if (launch.action === 'reject') rejectCall(session);
+    else {
+      // « open » : l'écran d'appel sonne, la personne décroche ou refuse ici.
+      setActiveCallSession(session);
+      setIsIncomingCall(true);
+    }
   };
 
   // Les écouteurs (signaux Supabase, canal inter-onglets, service worker)
@@ -2063,7 +2091,27 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
                     >
                       Annuaire ({MOCK_MEMBERS.length})
                     </button>
+                    {/* Mission SN : bouton « Sonnerie » → petit panneau (sonnerie,
+                        vibration, état hors application), branché aux réglages
+                        existants (ringtoneService + pushService). */}
+                    <button
+                      type="button"
+                      onClick={() => setIsRingingPanelOpen((open) => !open)}
+                      aria-expanded={isRingingPanelOpen}
+                      aria-controls="mooc-chat-ringing-panel"
+                      data-testid="ringing-tab"
+                      className={`shrink-0 px-2.5 py-1.5 rounded-lg transition-all inline-flex items-center gap-1 ${isRingingPanelOpen ? 'bg-white text-indigo-700 shadow-xs' : 'hover:text-slate-900'}`}
+                    >
+                      <BellRing size={13} aria-hidden="true" /> Sonnerie
+                    </button>
                   </div>
+                  {isRingingPanelOpen && (
+                    <RingingPanel
+                      userId={isRealUserId(currentUser.id) ? currentUser.id : null}
+                      ringtoneId={profileRingtoneId}
+                      onClose={() => setIsRingingPanelOpen(false)}
+                    />
+                  )}
                 </div>
 
                 {/* List Items */}
@@ -2475,7 +2523,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           derrière `isOpen` (le widget de chat peut rester fermé) ni derrière
           une conversation ouverte. MoocChatFloating étant monté en permanence
           par Layout, un appel entrant s'affiche donc au-dessus de TOUTE page
-          de l'app (z-[210] dans ChatCallModal), photo et nom réels de
+          de l'app (z-[400] dans ChatCallModal), photo et nom réels de
           l'appelant inclus, sans jamais devoir ouvrir la messagerie. */}
       {activeCallSession && (
         <ChatCallModal
@@ -2510,7 +2558,7 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
           n'a plus d'objet (« Cet appel a expiré. ») — au-dessus de tout,
           effacé seul après 6 s. */}
       {callNotice && (
-        <div role="status" className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[212] px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs font-bold shadow-2xl border border-white/10 flex items-center gap-2">
+        <div role="status" className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[402] px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs font-bold shadow-2xl border border-white/10 flex items-center gap-2">
           <PhoneOff size={14} className="text-rose-300" />
           <span>{callNotice}</span>
         </div>
