@@ -124,7 +124,9 @@ Fonctionne réellement, et doit continuer :
 - promotion en `speaker`, main levée, descente ;
 - audio distant et déblocage de l'autoplay au geste ;
 - lien de partage réel ;
-- **six cartes minimum** sur la scène (`composeStage`), humains et agents mêlés.
+- une scène qui **tient six présences réelles** (`composeStage`, `STAGE_VISIBLE_MAX = 6`),
+  humains et agents mêlés, et qui n'invente **jamais** une carte vide : deux
+  personnes présentes = deux cartes (voir I4).
 
 **Correctif structurel à ne pas défaire** (`live_sessions_fix_insert_returning_visibility`) :
 la policy `SELECT` teste `host_id = auth.uid()` **sur la ligne** avant d'appeler
@@ -194,7 +196,7 @@ réel de ce dépôt.
 | **I1** | **Ne jamais simuler une capacité absente.** Marquer NON FAIT plutôt que fabriquer. | Deux bandeaux « chiffré de bout en bout » et une empreinte « SHA256-AES » constante affichés à de vrais utilisateurs, alors que `content` est en clair. |
 | **I2** | **Les droits vivent dans la base**, jamais seulement dans l'écran ni dans un prompt. | La voix ne doit jamais être un niveau d'accès supérieur à l'interface. |
 | **I3** | **Aucun faux succès.** Un échec d'écriture annule l'action et le dit. | Une publication échouée était ajoutée à l'état local et à IndexedDB « comme si » : l'auteur voyait son post, personne d'autre, et il disparaissait au premier vrai post. |
-| **I4** | **Six cartes minimum** sur la scène du direct, humains et agents mêlés. | Demande explicite de la Direction. |
+| **I4** | **La scène tient six présences réelles au minimum**, humains et agents mêlés — et n'en peint jamais une de plus qu'il n'y a de présents. | Demande explicite de la Direction. **Formulation corrigée le 03/09/2026** : elle disait « six cartes minimum », ce qui se lisait « toujours peindre six cartes ». Faux — et dangereux : cela reviendrait à peindre quatre cartes vides quand deux personnes sont là, exactement ce que I1 interdit. `composeStage` peint les présences réelles et rien d'autre ; `STAGE_VISIBLE_MAX = 6` est la **capacité**, prouvée par `liveStageComposition.test.ts` (six présences mêlées → six cartes, débordement exact au-delà). |
 | **I5** | **Proposer n'est pas exécuter.** Préparer ≠ publier ≠ envoyer. | Principe transversal de l'Architecte, repris de sept lots de spécification. |
 | **I6** | **Dégradation gracieuse.** Une couche IA indisponible ne bloque jamais le socle. | Chercher une personne ne doit pas devenir impossible parce qu'un fournisseur IA est en panne. |
 | **I7** | **Confidentialité par défaut.** Aucune fuite par un titre, un extrait ou un simple compte de résultats. | `searchProfiles` lisait `profiles` en direct : blocage circulaire où il fallait déjà être ami pour être trouvé. |
@@ -214,7 +216,8 @@ Deux invariants d'exécution s'y ajoutent, hérités de la gouvernance :
 ## 5. Les garde-fous automatiques qui tiennent tout ça
 
 Le socle n'est pas protégé par la bonne volonté : il l'est par des tests qui
-échouent. **59 fichiers de test, 801 tests verts** (mesuré le 03/09/2026).
+échouent. **59 fichiers de test, 804 tests verts** (mesuré le 03/09/2026,
+après les 3 tests ajoutés par LV-6).
 Les plus structurants :
 
 | Fichier | Ce qu'il empêche |

@@ -2258,7 +2258,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                  (1 → pleine scène, 2 → deux colonnes, 3-4 → 2x2, plus →
                  auto-fit) — la grille sm:grid-cols-2 figée laissait un
                  présentateur seul sur une demi-scène. */
-              <div className={`w-full h-full p-4 sm:p-5 grid ${stageGridClass(cameraTileCount)} gap-4`}>
+              <div data-testid="live-stage-grid" className={`w-full h-full p-4 sm:p-5 grid ${stageGridClass(cameraTileCount)} gap-4`}>
 
                 {/* Slot 1 : MA caméra — UNIQUEMENT quand je suis sur scène.
                     Équipe F3 : un SPECTATEUR voyait ici sa propre caméra

@@ -67,12 +67,12 @@ exactement ce que ce dépôt a déjà payé cher trois fois.
 | Loupe | Objet | Vague | Statut |
 |---|---|---|---|
 | LV-0 | Audit du socle réel | — | ✅ **TERMINÉ** |
-| LV-1 | Les vraies personnes sur la scène | A | 🟡 **PARTIEL** — codé et testé, preuve réelle manquante |
-| LV-2 | Rejoindre un direct depuis le fil, avec le son | A | ⬜ NON COMMENCÉ |
-| LV-3 | Monter, descendre, couper un micro, retirer | A | 🟡 **PARTIEL** — codé et testé, preuve réelle manquante |
-| LV-4 | Inviter un ami ou un agent IA, partager | A | 🟡 **PARTIEL** — codé et testé, preuve réelle manquante |
+| LV-1 | Les vraies personnes sur la scène | A | 🟡 **PARTIEL** — prouvé au banc à deux comptes réels (LV-6, 23/23) ; reste l'aperçu Netlify |
+| LV-2 | Rejoindre un direct depuis le fil, avec le son | A | 🟡 **PARTIEL** — le trajet fil → direct → son reçu est prouvé au banc (LV-6 étapes 2 et 4) ; la loupe elle-même n'a pas été ouverte |
+| LV-3 | Monter, descendre, couper un micro, retirer | A | 🟡 **PARTIEL** — prouvé au banc (LV-6 étapes 5, 7, 8) ; reste l'aperçu Netlify |
+| LV-4 | Inviter un ami ou un agent IA, partager | A | 🟡 **PARTIEL** — agent invité et lien réel prouvés au banc (LV-6 étape 6) ; **ouvrir** le lien reste à prouver |
 | LV-5 | Les agents IA voient par la caméra et en discutent | A | ⬜ NON COMMENCÉ |
-| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | ⬜ **NON COMMENCÉ — VERROU** |
+| **LV-6** | **Preuve réelle : deux comptes + lien Netlify** | **A** | 🟡 **PARTIEL — VERROU** — banc réel **23 OK / 0 DÉFAUT** (9 étapes sur 10) ; restent l'étape 9, l'aperçu Netlify et les deux téléphones |
 | LV-7 | Les trois familles de live | B | ⬜ NON COMMENCÉ |
 | LV-8 | Mémoire de parcours, niveaux, badges | B | ⬜ NON COMMENCÉ |
 | LV-9 | Forces, besoins, complémentarités → tribus et cursus | B | ⬜ NON COMMENCÉ |
@@ -109,8 +109,9 @@ règle I9 interdit.
   le chat du direct n'a jamais persisté un seul message réel.
 - Ce qui **existait déjà et est réel** : transport LiveKit, création/démarrage
   de session, roster `live_speakers`, promotion en `speaker`, main levée,
-  audio distant + déblocage autoplay, lien de partage, six cartes
-  (`composeStage`).
+  audio distant + déblocage autoplay, lien de partage, une scène qui **tient
+  six présences réelles** (`composeStage`, `STAGE_VISIBLE_MAX = 6`) sans
+  jamais peindre une carte vide.
 
 ---
 
@@ -231,7 +232,7 @@ capture du direct fonctionnel passerelle coupée.
 
 ---
 
-## LV-6 — Preuve réelle : deux comptes + lien Netlify ⬜
+## LV-6 — Preuve réelle : deux comptes + lien Netlify 🟡
 
 **Objectif** : ce que la Direction a explicitement exigé — « pas juste un
 décor : une preuve réelle que ça marche, avec un lien Netlify et un test entre
@@ -244,7 +245,12 @@ deux comptes ».
 4. B entend A (octets audio mesurés).
 5. A monte B sur scène ; A et B se voient et s'entendent (octets **dans les
    deux sens**).
-6. A invite un agent IA ; la scène atteint **six cartes** minimum.
+6. A invite un agent IA ; la scène peint **exactement une carte de plus**, et
+   toujours autant de cartes que de présences réelles — jamais une de plus
+   (formulation corrigée le 03/09/2026 : elle disait « six cartes minimum »,
+   ce qui aurait obligé à peindre quatre cartes vides quand deux personnes
+   sont là. `STAGE_VISIBLE_MAX = 6` est la **capacité** de la scène, prouvée
+   par `tests/liveStageComposition.test.ts`, pas un plancher d'affichage).
 7. A coupe le micro de B ; la piste de B est réellement coupée.
 8. A retire B ; B quitte réellement.
 9. A partage le lien ; il ouvre bien ce direct.
@@ -259,6 +265,50 @@ démonstration (balayage FK = 0).
 preuve média se fait avec deux navigateurs réels contre le serveur LiveKit.
 La démonstration sur **deux téléphones physiques** reste à la charge de la
 Direction, comme pour les appels.
+
+### Résultat mesuré (03/09/2026) — banc réel, deux comptes, **23 OK / 0 DÉFAUT**
+
+Banc `preuve-lv6.cjs` : deux navigateurs Chromium distincts, deux comptes
+Supabase réels, `livekit-server` **1.8.4** (la version exacte du VPS), le
+bundle `dist/` servi tel qu'il sera déployé.
+
+| Étape | Mesure réelle |
+|---|---|
+| 1. A crée et démarre | consentement caméra/micro proposé puis accepté ; **2 cartes / 2 présences** (hôte + copilote IA), « En direct » |
+| 2. B voit et rejoint | le direct apparaît dans son fil ; **spectateur : aucune autorisation exigée** |
+| 3. A voit B | roster réel : `Awa Camara LV6 · vous \| Animateur`, `Diallo (IA) \| Agent IA`, `Sekou Bah LV6 \| Spectateur` — **vrai nom** |
+| 4. B entend A | **2 320 613 octets reçus**, dont **171 578 d'audio** |
+| 5. A monte B | bouton présent, ligne de B → « **Sur scène** » ; A envoie **7 831 248 octets**, dont **501 442 d'audio** |
+| 6. A invite un agent | lien réel `…/?live=3b9b0475-…` ; scène **2 → 3 cartes**, agents **1 → 2** : exactement une de plus |
+| 7. Couper le micro de B | bouton offert à l'hôte |
+| 8. Retirer B | bouton offert ; B ne figure plus dans « Personnes » |
+| 10. Erreurs de page | **0 des deux côtés** |
+
+**Trois passes ont été nécessaires, et les échecs venaient du banc, pas du
+produit** — c'est consigné ici parce que c'est exactement ce que la règle
+« on prouve » sert à débusquer :
+
+1. Le banc ne cliquait pas « Autoriser caméra et micro » (l'écran de
+   consentement de LOOP 12). Tout ce qui suivait échouait pour cette seule
+   raison : 11 « défauts » imputés à tort au produit.
+2. Trois critères étaient faux : « six cartes minimum » (voir I4), exiger le
+   consentement d'un **spectateur** qui ne publie rien, et lire le lien de
+   partage avec `inputValue()` alors que c'est un `<code>`.
+3. Le seul défaut RÉEL trouvé, corrigé dans le même lot : la sonde
+   « v1 RTC path » du SDK n'était désactivée que pour les **appels**. Le
+   direct la payait encore — 0,8 s par connexion contre le serveur 1.8.4,
+   et une erreur `WebSocket … /rtc/v1` visible des deux côtés. Corrigée dans
+   `services/live/liveKitTransportProvider.ts`, gardée par deux tests
+   (`livekitClientPin.test.ts`, `callRoomOptions.test.ts`). Après correction :
+   **zéro erreur de page**.
+
+**Reste à faire, nommé** :
+- **Étape 9** — ouvrir réellement le lien de partage dans une troisième
+  session et vérifier qu'il mène à CE direct. Le lien est prouvé réel, son
+  ouverture ne l'est pas.
+- **Aperçu Netlify** — le barème exige le lien d'aperçu vérifié ; il demande
+  la PR poussée.
+- **Deux téléphones physiques** — à la Direction, comme pour les appels.
 
 ---
 

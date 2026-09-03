@@ -59,10 +59,25 @@ describe('options de la room selon le profil (AU-8)', () => {
         expect(options.singlePeerConnection).toBe(false);
     });
 
-    it('LIVE : le flux adaptatif reste ACTIVÉ — des dizaines de vignettes, dont beaucoup hors écran ; options du SDK inchangées', async () => {
+    it('LIVE : le flux adaptatif reste ACTIVÉ — des dizaines de vignettes, dont beaucoup hors écran', async () => {
         const options = await connecter();
         expect(options.adaptiveStream).toBe(true);
         expect(options.dynacast).toBe(true);
-        expect(options.singlePeerConnection).toBeUndefined();
+    });
+
+    /**
+     * LV-6 — correction d'un partage de réglage trop étroit.
+     *
+     * Ce test exigeait auparavant `singlePeerConnection === undefined` pour le
+     * LIVE, au motif que le réglage était « spécifique aux appels ». Il ne
+     * l'est pas : il tient au SERVEUR (1.8.4 ne connaît pas le chemin « v1 »),
+     * et le banc LV-6 a relevé la même erreur `WebSocket … /rtc/v1` des deux
+     * côtés d'un direct — donc les mêmes 0,8 s perdus avant le premier octet.
+     * Ce qui reste bien propre aux appels, et que le test ci-dessus continue
+     * de garder, c'est `adaptiveStream`/`dynacast`.
+     */
+    it('LIVE (mission LV-6) : la sonde « v1 RTC path » est désactivée là aussi — la raison tient au serveur, pas au type de session', async () => {
+        const options = await connecter();
+        expect(options.singlePeerConnection).toBe(false);
     });
 });

@@ -1121,3 +1121,62 @@ Chaque décision respecte le formalisme strict suivant :
   de tout ce qui suit.
 
 ---
+
+### [DEC-2026-045] — 3 Septembre 2026
+
+* **Module(s)** : `LIVE`, `Transport LiveKit`, `Tests`
+* **Problème / Besoin initial** : LV-6 est le **verrou** de la vague A de la
+  feuille de route LIVE — « pas juste un décor : une preuve réelle que ça
+  marche, avec un test entre deux comptes ». LV-1, LV-3 et LV-4 étaient codés
+  et testés unitairement, mais **personne n'avait jamais vu deux personnes
+  réelles se voir sur la scène**. Tant que cette preuve manquait, tout ce qui
+  se construisait au-dessus reposait sur une hypothèse.
+* **Idées envisagées** :
+  1. Déclarer les loupes TERMINÉES sur la foi des tests unitaires — **rejeté** :
+     contraire à la règle du 30/08 (TERMINÉ seulement si DÉMONTRÉ).
+  2. Attendre la validation sur deux téléphones — **rejeté comme préalable** :
+     cela bloque tout le reste sur une action qui n'est pas la nôtre.
+  3. **Retenu** : un banc à deux navigateurs réels contre le binaire
+     `livekit-server` **1.8.4** — la version exacte du VPS —, en mesurant les
+     octets WebRTC réels, puis nommer précisément ce qui reste.
+* **Décision** : LV-6 prouvé au banc à **23 OK / 0 DÉFAUT** sur 9 des 10
+  étapes. Média réel mesuré dans les deux sens : B reçoit **2 320 613 octets**
+  (dont 171 578 d'audio), A envoie **7 831 248 octets** (dont 501 442
+  d'audio). Roster réel avec les vrais noms, promotion en « Sur scène »,
+  boutons couper/retirer, lien de partage réel, **zéro erreur de page**.
+* **Le seul défaut RÉEL du produit, trouvé et corrigé** : la sonde
+  « v1 RTC path » du SDK n'était désactivée que pour les **appels**
+  (`audioProfile === 'call'`). Le réglage avait été groupé en LT-1 avec
+  `adaptiveStream`/`dynacast`, qui sont bien spécifiques aux appels — alors
+  que sa raison tient au **serveur** (1.8.4 ne connaît pas le chemin « v1 »),
+  pas au type de session. Le direct payait donc encore 0,8 s par connexion et
+  affichait une erreur `WebSocket … /rtc/v1` des deux côtés. Corrigé dans
+  `services/live/liveKitTransportProvider.ts` ; `adaptiveStream`/`dynacast`
+  restent activés pour le LIVE, où ils gardent tout leur sens.
+* **Trois « défauts » qui n'en étaient pas — et ce qu'ils enseignent** :
+  le banc ne cliquait pas l'écran de consentement caméra/micro de LOOP 12
+  (11 échecs imputés à tort au produit), exigeait ce même consentement d'un
+  **spectateur** qui ne publie rien, et lisait le lien de partage avec
+  `inputValue()` alors que c'est un `<code>`. **Un banc faux accuse le produit
+  à tort** : chaque défaut a été instruit avant d'être imputé.
+* **Invariant I4 reformulé** : il disait « six cartes minimum », ce qui se
+  lisait « toujours peindre six cartes » — faux et dangereux, cela reviendrait
+  à peindre quatre cartes vides quand deux personnes sont là, exactement ce que
+  I1 interdit. `STAGE_VISIBLE_MAX = 6` est la **capacité** de la scène,
+  prouvée par `tests/liveStageComposition.test.ts`, pas un plancher.
+* **Éléments techniques** : `services/live/liveKitTransportProvider.ts`
+  (`singlePeerConnection: false` pour le LIVE), `components/SocialLive.tsx`
+  (`data-testid="live-stage-grid"`, ancrage de test stable — aucun changement
+  de comportement), `tests/livekitClientPin.test.ts` (+2 garde-fous),
+  `tests/callRoomOptions.test.ts` (garde AU-8 resserrée sur son vrai sujet),
+  `docs/LIVE_INTELLIGENT_VALIDATION.md`, `docs/LIVE_SOCLE_EXISTANT.md`.
+* **Statut** : `Développé`, `Testé` — tsc 0, **804 tests verts (59 fichiers)**,
+  build propre, banc réel 23/23.
+* **Restes assumés, nommés** : l'**étape 9** (ouvrir réellement le lien de
+  partage dans une troisième session — le lien est prouvé réel, son ouverture
+  ne l'est pas), l'**aperçu Netlify** exigé par le barème, et la démonstration
+  sur **deux téléphones physiques**, qui reste à la Direction comme pour les
+  appels. LV-1, LV-3 et LV-4 restent donc `PARTIEL` : il ne leur manque plus
+  que l'aperçu.
+
+---
