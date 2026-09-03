@@ -43,7 +43,7 @@ vi.mock('../services/calls/pcmSegmenter', async (importOriginal) => {
     return { ...real, PcmSegmenter: FakePcmSegmenter, blobToWav16kMono: rig.wavFromBlob };
 });
 
-const { ServerCaptioner, transcribeVoiceRecording, STT_REQUEST_TIMEOUT_MS, MAX_QUEUED_SEGMENTS } = await import('../services/calls/callInterpreter');
+const { ServerCaptioner, transcribeVoiceRecording, STT_REQUEST_TIMEOUT_MS, MAX_QUEUED_SEGMENTS, STT_COOLDOWNS_MS } = await import('../services/calls/callInterpreter');
 
 const liveTrack = () => ({ readyState: 'live', addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaStreamTrack);
 
@@ -197,23 +197,58 @@ describe('ServerCaptioner — transcription serveur de ma voix', () => {
         expect(rig.transcribe).toHaveBeenCalledTimes(1);
     });
 
-    it('3 échecs consécutifs → indisponible, arrêt, plus aucune requête', async () => {
+    it('Mission VT — 3 échecs consécutifs → PAUSE (8 s) puis nouvel essai, jamais un abandon définitif ; retour signalé', async () => {
+        expect(STT_COOLDOWNS_MS).toEqual([8000, 16000, 30000]);
         rig.transcribe.mockRejectedValue(new Error('Aucun fournisseur actif et configuré pour cette catégorie.'));
         const onUnavailable = vi.fn();
+        const onDegraded = vi.fn();
+        const onRecovered = vi.fn();
         const onFinal = vi.fn();
-        const captioner = new ServerCaptioner({ getTrack: liveTrack, onFinal, onUnavailable });
+        const captioner = new ServerCaptioner({ getTrack: liveTrack, onFinal, onUnavailable, onDegraded, onRecovered });
         captioner.start();
         await vi.advanceTimersByTimeAsync(10);
         const segmenter = rig.segmenters[0];
         for (let i = 0; i < 3; i++) { segmenter.emit(); await flush(); }
         expect(rig.transcribe).toHaveBeenCalledTimes(3);
-        expect(onUnavailable).toHaveBeenCalledTimes(1);
-        expect(onUnavailable.mock.calls[0][0]).toMatch(/Transcription serveur indisponible \(Aucun fournisseur actif/);
-        expect(segmenter.stopped).toBe(true);
-        segmenter.emit();
-        await flush();
+        expect(onUnavailable).not.toHaveBeenCalled(); // plus jamais « indisponible » pour une panne de passerelle
+        expect(onDegraded).toHaveBeenCalledTimes(1);
+        expect(onDegraded.mock.calls[0][0]).toMatch(/Transcription serveur en difficulté \(Aucun fournisseur actif/);
+        expect(onDegraded.mock.calls[0][1]).toBe(8000);
+        expect(segmenter.stopped).toBe(false); // la capture continue
+        // Pendant la pause : les segments sont abandonnés, aucune requête.
+        await vi.advanceTimersByTimeAsync(4000);
+        segmenter.emit(); await flush();
         expect(rig.transcribe).toHaveBeenCalledTimes(3);
-        expect(onFinal).not.toHaveBeenCalled();
+        // Après la pause : nouvel essai ; la passerelle répond → rétabli.
+        rig.transcribe.mockResolvedValue({ text: 'de retour', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        await vi.advanceTimersByTimeAsync(4100);
+        segmenter.emit(); await flush();
+        expect(rig.transcribe).toHaveBeenCalledTimes(4);
+        expect(onRecovered).toHaveBeenCalledTimes(1);
+        expect(onFinal.mock.calls.map((c) => c[0].text)).toEqual(['de retour']);
+    });
+
+    it('Mission VT — pauses croissantes (8 s, 16 s, 30 s) tant que la passerelle échoue ; remises à zéro par un succès', async () => {
+        rig.transcribe.mockRejectedValue(new Error('x'));
+        const onDegraded = vi.fn();
+        const captioner = new ServerCaptioner({ getTrack: liveTrack, onFinal: vi.fn(), onDegraded });
+        captioner.start();
+        await vi.advanceTimersByTimeAsync(10);
+        const segmenter = rig.segmenters[0];
+        for (let i = 0; i < 3; i++) { segmenter.emit(); await flush(); }
+        expect(onDegraded.mock.calls.map((c) => c[1])).toEqual([8000]);
+        await vi.advanceTimersByTimeAsync(8100);
+        for (let i = 0; i < 3; i++) { segmenter.emit(); await flush(); }
+        expect(onDegraded.mock.calls.map((c) => c[1])).toEqual([8000, 16000]);
+        await vi.advanceTimersByTimeAsync(16100);
+        for (let i = 0; i < 3; i++) { segmenter.emit(); await flush(); }
+        expect(onDegraded.mock.calls.map((c) => c[1])).toEqual([8000, 16000, 30000]);
+        await vi.advanceTimersByTimeAsync(30100);
+        rig.transcribe.mockResolvedValueOnce({ text: 'ok', language: 'fr', translated: null, targetLanguage: null, providerId: 'gemini_stt' });
+        segmenter.emit(); await flush();
+        rig.transcribe.mockRejectedValue(new Error('x'));
+        for (let i = 0; i < 3; i++) { segmenter.emit(); await flush(); }
+        expect(onDegraded.mock.calls.map((c) => c[1])).toEqual([8000, 16000, 30000, 8000]); // un succès remet la série à zéro
     });
 
     it('un succès remet le compteur d\'échecs à zéro', async () => {

@@ -227,6 +227,18 @@ describe('Transcription serveur de ma voix (VF-4)', () => {
         expect(await screen.findByText(/Sous-titres indisponibles : Micro indisponible pour la transcription\./)).toBeTruthy();
     });
 
+    it('Mission VT : passerelle en difficulté → l’écran le dit avec le délai du nouvel essai, puis s’efface au retour', async () => {
+        rig.serverSupported = true;
+        render(<ChatCallModal callSession={session} localName="Amina" myLanguage="fr" onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);
+        await waitFor(() => expect(rig.serverCaptioners.length).toBe(1));
+        const captioner = rig.serverCaptioners[0];
+        act(() => { captioner.options.onDegraded('Transcription serveur en difficulté (délai dépassé)', 8000); });
+        expect(await screen.findByText(/Transcription serveur en difficulté \(délai dépassé\) — nouvel essai dans 8 s\./)).toBeTruthy();
+        expect(captioner.stopped).toBe(false); // la capture continue, aucun repli navigateur déclenché
+        act(() => { captioner.options.onRecovered(); });
+        await waitFor(() => expect(screen.queryByText(/en difficulté/)).toBeNull());
+    });
+
     it('« Par défaut » des deux côtés : aucune capture, aucun captioner', async () => {
         rig.serverSupported = true;
         render(<ChatCallModal callSession={session} localName="Amina" myLanguage={null} onAcceptCall={() => {}} onRejectCall={() => {}} onEndCall={() => {}} />);

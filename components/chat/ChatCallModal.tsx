@@ -633,8 +633,22 @@ export const ChatCallModal: React.FC<ChatCallModalProps> = ({
           if (captionerRef.current === server) captionerRef.current = null;
           server = null;
           setMyLiveText('');
+          console.info('[appel] sous-titres serveur indisponibles :', reason);
+          recordCallEvent('captions', `serveur indisponible : ${reason}`);
           // Repli : reconnaissance du navigateur si elle existe ; sinon on le dit, jamais un silence inexpliqué.
           if (!startBrowser()) setCaptionsUnavailable(`Sous-titres indisponibles : ${reason}`);
+        },
+        // Mission VT : passerelle en difficulté → pause puis nouvel essai, dit honnêtement à l'écran ; effacé au retour.
+        onDegraded: (reason, retryInMs) => {
+          console.info('[appel] sous-titres serveur en difficulté :', reason, `nouvel essai dans ${Math.round(retryInMs / 1000)} s`);
+          recordCallEvent('captions', `serveur en difficulté : ${reason}`, { retryInMs });
+          setMyLiveText('');
+          setCaptionsUnavailable(`${reason} — nouvel essai dans ${Math.round(retryInMs / 1000)} s.`);
+        },
+        onRecovered: () => {
+          console.info('[appel] sous-titres serveur rétablis');
+          recordCallEvent('captions', 'serveur rétabli');
+          setCaptionsUnavailable(null);
         },
         isPaused: () => interpreterSpeakingRef.current,
       });

@@ -181,8 +181,17 @@ export interface ServerCaptionerOptions {
     /** État local honnête (« Transcription… » pendant l'aller-retour, '' ensuite) — jamais un texte partiel inventé. */
     onInterim?: (text: string) => void;
     onFinal: (caption: ServerCaption) => void;
-    /** Panne définitive (micro absent, 3 échecs serveur d'affilée) — l'appelant bascule sur un repli, ou le dit à l'écran. */
+    /** Panne DÉFINITIVE (micro absent, capture impossible) — l'appelant bascule sur un repli, ou le dit à l'écran. */
     onUnavailable?: (reason: string) => void;
+    /**
+     * Mission VT : la passerelle échoue plusieurs fois d'affilée (réseau lent,
+     * fournisseur en panne) — la transcription se met en pause `retryInMs`
+     * puis RÉESSAIE d'elle-même, au lieu de mourir pour tout l'appel comme
+     * avant (3 échecs = sous-titres perdus jusqu'au raccroché).
+     */
+    onDegraded?: (reason: string, retryInMs: number) => void;
+    /** Un succès après une période dégradée. */
+    onRecovered?: () => void;
     /** Vrai pendant que l'interprète parle dans mon haut-parleur : ce que mon micro capte alors n'est pas ma voix. */
     isPaused?: () => boolean;
 }
@@ -190,8 +199,10 @@ export interface ServerCaptionerOptions {
 /** Délai maximal d'attente de la publication du micro (elle suit la connexion de peu). */
 const TRACK_WAIT_MS = 12_000;
 const TRACK_POLL_MS = 250;
-/** Au-delà, la passerelle est considérée indisponible pour cet appel. */
+/** Au-delà, la passerelle est mise en pause (puis réessayée) pour cet appel. */
 const MAX_CONSECUTIVE_FAILURES = 3;
+/** Mission VT : pauses successives après 3 échecs d'affilée, puis nouvel essai — jamais un abandon définitif. */
+export const STT_COOLDOWNS_MS = [8_000, 16_000, 30_000];
 /**
  * Mission VT : budget de temps d'UNE transcription. Mesuré en production :
  * p50 1,4 s, p90 1,8 s — mais des requêtes de 30 s ont été vues en panne, et
@@ -220,6 +231,10 @@ export class ServerCaptioner {
     /** Segments (WAV base64) en attente pendant qu'un autre est en vol — dans l'ordre de parole. */
     private queue: string[] = [];
     private consecutiveFailures = 0;
+    /** Pause après une série d'échecs : les segments captés avant cet instant sont abandonnés, puis on réessaie. */
+    private cooldownUntil = 0;
+    private cooldownStep = 0;
+    private degraded = false;
     private trackTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private readonly options: ServerCaptionerOptions) {}
@@ -286,6 +301,7 @@ export class ServerCaptioner {
     private enqueue(pcm: Int16Array): void {
         if (!this.active) return;
         if (this.options.isPaused?.()) return; // capté pendant que l'interprète parlait : pas ma voix
+        if (Date.now() < this.cooldownUntil) return; // passerelle en pause après une série d'échecs : on réessaie après
         const audioBase64 = bytesToBase64(encodeWav16kMono(pcm));
         if (this.inFlight) {
             if (this.queue.length >= MAX_QUEUED_SEGMENTS) this.queue.shift(); // file pleine : le plus ancien cède la place
@@ -307,7 +323,9 @@ export class ServerCaptioner {
                 timeoutMs: STT_REQUEST_TIMEOUT_MS,
             });
             this.consecutiveFailures = 0;
+            this.cooldownStep = 0;
             if (!this.active) return;
+            if (this.degraded) { this.degraded = false; this.options.onRecovered?.(); }
             const text = result.text.trim();
             if (!text) return; // silence ou bruit : rien à afficher, rien à inventer
             const detected = languageCodeFromTag(result.language);
@@ -322,8 +340,16 @@ export class ServerCaptioner {
             if (!this.active) return;
             this.consecutiveFailures += 1;
             if (this.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                // Mission VT : pause puis nouvel essai (8 s, 16 s, 30 s…) — les
+                // sous-titres reviennent d'eux-mêmes dès que la passerelle répond.
+                const retryInMs = STT_COOLDOWNS_MS[Math.min(this.cooldownStep, STT_COOLDOWNS_MS.length - 1)];
+                this.cooldownStep += 1;
+                this.consecutiveFailures = 0;
+                this.cooldownUntil = Date.now() + retryInMs;
+                this.queue = [];
+                this.degraded = true;
                 const detail = err instanceof Error ? err.message : String(err);
-                this.fail(`Transcription serveur indisponible (${detail}).`);
+                this.options.onDegraded?.(`Transcription serveur en difficulté (${detail})`, retryInMs);
             }
         } finally {
             this.inFlight = false;
@@ -411,6 +437,15 @@ export class InterpreterVoice {
     private running = false;
     private stopped = false;
     /**
+     * Mission VT : « l'interprète parle » = de l'audio SORT réellement du
+     * haut-parleur (lecture HD lancée, ou voix du navigateur lancée) — plus
+     * dès qu'une phrase entre dans la file. Avant, l'état passait à « parle »
+     * pendant toute la GÉNÉRATION de la voix HD (jusqu'à 6 s par phrase) :
+     * le micro d'appel, mis en pause tant que « l'interprète parle », jetait
+     * ma propre voix pendant ce temps — des phrases entières perdues.
+     */
+    private speaking = false;
+    /**
      * Mission VT : jeton d'époque — chaque stop() l'incrémente. Une file
      * arrêtée pendant qu'une phrase était en vol se termine en silence, sans
      * jamais reprendre ni redire « fin de parole » ; un speak() qui suit
@@ -442,25 +477,31 @@ export class InterpreterVoice {
             try { window.speechSynthesis.cancel(); } catch { /* rien à annuler */ }
             this.currentUtterance = null;
         }
-        if (this.running) { this.running = false; this.options.onSpeakingChange?.(false); }
+        this.running = false;
+        this.setSpeaking(false);
+    }
+
+    private setSpeaking(value: boolean): void {
+        if (this.speaking === value) return;
+        this.speaking = value;
+        this.options.onSpeakingChange?.(value);
     }
 
     private async drain(): Promise<void> {
         const epoch = this.epoch;
         this.running = true;
-        this.options.onSpeakingChange?.(true);
         while (!this.stopped && epoch === this.epoch && this.queue.length > 0) {
             const phrase = this.queue.shift()!;
             // En retard de plusieurs phrases : voix immédiate du navigateur plutôt qu'une voix HD qui creuse l'écart.
             const behind = this.queue.length >= VOICE_BACKLOG_THRESHOLD;
             const spokenHd = behind ? false : await this.speakHd(phrase, epoch);
             if (this.stopped || epoch !== this.epoch) break;
-            if (!spokenHd) await this.speakBrowser(phrase);
+            if (!spokenHd) await this.speakBrowser(phrase, epoch);
         }
-        // Arrêtée en vol : stop() a déjà signalé la fin (et une file neuve parle peut-être déjà) — rien à redire.
+        // Arrêtée en vol : stop() a déjà tout signalé (et une file neuve parle peut-être déjà) — rien à redire.
         if (epoch !== this.epoch) return;
         this.running = false;
-        this.options.onSpeakingChange?.(false);
+        this.setSpeaking(false);
     }
 
     private async speakHd(phrase: string, epoch: number): Promise<boolean> {
@@ -477,9 +518,10 @@ export class InterpreterVoice {
                 const audio = new Audio(`data:${detail.mimeType || 'audio/mpeg'};base64,${detail.audioBase64}`);
                 this.currentAudio = audio;
                 let settled = false;
-                const settle = (value: boolean) => { if (settled) return; settled = true; if (this.currentAudio === audio) this.currentAudio = null; resolve(value); };
+                const settle = (value: boolean) => { if (settled) return; settled = true; if (this.currentAudio === audio) this.currentAudio = null; this.setSpeaking(false); resolve(value); };
                 audio.onended = () => settle(true);
                 audio.onerror = () => settle(false);
+                this.setSpeaking(true); // de l'audio sort maintenant — pas avant
                 const play = audio.play();
                 if (play && typeof play.catch === 'function') play.catch(() => settle(false));
                 setTimeout(() => settle(true), HD_PLAYBACK_WATCHDOG_MS);
@@ -491,18 +533,19 @@ export class InterpreterVoice {
         }
     }
 
-    private speakBrowser(phrase: string): Promise<void> {
+    private speakBrowser(phrase: string, epoch: number): Promise<void> {
         return new Promise((resolve) => {
-            if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') { resolve(); return; }
+            if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined' || epoch !== this.epoch) { resolve(); return; }
             const utterance = new SpeechSynthesisUtterance(phrase);
             utterance.lang = this.options.lang;
             const voice = pickSynthesisVoice(window.speechSynthesis.getVoices() || [], this.options.lang);
             if (voice) utterance.voice = voice;
             utterance.rate = 1.02;
-            const done = () => { if (this.currentUtterance === utterance) this.currentUtterance = null; resolve(); };
+            const done = () => { if (this.currentUtterance === utterance) { this.currentUtterance = null; this.setSpeaking(false); } resolve(); };
             utterance.onend = done;
             utterance.onerror = done;
             this.currentUtterance = utterance;
+            this.setSpeaking(true); // la voix du navigateur démarre aussitôt
             try { window.speechSynthesis.speak(utterance); } catch { done(); }
             // Chien de garde : une utterance perdue par le navigateur ne doit jamais bloquer la file.
             setTimeout(() => { if (this.currentUtterance === utterance) done(); }, 15000);

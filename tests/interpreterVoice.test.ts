@@ -118,18 +118,36 @@ describe('InterpreterVoice — voix de l’interprète garantie (Mission VT)', (
     });
 
     it('stop() coupe net : la file est vidée, plus aucune voix ne part', async () => {
-        rig.tts.mockResolvedValue({ audioBase64: 'QUJD', mimeType: 'audio/mpeg' });
+        let resolveHd!: (value: unknown) => void;
+        rig.tts.mockImplementation(() => new Promise((resolve) => { resolveHd = resolve; }));
         const speaking: boolean[] = [];
         const voice = new InterpreterVoice({ lang: 'fr-FR', onSpeakingChange: (s) => speaking.push(s) });
         voice.speak('Une.');
         voice.speak('Deux.');
-        await vi.advanceTimersByTimeAsync(10); // « Une. » est en vol
+        await vi.advanceTimersByTimeAsync(10); // « Une. » est en vol chez le fournisseur — rien ne sort encore
         voice.stop();
+        resolveHd({ audioBase64: 'QUJD', mimeType: 'audio/mpeg' }); // la réponse arrive après l'arrêt
         await vi.advanceTimersByTimeAsync(2000);
         expect(rig.tts).toHaveBeenCalledTimes(1);
         expect(rig.utterances).toHaveLength(0);
-        expect(rig.audios.every((a) => a.paused || a.src === '')).toBe(true);
-        expect(speaking).toEqual([true, false]);
+        expect(rig.audios).toHaveLength(0);
+        // « L'interprète parle » ne s'est jamais allumé : aucun son n'est sorti (la génération HD n'est pas de la parole).
+        expect(speaking).toEqual([]);
+    });
+
+    it('« l’interprète parle » ne s’allume qu’au moment où du son SORT (lecture HD ou voix du navigateur), jamais pendant la génération', async () => {
+        let resolveHd!: (value: unknown) => void;
+        rig.tts.mockImplementation(() => new Promise((resolve) => { resolveHd = resolve; }));
+        const speaking: Array<[boolean, number]> = [];
+        const t0 = Date.now();
+        const voice = new InterpreterVoice({ lang: 'fr-FR', onSpeakingChange: (s) => speaking.push([s, Date.now() - t0]) });
+        voice.speak('Bonjour Ivan.');
+        await vi.advanceTimersByTimeAsync(3000); // 3 s de génération : le micro d'appel ne doit PAS être en pause
+        expect(speaking).toEqual([]);
+        resolveHd({ audioBase64: 'QUJD', mimeType: 'audio/mpeg' });
+        await vi.advanceTimersByTimeAsync(200);
+        expect(speaking.map((s) => s[0])).toEqual([true, false]);
+        expect(speaking[0][1]).toBeGreaterThanOrEqual(3000);
     });
 
     it('stop() puis speak() aussitôt (changement de langue) : l’ancienne file ne reprend jamais, une seule voix parle', async () => {
@@ -148,7 +166,7 @@ describe('InterpreterVoice — voix de l’interprète garantie (Mission VT)', (
         await vi.advanceTimersByTimeAsync(200);
         expect(rig.audios.map((a) => a.src)).toEqual(['data:audio/mpeg;base64,TkVX']); // jamais jouée
         expect(rig.utterances).toHaveLength(0);
-        expect(speaking).toEqual([true, false, true, false]);
+        expect(speaking).toEqual([true, false]); // une seule lecture réelle : celle de la file neuve
     });
 
     it('phrase vide ou blanche : rien n’est dit, rien n’est demandé', async () => {
