@@ -1,7 +1,6 @@
 
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { setRememberMe, supabase } from './supabaseClient';
-import { rememberDeepLink } from './navigation/deepLink';
 
 /**
  * Connexion Google — identité minimale uniquement (email/profil). Ne demande
@@ -19,11 +18,6 @@ export const signInWithOAuthProvider = async (
     rememberMe = true
 ): Promise<void> => {
     setRememberMe(rememberMe);
-    // `redirectTo` ramène sur la RACINE : le hash ne survit pas à l'aller-retour
-    // chez le fournisseur. Quelqu'un venu de `…/#super-admin/sante` atterrirait
-    // sur l'onglet par défaut. On met donc la route de côté avant de partir ;
-    // deepLink.ts la reprend au retour, uniquement si l'URL n'en porte aucune.
-    rememberDeepLink();
     const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo: window.location.origin },

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseDeepLink } from '../services/navigation/deepLink';
 
 /**
@@ -107,82 +107,5 @@ describe('capture du hash au chargement — le mécanisme réellement utilisé',
         const m = await chargerAvecHash('#access_token=eyJhbGciOi&expires_in=3600');
         expect(m.INITIAL_DEEP_LINK).toBeNull();
         expect(m.initialTab(new Set(['social', 'super-admin']), 'social')).toBe('social');
-    });
-});
-
-/**
- * Troisième défaut de la même famille, trouvé le 04/09/2026 en suivant le
- * parcours réel de connexion : `signInWithOAuth` renvoie sur la RACINE
- * (`redirectTo: window.location.origin`). Le hash ne survit donc pas à
- * l'aller-retour chez Google. Quelqu'un qui ouvre `…/#super-admin/sante`
- * puis se connecte atterrissait sur l'onglet par défaut — il ne voyait PAS
- * l'écran qu'on lui demandait de constater, tout en étant sur la bonne
- * version. Exactement le symptôme qu'on cherchait à faire disparaître.
- */
-describe('survie du lien profond à la connexion OAuth', () => {
-    const charger = async (hash: string) => {
-        vi.resetModules();
-        window.location.hash = hash;
-        return import('../services/navigation/deepLink');
-    };
-
-    beforeEach(() => {
-        sessionStorage.clear();
-        window.location.hash = '';
-    });
-
-    it('reprend la route mise de côté quand le retour de connexion n\'a plus de hash', async () => {
-        const aller = await charger('#super-admin/sante');
-        aller.rememberDeepLink();
-
-        const retour = await charger('');           // retour OAuth : racine nue
-        expect(retour.INITIAL_DEEP_LINK).toEqual({ tab: 'super-admin', sub: 'sante' });
-    });
-
-    it("reprend la route même quand le retour porte un fragment d'authentification", async () => {
-        const aller = await charger('#super-admin/sante');
-        aller.rememberDeepLink();
-
-        const retour = await charger('#access_token=eyJhbGciOi&expires_in=3600');
-        expect(retour.INITIAL_DEEP_LINK).toEqual({ tab: 'super-admin', sub: 'sante' });
-    });
-
-    it("l'URL prime toujours sur la route mise de côté", async () => {
-        const aller = await charger('#super-admin/sante');
-        aller.rememberDeepLink();
-
-        const retour = await charger('#wallet');
-        expect(retour.INITIAL_DEEP_LINK).toEqual({ tab: 'wallet', sub: '' });
-    });
-
-    it('ne sert qu\'une fois : un second chargement ne rouvre pas le même écran', async () => {
-        const aller = await charger('#super-admin/sante');
-        aller.rememberDeepLink();
-
-        const premier = await charger('');
-        expect(premier.INITIAL_DEEP_LINK).not.toBeNull();
-
-        const second = await charger('');
-        expect(second.INITIAL_DEEP_LINK).toBeNull();
-    });
-
-    it('ignore une route périmée plutôt que de rouvrir un écran des heures après', async () => {
-        sessionStorage.setItem('mok_lien_profond', JSON.stringify({
-            tab: 'super-admin', sub: 'sante', at: Date.now() - 16 * 60 * 1000,
-        }));
-        const m = await charger('');
-        expect(m.INITIAL_DEEP_LINK).toBeNull();
-    });
-
-    it('ignore un contenu illisible sans faire tomber le démarrage', async () => {
-        sessionStorage.setItem('mok_lien_profond', 'ceci n\'est pas du JSON');
-        const m = await charger('');
-        expect(m.INITIAL_DEEP_LINK).toBeNull();
-    });
-
-    it('ne met rien de côté quand il n\'y a pas de route à retenir', async () => {
-        const m = await charger('');
-        m.rememberDeepLink();
-        expect(sessionStorage.getItem('mok_lien_profond')).toBeNull();
     });
 });
