@@ -734,7 +734,7 @@ begin
                                      where p.status = 'active' and c.is_enabled),
         'enabledWithoutSecret', (select count(*) from public.ai_providers p
                                   join public.ai_provider_credentials c on c.provider_id = p.id
-                                 where p.status = 'active' and c.is_enabled and c.secret_ref is null),
+                                 where p.status = 'active' and c.is_enabled and c.vault_secret_id is null),
         'budgetEnforced', (select enforced from public.ai_budget where id = 'global'),
         'budgetHasCap', (select (daily_cap_usd is not null or monthly_cap_usd is not null)
                            from public.ai_budget where id = 'global'),
