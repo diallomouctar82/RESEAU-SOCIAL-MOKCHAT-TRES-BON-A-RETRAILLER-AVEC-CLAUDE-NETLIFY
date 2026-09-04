@@ -6,7 +6,9 @@ Produites par le même harnais local **non versionné** que pour DEC-2026-051
 dans Chromium headless via Playwright.
 
 Retirés de l’affichage : le bouton « L’Architecte », le bloc « Mes Favoris »,
-le bloc « Récents ». Conservés : les étoiles de favori sur chaque entrée
+le bloc « Récents », le libellé « Accueil & Cap » et l’entrée Super-Admin de la
+liste (capture de référence de la Direction : d’« Accueil » à « Conseil des
+Sages »). Conservés : les étoiles de favori sur chaque entrée
 (visuel cible de la Direction), les piliers, le pied de barre latérale, la
 pastille flottante de l’Architecte, le tiroir mobile.
 

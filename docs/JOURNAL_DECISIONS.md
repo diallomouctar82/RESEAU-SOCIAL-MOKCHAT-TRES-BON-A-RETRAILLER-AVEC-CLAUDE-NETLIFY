@@ -1155,8 +1155,18 @@ Chaque décision respecte le formalisme strict suivant :
      l'état des récents devenu mort ; ne rien changer à la pastille
      flottante ni au dock ; régénérer la couche CSS « Miroir d'eau » avec
      l'outil du dépôt (jamais à la main).
+* **Complément de la Direction (capture de référence, même jour)** : « premier
+  bouton Accueil, dernier bouton Conseil des Sages, fais exactement comme ça ».
+  Deux écarts restaient entre la branche et cette capture, tous deux dans la
+  barre latérale d'ordinateur : le libellé de pilier « Accueil & Cap » au-dessus
+  d'« Accueil », et l'entrée « Tableau de Bord Super-Admin » rendue après
+  « Conseil des Sages » (à tout le monde, sans garde de rôle). Les deux sont
+  retirés de cette barre seulement. Le Super-Admin garde ses deux accès
+  réservés aux administrateurs (bouton doré de l'en-tête, menu Compte) ; le
+  tiroir mobile et la recherche ⌘K ne changent pas.
 * **Décision** : dans `Layout.tsx`, la barre latérale d'ordinateur commence
-  désormais directement par les piliers de vie ; `recentTabs` et l'icône
+  désormais directement par le bouton « Accueil » et finit par « Conseil des
+  Sages » ; `recentTabs` et l'icône
   `Clock` disparaissent ; l'épinglage (`favorites`, `toggleFavorite`, étoile
   sur chaque entrée) est conservé à l'identique ; l'effet qui coupait la
   voix à chaque changement d'onglet est conservé, amputé de la mémoire des
@@ -1173,9 +1183,10 @@ Chaque décision respecte le formalisme strict suivant :
   les utilisateurs (`lmav_nav_recents` n'est simplement plus lue).
 * **Éléments techniques** : `components/Layout.tsx` (−3 blocs, −1 état et
   −1 icône devenus morts), `index.html` (couche aqua régénérée, −4 règles),
-  `tests/sidebarCleanup.test.tsx` (nouveau : 3 tests « retiré », 5 tests
-  « ce qui reste, une seule fois »).
-* **Preuves** : `tsc --noEmit` 0 · `vitest` **986/986 (71 fichiers, +8)** ·
+  `tests/sidebarCleanup.test.tsx` (nouveau : 3 tests « retiré », 6 tests
+  « ce qui reste, une seule fois », dont l'ordre « Accueil » → « Conseil des
+  Sages »).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **987/987 (71 fichiers, +9)** ·
   `npm run build` propre · captures avant/après ordinateur 1600×900 et
   téléphone 390×844 (harnais local non versionné, `origin/main` contre la
   branche) versées dans `docs/captures/2026-09-04-nettoyage-barre-laterale/`.
@@ -1185,9 +1196,8 @@ Chaque décision respecte le formalisme strict suivant :
 * **Restes assumés** : le jugement visuel revient à la Direction ; la
   pastille flottante reste le seul chemin ordinateur vers l'Architecte
   (voulu : « un doublon de moins ») ; la clé `lmav_nav_recents` reste
-  inerte dans les navigateurs qui l'ont ; le libellé de pilier « Accueil &
-  Cap » est conservé (absent du visuel cible, mais hors de la liste des
-  retraits demandés — une ligne à retirer si la Direction le souhaite).
+  inerte dans les navigateurs qui l'ont ; l'entrée Super-Admin reste visible
+  dans le tiroir mobile (hors périmètre de cette loupe).
 
 ---
 

@@ -141,9 +141,22 @@ describe('barre latérale — ce qui reste, et une seule fois', () => {
         for (const label of ['Campus & Éducation', 'Carrière & Accomplissement', 'Habitat & Installation', 'Marché Mondial', 'Finance & Wallet']) {
             expect(within(sidebar).getAllByText(label).length).toBe(1);
         }
-        for (const pilier of ['Accueil & Cap', 'Apprendre & Évoluer', 'Vie & Services', 'Créer & Entreprendre', 'Communauté & Conseil']) {
+        for (const pilier of ['Apprendre & Évoluer', 'Vie & Services', 'Créer & Entreprendre', 'Communauté & Conseil']) {
             expect(within(sidebar).getByText(pilier)).toBeInTheDocument();
         }
+    });
+
+    it('va d’« Accueil » à « Conseil des Sages », sans libellé au-dessus d’Accueil ni entrée Super-Admin (capture de la Direction)', () => {
+        const { sidebar, drawer } = renderAccueil();
+        expect(within(sidebar).queryByText('Accueil & Cap')).toBeNull();
+        expect(within(sidebar).queryByText('Tableau de Bord Super-Admin')).toBeNull();
+        // Les boutons de navigation, dans l'ordre du DOM : premier « Accueil », dernier « Conseil des Sages ».
+        const nav = within(sidebar).getAllByRole('button').filter((b) => b.textContent && !/favoris|Réduire le menu|Déployer le menu/.test(b.getAttribute('title') || '') && b.className.includes('rounded-xl'));
+        const labels = nav.map((b) => b.textContent?.trim() || '').filter((t) => t && t !== 'Mon Cap');
+        expect(labels[0]).toBe('Accueil');
+        expect(labels[labels.length - 1]).toBe('Conseil des Sages');
+        // Le tiroir mobile n'est pas touché : il garde son entrée Super-Admin.
+        expect(within(drawer).getAllByText('Tableau de Bord Super-Admin', { ignore: false }).length).toBeGreaterThan(0);
     });
 
     it('l’Architecte reste montée par sa pastille flottante', () => {

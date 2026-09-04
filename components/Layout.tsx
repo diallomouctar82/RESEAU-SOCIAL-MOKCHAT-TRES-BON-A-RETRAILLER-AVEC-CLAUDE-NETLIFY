@@ -741,10 +741,18 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* 🏛️ GRANDS PILIERS DE VIE PAR BESOINS HUMAINS */}
             <div className="space-y-4 pt-1">
               {categoryOrder.map((category) => {
-                const items = groupedNavItems[category] || [];
+                // Consigne de la Direction (DEC-2026-052, capture de référence) :
+                // la liste va d’« Accueil » à « Conseil des Sages ». L’entrée
+                // « Tableau de Bord Super-Admin » ne s’affiche donc plus ici — le
+                // Super-Admin garde ses deux accès réservés aux administrateurs :
+                // le bouton doré de l’en-tête et le menu Compte. Le tiroir mobile
+                // et la recherche ⌘K ne changent pas.
+                const items = (groupedNavItems[category] || []).filter(item => item.id !== 'admin');
                 return (
                   <div key={category}>
-                    {!isSidebarCollapsed ? (
+                    {/* Même consigne : pas de libellé au-dessus d’« Accueil » — la liste
+                        commence par le bouton lui-même, comme sur la capture. */}
+                    {category !== 'Accueil & Cap' && (!isSidebarCollapsed ? (
                       <h3 
                         className="text-[10px] font-black uppercase tracking-widest px-2.5 mb-1.5 opacity-60"
                         style={{ color: currentPalette.colors.sidebarTextMuted }}
@@ -753,7 +761,7 @@ export const Layout: React.FC<LayoutProps> = ({
                       </h3>
                     ) : (
                       <div className="h-px my-2.5 mx-2 opacity-20 bg-white"></div>
-                    )}
+                    ))}
                     
                     <div className="space-y-0.5">
                       {items.map((item) => {
