@@ -117,6 +117,15 @@ export interface LiveParticipantMeta {
     lpv: 1;
     /** Langue d'écoute choisie, ou null pour Original. */
     lang: string | null;
+    /**
+     * Langue que cette personne PARLE réellement, telle que la transcription
+     * de sa propre voix l'a détectée (jamais une déclaration seule).
+     *
+     * Elle sert à l'auditeur pour une décision qu'il ne peut pas prendre
+     * autrement : « cet intervenant parle-t-il déjà ma langue ? » — auquel cas
+     * il n'y a rien à interpréter et sa voix originale reste entière.
+     */
+    spoken: string | null;
 }
 
 /**
@@ -126,6 +135,21 @@ export interface LiveParticipantMeta {
  * fonctionnalité voisine.
  */
 export function encodeLiveParticipantMeta(choice: ListeningChoice, existing?: string | null): string {
+    return mergeMeta(existing, { lpv: 1, lang: listeningLanguageCode(choice) ?? null });
+}
+
+/**
+ * Inscrit la langue que je PARLE (détectée par la transcription de ma propre
+ * voix) sans toucher à ma langue d'écoute ni aux clés d'autrui — les deux
+ * informations vivent dans le même objet mais changent à des moments
+ * différents.
+ */
+export function encodeSpokenLanguageMeta(spoken: string | null | undefined, existing?: string | null): string {
+    return mergeMeta(existing, { lpv: 1, spoken: listeningLanguageCode(spoken) ?? null });
+}
+
+/** Fusion non destructive : ce canal est libre aujourd'hui, il ne le restera pas. */
+function mergeMeta(existing: string | null | undefined, patch: Record<string, unknown>): string {
     let base: Record<string, unknown> = {};
     if (existing && existing.trim()) {
         try {
@@ -133,17 +157,22 @@ export function encodeLiveParticipantMeta(choice: ListeningChoice, existing?: st
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) base = parsed as Record<string, unknown>;
         } catch { /* métadonnées illisibles : on repart d'un objet propre plutôt que d'échouer */ }
     }
-    return JSON.stringify({ ...base, lpv: 1, lang: listeningLanguageCode(choice) ?? null });
+    return JSON.stringify({ ...base, ...patch });
 }
 
 /** Lecture tolérante : tout ce qui n'est pas une langue du catalogue vaut Original. Ne lève jamais. */
 export function decodeLiveParticipantMeta(metadata?: string | null): LiveParticipantMeta {
-    if (!metadata || !metadata.trim()) return { lpv: 1, lang: null };
+    const empty: LiveParticipantMeta = { lpv: 1, lang: null, spoken: null };
+    if (!metadata || !metadata.trim()) return empty;
     try {
-        const parsed = JSON.parse(metadata) as { lang?: unknown };
-        return { lpv: 1, lang: typeof parsed?.lang === 'string' ? listeningLanguageCode(parsed.lang) ?? null : null };
+        const parsed = JSON.parse(metadata) as { lang?: unknown; spoken?: unknown };
+        return {
+            lpv: 1,
+            lang: typeof parsed?.lang === 'string' ? listeningLanguageCode(parsed.lang) ?? null : null,
+            spoken: typeof parsed?.spoken === 'string' ? listeningLanguageCode(parsed.spoken) ?? null : null,
+        };
     } catch {
-        return { lpv: 1, lang: null };
+        return empty;
     }
 }
 

@@ -1,0 +1,174 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { UseLiveTransportResult } from './useLiveTransport';
+import {
+    decodeLiveParticipantMeta,
+    encodeLiveParticipantMeta,
+    encodeSpokenLanguageMeta,
+    listeningLanguageCode,
+    requestedLanguageCounts,
+    type ListeningChoice,
+    type ProductionPlan,
+} from '../services/live/liveListeningLanguage';
+import { LiveInterpreterProducer, type LiveInterpreterStage } from '../services/live/liveInterpreterProducer';
+
+/**
+ * LIVE PLANÉTAIRE — le pont entre l'écran du direct et la traduction.
+ *
+ * Il tient les deux moitiés de la promesse, séparées :
+ *
+ * - CÔTÉ AUDITEUR (tout le monde, y compris un spectateur sans micro ni
+ *   caméra) : mon choix de langue, publié dans mes métadonnées pour que les
+ *   intervenants sachent quelles langues produire. Rien d'autre n'est
+ *   partagé : les autres apprennent qu'« une personne écoute en anglais »,
+ *   jamais qui.
+ *
+ * - CÔTÉ INTERVENANT (seulement quand je suis sur scène, micro publié) : le
+ *   producteur qui transforme ma parole en une voix par langue demandée.
+ *
+ * Une même personne est presque toujours les deux à la fois — un animateur
+ * écoute aussi ses invités. Les deux moitiés restent pourtant indépendantes :
+ * un spectateur traduit sans jamais rien produire, un intervenant produit même
+ * s'il reste, lui, en « Original ».
+ *
+ * PAR DÉFAUT : Original. Personne n'entend une traduction sans l'avoir
+ * demandée, et rien n'est produit tant que personne n'en demande.
+ */
+
+export interface UseLiveListeningLanguageOptions {
+    transport: Pick<UseLiveTransportResult,
+        'connectionState' | 'remoteParticipants' | 'publishLocalMetadata' | 'getLocalMetadata'
+        | 'publishInterpreterAudio' | 'unpublishInterpreterAudio' | 'getLocalAudioTrack' | 'localAudioPublished'>;
+    /** Je suis sur scène ET mon micro est réellement publié : je peux produire. */
+    canProduce: boolean;
+    /** Ma langue de profil — simple indication de départ pour la transcription ; la détection prime. */
+    myLanguageHint?: string;
+    /** Vrai pendant qu'une voix d'interprète sort de mon haut-parleur (mon micro capte alors autre chose que ma voix). */
+    isInterpreterAudible?: () => boolean;
+}
+
+export interface UseLiveListeningLanguageResult {
+    /** Ma langue d'écoute, `null` = Original. */
+    choice: ListeningChoice;
+    /** Changer de langue — à chaud, sans quitter le direct ni se reconnecter. */
+    choose: (next: ListeningChoice) => void;
+    /** Ce que JE produis pour les autres (vide si je ne suis pas sur scène). */
+    plan: ProductionPlan;
+    /** Ma langue d'écoute est demandée mais AUCUN intervenant ne la produit encore. */
+    waitingForMyLanguage: boolean;
+    /** Dernières étapes mesurées de ma propre production — pour le diagnostic de latence. */
+    stages: LiveInterpreterStage[];
+    /** La chaîne de production a échoué chez moi (dit à l'écran, jamais avalé). */
+    producerError: string | null;
+}
+
+const EMPTY_PLAN: ProductionPlan = { produce: [], unserved: [], alreadySpoken: [] };
+/** On ne garde que les dernières mesures : un direct long ne doit pas gonfler la mémoire. */
+const MAX_STAGES = 40;
+
+export function useLiveListeningLanguage(options: UseLiveListeningLanguageOptions): UseLiveListeningLanguageResult {
+    const { transport, canProduce, myLanguageHint, isInterpreterAudible } = options;
+    const [choice, setChoice] = useState<ListeningChoice>(null); // Original, toujours, au départ
+    const [plan, setPlan] = useState<ProductionPlan>(EMPTY_PLAN);
+    const [stages, setStages] = useState<LiveInterpreterStage[]>([]);
+    const [producerError, setProducerError] = useState<string | null>(null);
+
+    // Les langues demandées autour de moi, telles que les métadonnées des
+    // participants les portent. Un ÉTAT, donc juste : un arrivant tardif est
+    // compté dès que le serveur relaie ses métadonnées, sans ré-annonce.
+    const requested = useMemo(
+        () => requestedLanguageCounts(transport.remoteParticipants.map((p) => ({
+            identity: p.participant.identity,
+            metadata: p.metadata,
+        }))),
+        [transport.remoteParticipants],
+    );
+    const requestedRef = useRef(requested);
+    requestedRef.current = requested;
+
+    const audibleRef = useRef(isInterpreterAudible);
+    audibleRef.current = isInterpreterAudible;
+
+    // ── Moitié auditeur : publier MON choix ────────────────────────────────
+    //
+    // Republié à chaque (re)connexion : un choix fait avant d'être connecté, ou
+    // pendant une coupure, doit finir par atteindre les intervenants — sinon
+    // personne ne produit ma langue et j'attends une voix qui ne viendra pas.
+    useEffect(() => {
+        if (transport.connectionState !== 'connected') return;
+        void transport.publishLocalMetadata(encodeLiveParticipantMeta(choice, transport.getLocalMetadata()))
+            .catch(() => { /* le prochain changement de langue ou de connexion republiera */ });
+    }, [choice, transport.connectionState, transport.publishLocalMetadata, transport.getLocalMetadata]);
+
+    // ── Moitié intervenant : produire pour les autres ──────────────────────
+
+    const producerRef = useRef<LiveInterpreterProducer | null>(null);
+
+    useEffect(() => {
+        // Le producteur ne démarre QUE si je suis réellement sur scène avec un
+        // micro publié : sans piste à écouter, il n'aurait rien à transcrire.
+        if (!canProduce || !transport.localAudioPublished || transport.connectionState !== 'connected') return;
+        const producer = new LiveInterpreterProducer({
+            getLocalAudioTrack: transport.getLocalAudioTrack,
+            myLanguageHint,
+            getRequestedLanguages: () => requestedRef.current,
+            publishTrack: (track, name) => transport.publishInterpreterAudio(track, name),
+            unpublishTrack: (name) => transport.unpublishInterpreterAudio(name),
+            isPaused: () => audibleRef.current?.() ?? false,
+            onPlanChanged: setPlan,
+            onStage: (stage) => setStages((prev) => [...prev.slice(-(MAX_STAGES - 1)), stage]),
+            onUnavailable: (reason) => setProducerError(reason),
+        });
+        producerRef.current = producer;
+        setProducerError(null);
+        producer.start();
+        return () => {
+            producerRef.current = null;
+            setPlan(EMPTY_PLAN);
+            void producer.stop();
+        };
+    }, [canProduce, transport.localAudioPublished, transport.connectionState,
+        transport.getLocalAudioTrack, transport.publishInterpreterAudio, transport.unpublishInterpreterAudio, myLanguageHint]);
+
+    // Quelqu'un a choisi, changé ou quitté une langue : le plan de production
+    // suit, en direct, sans interrompre la transcription en cours.
+    useEffect(() => {
+        void producerRef.current?.refresh();
+    }, [requested]);
+
+    // J'annonce la langue que je PARLE (détectée dans ma propre voix) pour que
+    // les auditeurs sachent quand il n'y a rien à interpréter chez moi.
+    const lastSpokenRef = useRef<string | undefined>(undefined);
+    useEffect(() => {
+        const detected = producerRef.current?.detectedLanguage;
+        if (!detected || detected === lastSpokenRef.current) return;
+        if (transport.connectionState !== 'connected') return;
+        lastSpokenRef.current = detected;
+        void transport.publishLocalMetadata(encodeSpokenLanguageMeta(detected, transport.getLocalMetadata()))
+            .catch(() => { /* réessayé au prochain changement */ });
+    }, [stages, transport.connectionState, transport.publishLocalMetadata, transport.getLocalMetadata]);
+
+    // ── Ce que l'écran doit pouvoir dire honnêtement ───────────────────────
+
+    /**
+     * J'ai demandé une langue, mais aucun intervenant ne publie encore de
+     * piste dans cette langue : l'écran le dit plutôt que de me laisser
+     * attendre une voix qui n'arrive pas (production pas encore démarrée,
+     * plafond du producteur atteint, ou tout le monde parle déjà ma langue).
+     */
+    const waitingForMyLanguage = useMemo(() => {
+        const mine = listeningLanguageCode(choice);
+        if (!mine) return false;
+        const somebodyElseSpeaksAnother = transport.remoteParticipants.some((p) => {
+            const spoken = decodeLiveParticipantMeta(p.metadata).spoken;
+            return !!p.audioTrack && !!spoken && spoken !== mine;
+        });
+        if (!somebodyElseSpeaksAnother) return false;
+        return !transport.remoteParticipants.some((p) => !!p.interpreterTracksByLanguage?.[mine]);
+    }, [choice, transport.remoteParticipants]);
+
+    const choose = useCallback((next: ListeningChoice) => {
+        setChoice(listeningLanguageCode(next) ?? null);
+    }, []);
+
+    return { choice, choose, plan, waitingForMyLanguage, stages, producerError };
+}

@@ -40,6 +40,10 @@ import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
 import { LiveParticipantsPanel, ROLE_LABELS } from './live/LiveParticipantsPanel';
 import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
+import {
+  decodeLiveParticipantMeta, listeningLanguageCode, speakerAudioDecision, type ListeningChoice,
+} from '../services/live/liveListeningLanguage';
+import { useLiveListeningLanguage } from '../hooks/useLiveListeningLanguage';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
 import {
@@ -121,23 +125,40 @@ const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia; roleLabel
  * réunion, commerce, masterclass) — tous les spectateurs entendent le
  * présentateur en permanence. Detach réel au démontage.
  */
-const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[] }> = ({ participants }) => (
+const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[]; listeningChoice?: ListeningChoice }> = ({ participants, listeningChoice = null }) => (
   <>
-    {participants.map((media) => (
-      <React.Fragment key={media.participant.identity}>
-        {media.audioTrack && <SinkAudioElement track={media.audioTrack} />}
-        {media.screenShareAudioTrack && <SinkAudioElement track={media.screenShareAudioTrack} />}
-      </React.Fragment>
-    ))}
+    {participants.map((media) => {
+      // LIVE PLANÉTAIRE — décision PAR INTERVENANT, jamais globale : dans un
+      // direct, je peux entendre l'un en version originale (il parle déjà ma
+      // langue) et l'autre par l'interprète, au même instant.
+      const mine = listeningLanguageCode(listeningChoice);
+      const interpreterTrack = mine ? media.interpreterTracksByLanguage?.[mine] : undefined;
+      const decision = speakerAudioDecision({
+        myChoice: listeningChoice,
+        speakerLanguage: decodeLiveParticipantMeta(media.metadata).spoken,
+        interpreterAvailable: !!interpreterTrack,
+      });
+      return (
+        <React.Fragment key={media.participant.identity}>
+          {/* La voix originale est COUPÉE (`muted`), jamais retirée du DOM :
+              elle doit reprendre instantanément si l'interprète s'arrête, et
+              `muted` est la seule commande que les téléphones honorent
+              réellement (le volume est ignoré sur iOS — mesuré côté appels). */}
+          {media.audioTrack && <SinkAudioElement track={media.audioTrack} muted={decision.originalVolume === 0} />}
+          {decision.interpreted && interpreterTrack && <SinkAudioElement track={interpreterTrack} />}
+          {media.screenShareAudioTrack && <SinkAudioElement track={media.screenShareAudioTrack} />}
+        </React.Fragment>
+      );
+    })}
   </>
 );
 
-const SinkAudioElement: React.FC<{ track: NonNullable<RemoteParticipantMedia['audioTrack']> }> = ({ track }) => {
+const SinkAudioElement: React.FC<{ track: NonNullable<RemoteParticipantMedia['audioTrack']>; muted?: boolean }> = ({ track, muted }) => {
   const ref = useCallback((el: HTMLAudioElement | null) => {
     if (el) track.attach(el);
     else track.detach();
   }, [track]);
-  return <audio ref={ref} autoPlay />;
+  return <audio ref={ref} autoPlay muted={muted} />;
 };
 
 export const SocialLive: React.FC<SocialLiveProps> = ({ 
@@ -452,6 +473,37 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     canPublish: isUserOnStage && hasMediaConsent,
     enabled: !!realSessionId,
   });
+
+  // LIVE PLANÉTAIRE — MA langue d'écoute (LP-3).
+  //
+  // Deux moitiés indépendantes, tenues par un seul crochet :
+  //  - AUDITEUR : tout le monde, y compris un spectateur sans micro ni
+  //    caméra ; mon choix voyage dans mes métadonnées pour que les
+  //    intervenants sachent quelles langues produire.
+  //  - INTERVENANT : seulement si je suis réellement sur scène avec un micro
+  //    publié ; une transcription, N traductions, une piste par LANGUE —
+  //    jamais une par auditeur.
+  //
+  // Par défaut : Original. Personne n'entend une traduction sans l'avoir
+  // demandée, et rien n'est produit tant que personne n'en demande.
+  const interpreterAudibleRef = useRef(false);
+  const listening = useLiveListeningLanguage({
+    transport: liveTransport,
+    canProduce: isUserOnStage && hasMediaConsent,
+    myLanguageHint: userProfile.preferredLanguage || undefined,
+    isInterpreterAudible: () => interpreterAudibleRef.current,
+  });
+  // Une voix d'interprète sort de MON haut-parleur quand je suis abonné à une
+  // piste dans MA langue chez quelqu'un que le serveur détecte en train de
+  // parler : mon micro capte alors autre chose que ma voix, et le découpeur
+  // doit se mettre en pause (leçon des appels — sans quoi on retraduit la
+  // traduction).
+  interpreterAudibleRef.current = (() => {
+    const mine = listeningLanguageCode(listening.choice);
+    if (!mine) return false;
+    return liveTransport.remoteParticipants.some((p) =>
+      !!p.interpreterTracksByLanguage?.[mine] && liveTransport.activeSpeakerIds.includes(p.participant.identity));
+  })();
 
   // Référence conservée pour la capture de frame réelle (LOOP 11/14, Vision
   // IA) — le ref-callback ci-dessous attache la vraie piste LiveKit, on garde
@@ -2718,7 +2770,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {/* Équipe F3 : audio de scène PERMANENT (indépendant du mode
                 d'affichage) + états honnêtes du transport — plus jamais un
                 silence ou une panne inexpliqués. */}
-            <RemoteAudioSink participants={liveTransport.remoteParticipants} />
+            <RemoteAudioSink participants={liveTransport.remoteParticipants} listeningChoice={listening.choice} />
             {liveTransport.audioPlaybackBlocked && (
               <button
                 onClick={(e) => { e.stopPropagation(); void liveTransport.startAudio(); }}
