@@ -1122,6 +1122,78 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-051] — 4 Septembre 2026
+
+* **Module(s)** : `Navigation globale (en-têtes ordinateur et téléphone, barre latérale)`, `Accueil / Tableau de bord`
+* **Problème / Besoin initial** : la Direction a envoyé cinq captures de
+  l'accueil — « l'interface est trop chargée », surtout la barre du haut et la
+  barre latérale — et demandé de **retirer ces boutons de l'affichage** sans
+  supprimer les fonctions dans le système : le badge « v5.12 », la pilule
+  « Services », la bannière « Lier Google Workspace », le compteur
+  « 1 000 000 Ⓒ », le bouton « Services Transversaux · Google » du pied de
+  barre latérale et la carte « Conseiller Référent · Conseiller Diallo » du
+  tableau de bord. Aucune fusion ni production avant son contrôle.
+* **Audit de l'existant, avant d'y toucher** : la même modale
+  `TransversalServicesModal` avait **trois** déclencheurs (pilule d'en-tête,
+  pied de barre latérale, tiroir mobile) plus la recherche ⌘K. Les quatre
+  centres Google (`google-maps` / `google-drive` / `google-meet` /
+  `google-chat`) ne sont **pas** des entrées de `MAIN_NAV_ITEMS` mais de
+  `TRANSVERSAL_SERVICES` : sur ordinateur, ils n'étaient joignables QUE par
+  cette modale ou par ⌘K — retirer les deux boutons sans rien redonner aurait
+  rendu quatre écrans quasi inatteignables. « Lier Google Workspace » est
+  aussi porté, en version complète, par les centres Drive, Chat et Meet. Le
+  solde de crédits vit dans « Finance & Wallet » (navigation principale). Le
+  badge « v5.12 » était **faux** (v6.14.1 en production). La carte de
+  conseiller était la prop `leadAdvisor` de `PointAToBPathway`, encore
+  utilisée par la vitrine du Design System.
+* **Idées envisagées** :
+  1. Masquer par CSS (`hidden`) — **rejeté** : du DOM mort, des tests
+     trompeurs, et « pas de faux boutons » (`AGENTS.md` § 4).
+  2. Supprimer aussi la modale et la variante compacte de la bannière —
+     **rejeté** : la Direction a interdit de supprimer les fonctions.
+  3. **Retenu** : retirer les six déclencheurs de l'affichage, garder les
+     composants et la modale, et **redonner au hub un chemin sur ordinateur**
+     — un rang « Services Google & Sécurité » dans le menu Compte (avatar),
+     symétrique de l'entrée du tiroir mobile.
+* **Décision** : dans `Layout.tsx`, l'en-tête ordinateur perd le badge de
+  version, la pilule « Services », la bannière compacte Google Workspace et
+  le compteur de crédits ; l'en-tête téléphone perd le même compteur (même
+  élément, même raison) ; le pied de barre latérale perd le bouton « Services
+  Transversaux · Google » ; le menu Compte gagne un rang « Services Google &
+  Sécurité » (`data-testid="compte-services-transversaux"`) qui ouvre la
+  même modale. Dans `Dashboard.tsx`, la trajectoire Point A → Point B est
+  rendue sans `leadAdvisor` ni `onOpenAdvisor`. Le tiroir mobile est
+  **inchangé** (hors périmètre — ni barre du haut ni barre latérale
+  d'ordinateur — et seul chemin mobile vers le hub). `GoogleWorkspaceBanner`
+  et `TransversalServicesModal` ne sont pas modifiés.
+* **Justification** : moins de chrome à l'accueil sans perte de capacité —
+  chaque fonction garde au moins un chemin réel sur ordinateur ET sur
+  téléphone, prouvé par test ; un badge de version faux est une
+  documentation qui ment (défaut au même titre qu'un bug).
+* **Éléments techniques** : `components/Layout.tsx` (−4 éléments d'en-tête,
+  −1 élément d'en-tête mobile, −1 bouton de barre latérale, +1 rang de menu
+  Compte, import orphelin `GoogleWorkspaceBanner` retiré),
+  `components/Dashboard.tsx`, `tests/homeChromeCleanup.test.tsx` (nouveau :
+  6 tests « retiré de l'affichage » + 5 tests « toujours atteignable »).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **935/935 (68 fichiers, +11)** ·
+  `npm run build` propre · captures avant/après **ordinateur 1600×900** et
+  **téléphone 390×844** (harnais local non versionné rendant Layout +
+  Dashboard authentifiés sur `origin/main` et sur la branche), versées dans
+  `docs/captures/2026-09-04-nettoyage-accueil/` avec les recadrages
+  en-tête / barre latérale / menu Compte / trajectoire.
+* **Statut** : `Développé`, `Testé`, `Validé` — **validation de la Direction
+  le 4 septembre 2026** (« Je valide ta proposition, mais exécution contrôlée
+  uniquement. Rien ne doit régresser. Objectif : zéro régression. Preuve et
+  test à la fin. ») après contrôle de l’aperçu Netlify et des captures ;
+  fusionnée dans `main` via la PR #73, déploiement automatique Netlify sur
+  moknet.net, contrôle post-déploiement (bundle servi, absence d’erreur de
+  page) consigné dans la PR.
+* **Restes assumés** : le jugement visuel (« est-ce assez aéré ? ») revient à
+  la Direction ; `GoogleWorkspaceBanner compact` n'a plus d'appelant
+  (variante conservée) ; `PointAToBPathway.leadAdvisor` reste (vitrine).
+
+---
+
 ### [DEC-2026-050] — 4 Septembre 2026
 
 * **Module(s)** : `Live / Directs`, `Fonction Edge livekit-token`, `Déploiement VPS LiveKit`

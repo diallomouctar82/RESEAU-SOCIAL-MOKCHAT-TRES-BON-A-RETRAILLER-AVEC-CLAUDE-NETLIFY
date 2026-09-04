@@ -29,14 +29,43 @@
 | **v6.12.1** | 3 Septembre 2026 | **Sécurité base : vue `ai_spend_by_provider` en `security_invoker`, `ai_provider_credentials` retirée des rôles clients (pilote consommateur Vision Smart AI Core, TASK-0014)** | Supabase (orchestrateur IA), Gouvernance AI Core | Migration 20260903094327 / DEC-2026-041 | **Stable** |
 | **v6.13.0** | 3 Septembre 2026 | **Menu « Miroir d'eau » (proposition 06 retenue par la Direction) — habillage verre/eau scopé, nappe d'eau animée avec onde à l'appui, Architecte en goutte au centre du dock** | Navigation globale, Accueil réseau social, Goutte messagerie | DS-M2a `61ca0fd` + DS-M2b `d54c7ec` / DEC-2026-042 | **Stable — en production (PR #60 → `0ad30ee`), validée par la Direction sur moknet.net le 4/09** |
 | **v6.14.0** | 3 Septembre 2026 | **Studio Live à l'image de la seconde référence — abysse, colonne d'eau liquide, verre cyan, vidéo dans le verre, « ● EN DIRECT » honnête ; un agent IA peut enfin être retiré de la scène** | Studio Live, Barre d'actions du Live, Transport LiveKit (badge) | DS-L0 `2a57c92`+`72406a2` + DS-L1 `b118541` / DEC-2026-043 | **Stable — en production (PR #60 → `0ad30ee`), validée par la Direction sur moknet.net le 4/09** |
-| **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Courante (Active) — en production, vérifiée sur moknet.net** |
+| **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Stable — en production, vérifiée sur moknet.net** |
 | **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 (`ddde79a`, `82e4d6c`, `da43971`, `c5911d6`) / DEC-2026-050 | **Développée et testée — EN ATTENTE DE VALIDATION DE LA DIRECTION** (PR en brouillon, fonction Edge non déployée, `prometheus_port` pas encore posé sur le VPS) |
+| **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Courante (Active) — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), déploiement automatique Netlify sur moknet.net** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.16.0] — 4 Septembre 2026 (Nettoyage de l’accueil — « l’interface est trop chargée »)
+
+* **La demande** : cinq captures de la Direction, une consigne — retirer ces
+  boutons de l’affichage à l’accueil (barre du haut, barre latérale), sans
+  supprimer les fonctions dans le système.
+* **Ce qui disparaît de l’écran** : en-tête ordinateur — badge « v5.12 »
+  (faux : v6.14.1 en production), pilule « Services », bannière « Lier
+  Google Workspace », compteur « 1 000 000 Ⓒ » ; en-tête téléphone — le même
+  compteur ; pied de barre latérale — « Services Transversaux · Google » ;
+  tableau de bord — carte « Conseiller Référent · Conseiller Diallo ».
+* **Ce qui ne disparaît pas** : la modale du hub transversal (Maps, Drive,
+  Meet, Chat, Coffre-fort) s’ouvre désormais depuis un rang du menu Compte
+  sur ordinateur, comme depuis le tiroir mobile et la recherche ⌘K ; la
+  liaison Google Workspace reste dans les centres Drive, Chat et Meet ; le
+  solde reste dans « Finance & Wallet » ; la trajectoire Point A → Point B
+  reste, sans sa carte de conseiller.
+* **Preuves** : `tsc --noEmit` 0 · `vitest` 935/935 (68 fichiers, +11 :
+  `tests/homeChromeCleanup.test.tsx`) · `npm run build` propre · captures
+  avant/après ordinateur (1600×900) et téléphone (390×844) jointes à la PR.
+* **Statut** : **validée par la Direction le 4 septembre 2026** (« Je valide
+  ta proposition, mais exécution contrôlée uniquement. Rien ne doit
+  régresser. ») après contrôle de l’aperçu de déploiement et des captures ;
+  fusionnée dans `main` via la PR #73 (fusion écrasée, convention du dépôt),
+  déploiement automatique Netlify sur moknet.net ; contrôle post-déploiement
+  consigné dans la PR (DEC-2026-051).
+
+---
 
 ### [Version 6.15.0] — 4 Septembre 2026 (Saturation des directs — mission SAT, boucles 0 à 3)
 
