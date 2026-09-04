@@ -358,9 +358,23 @@ export function listeningStatusLine(params: {
     choice: ListeningChoice;
     waitingForMyLanguage: boolean;
     producerError?: string | null;
+    /**
+     * Mon choix n'a pas pu être ANNONCÉ aux intervenants (LP-6). C'est la
+     * panne la plus trompeuse de toute la chaîne : tout paraît normal, mais
+     * personne ne sait que ma langue est demandée, donc personne ne la
+     * produira jamais. Elle passe donc AVANT « pas encore disponible » —
+     * dire « pas encore » laisserait croire que ça finira par arriver.
+     */
+    choiceBroadcastError?: string | null;
 }): ListeningStatusLine {
     const code = listeningLanguageCode(params.choice);
     if (!code) return { text: null, tone: 'neutre' };
+    if (params.choiceBroadcastError) {
+        return {
+            text: `Votre choix n'a pas pu être annoncé aux intervenants — vous entendez l'audio d'origine.`,
+            tone: 'panne',
+        };
+    }
     if (params.producerError) {
         return { text: `Traduction indisponible pour l'instant — vous entendez l'audio d'origine.`, tone: 'panne' };
     }

@@ -145,8 +145,20 @@ const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[]; listen
               elle doit reprendre instantanément si l'interprète s'arrête, et
               `muted` est la seule commande que les téléphones honorent
               réellement (le volume est ignoré sur iOS — mesuré côté appels). */}
-          {media.audioTrack && <SinkAudioElement track={media.audioTrack} muted={decision.originalVolume === 0} />}
-          {decision.interpreted && interpreterTrack && <SinkAudioElement track={interpreterTrack} />}
+          {media.audioTrack && (
+            <SinkAudioElement
+              track={media.audioTrack}
+              muted={decision.originalVolume === 0}
+              testId={`live-original-audio-${media.participant.identity}`}
+            />
+          )}
+          {decision.interpreted && interpreterTrack && (
+            <SinkAudioElement
+              track={interpreterTrack}
+              testId={`live-interpreter-audio-${media.participant.identity}`}
+              language={mine ?? undefined}
+            />
+          )}
           {media.screenShareAudioTrack && <SinkAudioElement track={media.screenShareAudioTrack} />}
         </React.Fragment>
       );
@@ -154,12 +166,24 @@ const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[]; listen
   </>
 );
 
-const SinkAudioElement: React.FC<{ track: NonNullable<RemoteParticipantMedia['audioTrack']>; muted?: boolean }> = ({ track, muted }) => {
+/**
+ * Un élément de son, nommé. Le nom (`data-testid`) et la langue rendue
+ * (`data-language`) ne changent rien à ce qui s'entend : ils rendent le
+ * chemin audio OBSERVABLE, exactement comme côté appels
+ * (`original-audio` / `interpreter-audio`). Sans eux, « la bonne voix sort
+ * du bon haut-parleur » ne se mesure pas — il faudrait le croire.
+ */
+const SinkAudioElement: React.FC<{
+  track: NonNullable<RemoteParticipantMedia['audioTrack']>;
+  muted?: boolean;
+  testId?: string;
+  language?: string;
+}> = ({ track, muted, testId, language }) => {
   const ref = useCallback((el: HTMLAudioElement | null) => {
     if (el) track.attach(el);
     else track.detach();
   }, [track]);
-  return <audio ref={ref} autoPlay muted={muted} />;
+  return <audio ref={ref} autoPlay muted={muted} data-testid={testId} data-language={language} />;
 };
 
 export const SocialLive: React.FC<SocialLiveProps> = ({ 
@@ -2584,6 +2608,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             onChoose={listening.choose}
             waitingForMyLanguage={listening.waitingForMyLanguage}
             producerError={listening.producerError}
+            choiceBroadcastError={listening.choiceBroadcastError}
             className="shrink-0"
           />
           <div className={`flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-x-auto no-scrollbar ${contextualChromeClass}`}>

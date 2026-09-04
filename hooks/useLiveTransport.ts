@@ -589,7 +589,16 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 // Participants déjà présents à la connexion — arrivent via ce
                 // snapshot, pas via onParticipantConnected (réservé aux
                 // arrivées ultérieures, voir LOOP 01/14).
-                for (const p of provider.getRemoteParticipants()) upsertRemote(p.identity, { participant: p });
+                // LIVE PLANÉTAIRE (LP-6) : `metadata` fait partie de ce
+                // snapshot, au même titre que le handle. Sans lui, un
+                // intervenant qui rejoint un direct où les auditeurs ont DÉJÀ
+                // choisi leur langue ne l'apprend jamais — `onParticipantMetadataChanged`
+                // ne se déclenche qu'aux changements ULTÉRIEURS. C'est
+                // exactement l'inverse de ce que promet le commentaire de cet
+                // événement (« le serveur le retransmet à qui rejoint plus
+                // tard ») : le serveur le retransmet bien, c'est le client qui
+                // le jetait.
+                for (const p of provider.getRemoteParticipants()) upsertRemote(p.identity, { participant: p, metadata: p.metadata });
 
                 // VF-3 : ce qui est publié ici est ce que cette tentative VEUT —
                 // options « à la connexion » (appelant, LIVE) et/ou activation

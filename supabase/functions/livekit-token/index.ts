@@ -134,6 +134,24 @@ Deno.serve(async (req: Request) => {
         canPublish: body.canPublish !== false,
         canSubscribe: true,
         canPublishData: true,
+        // LIVE PLANÉTAIRE (LP-6) — SANS CE DROIT, LA TRADUCTION EST MORTE.
+        //
+        // La langue d'écoute de chacun voyage dans SES propres métadonnées de
+        // participant : c'est ainsi que les intervenants savent quelles
+        // langues produire (`requestedLanguageCounts`). Or LiveKit refuse
+        // `setMetadata()` côté client tant que le jeton ne porte pas ce droit
+        // — mesuré contre le binaire exact du VPS (1.8.4) : « does not have
+        // permission to update own metadata ». L'erreur remontait sans bruit,
+        // donc plus aucune langue n'était jamais demandée, plus aucune piste
+        // d'interprète n'était produite, et chaque auditeur restait sur
+        // l'audio d'origine en croyant attendre une voix qui ne venait pas.
+        //
+        // Ce droit ne concerne QUE ses propres métadonnées : personne ne peut
+        // écrire celles d'un autre participant (`canUpdateOwnMetadata`, pas
+        // `roomAdmin`). Un spectateur sans micro (`canPublish: false`) en a
+        // besoin autant qu'un intervenant — c'est précisément lui qui choisit
+        // sa langue d'écoute sans jamais rien publier.
+        canUpdateOwnMetadata: true,
     });
 
     const token = await at.toJwt();

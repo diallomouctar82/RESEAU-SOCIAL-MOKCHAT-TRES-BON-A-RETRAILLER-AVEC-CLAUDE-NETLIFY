@@ -66,6 +66,12 @@ export interface UseLiveListeningLanguageResult {
     latency: LiveLatencyReport;
     /** La chaîne de production a échoué chez moi (dit à l'écran, jamais avalé). */
     producerError: string | null;
+    /**
+     * Mon choix de langue n'a PAS pu être annoncé aux intervenants (LP-6).
+     * Sans cette annonce, personne ne produit ma langue : l'écran doit le
+     * dire au lieu de me laisser attendre une voix qui ne viendra jamais.
+     */
+    choiceBroadcastError: string | null;
 }
 
 const EMPTY_PLAN: ProductionPlan = { produce: [], unserved: [], alreadySpoken: [] };
@@ -78,6 +84,7 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
     const [plan, setPlan] = useState<ProductionPlan>(EMPTY_PLAN);
     const [stages, setStages] = useState<LiveInterpreterStage[]>([]);
     const [producerError, setProducerError] = useState<string | null>(null);
+    const [choiceBroadcastError, setChoiceBroadcastError] = useState<string | null>(null);
 
     // Les langues demandées autour de moi, telles que les métadonnées des
     // participants les portent. Un ÉTAT, donc juste : un arrivant tardif est
@@ -102,8 +109,20 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
     // personne ne produit ma langue et j'attends une voix qui ne viendra pas.
     useEffect(() => {
         if (transport.connectionState !== 'connected') return;
+        let annule = false;
         void transport.publishLocalMetadata(encodeLiveParticipantMeta(choice, transport.getLocalMetadata()))
-            .catch(() => { /* le prochain changement de langue ou de connexion republiera */ });
+            .then(() => { if (!annule) setChoiceBroadcastError(null); })
+            .catch((e: unknown) => {
+                // LP-6 : cet échec était AVALÉ. Il ne l'est plus, parce qu'il
+                // est le seul qui rende la traduction impossible en silence :
+                // si mon choix n'atteint pas les intervenants, personne ne
+                // produit ma langue et j'attends indéfiniment une voix qui ne
+                // viendra jamais — l'écran doit le dire, pas me laisser croire
+                // que ça arrive. Le prochain changement de langue ou de
+                // connexion republie de toute façon.
+                if (!annule) setChoiceBroadcastError(e instanceof Error ? e.message : String(e));
+            });
+        return () => { annule = true; };
     }, [choice, transport.connectionState, transport.publishLocalMetadata, transport.getLocalMetadata]);
 
     // ── Moitié intervenant : produire pour les autres ──────────────────────
@@ -113,7 +132,16 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
     useEffect(() => {
         // Le producteur ne démarre QUE si je suis réellement sur scène avec un
         // micro publié : sans piste à écouter, il n'aurait rien à transcrire.
-        if (!canProduce || !transport.localAudioPublished || transport.connectionState !== 'connected') return;
+        //
+        // LP-6 : ces trois conditions étaient muettes. Quand aucune traduction
+        // ne sort, la première question est « laquelle des trois manque ? » —
+        // sans cette ligne, elle ne se répond qu'en devinant.
+        if (!canProduce || !transport.localAudioPublished || transport.connectionState !== 'connected') {
+            console.log(`[live-interprète] producteur en attente — sur scène avec consentement: ${canProduce}`
+                + ` · micro publié: ${transport.localAudioPublished} · connexion: ${transport.connectionState}`);
+            return;
+        }
+        console.log('[live-interprète] producteur démarré (sur scène, micro publié, connecté)');
         const producer = new LiveInterpreterProducer({
             getLocalAudioTrack: transport.getLocalAudioTrack,
             myLanguageHint,
@@ -121,7 +149,16 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
             publishTrack: (track, name) => transport.publishInterpreterAudio(track, name),
             unpublishTrack: (name) => transport.unpublishInterpreterAudio(name),
             isPaused: () => audibleRef.current?.() ?? false,
-            onPlanChanged: setPlan,
+            onPlanChanged: (p) => {
+                setPlan(p);
+                // Même convention de journal que les appels (`[appel] …`) : sans
+                // cette ligne, « pourquoi personne n'entend ma traduction ? » ne
+                // se diagnostique qu'en devinant. Elle ne nomme JAMAIS qui a
+                // demandé quoi — seulement les langues et leur nombre.
+                console.log(`[live-interprète] langues produites: ${p.produce.join(', ') || 'aucune'}`
+                    + ` · non servies: ${p.unserved.join(', ') || 'aucune'}`
+                    + ` · déjà parlées: ${p.alreadySpoken.join(', ') || 'aucune'}`);
+            },
             onStage: (stage) => setStages((prev) => [...prev.slice(-(MAX_STAGES - 1)), stage]),
             onUnavailable: (reason) => setProducerError(reason),
         });
@@ -179,5 +216,5 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
 
     const latency = useMemo(() => summarizeLiveLatency(stages), [stages]);
 
-    return { choice, choose, plan, waitingForMyLanguage, stages, latency, producerError };
+    return { choice, choose, plan, waitingForMyLanguage, stages, latency, producerError, choiceBroadcastError };
 }

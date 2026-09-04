@@ -42,6 +42,8 @@ export interface ListeningLanguagePickerProps {
     waitingForMyLanguage?: boolean;
     /** La chaîne de production a échoué chez moi (dit à l'écran, jamais avalé). */
     producerError?: string | null;
+    /** Mon choix n'a pas atteint les intervenants : personne ne produira ma langue (LP-6). */
+    choiceBroadcastError?: string | null;
     /** `compact` : la pastille du bandeau (téléphone compris). */
     className?: string;
 }
@@ -51,12 +53,13 @@ export const ListeningLanguagePicker: React.FC<ListeningLanguagePickerProps> = (
     onChoose,
     waitingForMyLanguage = false,
     producerError = null,
+    choiceBroadcastError = null,
     className = '',
 }) => {
     const [open, setOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
     const options = listeningLanguageOptions();
-    const status = listeningStatusLine({ choice, waitingForMyLanguage, producerError });
+    const status = listeningStatusLine({ choice, waitingForMyLanguage, producerError, choiceBroadcastError });
     const active = !!listeningChoiceLabel(choice) && choice !== null;
 
     // Fermeture au clic extérieur et à Échap : la liste ne doit jamais rester
