@@ -41,11 +41,12 @@ import { LiveParticipantsPanel, ROLE_LABELS } from './live/LiveParticipantsPanel
 import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import {
-  decodeLiveParticipantMeta, listeningLanguageCode, speakerAudioDecision, subtitleForListener,
+  decodeLiveParticipantMeta, listeningLanguageCode, listeningChoiceLabel, speakerAudioDecision, subtitleForListener,
   type ListeningChoice, type LiveSubtitle,
 } from '../services/live/liveListeningLanguage';
 import { decodeCallData } from '../services/messaging/speechLanguage';
-import { keepLiveTranscriptLine } from '../services/live/liveTranscriptService';
+import { keepLiveTranscriptLine, getLiveTranscript } from '../services/live/liveTranscriptService';
+import { buildCatchUpMaterial, catchUpPrompt, assistantPrompt, catchUpEmptyMessage, type CatchUpMaterial } from '../services/live/liveCatchUp';
 import type { LiveTranscriptLine } from '../services/live/liveInterpreterProducer';
 import { useLiveListeningLanguage } from '../hooks/useLiveListeningLanguage';
 import { ListeningLanguagePicker } from './live/ListeningLanguagePicker';
@@ -1921,26 +1922,56 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   /**
-   * "Ce que vous avez manqué" (LOOP 11/14) — nourri du vrai chat
-   * (`messages`, réel depuis le LOOP 05/14 : live_messages via Supabase),
-   * pas seulement du titre du LIVE (ancien comportement, vérifié par audit :
-   * `generateText` ne recevait que `liveData.title`). Sans transcript
-   * réel, le résumé le dit honnêtement plutôt que d'en inventer un.
+   * LP-8 — LA MATIÈRE RÉELLE DU DIRECT.
+   *
+   * Le rattrapage ET l'assistant privé lisent la MÊME chose : la parole
+   * réellement prononcée (LP-7, `live_transcript_lines`) ET le chat tapé
+   * (LOOP 05/14, `live_messages`). Avant, l'un ne lisait que le chat et
+   * l'autre ne recevait que le TITRE — d'où « aucun message échangé » sur un
+   * direct où l'on avait parlé vingt minutes, et des réponses fabriquées.
+   *
+   * `isRecordingEnabled` vient de la ligne réelle `live_sessions` (fusionnée
+   * par `mergeLiveStreamWithRealSession`) : c'est lui qui distingue « rien
+   * n'a encore été dit » de « la parole n'était pas conservée ».
+   */
+  const collectCatchUpMaterial = async (): Promise<CatchUpMaterial> => {
+    const spoken = realSessionId
+      ? await getLiveTranscript(realSessionId).catch(() => [])
+      : [];
+    return buildCatchUpMaterial({
+      spoken: spoken.map((l) => ({
+        speakerName: l.speakerName || 'Quelqu\'un',
+        text: l.text,
+        spokenAt: l.spokenAt,
+      })),
+      chat: messages.map((m) => ({ authorName: m.authorName, text: m.text })),
+      transcriptKept: !!liveData.isRecordingEnabled,
+    });
+  };
+
+  /** La langue d'écoute choisie (LP-1), ou `undefined` en Original — on ne force alors rien. */
+  const myListeningLabel = (): string | undefined =>
+    listening.choice ? listeningChoiceLabel(listening.choice) : undefined;
+
+  /**
+   * « Ce que vous avez manqué » — la parole du direct ET le chat, résumés
+   * dans MA langue d'écoute.
    */
   const handleRequestCatchup = async () => {
     setShowCatchupSummary(true);
+    setCatchupDigest('Lecture de ce qui a été dit et écrit dans ce direct…');
 
-    if (messages.length === 0) {
-      setCatchupDigest("Aucun message n'a encore été échangé dans ce direct — rien à résumer pour l'instant.");
+    const material = await collectCatchUpMaterial();
+    if (material.kind === 'empty') {
+      // Deux situations, deux phrases : « personne n'a rien dit » n'est pas
+      // « la parole n'a pas été conservée ».
+      setCatchupDigest(catchUpEmptyMessage(material.reason));
       return;
     }
 
-    setCatchupDigest("Génération du résumé à partir du chat réel par Diallo OS...");
-    const transcript = messages.slice(-60).map((m) => `${m.authorName}: ${m.text}`).join('\n');
-
     try {
       const response = await generateText(
-        `Voici le chat réel du LIVE "${liveData.title}" (messages les plus récents en dernier) :\n\n${transcript}\n\nRésume en 3 puces percutantes ce qui s'est dit, à l'attention d'un spectateur qui arrive en retard. Base-toi uniquement sur ce chat, n'invente rien.`
+        catchUpPrompt({ material, title: liveData.title, language: myListeningLabel() })
       );
       setCatchupDigest(response || "Le résumé n'a pas pu être généré pour le moment — réessayez dans un instant.");
     } catch (e) {
@@ -1948,7 +1979,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
   };
 
-  // Private Assistant Inquiry
+  /**
+   * L'assistant privé. Il reçoit la matière RÉELLE et le droit de ne pas
+   * savoir : ses deux anciens replis fabriquaient des définitions (« ce terme
+   * désigne la conformité légale obligatoire ») sur un direct dont il ne
+   * connaissait que le titre. Une panne se dit maintenant comme une panne.
+   */
   const handleAskPrivateAssistant = async () => {
     if (!assistantInput.trim()) return;
     const query = assistantInput.trim();
@@ -1956,16 +1992,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setIsAssistantThinking(true);
 
     try {
+      const material = await collectCatchUpMaterial();
       const response = await generateText(
-        `Tu es l'assistant privé et discret d'un spectateur du Live "${liveData.title}".
-            L'utilisateur te demande en aparté : "${query}".
-            Réponds de façon ultra-concise, pédagogique et bienveillante en 2-3 phrases max.`
+        assistantPrompt({ material, question: query, title: liveData.title, language: myListeningLabel() })
       );
-
-      const answer = response || "C'est une démarche clé qui facilite la validation auprès des autorités compétentes.";
-      setAssistantMessages(prev => [...prev, { query, answer }]);
+      setAssistantMessages(prev => [...prev, {
+        query,
+        answer: response || "Je n'ai pas pu répondre à l'instant — réessayez dans un moment.",
+      }]);
     } catch (e) {
-      setAssistantMessages(prev => [...prev, { query, answer: "Explication synthétique : ce terme désigne la conformité légale obligatoire." }]);
+      setAssistantMessages(prev => [...prev, {
+        query,
+        answer: "Je n'ai pas pu répondre : l'assistant est momentanément indisponible. Rien n'a été deviné à sa place.",
+      }]);
     } finally {
       setIsAssistantThinking(false);
     }
