@@ -1122,6 +1122,100 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-050] — 4 Septembre 2026
+
+* **Module(s)** : `Live / Directs`, `Fonction Edge livekit-token`, `Déploiement VPS LiveKit`
+* **Problème / Besoin initial** : la porte serveur (SAT-2) et l'écran « c'est
+  complet » (SAT-3) étaient l'un et l'autre corrects, testés et prouvés au
+  banc — et pourtant **inertes en production**. Cause racine trouvée en
+  remontant la chaîne : **rien dans le dépôt n'appelait jamais `createRoom`**.
+  LiveKit crée donc la room tout seul à l'arrivée du premier participant,
+  sans `maxParticipants` — et `0` est sa convention pour « aucune limite ».
+  La porte lisait donc fidèlement un plafond nul et ne pouvait refuser
+  personne, quoi qu'elle compte. Un garde-fou complet, correct et sans
+  effet.
+* **Options envisagées** :
+  1. **Un chiffre en dur** (ex. 200 places) — écarté par la Direction dès
+     SAT-0 : un plafond arbitraire est faux sur toute machine qui n'est pas
+     celle pour laquelle il a été choisi.
+  2. **Un réglage manuel par direct** — écarté également : demande à
+     l'animateur une information qu'il n'a pas.
+  3. **Un plafond dérivé de la machine réelle** — retenu.
+* **Ce que le banc a mesuré, et qui a dicté la conception** (sonde exécutée
+  contre les DEUX binaires : `livekit-server` **1.8.4**, la version exacte du
+  VPS, et **1.13.6**, la cible épinglée dans `deploy/livekit/`) :
+  * `/metrics` **n'existe que si `prometheus_port` est configuré** ; sans
+    lui, HTTP 404 sur tous les ports. Le VPS ne l'a pas.
+  * `createRoom({maxParticipants})` pose réellement le plafond ; un **second**
+    `createRoom` sur la même room **ne le change pas** (3 reste 3), et
+    **aucune** des 13 méthodes du SDK serveur ne le corrige ensuite. Le
+    plafond ne se pose donc qu'**à la création**.
+  * `listRooms()` sans filtre donne la charge de tout le nœud — la marge est
+    lisible sans Prometheus.
+  * une room vide **disparaît** (`empty_timeout`) : le plafond est perdu avec
+    elle et doit être re-posé à chaque renaissance.
+  * les étiquettes exposées par `/metrics` sont `code, direction, le, method,
+    node_id, node_type, quantile, service, status, transmission, version` —
+    **zéro nom de room, zéro identité de participant**. Aucune donnée
+    personnelle ne transite par ce canal.
+* **Décision** : le plafond suit **deux lectures vivantes** — les cœurs que
+  le serveur LiveKit voit (`go_sched_gomaxprocs_threads`) et l'occupation
+  réelle du nœud (`listRooms()`) — appliquées à **une seule référence, elle
+  aussi mesurée** : **0,00767 cœur par spectateur**, relevé au banc en audio,
+  dans la topologie d'un direct (un animateur publie, les autres reçoivent),
+  sur le compteur `process_cpu_seconds_total` du processus LiveKit. Soit
+  **130 places par cœur**, dont **la moitié seulement est engagée**.
+* **Pourquoi la moitié, et pas plus** : la part réservée n'est pas une marge
+  de confort, c'est l'écart **assumé** entre ce que le banc a pu mesurer
+  (audio seul, cinq participants) et ce que la machine porte réellement
+  (vidéo, appels 1-à-1, relais TURN, système). Une première mesure avait été
+  faite en topologie « réunion » (trois participants publiant tous) et donne
+  0,0127 cœur chacun ; elle a été **rejetée** : le coût d'un SFU croît en N²
+  dans ce cas, ce qui décrit une réunion, pas un direct.
+* **Refus de deviner, posé en dur dans le code** : toute incertitude rend
+  `null` et **ne pose aucun plafond** — pas d'URL de métriques, `/metrics`
+  injoignable ou en 404, machine inconnue, création refusée. Le direct se
+  comporte alors exactement comme avant, et la porte laisse entrer. Mieux
+  vaut un direct sans plafond qu'un plafond fabriqué.
+* **Le piège nommé et gardé** : le plancher est **1, jamais 0**. Un nœud
+  saturé dont le calcul tomberait à zéro poserait un direct **sans aucune
+  limite** — exactement l'inverse de son intention. Un test dédié l'éprouve
+  sur trois occupations extrêmes.
+* **Conséquences système** :
+  * `supabase/functions/livekit-token/nodeCapacity.ts` (nouveau, pur : ni
+    Deno, ni Supabase, ni réseau — ce qui permet au banc d'exécuter **la
+    fonction du dépôt elle-même** contre un vrai serveur, au lieu d'en
+    rejouer une imitation).
+  * `deploy/livekit/docker-compose.yml` : `prometheus_port` sur la **boucle
+    locale uniquement** — jamais exposé publiquement depuis ce fichier ; le
+    filtrage par jeton se fait au reverse-proxy (procédure dans
+    `deploy/livekit/README.md`).
+  * **Rien n'est actif en production** : `prometheus_port` n'est pas
+    configuré sur le VPS, `/metrics` y répond 404, donc **aucun plafond
+    n'est posé aujourd'hui**. Le code est prêt, l'infrastructure ne l'est
+    pas — c'est SAT-1b, une action SSH.
+  * La fonction Edge `livekit-token` n'est **pas déployée** avec ces
+    changements. Elle est globale et unique : la déployer, c'est la
+    production.
+* **Une garde trouvée COMPLAISANTE et corrigée** (le constat le plus utile de
+  cette boucle) : la contre-épreuve retirait l'ancre `^` de l'expression qui
+  lit le nombre de cœurs, et **les 27 tests restaient verts**. Le test
+  n'essayait qu'un nom **suffixé** (`..._threads_total`), que même une
+  expression sans ancre rejette — ce qui suit le nom n'y est ni un espace ni
+  un chiffre. Le vrai risque est un nom **préfixé** :
+  `livekit_go_sched_gomaxprocs_threads 99` aurait fait annoncer 99 cœurs
+  pour une machine qui n'en a pas. Test réécrit sur ce cas, contre-épreuve
+  rejouée : exactement **1 test rouge**, fichier restauré à l'empreinte
+  SHA-256 identique.
+* **Statut** : `Développé`, `Testé`, **`En attente de validation visuelle de
+  la Direction`** — tsc 0 · vitest 924/924 (67 fichiers, +27) · build propre ·
+  banc réel **21 OK / 0 DÉFAUT** sur 1.8.4 **et** 1.13.6 · **8
+  contre-épreuves / 8 conformes** · aucune écriture en base, aucun compte de
+  test, rien à nettoyer. **Aucune fusion, aucun déploiement de la fonction
+  Edge sans le feu vert de la Direction.**
+
+---
+
 ### [DEC-2026-049] — 4 Septembre 2026
 
 * **Module(s)** : `Design System`, `Navigation globale`, `Studio Live`,
