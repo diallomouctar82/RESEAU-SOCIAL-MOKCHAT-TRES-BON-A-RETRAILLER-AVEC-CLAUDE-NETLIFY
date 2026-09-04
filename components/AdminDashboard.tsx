@@ -15,7 +15,8 @@ import {
   ShieldAlert,
   Sliders,
   Database,
-  Cpu
+  Cpu,
+  HeartPulse
 } from 'lucide-react';
 import { adminConfigService } from '../services/adminConfigService';
 import { AdminOverviewTab } from './admin/AdminOverviewTab';
@@ -27,8 +28,9 @@ import { AdminTemplatesAndStampsTab } from './admin/AdminTemplatesAndStampsTab';
 import { AdminWorkflowsAndBackupTab } from './admin/AdminWorkflowsAndBackupTab';
 import { AdminLogsAndBroadcastTab } from './admin/AdminLogsAndBroadcastTab';
 import { AiOrchestrator } from './admin/AiOrchestrator';
+import { AdminHealthTab } from './admin/AdminHealthTab';
 
-export type AdminTab = 'overview' | 'ai-connectors' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
+export type AdminTab = 'overview' | 'health' | 'ai-connectors' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('ai-connectors');
@@ -98,6 +100,18 @@ export const AdminDashboard: React.FC = () => {
           >
             <LayoutDashboard size={15} />
             Vue Générale
+          </button>
+
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'health'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <HeartPulse size={15} />
+            Santé Globale
           </button>
 
           {/* Connecteurs & Modèles IA — Mise en avant stratégique */}
@@ -222,6 +236,13 @@ export const AdminDashboard: React.FC = () => {
           stamps={stamps}
           onNavigateTab={(tab) => setActiveTab(tab as AdminTab)}
         />
+      )}
+
+      {/* 🩺 SANTÉ GLOBALE — état de toute l'application, ligne par ligne, actions contrôlées */}
+      {activeTab === 'health' && (
+        <div className="animate-fade-up">
+          <AdminHealthTab />
+        </div>
       )}
 
       {/* 🧠 CONNECTEURS & MODÈLES IA — orchestrateur central (Supabase Vault + ai-gateway) */}
