@@ -1043,6 +1043,20 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         }
     }, [openSignal, open]);
 
+    /** Micro réellement en panne — pas simplement « pas encore démarré ». */
+    const micFailed = status === MIC_TIMEOUT_MESSAGE;
+
+    // État de présence : traduit des signaux RÉELS (voix, micro, réseau) par
+    // la machine d'états normative d'AI Core — jamais d'émotion simulée.
+    const avatarPresence = resolveArchitectePresence({
+        isSpeaking,
+        isListening,
+        isThinking,
+        micFailed,
+        online: typeof navigator === 'undefined' ? true : navigator.onLine,
+        degraded: ttsEngine === 'browser_native',
+    });
+
     // ── État fermé : PRÉSENCE FLOTTANTE PERMANENTE ──────────────────────────
     // RO-3 (04/09/2026) — inversion de rôles décidée par la Direction :
     // « L'architecte est le guide permanent de toute la maison Moknet, donc
@@ -1062,22 +1076,23 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // goutte ne flotte plus, donc plus rien à éviter.
     if (!isOpen) {
         return (
-            <button
-                type="button"
+            // C'EST ICI que l'avatar doit vivre : le bouton PERMANENT, celui
+            // que l'on voit sans rien ouvrir. Livré d'abord dans la barre
+            // ouverte (donc invisible tant qu'on n'ouvrait pas l'Architecte),
+            // il prend désormais la place de l'icône `DraftingCompass`.
+            // Le halo qui respire et l'anneau cyan ne sont pas perdus : ils
+            // sont portés par la grammaire d'états de l'avatar lui-même.
+            <ArchitecteAvatar
+                config={avatarConfig}
+                presence={avatarPresence}
+                ttsEngine={ttsEngine}
+                outputLevel={outputVolume}
+                size={56}
                 onClick={() => { void open(); }}
-                data-testid="architecte-flottant"
-                aria-label="Ouvrir l'Architecte"
-                title="L'Architecte — votre guide sur MokNet"
-                className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-[60] w-14 h-14 rounded-full flex items-center justify-center bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/50 text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.28),0_14px_34px_rgba(0,0,0,0.5)] transition-transform hover:scale-110 active:scale-95"
-            >
-                {/* Halo qui respire : signale une présence disponible sans
-                    réclamer l'attention. Éteint sous mouvement réduit. */}
-                <span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-full bg-cyan-400/12 animate-pulse motion-reduce:animate-none"
-                />
-                <DraftingCompass size={24} className="relative" />
-            </button>
+                actionLabel="Ouvrir l'Architecte"
+                testId="architecte-flottant"
+                className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-[60] ring-1 ring-cyan-500/50 shadow-[0_0_28px_rgba(34,211,238,0.28),0_14px_34px_rgba(0,0,0,0.5)] transition-transform hover:scale-110 active:scale-95"
+            />
         );
     }
 
@@ -1085,19 +1100,6 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // l'état de la session — exactement la cascade de l'original
     // (`lastTranscript || (isConnected ? "En écoute..." : "Connexion...")`).
     const subtitle = status || transcript || (isListening ? 'En écoute...' : 'Connexion...');
-    /** Micro réellement en panne — pas simplement « pas encore démarré ». */
-    const micFailed = status === MIC_TIMEOUT_MESSAGE;
-
-    // État de présence : traduit des signaux RÉELS (voix, micro, réseau) par
-    // la machine d'états normative d'AI Core — jamais d'émotion simulée.
-    const avatarPresence = resolveArchitectePresence({
-        isSpeaking,
-        isListening,
-        isThinking,
-        micFailed,
-        online: typeof navigator === 'undefined' ? true : navigator.onLine,
-        degraded: ttsEngine === 'browser_native',
-    });
 
     // ── Voix par défaut, texte quand il apporte une vraie valeur (§16-17) ──
     // Le panneau de transcription ne s'impose pas à chaque phrase : il

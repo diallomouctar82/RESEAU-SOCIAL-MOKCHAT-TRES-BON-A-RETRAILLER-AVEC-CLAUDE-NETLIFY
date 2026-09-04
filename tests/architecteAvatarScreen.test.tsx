@@ -80,6 +80,26 @@ describe('L’avatar remplace bien un bouton — il en garde les devoirs', () =>
     });
 });
 
+describe('Le bouton PERMANENT porte l’avatar — défaut relevé par la Direction le 04/09', () => {
+    // Défaut réel : l'avatar n'avait été posé que dans la barre OUVERTE. Sur
+    // l'écran d'accueil, le bouton toujours visible gardait son icône de
+    // compas — « aucun changement, ton travail n'est pas visible ».
+    it('l’avatar sait porter l’identifiant du bouton qu’il remplace', () => {
+        renderAvatar({ testId: 'architecte-flottant', actionLabel: "Ouvrir l'Architecte" });
+        const bouton = screen.getByTestId('architecte-flottant');
+        expect(bouton).toBeInTheDocument();
+        expect(bouton).toHaveAttribute('aria-label', "L'Architecte — au repos. Ouvrir l'Architecte");
+    });
+
+    it('rend un visage dès le repos, sans qu’aucune interaction soit nécessaire', () => {
+        const { container } = renderAvatar({ testId: 'architecte-flottant' });
+        // Le visage est là immédiatement : c'est toute la différence entre
+        // une présence permanente et un avatar caché derrière une ouverture.
+        expect(container.querySelector('svg')).toBeInTheDocument();
+        expect(screen.getByTestId('architecte-flottant')).toHaveAttribute('data-presence', 'rest');
+    });
+});
+
 describe('Animations — coupées quand elles doivent l’être', () => {
     it('animé par défaut', () => {
         renderAvatar();

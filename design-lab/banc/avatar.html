@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="UTF-8" />
+<title>Banc de rendu — Avatar de l'Architecte</title>
+<!-- Ouvrir avec `npx vite` puis /design-lab/banc/avatar.html — hors application, jamais dans le bundle. -->
+<style>
+  body { margin:0; background:#070D1E; color:#E8FBFF; font-family: system-ui, sans-serif; padding:34px 40px; }
+  h1 { font-size:19px; margin:0 0 4px; letter-spacing:.4px; }
+  p.sub { margin:0 0 26px; font-size:12px; color:#7f9bb0; }
+  h2 { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:#5f7c92; margin:30px 0 14px; font-weight:800; }
+  .row { display:flex; gap:26px; flex-wrap:wrap; }
+  .cell { display:flex; flex-direction:column; align-items:center; gap:9px; width:118px; }
+  .cap { font-size:11px; color:#93b0c4; text-align:center; line-height:1.35; }
+  .cap b { color:#E8FBFF; display:block; font-size:12px; }
+  .avatar-halo { position:absolute; inset:0; border-radius:9999px;
+    border:2px solid var(--halo-color, rgba(232,251,255,.3));
+    box-shadow: inset 0 0 28px 4px var(--halo-color, rgba(232,251,255,.2));
+    pointer-events:none; z-index:5; transition:border-color .4s ease, box-shadow .4s ease; }
+  .relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}
+  .rounded-full{border-radius:9999px}.overflow-hidden{overflow:hidden}
+  .shrink-0{flex-shrink:0}.w-full{width:100%}.h-full{height:100%}
+  .border{border-width:1px;border-style:solid}.border-cyan-500\/60{border-color:rgba(6,182,212,.6)}
+  .object-cover{object-fit:cover}
+</style></head>
+<body><div id="root"></div><script type="module" src="./avatar.tsx"></script></body></html>

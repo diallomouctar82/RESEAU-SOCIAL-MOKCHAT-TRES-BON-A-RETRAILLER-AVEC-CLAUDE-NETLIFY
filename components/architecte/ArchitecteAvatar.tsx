@@ -51,6 +51,8 @@ export interface ArchitecteAvatarProps {
     /** Libellé du bouton — l'action, pas la décoration. */
     actionLabel: string;
     className?: string;
+    /** Reprend l'identifiant du bouton remplacé, pour ne casser aucun appelant ni aucun test. */
+    testId?: string;
 }
 
 /** `prefers-reduced-motion` réel, réévalué si l'utilisateur change son réglage système. */
@@ -104,6 +106,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     onClick,
     actionLabel,
     className = '',
+    testId = 'architecte-avatar',
 }) => {
     const hostRef = useRef<HTMLButtonElement>(null);
     const prefersReducedMotion = usePrefersReducedMotion();
@@ -149,7 +152,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             // « L'Architecte parle », le mouvement n'est jamais seul à le dire.
             aria-label={`${config.displayName} — ${stateLabel}. ${actionLabel}`}
             title={`${config.displayName} — ${stateLabel}`}
-            data-testid="architecte-avatar"
+            data-testid={testId}
             data-presence={presence}
             data-animated={animated ? 'true' : 'false'}
             data-lipsync={lipSyncLevel}

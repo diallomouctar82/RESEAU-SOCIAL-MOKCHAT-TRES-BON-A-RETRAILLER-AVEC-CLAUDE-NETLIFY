@@ -136,7 +136,15 @@ describe('État fermé', () => {
         // Ce test est donc l'exact opposé du précédent, volontairement.
         const pastille = screen.getByTestId('architecte-flottant');
         expect(pastille).toBeInTheDocument();
-        expect(pastille).toHaveAttribute('aria-label', "Ouvrir l'Architecte");
+        // Depuis DEC-2026-051, cette présence est l'AVATAR VIVANT et non plus
+        // une icône : son nom accessible porte donc aussi l'état, exigence du
+        // playbook AI Core 15 (« aucun mouvement ne doit être le seul moyen
+        // d'indiquer un statut »). L'action reste annoncée, un état s'y ajoute.
+        expect(pastille).toHaveAttribute('aria-label', "L'Architecte — au repos. Ouvrir l'Architecte");
+        // Le visage est réellement rendu au repos, sans aucune interaction :
+        // c'est la différence entre une présence permanente et un avatar
+        // caché derrière une ouverture (défaut relevé par la Direction).
+        expect(pastille.querySelector('svg')).toBeInTheDocument();
         expect(container).not.toBeEmptyDOMElement();
     });
 

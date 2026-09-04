@@ -42,6 +42,7 @@ import {
 import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
 import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
+import { ArchitecteAvatarFace } from './architecte/ArchitecteAvatarFace';
 import { WaterMirror } from './miroir/WaterMirror';
 import { emitWaterRippleFrom } from '../services/miroir/waterRipple';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
@@ -763,7 +764,16 @@ export const Layout: React.FC<LayoutProps> = ({
                 aria-label="Ouvrir l'Architecte"
                 className={`w-full flex items-center gap-2.5 py-2 rounded-xl text-xs font-bold text-cyan-100 bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 hover:from-cyan-500/30 hover:to-indigo-500/30 transition-all duration-150 ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}`}
               >
-                <DraftingCompass size={16} className="shrink-0 text-cyan-300" />
+                {/* Le VISAGE de l'Architecte plutôt qu'une icône de compas :
+                    la même identité que sa présence flottante, pour qu'on le
+                    reconnaisse partout où il apparaît. Purement décoratif ici
+                    — c'est le bouton parent qui porte l'action et le libellé. */}
+                <ArchitecteAvatarFace
+                    mouthOpenness={0}
+                    accent="#8FE3FF"
+                    animated={false}
+                    className="w-4 h-4 shrink-0 rounded-full overflow-hidden"
+                />
                 {!isSidebarCollapsed && <span className="truncate flex-1 text-left">L'Architecte</span>}
               </button>
             </div>
