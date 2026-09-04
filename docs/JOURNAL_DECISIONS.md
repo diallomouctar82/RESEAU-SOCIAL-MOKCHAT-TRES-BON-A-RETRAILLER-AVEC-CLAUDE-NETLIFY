@@ -1122,6 +1122,83 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-049] — 4 Septembre 2026
+
+* **Module(s)** : `Design System`, `Navigation globale`, `Studio Live`,
+  `Qualité`, `Livraison`
+* **Problème / Besoin initial** : la Direction, ayant refusé la validation
+  trois fois de suite (DEC-2026-048), donne son feu vert explicite : « les
+  images sont validées, maintenant tu intègres dans la vraie branche, en
+  suivant le process. Green Gate au vert, puis fusion, puis vérification sur
+  le lien final. » Elle joint une capture de `moknet.net` montrant l'ancienne
+  interface — écran d'ouverture « Espace Personnel », deux boutons flottants.
+* **Ce que la capture prouvait réellement** : rien n'était cassé. **La PR #60
+  n'avait jamais été fusionnée**, sur la consigne de la Direction elle-même
+  (« pas de fusion, pas de prod »). `moknet.net` servait donc `main`, sans une
+  ligne de l'habillage. Mesuré indépendamment avant toute action :
+  `index.html` de production = **36 342 octets, 0 occurrence de
+  `data-miroir`**. Le lien d'aperçu, lui, ne redirige pas (HTTP 200, zéro
+  redirection) et servait bien 106 722 octets avec la couche aqua.
+* **Décision retenue** : appliquer le process demandé — intégrer `origin/main`
+  (`e9380bc`) dans la branche pour que le contrôle porte sur le contenu
+  réellement fusionné, repasser le Green Gate sur ce HEAD, puis fusionner en
+  squash. `main` = `0ad30ee`.
+* **Preuve sur la production, avant/après, depuis ses propres octets** :
+  `index.html` **36 342 → 107 299 octets** ; `data-miroir` **0 → 461** ;
+  nappe d'eau montée ; règle « cartes en verre » présente. Part d'écran
+  réellement changée, mesurée pixel à pixel : **46,16 %** (ordinateur
+  1440×900) et **32,60 %** (téléphone 390×844). **Validé par la Direction sur
+  `moknet.net` le 4 septembre 2026.**
+* **RÉGRESSION INTRODUITE PAR CETTE FUSION, trouvée après coup** : une
+  relecture adversariale à six axes (démarrage, navigation, portée des
+  sélecteurs, contraste, performance, livraison), chaque constat soumis à un
+  relecteur chargé de le **réfuter**, a confirmé un défaut bloquant. La règle
+  `[data-miroir] > *:not(.mir-scene) { z-index: 1 }` (spécificité 0,2,0)
+  l'emportait sur les classes `.z-20` / `.z-30` (0,1,0) des deux en-têtes de
+  `Layout.tsx`. Ceux-ci retombaient à `1`, **à égalité avec le conteneur
+  principal écrit après eux** : l'ordre du document tranchait, le conteneur
+  peignait par-dessus, et les menus ancrés en `absolute top-full` sous
+  l'en-tête — langue, Notifications, et le menu Compte **qui porte la
+  déconnexion** — devenaient inatteignables, leur voile de fermeture
+  `fixed inset-0 z-10` compris.
+* **Mesuré, pas déduit** — navigateur réel, CSS servi par la production, DOM
+  reproduisant la structure exacte de `Layout.tsx` : `elementFromPoint` au
+  centre de « Se déconnecter » renvoyait `div.bg-white`, une carte du fil ;
+  après correctif il renvoie `button#deconnexion`, et l'en-tête retrouve
+  `z-index: 20` sans perdre sa `position: sticky`.
+* **Correctif** : une exclusion — `[data-miroir] > *:not(.mir-scene):not(header)`.
+  Aucun composant touché, aucun `!important`. PR #64 fusionnée (`56c596a`),
+  déployée en 45 s, revérifiée sur `moknet.net` (habillage intact : 461
+  `data-miroir`).
+* **Garde-fou** : deux tests dans `tests/miroirFeuilleAnalysee.test.ts` qui
+  **ne cherchent pas une chaîne de caractères** — ils construisent un vrai
+  `<header>` avec les classes réelles, extraient par postcss tout sélecteur
+  scopé sous `[data-miroir] >` déclarant un `z-index`, et interrogent
+  `Element.matches`. Contre-épreuve faite : le défaut réintroduit fait virer
+  ce test au rouge, et lui seul.
+* **Leçon, cinquième de la série** : même famille que
+  `-webkit-box-reflect: none` ignoré par Chromium, les teintes `brand-*`
+  absentes de la config Tailwind, `hidden sm:flex` annulé par un `flex` nu, et
+  le commentaire CSS refermé trop tôt (DEC-2026-048) — **une déclaration qui
+  change le rendu sans le dire**. Le commentaire du code avertissait déjà du
+  piège de spécificité **pour `position`** ; il ne l'avait pas vu **pour
+  `z-index`, dans la même règle**. Règle à retenir : quand un sélecteur
+  d'habillage scopé impose une propriété à des enfants génériques, énumérer
+  les classes utilitaires que ces enfants portent déjà sur cette propriété.
+* **Ce que la CI ne pouvait pas voir** : ni le typage, ni les 848 tests, ni le
+  Green Gate n'ont attrapé ce défaut — c'est une propriété du **rendu**,
+  invisible à l'analyse statique. Ce qui l'a attrapé, c'est la relecture
+  adversariale. Elle devient une étape de la livraison, pas une option.
+* **Éléments techniques concernés** : `index.html` (bloc `[data-miroir]`),
+  `tests/miroirFeuilleAnalysee.test.ts` (+2 tests),
+  `docs/DIRECTION_ARTISTIQUE_MENU_MIROIR_EAU.md` § 8.
+* **Statut** : `Développé`, `Testé`, **`Validé par la Direction sur
+  moknet.net`** — tsc 0 · vitest 850/850 (62 fichiers) · build propre ·
+  Green Gate vert sur les deux livraisons · aucune écriture en base (ces
+  habillages ne touchent pas la base).
+
+---
+
 ### [DEC-2026-048] — 4 Septembre 2026
 
 * **Module(s)** : `Design System`, `Transversal`, `Qualité`
