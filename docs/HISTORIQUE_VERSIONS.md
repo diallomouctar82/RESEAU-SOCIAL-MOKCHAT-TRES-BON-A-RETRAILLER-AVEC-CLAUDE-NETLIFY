@@ -29,9 +29,10 @@
 | **v6.12.1** | 3 Septembre 2026 | **Sécurité base : vue `ai_spend_by_provider` en `security_invoker`, `ai_provider_credentials` retirée des rôles clients (pilote consommateur Vision Smart AI Core, TASK-0014)** | Supabase (orchestrateur IA), Gouvernance AI Core | Migration 20260903094327 / DEC-2026-041 | **Stable** |
 | **v6.13.0** | 3 Septembre 2026 | **Menu « Miroir d'eau » (proposition 06 retenue par la Direction) — habillage verre/eau scopé, nappe d'eau animée avec onde à l'appui, Architecte en goutte au centre du dock** | Navigation globale, Accueil réseau social, Goutte messagerie | DS-M2a `61ca0fd` + DS-M2b `d54c7ec` / DEC-2026-042 | **Stable — en production (PR #60 → `0ad30ee`), validée par la Direction sur moknet.net le 4/09** |
 | **v6.14.0** | 3 Septembre 2026 | **Studio Live à l'image de la seconde référence — abysse, colonne d'eau liquide, verre cyan, vidéo dans le verre, « ● EN DIRECT » honnête ; un agent IA peut enfin être retiré de la scène** | Studio Live, Barre d'actions du Live, Transport LiveKit (badge) | DS-L0 `2a57c92`+`72406a2` + DS-L1 `b118541` / DEC-2026-043 | **Stable — en production (PR #60 → `0ad30ee`), validée par la Direction sur moknet.net le 4/09** |
-| **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Courante (Active) — en production, vérifiée sur moknet.net** |
+| **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Stable — en production, vérifiée sur moknet.net** |
 | **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 (`ddde79a`, `82e4d6c`, `da43971`, `c5911d6`) / DEC-2026-050 | **Développée et testée — EN ATTENTE DE VALIDATION DE LA DIRECTION** (PR en brouillon, fonction Edge non déployée, `prometheus_port` pas encore posé sur le VPS) |
-| **v6.16.0** | 4 Septembre 2026 | **Tour de contrôle Vision Smart AI Core — l'état réel d'AI Core devient constatable depuis la console : statut global, les cinq verrous un par un, agents et droits, Architecte, journalisation, tests, cohérence dépôt/base** | Console d'administration (Orchestrateur IA), Gouvernance AI Core, Observabilité | PR #63 (brouillon) → `8e6458c` / DEC-2026-051 | **NON DÉPLOYÉE — PR en brouillon, en attente de validation explicite de l'utilisateur. Rien n'est parti sur `moknet.net`.** |
+| **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Courante (Active) — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), déploiement automatique Netlify sur moknet.net** |
+| **v6.17.0** | 4 Septembre 2026 | **Tour de contrôle Vision Smart AI Core — l'état réel d'AI Core devient constatable depuis la console : statut global, les cinq verrous un par un, agents et droits, Architecte, journalisation, tests, cohérence dépôt/base** | Console d'administration (Orchestrateur IA), Gouvernance AI Core, Observabilité | PR #63 (brouillon) / DEC-2026-052 | **NON DÉPLOYÉE — PR en brouillon, en attente de validation explicite de l'utilisateur. Rien n'est parti sur `moknet.net`.** |
 
 ---
 
@@ -39,17 +40,48 @@
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
 
-### [Version 6.16.0] — 4 Septembre 2026 (Tour de contrôle Vision Smart AI Core — mission « rendre AI Core contrôlable »)
+### [Version 6.17.0] — 4 Septembre 2026 (Tour de contrôle Vision Smart AI Core — mission « rendre AI Core contrôlable »)
 - **Objectif** : AI Core était une boîte noire pour l'Administrateur Général. L'inspection du 4 septembre a établi qu'il **n'oriente aucun agent** — non par défaut technique, mais parce que rien ne permettait de le constater. Cet écran ne corrige pas AI Core : il le rend constatable.
 - **Réalisations** :
   - Tableau de bord en tête de *Super Admin → Connecteurs & Modèles IA* : statut global (vert / orange / rouge / inconnu), les **cinq verrous** d'AI Core un par un, les agents et leurs droits, la présence de l'Architecte, l'usage détecté, la journalisation, l'état des tests, la cohérence dépôt/base.
   - **Lecture seule stricte** : la vue ne contient ni `button`, ni `input`, ni `select` (verrouillé par test) ; « Actualiser » relit, rien de plus. Aucune RPC, aucune migration, aucune colonne ajoutée.
   - **Provenance affichée pour chaque case** (`lu en base`, `mesuré au build`, `non lisible ici`) et une section « Ce que cette console ne voit pas » qui nomme les trois angles morts : le jeton de service (secret serveur, invisible par conception), l'usage réel d'AI Core (non traçable tant que `ai_call_log` ne journalise pas les outils), le nombre de migrations en base (schéma non exposé à l'API REST — relevé hors ligne et daté).
   - Manifeste `public/ai-core-manifest.json` **mesuré au build** pour les faits que le navigateur ne peut pas lire, et **chargé à l'exécution** par la page : ses chiffres se régénèrent au lieu de se figer.
-- **Preuves** : `tsc` 0 · **vitest 865/865 (63 fichiers)** après remise à niveau sur `main` · build propre · **Green Gate vert** sur `8e6458c` · séquence du Green Gate rejouée en local sur un dépôt **sans manifeste** · lien public de prévisualisation `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify **distinct**, `noindex` · **parité binaire capture ↔ lien public** (JS et CSS identiques octet pour octet) · bundle sans client de base · aucune source du dépôt servie sur l'URL publique · aucune écriture en base.
+- **Preuves** : `tsc` 0 · **vitest 950/950 (69 fichiers)** après deux remises à niveau sur `main` (PR #69 puis #73) · build propre · **Green Gate vert** sur `50569af`, relancé sur le HEAD courant · séquence du Green Gate rejouée en local sur un dépôt **sans manifeste** · lien public de prévisualisation `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify **distinct**, `noindex` · **parité binaire capture ↔ lien public** (JS et CSS identiques octet pour octet) · bundle sans client de base · aucune source du dépôt servie sur l'URL publique · aucune écriture en base.
 - **État relevé et affiché par l'écran** : 🔴 **rouge** — 3 verrous fermés sur 4 obligatoires, verrou 4 non éprouvé, 14 identifiants d'agents dont **0 avec AI Core**, l'Architecte détenant des droits sans exister dans la table `agents`.
 - **Statut** : **NON DÉPLOYÉE.** PR #63 maintenue **en brouillon** à la demande de l'utilisateur ; rien n'est parti sur `moknet.net`, aucun outil n'a été activé, aucun droit n'a été accordé.
-- **Restes assumés, nommés** : les suites (Loop 1 — validation de l'`agentId`, journalisation, mode `test` AI Core, rapatriement des 101 migrations, `deno check` au Green Gate) sont **proposées et non validées** — voir DEC-2026-051, § « Décision en attente d'arbitrage utilisateur ». Le verrou 4 reste `non éprouvé` tant que le mode `test` n'existe pas côté passerelle.
+- **Restes assumés, nommés** : les suites (Loop 1 — validation de l'`agentId`, journalisation, mode `test` AI Core, rapatriement des 101 migrations, `deno check` au Green Gate) sont **proposées et non validées** — voir DEC-2026-052, § « Décision en attente d'arbitrage utilisateur ». Le verrou 4 reste `non éprouvé` tant que le mode `test` n'existe pas côté passerelle.
+
+---
+
+### [Version 6.16.0] — 4 Septembre 2026 (Nettoyage de l’accueil — « l’interface est trop chargée »)
+
+* **La demande** : cinq captures de la Direction, une consigne — retirer ces
+  boutons de l’affichage à l’accueil (barre du haut, barre latérale), sans
+  supprimer les fonctions dans le système.
+* **Ce qui disparaît de l’écran** : en-tête ordinateur — badge « v5.12 »
+  (faux : v6.14.1 en production), pilule « Services », bannière « Lier
+  Google Workspace », compteur « 1 000 000 Ⓒ » ; en-tête téléphone — le même
+  compteur ; pied de barre latérale — « Services Transversaux · Google » ;
+  tableau de bord — carte « Conseiller Référent · Conseiller Diallo ».
+* **Ce qui ne disparaît pas** : la modale du hub transversal (Maps, Drive,
+  Meet, Chat, Coffre-fort) s’ouvre désormais depuis un rang du menu Compte
+  sur ordinateur, comme depuis le tiroir mobile et la recherche ⌘K ; la
+  liaison Google Workspace reste dans les centres Drive, Chat et Meet ; le
+  solde reste dans « Finance & Wallet » ; la trajectoire Point A → Point B
+  reste, sans sa carte de conseiller.
+* **Preuves** : `tsc --noEmit` 0 · `vitest` 935/935 (68 fichiers, +11 :
+  `tests/homeChromeCleanup.test.tsx`) · `npm run build` propre · captures
+  avant/après ordinateur (1600×900) et téléphone (390×844) jointes à la PR.
+* **Statut** : **validée par la Direction le 4 septembre 2026** (« Je valide
+  ta proposition, mais exécution contrôlée uniquement. Rien ne doit
+  régresser. ») après contrôle de l’aperçu de déploiement et des captures ;
+  fusionnée dans `main` via la PR #73 (fusion écrasée, convention du dépôt),
+  déploiement automatique Netlify sur moknet.net ; contrôle post-déploiement
+  consigné dans la PR (DEC-2026-051).
+
+---
+
 ### [Version 6.15.0] — 4 Septembre 2026 (Saturation des directs — mission SAT, boucles 0 à 3)
 
 * **Le problème réel** : la porte (SAT-2) et l'écran (SAT-3) étaient corrects
