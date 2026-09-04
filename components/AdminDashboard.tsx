@@ -29,25 +29,11 @@ import { AdminWorkflowsAndBackupTab } from './admin/AdminWorkflowsAndBackupTab';
 import { AdminLogsAndBroadcastTab } from './admin/AdminLogsAndBroadcastTab';
 import { AiOrchestrator } from './admin/AiOrchestrator';
 import { AdminHealthTab } from './admin/AdminHealthTab';
-import { initialSubTab } from '../services/navigation/deepLink';
 
 export type AdminTab = 'overview' | 'health' | 'ai-connectors' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
 
 export const AdminDashboard: React.FC = () => {
-  // Sous-onglet demandé par l'URL : `#super-admin/sante` ouvre directement
-  // la Santé Globale. Les alias couvrent les trois onglets applicatifs qui
-  // mènent ici (`admin`, `super-admin`, `admin-dashboard`) — sans quoi le
-  // lien ne marcherait que depuis l'un des trois, au hasard.
-  const SOUS_ONGLETS: Record<string, AdminTab> = {
-    sante: 'health', 'sante-globale': 'health', health: 'health',
-    vue: 'overview', ia: 'ai-connectors', utilisateurs: 'users',
-    moderation: 'moderation', reglages: 'settings', modules: 'modules',
-    modeles: 'templates', workflows: 'workflows', journaux: 'logs',
-  };
-  const demande = initialSubTab('super-admin') ?? initialSubTab('admin') ?? initialSubTab('admin-dashboard');
-  const [activeTab, setActiveTab] = useState<AdminTab>(
-    (demande && SOUS_ONGLETS[demande.toLowerCase()]) || 'ai-connectors',
-  );
+  const [activeTab, setActiveTab] = useState<AdminTab>('ai-connectors');
   const [tick, setTick] = useState(0);
 
   // Sync state with adminConfigService

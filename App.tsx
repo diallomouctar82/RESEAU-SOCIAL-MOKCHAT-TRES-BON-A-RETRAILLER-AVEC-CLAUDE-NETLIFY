@@ -31,7 +31,6 @@ import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { GoogleChatCenter } from './components/GoogleChatCenter';
 import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
-import { initialTab } from './services/navigation/deepLink';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, MemberProfile } from './types';
 import { getSession, onAuthStateChange, signOut } from './services/auth';
@@ -50,22 +49,7 @@ const AppContent = () => {
   // DS-M2 (menu « Miroir d'eau ») — le réseau social est l'écran d'accueil
   // par défaut, invariant fixé par la Direction. 'home' (Dashboard) reste
   // atteignable comme n'importe quel autre onglet, simplement plus par défaut.
-  // Onglets réellement rendus plus bas. Sert de liste blanche au lien
-  // profond : un onglet inconnu dans l'URL retombe sur le défaut au lieu de
-  // laisser l'écran vide (même précaution que le gestionnaire `popstate`).
-  const APP_TABS = useMemo(() => new Set([
-    'home', 'social', 'world', 'wallet', 'career', 'health', 'housing', 'legal',
-    'languages', 'admin-procedures', 'council', 'parcours', 'dossiers', 'experts',
-    'campus', 'chat', 'live', 'studio', 'shop', 'my-shop', 'profile',
-    'admin', 'super-admin', 'admin-dashboard',
-    'google-maps', 'google-drive', 'google-chat', 'google-meet',
-  ]), []);
-
-  // L'URL peut désigner l'écran à ouvrir (`#super-admin/sante`). Le hash était
-  // écrit depuis la LOOP I4 mais jamais relu : aucune adresse ne pouvait
-  // ouvrir un onglet précis, ce qui rendait impossible de partager un lien
-  // vers un écran donné.
-  const [activeTab, setActiveTab] = useState(() => initialTab(APP_TABS, 'social'));
+  const [activeTab, setActiveTab] = useState('social');
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
   // Recherche universelle : remontée ici (au lieu d'un état local à Layout)
