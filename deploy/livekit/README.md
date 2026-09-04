@@ -247,7 +247,7 @@ inerte tant que la suivante n'est pas faite :
 | # | Étape | État | Change le comportement ? | Retour arrière | Durée |
 |---|---|---|---|---|---|
 | 1 | Fusionner la PR #69 | ✅ **faite le 4/09** (`8902cef`) | **Non** — l'écran « complet » existe, mais aucun 409 ne peut être émis | `git revert 8902cef` + push | ~3 min |
-| 2 | Déployer `livekit-token` | ⏸ en attente | **Non** — la porte lit `maxParticipants = 0` partout, ne refuse personne | redéployer depuis `97382a9` | ~2 min |
+| 2 | Déployer `livekit-token` | ✅ **faite le 4/09 à 22h37 UTC** (v6 → **v7**) | **Non** — mesuré après coup, voir plus bas | redéployer depuis `97382a9` | ~2 min |
 | 3 | `prometheus_port` sur le VPS | ⏸ en attente | **Non** — `/metrics` existe, personne ne le lit | commenter + relancer | ~1 min |
 | 4 | Publier `/metrics` derrière un jeton | ⏸ en attente | **Non** — joignable, mais la fonction n'a pas l'adresse | retirer le bloc nginx | ~1 min |
 | 5 | Poser `LIVE_NODE_METRICS_URL` | ⏸ en attente | **OUI — le seul** | **supprimer le secret** | **~30 s** |
@@ -255,11 +255,12 @@ inerte tant que la suivante n'est pas faite :
 Le seul geste qui engage quoi que ce soit est aussi le plus rapide à défaire.
 On peut s'arrêter après n'importe quelle étape sans laisser d'état bancal.
 
-**Où en est la chaîne à cet instant.** L'étape 1 est faite ; les quatre autres
-ne le sont pas. Donc, en production aujourd'hui : la fonction Edge est toujours
-en **version 6** (le code SAT est sur `main`, pas en ligne), `/metrics` répond
-toujours **404** sur le VPS, aucune room ne reçoit de plafond, et la porte
-laisse entrer tout le monde — exactement comme avant l'étape 1.
+**Où en est la chaîne à cet instant.** Les étapes 1 et 2 sont faites ; les trois
+autres ne le sont pas. Donc, en production aujourd'hui : la fonction Edge est en
+**version 7** (le code SAT est en ligne), mais `/metrics` répond toujours **404**
+sur le VPS, `LIVE_NODE_METRICS_URL` n'existe pas, **aucune room ne reçoit de
+plafond**, et la porte laisse entrer tout le monde — exactement comme avant
+l'étape 1. Ce n'est pas une déduction : c'est mesuré, section suivante.
 
 ### Étape 1 — Fusionner la PR #69
 
@@ -346,6 +347,50 @@ supabase functions deploy livekit-token --project-ref rqciahtpixdjbyoajomg
 **et des appels**. Le chemin appel (`call-…`) n'est pas touché par le code SAT
 (le plafond et la porte ne vivent que dans la branche « direct »), mais le
 fichier a été restructuré : d'où le test d'appel immédiat.
+
+#### Ce qui a été MESURÉ le 4 septembre 2026, avant et après le déploiement
+
+Fenêtre calme vérifiée d'abord (dernier direct démarré 14 h plus tôt, dernier
+appel 1 h 45 plus tôt, zéro activité IA depuis 30 min), puis la **même sonde**
+lancée sur la fonction de production avant, puis après — un vrai compte, un vrai
+jeton, quatre chemins, trois passages chacun :
+
+| Chemin sondé | AVANT (v6) | APRÈS (v7) |
+|---|---|---|
+| appel autorisé | 200 · jeton 559 car. · 1 580 ms | 200 · jeton 559 car. · **1 265 ms** |
+| appel refusé (non-membre) | 403 · même message · 917 ms | 403 · même message · **726 ms** |
+| direct inexistant | 200 · jeton 483 car. · 975 ms | 200 · jeton 483 car. · 1 417 ms |
+| direct réel | 200 · jeton 483 car. · 703 ms | 200 · jeton 483 car. · 1 473 ms |
+
+Codes HTTP, longueurs de jeton et message de refus **identiques sur les quatre
+chemins**. Les appels ne paient rien de plus ; les directs paient un seul
+aller-retour réseau supplémentaire — exactement le `listRooms` que la conception
+annonce, et rien d'autre.
+
+**Le garde vérifié en production, pas seulement au banc.** `liveSessionIdFromRoomName`
+décide seul qui entre dans le bloc SAT. Sept mesures par cas contre la fonction
+en ligne :
+
+| Nom de room | Doit entrer ? | Médiane mesurée |
+|---|---|---|
+| UUID nu | oui | 1 553 ms |
+| UUID en majuscules | oui (drapeau `/i`) | 1 370 ms |
+| UUID + 1 caractère | **non** | 724 ms |
+| nom libre | **non** | 780 ms |
+
+Le rapport de 2 entre les deux groupes est la signature du garde : ce qui entre
+paie une lecture LiveKit, ce qui n'entre pas n'en paie aucune.
+
+**Preuve que rien n'a été plafonné.** Le service de journaux Supabase étant
+tombé ce soir-là (« Backend error » sur trois tentatives), l'inertie a été
+prouvée autrement, et mieux : `poserPlafond` est la **seule** chose de cette
+fonction qui puisse créer une room. La même room a donc été sondée huit fois de
+suite — si un plafond avait été posé, la room existerait dès le second appel et
+le comptage `listParticipants` s'ajouterait, faisant **monter** la courbe.
+Mesuré : 1 986 → 1 590 → 1 576 → 1 264 → 1 426 → 1 576 → 1 222 → **1 023 ms**,
+et la médiane des sept dernières (1 426 ms) reste au niveau des rooms neuves
+(1 171 ms). La courbe descend au lieu de monter : **aucune room n'est créée,
+aucun plafond n'est posé.** Aucun 409 `live_full` n'a été émis une seule fois.
 
 **Retour arrière — vérifié, et recalé après l'étape 1.**
 
