@@ -310,3 +310,65 @@ export function listeningChoiceFlag(choice: ListeningChoice): string {
     if (!code) return '🌐';
     return MESSAGING_LANGUAGES.find((l) => l.code === code)?.flag ?? '🌐';
 }
+
+/** Une entrée du sélecteur. `value === null` = Original, toujours en tête. */
+export interface ListeningLanguageOption {
+    value: ListeningChoice;
+    label: string;
+    flag: string;
+}
+
+/**
+ * Ce que la liste propose : **Original en premier**, puis le catalogue.
+ *
+ * Original ouvre la liste parce que c'est le défaut et le retour en arrière :
+ * quelqu'un qui n'entend plus rien de bon doit retrouver l'audio d'origine en
+ * haut de la liste, sans chercher (§17 — « permettre le retour immédiat à
+ * l'original »).
+ */
+export function listeningLanguageOptions(): ListeningLanguageOption[] {
+    return [
+        { value: null, label: 'Original', flag: '🌐' },
+        ...MESSAGING_LANGUAGES.map((l) => ({ value: l.code as ListeningChoice, label: l.label, flag: l.flag })),
+    ];
+}
+
+/**
+ * L'état d'écoute, dit honnêtement — jamais « ça marche » quand ça n'arrive
+ * pas encore.
+ *
+ * Quatre situations, dans l'ordre de gravité :
+ *  - la chaîne a échoué chez un intervenant → on le dit et on renvoie vers
+ *    Original, jamais un silence inexpliqué ;
+ *  - j'ai demandé une langue que personne ne produit encore → je continue
+ *    d'entendre l'original, et l'écran le dit plutôt que de me laisser
+ *    attendre une voix qui ne vient pas ;
+ *  - une langue est bien demandée et servie → rien à signaler ;
+ *  - Original → rien à signaler non plus.
+ *
+ * `tone` sépare ce qui informe de ce qui alerte : un direct ne doit pas
+ * clignoter en rouge parce qu'une traduction met trois secondes à démarrer.
+ */
+export interface ListeningStatusLine {
+    text: string | null;
+    tone: 'neutre' | 'attente' | 'panne';
+}
+
+export function listeningStatusLine(params: {
+    choice: ListeningChoice;
+    waitingForMyLanguage: boolean;
+    producerError?: string | null;
+}): ListeningStatusLine {
+    const code = listeningLanguageCode(params.choice);
+    if (!code) return { text: null, tone: 'neutre' };
+    if (params.producerError) {
+        return { text: `Traduction indisponible pour l'instant — vous entendez l'audio d'origine.`, tone: 'panne' };
+    }
+    if (params.waitingForMyLanguage) {
+        return {
+            text: `Traduction en ${listeningChoiceLabel(params.choice)} pas encore disponible — vous entendez l'audio d'origine.`,
+            tone: 'attente',
+        };
+    }
+    return { text: null, tone: 'neutre' };
+}

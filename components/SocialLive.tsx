@@ -44,6 +44,7 @@ import {
   decodeLiveParticipantMeta, listeningLanguageCode, speakerAudioDecision, type ListeningChoice,
 } from '../services/live/liveListeningLanguage';
 import { useLiveListeningLanguage } from '../hooks/useLiveListeningLanguage';
+import { ListeningLanguagePicker } from './live/ListeningLanguagePicker';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
 import {
@@ -755,12 +756,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   
   // 5. Diallo OS Copilot & Real-Time Multilingual Subtitles
   const [subtitlesMode, setSubtitlesMode] = useState<'off' | 'original' | 'translated' | 'bilingual'>('bilingual');
-  const [selectedViewerLang, setSelectedViewerLang] = useState<string>('Français');
-  const [currentSubtitle, setCurrentSubtitle] = useState<{ speaker: string; text: string; translated?: string }>({
-    speaker: liveData.hostName,
-    text: 'Nous abordons maintenant la structuration du plan de financement...',
-    translated: 'We are now covering the structure of the financing plan...'
-  });
+  // LP-4 — la barre de sous-titres affichait une phrase française FIGÉE avec
+  // sa « traduction » anglaise FIGÉE : `setCurrentSubtitle` n'était appelé
+  // nulle part dans ce fichier, donc cet état initial ÉTAIT l'affichage,
+  // pour toujours et pour tout le monde. C'était la partie la plus visible
+  // de la promesse décorative relevée par l'audit LP-0.
+  // Elle démarre désormais vide : la barre dit honnêtement qu'elle n'a rien
+  // à montrer plutôt que d'inventer une phrase, et se remplira le jour où
+  // les notes vivantes du direct existeront réellement (LP-7).
+  const [currentSubtitle, setCurrentSubtitle] = useState<{ speaker: string; text: string; translated?: string } | null>(null);
   const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
   // Grammaire d'états de l'avatar (LOOP 10/14) — piloté par les vrais signaux
   // du copilote vocal (voir dispatchVoiceAction plus bas), pas un état
@@ -2561,6 +2565,27 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             commande la plus essentielle du direct ne peut plus ni rétrécir ni
             partir hors de l'écran. */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 max-w-[70%] sm:max-w-none">
+          {/* LIVE PLANÉTAIRE (LP-4) — « J'écoute en… ».
+              Placé HORS de la rangée défilante et HORS de
+              `contextualChromeClass`, pour trois raisons de fond :
+              1. il doit rester atteignable PENDANT le direct (§15), donc il
+                 ne s'efface pas au repos comme le chrome contextuel ;
+              2. il concerne TOUS les rôles — un spectateur sans micro ni
+                 caméra y a droit exactement comme l'animateur, la traduction
+                 ne dépend d'aucun droit de publication (§5) ;
+              3. `shrink-0` : la leçon de MB-1 (« Quitter » mesuré écrasé à
+                 20 px comme seul enfant d'un conteneur défilant) vaut ici —
+                 la commande qui décide de ce que j'entends ne peut pas
+                 rétrécir ni sortir de l'écran.
+              Ce n'est PAS un réglage de la diffusion : mon choix ne change
+              rien pour les autres. */}
+          <ListeningLanguagePicker
+            choice={listening.choice}
+            onChoose={listening.choose}
+            waitingForMyLanguage={listening.waitingForMyLanguage}
+            producerError={listening.producerError}
+            className="shrink-0"
+          />
           <div className={`flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-x-auto no-scrollbar ${contextualChromeClass}`}>
             {/* Audio Only Mode (Low Data) — personnel, utile à tout spectateur */}
             <button
@@ -3290,36 +3315,39 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   <Globe size={16} />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
-                    <p className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
-                  </div>
-                  {subtitlesMode === 'bilingual' && currentSubtitle.translated && (
-                    <p className="text-[11px] text-indigo-300 truncate font-sans">
-                      🌍 {currentSubtitle.translated}
+                  {currentSubtitle ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
+                        <p className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
+                      </div>
+                      {subtitlesMode === 'bilingual' && currentSubtitle.translated && (
+                        <p className="text-[11px] text-indigo-300 truncate font-sans">
+                          🌍 {currentSubtitle.translated}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    // Honnêteté (§27) : tant que la parole du direct n'est pas
+                    // réellement transcrite (LP-7), cette barre n'a rien à
+                    // dire — elle le dit, au lieu d'afficher indéfiniment une
+                    // phrase inventée avec sa fausse traduction.
+                    <p className="text-[11px] text-slate-400 truncate" data-testid="subtitles-empty">
+                      Aucun sous-titre pour l'instant.
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Subtitles Language Toggle */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <select
-                  value={selectedViewerLang}
-                  onChange={(e) => {
-                    setSelectedViewerLang(e.target.value);
-                    addNotification("Langue Modifiée 🌐", `Sous-titres synchronisés en ${e.target.value}.`, "info");
-                  }}
-                  className="bg-black/40 border border-white/10 rounded-xl px-2.5 py-1 text-[11px] font-bold text-white outline-none"
-                >
-                  <option value="Français">Français</option>
-                  <option value="Anglais">Anglais</option>
-                  <option value="Arabe">Arabe</option>
-                  <option value="Wolof">Wolof</option>
-                  <option value="Pulaar">Pulaar</option>
-                  <option value="Malinké">Malinké</option>
-                  <option value="Espagnol">Espagnol</option>
-                </select>
+                {/* LP-4 : le sélecteur à sept libellés qui vivait ici ne
+                    faisait qu'afficher une notification — il ne changeait
+                    NI les sous-titres, NI l'audio. Il est retiré : la langue
+                    d'écoute se choisit à un seul endroit, la pastille
+                    « J'écoute en… » du bandeau, et ce choix pilote réellement
+                    ce que l'on entend. Deux sélecteurs concurrents pour une
+                    même intention, c'est exactement ce que la mission
+                    précédente sur la messagerie avait dû défaire. */}
 
                 {/* MB-1 : ce bouton affichait la valeur technique brute
                     (« bilingual », « original », « off ») à un public
