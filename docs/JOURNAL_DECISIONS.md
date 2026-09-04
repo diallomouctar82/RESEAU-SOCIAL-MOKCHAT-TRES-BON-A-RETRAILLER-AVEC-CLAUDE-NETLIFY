@@ -1122,6 +1122,50 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-050] — 4 Septembre 2026
+
+* **Module(s)** : `Live`, `Transport LiveKit`, `Gouvernance`
+* **Problème / Besoin initial** : la fonction Edge `livekit-token` a été
+  déployée en production en **v6** le 4 septembre (droit
+  `canUpdateOwnMetadata`, sans lequel LiveKit refuse `setMetadata()` et donc
+  aucune langue d'écoute n'est jamais annoncée). Ce droit n'existait que sur
+  la branche de la PR #66, restée en brouillon : **`main` était en retard sur
+  la production**. Un redéploiement depuis `main` aurait annulé le correctif
+  sans le moindre signal.
+* **Décision** : refermer l'écart par une **micro-PR isolée** (PR #67), hors
+  PR #66 — le seul ajout du droit, aucun changement d'interface ni de
+  traduction. Le fichier n'a pas été réécrit : il a été porté tel quel depuis
+  la branche de déploiement.
+* **Preuve d'alignement** : le fichier sur `main` a la **même empreinte
+  SHA-256 que la version servie en production** —
+  `afbf1c8fb6a71293cdb1055aae2dcd0ce0578357a119eda3a4bbfe7b3d706935`.
+  L'alignement n'est pas déclaré, il est mesuré.
+* **Garde-fou ajouté** : `tests/livekitTokenGrant.test.ts`, trois cas qui
+  lisent la fonction Edge réelle sur le disque (droit présent · jamais
+  étendu à `roomAdmin`/`roomRecord`/`canUpdateMetadata` · jamais conditionné
+  au micro, car c'est le spectateur qui choisit sa langue sans rien publier).
+  Fichier autonome, aucune dépendance applicative. **Contre-épreuve faite** :
+  chaque défaut réintroduit fait virer au rouge exactement les cas qui le
+  nomment, fichier restauré et empreinte revérifiée.
+* **Portée honnête** : cette fusion **ne change rien au comportement en
+  production** — l'Edge Function y était déjà en v6, et ni le test ni la
+  fonction n'entrent dans le bundle servi. Elle aligne la source de vérité,
+  elle ne livre pas un correctif. Aucune version sémantique n'est donc
+  ouverte pour cet alignement.
+* **Éléments techniques concernés** : `supabase/functions/livekit-token/index.ts`,
+  `tests/livekitTokenGrant.test.ts`.
+* **Statut** : `Développé`, `Testé`, **`Validé par la Direction`** — tsc 0 ·
+  vitest 853/853 (63 fichiers) · build propre · Green Gate vert sur la PR
+  (run `33885626025`) et sur `main` après fusion (run `33885877836`) ·
+  PR #67 → `97382a9` · banc fonctionnel contre la production 16 OK / 0 DÉFAUT
+  avant et après déploiement, plus 6 garde-fous en négatif (403 / 401 / 400) ·
+  comptes de preuve supprimés zéro trace (balayage des clés étrangères = 0).
+* **Reste, nommé** : la PR #66 (mission LP) reste en brouillon et non validée ;
+  elle porte trois cas de test équivalents dans un fichier mixte, qui feront
+  doublon — tous verts, sans conflit — le jour où elle sera fusionnée.
+
+---
+
 ### [DEC-2026-049] — 4 Septembre 2026
 
 * **Module(s)** : `Design System`, `Navigation globale`, `Studio Live`,
