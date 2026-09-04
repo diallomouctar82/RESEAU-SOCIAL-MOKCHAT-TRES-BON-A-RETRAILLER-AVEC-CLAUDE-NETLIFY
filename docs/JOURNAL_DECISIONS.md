@@ -1181,9 +1181,13 @@ Chaque décision respecte le formalisme strict suivant :
   Dashboard authentifiés sur `origin/main` et sur la branche), versées dans
   `docs/captures/2026-09-04-nettoyage-accueil/` avec les recadrages
   en-tête / barre latérale / menu Compte / trajectoire.
-* **Statut** : `Développé`, `Testé` — **EN ATTENTE DE VALIDATION DE LA
-  DIRECTION** sur la branche `claude/cleanup-home-interface-szp8qv` (PR #73
-  en brouillon : aucune fusion, aucune production).
+* **Statut** : `Développé`, `Testé`, `Validé` — **validation de la Direction
+  le 4 septembre 2026** (« Je valide ta proposition, mais exécution contrôlée
+  uniquement. Rien ne doit régresser. Objectif : zéro régression. Preuve et
+  test à la fin. ») après contrôle de l’aperçu Netlify et des captures ;
+  fusionnée dans `main` via la PR #73, déploiement automatique Netlify sur
+  moknet.net, contrôle post-déploiement (bundle servi, absence d’erreur de
+  page) consigné dans la PR.
 * **Restes assumés** : le jugement visuel (« est-ce assez aéré ? ») revient à
   la Direction ; `GoogleWorkspaceBanner compact` n'a plus d'appelant
   (variante conservée) ; `PointAToBPathway.leadAdvisor` reste (vitrine).
