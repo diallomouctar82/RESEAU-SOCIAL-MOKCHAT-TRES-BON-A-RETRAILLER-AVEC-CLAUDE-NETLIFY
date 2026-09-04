@@ -53,8 +53,8 @@ const Page: React.FC = () => (
 
             <footer className="text-[11px] text-slate-500 border-t border-slate-800 pt-4 flex flex-wrap gap-x-4 gap-y-1 justify-between">
                 <span>
-                    Composant : <span className="font-mono">components/admin/AiCoreControlTower.tsx</span> ·
-                    Calcul : <span className="font-mono">services/aiCoreControlTower.ts</span>
+                    Composant : <span className="font-mono">components/admin/AiCoreControlTowerView.tsx</span> ·
+                    Calcul : <span className="font-mono">services/aiCoreControlTowerModel.ts</span>
                 </span>
                 <span>Instantané figé au {new Date(etat.releveLe).toLocaleString('fr-FR')}</span>
             </footer>
