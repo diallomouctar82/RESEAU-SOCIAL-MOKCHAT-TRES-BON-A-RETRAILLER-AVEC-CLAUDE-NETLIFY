@@ -37,7 +37,7 @@ import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession,
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges, postLiveAgentMessage } from '../services/live/liveChatService';
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
-import { LiveParticipantsPanel } from './live/LiveParticipantsPanel';
+import { LiveParticipantsPanel, ROLE_LABELS } from './live/LiveParticipantsPanel';
 import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
@@ -65,7 +65,7 @@ interface SocialLiveProps {
  * caméra : partage d'écran, tableau blanc, conseil…). Les callback refs
  * font désormais un vrai detach() au démontage (fuite/écho sinon).
  */
-const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ media }) => {
+const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia; roleLabel?: string }> = ({ media, roleLabel }) => {
   const videoRef = useCallback((el: HTMLVideoElement | null) => {
     if (el) media.videoTrack?.attach(el);
     else media.videoTrack?.detach();
@@ -94,6 +94,21 @@ const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia }> = ({ me
       </div>
       <div className="live-nameplate">
         <span className="truncate">{media.participant.name}</span>
+        {/* MB-2 : le rôle sur la carte elle-même — sans lui, un spectateur
+            voyait quatre visages sans savoir lequel anime. Le libellé vient du
+            rôle RÉEL de `live_speakers` ; quand la personne n'est pas (encore)
+            dans le roster, rien ne s'affiche — on n'invente pas un rôle pour
+            remplir la carte.
+            MB-1 : sur téléphone la plaque s'empile (voir `.live-nameplate` en
+            requête média), donc le nom n'est plus amputé par le rôle. */}
+        {roleLabel && (
+          <span
+            className="live-nameplate-role shrink-0 tracking-[0.18em] opacity-80"
+            data-testid={`stage-role-${media.participant.identity}`}
+          >
+            {roleLabel}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -515,6 +530,18 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const { visibles: agentsVisibles, enTete: agentsEnTete } = orderStageAgents(stageAgents, stage.tiles);
 
   /**
+   * MB-2 — Le rôle RÉEL de chaque personne présente sur la scène, pour
+   * l'écrire sur sa carte. La source est `realParticipants`, c'est-à-dire
+   * `live_speakers` : jamais une déduction, jamais un rôle de remplissage.
+   * Une personne absente du roster n'a simplement pas d'étiquette — mieux
+   * vaut ne rien dire que dire faux.
+   */
+  const roleParRemote = useMemo(
+    () => new Map(realParticipants.map((p) => [p.id, ROLE_LABELS[p.role]] as const)),
+    [realParticipants],
+  );
+
+  /**
    * La carte d'un expert sur la scène. Extraite du JSX pour pouvoir être
    * placée DEVANT ou APRÈS les cartes humaines selon `agentsEnTete` — c'est
    * ce qui donne son sens réel à « mettre à la une » (EX-5/EX-6) : la carte
@@ -544,55 +571,59 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               ce libellé apparaît chez TOUT LE MONDE, pas seulement
               chez l'animateur qui a appuyé. */}
           {expertEnAvant === aiAgent.id && (
-            <span className="shrink-0 tracking-[0.18em]" data-testid={`stage-featured-${aiAgent.id}`}>À LA UNE</span>
+            <span className="live-nameplate-role shrink-0 tracking-[0.18em]" data-testid={`stage-featured-${aiAgent.id}`}>À LA UNE</span>
           )}
-          <span className="shrink-0 opacity-70 tracking-[0.18em]">IA</span>
+          <span className="live-nameplate-role shrink-0 opacity-70 tracking-[0.18em]">IA</span>
         </div>
 
-        {/* EX-5 : mettre en avant / faire redescendre au rang des
-            autres. Écrit sur la session, donc appliqué chez tous. */}
+        {/* MB-1 — Les trois gestes de l'animateur sur un expert, en RAIL
+            ÉTIQUETÉ au pied de la carte plutôt qu'en trois ronds de 36 px
+            serrés dans le coin, distingués par un `title` qu'un téléphone
+            n'affiche jamais (mesuré au banc : 36×36, aucun libellé). Chacun
+            fait au moins 44 px et porte son nom. « À la une » est une
+            BASCULE : son libellé dit ce que l'appui va faire, pas l'état
+            courant — c'est la plaque de nom qui porte l'état (« À LA UNE »).
+            Les handlers, eux, sont exactement ceux d'EX-4/EX-5. */}
         {isHost && (
-          <button
-            onClick={(e) => { e.stopPropagation(); void handleBasculerMiseEnAvant(aiAgent.id); }}
-            data-testid={`stage-feature-agent-${aiAgent.id}`}
-            title={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
-            aria-label={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} en avant`}
-            aria-pressed={expertEnAvant === aiAgent.id}
-            className={`live-orb w-9 h-9 absolute top-3 right-[6.25rem] z-10 ${expertEnAvant === aiAgent.id ? 'live-orb--active' : ''}`}
-          >
-            <Award size={15} />
-          </button>
-        )}
+          <div className="absolute inset-x-2 bottom-11 z-10 flex items-center justify-center gap-1.5 flex-wrap">
+            <button
+              onClick={(e) => { e.stopPropagation(); void handleBasculerMiseEnAvant(aiAgent.id); }}
+              data-testid={`stage-feature-agent-${aiAgent.id}`}
+              aria-label={expertEnAvant === aiAgent.id ? `Retirer ${aiAgent.name} de la une` : `Mettre ${aiAgent.name} à la une`}
+              aria-pressed={expertEnAvant === aiAgent.id}
+              className={`live-orb !rounded-xl min-h-[44px] px-2.5 flex items-center gap-1.5 text-[11px] font-bold whitespace-nowrap ${expertEnAvant === aiAgent.id ? 'live-orb--active' : ''}`}
+            >
+              <Award size={15} />
+              <span>{expertEnAvant === aiAgent.id ? 'Retirer de la une' : 'À la une'}</span>
+            </button>
 
-        {/* EX-4 : faire RÉPONDRE l'expert à ce qui vient d'être
-            demandé dans le direct — hôte uniquement (la base
-            refuse de toute façon les autres, 42501). Le geste est
-            explicite : on ne déclenche jamais une réponse (ni la
-            dépense qui va avec) dans le dos de l'animateur. */}
-        {isHost && (
-          <button
-            onClick={(e) => { e.stopPropagation(); void faireRepondreExpertAuxQuestions(aiAgent); }}
-            disabled={aiCopilotState === 'thinking'}
-            data-testid={`stage-ask-agent-${aiAgent.id}`}
-            title={`Faire répondre ${aiAgent.name} aux questions du direct`}
-            aria-label={`Faire répondre ${aiAgent.name} aux questions du direct`}
-            className="live-orb w-9 h-9 absolute top-3 right-14 z-10 disabled:opacity-50"
-          >
-            <MessageSquare size={15} />
-          </button>
-        )}
+            {/* EX-4 : faire RÉPONDRE l'expert à ce qui vient d'être
+                demandé dans le direct — hôte uniquement (la base
+                refuse de toute façon les autres, 42501). Le geste est
+                explicite : on ne déclenche jamais une réponse (ni la
+                dépense qui va avec) dans le dos de l'animateur. */}
+            <button
+              onClick={(e) => { e.stopPropagation(); void faireRepondreExpertAuxQuestions(aiAgent); }}
+              disabled={aiCopilotState === 'thinking'}
+              data-testid={`stage-ask-agent-${aiAgent.id}`}
+              aria-label={`Faire répondre ${aiAgent.name} aux questions du direct`}
+              className="live-orb !rounded-xl min-h-[44px] px-2.5 flex items-center gap-1.5 text-[11px] font-bold whitespace-nowrap disabled:opacity-50"
+            >
+              <MessageSquare size={15} />
+              <span>Répondre</span>
+            </button>
 
-        {/* Retirer l'agent de la scène — hôte uniquement. */}
-        {isHost && (
-          <button
-            onClick={(e) => { e.stopPropagation(); void handleRetirerAgentDeLaScene(aiAgent.id); }}
-            data-testid={`stage-remove-agent-${aiAgent.id}`}
-            title={`Retirer ${aiAgent.name} de la scène`}
-            aria-label={`Retirer ${aiAgent.name} de la scène`}
-            className="live-orb w-9 h-9 absolute top-3 right-3 z-10"
-          >
-            <X size={15} />
-          </button>
+            {/* Retirer l'agent de la scène — hôte uniquement. */}
+            <button
+              onClick={(e) => { e.stopPropagation(); void handleRetirerAgentDeLaScene(aiAgent.id); }}
+              data-testid={`stage-remove-agent-${aiAgent.id}`}
+              aria-label={`Retirer ${aiAgent.name} de la scène`}
+              className="live-orb live-orb--danger !rounded-xl min-h-[44px] px-2.5 flex items-center gap-1.5 text-[11px] font-bold whitespace-nowrap"
+            >
+              <X size={15} />
+              <span>Retirer</span>
+            </button>
+          </div>
         )}
 
         {/* Thinking Glow Overlay */}
@@ -2350,7 +2381,18 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         {/* Left: Live Indicator, Title & Badges — Équipe 10 (L4) : badge
             dérivé de l'état réel (liveBadge), plus un rouge pulsant codé en
             dur pendant une reconnexion, une panne ou un simple aperçu. */}
-        <div className="flex items-center gap-3 min-w-0">
+        {/* MB-1 : `flex-1` donne à ce groupe un vrai plancher de largeur.
+            Sans lui, la rangée d'outils de droite prenait 354 px sur 390 et
+            écrasait celui-ci à 3 px (mesuré) : la pastille d'état et le titre
+            débordaient alors par-dessus les outils — le « chevauchement » vu
+            à l'écran n'était pas un défaut de position, c'était un groupe
+            réduit à rien. */}
+        {/* MB-1 (mesuré à l'écran) : `flex-1` seul ne suffisait pas — le
+            groupe gardait sa largeur INTRINSÈQUE comme plancher, donc le
+            compteur « 3 en direct » se peignait par-dessus le premier outil.
+            `min-w-0` autorise enfin ce groupe à se réduire, et ses enfants
+            tronquent proprement au lieu de déborder. */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
           {/* DS-L1 : à l'antenne, l'image de référence dit « ● EN DIRECT » en
               petites capitales espacées — pas une pastille rouge. Les états
               ANORMAUX (aperçu, interruption, reconnexion) gardent au contraire
@@ -2364,7 +2406,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           )}
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            {/* MB-1 : sur un téléphone, le titre du direct disparaît de la
+                barre. Cinq commandes de 44 px, la pastille d'état et le
+                compteur ne tiennent pas ensemble dans 390 px (mesuré : le
+                groupe de gauche réduit à 107 px pour 216 px de contenu, d'où
+                le compteur imprimé PAR-DESSUS le premier outil). Le titre est
+                l'élément dont on a le moins besoin quand on est déjà DANS le
+                direct — il revient dès 640 px. */}
+            <div className="hidden sm:flex items-center gap-2">
               <h1 className="live-title text-[13px] sm:text-base truncate max-w-xs sm:max-w-md">
                 {liveData.title}
               </h1>
@@ -2374,12 +2423,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             </div>
             {/* Lisibilité (DA-3) : slate-300 et 11px — slate-400 en 10px passait
                 sous le seuil de confort sur les verres les plus clairs (rose_doux). */}
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-300 min-w-0">
               {/* Équipe 10 (L4) : compteur honnête — participants réellement
                   connectés au transport, sinon compteur de la ligne réelle,
-                  sinon RIEN (jamais le 1420 de démonstration). */}
+                  sinon RIEN (jamais le 1420 de démonstration).
+                  MB-1 : `shrink-0` + `whitespace-nowrap` — sans eux, « 3 en
+                  direct » se coupait en deux lignes et sortait de sa boîte. */}
               {viewerCount !== null && (
-                <span className="flex items-center gap-1"><Users size={11} /> {viewerCount.toLocaleString()} en direct</span>
+                <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
+                  <Users size={11} /> {viewerCount.toLocaleString()}
+                  <span className="hidden sm:inline">en direct</span>
+                </span>
               )}
               <span
                 className="flex items-center gap-1 text-slate-500 cursor-default"
@@ -2443,13 +2497,23 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         )}
 
         {/* Right: Quick Tools (Contextuel, s'efface au repos), Summon Expert
-            (Avancé, sur scène uniquement), et Quitter (Essentiel, toujours visible) */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <div className={`flex items-center gap-1.5 sm:gap-2 ${contextualChromeClass}`}>
+            (Avancé, sur scène uniquement), et Quitter (Essentiel, toujours visible)
+            MB-1 : sur un téléphone, ces outils ne tiennent pas à côté du titre.
+            Ils DÉFILENT plutôt que d'écraser le reste — aucune commande n'est
+            retirée, aucune n'est réduite sous 44 px, et l'affordance de
+            défilement est celle que le pouce attend.
+            MB-1 (correctif mesuré) : « Quitter » est SORTI de la zone
+            défilante. Enfant direct d'un conteneur `overflow-x-auto`, il était
+            le seul sans largeur plancher : le banc l'a mesuré écrasé à 20 px
+            de large. Il est désormais hors du défilement et `shrink-0` — la
+            commande la plus essentielle du direct ne peut plus ni rétrécir ni
+            partir hors de l'écran. */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 max-w-[70%] sm:max-w-none">
+          <div className={`flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-x-auto no-scrollbar ${contextualChromeClass}`}>
             {/* Audio Only Mode (Low Data) — personnel, utile à tout spectateur */}
             <button
               onClick={handleToggleAudioOnly}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 hover:text-white'}`}
+              className={`hidden sm:flex px-2.5 py-1.5 min-h-[44px] min-w-[44px] justify-center rounded-xl text-xs font-bold transition-all items-center gap-1 border ${isAudioOnlyMode ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 hover:text-white'}`}
               title="Mode Audio Seul (Économie de bande passante 85%)"
             >
               <Headphones size={14} />
@@ -2462,7 +2526,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 SOS/Fact-Check qui l'entourent, pas un réglage secondaire. */}
             <button
               onClick={handleCopyLiveLink}
-              className="px-2.5 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              className="hidden sm:flex px-2.5 py-1.5 min-h-[44px] min-w-[44px] justify-center bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl items-center gap-1 transition-all"
               title="Copier le lien direct de ce Live"
             >
               <Share2 size={14} />
@@ -2473,7 +2537,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 (une couleur d'alerte affichée en permanence perd son sens d'alerte) */}
             <button
               onClick={() => setShowInstantHelpModal(true)}
-              className="px-2.5 py-1.5 bg-white/5 hover:bg-rose-600/30 text-slate-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/40 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              className="hidden sm:flex px-2.5 py-1.5 min-h-[44px] min-w-[44px] justify-center bg-white/5 hover:bg-rose-600/30 text-slate-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/40 text-xs font-bold rounded-xl items-center gap-1 transition-all"
               title="Besoin d'aide immédiate ou modération"
             >
               <LifeBuoy size={14} />
@@ -2486,7 +2550,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             <button
               onClick={() => setShowMobileStageSheet(true)}
               data-testid="mobile-stage-commands"
-              className="lg:hidden px-2.5 py-1.5 bg-white/5 hover:bg-cyan-600/30 text-slate-200 border border-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              className="lg:hidden px-2.5 py-1.5 min-h-[44px] min-w-[44px] justify-center bg-white/5 hover:bg-cyan-600/30 text-slate-200 border border-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
               title="Gérer la scène : inviter, retirer, agents, univers"
               aria-label="Gérer la scène"
             >
@@ -2537,7 +2601,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {isUserOnStage && (
               <button
                 onClick={() => setShowSummonExpertModal(true)}
-                className="px-3 py-1.5 live-orb live-orb--active !rounded-xl font-bold text-xs tracking-[0.08em] uppercase flex items-center gap-1.5 whitespace-nowrap"
+                className="px-3 py-1.5 min-h-[44px] live-orb live-orb--active !rounded-xl font-bold text-xs tracking-[0.08em] uppercase flex items-center gap-1.5 whitespace-nowrap"
               >
                 <Zap size={14} /> <span className="hidden sm:inline">Appeler un</span> Expert
               </button>
@@ -2553,8 +2617,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
           <button
             onClick={handleEndLive}
-            className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl border border-red-500/30 transition-colors"
+            className="shrink-0 w-11 h-11 flex items-center justify-center bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl border border-red-500/30 transition-colors"
             title="Quitter ou terminer le Live"
+            aria-label="Quitter ou terminer le Live"
           >
             <PhoneOff size={18} />
           </button>
@@ -2579,13 +2644,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 handleSummonExpert(proactiveExpertSuggestion.agent);
                 setProactiveExpertSuggestion(null);
               }}
-              className="px-3 py-1 live-orb live-orb--active !rounded-lg font-bold text-xs flex items-center gap-1"
+              className="px-3 py-1 min-h-[44px] live-orb live-orb--active !rounded-lg font-bold text-xs flex items-center gap-1"
             >
               Inviter {proactiveExpertSuggestion.agent.name}
             </button>
             <button
               onClick={() => setProactiveExpertSuggestion(null)}
-              className="text-slate-400 hover:text-white p-1"
+              aria-label="Fermer la suggestion"
+              className="text-slate-400 hover:text-white p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
               <X size={14} />
             </button>
@@ -2745,22 +2811,36 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     <LiveVoiceWave level={audioVolume} muted={isMicMuted} />
                   </div>
 
-                  {/* Plaque de nom en capitales espacées (registre de l'image). */}
+                  {/* Plaque de nom en capitales espacées (registre de l'image).
+                      MB-2 : le nom et le rôle sont DEUX spans. Réunis dans un
+                      seul `truncate`, le rôle disparaissait le premier sur un
+                      téléphone (mesuré : « SARAH KONÉ — H… ») — or c'est
+                      justement l'information qui dit qui conduit le direct. */}
                   <div className="live-nameplate">
-                    <span className="truncate">{isHost ? `${liveData.hostName} — Hôte` : `${userProfile.name} — Sur scène`}</span>
-                    {isMicMuted && <MicOff size={13} className="shrink-0 opacity-80" />}
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{isHost ? liveData.hostName : userProfile.name}</span>
+                      {isMicMuted && <MicOff size={13} className="shrink-0 opacity-80" />}
+                    </span>
+                    <span className="live-nameplate-role shrink-0 tracking-[0.18em] opacity-80" data-testid="stage-role-self">
+                      {isHost ? 'Animateur' : 'Sur scène'}
+                    </span>
                   </div>
 
-                  {/* Host Quick Controls — en orbe, dans le coin de la carte. */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  {/* Host Quick Controls — en orbe, dans le coin de la carte.
+                      MB-1 : `live-hover-reveal` remplace `opacity-0
+                      group-hover:opacity-100`, qui rendait cette commande
+                      DÉFINITIVEMENT invisible au doigt (opacité effective 0
+                      mesurée au banc sur téléphone). Elle s'efface toujours au
+                      repos sur un ordinateur, où le survol existe. */}
+                  <div className="live-hover-reveal absolute top-3 right-3 flex items-center gap-1.5">
                     <button
                       onClick={handleTriggerVisionAnalysis}
                       disabled={isVisionAnalyzing}
                       title={isVisionAnalyzing ? 'Analyse en cours' : 'Analyser la scène (Vision IA)'}
                       aria-label="Analyser la scène avec la Vision IA"
-                      className="live-orb w-9 h-9 disabled:opacity-50"
+                      className="live-orb w-11 h-11 disabled:opacity-50"
                     >
-                      <Eye size={15} />
+                      <Eye size={17} />
                     </button>
                   </div>
                 </div>
@@ -2801,7 +2881,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 {presentableRemotes
                   .filter(media => humainsVisibles.has(media.participant.identity))
                   .map((media) => (
-                    <RemoteParticipantTile key={media.participant.identity} media={media} />
+                    <RemoteParticipantTile
+                      key={media.participant.identity}
+                      media={media}
+                      roleLabel={roleParRemote.get(media.participant.identity)}
+                    />
                   ))}
 
                 {/* Débordement : au-delà des six cartes, on le DIT — jamais des
@@ -3185,11 +3269,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   <option value="Espagnol">Espagnol</option>
                 </select>
 
+                {/* MB-1 : ce bouton affichait la valeur technique brute
+                    (« bilingual », « original », « off ») à un public
+                    francophone, dans une cible de 80×23 px. Il dit maintenant
+                    ce qu'il fait, en français, dans une cible atteignable. */}
                 <button
                   onClick={() => setSubtitlesMode(subtitlesMode === 'bilingual' ? 'original' : subtitlesMode === 'original' ? 'off' : 'bilingual')}
-                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-bold text-slate-300 uppercase"
+                  aria-label="Changer l'affichage des sous-titres"
+                  className="px-2.5 py-1 min-h-[44px] flex items-center bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-bold text-slate-300 uppercase"
                 >
-                  {subtitlesMode}
+                  {subtitlesMode === 'bilingual' ? 'Deux langues' : subtitlesMode === 'original' ? 'Langue d’origine' : 'Masqués'}
                 </button>
               </div>
             </div>
@@ -3201,7 +3290,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             <span className="water-droplets" aria-hidden="true"></span>
 
             {/* Media Toggles */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* DS-L1 — commandes en ORBES, comme dans l'image de référence :
                   rondes, en verre, halo qui s'intensifie au survol. Un état
                   coupé reste rouge (une anomalie doit se voir), un état actif
@@ -3274,18 +3363,26 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               )}
             </div>
 
-            {/* Center Transformation Bridges — Contextuel, s'efface au repos */}
-            <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
+            {/* Center Transformation Bridges — Contextuel, s'efface au repos.
+                MB-1 (correctif mesuré) : sur un téléphone, la barre demandait
+                401 px de commandes pour 342 px utiles — le bouton cœur et son
+                compteur sortaient de l'écran (mesuré : bord droit à 426 px
+                pour un écran de 390), donc ni lisibles ni atteignables. Ces
+                deux passerelles sont des actions d'APRÈS le direct, pas des
+                gestes du pouce pendant : elles passent dans la feuille
+                « Gérer la scène », où elles gagnent enfin un libellé au lieu
+                d'être deux icônes muettes. Rien n'est retiré du téléphone. */}
+            <div className={`hidden sm:flex items-center gap-2 shrink-0 ${contextualChromeClass}`}>
               <button
                 onClick={handleTransformToParcours}
-                className="px-3 sm:px-3.5 py-2 live-orb live-orb--active !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+                className="px-3 sm:px-3.5 py-2 min-h-[44px] min-w-[44px] justify-center live-orb live-orb--active !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
               >
                 <ListTodo size={14} /> <span className="hidden sm:inline">Transformer en Parcours</span>
               </button>
 
               <button
                 onClick={handleBookPrivateSession}
-                className="px-3 sm:px-3.5 py-2 live-orb !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+                className="px-3 sm:px-3.5 py-2 min-h-[44px] min-w-[44px] justify-center live-orb !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
               >
                 <Lock size={14} /> <span className="hidden sm:inline">Continuer en Privé</span>
               </button>
@@ -3301,7 +3398,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             </div>
 
             {/* Right: Likes & Gifts — Contextuel, s'efface au repos */}
-            <div className={`flex items-center gap-2 ${contextualChromeClass}`}>
+            <div className={`flex items-center gap-2 shrink-0 ${contextualChromeClass}`}>
               <button
                 onClick={() => setShowGifts(!showGifts)}
                 className={`live-orb w-11 h-11 ${showGifts ? 'live-orb--active' : ''}`}
@@ -3316,7 +3413,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 // (y compris ceux qu'on envoie soi-même, rediffusés) — un
                 // incrément local en plus doublerait le compte de son propre tap.
                 onClick={() => { if (realSessionId) sendLiveReaction(realSessionId, userProfile.id, 'heart').catch(() => {}); }}
-                className="p-3 bg-gradient-to-tr from-pink-500 to-red-500 rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform flex items-center gap-1"
+                className="p-3 min-h-[44px] bg-gradient-to-tr from-pink-500 to-red-500 rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform flex items-center gap-1"
               >
                 <Heart size={18} fill="white" />
                 <span className="text-xs font-bold font-mono">{likesCount}</span>
@@ -3335,7 +3432,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             onClick={() => setIsPanelCollapsed(false)}
             title="Rouvrir le panneau d'interaction"
             aria-label="Rouvrir le panneau d'interaction"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 live-orb !rounded-r-none !rounded-l-xl border-r-0 px-1.5 py-4 shadow-xl transition-colors"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 live-orb !rounded-r-none !rounded-l-xl border-r-0 min-w-[44px] justify-center px-1.5 py-4 shadow-xl transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
@@ -4093,6 +4190,77 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 <span className="text-xs font-bold text-white">Personnes</span>
                 <span className="text-[10px] text-cyan-200/80">Monter sur scène, retirer</span>
               </button>
+
+              {/* MB-1 : les deux passerelles de la barre du bas. Sur téléphone
+                  elles n'y tenaient pas (le cœur et son compteur sortaient de
+                  l'écran) ET elles y étaient muettes — deux icônes sans mot.
+                  Ici elles ont enfin leur nom et ce qu'elles font. */}
+              <button
+                data-testid="mobile-transform-parcours"
+                onClick={() => { setShowMobileStageSheet(false); handleTransformToParcours(); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-emerald-600/25 border border-emerald-400/40 text-left"
+              >
+                <ListTodo size={18} className="text-emerald-300" />
+                <span className="text-xs font-bold text-white">Transformer en Parcours</span>
+                <span className="text-[10px] text-emerald-200/80">Garder ce direct comme étapes</span>
+              </button>
+
+              <button
+                data-testid="mobile-private-session"
+                onClick={() => { setShowMobileStageSheet(false); handleBookPrivateSession(); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-amber-600/25 border border-amber-400/40 text-left"
+              >
+                <Lock size={18} className="text-amber-300" />
+                <span className="text-xs font-bold text-white">Continuer en Privé</span>
+                <span className="text-[10px] text-amber-200/80">Prendre rendez-vous à deux</span>
+              </button>
+
+              {/* MB-1 : les trois outils personnels de la barre du haut. Sur
+                  téléphone ils y étaient réduits à des icônes muettes ET
+                  écrasaient la pastille d'état (mesuré : groupe de gauche à
+                  107 px pour 216 px de contenu). Ici ils disent ce qu'ils
+                  font. Ils restent à leur place sur un écran large. */}
+              <button
+                data-testid="mobile-audio-only"
+                onClick={() => { setShowMobileStageSheet(false); handleToggleAudioOnly(); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-teal-600/25 border border-teal-400/40 text-left"
+              >
+                <Headphones size={18} className="text-teal-300" />
+                <span className="text-xs font-bold text-white">{isAudioOnlyMode ? 'Revenir à la vidéo' : 'Audio seul'}</span>
+                <span className="text-[10px] text-teal-200/80">Économiser la connexion</span>
+              </button>
+
+              <button
+                data-testid="mobile-copy-link"
+                onClick={() => { setShowMobileStageSheet(false); handleCopyLiveLink(); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-sky-600/25 border border-sky-400/40 text-left"
+              >
+                <Share2 size={18} className="text-sky-300" />
+                <span className="text-xs font-bold text-white">Copier le lien</span>
+                <span className="text-[10px] text-sky-200/80">Partager ce direct</span>
+              </button>
+
+              <button
+                data-testid="mobile-sos"
+                onClick={() => { setShowMobileStageSheet(false); setShowInstantHelpModal(true); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-rose-600/25 border border-rose-400/40 text-left"
+              >
+                <LifeBuoy size={18} className="text-rose-300" />
+                <span className="text-xs font-bold text-white">SOS Aide</span>
+                <span className="text-[10px] text-rose-200/80">Modération, urgence</span>
+              </button>
+
+              {liveData.tribeName && (
+                <button
+                  data-testid="mobile-join-tribe"
+                  onClick={() => { setShowMobileStageSheet(false); handleJoinTribe(); }}
+                  className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-purple-600/25 border border-purple-400/40 text-left"
+                >
+                  <Flame size={18} className="text-purple-300" />
+                  <span className="text-xs font-bold text-white">Rejoindre la Tribu</span>
+                  <span className="text-[10px] text-purple-200/80">{liveData.tribeName}</span>
+                </button>
+              )}
             </div>
 
             {isHost && (
@@ -4117,7 +4285,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
             <button
               onClick={() => setShowMobileStageSheet(false)}
-              className="mt-4 w-full py-2.5 rounded-2xl bg-white/10 border border-white/15 text-xs font-bold text-slate-200"
+              className="mt-4 w-full min-h-[44px] py-2.5 rounded-2xl bg-white/10 border border-white/15 text-xs font-bold text-slate-200"
             >
               Fermer
             </button>

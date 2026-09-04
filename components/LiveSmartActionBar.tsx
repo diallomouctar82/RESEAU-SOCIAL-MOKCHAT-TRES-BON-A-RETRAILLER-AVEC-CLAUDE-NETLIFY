@@ -69,7 +69,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
         {/* Main Quick Action: Retenir pour moi */}
         <button
           onClick={() => setShowNoteInput(!showNoteInput)}
-          className="px-3 py-1.5 live-orb live-orb--active !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-98"
+          className="px-3 py-1.5 min-h-[44px] live-orb live-orb--active !rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-98"
           title="Mémoire Personnelle : Diallo, retiens ceci pour moi"
         >
           <Sparkles size={13} />
@@ -81,7 +81,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
             écran est ce qui rendait cette barre illisible (audit UX). */}
         <button
           onClick={() => onCreateTask && onCreateTask()}
-          className="hidden sm:flex p-2 hover:bg-white/10 text-slate-300 hover:text-emerald-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
+          className="hidden sm:flex min-h-[44px] min-w-[44px] justify-center p-2 hover:bg-white/10 text-slate-300 hover:text-emerald-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Créer une tâche issue du Live"
         >
           <CheckSquare size={15} />
@@ -90,7 +90,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         <button
           onClick={() => onBookAppointment && onBookAppointment()}
-          className="hidden sm:flex p-2 hover:bg-white/10 text-slate-300 hover:text-indigo-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
+          className="hidden sm:flex min-h-[44px] min-w-[44px] justify-center p-2 hover:bg-white/10 text-slate-300 hover:text-indigo-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Prendre rendez-vous avec l'intervenant"
         >
           <Calendar size={15} />
@@ -99,7 +99,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         <button
           onClick={() => onAddToParcours && onAddToParcours()}
-          className="hidden md:flex p-2 hover:bg-white/10 text-slate-300 hover:text-amber-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
+          className="hidden md:flex min-h-[44px] min-w-[44px] justify-center p-2 hover:bg-white/10 text-slate-300 hover:text-amber-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Ajouter au parcours projet"
         >
           <Compass size={15} />
@@ -108,7 +108,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
 
         <button
           onClick={() => onVerifyFact && onVerifyFact()}
-          className="hidden lg:flex p-2 hover:bg-white/10 text-slate-300 hover:text-cyan-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
+          className="hidden lg:flex min-h-[44px] min-w-[44px] justify-center p-2 hover:bg-white/10 text-slate-300 hover:text-cyan-400 rounded-xl transition-colors text-xs font-semibold items-center gap-1"
           title="Vérifier une information (Fiche Source)"
         >
           <ShieldCheck size={15} />
@@ -118,7 +118,7 @@ export const LiveSmartActionBar: React.FC<LiveSmartActionBarProps> = ({
         {/* Expand full action matrix */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${isExpanded ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-slate-400 hover:text-white'}`}
+          className={`p-2 min-h-[44px] min-w-[44px] justify-center rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${isExpanded ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-slate-400 hover:text-white'}`}
           title="Toutes les actions intelligentes"
         >
           <Plus size={14} className={`transition-transform duration-200 ${isExpanded ? 'rotate-45' : ''}`} />

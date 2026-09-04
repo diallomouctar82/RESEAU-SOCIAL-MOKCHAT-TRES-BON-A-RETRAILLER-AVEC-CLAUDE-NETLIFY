@@ -42,11 +42,20 @@ afterEach(() => cleanup());
  * n'ont jamais eu vocation à peindre quoi que ce soit. On les retire avant de
  * scanner — le garde-fou continue de couvrir tout ce qui vit dans un
  * `className`, c'est-à-dire exactement ce qu'il doit protéger.
+ *
+ * MB-1 : un identifiant de test peut aussi transiter par une PROP nommée
+ * (`testId={`live-mute-${p.id}`}` dans le panneau, depuis que les commandes
+ * passent par un composant de bouton partagé). Le filtre ne connaissait que
+ * l'attribut brut et prenait donc ces cinq identifiants pour des classes
+ * jamais définies. La contre-épreuve ci-dessous reste inchangée : une vraie
+ * classe absente d'un `className` est toujours vue.
  */
 function sansIdentifiantsDeTest(source: string): string {
     return source
         .replace(/data-testid=\{[^}]*\}/g, '')
-        .replace(/data-testid="[^"]*"/g, '');
+        .replace(/data-testid="[^"]*"/g, '')
+        .replace(/\btestId=\{[^}]*\}/g, '')
+        .replace(/\btestId="[^"]*"/g, '');
 }
 
 describe('DS-L1 — la matière du Studio existe réellement dans la feuille de style', () => {

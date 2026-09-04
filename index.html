@@ -653,6 +653,20 @@
         color: #fff;
       }
 
+      /* MB-1 — Une commande qui n'apparaît qu'au SURVOL n'existe pas sur un
+         téléphone : il n'y a pas de curseur. `opacity-0 group-hover:opacity-100`
+         la rendait donc définitivement invisible au doigt (mesuré au banc :
+         opacité effective 0 au repos, 390×844). Elle reste désormais visible
+         partout où le survol n'existe pas, et garde son effacement au repos
+         sur un ordinateur — là où le survol est réel. */
+      .live-hover-reveal { opacity: 1; }
+      @media (hover: hover) and (pointer: fine) {
+        .live-hover-reveal { opacity: 0; transition: opacity 0.2s ease; }
+        .group:hover .live-hover-reveal,
+        .live-hover-reveal:hover,
+        .live-hover-reveal:focus-within { opacity: 1; }
+      }
+
       /* « ● EN DIRECT » : petites capitales espacées, point vert qui respire. */
       @keyframes live-onair-pulse {
         0%, 100% { opacity: 1; box-shadow: 0 0 8px 2px rgba(61, 220, 151, 0.7); }
@@ -731,6 +745,36 @@
         align-items: center;
         justify-content: space-between;
         gap: 0.6rem;
+      }
+
+      /* MB-1 — sur un téléphone, une carte de scène fait environ 150 px de
+         large. Le nom et le rôle côte à côte ne laissaient que trois lettres
+         au NOM (mesuré à l'écran : « SAR… ANIMATEUR », « FAT… SUR SCÈNE »)
+         alors que le nom est l'information principale. En dessous de 640 px
+         ils s'empilent donc : le nom prend toute la largeur, le rôle passe
+         dessous, plus petit et plus discret. Au-delà, la rangée d'origine
+         est conservée telle quelle. */
+      /* MB-1 — sur téléphone, « EN DIRECT » à 0.18em d'espacement mangeait
+         près de 100 px d'une barre de 390 px. L'espacement se resserre : le
+         mot reste en petites capitales, il occupe simplement sa place. */
+      @media (max-width: 639px) {
+        .live-onair { letter-spacing: 0.08em; }
+      }
+
+      @media (max-width: 639px) {
+        .live-nameplate {
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: flex-end;
+          gap: 0.05rem;
+          padding-bottom: 0.55rem;
+        }
+        .live-nameplate > * { max-width: 100%; }
+        .live-nameplate .live-nameplate-role {
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          opacity: 0.68;
+        }
       }
 
       /* Bulles qui montent DANS la carte (la vie est dans les contenants, pas

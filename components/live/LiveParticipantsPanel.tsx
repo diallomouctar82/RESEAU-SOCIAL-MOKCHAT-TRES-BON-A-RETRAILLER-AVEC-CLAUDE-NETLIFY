@@ -61,6 +61,41 @@ export interface LiveParticipantsPanelProps {
     onRemoveAgent?: (agentId: string) => void;
 }
 
+/**
+ * MB-1 — Un geste de scène = une cible d'au moins 44 px QUI PORTE SON NOM.
+ *
+ * Avant : trois ronds de 32 px, icône seule, distingués par un `title` qu'un
+ * téléphone n'affiche jamais (mesuré au banc, 390×844). « ↓ » et le rond rouge
+ * se ressemblaient — or l'un GARDE la personne dans le direct et l'autre
+ * l'EXPULSE. Le libellé n'est donc pas un ornement : c'est ce qui sépare deux
+ * gestes aux conséquences opposées.
+ *
+ * `ton` porte cette différence dans la couleur, pas seulement dans le mot :
+ * `primaire` = le geste qu'on attend (faire monter), `neutre` = un
+ * ajustement réversible, `danger` = on sort quelqu'un du direct.
+ */
+const BoutonGeste: React.FC<{
+    onClick: () => void;
+    testId: string;
+    ariaLabel: string;
+    libelle: string;
+    icone: React.ReactNode;
+    ton?: 'primaire' | 'neutre' | 'danger';
+}> = ({ onClick, testId, ariaLabel, libelle, icone, ton = 'neutre' }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        data-testid={testId}
+        aria-label={ariaLabel}
+        className={`live-orb !rounded-xl min-h-[44px] px-3 py-2 flex items-center justify-center gap-1.5 text-[11px] font-bold whitespace-nowrap ${
+            ton === 'primaire' ? 'live-orb--active' : ton === 'danger' ? 'live-orb--danger' : ''
+        }`}
+    >
+        {icone}
+        <span>{libelle}</span>
+    </button>
+);
+
 const Ligne: React.FC<{
     p: LiveStageParticipant;
     props: LiveParticipantsPanelProps;
@@ -75,7 +110,7 @@ const Ligne: React.FC<{
     return (
         <li
             data-testid={`live-participant-${p.id}`}
-            className="live-pane flex items-center gap-2.5 px-2.5 py-2 !rounded-2xl"
+            className="live-pane flex flex-wrap items-center gap-2.5 px-2.5 py-2 !rounded-2xl"
         >
             <span className="relative shrink-0">
                 {p.avatar
@@ -108,78 +143,87 @@ const Ligne: React.FC<{
                     {p.isAi && <Bot size={11} style={{ color: 'var(--live-accent)' }} aria-label="Agent IA" />}
                     {p.isVerified && !p.isAi && <ShieldCheck size={11} style={{ color: 'var(--live-accent)' }} aria-label="Vérifié" />}
                 </span>
-                <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--live-ink-soft)' }}>
-                    <span>{ROLE_LABELS[p.role]}</span>
+                <span className="flex items-center gap-1.5 text-[10px] mt-0.5" style={{ color: 'var(--live-ink-soft)' }}>
+                    {/* MB-2 : le rôle devient une PASTILLE, pas une ligne grise de
+                        10 px. C'est la première chose à lire sur une ligne de
+                        personne — qui anime, qui est sur scène, qui regarde. Le
+                        libellé vient de ROLE_LABELS, donc du rôle RÉEL de
+                        `live_speakers` : jamais un rôle que la base ne porte pas. */}
+                    <span
+                        data-testid={`live-role-${p.id}`}
+                        className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-[0.06em]"
+                        style={
+                            p.role === 'host'
+                                ? { background: 'var(--live-accent)', color: '#04202a' }
+                                : { background: 'rgba(255,255,255,.08)', color: 'var(--live-ink)', border: '1px solid var(--live-line)' }
+                        }
+                    >
+                        {ROLE_LABELS[p.role]}
+                    </span>
                     {surScene && (p.isMuted
-                        ? <MicOff size={10} aria-label="Micro coupé" />
-                        : <Mic size={10} aria-label="Micro ouvert" />)}
+                        ? <MicOff size={12} aria-label="Micro coupé" />
+                        : <Mic size={12} aria-label="Micro ouvert" />)}
                     {surScene && (p.isVideoOn
-                        ? <Video size={10} aria-label="Caméra allumée" />
-                        : <VideoOff size={10} aria-label="Caméra éteinte" />)}
+                        ? <Video size={12} aria-label="Caméra allumée" />
+                        : <VideoOff size={12} aria-label="Caméra éteinte" />)}
                 </span>
             </span>
 
+            {/* MB-1 : les gestes passent sur leur PROPRE ligne, en pleine largeur.
+                Serrés à droite du nom, ils ne pouvaient pas dépasser 32 px sur un
+                téléphone ni porter de libellé — c'est la place qui manquait, pas
+                la volonté. `basis-full` fait passer ce bloc à la ligne. */}
             {commandable && (
-                <span className="flex items-center gap-1 shrink-0">
+                <span className="basis-full flex items-center gap-2 flex-wrap">
                     {surScene ? (
                         <>
-                            <button
-                                type="button"
+                            <BoutonGeste
                                 onClick={() => props.onToggleMute(p.id, !p.isMuted)}
-                                data-testid={`live-mute-${p.id}`}
-                                title={p.isMuted ? 'Rendre le micro' : 'Couper le micro'}
-                                aria-label={p.isMuted ? `Rendre le micro à ${p.name}` : `Couper le micro de ${p.name}`}
-                                className={`live-orb w-8 h-8 ${p.isMuted ? 'live-orb--danger' : ''}`}
-                            >
-                                {p.isMuted ? <MicOff size={13} /> : <Mic size={13} />}
-                            </button>
-                            <button
-                                type="button"
+                                testId={`live-mute-${p.id}`}
+                                ariaLabel={p.isMuted ? `Rendre le micro à ${p.name}` : `Couper le micro de ${p.name}`}
+                                libelle={p.isMuted ? 'Rendre le micro' : 'Couper le micro'}
+                                icone={p.isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                                ton={p.isMuted ? 'danger' : 'neutre'}
+                            />
+                            <BoutonGeste
                                 onClick={() => props.onDemote(p.id)}
-                                data-testid={`live-demote-${p.id}`}
-                                title="Redescendre dans le public"
-                                aria-label={`Redescendre ${p.name} dans le public`}
-                                className="live-orb w-8 h-8"
-                            >
-                                <ArrowDown size={13} />
-                            </button>
+                                testId={`live-demote-${p.id}`}
+                                ariaLabel={`Faire descendre ${p.name} dans le public`}
+                                libelle="Faire descendre"
+                                icone={<ArrowDown size={14} />}
+                            />
                         </>
                     ) : (
-                        <button
-                            type="button"
+                        <BoutonGeste
                             onClick={() => props.onPromote(p.id)}
-                            data-testid={`live-promote-${p.id}`}
-                            title="Monter sur scène"
-                            aria-label={`Monter ${p.name} sur scène`}
-                            className="live-orb live-orb--active w-8 h-8"
-                        >
-                            <ArrowUp size={13} />
-                        </button>
+                            testId={`live-promote-${p.id}`}
+                            ariaLabel={`Faire monter ${p.name} sur scène`}
+                            libelle="Faire monter"
+                            icone={<ArrowUp size={14} />}
+                            ton="primaire"
+                        />
                     )}
-                    <button
-                        type="button"
+                    <BoutonGeste
                         onClick={() => props.onRemove(p.id)}
-                        data-testid={`live-remove-${p.id}`}
-                        title="Retirer du direct"
-                        aria-label={`Retirer ${p.name} du direct`}
-                        className="live-orb live-orb--danger w-8 h-8"
-                    >
-                        <UserMinus size={13} />
-                    </button>
+                        testId={`live-remove-${p.id}`}
+                        ariaLabel={`Retirer ${p.name} du direct`}
+                        libelle="Retirer du direct"
+                        icone={<UserMinus size={14} />}
+                        ton="danger"
+                    />
                 </span>
             )}
 
             {isHost && p.isAi && p.agentId && props.onRemoveAgent && (
-                <button
-                    type="button"
-                    onClick={() => props.onRemoveAgent?.(p.agentId!)}
-                    data-testid={`live-remove-agent-${p.agentId}`}
-                    title="Retirer l’agent de la scène"
-                    aria-label={`Retirer ${p.name} de la scène`}
-                    className="live-orb w-8 h-8 shrink-0"
-                >
-                    <UserMinus size={13} />
-                </button>
+                <span className="basis-full flex items-center gap-2">
+                    <BoutonGeste
+                        onClick={() => props.onRemoveAgent?.(p.agentId!)}
+                        testId={`live-remove-agent-${p.agentId}`}
+                        ariaLabel={`Retirer ${p.name} de la scène`}
+                        libelle="Retirer de la scène"
+                        icone={<UserMinus size={14} />}
+                    />
+                </span>
             )}
         </li>
     );
@@ -197,9 +241,9 @@ export const LiveParticipantsPanel: React.FC<LiveParticipantsPanelProps> = (prop
                 type="button"
                 onClick={props.onInvite}
                 data-testid="live-invite-open"
-                className="w-full live-orb live-orb--active !rounded-xl px-3 py-2.5 text-xs font-bold flex items-center justify-center gap-2"
+                className="w-full live-orb live-orb--active !rounded-xl min-h-[44px] px-3 py-2.5 text-xs font-bold flex items-center justify-center gap-2"
             >
-                <UserPlus size={14} /> Inviter quelqu’un
+                <UserPlus size={16} /> Inviter quelqu’un
             </button>
 
             <section>
