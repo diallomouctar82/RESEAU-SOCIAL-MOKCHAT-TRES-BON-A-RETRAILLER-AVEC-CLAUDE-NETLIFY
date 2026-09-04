@@ -29,6 +29,22 @@ UDP/ICE n'est pas établissable depuis ce sandbox).
 
 ## Étapes (une fois l'accès SSH fourni)
 
+> **⚠️ CETTE SECTION EST L'INSTALLATION INITIALE. ELLE A ÉTÉ FAITE LE
+> 30/08/2026 — NE PAS LA REJOUER SUR LE VPS EN SERVICE.**
+>
+> Elle est conservée parce qu'elle décrit comment repartir de zéro (nouvelle
+> machine, reconstruction). Rejouée sur le VPS actuel, elle ferait deux
+> dégâts, tous deux vérifiés dans l'historique du dépôt le 04/09/2026 :
+>
+> - l'étape 2 (`scp -r deploy/livekit … /opt/moknet-livekit`) **écraserait**
+>   le `docker-compose.yml` ajusté à la main sur place (pas de Caddy, serveur
+>   1.8.4, plage TURN bornée) par la version « cible » du dépôt ;
+> - `deploy.sh` démarrerait alors **Caddy**, qui réclamerait les ports 80 et
+>   443 déjà tenus par un autre site de production sur cette machine.
+>
+> Pour toute modification de la configuration en service, on édite le fichier
+> **du VPS**, ligne par ligne — voir « Étape 3 » plus bas, qui procède ainsi.
+
 ### 1. Prérequis sur le VPS
 Docker + le plugin `docker compose` (`docker compose version` doit
 répondre). Ports 80, 443, 7881/tcp, 50000-50100/udp et 3478/udp ouverts
@@ -439,11 +455,63 @@ dont le contenu est celui de la version en ligne aujourd'hui.
 
 ### Étape 3 — Activer les métriques sur le VPS
 
-Le `docker-compose.yml` de ce dossier porte déjà `prometheus_port: 6789` et
-publie ce port **sur la boucle locale uniquement** (`127.0.0.1:6789`).
+> **Correction du 4 septembre 2026 — une version antérieure de cette section
+> faisait couper les directs POUR RIEN.** Elle affirmait que « le
+> `docker-compose.yml` de ce dossier porte déjà `prometheus_port` », puis
+> faisait lancer `docker compose up -d livekit` dans `/opt/moknet-livekit`.
+> Ce sont **deux fichiers différents**. Vérifié dans l'historique du dépôt :
+>
+> | Commit | Date | `prometheus_port` |
+> |---|---|---|
+> | `f0637e7` — artefacts copiés sur le VPS le 30/08 | 29/08 | **absent** |
+> | `f282c01` | 02/09 | absent |
+> | `8902cef` — ajouté par SAT-1 | **04/09** | présent |
+>
+> La ligne est entrée dans le dépôt **après** l'installation du VPS. Le
+> fichier en service ne l'a donc jamais eue : relancer le conteneur sans
+> l'ajouter d'abord aurait coupé tous les appels et directs **sans activer
+> quoi que ce soit**. La recette ci-dessous édite le fichier DU VPS, et
+> vérifie AVANT de redémarrer.
+
+**1. Sauvegarder, puis ajouter les deux lignes** (dans le fichier du VPS) :
 
 ```bash
 cd /opt/moknet-livekit
+cp docker-compose.yml docker-compose.yml.avant-sat1
+nano docker-compose.yml
+```
+
+Deux ajouts, dans le service `livekit` :
+
+```yaml
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        prometheus_port: 6789      # ← 1) même indentation que `port: 7880`
+        rtc:
+          …
+    ports:
+      - "127.0.0.1:6789:6789/tcp"  # ← 2) boucle locale UNIQUEMENT
+      …
+```
+
+Ne toucher à rien d'autre : ni Caddy (absent, et il doit le rester), ni la
+version de l'image, ni `relay_range_start/end`.
+
+**2. Vérifier AVANT de redémarrer** — c'est ce contrôle qui évite la coupure
+inutile :
+
+```bash
+docker compose config | grep -n "prometheus_port\|6789"   # doit montrer les 2 lignes
+diff docker-compose.yml.avant-sat1 docker-compose.yml     # doit montrer 2 ajouts, rien d'autre
+```
+
+Si `docker compose config` échoue ou n'affiche pas les deux lignes :
+**s'arrêter là**, ne pas redémarrer. Aucune coupure n'a eu lieu.
+
+**3. Appliquer, puis prouver :**
+
+```bash
 docker compose up -d livekit
 curl -s http://127.0.0.1:6789/metrics | grep gomaxprocs
 nproc                                    # pour recouper soi-même
@@ -457,8 +525,8 @@ tous les appels et directs en cours **tombent**. À faire dans une fenêtre
 calme. C'est le seul risque de coupure du plan, et il tient au redémarrage du
 serveur média, pas à SAT-1.
 
-**Retour arrière** : commenter `prometheus_port: 6789`, relancer
-`docker compose up -d livekit` (nouvelle coupure).
+**Retour arrière** : `cp docker-compose.yml.avant-sat1 docker-compose.yml`
+puis `docker compose up -d livekit` (nouvelle coupure).
 
 ### Étape 4 — Publier `/metrics`, derrière un jeton DANS LE CHEMIN
 
