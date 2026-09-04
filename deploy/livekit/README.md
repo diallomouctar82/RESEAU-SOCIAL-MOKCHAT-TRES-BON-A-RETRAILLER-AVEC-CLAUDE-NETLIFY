@@ -244,16 +244,23 @@ réels et de la fonction Edge réellement en ligne — pas de mémoire.
 Les quatre premières étapes **ne changent rien au comportement**. Chacune est
 inerte tant que la suivante n'est pas faite :
 
-| # | Étape | Change le comportement ? | Retour arrière | Durée |
-|---|---|---|---|---|
-| 1 | Fusionner la PR #69 | **Non** — l'écran « complet » existe, mais aucun 409 ne peut être émis | `git revert` + push | ~3 min |
-| 2 | Déployer `livekit-token` | **Non** — la porte lit `maxParticipants = 0` partout, ne refuse personne | redéployer depuis `main` | ~2 min |
-| 3 | `prometheus_port` sur le VPS | **Non** — `/metrics` existe, personne ne le lit | commenter + relancer | ~1 min |
-| 4 | Publier `/metrics` derrière un jeton | **Non** — joignable, mais la fonction n'a pas l'adresse | retirer le bloc nginx | ~1 min |
-| 5 | Poser `LIVE_NODE_METRICS_URL` | **OUI — le seul** | **supprimer le secret** | **~30 s** |
+| # | Étape | État | Change le comportement ? | Retour arrière | Durée |
+|---|---|---|---|---|---|
+| 1 | Fusionner la PR #69 | ✅ **faite le 4/09** (`8902cef`) | **Non** — l'écran « complet » existe, mais aucun 409 ne peut être émis | `git revert 8902cef` + push | ~3 min |
+| 2 | Déployer `livekit-token` | ✅ **faite le 4/09 à 22h37 UTC** (v6 → **v7**) | **Non** — mesuré après coup, voir plus bas | redéployer depuis `97382a9` | ~2 min |
+| 3 | `prometheus_port` sur le VPS | ⏸ en attente | **Non** — `/metrics` existe, personne ne le lit | commenter + relancer | ~1 min |
+| 4 | Publier `/metrics` derrière un jeton | ⏸ en attente | **Non** — joignable, mais la fonction n'a pas l'adresse | retirer le bloc nginx | ~1 min |
+| 5 | Poser `LIVE_NODE_METRICS_URL` | ⏸ en attente | **OUI — le seul** | **supprimer le secret** | **~30 s** |
 
 Le seul geste qui engage quoi que ce soit est aussi le plus rapide à défaire.
 On peut s'arrêter après n'importe quelle étape sans laisser d'état bancal.
+
+**Où en est la chaîne à cet instant.** Les étapes 1 et 2 sont faites ; les trois
+autres ne le sont pas. Donc, en production aujourd'hui : la fonction Edge est en
+**version 7** (le code SAT est en ligne), mais `/metrics` répond toujours **404**
+sur le VPS, `LIVE_NODE_METRICS_URL` n'existe pas, **aucune room ne reçoit de
+plafond**, et la porte laisse entrer tout le monde — exactement comme avant
+l'étape 1. Ce n'est pas une déduction : c'est mesuré, section suivante.
 
 ### Étape 1 — Fusionner la PR #69
 
@@ -273,6 +280,39 @@ Puis ouvrir `moknet.net` : tout doit fonctionner exactement comme avant.
 
 **Risque** : celui d'un déploiement front ordinaire (Green Gate vert, 924
 tests, aucun changement de comportement attendu).
+
+#### Ce qui a été réellement mesuré le 4 septembre 2026
+
+Fusionnée en squash sur `main` = **`8902cef`** (20 fichiers, +2 470 lignes),
+sur autorisation écrite de la Direction. Green Gate `success` sur `dbb9dca`
+(run 33923641340), 10 contrôles / 0 échec.
+
+Le bundle servi par `moknet.net` est passé de `index-DTSWv1nS.js` à
+**`index-DEDPIJvb.js`** (5 044 509 octets, HTTP 200 en 0,45 s). Les deux
+bundles restant tous deux téléchargeables, la même commande a pu être passée
+sur l'un et sur l'autre :
+
+| Chaîne cherchée | ancien bundle | bundle servi maintenant |
+|---|---|---|
+| `Ce direct est complet` | **0** | **1** |
+| `Toutes les places sont prises` | 0 | 1 |
+| `live_full` | **0** | **1** |
+| `occupied` | 0 | 6 |
+| `go_sched_gomaxprocs_threads` | 0 | **0** |
+| `poseRoomCeiling` | 0 | **0** |
+| `PLACES_PAR_COEUR` | 0 | **0** |
+
+Les trois dernières lignes sont un résultat **attendu, pas un manque** : SAT-1
+vit dans la fonction Edge, il n'a rien à faire dans un navigateur.
+
+Mesure faite avec `grep -a` : sans ce drapeau, `grep` classe le bundle minifié
+comme binaire et rend `0` partout — un « zéro » d'outil qu'il aurait été facile
+de prendre pour un zéro de fait. Et `COMPLET` a été écarté du tableau bien
+qu'il passe de 0 à 9 : il compte aussi les occurrences à l'intérieur de
+`COMPLETED`, donc il ne discrimine rien.
+
+Le VPS n'a pas bougé : `live.moknet.net/` répond **200**, `/metrics` toujours
+**404**. La fonction Edge non plus : toujours **version 6**.
 
 **Retour arrière** :
 
@@ -308,17 +348,94 @@ supabase functions deploy livekit-token --project-ref rqciahtpixdjbyoajomg
 (le plafond et la porte ne vivent que dans la branche « direct »), mais le
 fichier a été restructuré : d'où le test d'appel immédiat.
 
-**Retour arrière — vérifié.** `main` contient exactement les 2 fichiers
-déployés aujourd'hui (`index.ts`, `supabase.ts`) ; la branche en a 4
-(+ `nodeCapacity.ts`, `capacityGate.ts`). Donc :
+#### Ce qui a été MESURÉ le 4 septembre 2026, avant et après le déploiement
+
+Fenêtre calme vérifiée d'abord (dernier direct démarré 14 h plus tôt, dernier
+appel 1 h 45 plus tôt, zéro activité IA depuis 30 min), puis la **même sonde**
+lancée sur la fonction de production avant, puis après — un vrai compte, un vrai
+jeton, quatre chemins, trois passages chacun :
+
+| Chemin sondé | AVANT (v6) | APRÈS (v7) |
+|---|---|---|
+| appel autorisé | 200 · jeton 559 car. · 1 580 ms | 200 · jeton 559 car. · **1 265 ms** |
+| appel refusé (non-membre) | 403 · même message · 917 ms | 403 · même message · **726 ms** |
+| direct inexistant | 200 · jeton 483 car. · 975 ms | 200 · jeton 483 car. · 1 417 ms |
+| direct réel | 200 · jeton 483 car. · 703 ms | 200 · jeton 483 car. · 1 473 ms |
+
+Codes HTTP, longueurs de jeton et message de refus **identiques sur les quatre
+chemins**. Les appels ne paient rien de plus ; les directs paient un seul
+aller-retour réseau supplémentaire — exactement le `listRooms` que la conception
+annonce, et rien d'autre.
+
+**Le garde vérifié en production, pas seulement au banc.** `liveSessionIdFromRoomName`
+décide seul qui entre dans le bloc SAT. Sept mesures par cas contre la fonction
+en ligne :
+
+| Nom de room | Doit entrer ? | Médiane mesurée |
+|---|---|---|
+| UUID nu | oui | 1 553 ms |
+| UUID en majuscules | oui (drapeau `/i`) | 1 370 ms |
+| UUID + 1 caractère | **non** | 724 ms |
+| nom libre | **non** | 780 ms |
+
+Le rapport de 2 entre les deux groupes est la signature du garde : ce qui entre
+paie une lecture LiveKit, ce qui n'entre pas n'en paie aucune.
+
+**Preuve que rien n'a été plafonné.** Le service de journaux Supabase étant
+tombé ce soir-là (« Backend error » sur trois tentatives), l'inertie a été
+prouvée autrement, et mieux : `poserPlafond` est la **seule** chose de cette
+fonction qui puisse créer une room. La même room a donc été sondée huit fois de
+suite — si un plafond avait été posé, la room existerait dès le second appel et
+le comptage `listParticipants` s'ajouterait, faisant **monter** la courbe.
+Mesuré : 1 986 → 1 590 → 1 576 → 1 264 → 1 426 → 1 576 → 1 222 → **1 023 ms**,
+et la médiane des sept dernières (1 426 ms) reste au niveau des rooms neuves
+(1 171 ms). La courbe descend au lieu de monter : **aucune room n'est créée,
+aucun plafond n'est posé.** Aucun 409 `live_full` n'a été émis une seule fois.
+
+**Retour arrière — vérifié, et recalé après l'étape 1.**
 
 ```bash
-git checkout main
+rm -rf supabase/functions/livekit-token                    # le rm est INDISPENSABLE, voir plus bas
+git checkout 97382a9 -- supabase/functions/livekit-token/
 supabase functions deploy livekit-token --project-ref rqciahtpixdjbyoajomg
+git checkout HEAD -- supabase/functions/livekit-token/     # remettre l'arbre en état
 ```
 
+Éprouvé pour de vrai avant d'être écrit ici : après les deux premières lignes,
+le dossier contient exactement `index.ts` (160 lignes, aucune occurrence de
+`poserPlafond`) et `supabase.ts`, et son `git diff` contre `97382a9` est vide.
+La dernière ligne rend ses quatre fichiers à l'arbre.
+
+**Pourquoi le `rm -rf` n'est pas décoratif.** Une première rédaction l'omettait.
+`git checkout <commit> -- <chemin>` **écrase** les fichiers présents dans ce
+commit mais **ne supprime pas** ceux qui n'y étaient pas : `nodeCapacity.ts` et
+`capacityGate.ts` seraient restés dans le dossier déployé aux côtés de l'ancien
+`index.ts`. Sans conséquence à l'exécution — l'ancien `index.ts` ne les importe
+pas, Deno ne les charge donc jamais — mais ce n'est pas un retour arrière
+propre, et on ne déploie pas en production un dossier dont on ne peut pas dire
+exactement ce qu'il contient.
+
 Supabase ne rembobine pas : ce redéploiement crée une version **suivante**
-dont le contenu est celui d'aujourd'hui.
+dont le contenu est celui de la version en ligne aujourd'hui.
+
+> **Correction du 4 septembre 2026, faite juste après la fusion.** Ce
+> paragraphe disait : « `main` contient exactement les 2 fichiers déployés
+> aujourd'hui, donc `git checkout main` puis redéployer ». **L'étape 1 vient
+> de rendre cette phrase fausse** — c'est elle qui a fait entrer le code SAT
+> dans `main`. Mesuré après la fusion :
+>
+> | | `livekit-token` | `index.ts` |
+> |---|---|---|
+> | version **déployée** (v6) | 2 fichiers | 160 lignes |
+> | `97382a9` (avant la fusion) | 2 fichiers | 160 lignes |
+> | `main` = `8902cef` (après) | **4 fichiers** | **340 lignes** |
+>
+> `git checkout main` déploierait donc le code **neuf**, pas l'ancien :
+> l'exact contraire d'un retour arrière. Le point de retour est `97382a9`, le
+> dernier commit de `main` d'avant l'étape 1 — c'est le contenu de la v6 en
+> ligne. Il le restera tant que la fonction n'aura pas été redéployée ; le
+> jour où l'étape 2 sera faite, le nouveau point de retour deviendra ce
+> `97382a9`-ci jusqu'à la version suivante.
 
 ### Étape 3 — Activer les métriques sur le VPS
 
