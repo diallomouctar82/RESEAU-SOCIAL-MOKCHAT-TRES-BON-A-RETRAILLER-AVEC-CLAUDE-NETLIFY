@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Polices embarquées en repli système : la page reste lisible même sans accès
+   à Google Fonts, ce qui compte pour une prévisualisation destinée à être
+   capturée et relue hors ligne. */
+:root {
+    color-scheme: dark;
+}
+
+body {
+    margin: 0;
+    background: #070D1E;
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.font-display {
+    font-family: 'Outfit', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Le composant utilise `font-mono` pour les identifiants techniques
+   (identifiants d'agents, noms de colonnes, chemins de fichiers). */
+.font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
