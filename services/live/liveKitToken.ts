@@ -1,8 +1,36 @@
 import { supabase } from '../supabaseClient';
+import { LiveAccessError, type LiveAccessRefusal, readLiveRefusal } from './liveAccessError';
 
 export interface LiveKitTokenResult {
     token: string;
     serverUrl: string;
+}
+
+const ACCES_IMPOSSIBLE = "Impossible d'obtenir un accès au LIVE (transport vidéo).";
+
+/**
+ * SAT-3 — Récupère le refus NOMMÉ que supabase-js a mis de côté.
+ *
+ * Sur un échec HTTP, `error.message` est toujours la même phrase générique
+ * (« Edge Function returned a non-2xx status code ») : le corps réel — donc le
+ * `code`, `occupied` et `capacity` du 409 de SAT-2 — n'existe plus que dans
+ * `error.context`, l'objet `Response`. Sans cette lecture, un direct complet
+ * est indiscernable d'une panne, et l'écran ne peut rien dire de vrai.
+ *
+ * Le corps ne se lit qu'UNE fois (`Response.json()` consomme le flux) : c'est
+ * pour cela que la lecture vit ici, au seul endroit qui tient la réponse, et
+ * que la décision vit dans `liveAccessError.ts`, sans réseau, donc testable.
+ */
+async function refusFromError(error: unknown): Promise<LiveAccessRefusal | null> {
+    const context = (error as { context?: { json?: () => Promise<unknown> } } | null)?.context;
+    if (!context || typeof context.json !== 'function') return null;
+    try {
+        return readLiveRefusal(await context.json());
+    } catch {
+        // Corps illisible (déjà consommé, HTML d'une passerelle, réponse vide) :
+        // on ne devine rien, l'erreur générique reprend son cours.
+        return null;
+    }
 }
 
 /**
@@ -34,8 +62,14 @@ export async function fetchLiveKitToken(
     if (deviceId) body.deviceId = deviceId;
     if (conversationId) body.conversationId = conversationId;
     const { data, error } = await supabase.functions.invoke('livekit-token', { body });
-    if (error || !data?.token || !data?.serverUrl) {
-        throw new Error(error?.message || "Impossible d'obtenir un accès au LIVE (transport vidéo).");
+    if (error) {
+        // SAT-3 : un refus NOMMÉ (direct complet, transport non configuré) doit
+        // remonter tel quel jusqu'à l'écran ; tout le reste garde le chemin
+        // d'erreur historique, mot pour mot.
+        const refusal = await refusFromError(error);
+        if (refusal) throw new LiveAccessError(refusal, ACCES_IMPOSSIBLE);
+        throw new Error(error.message || ACCES_IMPOSSIBLE);
     }
+    if (!data?.token || !data?.serverUrl) throw new Error(ACCES_IMPOSSIBLE);
     return { token: data.token, serverUrl: data.serverUrl };
 }

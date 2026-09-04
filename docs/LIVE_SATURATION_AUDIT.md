@@ -258,10 +258,90 @@ au-delà, on cesse d'attendre et on laisse entrer.
 - **La fonction Edge n'est pas déployée.** La déployer, c'est la production :
   elle est globale et unique. Elle attend la validation à l'écran de la
   Direction.
-- **SAT-3** : l'écran côté client quand `409 live_full` arrive — il s'appuiera
-  sur `code`, jamais sur un message destiné à un humain.
 - **SAT-1** : poser réellement `maxParticipants` sur la room. Sans lui, cette
   porte est en place mais ne refusera jamais personne, faute de plafond.
+
+---
+
+# SAT-3 — L'écran quand le direct est complet
+
+## Le refus n'arrivait pas jusqu'à l'écran
+
+SAT-2 avait fermé la porte côté serveur, mais son refus mourait à la frontière
+cliente. `supabase.functions.invoke` aplatit TOUT échec HTTP en une seule
+phrase générique — « Edge Function returned a non-2xx status code » — et le
+corps réel de la réponse n'existe plus que dans `error.context`, qui est
+l'objet `Response` (vérifié dans le code de supabase-js :
+`FunctionsClient.js` fait `throw new FunctionsHttpError(response)`).
+
+Conséquence à l'écran : le 409 était indiscernable d'une panne, et
+`SocialLive.tsx` affichait « Connexion au direct… » en boucle. La personne
+fixait un point d'attente pour une place qui ne viendrait jamais. **Un refus
+muet est pire qu'un refus** — il fait porter à l'utilisateur le soupçon que
+son appareil est en panne.
+
+## Ce qui a été construit
+
+| Où | Quoi |
+|---|---|
+| `services/live/liveAccessError.ts` (nouveau) | La décision seule : `readLiveRefusal` (corps → refus typé), `LiveAccessError`, `isLiveFull`, `liveFullOccupancy`. Aucun Supabase, aucun réseau, aucun React — donc testable pour de vrai. |
+| `services/live/liveKitToken.ts` | Lit le corps du 409 via `error.context.json()` et lève une `LiveAccessError` qui porte `code`, `occupied`, `capacity`. Tout le reste garde le chemin d'erreur historique, mot pour mot. |
+| `hooks/useLiveTransport.ts` | Nouveau champ `refusal` — distinct de `error`. Effacé à chaque nouvelle tentative et par « Réessayer » : le refus n'est jamais figé. |
+| `hooks/useLiveTransport.ts` (`liveBadge`) | Nouvel état **COMPLET**, placé AVANT « INTERROMPU » : un direct plein n'a pas été interrompu, on n'y est jamais entré. |
+| `components/live/LiveFullNotice.tsx` (nouveau) | L'écran : « Ce direct est complet », les chiffres RÉELS du serveur, « Réessayer » et « Quitter ». |
+| `components/SocialLive.tsx` | L'écran remplace le point d'attente ; la bannière rouge « Diffusion interrompue » reste réservée aux vraies pannes. |
+
+## Les trois règles tenues
+
+1. **Aucun chiffre inventé.** `liveFullOccupancy` ne rend les chiffres que si
+   le serveur a donné les DEUX et que la capacité est positive. Sinon l'écran
+   dit « Toutes les places sont prises » sans compteur. Un chiffre faux serait
+   pire que pas de chiffre.
+2. **Jamais une panne convertie en « complet ».** `readLiveRefusal` rend `null`
+   dès que le corps ne porte pas de `code` : un 500, un HTML de passerelle ou
+   une coupure réseau restent une erreur ordinaire.
+3. **Une issue, jamais une impasse.** Réessayer a un sens réel : SAT-2 a mesuré
+   que `listParticipants` est exact immédiatement, donc la porte rouvre dès
+   qu'une place se libère.
+
+## Preuves
+
+- **26 tests unitaires et DOM** (`tests/liveAccessRefusal.test.ts`,
+  `tests/liveFullScreen.test.tsx`) appelant les VRAIES fonctions, avec la
+  vraie forme d'erreur de supabase-js (un `context` qui se lit une seule fois,
+  comme une `Response`).
+- **9 contre-épreuves** : chaque garde a été cassée une par une et vire au
+  rouge sur exactement le cas visé ; les quatre fichiers ont été restaurés à
+  l'octet près (SHA-256 identiques). Une garde s'est révélée **complaisante**
+  et a dû être corrigée : compter les lignes d'un libellé par
+  `getClientRects()` sur un `<span>` ne marche pas — un enfant direct de
+  conteneur flex est un bloc, il ne rend qu'un rectangle même sur deux lignes.
+  Mesure refaite sur une `Range` de texte, contre-épreuve refaite : 3 lignes
+  détectées sur ordinateur, 2 sur téléphone.
+- **Banc réel : 40 OK / 0 DÉFAUT** — vrai `livekit-server` 1.8.4 (la version
+  du VPS), room réellement pleine remplie par de vrais navigateurs, VRAIE
+  porte SAT-2 rendant un VRAI 409, chaîne cliente réelle
+  (`fetchLiveKitToken` avec la vraie classe `FunctionsHttpError`), vraie
+  `index.html` du dépôt, Chromium réel en ordinateur (1280×800) ET téléphone
+  (390×844). Prouvé : le 409 devient un refus typé dans le navigateur, les
+  chiffres affichés sont ceux que le serveur a comptés (2/2), aucun
+  « Connexion… » ne tourne, Réessayer redemande vraiment au serveur, **une
+  place libérée fait disparaître l'écran**, et sans chiffres du serveur
+  l'écran n'en invente aucun. Boutons 44 px, aucun débordement, contraste
+  **17,1:1** mesuré sur les PIXELS RÉELLEMENT PEINTS (le verre est
+  semi-transparent : sa couleur effective ne se lit pas dans une feuille de
+  style).
+
+## Limites honnêtes
+
+- Le banc sert la VRAIE `index.html`, mais Tailwind est chargé depuis une
+  copie locale : le bac à sable ne laisse pas le navigateur sortir. Sans cela
+  aucune classe ne serait compilée et les mesures porteraient sur une page
+  nue — ce qui s'est produit à la première passe (8 défauts, tous dus à ça).
+- L'écran est prouvé sur la chaîne cliente réelle, **pas** contre la fonction
+  Edge de production : elle n'est toujours pas déployée. Tant qu'elle ne l'est
+  pas, et tant que SAT-1 n'a pas posé de plafond, aucun direct réel ne peut
+  rendre ce 409.
 
 ---
 
