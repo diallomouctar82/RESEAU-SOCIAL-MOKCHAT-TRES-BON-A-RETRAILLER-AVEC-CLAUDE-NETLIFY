@@ -65,7 +65,7 @@ export const LivingPortrait: React.FC<LivingPortraitProps> = ({
 
     // Ouverture de bouche : hauteur en % du cadre. Reste à zéro quand la
     // mâchoire ne bouge pas — pas de trou noir sur un visage au repos.
-    const mouthHeight = pose.jawOpen * mouth.widthPercent * 1.05;
+    const mouthHeight = pose.jawOpen * mouth.widthPercent * 0.62;
 
     return (
         <svg viewBox="0 0 100 100" className={className} aria-hidden="true" focusable="false">
