@@ -11,6 +11,7 @@ import {
     type ArchitecteAvatarConfig,
 } from '../../services/architecte/architecteAvatar';
 import { LIP_SYNC_LEVEL_LABEL } from '../../services/architecte/lipSync';
+import { clampPortraitRig } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatar } from '../architecte/ArchitecteAvatar';
 
 /**
@@ -121,7 +122,7 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                         className="w-32"
                     />
                     <p className="text-[10px] text-slate-400 text-center max-w-[9rem]">
-                        Curseur d’essai : aucun son n’est émis ici.
+                        L’aperçu respire et cligne en direct. Le curseur simule la voix ; aucun son n’est émis ici.
                     </p>
                 </div>
 
@@ -172,8 +173,38 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                     {needsSyntheticMediaNotice(draft) && (
                         <fieldset className="border border-slate-200 rounded-xl p-3.5">
                             <legend className="text-[11px] font-bold text-slate-600 px-1">
-                                Position de la bouche sur la photo
+                                Calage du visage sur la photo
                             </legend>
+                            <p className="text-[11px] text-slate-400 mb-3">
+                                Indispensable pour animer une nouvelle photo : le code ne peut pas deviner où sont les
+                                yeux et la mâchoire d’un visage qu’il n’a jamais vu.
+                            </p>
+                            <div className="grid grid-cols-4 gap-3 mb-4">
+                                {([
+                                    ['eyeLinePercent', 'Ligne des yeux'],
+                                    ['eyeBandPercent', 'Hauteur des yeux'],
+                                    ['jawLinePercent', 'Ligne de mâchoire'],
+                                    ['jawTravelPercent', 'Ouverture mâchoire'],
+                                ] as const).map(([key, label]) => (
+                                    <label key={key} className="text-[11px] text-slate-500">
+                                        {label}
+                                        <input
+                                            type="number"
+                                            step="0.5"
+                                            aria-label={label}
+                                            value={draft.rig[key]}
+                                            onChange={(e) =>
+                                                setDraft({
+                                                    ...draft,
+                                                    rig: clampPortraitRig({ ...draft.rig, [key]: Number(e.target.value) }),
+                                                })
+                                            }
+                                            className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-200 text-sm"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-600 mb-2">Position de la bouche</p>
                             <div className="grid grid-cols-3 gap-3">
                                 {([
                                     ['xPercent', 'Horizontale'],

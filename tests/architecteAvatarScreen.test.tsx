@@ -155,25 +155,34 @@ describe('Synchro labiale — seulement quand elle est réelle', () => {
 });
 
 describe('Photo et média synthétique', () => {
-    it('sans photo, le visage dessiné est rendu — jamais une image cassée', () => {
+    it('par défaut, c’est une PHOTO qui est animée — pas un dessin', () => {
+        // Refonte du 04/09 : la Direction a refusé l'androïde vectoriel.
+        // L'avatar livré part d'un portrait photographique.
         const { container } = renderAvatar();
-        expect(container.querySelector('svg')).toBeInTheDocument();
-        expect(container.querySelector('img')).not.toBeInTheDocument();
+        const image = container.querySelector('svg image');
+        expect(image).toBeInTheDocument();
+        expect(image).toHaveAttribute('href', DEFAULT_ARCHITECTE_AVATAR.photoUrl);
+        expect(DEFAULT_ARCHITECTE_AVATAR.photoUrl).toMatch(/\.(webp|png|jpe?g)$/);
     });
 
-    it('avec une photo, elle prend la place du dessin', () => {
+    it('une autre photo prend la place de celle livrée', () => {
         const { container } = renderAvatar({ config: config({ photoUrl: 'https://cdn.moknet.app/visage.jpg' }) });
-        expect(container.querySelector('img')).toHaveAttribute('src', 'https://cdn.moknet.app/visage.jpg');
+        expect(container.querySelector('svg image')).toHaveAttribute('href', 'https://cdn.moknet.app/visage.jpg');
     });
 
-    it('une photo affiche la pastille « média synthétique », le dessin non', () => {
-        const { container: avecPhoto } = renderAvatar({
-            config: config({ photoUrl: 'https://cdn.moknet.app/visage.jpg' }),
-        });
-        expect(avecPhoto.querySelector('[title="Média synthétique"]')).toBeInTheDocument();
+    it('sans AUCUNE photo, un repli technique évite le cadre vide', () => {
+        const { container } = renderAvatar({ config: config({ photoUrl: '' }) });
+        // Le tracé vectoriel n'est pas l'avatar : c'est un filet de sécurité.
+        expect(container.querySelector('svg')).toBeInTheDocument();
+        expect(container.querySelector('svg image')).not.toBeInTheDocument();
+    });
 
-        const { container: dessin } = renderAvatar();
-        expect(dessin.querySelector('[title="Média synthétique"]')).not.toBeInTheDocument();
+    it('une photo affiche la pastille « média synthétique », le repli non', () => {
+        const { container: avecPhoto } = renderAvatar();
+        expect(avecPhoto.querySelector('[title=\"Média synthétique\"]')).toBeInTheDocument();
+
+        const { container: repli } = renderAvatar({ config: config({ photoUrl: '' }) });
+        expect(repli.querySelector('[title=\"Média synthétique\"]')).not.toBeInTheDocument();
     });
 });
 
@@ -209,10 +218,13 @@ describe('Console Super-Admin — les quatre réglages demandés', () => {
         expect(screen.getByRole('alert')).toHaveTextContent(/https/);
     });
 
-    it('2) remettre l’avatar par défaut efface la photo', () => {
+    it('2) remettre l’avatar par défaut restaure le portrait livré', () => {
         const onChange = renderCard({ ...DEFAULT_ARCHITECTE_AVATAR, photoUrl: 'https://cdn.moknet.app/a.png' });
         fireEvent.click(screen.getByRole('button', { name: /Remettre l’avatar par défaut/ }));
-        expect((onChange.mock.calls[0][0] as ArchitecteAvatarConfig).photoUrl).toBe('');
+        const suivant = onChange.mock.calls[0][0] as ArchitecteAvatarConfig;
+        expect(suivant.photoUrl).toBe(DEFAULT_ARCHITECTE_AVATAR.photoUrl);
+        // Le calage revient avec : une photo sans calage ne s'anime pas.
+        expect(suivant.rig).toEqual(DEFAULT_ARCHITECTE_AVATAR.rig);
     });
 
     it('3) activer ou désactiver les animations', () => {
@@ -232,20 +244,24 @@ describe('Console Super-Admin — les quatre réglages demandés', () => {
         expect(screen.getByText(/ne donne pas accès au signal audio/)).toBeInTheDocument();
     });
 
-    it('la position de la bouche n’apparaît que sur une photo — inutile sur le dessin', () => {
-        const { unmount } = render(
-            <AdminArchitecteAvatarCard value={DEFAULT_ARCHITECTE_AVATAR} adminName="A" onChange={vi.fn()} />,
-        );
-        expect(screen.queryByLabelText('Horizontale')).not.toBeInTheDocument();
-        unmount();
+    it('le calage du visage est réglable dès qu’une photo est en place', () => {
+        // Sans ces réglages, une photo déposée par la Direction ne pourrait
+        // pas être animée : le code ne devine pas où sont les yeux.
+        render(<AdminArchitecteAvatarCard value={DEFAULT_ARCHITECTE_AVATAR} adminName="A" onChange={vi.fn()} />);
+        expect(screen.getByLabelText('Ligne des yeux')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ligne de mâchoire')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ouverture mâchoire')).toBeInTheDocument();
+        expect(screen.getByLabelText('Horizontale')).toBeInTheDocument();
+    });
 
+    it('sans photo, le calage disparaît — il n’y a rien à caler', () => {
         render(
             <AdminArchitecteAvatarCard
-                value={{ ...DEFAULT_ARCHITECTE_AVATAR, photoUrl: 'https://cdn.moknet.app/a.png' }}
+                value={{ ...DEFAULT_ARCHITECTE_AVATAR, photoUrl: '' }}
                 adminName="A"
                 onChange={vi.fn()}
             />,
         );
-        expect(screen.getByLabelText('Horizontale')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Ligne des yeux')).not.toBeInTheDocument();
     });
 });

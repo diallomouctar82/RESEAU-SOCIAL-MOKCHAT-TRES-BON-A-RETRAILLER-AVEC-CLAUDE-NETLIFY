@@ -19,6 +19,7 @@
 
 import type { AvatarGrammarState } from '../live/liveMaterialSystem';
 import { realAvatarUrl } from '../studio/avatarIdentity';
+import { DEFAULT_PORTRAIT_RIG, type PortraitRig } from './livingAvatar';
 
 // ─────────────────────────────────────────────────────────────────────────
 // 1. CONFIGURATION
@@ -41,14 +42,17 @@ export interface MouthAnchor {
     widthPercent: number;
 }
 
-export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 50, yPercent: 68, widthPercent: 22 };
+export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 20, yPercent: 72.5, widthPercent: 8.5 };
 
 export interface ArchitecteAvatarConfig {
     /**
-     * Photo du visage. Vide = avatar par défaut dessiné par l'application
-     * (`ArchitecteAvatarDefault`), jamais une image manquante.
+     * PHOTO du visage — c'est elle qui est animée. Vide = repli technique sur
+     * le tracé vectoriel, jamais une image manquante ; mais ce repli n'est
+     * pas l'avatar : un dessin ne peut pas respirer de façon crédible.
      */
     photoUrl: string;
+    /** Où sont les yeux et la mâchoire SUR CETTE photo — sans quoi rien ne peut être animé. */
+    rig: PortraitRig;
     /** Nom affiché sous l'avatar et annoncé aux lecteurs d'écran. */
     displayName: string;
     mouthAnchor: MouthAnchor;
@@ -68,7 +72,10 @@ export interface ArchitecteAvatarConfig {
  * affiché — un vrai visage, pas un cadre vide ni une image cassée.
  */
 export const DEFAULT_ARCHITECTE_AVATAR: ArchitecteAvatarConfig = {
-    photoUrl: '',
+    // Portrait livré avec l'application. Mesures d'ancrage relevées sur CETTE
+    // image : œil à 45 % de la hauteur, mâchoire à 65 %, lèvres à 75 %.
+    photoUrl: '/architecte/architecte.webp',
+    rig: DEFAULT_PORTRAIT_RIG,
     displayName: "L'Architecte",
     mouthAnchor: DEFAULT_MOUTH_ANCHOR,
     animationsEnabled: true,
@@ -85,6 +92,7 @@ export function mergeArchitecteAvatarConfig(stored: unknown): ArchitecteAvatarCo
         ...DEFAULT_ARCHITECTE_AVATAR,
         ...source,
         mouthAnchor: { ...DEFAULT_MOUTH_ANCHOR, ...(source.mouthAnchor || {}) },
+        rig: { ...DEFAULT_PORTRAIT_RIG, ...(source.rig || {}) },
     };
 }
 

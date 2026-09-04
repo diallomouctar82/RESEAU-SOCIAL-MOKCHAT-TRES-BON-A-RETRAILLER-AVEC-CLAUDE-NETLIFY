@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { avatarHaloProps } from '../../services/live/liveMaterialSystem';
 import {
     ARCHITECTE_DISCLOSURE,
@@ -15,7 +15,9 @@ import {
     smoothOpenness,
 } from '../../services/architecte/lipSync';
 import { realAvatarUrl } from '../../services/studio/avatarIdentity';
+import { resolveLivingPose, STILL_POSE, type LivingPose } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatarFace } from './ArchitecteAvatarFace';
+import { LivingPortrait } from './LivingPortrait';
 
 /**
  * AVATAR VIVANT DE L'ARCHITECTE — présence P1 + P2 (AI Core, playbook 15).
@@ -109,6 +111,10 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     testId = 'architecte-avatar',
 }) => {
     const hostRef = useRef<HTMLButtonElement>(null);
+    // Les `clipPath` SVG partagent l'espace de noms du document : deux avatars
+    // sur le même écran (bouton flottant + aperçu admin) se voleraient leurs
+    // découpes sans identifiant propre.
+    const instanceId = useId().replace(/:/g, '');
     const prefersReducedMotion = usePrefersReducedMotion();
     const documentVisible = useDocumentVisible();
     const onScreen = useOnScreen(hostRef as React.RefObject<HTMLElement>);
@@ -125,19 +131,51 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         prefersReducedMotion,
     });
 
-    // Ouverture lissée : la valeur brute saute d'une image à l'autre et
-    // donnerait un claquement de mâchoire au lieu d'une parole.
-    const [openness, setOpenness] = useState(0);
-    useEffect(() => {
-        const target = resolveMouthOpenness(lipSyncLevel, { amplitude: outputLevel });
-        setOpenness((previous) => smoothOpenness(previous, target));
-    }, [lipSyncLevel, outputLevel]);
+    /**
+     * BOUCLE D'ANIMATION — c'est elle qui rend le portrait vivant.
+     *
+     * Une seule `requestAnimationFrame` produit tout : respiration, dérive de
+     * la tête, clignement et ouverture de mâchoire. Elle ne démarre PAS quand
+     * l'avatar doit rester immobile (réglage coupé, mouvement réduit, onglet
+     * caché, hors écran) — donc aucune image n'est calculée pour rien.
+     *
+     * L'ouverture de bouche est lissée ici et non dans le domaine : la valeur
+     * brute de l'analyseur saute d'une image à l'autre et donnerait un
+     * claquement de mâchoire au lieu d'une parole.
+     */
+    const [pose, setPose] = useState<LivingPose>(STILL_POSE);
+    const opennessRef = useRef(0);
+    const levelRef = useRef(0);
+    const speakingRef = useRef(false);
+    levelRef.current = outputLevel;
+    speakingRef.current = presence === 'speaking';
 
-    // Bouche refermée dès que la parole cesse : sans cela, la dernière valeur
-    // resterait figée, bouche entrouverte, jusqu'à la phrase suivante.
     useEffect(() => {
-        if (lipSyncLevel === 'aucune') setOpenness(0);
-    }, [lipSyncLevel]);
+        if (!animated) {
+            opennessRef.current = 0;
+            setPose(STILL_POSE);
+            return;
+        }
+        let frame = 0;
+        const debut = performance.now();
+        const boucle = (maintenant: number) => {
+            const cible = resolveMouthOpenness(lipSyncLevel, { amplitude: levelRef.current });
+            opennessRef.current = smoothOpenness(opennessRef.current, cible);
+            setPose(
+                resolveLivingPose({
+                    elapsedMs: maintenant - debut,
+                    mouthOpenness: opennessRef.current,
+                    animated: true,
+                    speaking: speakingRef.current,
+                }),
+            );
+            frame = requestAnimationFrame(boucle);
+        };
+        frame = requestAnimationFrame(boucle);
+        return () => cancelAnimationFrame(frame);
+    }, [animated, lipSyncLevel]);
+
+    const openness = pose.jawOpen;
 
     const photo = realAvatarUrl(config.photoUrl);
     const stateLabel = ARCHITECTE_STATE_LABEL[presence];
@@ -167,33 +205,19 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             />
 
             {photo ? (
-                <>
-                    <img
-                        src={photo}
-                        alt=""
-                        aria-hidden="true"
-                        className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    {/* Bouche sur une photo : le code ne sait pas où elle est,
-                        c'est l'ancre réglée au Super-Admin qui la place. */}
-                    {openness > 0.02 && (
-                        <span
-                            aria-hidden="true"
-                            className="absolute rounded-full pointer-events-none"
-                            style={{
-                                left: `${mouth.xPercent}%`,
-                                top: `${mouth.yPercent}%`,
-                                width: `${mouth.widthPercent}%`,
-                                height: `${Math.max(2, mouth.widthPercent * 0.16 + openness * mouth.widthPercent * 0.5)}%`,
-                                transform: 'translate(-50%, -50%)',
-                                background: accent,
-                                opacity: 0.35 + openness * 0.5,
-                                boxShadow: `0 0 ${4 + openness * 10}px ${accent}`,
-                            }}
-                        />
-                    )}
-                </>
+                /* LE PORTRAIT VIVANT : la photo respire, cligne et parle. */
+                <LivingPortrait
+                    photoUrl={photo}
+                    pose={pose}
+                    rig={config.rig}
+                    mouth={mouth}
+                    accent={accent}
+                    instanceId={instanceId}
+                />
             ) : (
+                /* Repli technique quand AUCUNE photo n'est configurée. Ce n'est
+                   pas l'avatar : un tracé vectoriel ne respire pas de façon
+                   crédible — il évite seulement un cadre vide. */
                 <ArchitecteAvatarFace mouthOpenness={openness} accent={accent} animated={animated} />
             )}
 

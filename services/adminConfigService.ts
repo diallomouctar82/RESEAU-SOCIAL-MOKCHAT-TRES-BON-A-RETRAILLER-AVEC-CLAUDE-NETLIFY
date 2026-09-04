@@ -1425,9 +1425,12 @@ const INITIAL_DETAILED_SETTINGS: PlatformDetailedModuleSettings = {
   // la Direction n'a pas déposé la sienne, le visage dessiné par
   // l'application est affiché — jamais un cadre vide.
   architecteAvatar: {
-    photoUrl: '',
+    // Portrait photoréaliste livré avec l'application, et son calage relevé
+    // sur CETTE image. C'est lui qui respire, cligne et parle.
+    photoUrl: '/architecte/architecte.webp',
+    rig: { eyeLinePercent: 45, eyeBandPercent: 6.5, jawLinePercent: 65, jawTravelPercent: 5.2 },
     displayName: "L'Architecte",
-    mouthAnchor: { xPercent: 50, yPercent: 68, widthPercent: 22 },
+    mouthAnchor: { xPercent: 20, yPercent: 72.5, widthPercent: 8.5 },
     animationsEnabled: true,
     lipSyncEnabled: true,
     voiceKey: '',
@@ -1495,6 +1498,10 @@ export function mergeDetailedSettings(stored: unknown): PlatformDetailedModuleSe
     architecteAvatar: {
       ...INITIAL_DETAILED_SETTINGS.architecteAvatar,
       ...(source.architecteAvatar || {}),
+      rig: {
+        ...INITIAL_DETAILED_SETTINGS.architecteAvatar.rig,
+        ...(source.architecteAvatar?.rig || {}),
+      },
       mouthAnchor: {
         ...INITIAL_DETAILED_SETTINGS.architecteAvatar.mouthAnchor,
         ...(source.architecteAvatar?.mouthAnchor || {}),
@@ -2622,6 +2629,10 @@ export class AdminConfigService {
       architecteAvatar: {
         ...this.detailedSettings.architecteAvatar,
         ...(updates.architecteAvatar || {}),
+        rig: {
+          ...this.detailedSettings.architecteAvatar.rig,
+          ...(updates.architecteAvatar?.rig || {}),
+        },
         // Sous-objet : la fusion superficielle l'écraserait en entier dès
         // qu'un formulaire envoie `architecteAvatar` sans lui.
         mouthAnchor: {

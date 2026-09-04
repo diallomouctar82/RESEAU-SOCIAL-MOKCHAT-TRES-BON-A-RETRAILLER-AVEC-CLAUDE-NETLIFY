@@ -106,14 +106,15 @@ describe('Divulgation et anti-usurpation (playbook 15, principes non négociable
         expect(ARCHITECTE_DISCLOSURE).toMatch(/officielle MokNet/);
     });
 
-    it('le visage dessiné par défaut n’exige pas de mention de média synthétique', () => {
-        // Un androïde ouvertement mécanique : aucune confusion raisonnable.
-        expect(needsSyntheticMediaNotice(DEFAULT_ARCHITECTE_AVATAR)).toBe(false);
+    it('l’avatar livré étant une PHOTO, la mention de média synthétique est obligatoire', () => {
+        // Refonte du 04/09 : l'avatar par défaut n'est plus un dessin mais un
+        // portrait photoréaliste. Une confusion redevient donc possible, et le
+        // playbook § 9 impose la mention. C'est le sens de ce test.
+        expect(needsSyntheticMediaNotice(DEFAULT_ARCHITECTE_AVATAR)).toBe(true);
     });
 
-    it('dès qu’une PHOTO est déposée, la mention de média synthétique devient obligatoire', () => {
-        const avecPhoto = { ...DEFAULT_ARCHITECTE_AVATAR, photoUrl: 'https://cdn.moknet.app/visage.jpg' };
-        expect(needsSyntheticMediaNotice(avecPhoto)).toBe(true);
+    it('le repli vectoriel, lui, n’en a pas besoin — rien d’humain à confondre', () => {
+        expect(needsSyntheticMediaNotice({ ...DEFAULT_ARCHITECTE_AVATAR, photoUrl: '' })).toBe(false);
     });
 });
 
@@ -207,8 +208,15 @@ describe('Configuration héritée', () => {
         expect(mergeArchitecteAvatarConfig('cassé').displayName).toBe("L'Architecte");
     });
 
-    it('l’usine ne fabrique aucun visage : photo vide = avatar dessiné par l’application', () => {
-        expect(DEFAULT_ARCHITECTE_AVATAR.photoUrl).toBe('');
+    it('l’usine livre un vrai PORTRAIT, et son calage avec — sinon rien ne s’anime', () => {
+        expect(DEFAULT_ARCHITECTE_AVATAR.photoUrl).toMatch(/^\/architecte\/.+\.(webp|png|jpe?g)$/);
+        expect(DEFAULT_ARCHITECTE_AVATAR.rig.eyeLinePercent).toBeGreaterThan(0);
+        expect(DEFAULT_ARCHITECTE_AVATAR.rig.jawLinePercent).toBeGreaterThan(
+            DEFAULT_ARCHITECTE_AVATAR.rig.eyeLinePercent,
+        );
+        // La bouche est sous la mâchoire : un calage incohérent produirait une
+        // bouche qui s'ouvre au milieu du front.
+        expect(DEFAULT_MOUTH_ANCHOR.yPercent).toBeGreaterThan(DEFAULT_ARCHITECTE_AVATAR.rig.jawLinePercent);
     });
 });
 
