@@ -38,14 +38,28 @@ function git(commande) {
  * partir d'un commit précis. Les variables d'environnement du build font
  * autorité quand git n'a rien à dire.
  */
-// `AI_CORE_BUILD_COMMIT` d'abord : `COMMIT_REF` est une variable RÉSERVÉE par
-// Netlify — une valeur qu'on y définit soi-même est ignorée, et la page sortait
-// sans identité de build alors que la variable était bien enregistrée.
-const commit = git('rev-parse --short HEAD')
-    || (process.env.AI_CORE_BUILD_COMMIT || process.env.COMMIT_REF || '').slice(0, 7)
+// L'ORDRE compte, et il a coûté deux déploiements pour le comprendre.
+//
+// 1. `AI_CORE_BUILD_COMMIT` d'abord, parce qu'il est POSÉ DÉLIBÉRÉMENT pour
+//    dire quel commit est déployé. Deux pièges l'ont imposé :
+//    — `COMMIT_REF` est un nom RÉSERVÉ par Netlify : une valeur qu'on y définit
+//      soi-même est ignorée silencieusement ;
+//    — un déploiement par téléversement initialise un dépôt git NEUF côté
+//      build. `git rev-parse` réussit donc, mais renvoie un commit synthétique
+//      sur une branche « master » qui n'existe nulle part. En laissant git
+//      passer devant, la Tour de contrôle affichait une identité de build
+//      FABRIQUÉE — plus trompeur qu'une identité absente.
+// 2. git ensuite, pour un build local ou un dépôt réellement rattaché.
+// 3. `COMMIT_REF` en dernier, quand Netlify le renseigne lui-même (build
+//    connecté à GitHub).
+const commit = (process.env.AI_CORE_BUILD_COMMIT || '').slice(0, 7)
+    || git('rev-parse --short HEAD')
+    || (process.env.COMMIT_REF || '').slice(0, 7)
     || null;
-const branche = git('rev-parse --abbrev-ref HEAD')
-    || process.env.AI_CORE_BUILD_BRANCH || process.env.BRANCH || null;
+const branche = process.env.AI_CORE_BUILD_BRANCH
+    || git('rev-parse --abbrev-ref HEAD')
+    || process.env.BRANCH
+    || null;
 const commitDate = git('log -1 --format=%cI') || null;
 
 /** Liste récursive des fichiers d'un dossier, extensions filtrées. */
