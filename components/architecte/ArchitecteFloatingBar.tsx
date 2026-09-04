@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
+import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
 import { AiGatewayNetworkError, analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
@@ -1023,14 +1023,42 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         }
     }, [openSignal, open]);
 
-    // ── État fermé : aucune présence flottante indépendante ─────────────────
-    // Invariant Direction (menu « Miroir d'eau ») : « un seul élément
-    // flottant à l'écran — la goutte messagerie. » L'ancienne pastille
-    // circulaire déplaçable (bottom-44/24, glissable au doigt) disparaît :
-    // le seul point d'entrée est désormais la navigation principale
-    // (dock/sidebar), qui pilote `openSignal` ci-dessus.
+    // ── État fermé : PRÉSENCE FLOTTANTE PERMANENTE ──────────────────────────
+    // RO-3 (04/09/2026) — inversion de rôles décidée par la Direction :
+    // « L'architecte est le guide permanent de toute la maison Moknet, donc
+    //   bouton flottant visible en permanence. »
+    //
+    // Cela remplace la règle posée à DS-M2a (« un seul flottant : la goutte
+    // messagerie »), qui avait fait retourner `null` ici et confiné
+    // l'Architecte au bouton central du dock. Les deux rôles sont échangés :
+    // la messagerie devient une entrée FIXE de la navigation (dock sur
+    // téléphone, barre latérale sur ordinateur — voir MoocChatFloating.tsx),
+    // l'Architecte reprend la présence flottante.
+    //
+    // Volontairement NON déplaçable : l'ancienne pastille glissable
+    // (POSITION_STORAGE_KEY, offset, dragState) déposait un point d'entrée
+    // n'importe où, y compris sur des commandes. Une place stable et
+    // prévisible vaut mieux qu'une place personnalisable — d'autant que la
+    // goutte ne flotte plus, donc plus rien à éviter.
     if (!isOpen) {
-        return null;
+        return (
+            <button
+                type="button"
+                onClick={() => { void open(); }}
+                data-testid="architecte-flottant"
+                aria-label="Ouvrir l'Architecte"
+                title="L'Architecte — votre guide sur MokNet"
+                className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-[60] w-14 h-14 rounded-full flex items-center justify-center bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/50 text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.28),0_14px_34px_rgba(0,0,0,0.5)] transition-transform hover:scale-110 active:scale-95"
+            >
+                {/* Halo qui respire : signale une présence disponible sans
+                    réclamer l'attention. Éteint sous mouvement réduit. */}
+                <span
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-full bg-cyan-400/12 animate-pulse motion-reduce:animate-none"
+                />
+                <DraftingCompass size={24} className="relative" />
+            </button>
+        );
     }
 
     // Sous-titre : dernier retour réel, sinon transcription en cours, sinon

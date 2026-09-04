@@ -6,7 +6,8 @@ import {
   Clock, Lock, Volume2, VolumeX, Music, Wand2, Zap, Globe, MessageSquare, Check, 
   Smile, Send, ChevronDown, ChevronUp, ArrowRight, Mic, Phone, PhoneCall, Paperclip, 
   MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp,
-  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle, Trash2, Archive
+  Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle, Trash2, Archive,
+  GraduationCap, Flame
 } from 'lucide-react';
 import { 
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
@@ -1601,22 +1602,293 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
 
-      {/* 0. ÉQUIPE & EXPERTS — DS-M2 (menu « Miroir d'eau ») : sous-barre au
-          premier niveau, visible sans défilement, avant la carte Réseau Mooc.
-          N'existait nulle part sur cet écran — « Équipe & Experts » n'était
-          qu'un onglet interne d'ExpertsHub, jamais atteignable depuis le fil. */}
-      {onNavigate && (
-        <button
-          onClick={() => onNavigate('experts')}
-          className="mir-exp w-full flex items-center gap-2.5 px-4 py-3 rounded-full text-sm font-bold text-slate-800 hover:-translate-y-0.5 transition-all"
-        >
-          <span className="w-8 h-8 rounded-xl bg-cyan-50/80 text-cyan-700 flex items-center justify-center shrink-0">
-            <Users size={16} />
-          </span>
-          <span>Équipe &amp; Experts</span>
-          <ChevronRight size={16} className="ml-auto text-slate-300" />
-        </button>
+      {/* RO-1 — LA PUBLICATION EST LE PREMIER BLOC DE L'ACCUEIL.
+          Consigne Direction (04/09/2026) : « le premier bloc visible, c'est la
+          publication avec l'assistant IA pré-publication bien visible […] la
+          publication doit être avant cette carte. Aujourd'hui, c'est inversé. »
+
+          Le composeur vivait dans la colonne gauche de la grille du fil
+          (`lg:col-span-2`), donc APRÈS la sous-barre Équipe & Experts, la carte
+          Réseau Mooc et le rail des stories : sur téléphone il fallait faire
+          défiler trois blocs avant de pouvoir écrire. Il est remonté ici, au
+          premier rang. Conséquence assumée sur ordinateur : il occupe la
+          largeur de la page au lieu des deux tiers gauches — c'est le prix de
+          l'invariant « la publication d'abord », et le motif est courant. */}
+      {activeTab === 'feed' && (
+        <div className="mir-sheet rounded-3xl p-5 space-y-4">
+          
+          {/* Top Row: User Avatar, Input & AI Enhancement Trigger */}
+          <div className="flex items-start gap-3.5">
+            <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20" />
+            
+            {/* RO-1 — `min-w-0` : ceinture ET bretelles. Un enfant de flex a
+                `min-width: auto`, donc il refuse de descendre sous la largeur
+                minimale de son contenu ; cette classe l'y autorise.
+                Honnêteté sur la cause : le débordement mesuré à 390 px (colonne
+                de 372 px, « Publier » à 401 px, hors de l'écran) venait du fait
+                que le composeur était un ÉLÉMENT DE GRILLE (`lg:col-span-2`
+                d'une `grid grid-cols-1 lg:grid-cols-3`) — un élément de grille
+                a lui aussi `min-width: auto` et fait donc éclater sa piste. Le
+                simple fait de le sortir de la grille l'a corrigé (mesuré : 6
+                éléments hors écran avant, 0 après). Ce `min-w-0` ne répare donc
+                rien à lui seul : il empêche le défaut de revenir si ce bloc est
+                un jour replacé dans un conteneur contraint. */}
+            <div className="flex-1 min-w-0 space-y-2">
+              <textarea
+                value={newPostContent}
+                onChange={(e) => setNewPostContent(e.target.value)}
+                onFocus={() => setIsComposerFocused(true)}
+                placeholder="Quoi de neuf, Amadou ? Partagez une réflexion, opportunité, tutoriel ou document..."
+                rows={isComposerFocused || newPostContent ? 3 : 2}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none leading-relaxed"
+              />
+
+              {/* AI Enhancement Quick Action Bar */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                
+                {/* Big AI Assistant Pre-Publication Button */}
+                <button
+                  onClick={() => setIsAIModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 via-indigo-600 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 transition-all group"
+                  title="Améliorer le style, traduire, ajouter des hashtags et visuels IA"
+                >
+                  <Sparkles size={14} className="text-amber-200 group-hover:rotate-12 transition-transform" />
+                  <span>Assistant IA Pré-Publication</span>
+                </button>
+
+                {/* Visibility & Category Pill */}
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <select
+                    value={newPostVisibility}
+                    onChange={(e) => setNewPostVisibility(e.target.value as PostVisibility)}
+                    className="bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl px-2.5 py-1.5 outline-none border border-slate-200 min-w-0 max-w-full"
+                  >
+                    <option value="public">🌐 Public</option>
+                    <option value="network">👥 Abonnés uniquement</option>
+                    <option value="private">🔒 Privé</option>
+                  </select>
+
+                  <select
+                    value={newPostCategory}
+                    onChange={(e) => setNewPostCategory(e.target.value)}
+                    className="bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl px-2.5 py-1.5 outline-none border border-slate-200 min-w-0 max-w-full"
+                  >
+                    <option value="Tech & Innovation">Tech & Innovation</option>
+                    <option value="Juridique & Visas">Juridique & Visas</option>
+                    <option value="Entrepreneuriat">Entrepreneuriat</option>
+                    <option value="Formation & Campus">Formation & Campus</option>
+                    <option value="Logement & Mobilité">Logement & Mobilité</option>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* Attachments Preview (Images / Videos / Documents / Tags) */}
+          {(newPostImage || newPostVideo || newPostDocument || newPostTags.length > 0) && (
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              
+              {/* Image Preview */}
+              {newPostImage && (
+                <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
+                  <img src={newPostImage} className="w-full h-full object-cover" />
+                  <button 
+                    onClick={() => setNewPostImage(null)}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Video Preview */}
+              {newPostVideo && (
+                <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
+                  <video src={newPostVideo} controls className="w-full h-full" />
+                  <button 
+                    onClick={() => setNewPostVideo(null)}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Document Preview */}
+              {newPostDocument && (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 truncate">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
+                      {newPostDocument.type.toUpperCase()}
+                    </div>
+                    <div className="truncate">
+                      <div className="text-xs font-bold text-slate-800 truncate">{newPostDocument.name}</div>
+                      <div className="text-[10px] text-slate-500">{newPostDocument.size}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => setNewPostDocument(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Tags Preview */}
+              {newPostTags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {newPostTags.map(tag => (
+                    <span key={tag} className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-md">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* Retour de la dernière commande vocale (LOOP 03/17) — toujours visible en plus d'être dit à voix haute */}
+          {voiceContentFeedback && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold">
+              <span className="flex items-center gap-1.5"><Mic size={13} /> {voiceContentFeedback}</span>
+              <button onClick={() => setVoiceContentFeedback(null)} className="text-indigo-400 hover:text-indigo-700">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Bottom Toolbar: Upload Buttons & Submit */}
+          {/* RO-1 — `flex-wrap` : quatre outils média, « Brouillon » et
+              « Publier » tenaient sur UNE ligne insécable. À 390 px ils
+              rentrent tout juste (mesuré 234..353 px après le déplacement du
+              bloc hors de la grille) — au prix d'une ligne serrée où les
+              libellés des outils sont déjà masqués (`hidden sm:inline`). La
+              barre s'enroule désormais : « Publier » retrouve sa place au lieu
+              d'être compressé contre le bord. */}
+          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2 pt-2 border-t border-slate-100">
+            
+            {/* Hidden File Inputs */}
+            <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+            <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
+            <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.zip" onChange={handleDocSelect} className="hidden" />
+
+            {/* Upload Buttons */}
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
+                title="Ajouter une photo"
+              >
+                <ImageIcon size={17} className="text-emerald-500" />
+                <span className="hidden sm:inline">Photo</span>
+              </button>
+
+              <button
+                onClick={() => videoInputRef.current?.click()}
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
+                title="Ajouter une vidéo"
+              >
+                <Video size={17} className="text-sky-500" />
+                <span className="hidden sm:inline">Vidéo</span>
+              </button>
+
+              <button
+                onClick={() => docInputRef.current?.click()}
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
+                title="Joindre un document PDF / Word"
+              >
+                <FileText size={17} className="text-amber-500" />
+                <span className="hidden sm:inline">Document</span>
+              </button>
+
+              {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
+              {voiceAssistant.isSupported && (
+                <button
+                  onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startContentVoiceCommand())}
+                  className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                  title="Dicter ou commander la rédaction par la voix"
+                >
+                  <Mic size={17} />
+                  <span className="hidden sm:inline">{voiceAssistant.isListening ? 'Écoute...' : 'Voix'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Brouillon / Publier — distinction absolue "préparer ≠ publier" (LOOP 01/17) */}
+            <button
+              onClick={() => handlePublishPost(true)}
+              disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
+              title="Enregistrer comme brouillon — jamais visible par les autres membres"
+              className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 transition-all flex items-center gap-2"
+            >
+              <span>Brouillon</span>
+            </button>
+
+            {/* Submit Button */}
+            <button
+              onClick={() => handlePublishPost(false)}
+              disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-40 transition-all flex items-center gap-2"
+            >
+              {isPublishing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              <span>Publier</span>
+            </button>
+
+          </div>
+
+        </div>
       )}
+
+      {/* RO-1 — CARTE D'ACCÈS RAPIDE, JUSTE SOUS LA PUBLICATION.
+          Ordre imposé par la Direction : Live, Équipe & Experts, Campus &
+          Éducation, Reels, Tribus, Croissance, puis Ma Story.
+
+          Elle remplace DEUX surfaces qui se disputaient le même rôle : la
+          sous-barre « Équipe & Experts » (un bouton seul en haut de page) et la
+          rangée d'onglets de la carte Réseau Mooc (Fil d'actu / Reels / Lives /
+          Tribus / Croissance). Les deux sont retirées — garder les trois aurait
+          été exactement le « tout en vrac » que la Direction refuse.
+
+          Grille de 4 colonnes sur téléphone (deux rangées) plutôt qu'un
+          défilement horizontal : tout est visible d'un coup d'œil, aucune
+          entrée ne se cache hors de l'écran. Cible tactile 44 px (règle du
+          projet) portée par la pastille d'icône, libellé écrit sous chacune. */}
+      <div className="mir-glass rounded-3xl p-3 sm:p-4" data-testid="acces-rapide">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 sm:gap-2">
+          {[
+            // « Fil d'actu » n'est pas dans la liste de la Direction : sur
+            // l'accueil on Y EST déjà. Il n'apparaît que lorsqu'on l'a quitté,
+            // sinon il n'y aurait aucun retour depuis Reels/Tribus/Croissance.
+            ...(activeTab !== 'feed'
+              ? [{ cle: 'feed', libelle: "Fil d'actu", Icone: ChevronLeft, agir: () => setActiveTab('feed'), actif: false }]
+              : []),
+            { cle: 'live', libelle: 'Live', Icone: Radio, agir: () => setActiveTab('lives'), actif: activeTab === 'lives' },
+            ...(onNavigate
+              ? [
+                  { cle: 'experts', libelle: 'Équipe & Experts', Icone: Users, agir: () => onNavigate('experts'), actif: false },
+                  { cle: 'campus', libelle: 'Campus & Éducation', Icone: GraduationCap, agir: () => onNavigate('campus'), actif: false },
+                ]
+              : []),
+            { cle: 'reels', libelle: 'Reels', Icone: Video, agir: () => setActiveTab('reels'), actif: activeTab === 'reels' },
+            { cle: 'tribus', libelle: 'Tribus', Icone: Flame, agir: () => setActiveTab('tribes'), actif: activeTab === 'tribes' },
+            { cle: 'croissance', libelle: 'Croissance', Icone: TrendingUp, agir: () => setActiveTab('my_space'), actif: activeTab === 'my_space' },
+            { cle: 'story', libelle: 'Ma Story', Icone: Plus, agir: () => setIsCreateStoryOpen(true), actif: false },
+          ].map(({ cle, libelle, Icone, agir, actif }) => (
+            <button
+              key={cle}
+              onClick={agir}
+              data-testid={`acces-rapide-${cle}`}
+              aria-current={actif ? 'page' : undefined}
+              className={`flex flex-col items-center justify-start gap-1.5 px-1 py-2 rounded-2xl min-h-[68px] transition-all active:scale-95 ${actif ? 'bg-white/70 ring-1 ring-cyan-300/70' : 'hover:bg-white/40'}`}
+            >
+              <span className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${actif ? 'bg-cyan-600 text-white' : 'bg-white/70 text-slate-700'}`}>
+                <Icone size={18} />
+              </span>
+              <span className="text-[10px] font-bold text-slate-700 leading-tight text-center">{libelle}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 1. TOP HEADER & MAIN NAVIGATION */}
       {/* DS-M2b : carte « Réseau Mooc » en verre soufflé translucide, comme
@@ -1661,41 +1933,6 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         {/* Quick Hub Navigation & Personal Space Button */}
         <div className="flex items-center gap-2 flex-wrap">
           
-          {/* Main Space Tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
-            <button
-              onClick={() => setActiveTab('feed')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'feed' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Fil d'actu
-            </button>
-            <button
-              onClick={() => setActiveTab('reels')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'reels' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Reels
-            </button>
-            <button
-              onClick={() => setActiveTab('lives')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'lives' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Lives
-            </button>
-            <button
-              onClick={() => setActiveTab('tribes')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'tribes' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Tribus
-            </button>
-            {/* ÉQUIPE F7 — tableau de bord de croissance (mesures réelles) */}
-            <button
-              onClick={() => setActiveTab('my_space')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'my_space' ? 'bg-white text-teal-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Croissance
-            </button>
-          </div>
-
           {/* Access Mon Espace Personnel */}
           <button
             onClick={() => {
@@ -1779,210 +2016,6 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           {/* LEFT & CENTER COLUMN: COMPOSER & FEED (Col span 2) */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* A. POST COMPOSER */}
-            <div className="mir-sheet rounded-3xl p-5 space-y-4">
-              
-              {/* Top Row: User Avatar, Input & AI Enhancement Trigger */}
-              <div className="flex items-start gap-3.5">
-                <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20" />
-                
-                <div className="flex-1 space-y-2">
-                  <textarea
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    onFocus={() => setIsComposerFocused(true)}
-                    placeholder="Quoi de neuf, Amadou ? Partagez une réflexion, opportunité, tutoriel ou document..."
-                    rows={isComposerFocused || newPostContent ? 3 : 2}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none leading-relaxed"
-                  />
-
-                  {/* AI Enhancement Quick Action Bar */}
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    
-                    {/* Big AI Assistant Pre-Publication Button */}
-                    <button
-                      onClick={() => setIsAIModalOpen(true)}
-                      className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 via-indigo-600 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 transition-all group"
-                      title="Améliorer le style, traduire, ajouter des hashtags et visuels IA"
-                    >
-                      <Sparkles size={14} className="text-amber-200 group-hover:rotate-12 transition-transform" />
-                      <span>Assistant IA Pré-Publication</span>
-                    </button>
-
-                    {/* Visibility & Category Pill */}
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={newPostVisibility}
-                        onChange={(e) => setNewPostVisibility(e.target.value as PostVisibility)}
-                        className="bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl px-2.5 py-1.5 outline-none border border-slate-200"
-                      >
-                        <option value="public">🌐 Public</option>
-                        <option value="network">👥 Abonnés uniquement</option>
-                        <option value="private">🔒 Privé</option>
-                      </select>
-
-                      <select
-                        value={newPostCategory}
-                        onChange={(e) => setNewPostCategory(e.target.value)}
-                        className="bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl px-2.5 py-1.5 outline-none border border-slate-200"
-                      >
-                        <option value="Tech & Innovation">Tech & Innovation</option>
-                        <option value="Juridique & Visas">Juridique & Visas</option>
-                        <option value="Entrepreneuriat">Entrepreneuriat</option>
-                        <option value="Formation & Campus">Formation & Campus</option>
-                        <option value="Logement & Mobilité">Logement & Mobilité</option>
-                      </select>
-                    </div>
-
-                  </div>
-                </div>
-              </div>
-
-              {/* Attachments Preview (Images / Videos / Documents / Tags) */}
-              {(newPostImage || newPostVideo || newPostDocument || newPostTags.length > 0) && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  
-                  {/* Image Preview */}
-                  {newPostImage && (
-                    <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
-                      <img src={newPostImage} className="w-full h-full object-cover" />
-                      <button 
-                        onClick={() => setNewPostImage(null)}
-                        className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Video Preview */}
-                  {newPostVideo && (
-                    <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
-                      <video src={newPostVideo} controls className="w-full h-full" />
-                      <button 
-                        onClick={() => setNewPostVideo(null)}
-                        className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Document Preview */}
-                  {newPostDocument && (
-                    <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 truncate">
-                        <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
-                          {newPostDocument.type.toUpperCase()}
-                        </div>
-                        <div className="truncate">
-                          <div className="text-xs font-bold text-slate-800 truncate">{newPostDocument.name}</div>
-                          <div className="text-[10px] text-slate-500">{newPostDocument.size}</div>
-                        </div>
-                      </div>
-                      <button onClick={() => setNewPostDocument(null)} className="p-1 text-slate-400 hover:text-slate-600">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Tags Preview */}
-                  {newPostTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {newPostTags.map(tag => (
-                        <span key={tag} className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-md">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                </div>
-              )}
-
-              {/* Retour de la dernière commande vocale (LOOP 03/17) — toujours visible en plus d'être dit à voix haute */}
-              {voiceContentFeedback && (
-                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold">
-                  <span className="flex items-center gap-1.5"><Mic size={13} /> {voiceContentFeedback}</span>
-                  <button onClick={() => setVoiceContentFeedback(null)} className="text-indigo-400 hover:text-indigo-700">
-                    <X size={13} />
-                  </button>
-                </div>
-              )}
-
-              {/* Bottom Toolbar: Upload Buttons & Submit */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                
-                {/* Hidden File Inputs */}
-                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-                <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
-                <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.zip" onChange={handleDocSelect} className="hidden" />
-
-                {/* Upload Buttons */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => imageInputRef.current?.click()}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                    title="Ajouter une photo"
-                  >
-                    <ImageIcon size={17} className="text-emerald-500" />
-                    <span className="hidden sm:inline">Photo</span>
-                  </button>
-
-                  <button
-                    onClick={() => videoInputRef.current?.click()}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                    title="Ajouter une vidéo"
-                  >
-                    <Video size={17} className="text-sky-500" />
-                    <span className="hidden sm:inline">Vidéo</span>
-                  </button>
-
-                  <button
-                    onClick={() => docInputRef.current?.click()}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                    title="Joindre un document PDF / Word"
-                  >
-                    <FileText size={17} className="text-amber-500" />
-                    <span className="hidden sm:inline">Document</span>
-                  </button>
-
-                  {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
-                  {voiceAssistant.isSupported && (
-                    <button
-                      onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startContentVoiceCommand())}
-                      className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                      title="Dicter ou commander la rédaction par la voix"
-                    >
-                      <Mic size={17} />
-                      <span className="hidden sm:inline">{voiceAssistant.isListening ? 'Écoute...' : 'Voix'}</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Brouillon / Publier — distinction absolue "préparer ≠ publier" (LOOP 01/17) */}
-                <button
-                  onClick={() => handlePublishPost(true)}
-                  disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
-                  title="Enregistrer comme brouillon — jamais visible par les autres membres"
-                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 transition-all flex items-center gap-2"
-                >
-                  <span>Brouillon</span>
-                </button>
-
-                {/* Submit Button */}
-                <button
-                  onClick={() => handlePublishPost(false)}
-                  disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
-                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-40 transition-all flex items-center gap-2"
-                >
-                  {isPublishing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                  <span>Publier</span>
-                </button>
-
-              </div>
-
-            </div>
 
             {/* B. FEED FILTERS BAR */}
             <div className="flex items-center justify-between gap-2 overflow-x-auto scrollbar-hide py-1">

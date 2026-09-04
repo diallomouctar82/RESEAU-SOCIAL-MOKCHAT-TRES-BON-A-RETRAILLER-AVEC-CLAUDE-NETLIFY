@@ -126,12 +126,26 @@ beforeEach(() => {
 });
 
 describe('État fermé', () => {
-    it("ne rend RIEN au repos — invariant Direction « un seul élément flottant : la goutte messagerie »", () => {
+    it("rend une PRÉSENCE FLOTTANTE PERMANENTE au repos — inversion de rôles RO-3", () => {
         const { container } = monter();
-        // Avant DS-M2, une pastille circulaire restait montée en permanence.
-        // Elle a disparu : le seul point d'entrée est désormais la navigation
-        // principale (Layout.tsx), qui pilote `openSignal`.
-        expect(container).toBeEmptyDOMElement();
+        // DS-M2a avait supprimé toute présence au repos (`return null`) au nom
+        // de « un seul flottant : la goutte messagerie ». La Direction a
+        // inversé les deux rôles le 04/09/2026 : « L'architecte est le guide
+        // permanent de toute la maison Moknet, donc bouton flottant visible en
+        // permanence », la messagerie devenant une entrée FIXE du dock.
+        // Ce test est donc l'exact opposé du précédent, volontairement.
+        const pastille = screen.getByTestId('architecte-flottant');
+        expect(pastille).toBeInTheDocument();
+        expect(pastille).toHaveAttribute('aria-label', "Ouvrir l'Architecte");
+        expect(container).not.toBeEmptyDOMElement();
+    });
+
+    it("la présence au repos OUVRE réellement l'Architecte au clic", async () => {
+        monter();
+        // Sans ce chemin, la pastille serait un décor : la barre ne s'ouvrirait
+        // que depuis la navigation, ce que RO-3 remplace précisément.
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        expect(await screen.findByText("L'Architecte")).toBeInTheDocument();
     });
 
     it("n'affiche PAS la barre tant qu'on n'a pas ouvert", () => {
@@ -155,12 +169,17 @@ describe('Ouverture', () => {
     });
 
     it("un openSignal inchangé (même valeur au rendu suivant) n'ouvre rien — anti-réouverture parasite", () => {
-        const { rerender, container } = monter();
+        const { rerender } = monter();
         // Même props, même `openSignal` : un rendu React ordinaire (ex. le
         // parent qui re-rend pour une tout autre raison) ne doit jamais
         // rouvrir l'Architecte tout seul.
         rerender(<ArchitecteFloatingBar {...currentProps!} />);
-        expect(container).toBeEmptyDOMElement();
+        // Depuis RO-3 la pastille au repos est TOUJOURS là : l'absence
+        // d'ouverture se prouve donc par l'absence de la BARRE, pas par un
+        // conteneur vide — sinon le test redeviendrait vert même si la barre
+        // s'ouvrait toute seule.
+        expect(screen.getByTestId('architecte-flottant')).toBeInTheDocument();
+        expect(screen.queryByText("L'Architecte")).toBeNull();
     });
 
     it("démarre l'écoute à l'ouverture — comportement natif de l'original", async () => {
