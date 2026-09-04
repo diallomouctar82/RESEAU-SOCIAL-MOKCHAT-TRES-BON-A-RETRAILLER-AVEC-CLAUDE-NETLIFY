@@ -50,32 +50,53 @@ export const ArchitecteDemoPage: React.FC = () => {
         () => mergeArchitecteAvatarConfig(adminConfigService.getDetailedSettings().architecteAvatar),
         [],
     );
-    const [parleDepuis, setParleDepuis] = useState<number | null>(null);
+    // Horloge de la phrase en RÉFÉRENCES, pas en état : la première version
+    // appelait `setNiveau` à l'intérieur de la fonction de mise à jour de
+    // `setParleDepuis`. En production, React n'exécute ces fonctions qu'au
+    // rendu suivant — l'amplitude n'était jamais poussée et l'avatar restait
+    // « au repos » sur toute la vidéo de preuve. Défaut vu à l'image, pas en
+    // développement, où les mises à jour sont exécutées immédiatement.
+    const debutRef = useRef<number | null>(null);
+    const enBoucleRef = useRef(true);
     const [niveau, setNiveau] = useState(0);
     const [enBoucle, setEnBoucle] = useState(true);
-    const frameRef = useRef(0);
+    useEffect(() => { enBoucleRef.current = enBoucle; }, [enBoucle]);
 
     useEffect(() => {
+        debutRef.current = performance.now() + 600;
+        let frame = 0;
         const boucle = (maintenant: number) => {
-            setParleDepuis((debut) => {
-                if (debut === null) return null;
+            const debut = debutRef.current;
+            if (debut === null) {
+                setNiveau(0);
+            } else {
                 const t = maintenant - debut;
                 if (t >= DUREE_PHRASE) {
                     setNiveau(0);
-                    return enBoucle ? maintenant + 4200 : null;
+                    // Pause de repos de 4,2 s entre deux phrases : assez pour
+                    // VOIR la respiration, la dérive et un clignement.
+                    debutRef.current = enBoucleRef.current ? maintenant + 4200 : null;
+                } else {
+                    setNiveau(t < 0 ? 0 : amplitudeDeLaPhrase(t));
                 }
-                setNiveau(t < 0 ? 0 : amplitudeDeLaPhrase(t));
-                return debut;
-            });
-            frameRef.current = requestAnimationFrame(boucle);
+            }
+            frame = requestAnimationFrame(boucle);
         };
-        frameRef.current = requestAnimationFrame(boucle);
-        return () => cancelAnimationFrame(frameRef.current);
-    }, [enBoucle]);
+        frame = requestAnimationFrame(boucle);
+        return () => cancelAnimationFrame(frame);
+    }, []);
 
-    useEffect(() => {
-        if (enBoucle && parleDepuis === null) setParleDepuis(performance.now());
-    }, [enBoucle, parleDepuis]);
+    const faireParler = () => {
+        setEnBoucle(false);
+        enBoucleRef.current = false;
+        debutRef.current = performance.now();
+    };
+    const basculerBoucle = () => {
+        const suivant = !enBoucleRef.current;
+        enBoucleRef.current = suivant;
+        setEnBoucle(suivant);
+        if (suivant && debutRef.current === null) debutRef.current = performance.now();
+    };
 
     const parle = niveau > 0.01;
     const presence: ArchitectePresenceState = parle ? 'speaking' : 'rest';
@@ -130,14 +151,14 @@ export const ArchitecteDemoPage: React.FC = () => {
             <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
                 <button
                     type="button"
-                    onClick={() => { setEnBoucle(false); setParleDepuis(performance.now()); }}
+                    onClick={faireParler}
                     className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 >
                     <Volume2 size={16} /> Le faire parler
                 </button>
                 <button
                     type="button"
-                    onClick={() => setEnBoucle((v) => !v)}
+                    onClick={basculerBoucle}
                     className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-100 text-sm font-bold transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
                     {enBoucle ? <Pause size={16} /> : <Play size={16} />}
