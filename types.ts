@@ -5386,7 +5386,7 @@ export interface PlatformDetailedModuleSettings {
     /** Où sont les yeux et la mâchoire sur cette photo — sans quoi rien ne s'anime. */
     rig: { eyeLinePercent: number; eyeBandPercent: number; jawLinePercent: number; jawTravelPercent: number };
     displayName: string;
-    mouthAnchor: { xPercent: number; yPercent: number; widthPercent: number };
+    mouthAnchor: { xPercent: number; yPercent: number; widthPercent: number; tiltDeg?: number };
     animationsEnabled: boolean;
     lipSyncEnabled: boolean;
     voiceKey: string;

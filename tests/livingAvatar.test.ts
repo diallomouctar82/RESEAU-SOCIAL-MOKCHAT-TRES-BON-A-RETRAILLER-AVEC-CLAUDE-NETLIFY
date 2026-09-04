@@ -10,6 +10,7 @@ import {
     clampPortraitRig,
     headDrift,
     resolveLivingPose,
+    restTilt,
 } from '../services/architecte/livingAvatar';
 
 /**
@@ -109,14 +110,14 @@ describe('Micro-mouvements de tête', () => {
         for (let t = 0; t < 120_000; t += 211) {
             const d = headDrift(t);
             rotationMax = Math.max(rotationMax, Math.abs(d.rotate));
-            // Plafond : au-delà de ~1,7°, la tête « flotte » et trahit le truc.
-            expect(Math.abs(d.rotate)).toBeLessThanOrEqual(1.7);
-            expect(Math.abs(d.x)).toBeLessThanOrEqual(1);
-            expect(Math.abs(d.y)).toBeLessThanOrEqual(0.8);
+            // Plafond : au-delà de ~3°, la tête « flotte » et trahit le truc.
+            expect(Math.abs(d.rotate)).toBeLessThanOrEqual(3);
+            expect(Math.abs(d.x)).toBeLessThanOrEqual(1.5);
+            expect(Math.abs(d.y)).toBeLessThanOrEqual(1);
         }
         // Plancher : une dérive imperceptible ne sert à rien. La Direction a
-        // refusé la première version précisément parce qu'on ne voyait rien.
-        expect(rotationMax).toBeGreaterThan(1);
+        // refusé deux versions parce qu'on ne voyait rien bouger.
+        expect(rotationMax).toBeGreaterThan(2);
     });
 
     it('ne repassent pas par la même pose d’une minute à l’autre', () => {
@@ -157,10 +158,10 @@ describe('Pose complète', () => {
         expect(pose).toEqual({ ...STILL_POSE, jawOpen: 0 });
     });
 
-    it('ne cligne pas en pleine phrase : le regard reste posé sur l’interlocuteur', () => {
+    it('cligne aussi en pleine phrase : un visage qui parle ne se fige pas', () => {
         const debut = BLINK_INTERVALS_MS[0] + BLINK_DURATION_MS * 0.35;
         expect(resolveLivingPose({ ...base, elapsedMs: debut }).eyelid).toBeCloseTo(1, 1);
-        expect(resolveLivingPose({ ...base, elapsedMs: debut, speaking: true }).eyelid).toBe(0);
+        expect(resolveLivingPose({ ...base, elapsedMs: debut, speaking: true }).eyelid).toBeCloseTo(1, 1);
     });
 
     it('respire moins fort pendant la parole — le fond ne concurrence pas la bouche', () => {
@@ -177,13 +178,34 @@ describe('Pose complète', () => {
         expect(resolveLivingPose({ ...base, mouthOpenness: NaN }).jawOpen).toBe(0);
     });
 
-    it('la respiration se VOIT sans devenir un effet : entre 0,5 % et 2 %', () => {
+    it('la respiration se VOIT sans devenir un effet : entre 1 % et 3 %', () => {
         let amplitudeMax = 0;
         for (let t = 0; t < 30_000; t += 53) {
             const pose = resolveLivingPose({ ...base, elapsedMs: t });
             amplitudeMax = Math.max(amplitudeMax, Math.abs(pose.breathScale - 1));
-            expect(Math.abs(pose.breathScale - 1)).toBeLessThan(0.02);
+            expect(Math.abs(pose.breathScale - 1)).toBeLessThan(0.03);
         }
-        expect(amplitudeMax).toBeGreaterThan(0.005);
+        expect(amplitudeMax).toBeGreaterThan(0.01);
+    });
+
+    it('hoche la tête sur les syllabes quand il parle — la tête suit la voix', () => {
+        const muet = resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0 });
+        const fort = resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0.9 });
+        expect(fort.headY).toBeGreaterThan(muet.headY);
+    });
+
+    it('incline la tête au repos, à intervalles irréguliers, en alternant le côté', () => {
+        let gauche = false, droite = false, max = 0;
+        for (let t = 0; t < 120_000; t += 40) {
+            const v = restTilt(t);
+            if (v > 0.5) droite = true;
+            if (v < -0.5) gauche = true;
+            max = Math.max(max, Math.abs(v));
+        }
+        expect(gauche && droite).toBe(true);
+        expect(max).toBeLessThanOrEqual(4.5);
+        // Et assez franche pour être vue : la Direction n'a rien vu bouger à ±3°.
+        expect(max).toBeGreaterThan(3.5);
+        expect(restTilt(0)).toBe(0);
     });
 });

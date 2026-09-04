@@ -40,9 +40,18 @@ export interface MouthAnchor {
     yPercent: number;
     /** Largeur de la zone animée, en % de la largeur du cadre. */
     widthPercent: number;
+    /**
+     * Inclinaison de la ligne des lèvres, en degrés (sens horaire positif).
+     * Une tête légèrement tournée a une bouche qui n'est pas horizontale ;
+     * une cavité posée à plat sur des lèvres inclinées se voit tout de suite.
+     */
+    tiltDeg?: number;
 }
 
-export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 50, yPercent: 67.5, widthPercent: 13.5 };
+// Relevé sur grille au 0,5 % (04/09/2026) : commissures à 43,5 et 61,5 % de la
+// largeur, ligne des lèvres à 67,3 % de la hauteur, légèrement remontante à
+// droite (la tête est un peu tournée).
+export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 };
 
 export interface ArchitecteAvatarConfig {
     /**
@@ -139,6 +148,7 @@ export function clampMouthAnchor(anchor: Partial<MouthAnchor>): MouthAnchor {
         xPercent: clamp(anchor.xPercent!, 0, 100, DEFAULT_MOUTH_ANCHOR.xPercent),
         yPercent: clamp(anchor.yPercent!, 0, 100, DEFAULT_MOUTH_ANCHOR.yPercent),
         widthPercent: clamp(anchor.widthPercent!, 4, 60, DEFAULT_MOUTH_ANCHOR.widthPercent),
+        tiltDeg: clamp(anchor.tiltDeg!, -15, 15, DEFAULT_MOUTH_ANCHOR.tiltDeg!),
     };
 }
 

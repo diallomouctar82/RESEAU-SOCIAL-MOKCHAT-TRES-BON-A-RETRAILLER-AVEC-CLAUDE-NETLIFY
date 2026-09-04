@@ -172,6 +172,7 @@ describe('Ancre de bouche — le code ne devine pas où est une bouche', () => {
             xPercent: 100,
             yPercent: 0,
             widthPercent: 60,
+            tiltDeg: DEFAULT_MOUTH_ANCHOR.tiltDeg,
         });
     });
 
@@ -184,6 +185,7 @@ describe('Ancre de bouche — le code ne devine pas où est une bouche', () => {
             xPercent: 42,
             yPercent: 71,
             widthPercent: 18,
+            tiltDeg: DEFAULT_MOUTH_ANCHOR.tiltDeg,
         });
     });
 });
@@ -214,9 +216,10 @@ describe('Configuration héritée', () => {
         expect(DEFAULT_ARCHITECTE_AVATAR.rig.jawLinePercent).toBeGreaterThan(
             DEFAULT_ARCHITECTE_AVATAR.rig.eyeLinePercent,
         );
-        // La bouche est sous la mâchoire : un calage incohérent produirait une
-        // bouche qui s'ouvre au milieu du front.
-        expect(DEFAULT_MOUTH_ANCHOR.yPercent).toBeGreaterThan(DEFAULT_ARCHITECTE_AVATAR.rig.jawLinePercent);
+        // La ligne de mâchoire est à la commissure des lèvres (± 3 %) : la
+        // lèvre du haut reste fixe, celle du bas descend. Un calage incohérent
+        // ouvrirait la bouche au milieu du front ou ferait descendre le nez.
+        expect(Math.abs(DEFAULT_MOUTH_ANCHOR.yPercent - DEFAULT_ARCHITECTE_AVATAR.rig.jawLinePercent)).toBeLessThanOrEqual(3);
     });
 });
 

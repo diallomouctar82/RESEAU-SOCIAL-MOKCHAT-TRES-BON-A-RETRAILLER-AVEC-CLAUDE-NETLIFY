@@ -45,6 +45,13 @@ export interface ArchitecteAvatarProps {
     presence: ArchitectePresenceState;
     /** Moteur réellement en train de parler — décide du niveau de synchro labiale atteignable. */
     ttsEngine: 'elevenlabs' | 'browser_native' | null;
+    /**
+     * Dernier mot prononcé par la voix intégrée du navigateur (`speechSynthesis`),
+     * qui ne donne pas accès à son signal audio : instant de la frontière de
+     * mot (`performance.now()`) et longueur du mot. Ignoré avec ElevenLabs,
+     * dont l'amplitude réelle est mesurée. `null` = pas de mot en cours.
+     */
+    wordPulse?: { at: number; length: number } | null;
     /** Niveau (0..1) de la voix prononcée, publié par `voiceEngine.onOutputVolume`. */
     outputLevel: number;
     /** Diamètre en pixels. */
@@ -104,6 +111,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     presence,
     ttsEngine,
     outputLevel,
+    wordPulse = null,
     size = 48,
     onClick,
     actionLabel,
@@ -147,7 +155,14 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     const opennessRef = useRef(0);
     const levelRef = useRef(0);
     const speakingRef = useRef(false);
+    // Origine du temps UNIQUE pour toute la vie du composant : si elle
+    // repartait à zéro à chaque changement d'état (parole ↔ repos), la table
+    // des clignements et la dérive de tête recommenceraient leur cycle au
+    // même point — et les premiers clignements n'arriveraient jamais.
+    const origineRef = useRef<number | null>(null);
+    const wordPulseRef = useRef<{ at: number; length: number } | null>(null);
     levelRef.current = outputLevel;
+    wordPulseRef.current = wordPulse;
     speakingRef.current = presence === 'speaking';
 
     useEffect(() => {
@@ -157,9 +172,15 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             return;
         }
         let frame = 0;
-        const debut = performance.now();
+        if (origineRef.current === null) origineRef.current = performance.now();
+        const debut = origineRef.current;
         const boucle = (maintenant: number) => {
-            const cible = resolveMouthOpenness(lipSyncLevel, { amplitude: levelRef.current });
+            const pulse = wordPulseRef.current;
+            const cible = resolveMouthOpenness(lipSyncLevel, {
+                amplitude: levelRef.current,
+                elapsedMs: pulse ? maintenant - pulse.at : undefined,
+                wordLength: pulse ? pulse.length : undefined,
+            });
             opennessRef.current = smoothOpenness(opennessRef.current, cible);
             setPose(
                 resolveLivingPose({

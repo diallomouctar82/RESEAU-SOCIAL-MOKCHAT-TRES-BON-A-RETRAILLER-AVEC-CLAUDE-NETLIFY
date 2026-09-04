@@ -23,9 +23,11 @@ import type { MouthAnchor } from '../../services/architecte/architecteAvatar';
  *     faite des vrais pixels du même visage : lumière, teinte et matière
  *     concordent forcément, ce qu'aucune forme dessinée ne peut garantir.
  *
- *  3. MÂCHOIRE : la partie basse du visage est redessinée par-dessus,
- *     décalée vers le bas, et une cavité sombre s'ouvre à la hauteur des
- *     lèvres. L'image complète reste dessous : aucun trou ne peut apparaître.
+ *  3. BOUCHE : la lèvre du haut ne bouge JAMAIS ; tout ce qui est sous la
+ *     ligne des lèvres (lèvre du bas, menton, cou) est redessiné par-dessus,
+ *     décalé vers le bas. L'écartement ainsi créé laisse voir une cavité
+ *     sombre — et un soupçon de dents quand la bouche s'ouvre franchement.
+ *     L'image complète reste dessous : aucun trou ne peut apparaître.
  *
  * Le composant ne DÉCIDE de rien : il reçoit une pose déjà calculée par
  * `services/architecte/livingAvatar.ts`. Tout ce qui bouge est donc testable
@@ -43,6 +45,14 @@ export interface LivingPortraitProps {
     className?: string;
 }
 
+/** Hauteur du fondu de part et d'autre de la ligne de mâchoire, hors bouche (% du cadre). */
+const JAW_FEATHER = 3.5;
+/** Épaisseur de la bande de peau de paupière étirée pour fermer l'œil (% du cadre). */
+const LID_SOURCE_HEIGHT = 1.3;
+/** Étendue horizontale de la paupière : les yeux, pas les cheveux ni les tempes. */
+const LID_LEFT = 22;
+const LID_WIDTH = 56;
+
 export const LivingPortrait: React.FC<LivingPortraitProps> = ({
     photoUrl,
     pose,
@@ -53,19 +63,41 @@ export const LivingPortrait: React.FC<LivingPortraitProps> = ({
     className = 'w-full h-full',
 }) => {
     const jawOffset = rig.jawTravelPercent * pose.jawOpen;
-    // Descente de la paupière : au maximum toute la hauteur de la bande, ce
-    // qui recouvre exactement l'œil.
-    const lidDrop = rig.eyeBandPercent * pose.eyelid;
+    // Paupière. Première version : la bande des yeux était DÉCALÉE vers le
+    // bas de toute sa hauteur — ce qui ramenait les sourcils sur les yeux
+    // (vu image par image sur la vidéo du 04/09). Désormais une fine bande de
+    // peau prise JUSTE au-dessus des cils est ÉTIRÉE verticalement jusqu'à
+    // recouvrir l'œil : la paupière close est faite de la peau de la paupière.
     const lidTop = rig.eyeLinePercent - rig.eyeBandPercent / 2;
+    const lidSourceTop = lidTop - LID_SOURCE_HEIGHT;
+    const lidCover = rig.eyeBandPercent * pose.eyelid;
+    const lidStretch = (LID_SOURCE_HEIGHT + lidCover) / LID_SOURCE_HEIGHT;
 
     const clipRound = `${instanceId}-round`;
     const clipJaw = `${instanceId}-jaw`;
     const clipLid = `${instanceId}-lid`;
     const gradMouth = `${instanceId}-mouth`;
+    const gradTeeth = `${instanceId}-teeth`;
+    const gradShadow = `${instanceId}-shadow`;
 
-    // Ouverture de bouche : hauteur en % du cadre. Reste à zéro quand la
-    // mâchoire ne bouge pas — pas de trou noir sur un visage au repos.
-    const mouthHeight = pose.jawOpen * mouth.widthPercent * 0.62;
+    // Géométrie de la bouche, dans le repère de la photo.
+    const lipLine = mouth.yPercent;
+    const mouthTilt = mouth.tiltDeg ?? 0;
+    const halfWidth = mouth.widthPercent / 2;
+    // Colonne de la bouche : un peu plus large que les commissures, avec des
+    // bords fondus pour que la coupure verticale du masque ne se voie pas.
+    const columnWidth = mouth.widthPercent + 4;
+    const columnLeft = mouth.xPercent - columnWidth / 2;
+    // La cavité s'arrête juste avant les commissures, qui restent en place —
+    // une bouche ne s'ouvre pas jusqu'aux coins.
+    const cavityHalfWidth = halfWidth * 0.92;
+    // Profondeur dessinée : l'écartement réel, plus une marge que la lèvre du
+    // bas (redessinée par-dessus) recouvre — ainsi aucun liseré de peau ne
+    // reste visible entre cavité et lèvre.
+    const cavityDepth = jawOffset + 1.8;
+    // Dents : visibles seulement quand la bouche s'ouvre franchement.
+    const teethHeight = Math.min(1.35, jawOffset * 0.32);
+    const teethOpacity = Math.min(1, Math.max(0, (pose.jawOpen - 0.25) * 3)) * 0.85;
 
     return (
         <svg viewBox="0 0 100 100" className={className} aria-hidden="true" focusable="false">
@@ -76,38 +108,103 @@ export const LivingPortrait: React.FC<LivingPortraitProps> = ({
                 {/* Mâchoire : MASQUE à bord fondu, et non découpe franche.
                     Une découpe nette laissait une couture horizontale visible
                     en travers de la joue et du cou dès que la mâchoire
-                    descendait — le défaut le plus visible de la première
-                    version. Le dégradé fait disparaître la jonction. */}
+                    descendait. Hors bouche, le dégradé fait disparaître la
+                    jonction ; DANS la colonne de la bouche, la coupure est
+                    franche et posée exactement entre les lèvres, là où la
+                    cavité la cache. */}
                 <linearGradient id={`${clipJaw}-g`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#000" />
                     <stop offset="100%" stopColor="#fff" />
                 </linearGradient>
+                <linearGradient id={`${clipJaw}-hb`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#000" stopOpacity="0" />
+                    <stop offset="14%" stopColor="#000" stopOpacity="1" />
+                    <stop offset="86%" stopColor="#000" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#000" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id={`${clipJaw}-hw`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#fff" stopOpacity="0" />
+                    <stop offset="14%" stopColor="#fff" stopOpacity="1" />
+                    <stop offset="86%" stopColor="#fff" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+                </linearGradient>
                 <mask id={clipJaw}>
                     <rect
                         x="0"
-                        y={rig.jawLinePercent - 9}
+                        y={rig.jawLinePercent - JAW_FEATHER}
                         width="100"
-                        height="9"
+                        height={JAW_FEATHER * 2}
                         fill={`url(#${clipJaw}-g)`}
                     />
-                    <rect x="0" y={rig.jawLinePercent} width="100" height={100 - rig.jawLinePercent} fill="#fff" />
+                    <rect
+                        x="0"
+                        y={rig.jawLinePercent + JAW_FEATHER}
+                        width="100"
+                        height={100 - rig.jawLinePercent - JAW_FEATHER}
+                        fill="#fff"
+                    />
+                    <g transform={`rotate(${mouthTilt} ${mouth.xPercent} ${lipLine})`}>
+                        {/* Au-dessus de la ligne des lèvres : rien ne bouge (lèvre du haut fixe). */}
+                        <rect
+                            x={columnLeft}
+                            y={lipLine - JAW_FEATHER - 2}
+                            width={columnWidth}
+                            height={JAW_FEATHER + 2}
+                            fill={`url(#${clipJaw}-hb)`}
+                        />
+                        {/* En dessous : tout descend d'un bloc (lèvre du bas + menton). */}
+                        <rect
+                            x={columnLeft}
+                            y={lipLine}
+                            width={columnWidth}
+                            height={JAW_FEATHER + 2}
+                            fill={`url(#${clipJaw}-hw)`}
+                        />
+                    </g>
                 </mask>
-                {/* Bande des yeux — masque fondu haut ET bas, pour que la
-                    paupière se pose sans laisser de bord net. */}
+                {/* Paupière — masque fondu haut, bas ET côtés, pour que la
+                    peau étirée se pose sans laisser de bord net. */}
                 <linearGradient id={`${clipLid}-g`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#000" />
-                    <stop offset="22%" stopColor="#fff" />
-                    <stop offset="78%" stopColor="#fff" />
+                    <stop offset="25%" stopColor="#fff" />
+                    <stop offset="82%" stopColor="#fff" />
                     <stop offset="100%" stopColor="#000" />
                 </linearGradient>
+                <linearGradient id={`${clipLid}-h`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#000" stopOpacity="1" />
+                    <stop offset="12%" stopColor="#000" stopOpacity="0" />
+                    <stop offset="88%" stopColor="#000" stopOpacity="0" />
+                    <stop offset="100%" stopColor="#000" stopOpacity="1" />
+                </linearGradient>
                 <mask id={clipLid}>
-                    <rect x="0" y={lidTop} width="100" height={rig.eyeBandPercent} fill={`url(#${clipLid}-g)`} />
+                    <rect
+                        x={LID_LEFT}
+                        y={lidSourceTop}
+                        width={LID_WIDTH}
+                        height={LID_SOURCE_HEIGHT + lidCover + 0.6}
+                        fill={`url(#${clipLid}-g)`}
+                    />
+                    <rect
+                        x={LID_LEFT}
+                        y={lidSourceTop}
+                        width={LID_WIDTH}
+                        height={LID_SOURCE_HEIGHT + lidCover + 0.6}
+                        fill={`url(#${clipLid}-h)`}
+                    />
                 </mask>
-                <radialGradient id={gradMouth} cx="50%" cy="45%" r="55%">
-                    <stop offset="0%" stopColor="#02060A" stopOpacity="0.97" />
-                    <stop offset="62%" stopColor="#050D14" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#0A1824" stopOpacity="0" />
-                </radialGradient>
+                <linearGradient id={gradMouth} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#120608" />
+                    <stop offset="55%" stopColor="#2A0E12" />
+                    <stop offset="100%" stopColor="#4A1B22" />
+                </linearGradient>
+                <linearGradient id={gradTeeth} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#F4EFE7" />
+                    <stop offset="100%" stopColor="#BDB4A8" />
+                </linearGradient>
+                <linearGradient id={gradShadow} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#000" stopOpacity="0.7" />
+                    <stop offset="100%" stopColor="#000" stopOpacity="0" />
+                </linearGradient>
             </defs>
 
             <g clipPath={`url(#${clipRound})`}>
@@ -131,7 +228,47 @@ export const LivingPortrait: React.FC<LivingPortraitProps> = ({
                         preserveAspectRatio="xMidYMid slice"
                     />
 
-                    {/* 2. Mâchoire redessinée par-dessus, décalée vers le bas. */}
+                    {/* 2. Cavité de la bouche, SOUS la lèvre du bas redessinée :
+                        son bord haut épouse la lèvre du haut, son bord bas est
+                        recouvert par la lèvre du bas qui descend. On ne voit
+                        donc que l'écartement réel. */}
+                    {jawOffset > 0.01 && (
+                        <g transform={`rotate(${mouthTilt} ${mouth.xPercent} ${lipLine})`}>
+                            <path
+                                d={
+                                    `M ${mouth.xPercent - cavityHalfWidth} ${lipLine} ` +
+                                    `Q ${mouth.xPercent} ${lipLine - 0.3} ${mouth.xPercent + cavityHalfWidth} ${lipLine} ` +
+                                    `C ${mouth.xPercent + cavityHalfWidth * 0.6} ${lipLine + cavityDepth * 1.33} ` +
+                                    `${mouth.xPercent - cavityHalfWidth * 0.6} ${lipLine + cavityDepth * 1.33} ` +
+                                    `${mouth.xPercent - cavityHalfWidth} ${lipLine} Z`
+                                }
+                                fill={`url(#${gradMouth})`}
+                            />
+                            {teethOpacity > 0.02 && teethHeight > 0.1 && (
+                                <path
+                                    d={
+                                        `M ${mouth.xPercent - cavityHalfWidth * 0.5} ${lipLine + 0.1} ` +
+                                        `L ${mouth.xPercent + cavityHalfWidth * 0.5} ${lipLine + 0.1} ` +
+                                        `Q ${mouth.xPercent} ${lipLine + 0.1 + teethHeight * 1.6} ` +
+                                        `${mouth.xPercent - cavityHalfWidth * 0.5} ${lipLine + 0.1} Z`
+                                    }
+                                    fill={`url(#${gradTeeth})`}
+                                    opacity={teethOpacity * 0.8}
+                                />
+                            )}
+                            {/* Ombre portée de la lèvre du haut sur l'intérieur de la bouche. */}
+                            <rect
+                                x={mouth.xPercent - cavityHalfWidth}
+                                y={lipLine - 0.1}
+                                width={cavityHalfWidth * 2}
+                                height={Math.min(0.9, cavityDepth * 0.35)}
+                                fill={`url(#${gradShadow})`}
+                            />
+                        </g>
+                    )}
+
+                    {/* 3. Lèvre du bas, menton et cou redessinés par-dessus,
+                        décalés vers le bas. */}
                     {jawOffset > 0.01 && (
                         <g mask={`url(#${clipJaw})`} transform={`translate(0 ${jawOffset})`}>
                             <image
@@ -145,27 +282,18 @@ export const LivingPortrait: React.FC<LivingPortraitProps> = ({
                         </g>
                     )}
 
-                    {/* 3. Cavité de la bouche, à l'ancre réglée pour cette photo. */}
-                    {mouthHeight > 0.15 && (
-                        <ellipse
-                            cx={mouth.xPercent}
-                            cy={mouth.yPercent + mouthHeight * 0.3}
-                            rx={mouth.widthPercent / 2}
-                            ry={mouthHeight / 2}
-                            fill={`url(#${gradMouth})`}
-                        />
-                    )}
-
-                    {/* 4. Paupière : la bande des yeux redessinée avec le front. */}
-                    {lidDrop > 0.05 && (
+                    {/* 4. Paupière : la peau au-dessus des cils, étirée vers le
+                        bas jusqu'à recouvrir l'œil. */}
+                    {lidCover > 0.05 && (
                         <g mask={`url(#${clipLid})`}>
                             <image
                                 href={photoUrl}
                                 x="0"
-                                y={lidDrop}
+                                y="0"
                                 width="100"
                                 height="100"
                                 preserveAspectRatio="xMidYMid slice"
+                                transform={`translate(0 ${lidSourceTop}) scale(1 ${lidStretch}) translate(0 ${-lidSourceTop})`}
                             />
                         </g>
                     )}

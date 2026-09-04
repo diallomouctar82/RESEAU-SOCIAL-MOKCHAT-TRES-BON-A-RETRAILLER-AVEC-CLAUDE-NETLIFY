@@ -40,10 +40,13 @@ export interface PortraitRig {
 export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
     // Relevé sur le portrait DE FACE livré (`public/architecte/architecte.webp`),
     // composé d'après la référence validée par la Direction le 04/09/2026 :
-    // yeux à 45,5 % de la hauteur, mâchoire à 61 %, lèvres à 67,5 % — lus sur une grille posée sur le rendu, menton à 80 %.
-    eyeLinePercent: 45.5,
-    eyeBandPercent: 6,
-    jawLinePercent: 61,
+    // relevé sur une grille au 0,5 % posée sur le rendu : pupilles à 46,3 % de
+    // la hauteur (œil ouvert de 44,5 à 48 %), ligne entre les lèvres à 67,3 %.
+    eyeLinePercent: 46.3,
+    eyeBandPercent: 5.2,
+    // La ligne de mâchoire est posée ENTRE LES LÈVRES : la lèvre du haut reste
+    // fixe, celle du bas descend — c'est ainsi qu'une bouche s'ouvre.
+    jawLinePercent: 67.3,
     jawTravelPercent: 5.2,
 };
 
@@ -88,7 +91,7 @@ export function breathPhase(elapsedMs: number): number {
 // ─────────────────────────────────────────────────────────────────────────
 
 /** Durée d'un clignement humain : bref. Au-delà, l'avatar a l'air endormi. */
-export const BLINK_DURATION_MS = 145;
+export const BLINK_DURATION_MS = 220;
 
 /**
  * Intervalles entre clignements, en millisecondes.
@@ -141,12 +144,68 @@ export function headDrift(elapsedMs: number): { rotate: number; x: number; y: nu
     if (!Number.isFinite(elapsedMs)) return { rotate: 0, x: 0, y: 0 };
     const t = elapsedMs / 1000;
     return {
-        // Degrés — au-delà de 1°, la tête « flotte » et trahit le truc.
-        rotate: Math.sin(t / 5.3) * 1.15 + Math.sin(t / 8.9) * 0.5,
+        // Degrés. Relevé le 04/09 après retour de la Direction : la première
+        // valeur (±0,8°) était invisible à l'écran. Un mouvement qui ne se
+        // constate pas ne sert à rien ; au-delà de ~3°, la tête « flotte ».
+        rotate: Math.sin(t / 4.7) * 2.1 + Math.sin(t / 8.9) * 0.8,
         // Pourcentages du cadre.
-        x: Math.sin(t / 7.1) * 0.9,
-        y: Math.cos(t / 6.1) * 0.7,
+        x: Math.sin(t / 6.3) * 1.45,
+        y: Math.cos(t / 5.1) * 0.95,
     };
+}
+
+/**
+ * GESTES — ce qui distingue une présence d'une image qui bouge.
+ *
+ * Deux familles, toutes deux déterministes :
+ *  - au repos, une INCLINAISON lente de la tête revient à intervalles
+ *    irréguliers (table fixe), comme quelqu'un qui écoute ;
+ *  - en parole, de petits HOCHEMENTS accompagnent les syllabes fortes — la
+ *    tête suit la voix, pas seulement la bouche.
+ */
+export const TILT_INTERVALS_MS = [7400, 11200, 6100, 9800, 12600, 8300] as const;
+const TILT_DURATION_MS = 2200;
+const TILT_CYCLE_MS = TILT_INTERVALS_MS.reduce((a, b) => a + b, 0);
+
+/** Inclinaison de repos, en degrés, sur une demi-sinusoïde douce (0 hors geste). */
+export function restTilt(elapsedMs: number): number {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0;
+    const position = elapsedMs % TILT_CYCLE_MS;
+    let curseur = 0;
+    let signe = 1;
+    for (const intervalle of TILT_INTERVALS_MS) {
+        const debut = curseur + intervalle;
+        if (position < debut) return 0;
+        if (position < debut + TILT_DURATION_MS) {
+            const phase = (position - debut) / TILT_DURATION_MS;
+            return Math.sin(phase * Math.PI) * 4.2 * signe;
+        }
+        curseur = debut + TILT_DURATION_MS;
+        signe = -signe; // on alterne le côté d'un geste à l'autre
+    }
+    return 0;
+}
+
+/**
+ * Hochement de parole : la tête descend légèrement sur une syllabe forte et
+ * remonte. Proportionnel à l'ouverture de bouche, donc synchrone à la voix.
+ */
+export function speechNod(mouthOpenness: number): { y: number; rotate: number } {
+    const o = Math.min(1, Math.max(0, Number.isFinite(mouthOpenness) ? mouthOpenness : 0));
+    return { y: o * 1.6, rotate: o * 1.4 };
+}
+
+/** Période du balancement latéral de parole — lent, jamais un tic. */
+export const SPEECH_SWAY_PERIOD_MS = 2600;
+
+/**
+ * Balancement latéral pendant la parole, en % du cadre : quelqu'un qui
+ * parle ne garde pas la tête vissée — elle se déplace un peu d'un côté à
+ * l'autre au fil de la phrase. Nul hors parole (l'appelant ne l'ajoute pas).
+ */
+export function speechSway(elapsedMs: number): number {
+    if (!Number.isFinite(elapsedMs)) return 0;
+    return Math.sin((2 * Math.PI * elapsedMs) / SPEECH_SWAY_PERIOD_MS) * 0.8;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -208,17 +267,23 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
     const derive = headDrift(inputs.elapsedMs);
     // Respiration atténuée pendant la parole : la poitrine se calme quand on
     // parle, et le mouvement de fond ne doit pas concurrencer la bouche.
-    const ampleur = inputs.speaking ? 0.4 : 1;
+    const ampleur = inputs.speaking ? 0.6 : 1;
+
+    const nod = inputs.speaking ? speechNod(jawOpen) : { y: 0, rotate: 0 };
+    const sway = inputs.speaking ? speechSway(inputs.elapsedMs) : 0;
+    const tilt = inputs.speaking ? 0 : restTilt(inputs.elapsedMs);
 
     return {
-        breathScale: 1 + respiration * 0.013 * ampleur,
-        breathY: -respiration * 0.85 * ampleur,
-        headRotate: derive.rotate,
-        headX: derive.x,
-        headY: derive.y,
-        // On ne cligne pas en pleine phrase : le regard reste posé sur
-        // l'interlocuteur tant qu'on lui parle.
-        eyelid: inputs.speaking ? 0 : blinkAmount(inputs.elapsedMs),
+        // Respiration visible : ~2 % d'échelle, les épaules montent avec.
+        breathScale: 1 + respiration * 0.02 * ampleur,
+        breathY: -respiration * 1.3 * ampleur,
+        headRotate: derive.rotate + tilt + nod.rotate,
+        headX: derive.x + sway,
+        headY: derive.y + nod.y,
+        // On cligne AUSSI en parlant : un visage qui ne cligne plus dès qu'il
+        // parle se fige — constaté sur la vidéo du 04/09, où deux clignements
+        // en 29 s ne suffisaient pas à convaincre.
+        eyelid: blinkAmount(inputs.elapsedMs),
         jawOpen,
     };
 }

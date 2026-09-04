@@ -25,7 +25,7 @@ describe('Page publique de démonstration de l’avatar', () => {
         const { container } = render(<ArchitecteDemoPage />);
         const avatar = screen.getByTestId('architecte-avatar');
         expect(avatar).toBeInTheDocument();
-        expect(avatar).toHaveStyle({ width: '340px', height: '340px' });
+        expect(avatar).toHaveStyle({ width: '400px', height: '400px' });
         expect(container.querySelector('svg image')).toHaveAttribute('href', '/architecte/architecte.webp');
     });
 
@@ -42,6 +42,32 @@ describe('Page publique de démonstration de l’avatar', () => {
         fireEvent.click(bouton);
         // La boucle automatique se coupe au profit de la lecture déclenchée.
         expect(screen.getByRole('button', { name: /Répéter en boucle/ })).toBeInTheDocument();
+    });
+
+    it('sans voix intégrée, retombe sur la démonstration muette et le DIT plutôt que de parler bouche close', () => {
+        // jsdom n'a pas de `speechSynthesis` : c'est exactement le cas d'un
+        // navigateur sans voix.
+        render(<ArchitecteDemoPage />);
+        fireEvent.click(screen.getByRole('button', { name: /Le faire parler/ }));
+        expect(screen.getByTestId('demo-voix')).toHaveTextContent(/indisponible/);
+    });
+
+    it('avec la voix intégrée, annonce honnêtement une synchro AU RYTHME DES MOTS, pas à l’amplitude', () => {
+        const lectures: any[] = [];
+        class FausseLecture { text: string; lang = ''; rate = 1; voice: any = null; onstart: any; onboundary: any; onend: any; onerror: any; constructor(t: string) { this.text = t; lectures.push(this); } }
+        (window as any).SpeechSynthesisUtterance = FausseLecture;
+        (window as any).speechSynthesis = { cancel: vi.fn(), getVoices: () => [{ lang: 'fr-FR' }], speak: (l: any) => l.onstart && l.onstart() };
+        try {
+            render(<ArchitecteDemoPage />);
+            fireEvent.click(screen.getByRole('button', { name: /Le faire parler/ }));
+            expect(lectures[0].lang).toBe('fr-FR');
+            expect(screen.getByTestId('architecte-avatar')).toHaveAttribute('data-lipsync', 'rythme_des_mots');
+            expect(screen.getByTestId('demo-voix')).toHaveTextContent(/rythme des mots/);
+            expect(screen.getByRole('status')).toHaveTextContent(/parle/);
+        } finally {
+            delete (window as any).SpeechSynthesisUtterance;
+            delete (window as any).speechSynthesis;
+        }
     });
 
     it('dit ce qu’elle est : une page de preuve, sans donnée de compte', () => {
