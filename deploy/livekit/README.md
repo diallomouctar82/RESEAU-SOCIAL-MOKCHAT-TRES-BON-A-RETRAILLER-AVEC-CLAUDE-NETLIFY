@@ -193,7 +193,7 @@ côté serveur dans `public.call_diagnostics` à chaque appel.
 
 ---
 
-## SAT-1 — Activer le plafond automatique des directs (`prometheus_port`)
+## SAT-1 — Activer le plafond automatique des directs
 
 **Ce que cela change.** Aujourd'hui, aucune room LiveKit ne porte de plafond :
 LiveKit la crée tout seul à l'arrivée du premier participant, sans
@@ -214,72 +214,220 @@ Prometheus de LiveKit.
 | un SECOND `createRoom` | **ne change plus rien** — le plafond ne se pose qu'à la création |
 | room vide | **disparaît** (`empty_timeout`) → le plafond se repose à la renaissance |
 
-### Étape 1 — redémarrer LiveKit avec les métriques
+La règle appliquée par `nodeCapacity.ts` :
 
-Le `docker-compose.yml` de ce dossier porte déjà `prometheus_port: 6789`, et
-publie ce port **sur la boucle locale uniquement** (`127.0.0.1:6789`). Il suffit
-de reprendre la configuration :
-
-```bash
-cd /opt/moknet-livekit          # le dossier où deploy/livekit a été copié
-docker compose up -d livekit    # recharge la config, ne touche pas Redis
-curl -s http://127.0.0.1:6789/metrics | grep gomaxprocs
-# attendu : go_sched_gomaxprocs_threads <nombre de cœurs du VPS>
+```
+plafond = plancher( cœurs × 130 × 0,5 ) − participants déjà présents sur le nœud
 ```
 
-### Étape 2 — publier les métriques, derrière un jeton
+`130` = places par cœur, **mesuré** (0,00767 cœur par spectateur en audio, dans
+la topologie d'un direct). `0,5` = la moitié de la machine seulement est
+engagée — l'écart assumé entre ce que le banc a pu mesurer et ce que le nœud
+porte réellement (vidéo, appels, TURN, système). Plancher absolu : **1, jamais
+0** (0 voudrait dire « aucune limite »).
 
-La fonction Edge `livekit-token` tourne chez Supabase : elle doit joindre cet
-endpoint depuis Internet. **LiveKit ne protège pas `/metrics`** — c'est au
-reverse-proxy de le faire. Sur ce VPS, le proxy est CloudPanel/nginx (Caddy a
-été retiré au profit du site déjà en place, voir plus haut).
+| `nproc` | Plafond attendu sur un nœud vide |
+|---|---|
+| 2 | 130 |
+| 4 | 260 |
+| 8 | 520 |
 
-Ajouter dans le `vhost` de `live.moknet.net`, avec un chemin et un jeton que
-vous seul connaissez (le jeton ci-dessous est un EXEMPLE à remplacer) :
+---
+
+## SAT-1b — Plan d'activation en production
+
+Rédigé à la demande de la Direction (4 septembre 2026), à partir des fichiers
+réels et de la fonction Edge réellement en ligne — pas de mémoire.
+
+### La propriété qui rend ce plan sûr
+
+Les quatre premières étapes **ne changent rien au comportement**. Chacune est
+inerte tant que la suivante n'est pas faite :
+
+| # | Étape | Change le comportement ? | Retour arrière | Durée |
+|---|---|---|---|---|
+| 1 | Fusionner la PR #69 | **Non** — l'écran « complet » existe, mais aucun 409 ne peut être émis | `git revert` + push | ~3 min |
+| 2 | Déployer `livekit-token` | **Non** — la porte lit `maxParticipants = 0` partout, ne refuse personne | redéployer depuis `main` | ~2 min |
+| 3 | `prometheus_port` sur le VPS | **Non** — `/metrics` existe, personne ne le lit | commenter + relancer | ~1 min |
+| 4 | Publier `/metrics` derrière un jeton | **Non** — joignable, mais la fonction n'a pas l'adresse | retirer le bloc nginx | ~1 min |
+| 5 | Poser `LIVE_NODE_METRICS_URL` | **OUI — le seul** | **supprimer le secret** | **~30 s** |
+
+Le seul geste qui engage quoi que ce soit est aussi le plus rapide à défaire.
+On peut s'arrêter après n'importe quelle étape sans laisser d'état bancal.
+
+### Étape 1 — Fusionner la PR #69
+
+Le code client part sur `moknet.net`. L'écran « Ce direct est complet » entre
+dans le bundle, mais ne peut jamais s'afficher : rien ne produit encore de
+refus.
+
+Sur GitHub : PR #69 → *Ready for review* → *Squash and merge*.
+
+**Preuve constatable** — le bundle servi change :
+
+```bash
+curl -s https://moknet.net/ | grep -o 'index-[A-Za-z0-9_-]*\.js'
+```
+
+Puis ouvrir `moknet.net` : tout doit fonctionner exactement comme avant.
+
+**Risque** : celui d'un déploiement front ordinaire (Green Gate vert, 924
+tests, aucun changement de comportement attendu).
+
+**Retour arrière** : `git revert -m 1 <sha-du-merge> && git push origin main`.
+
+### Étape 2 — Déployer la fonction Edge `livekit-token`
+
+La porte SAT-2 et le calcul SAT-1 arrivent sur le serveur, **toujours
+inertes** : sans `LIVE_NODE_METRICS_URL`, `poseRoomCeiling` rend `null`, aucune
+room ne reçoit de plafond, la porte lit `0` et laisse entrer.
+
+```bash
+supabase functions deploy livekit-token --project-ref rqciahtpixdjbyoajomg
+```
+
+**Preuve constatable** :
+
+1. Tableau de bord Supabase → Edge Functions → `livekit-token` : la version
+   passe de **6 à 7**, l'horodatage change.
+2. **Tester un appel réel entre deux téléphones immédiatement après.**
+
+**Risque — le plus élevé du plan.** Cette fonction émet les jetons des directs
+**et des appels**. Le chemin appel (`call-…`) n'est pas touché par le code SAT
+(le plafond et la porte ne vivent que dans la branche « direct »), mais le
+fichier a été restructuré : d'où le test d'appel immédiat.
+
+**Retour arrière — vérifié.** `main` contient exactement les 2 fichiers
+déployés aujourd'hui (`index.ts`, `supabase.ts`) ; la branche en a 4
+(+ `nodeCapacity.ts`, `capacityGate.ts`). Donc :
+
+```bash
+git checkout main
+supabase functions deploy livekit-token --project-ref rqciahtpixdjbyoajomg
+```
+
+Supabase ne rembobine pas : ce redéploiement crée une version **suivante**
+dont le contenu est celui d'aujourd'hui.
+
+### Étape 3 — Activer les métriques sur le VPS
+
+Le `docker-compose.yml` de ce dossier porte déjà `prometheus_port: 6789` et
+publie ce port **sur la boucle locale uniquement** (`127.0.0.1:6789`).
+
+```bash
+cd /opt/moknet-livekit
+docker compose up -d livekit
+curl -s http://127.0.0.1:6789/metrics | grep gomaxprocs
+nproc                                    # pour recouper soi-même
+```
+
+**Preuve constatable** : la ligne `go_sched_gomaxprocs_threads N` doit afficher
+**le même N que `nproc`**.
+
+**⚠️ Risque réel.** `docker compose up -d livekit` **recrée le conteneur** :
+tous les appels et directs en cours **tombent**. À faire dans une fenêtre
+calme. C'est le seul risque de coupure du plan, et il tient au redémarrage du
+serveur média, pas à SAT-1.
+
+**Retour arrière** : commenter `prometheus_port: 6789`, relancer
+`docker compose up -d livekit` (nouvelle coupure).
+
+### Étape 4 — Publier `/metrics`, derrière un jeton DANS LE CHEMIN
+
+> **Correction du 4 septembre 2026.** Une version antérieure de ce README
+> proposait ici un filtrage par en-tête HTTP (`X-Moknet-Metrics`). **Cela ne
+> peut pas fonctionner** : la fonction Edge fait un `fetch(metricsUrl)` nu,
+> sans aucun en-tête (`index.ts`, `poserPlafond`). Le jeton doit donc vivre
+> dans le CHEMIN. La recette ci-dessous est la seule compatible avec le code.
+
+La fonction Edge tourne chez Supabase : elle doit joindre cet endpoint depuis
+Internet. **LiveKit ne protège pas `/metrics`** — c'est au reverse-proxy de le
+faire. Sur ce VPS, le proxy est CloudPanel/nginx (Caddy a été retiré au profit
+du site déjà en place, voir plus haut).
+
+```bash
+openssl rand -hex 24        # génère le jeton — le noter
+```
+
+Dans le vhost nginx de `live.moknet.net` :
 
 ```nginx
-location /sat1-metrics {
-    if ($http_x_moknet_metrics != "REMPLACEZ_PAR_UN_JETON_ALEATOIRE") { return 404; }
+location = /m-LE_JETON_GENERE {
     proxy_pass http://127.0.0.1:6789/metrics;
 }
 ```
 
-Générer le jeton sur le VPS : `openssl rand -hex 24`. Puis recharger nginx
-(`clpctl` ou `systemctl reload nginx`) et vérifier :
+```bash
+systemctl reload nginx      # ou clpctl
+```
+
+**Preuve constatable**, depuis n'importe quelle machine :
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://live.moknet.net/sat1-metrics          # attendu 404
-curl -s -H 'X-Moknet-Metrics: <le jeton>' https://live.moknet.net/sat1-metrics | grep gomaxprocs   # attendu la ligne
+curl -s https://live.moknet.net/m-LE_JETON | grep gomaxprocs            # la ligne, même N
+curl -s -o /dev/null -w '%{http_code}\n' https://live.moknet.net/m-faux # 404
 ```
 
-### Étape 3 — donner l'adresse à la fonction Edge
+**Risque** : si le chemin fuite, quelqu'un lit la charge du nœud. **Aucune
+donnée personnelle** — étiquettes vérifiées une par une au banc : `code,
+direction, le, method, node_id, node_type, quantile, service, status,
+transmission, version`. Zéro nom de room, zéro identité de participant.
 
-`livekit-token` lit la variable d'environnement `LIVE_NODE_METRICS_URL`.
-Aucune valeur codée en dur, aucun secret dans le dépôt.
+**Retour arrière** : retirer le bloc `location`, recharger nginx. Pas de
+coupure.
 
-Tableau de bord Supabase → Edge Functions → Secrets, ou API de gestion. La
-valeur inclut le jeton :
+### Étape 5 — Le seul geste qui engage : poser l'adresse
+
+À partir de cet instant, **chaque nouveau direct reçoit un plafond réel**.
+
+Tableau de bord Supabase → Edge Functions → Secrets :
 
 ```
-LIVE_NODE_METRICS_URL = https://live.moknet.net/sat1-metrics
+LIVE_NODE_METRICS_URL = https://live.moknet.net/m-LE_JETON
 ```
 
-> La lecture avec en-tête n'étant pas exprimable dans une URL, préférez un
-> chemin qui contient lui-même le secret
-> (`location /sat1-metrics-<jeton aléatoire>`) et donnez cette URL complète.
-> Le code n'ajoute aucun en-tête : il fait un simple `GET`.
+**Preuve constatable — et recalculable.** Ouvrir un direct, puis Supabase →
+Edge Functions → `livekit-token` → **Logs** :
 
-### Étape 4 — constater que le plafond est réellement posé
-
-Ouvrir un direct, puis :
-
-```bash
-# Depuis le VPS (l'API twirp demande une signature, d'où le passage par l'app)
-docker compose logs livekit --since 5m | grep -i room
+```
+livekit-token: plafond 260 posé sur <nom-de-la-room>
 ```
 
-Plus simple : les journaux de la fonction Edge affichent, à chaque création,
-`plafond N posé sur <room> (C cœurs)`.
+> **Correction du 4 septembre 2026.** Une version antérieure de ce README
+> annonçait `plafond N posé sur <room> (C cœurs)`. Le code n'écrit **pas** le
+> nombre de cœurs. La ligne réelle est celle ci-dessus.
+
+Le nombre affiché doit correspondre à la formule du haut de section appliquée
+au `nproc` du VPS. S'ils concordent, la chaîne entière est prouvée de bout en
+bout.
+
+**Retour arrière — 30 secondes** : supprimer le secret. Le prochain direct créé
+n'a plus de plafond. Les directs déjà ouverts gardent celui qu'ils ont reçu
+jusqu'à leur fin — le plafond ne se pose qu'à la création.
+
+### Ce qui n'est PAS constatable à la main
+
+**Le refus à 260 personnes n'est pas observable sans 260 navigateurs.**
+
+- Le plafond est réellement posé, avec le bon nombre → **constatable** (journal
+  + `nproc`).
+- La porte refuse réellement quand la room est pleine → prouvé au banc contre
+  le binaire **1.8.4 exact du VPS**, avec un vrai 409 (18/18 puis 40/40).
+- La jonction des deux **à 260 précisément** → jamais démontrée à l'écran.
+
+Pour la voir : déployer temporairement une version à part engagée abaissée
+(plafond 2 ou 3), ouvrir un direct depuis deux appareils, un troisième reçoit
+l'écran « complet », puis restaurer. C'est un déploiement de production
+supplémentaire — sur demande explicite de la Direction uniquement.
+
+### Deux points de vigilance
+
+1. **Les directs déjà en cours au moment de l'étape 5 restent sans plafond**
+   jusqu'à leur fin (contrainte LiveKit mesurée : un second `createRoom` ne
+   change rien).
+2. **+2 appels réseau à l'ouverture d'un direct** (`/metrics`, `listRooms`),
+   chacun plafonné à 1,5 s (`ROOM_SERVICE_TIMEOUT_MS`). Au pire +3 s pour
+   ouvrir un direct. Les appels ne sont pas concernés.
 
 ### Ce qui se passe si vous ne faites rien
 
