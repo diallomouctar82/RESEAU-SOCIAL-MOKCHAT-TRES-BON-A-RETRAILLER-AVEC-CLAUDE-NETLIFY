@@ -1182,8 +1182,8 @@ Chaque décision respecte le formalisme strict suivant :
   `docs/captures/2026-09-04-nettoyage-accueil/` avec les recadrages
   en-tête / barre latérale / menu Compte / trajectoire.
 * **Statut** : `Développé`, `Testé` — **EN ATTENTE DE VALIDATION DE LA
-  DIRECTION** sur la branche `claude/cleanup-home-interface-szp8qv` (PR en
-  brouillon : aucune fusion, aucune production).
+  DIRECTION** sur la branche `claude/cleanup-home-interface-szp8qv` (PR #73
+  en brouillon : aucune fusion, aucune production).
 * **Restes assumés** : le jugement visuel (« est-ce assez aéré ? ») revient à
   la Direction ; `GoogleWorkspaceBanner compact` n'a plus d'appelant
   (variante conservée) ; `PointAToBPathway.leadAdvisor` reste (vitrine).
