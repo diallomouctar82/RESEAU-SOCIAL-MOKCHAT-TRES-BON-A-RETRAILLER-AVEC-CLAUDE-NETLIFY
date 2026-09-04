@@ -9,16 +9,14 @@
 // exposer une clé. Elle est publique parce qu'elle ne contient rien qui ne
 // puisse l'être.
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import './index.css';
 import { createRoot } from 'react-dom/client';
 import { AiCoreControlTowerView } from '../../components/admin/AiCoreControlTowerView';
-import { construireEtat } from '../../services/aiCoreControlTowerModel';
-import { INSTANTANE, ORIGINE_INSTANTANE } from './snapshot';
+import { EtatTourDeControle, construireEtat } from '../../services/aiCoreControlTowerModel';
+import { INSTANTANE, ORIGINE_INSTANTANE, chargerManifestePreview } from './snapshot';
 
-const etat = construireEtat(INSTANTANE);
-
-const Page: React.FC = () => (
+const Page: React.FC<{ etat: EtatTourDeControle }> = ({ etat }) => (
     <div className="min-h-screen bg-[#070D1E] text-slate-200">
         <div className="max-w-[1180px] mx-auto px-4 py-8 space-y-6">
 
@@ -62,4 +60,30 @@ const Page: React.FC = () => (
     </div>
 );
 
-createRoot(document.getElementById('racine')!).render(<Page />);
+/**
+ * Le manifeste est chargé à l'exécution (voir `snapshot.ts`), donc le rendu est
+ * asynchrone. Un échec de chargement n'est pas masqué : `construireEtat` reçoit
+ * `manifeste: null`, l'écran affiche alors « manifeste introuvable » dans ses
+ * lectures en échec et bascule les verrous concernés sur « non éprouvé ».
+ * C'est exactement le comportement voulu — jamais un vert par défaut.
+ */
+const Racine: React.FC = () => {
+    const [etat, setEtat] = useState<EtatTourDeControle | null>(null);
+
+    useEffect(() => {
+        chargerManifestePreview().then((manifeste) => {
+            setEtat(construireEtat({ ...INSTANTANE, manifeste }));
+        });
+    }, []);
+
+    if (!etat) {
+        return (
+            <div className="min-h-screen bg-[#070D1E] text-slate-400 flex items-center justify-center text-sm">
+                Relevé de l'état d'AI Core…
+            </div>
+        );
+    }
+    return <Page etat={etat} />;
+};
+
+createRoot(document.getElementById('racine')!).render(<Racine />);

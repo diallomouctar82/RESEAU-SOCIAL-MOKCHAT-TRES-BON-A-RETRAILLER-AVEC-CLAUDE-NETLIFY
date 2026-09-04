@@ -12,8 +12,7 @@
 // 4 septembre 2026. Aucune donnée personnelle, aucun secret : des identifiants
 // d'agents, des noms d'outils et des booléens.
 
-import type { EntreesTourDeControle } from '../../services/aiCoreControlTowerModel';
-import manifeste from '../../public/ai-core-manifest.json';
+import type { EntreesTourDeControle, ManifesteDepot } from '../../services/aiCoreControlTowerModel';
 
 /** Les 4 outils du catalogue, avec leur interrupteur global réel. */
 const outils: EntreesTourDeControle['outils'] = [
@@ -50,8 +49,27 @@ const agentsBase: EntreesTourDeControle['agentsBase'] = [
     { id: 'h3', name: 'Fatou Ndiaye, CPA', is_human: true, is_active: true },
 ];
 
-export const INSTANTANE: EntreesTourDeControle = {
-    manifeste: manifeste as EntreesTourDeControle['manifeste'],
+/**
+ * Le manifeste n'est PAS importé statiquement.
+ *
+ * Il est produit au build (`scripts/build-ai-core-manifest.mjs`) et volontairement
+ * absent du dépôt : un `import` figé faisait échouer `tsc` sur tout checkout
+ * propre — c'est exactement ce qui a mis le Green Gate au rouge. Il est donc
+ * chargé à l'exécution, par le même chemin que la console d'administration, ce
+ * qui a un second mérite : les faits de code affichés ici se régénèrent à chaque
+ * build au lieu de se figer et de mentir en silence après un prochain commit.
+ */
+export async function chargerManifestePreview(): Promise<ManifesteDepot | null> {
+    try {
+        const reponse = await fetch('./ai-core-manifest.json', { cache: 'no-store' });
+        if (!reponse.ok) return null;
+        return (await reponse.json()) as ManifesteDepot;
+    } catch {
+        return null;
+    }
+}
+
+export const INSTANTANE: Omit<EntreesTourDeControle, 'manifeste'> = {
     outils,
     droits,
     agentsBase,
