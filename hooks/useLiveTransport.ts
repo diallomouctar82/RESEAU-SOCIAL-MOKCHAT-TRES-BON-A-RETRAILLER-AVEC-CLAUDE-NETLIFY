@@ -8,6 +8,7 @@ import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvi
 import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, LiveTransportDiagnostics, SendDataOptions } from '../services/live/liveTransportTypes';
 import { INTERPRETER_TRACK_NAME, describeDisconnectReason, isDuplicateIdentityReason, isInterpreterTrackName } from '../services/live/liveTransportTypes';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
+import { LiveAccessError, type LiveAccessRefusal } from '../services/live/liveAccessError';
 import { recordCallEvent } from '../services/calls/callDiagnostics';
 
 export interface RemoteParticipantMedia {
@@ -75,6 +76,17 @@ export interface UseLiveTransportOptions {
 export interface UseLiveTransportResult {
     connectionState: LiveConnectionState;
     error: string | null;
+    /**
+     * SAT-3 : refus NOMMÉ du serveur de jetons — `live_full` avec les chiffres
+     * réels quand le direct est plein, `transport_unconfigured` quand aucun
+     * transport n'est configuré. `null` quand l'échec n'en est pas un (panne
+     * réseau, 500) : l'écran doit alors garder son message d'interruption.
+     *
+     * Sans ce champ, tous les échecs se ressemblaient (`error` est une simple
+     * chaîne) et un direct complet s'affichait comme une « Connexion… » sans
+     * fin — la personne attendait une place qui ne viendrait jamais.
+     */
+    refusal: LiveAccessRefusal | null;
     /** HL-3 : qualité RÉELLE mesurée par le transport pour MA connexion (jamais estimée). */
     connectionQuality: LiveConnectionQuality;
     /** HL-3 : qualité rapportée pour le correspondant (appel à deux : le premier distant). */
@@ -274,6 +286,10 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // tentative — mesuré sur les transitions réelles du transport, jamais estimé.
     const [reconnectCount, setReconnectCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    // SAT-3 : le refus NOMMÉ du serveur, à côté du message d'erreur. Distinct
+    // de `error` à dessein — « le direct est complet » et « la ligne a lâché »
+    // n'appellent pas le même écran, et rien ne permettait de les distinguer.
+    const [refusal, setRefusal] = useState<LiveAccessRefusal | null>(null);
     const [localVideoTrack, setLocalVideoTrack] = useState<LiveTrackHandle | null>(null);
     const [localScreenShareTrack, setLocalScreenShareTrack] = useState<LiveTrackHandle | null>(null);
     const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
@@ -376,6 +392,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 await previousTeardown;
                 if (cancelled) return;
                 setError(null); // nouvelle tentative : l'erreur précédente ne la décrit plus.
+                setRefusal(null); // idem pour le refus : une place a pu se libérer entre-temps.
                 const { token, serverUrl } = await fetchLiveKitToken(roomName, participantName, canPublish, deviceId, conversationId);
                 if (cancelled) return;
 
@@ -548,6 +565,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     attemptRef.current = { inFlight: false, connected: false };
                     recordCallEvent('error', 'connexion en échec', err);
                     setError(err instanceof Error ? err.message : String(err));
+                    // SAT-3 : le serveur a nommé sa raison → l'écran peut la dire.
+                    // Sinon `null` : on ne transforme jamais une panne en « complet ».
+                    setRefusal(err instanceof LiveAccessError ? err.refusal : null);
                     // Mission AU : la pré-connexion d'un appel a échoué alors
                     // qu'une activation différée (décroché) l'attend, ou l'appelant
                     // n'a pas pu se connecter — on repart seul, jeton compris.
@@ -594,6 +614,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // la tentative en cours, pas l'échec passé.
     const retry = useCallback(() => {
         setError(null);
+        setRefusal(null);
         setConnectAttempt((n) => n + 1);
     }, []);
 
@@ -717,6 +738,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     return {
         connectionState,
         error,
+        refusal,
         connectionQuality,
         remoteConnectionQuality,
         sendData,
@@ -919,8 +941,13 @@ export interface LiveBadgeState {
  * transport) — plus jamais un « LIVE » rouge pulsant codé en dur pendant une
  * panne, une reconnexion ou un simple aperçu de démonstration.
  */
-export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean): LiveBadgeState {
+export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean, isFull = false): LiveBadgeState {
     if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200', isOnAir: false };
+    // SAT-3 : « COMPLET » passe AVANT « INTERROMPU ». Un direct plein n'a pas
+    // été interrompu — on n'y est jamais entré. Dire « interrompu » ferait
+    // croire à une panne et enverrait la personne chercher un problème qui
+    // n'existe pas chez elle.
+    if (isFull) return { label: 'COMPLET', className: 'bg-amber-500 text-slate-950', isOnAir: false };
     if (hasError) return { label: 'INTERROMPU', className: 'bg-rose-700 text-white', isOnAir: false };
     if (state === 'connected') return { label: 'LIVE', className: 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/40', isOnAir: true };
     if (state === 'reconnecting') return { label: 'RECONNEXION', className: 'bg-amber-500 text-slate-950 animate-pulse', isOnAir: false };

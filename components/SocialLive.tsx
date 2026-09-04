@@ -38,6 +38,8 @@ import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, send
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
 import { LiveParticipantsPanel, ROLE_LABELS } from './live/LiveParticipantsPanel';
+import { LiveFullNotice } from './live/LiveFullNotice';
+import { isLiveFull } from '../services/live/liveAccessError';
 import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
@@ -638,7 +640,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
   // Équipe 10 (L4) : badge et compteur dérivés de l'état RÉEL (session +
   // transport) — jamais un « LIVE » pulsant codé en dur ni un 1420 fictif.
-  const stageBadge = liveBadge(!!realSessionId, liveTransport.connectionState, !!liveTransport.error);
+  // SAT-3 : le direct est-il COMPLET ? Le serveur l'a dit explicitement
+  // (409 `live_full`, SAT-2). C'est un état à part entière — ni une panne, ni
+  // une connexion en cours — et l'écran doit le traiter comme tel.
+  const liveIsFull = isLiveFull(liveTransport.refusal);
+  const stageBadge = liveBadge(!!realSessionId, liveTransport.connectionState, !!liveTransport.error, liveIsFull);
   const viewerCount = realViewerCount({
     hasRealSession: !!realSessionId,
     connectionState: liveTransport.connectionState,
@@ -2732,7 +2738,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 issue ; la reconnexion automatique du transport (état
                 'reconnecting', déjà mappé par le provider) n'est plus
                 écrasée par le libellé de première connexion. */}
-            {realSessionId && liveTransport.error && (
+            {/* SAT-3 : « complet » n'est PAS une interruption — la porte a
+                refusé l'entrée. L'écran dédié ci-dessous le dit ; cette
+                bannière rouge et le point d'attente restent réservés aux vraies
+                pannes, sans quoi deux messages contradictoires cohabiteraient. */}
+            {realSessionId && liveTransport.error && !liveIsFull && (
               <div className="absolute top-4 right-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-600/90 text-white text-[11px] font-bold shadow-lg">
                 <span>Diffusion interrompue</span>
                 <button
@@ -2752,6 +2762,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               <div className="absolute top-4 right-4 z-30 px-3 py-1.5 rounded-xl bg-amber-500/90 text-slate-950 text-[11px] font-bold shadow-lg animate-pulse">
                 Connexion au direct…
               </div>
+            )}
+            {/* SAT-3 — LE cas que cette loupe existe pour supprimer : la porte
+                serveur a refusé (direct plein), et l'écran le DIT, avec les
+                chiffres réels du serveur, au lieu de laisser tourner un point
+                d'attente pour une place qui ne viendra jamais. */}
+            {realSessionId && liveIsFull && liveTransport.refusal && (
+              <LiveFullNotice
+                refusal={liveTransport.refusal}
+                onRetry={liveTransport.retry}
+                onLeave={onClose}
+              />
             )}
             {!realSessionId && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-xl bg-slate-800/95 border border-white/15 text-slate-200 text-[11px] font-bold shadow-lg">
