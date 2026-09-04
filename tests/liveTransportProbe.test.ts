@@ -8,8 +8,12 @@ import {
     describeLiveTransport,
     isRoomListing,
     judgeLiveTransport,
+    liveTransportVerdict,
+    toLiveKitApiUrl,
     type RawLiveTransportProbe,
 } from '../supabase/functions/health-guardian/liveTransportProbe';
+import { toLiveKitHttpUrl } from '../supabase/functions/livekit-token/capacityGate';
+import { EVALUATORS, evaluateAll, type RawMetrics } from '../supabase/functions/health-guardian/evaluate';
 
 const CONFIGURE = { configured: true };
 
@@ -146,6 +150,27 @@ describe('SAT-4 — contre-épreuves : la garde peut réellement virer au rouge'
         }
     });
 
+    it("l'adresse sondée est la MÊME que celle de la porte d'admission", () => {
+        // La sonde vit dans une fonction Edge, la porte dans une autre : elles
+        // ne peuvent pas partager le fichier. Si les deux conversions
+        // divergeaient, SAT-4 interrogerait une autre machine que celle qui
+        // laisse réellement entrer — et jugerait donc autre chose.
+        for (const entree of [
+            'wss://live.moknet.net',
+            'wss://live.moknet.net/',
+            'wss://live.moknet.net///',
+            'ws://localhost:7880',
+            'https://deja-en-http.example',
+            '  wss://espaces.example  ',
+            '',
+        ]) {
+            expect(toLiveKitApiUrl(entree)).toBe(toLiveKitHttpUrl(entree));
+        }
+        // Et la conversion attendue, écrite en clair pour qu'une dérive
+        // SIMULTANÉE des deux copies ne passe pas inaperçue.
+        expect(toLiveKitApiUrl('wss://live.moknet.net/')).toBe('https://live.moknet.net');
+    });
+
     it('un seul chemin mène à « operational » : 200 + liste + dans le budget', () => {
         // On fait varier UN facteur à la fois depuis le cas sain ; chacun doit
         // suffire à faire tomber le verdict.
@@ -156,5 +181,135 @@ describe('SAT-4 — contre-épreuves : la garde peut réellement virer au rouge'
         expect(judgeLiveTransport(sonde({ latencyMs: 9999 }), CONFIGURE).status).not.toBe('operational');
         expect(judgeLiveTransport(sonde({ reached: false }), CONFIGURE).status).not.toBe('operational');
         expect(judgeLiveTransport(sonde({}), { configured: false }).status).not.toBe('operational');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// SAT-4 — LE BRANCHEMENT RÉEL.
+//
+// Les tests ci-dessus prouvent la RÈGLE. Ceux qui suivent prouvent qu'elle
+// est effectivement CÂBLÉE : que la ligne du tableau de bord existe, qu'elle
+// est alimentée par l'observation réseau, et surtout qu'elle reste BLANCHE
+// quand la sonde n'a pas tourné — au lieu de virer au vert par défaut.
+// ─────────────────────────────────────────────────────────────────────────
+
+const LIGNE = 'live.transport_utilisable';
+
+/** Les trois blocs de base, vides : cette ligne n'en dépend pas. */
+function metriques(liveTransport?: RawMetrics['liveTransport']): RawMetrics {
+    return { catalogue: {}, data: {}, operations: {}, liveTransport };
+}
+
+function resultat(liveTransport?: RawMetrics['liveTransport']) {
+    const trouve = evaluateAll(metriques(liveTransport)).find((o) => o.lineId === LIGNE);
+    if (!trouve) throw new Error(`La ligne ${LIGNE} est absente des verdicts.`);
+    return trouve;
+}
+
+describe('SAT-4 — la règle est réellement branchée sur le tableau de bord', () => {
+    it("la ligne existe dans les évaluateurs du gardien de santé", () => {
+        expect(Object.keys(EVALUATORS)).toContain(LIGNE);
+    });
+
+    it('un transport sain rend la ligne VERTE, avec les chiffres mesurés', () => {
+        const verdict = resultat({
+            configured: true,
+            probe: { reached: true, httpStatus: 200, body: { rooms: [] }, latencyMs: 410, timedOut: false },
+        });
+        expect(verdict.status).toBe('vert');
+        expect(verdict.proofLevel).toBe('reel');
+        expect(verdict.measured).toContain('410');
+        expect(verdict.evidence).toMatchObject({ latencyMs: 410, rooms: 0 });
+        expect(verdict.gap).toBeUndefined();
+    });
+
+    it('LE CAS DÉCISIF CÂBLÉ — un 401 rend la ligne ROUGE, jamais verte', () => {
+        const verdict = resultat({
+            configured: true,
+            probe: { reached: true, httpStatus: 401, body: null, latencyMs: 667, timedOut: false },
+        });
+        expect(verdict.status).toBe('rouge');
+        expect(verdict.measured).toContain('aucun direct ne peut démarrer');
+        expect(verdict.gap).toContain('clé API');
+        expect(verdict.evidence).toMatchObject({ httpStatus: 401, reason: 'rejected' });
+    });
+
+    it('un transport lent rend la ligne ORANGE et nomme la protection perdue', () => {
+        const verdict = resultat({
+            configured: true,
+            probe: {
+                reached: true, httpStatus: 200, body: { rooms: [{}] },
+                latencyMs: SEUIL_DEGRADE_MS + 1, timedOut: false,
+            },
+        });
+        expect(verdict.status).toBe('orange');
+        expect(verdict.gap).toContain('saturation');
+    });
+
+    it('une expiration de délai rend la ligne ROUGE', () => {
+        const verdict = resultat({
+            configured: true,
+            probe: { reached: false, httpStatus: null, body: null, latencyMs: 5000, timedOut: true },
+        });
+        expect(verdict.status).toBe('rouge');
+        expect(verdict.evidence).toMatchObject({ reason: 'timeout' });
+    });
+
+    it("SONDE NON EXÉCUTÉE = BLANC, jamais vert — ne pas avoir regardé n'est pas un constat", () => {
+        const verdict = resultat(undefined);
+        expect(verdict.status).toBe('blanc');
+        expect(verdict.proofLevel).toBe('non_eprouve');
+        expect(verdict.probeError).toContain("n'a pas été exécutée");
+    });
+
+    it("AUCUNE configuration active = BLANC, jamais rouge — c'est une absence de mesure, pas une panne", () => {
+        // La ligne « Transport temps réel configuré » dit déjà, et elle seule,
+        // qu'aucune configuration n'existe. Compter rouge ici pénaliserait
+        // deux fois le même défaut dans la note globale.
+        const verdict = resultat({ configured: false, probe: null });
+        expect(verdict.status).toBe('blanc');
+        expect(verdict.proofLevel).toBe('non_eprouve');
+        expect(verdict.probeError).toContain('Aucun serveur de direct configuré');
+    });
+
+    it('les autres lignes continuent de vivre quand la sonde de transport manque', () => {
+        // Contre-épreuve du filet : une sonde réseau absente ne doit jamais
+        // faire tomber le reste du tableau de bord.
+        const verdicts = evaluateAll(metriques(undefined));
+        expect(verdicts.length).toBe(Object.keys(EVALUATORS).length);
+        expect(verdicts.filter((o) => o.lineId !== LIGNE).some((o) => o.status !== 'blanc')).toBe(true);
+    });
+});
+
+describe('SAT-4 — contre-épreuves du verdict de tableau de bord', () => {
+    it('AUCUN état non opérationnel ne peut produire un vert', () => {
+        const rouges = [
+            judgeLiveTransport(sonde({ httpStatus: 401, body: null }), CONFIGURE),
+            judgeLiveTransport(sonde({ httpStatus: 503, body: null }), CONFIGURE),
+            judgeLiveTransport(sonde({ httpStatus: 404, body: null }), CONFIGURE),
+            judgeLiveTransport(sonde({ body: '<html>' }), CONFIGURE),
+            judgeLiveTransport(sonde({ reached: false, timedOut: true }), CONFIGURE),
+            judgeLiveTransport(sonde({ reached: false, timedOut: false }), CONFIGURE),
+            judgeLiveTransport(sonde({ latencyMs: SEUIL_DEGRADE_MS + 1 }), CONFIGURE),
+        ];
+        for (const health of rouges) {
+            if (health.status === 'unconfigured') throw new Error('cas hors périmètre');
+            expect(liveTransportVerdict(health).status).not.toBe('vert');
+        }
+    });
+
+    it('tout verdict non vert porte un écart écrit — jamais un rouge muet', () => {
+        for (const health of [
+            judgeLiveTransport(sonde({ httpStatus: 403, body: null }), CONFIGURE),
+            judgeLiveTransport(sonde({ httpStatus: 500, body: null }), CONFIGURE),
+            judgeLiveTransport(sonde({ body: {} }), CONFIGURE),
+            judgeLiveTransport(sonde({ reached: false }), CONFIGURE),
+            judgeLiveTransport(sonde({ latencyMs: 9999 }), CONFIGURE),
+        ]) {
+            if (health.status === 'unconfigured') throw new Error('cas hors périmètre');
+            const verdict = liveTransportVerdict(health);
+            expect(verdict.status).not.toBe('vert');
+            expect(verdict.gap && verdict.gap.length > 20).toBe(true);
+        }
     });
 });

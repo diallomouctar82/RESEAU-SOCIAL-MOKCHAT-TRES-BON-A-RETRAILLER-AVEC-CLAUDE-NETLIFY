@@ -130,6 +130,85 @@ export function judgeLiveTransport(
 }
 
 /**
+ * L'URL de l'API serveur (twirp), déduite de l'URL de transport.
+ *
+ * La configuration porte l'URL du média (`wss://live.moknet.net`) ; l'API
+ * serveur vit sur le même hôte, en HTTP.
+ *
+ * Copie volontaire de `livekit-token/capacityGate.ts::toLiveKitHttpUrl` : une
+ * fonction Edge ne peut pas importer le dossier d'une autre. La copie est
+ * tenue par un test de PARITÉ qui exécute les deux implémentations sur les
+ * mêmes entrées — si l'une dérive, la suite vire au rouge au lieu de laisser
+ * la sonde interroger une autre adresse que la porte d'admission.
+ */
+export function toLiveKitApiUrl(serverUrl: string): string {
+    const trimmed = (serverUrl ?? '').trim().replace(/\/+$/, '');
+    if (trimmed.startsWith('wss://')) return `https://${trimmed.slice('wss://'.length)}`;
+    if (trimmed.startsWith('ws://')) return `http://${trimmed.slice('ws://'.length)}`;
+    return trimmed;
+}
+
+/** Le verdict traduit dans le vocabulaire du tableau de bord de santé. */
+export interface LiveTransportVerdict {
+    status: 'vert' | 'jaune' | 'orange' | 'rouge';
+    measured: string;
+    gap?: string;
+    evidence?: Record<string, unknown>;
+}
+
+/**
+ * Du verdict technique à la ligne de santé.
+ *
+ * `unconfigured` n'apparaît pas ici, et c'est délibéré : « rien n'est branché »
+ * n'est pas une panne du transport, c'est une ABSENCE DE MESURE. L'appelant
+ * doit donc la traiter en BLANC (non éprouvé) plutôt que de la faire passer
+ * pour un constat — la ligne « Transport temps réel configuré » dit déjà, et
+ * elle seule, si une configuration existe. Rendre `unconfigured` rouge ici
+ * compterait le même défaut deux fois dans la note.
+ */
+export function liveTransportVerdict(
+    health: Exclude<LiveTransportHealth, { status: 'unconfigured' }>,
+): LiveTransportVerdict {
+    switch (health.status) {
+        case 'operational':
+            return {
+                status: 'vert',
+                measured: describeLiveTransport(health),
+                evidence: { latencyMs: health.latencyMs, rooms: health.rooms, seuilDegradeMs: SEUIL_DEGRADE_MS },
+            };
+        case 'degraded':
+            return {
+                status: 'orange',
+                measured: describeLiveTransport(health),
+                gap:
+                    `L'API répond, mais au-delà de ${SEUIL_DEGRADE_MS} ms la porte d'admission cesse ` +
+                    "d'attendre et laisse entrer sans vérifier : le direct fonctionne, la protection " +
+                    'contre la saturation non.',
+                evidence: { latencyMs: health.latencyMs, rooms: health.rooms, seuilDegradeMs: SEUIL_DEGRADE_MS },
+            };
+        case 'unusable':
+            return {
+                status: 'rouge',
+                measured: describeLiveTransport(health),
+                gap: health.reason === 'rejected'
+                    ? "Le serveur vit et refuse nos identifiants : c'est le cas qu'un simple ping sur `/` " +
+                      'déclarerait vert. Vérifier que la clé API du VPS et celle du coffre sont bien la même.'
+                    : "Le serveur est joignable mais ne rend pas la liste des directs : aucun direct ne peut démarrer.",
+                evidence: { httpStatus: health.httpStatus, reason: health.reason },
+            };
+        case 'unreachable':
+            return {
+                status: 'rouge',
+                measured: describeLiveTransport(health),
+                gap: health.reason === 'timeout'
+                    ? "Aucune réponse dans le délai imparti : aucun direct ne peut démarrer."
+                    : "Aucune réponse du tout : aucun direct ne peut démarrer.",
+                evidence: { reason: health.reason },
+            };
+    }
+}
+
+/**
  * Une phrase pour un humain, sans jargon et sans jamais promettre plus que ce
  * qui a été observé.
  */

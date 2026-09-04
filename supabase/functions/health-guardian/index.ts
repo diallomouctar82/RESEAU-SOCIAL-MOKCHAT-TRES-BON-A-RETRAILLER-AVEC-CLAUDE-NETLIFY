@@ -18,8 +18,10 @@
 //   • lire / diagnostiquer → administrateur
 //   • réparer / restaurer  → Admin Général (super_admin) uniquement
 
+import { AccessToken } from 'npm:livekit-server-sdk@2.18.0';
 import { createServiceRoleClient, createUserScopedClient } from './supabase.ts';
 import { evaluateAll, ProbeOutcome, RawMetrics } from './evaluate.ts';
+import { SEUIL_DEGRADE_MS, type RawLiveTransportProbe, toLiveKitApiUrl } from './liveTransportProbe.ts';
 
 // ─────────────────────────── CORS ───────────────────────────
 //
@@ -129,11 +131,130 @@ async function verifyPlan(token: string): Promise<PlanClaims | null> {
 
 type UserClient = ReturnType<typeof createUserScopedClient>;
 
+// ───────────── SAT-4 : LA SEULE SONDE QUI SORT DE LA BASE ─────────────
+//
+// Tout le reste de ce tableau de bord interroge Postgres. Celle-ci appelle le
+// serveur LiveKit — parce que c'est le seul moyen de savoir si un direct peut
+// réellement démarrer. La règle de décision, elle, vit dans
+// `liveTransportProbe.ts` et ne fait aucun réseau : ici on OBSERVE, là-bas on
+// JUGE. Les tests exécutent le jugement réel, pas une imitation.
+
+/**
+ * Délai au-delà duquel on abandonne l'appel.
+ *
+ * DÉRIVÉ du seuil de dégradation plutôt que choisi à part, et ce n'est pas un
+ * détail : si on coupait AU seuil, l'état « dégradé » deviendrait
+ * inobservable — un serveur qui répond en 2 s serait déclaré INJOIGNABLE
+ * alors qu'il répond. La garde mentirait dans le sens alarmant, ce qui est
+ * aussi grave qu'un faux vert. L'écrire comme un calcul, et non comme une
+ * constante voisine, empêche les deux valeurs de se croiser un jour.
+ */
+const PROBE_TIMEOUT_MS = Math.max(5_000, SEUIL_DEGRADE_MS * 2);
+
+/** Le jeton de la sonde : lecture seule, très court, et rien d'autre. */
+const PROBE_TOKEN_TTL_S = 60;
+
+interface LiveTransportConfigRow {
+    server_url: string;
+    api_key: string;
+    api_secret: string;
+}
+
+/**
+ * Observe le transport du direct. Ne juge pas, ne lève jamais.
+ *
+ * L'appel émis est exactement celui que `livekit-token` fait pour laisser
+ * entrer quelqu'un (`POST /twirp/livekit.RoomService/ListRooms`), signé par le
+ * même SDK et la même clé. Ce que la sonde éprouve est donc précisément ce
+ * dont dépend un direct — pas une approximation.
+ */
+async function observeLiveTransport(): Promise<{ configured: boolean; probe: RawLiveTransportProbe | null }> {
+    const service = createServiceRoleClient();
+    const environment = Deno.env.get('LIVE_TRANSPORT_ENVIRONMENT') ?? 'development';
+
+    const { data: config } = await service
+        .rpc('get_live_transport_config_internal', { p_environment: environment })
+        .maybeSingle<LiveTransportConfigRow>();
+
+    if (!config?.server_url || !config?.api_key || !config?.api_secret) {
+        return { configured: false, probe: null };
+    }
+
+    let jeton: string;
+    try {
+        const at = new AccessToken(config.api_key, config.api_secret, {
+            identity: 'health-guardian',
+            ttl: PROBE_TOKEN_TTL_S,
+        });
+        // `roomList` seul : la sonde peut LIRE la liste des directs, jamais en
+        // créer un, en rejoindre un, ni publier quoi que ce soit.
+        at.addGrant({ roomList: true });
+        jeton = await at.toJwt();
+    } catch (err) {
+        // Un jeton non signable est un défaut de configuration, pas une panne
+        // du serveur : on le dit sans accuser le transport.
+        console.error('health-guardian: signature du jeton de sonde impossible', err);
+        return { configured: false, probe: null };
+    }
+
+    const url = `${toLiveKitApiUrl(config.server_url)}/twirp/livekit.RoomService/ListRooms`;
+    const controller = new AbortController();
+    const minuterie = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    const debut = Date.now();
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${jeton}`, 'Content-Type': 'application/json' },
+            body: '{}',
+            signal: controller.signal,
+        });
+        const texte = await res.text();
+        // Le corps est lu SANS supposer qu'il est du JSON : un reverse-proxy
+        // égaré rend volontiers une page HTML avec un 200. `judgeLiveTransport`
+        // exige la forme réelle du contrat, et un corps illisible arrive donc
+        // ici en `null` — ce qui le range en « inutilisable », jamais en succès.
+        let corps: unknown = null;
+        try { corps = JSON.parse(texte); } catch { corps = texte; }
+        return {
+            configured: true,
+            probe: {
+                reached: true,
+                httpStatus: res.status,
+                body: corps,
+                latencyMs: Date.now() - debut,
+                timedOut: false,
+            },
+        };
+    } catch (err) {
+        const expire = err instanceof DOMException && err.name === 'AbortError';
+        return {
+            configured: true,
+            probe: {
+                reached: false,
+                httpStatus: null,
+                body: null,
+                latencyMs: Date.now() - debut,
+                timedOut: expire,
+            },
+        };
+    } finally {
+        clearTimeout(minuterie);
+    }
+}
+
 async function runProbes(userClient: UserClient): Promise<{ outcomes: ProbeOutcome[]; error?: string }> {
-    const [cat, data, ops] = await Promise.all([
+    const [cat, data, ops, liveTransport] = await Promise.all([
         userClient.rpc('health_probe_catalogue'),
         userClient.rpc('health_probe_data'),
         userClient.rpc('health_probe_operations'),
+        // Ne lève jamais : une sonde réseau qui casserait la fonction entière
+        // ferait disparaître TOUTES les lignes du tableau de bord pour un seul
+        // service indisponible.
+        observeLiveTransport().catch((err) => {
+            console.error('health-guardian: sonde de transport en échec', err);
+            return undefined;
+        }),
     ]);
 
     // Une sonde en échec ne produit PAS de vert par défaut : on renvoie
@@ -149,6 +270,7 @@ async function runProbes(userClient: UserClient): Promise<{ outcomes: ProbeOutco
         catalogue: (cat.data ?? {}) as Record<string, unknown>,
         data: (data.data ?? {}) as Record<string, unknown>,
         operations: (ops.data ?? {}) as Record<string, unknown>,
+        liveTransport,
     };
     return { outcomes: evaluateAll(metrics) };
 }
