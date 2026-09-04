@@ -1163,26 +1163,26 @@ Chaque décision respecte le formalisme strict suivant :
      toutes les relations visées sont protégées par une clé étrangère
      `ON DELETE CASCADE`. Les boutons de purge correspondants ont été retirés
      — ils n'auraient jamais rien purgé et auraient masqué la vraie cause.
-  2. **Le lien profond a dû être créé** : l'application écrivait le hash de
-     l'URL depuis la LOOP I4 mais ne l'a jamais relu. Aucune adresse ne pouvait
-     ouvrir un écran précis. `services/navigation/deepLink.ts` corrige la cause,
-     pas le symptôme, et filtre les hash d'authentification Supabase.
-  3. **Un défaut d'observabilité a été mis au jour et corrigé** : le bandeau
-     Super Admin affichait `Diallo OS v2.5 — Supabase Cloud`, chaîne écrite en
-     dur, donc identique **au bit près** en production et dans un aperçu.
-     Conséquence mesurée : trois constats successifs « je ne vois aucun
-     changement » alors que le changement existait, mais sur une autre adresse.
-     Le bandeau nomme désormais sa propre version à partir de ce que Netlify
-     fournit réellement, et passe en ambre hors production.
+  2. **Deux corrections connexes ont été construites, puis RETIRÉES du
+     périmètre.** Un lien profond (`#super-admin/sante`) et un repère de
+     version dans le bandeau Super Admin. Toutes deux répondaient à un vrai
+     défaut, toutes deux touchaient du code qui fonctionne déjà — `App.tsx`
+     pour la navigation, `services/auth.ts` pour la connexion, l'en-tête pour
+     le bandeau. La Direction ayant limité la mission à l'implantation du
+     bouton, elles ont été annulées par `git revert` : `App.tsx`,
+     `vite.config.ts` et `services/auth.ts` sont identiques à la production,
+     à la ligne près. Les défauts qu'elles corrigeaient restent ouverts et
+     documentés ici.
 * **Éléments techniques concernés** : `services/health/` (types, registre,
   moteur de notation, service client à 8 sondes navigateur),
   `supabase/migrations/20260904150000_health_guardian.sql` (table
   `health_snapshots`, 13 fonctions `health_*`), `supabase/functions/health-guardian/`,
   `supabase/rollback/20260904150000_health_guardian_rollback.sql`,
   `components/admin/AdminHealthTab.tsx`, `components/AdminDashboard.tsx`,
-  `services/navigation/deepLink.ts`, `services/build/buildInfo.ts`,
-  `vite.config.ts`, `tests/healthScore.test.ts`, `tests/healthGuardian.test.ts`,
-  `tests/deepLink.test.ts`, `tests/buildInfo.test.ts`.
+  `tests/healthScore.test.ts`, `tests/healthGuardian.test.ts`.
+  Un seul fichier existant est modifié : `components/AdminDashboard.tsx`,
+  +25 lignes purement additives (un import d'icône, un import de composant,
+  un membre d'union de type, le bouton, le bloc de rendu).
 * **Statut** : `Développé`, `Testé` — tsc 0 erreur, **917 tests verts (67
   fichiers)**, build propre. Déploiement contrôlé effectué **côté base
   seulement** : migration appliquée et Edge Function `health-guardian` ACTIVE

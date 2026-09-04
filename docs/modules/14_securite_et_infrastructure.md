@@ -97,12 +97,13 @@ la production, pas ce que le dépôt prétend.
   sont protégées par une clé étrangère `ON DELETE CASCADE`. Les boutons de
   purge ont été retirés : ils n'auraient jamais rien purgé et auraient masqué
   la vraie cause.
-- **L'URL n'ouvrait aucun écran.** Le hash était écrit depuis la LOOP I4 mais
-  jamais relu. `services/navigation/deepLink.ts` corrige la cause.
-- **Le bandeau Super Admin ne disait pas quelle version il affichait.**
-  `Diallo OS v2.5 — Supabase Cloud` était identique au bit près en production
-  et dans un aperçu. Corrigé par `services/build/buildInfo.ts` : le bandeau
-  nomme sa version et passe en ambre hors production.
+- **Deux défauts réels ont été trouvés puis laissés ouverts.** L'URL n'ouvre
+  aucun écran (le hash est écrit depuis la LOOP I4, jamais relu), et le
+  bandeau Super Admin affiche une chaîne écrite en dur, identique au bit près
+  en production et dans un aperçu. Les deux corrections ont été construites,
+  puis retirées : elles touchent `App.tsx`, `services/auth.ts` et l'en-tête,
+  c'est-à-dire du code qui fonctionne déjà, alors que la mission était limitée
+  à l'implantation du bouton. Elles restent à traiter, séparément.
 
 ### 6.6. Retour arrière
 
