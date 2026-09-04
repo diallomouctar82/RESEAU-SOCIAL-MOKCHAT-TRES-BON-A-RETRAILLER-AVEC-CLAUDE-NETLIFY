@@ -52,9 +52,43 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉPLOIEMENT & VALIDATION
-- **Statut** : 100% Opérationnel et conforme à la feuille de route.
-- **Dernière validation** : Compilation complète sans régression (`compile_applet`).
-- **Tests** : Navigation multi-programmes validée, génération de cours par chapitre officiel active, examens blancs chronométrés opérationnels, équivalences internationales consultables.
+
+> **Correction du 03/09/2026.** Cette section annonçait « Statut : 100 %
+> Opérationnel » et « examens blancs chronométrés opérationnels ». C'était
+> **faux au regard de la base** : les quatre tables du domaine sont vides et
+> aucune n'est lue par le code. L'affirmation est corrigée ici — une
+> documentation qui ment est un défaut au même titre qu'un bug.
+
+**RÉEL et vérifié**
+- `services/curriculumRegistry.ts` : **962 lignes structurées**, 7 systèmes
+  éducatifs (cycles, niveaux, autorité officielle, année de revue, URL de
+  vérification), réellement consommé par `Campus.tsx`,
+  `CampusEquivalenceComparator.tsx`, `CampusEducationMap.tsx` et
+  `campusPedagogicalEngine.ts`. Navigation multi-programmes et équivalences
+  internationales fonctionnent sur cette base.
+- Coach multimodal : voix, vision (`analyzeImage`), OCR, scanner d'exercice —
+  branchés sur la passerelle IA réelle.
+
+**NON PERSISTÉ — le vrai manque** (mesuré le 03/09/2026)
+| Table | Lignes | Lue par le code ? |
+|---|---|---|
+| `courses` | 0 | non |
+| `enrollments` | 0 | non |
+| `certificates` | 0 | non |
+| `exam_sessions` | 0 | non |
+| `profile_skills` / `profile_badges` | 0 | lecture seule (`services/profile.ts`) |
+
+**Conséquence honnête** : le moteur pédagogique vit intégralement en mémoire de
+session — fermer l'onglet efface tout. Aucun parcours d'apprenant n'a jamais
+été enregistré, aucun examen blanc n'a jamais été conservé. C'est précisément
+ce que la branche **MokNet Live Campus Éducation** vient combler :
+voir `docs/LIVE_CAMPUS_EDUCATION.md` (loupes LV-12 à LV-18).
+
+**Limite du référentiel** : `curriculumRegistry` est un **instantané maintenu
+à la main** (champ `lastCurriculumReviewYear`, `verificationSourceUrl`), pas un
+flux des ministères. Ces deux informations doivent être affichées à
+l'organisateur d'un cours, qui reste responsable de la conformité au programme
+en vigueur.
 
 ---
 

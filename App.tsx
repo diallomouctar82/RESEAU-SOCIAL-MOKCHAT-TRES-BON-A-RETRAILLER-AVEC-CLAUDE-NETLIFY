@@ -46,7 +46,10 @@ const AppContent = () => {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   
-  const [activeTab, setActiveTab] = useState('home');
+  // DS-M2 (menu « Miroir d'eau ») — le réseau social est l'écran d'accueil
+  // par défaut, invariant fixé par la Direction. 'home' (Dashboard) reste
+  // atteignable comme n'importe quel autre onglet, simplement plus par défaut.
+  const [activeTab, setActiveTab] = useState('social');
   const [selectedAgent, setSelectedAgent] = useState<Agent>(AGENTS[0]);
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
   // Recherche universelle : remontée ici (au lieu d'un état local à Layout)
@@ -281,7 +284,9 @@ const AppContent = () => {
 
   // Écran de chargement discret pendant la vérification de session
   if (isAuthChecking) {
-      return <div className="h-screen bg-slate-50 flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>;
+      // DS-M2c : même fond que les écrans qui suivent — sans quoi l'ouverture
+      // de l'application commence par un aplat gris étranger à l'habillage.
+      return <div data-miroir className="h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
   if (!isAuthenticated) {
@@ -318,7 +323,7 @@ const AppContent = () => {
 
       {activeTab === 'google-meet' && <GoogleMeetCenter />}
 
-      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} onOpenDirectChat={(_, member) => member && setPendingDirectChatMember(member)} />}
+      {activeTab === 'social' && <SocialFeed onOpenLive={handleOpenLive} onOpenDirectChat={(_, member) => member && setPendingDirectChatMember(member)} onNavigate={setActiveTab} />}
 
       {activeTab === 'world' && <WorldHub onNavigateToAgent={handleNavigateToAgent} onNavigate={setActiveTab} />}
 

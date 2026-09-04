@@ -31,6 +31,34 @@ function mapMessageRow(row: LiveMessageRow): LiveChatMessage {
     };
 }
 
+/**
+ * EX-3 — Faire PARLER un expert dans le direct, sous sa propre identité.
+ *
+ * `live_messages_insert_own` exige `author_id = auth.uid()` : un expert n'a
+ * aucun compte derrière, donc sans ce canal sa parole serait soit attribuée à
+ * un humain (malhonnête), soit locale à un seul onglet — c'est exactement le
+ * défaut d'origine, « les experts n'ont jamais pu répondre ».
+ *
+ * La fonction `post_live_agent_message` (SECURITY DEFINER) vérifie EN BASE que
+ * l'appelant anime ou modère ce direct ET que l'expert y est réellement sur
+ * scène ; le nom affiché est relu depuis `live_speakers`, jamais pris dans les
+ * paramètres — l'identité n'est donc pas usurpable, même par un appel direct
+ * à l'API.
+ */
+export async function postLiveAgentMessage(
+    sessionId: string,
+    agentId: string,
+    text: string,
+): Promise<string> {
+    const { data, error } = await supabase.rpc('post_live_agent_message', {
+        p_session_id: sessionId,
+        p_agent_id: agentId,
+        p_text: text,
+    });
+    if (error) throw new Error(error.message);
+    return data as string;
+}
+
 export async function sendLiveMessage(
     sessionId: string,
     author: { id: string; name: string; avatar?: string },

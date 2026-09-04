@@ -171,7 +171,14 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
                 audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
                 publishDefaults: { audioPreset: AudioPresets.speech, dtx: true, red: true },
             })
-            : new Room({ adaptiveStream: true, dynacast: true });
+            // LV-6 : `singlePeerConnection: false` vaut AUSSI pour le LIVE. La
+            // raison est propre au serveur (1.8.4 ne connaît pas le chemin
+            // « v1 »), pas au type de session — le banc LV-6 a montré la même
+            // erreur `WebSocket … /rtc/v1` des deux côtés d'un direct, donc les
+            // mêmes 0,8 s perdus avant le premier octet. `adaptiveStream` et
+            // `dynacast`, eux, restent activés pour le LIVE : ils y gardent
+            // tout leur sens (N vignettes dont beaucoup hors écran).
+            : new Room({ adaptiveStream: true, dynacast: true, singlePeerConnection: false });
         this.room = room;
 
         // AU-7 : tout ce que le SDK sait d'une ligne qui vacille va au rapport

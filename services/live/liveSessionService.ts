@@ -160,6 +160,63 @@ export function isStageRole(role: string | null | undefined): boolean {
     return !!role && (STAGE_ROLES as readonly string[]).includes(role);
 }
 
+/**
+ * EX-2 — Sépare le roster relu en base entre HUMAINS et EXPERTS.
+ *
+ * Depuis EX-2, `live_speakers` contient les deux : un humain porte un
+ * `user_id`, un expert porte un `agent_id` et `is_ai`. Tout le code
+ * d'animation (couper un micro, retirer quelqu'un, mains levées, retrouver ma
+ * propre ligne) ne doit continuer de voir QUE des comptes — d'où cette
+ * séparation en un seul endroit, testable, plutôt qu'un filtre recopié.
+ */
+export function splitRosterHumansAndAgents(participants: LiveStageParticipant[]): {
+    humans: LiveStageParticipant[];
+    agents: LiveStageParticipant[];
+} {
+    const humans: LiveStageParticipant[] = [];
+    const agents: LiveStageParticipant[] = [];
+    for (const p of participants) {
+        if (p.isAi && p.agentId) agents.push(p);
+        else humans.push(p);
+    }
+    return { humans, agents };
+}
+
+/**
+ * EX-2 — Qui occupe réellement la scène côté agents, et d'après QUELLE source.
+ *
+ * La règle tient en une phrase : dès qu'un direct réel existe, la base fait
+ * autorité. C'est ce qui manquait — chaque client réinjectait son propre
+ * copilote à chaque rendu, si bien que la scène n'était identique que par
+ * coïncidence et qu'un retrait décidé par l'animateur ne descendait que chez
+ * lui. Hors session persistée (aperçu, direct non démarré), il n'y a rien de
+ * plus vrai à lire que l'état local : on le garde.
+ *
+ * `catalogue` est la liste des experts connus du client (constants.ts::AGENTS) ;
+ * une ligne dont l'agent est inconnu est ignorée plutôt qu'affichée en carte
+ * vide.
+ */
+export function deriveStageAgentIds(input: {
+    hasRealSession: boolean;
+    copilotId?: string;
+    rosterAgentIds: string[];
+    retiredAgentIds: string[];
+    knownAgentIds: string[];
+}): string[] {
+    const connus = new Set(input.knownAgentIds);
+    const ordre: string[] = [];
+    const vus = new Set<string>();
+    const ajouter = (id?: string) => {
+        if (!id || vus.has(id) || !connus.has(id)) return;
+        vus.add(id);
+        ordre.push(id);
+    };
+    if (!input.hasRealSession) ajouter(input.copilotId);
+    for (const id of input.rosterAgentIds) ajouter(id);
+    const retires = new Set(input.retiredAgentIds);
+    return ordre.filter((id) => !retires.has(id));
+}
+
 export type SelfStagePresence = 'promote' | 'demote' | 'none';
 
 /**
@@ -375,6 +432,217 @@ export async function updateParticipantRole(
         .update({ role })
         .eq('session_id', sessionId)
         .eq('user_id', targetUserId);
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * LV-3 — Coupe (ou rend) le micro d'un participant. La MÊME fonction sert à
+ * l'hôte sur autrui et à chacun sur soi-même : la policy
+ * `live_speakers_write_host_or_moderator` couvre déjà les deux cas
+ * (`is_live_moderator_or_host(session_id) OR user_id = auth.uid()`), aucune
+ * migration n'est nécessaire. C'est la BASE qui fait autorité — la personne
+ * visée applique la coupure en relisant sa propre ligne (voir
+ * `deriveSelfMediaDirective`), jamais sur un message éphémère qui pourrait se
+ * perdre.
+ */
+export async function setParticipantMuted(sessionId: string, targetUserId: string, muted: boolean): Promise<void> {
+    const { error } = await supabase
+        .from('live_speakers')
+        .update({ is_muted: muted })
+        .eq('session_id', sessionId)
+        .eq('user_id', targetUserId);
+    if (error) throw new Error(error.message);
+}
+
+/** LV-1 — Reflète en base l'état réel de MON micro/ma caméra, pour que les autres le voient dans le panneau. */
+export async function setOwnMediaState(
+    sessionId: string,
+    userId: string,
+    state: { isMuted?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean },
+): Promise<void> {
+    const patch: Record<string, boolean> = {};
+    if (state.isMuted !== undefined) patch.is_muted = state.isMuted;
+    if (state.isVideoOn !== undefined) patch.is_video_on = state.isVideoOn;
+    if (state.isScreenSharing !== undefined) patch.is_screen_sharing = state.isScreenSharing;
+    if (Object.keys(patch).length === 0) return;
+    const { error } = await supabase
+        .from('live_speakers')
+        .update(patch)
+        .eq('session_id', sessionId)
+        .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * LV-3 — Retire un participant du direct (hôte/modérateur). Même mécanique que
+ * `leaveLiveSession` (on pose `left_at`, on ne supprime jamais la ligne :
+ * l'historique de présence est conservé) — la personne visée le découvre en
+ * relisant sa propre ligne et quitte d'elle-même.
+ */
+export async function removeParticipant(sessionId: string, targetUserId: string): Promise<void> {
+    const { error } = await supabase
+        .from('live_speakers')
+        .update({ left_at: new Date().toISOString(), role: 'viewer', is_hand_raised: false })
+        .eq('session_id', sessionId)
+        .eq('user_id', targetUserId);
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * LV-3 — Décision pure : que doit-il m'arriver, d'après MA ligne en base ?
+ *
+ * Séparée du composant pour être testable sans navigateur, comme
+ * `deriveSelfStagePresence`. Deux règles seulement, mais toutes deux
+ * indispensables à l'honnêteté du direct :
+ *
+ * - `'kick'` : ma ligne porte un `left_at` alors que je me crois encore
+ *   présent — l'hôte m'a retiré, je dois réellement quitter le transport, pas
+ *   seulement afficher un message.
+ * - `'force-mute'` : la base me dit coupé alors que mon micro est ouvert. On
+ *   ne rend JAMAIS le micro automatiquement dans l'autre sens (base ouverte,
+ *   micro fermé) : je peux m'être coupé moi-même, et un « démute » subi serait
+ *   une prise de parole que je n'ai pas voulue.
+ */
+export function deriveSelfMediaDirective(input: {
+    leftAt: string | null;
+    isMutedInDb: boolean;
+    isMicOpenLocally: boolean;
+    isCurrentlyPresent: boolean;
+}): 'kick' | 'force-mute' | 'none' {
+    if (input.leftAt && input.isCurrentlyPresent) return 'kick';
+    if (input.leftAt) return 'none';
+    if (input.isMutedInDb && input.isMicOpenLocally) return 'force-mute';
+    return 'none';
+}
+
+/**
+ * LV-4 — Invite une personne dans le direct : une VRAIE notification chez
+ * elle, avec `target_action = 'live:<id>'` pour que le clic ouvre ce direct.
+ *
+ * Passe par la fonction `invite_to_live_session` (SECURITY DEFINER) parce que
+ * la policy `notifications_owner` interdit d'écrire une notification pour
+ * autrui — c'est précisément pourquoi l'invitation n'existait nulle part
+ * jusqu'ici. Les droits sont vérifiés côté base (animateur du direct,
+ * blocage respecté), jamais seulement à l'écran.
+ */
+export async function inviteToLiveSession(sessionId: string, inviteeId: string): Promise<void> {
+    const { error } = await supabase.rpc('invite_to_live_session', {
+        p_session_id: sessionId,
+        p_invitee_id: inviteeId,
+    });
+    if (error) throw new Error(error.message);
+}
+
+/**
+ * EX-2 — Faire MONTER un expert sur la scène, réellement et pour tout le monde.
+ *
+ * C'était le trou central de la fonctionnalité : convoquer un expert ne faisait
+ * qu'un `setState` local (`SocialLive.tsx::handleSummonExpert`), et le fichier
+ * l'assumait en commentaire — « les agents IA convoqués n'ont pas de ligne
+ * live_speakers ». L'expert n'existait donc que dans l'onglet de l'animateur ;
+ * aucun spectateur ne pouvait le voir, encore moins l'entendre.
+ *
+ * Une ligne `live_speakers` avec `user_id` NULL et `agent_id` renseigné est
+ * exactement ce que le schéma prévoit depuis l'origine (`is_ai`, `specialty`,
+ * `role='expert_ai'` déjà dans la contrainte CHECK, `user_id` déjà nullable) et
+ * ce que `mapSpeakerRow` sait déjà relire. Rien à reconstruire : il manquait
+ * l'écriture.
+ *
+ * Droits : `live_speakers_write_host_or_moderator` s'applique — la branche
+ * `user_id = auth.uid()` ne peut pas jouer (elle est NULL pour un agent), donc
+ * seul l'animateur ou un modérateur du direct peut convoquer. Un spectateur
+ * reçoit `42501`, et l'appelant doit le dire au lieu d'afficher un faux succès.
+ *
+ * Idempotence : l'index unique partiel `live_speakers_session_agent_active_idx`
+ * interdit deux lignes actives pour le même expert. Un doublon (`23505`) n'est
+ * donc pas une erreur à remonter — c'est « il est déjà sur scène ». En revanche
+ * un expert redescendu (`left_at` posé) peut être réinvité : la nouvelle ligne
+ * s'ajoute et l'ancienne reste comme historique de présence, exactement comme
+ * `leaveLiveSession` conserve celle d'un humain.
+ */
+export async function summonExpertToLive(
+    sessionId: string,
+    expert: { id: string; name: string; avatarUrl?: string; specialty?: string; isHuman?: boolean },
+): Promise<{ alreadyOnStage: boolean }> {
+    const { error } = await supabase.from('live_speakers').insert({
+        session_id: sessionId,
+        user_id: null,
+        agent_id: expert.id,
+        name: expert.isHuman ? expert.name : `${expert.name} (IA)`,
+        avatar: expert.avatarUrl || null,
+        role: expert.isHuman ? 'expert_human' : 'expert_ai',
+        is_ai: !expert.isHuman,
+        specialty: expert.specialty || null,
+        left_at: null,
+    });
+    // 23505 = l'index partiel a fait son travail : l'expert est déjà en scène.
+    if (error && (error as { code?: string }).code === '23505') return { alreadyOnStage: true };
+    if (error) throw new Error(error.message);
+    return { alreadyOnStage: false };
+}
+
+/**
+ * EX-5 — Mettre un expert EN AVANT sur la scène (ou l'en retirer avec `null`).
+ *
+ * Écrit sur la session elle-même pour que la mise en avant soit la même sur
+ * tous les écrans : dans l'état React de l'animateur, lui seul l'aurait vue.
+ * `live_sessions_update_host` réserve déjà l'écriture à l'animateur — un
+ * spectateur reçoit un refus, il n'y a rien de plus à vérifier ici.
+ */
+export async function setFeaturedAgent(sessionId: string, agentId: string | null): Promise<void> {
+    const { error } = await supabase
+        .from('live_sessions')
+        .update({ featured_agent_id: agentId })
+        .eq('id', sessionId);
+    if (error) throw new Error(error.message);
+}
+
+/** EX-5 — Qui est en avant à l'instant où je rejoins (l'abonnement ne livre que les CHANGEMENTS). */
+export async function fetchFeaturedAgent(sessionId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .select('featured_agent_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+    if (error || !data) return null;
+    return (data as { featured_agent_id: string | null }).featured_agent_id ?? null;
+}
+
+/**
+ * EX-5 — Diffuse la mise en avant à tous les participants. Canal distinct de
+ * `subscribeToLiveSessionUniverse` à dessein : ce chemin-là est déjà testé et
+ * en production, on ne le modifie pas pour ajouter une fonctionnalité.
+ */
+export function subscribeToFeaturedAgent(sessionId: string, onChange: (agentId: string | null) => void): () => void {
+    if (!isSupabaseConfigured) return () => {};
+    try {
+        const channel = supabase
+            .channel(`live-session-featured:${sessionId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: `id=eq.${sessionId}` },
+                (payload) => onChange((payload.new as { featured_agent_id: string | null }).featured_agent_id ?? null),
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    } catch {
+        return () => {};
+    }
+}
+
+/**
+ * EX-2 — Faire REDESCENDRE un expert. Même mécanique que pour un humain
+ * (`removeParticipant`) : on pose `left_at`, on ne supprime jamais la ligne,
+ * et c'est ce que TOUS les clients relisent — la carte disparaît donc chez
+ * chacun, pas seulement chez l'animateur qui a cliqué.
+ */
+export async function dismissExpertFromLive(sessionId: string, agentId: string): Promise<void> {
+    const { error } = await supabase
+        .from('live_speakers')
+        .update({ left_at: new Date().toISOString() })
+        .eq('session_id', sessionId)
+        .eq('agent_id', agentId)
+        .is('left_at', null);
     if (error) throw new Error(error.message);
 }
 

@@ -465,6 +465,354 @@
         background-repeat: no-repeat;
         animation: droplet-float 14s ease-in-out infinite;
       }
+
+      /* ================= DS-L1 — STUDIO LIVE, image de référence =========
+         Direction arrêtée par la Direction le 03/09/2026 sur une image
+         précise : un abysse bleu-vert très sombre, une COLONNE D'EAU
+         lumineuse qui sépare les deux zones (la matière fait la mise en
+         page, ce n'est pas une bordure), des panneaux de verre à filet
+         cyan, la vidéo DANS le verre avec pastille + onde de voix, des
+         commandes en orbes ronds, des bulles qui montent À L'INTÉRIEUR des
+         cartes, et « ● EN DIRECT » en petites capitales espacées.
+
+         Ces variables sont posées sur [data-live-universe] (attribut porté
+         par la racine du LIVE uniquement) et NON sur :root : --water-accent
+         de :root est consommé par la goutte de la messagerie (validée le
+         01/09) — la recalibrer ici l'aurait déplacée sans qu'on le demande.
+         Les 6 autres univers ne redéfinissent que la teinte de l'abysse :
+         une architecture, 7 ambiances, jamais 7 familles de classes. */
+      [data-live-universe] {
+        --live-abyss-a: #0a2430;
+        --live-abyss-b: #04121a;
+        --live-glow: rgba(127, 217, 230, 0.18);
+        --live-line: rgba(160, 235, 245, 0.2);
+        --live-line-top: rgba(214, 248, 253, 0.42);
+        --live-pane-a: rgba(255, 255, 255, 0.055);
+        --live-pane-b: rgba(9, 38, 48, 0.42);
+        --live-ink: #e6f8fb;
+        --live-ink-soft: #93bcc7;
+        --live-accent: var(--water-accent, #7fd9e6);
+      }
+      [data-live-universe="crystal"] { --live-accent: #7fd9e6; }
+      [data-live-universe="futuristic_blue"] {
+        --live-abyss-a: #0a1a3a; --live-abyss-b: #03081c;
+        --live-glow: rgba(56, 189, 248, 0.18);
+      }
+      [data-live-universe="natural_fresh"] {
+        --live-abyss-a: #0d2a20; --live-abyss-b: #05130e;
+        --live-glow: rgba(74, 222, 128, 0.16);
+      }
+      [data-live-universe="solaire_chaud"] {
+        --live-abyss-a: #2a1608; --live-abyss-b: #140902;
+        --live-glow: rgba(245, 158, 11, 0.16);
+      }
+      [data-live-universe="violet_luxe"] {
+        --live-abyss-a: #1e0c2c; --live-abyss-b: #0d0417;
+        --live-glow: rgba(192, 132, 252, 0.17);
+      }
+      [data-live-universe="deep_ocean"] {
+        --live-abyss-a: #062430; --live-abyss-b: #020c11;
+        --live-glow: rgba(45, 212, 191, 0.17);
+      }
+      [data-live-universe="rose_doux"] {
+        --live-abyss-a: #2c1220; --live-abyss-b: #160810;
+        --live-glow: rgba(244, 114, 182, 0.16);
+      }
+
+      /* L'abysse. Le vignettage est une COUCHE DE FOND (pas un pseudo-élément
+         posé par-dessus) : un ::after aurait été peint après tous les enfants
+         et aurait assombri la vidéo elle-même. */
+      .live-abyss {
+        background:
+          radial-gradient(150% 100% at 50% 55%, transparent 40%, rgba(0, 0, 0, 0.5) 100%),
+          radial-gradient(110% 80% at 50% -5%, var(--live-glow) 0%, transparent 60%),
+          linear-gradient(180deg, var(--live-abyss-a) 0%, var(--live-abyss-b) 100%);
+      }
+
+      /* La colonne d'eau. Deux nappes de lumière qui dérivent à des vitesses
+         différentes derrière un flou : c'est ce décalage qui fait « courant »
+         plutôt que « dégradé animé ». Décorative et sous le panneau latéral
+         (z-index 1) — jamais au-dessus d'un texte de conversation. */
+      @keyframes live-current-drift {
+        0%, 100% { transform: translateX(0) scaleX(1); opacity: 0.7; }
+        50% { transform: translateX(7px) scaleX(1.12); opacity: 0.95; }
+      }
+      @keyframes live-current-flow {
+        0% { transform: translateY(-14%); }
+        100% { transform: translateY(14%); }
+      }
+      .live-current {
+        position: absolute;
+        top: -6%;
+        bottom: -6%;
+        width: 130px;
+        pointer-events: none;
+        z-index: 1;
+        filter: blur(14px);
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          var(--live-glow) 32%,
+          rgba(214, 248, 253, 0.3) 50%,
+          var(--live-glow) 68%,
+          transparent 100%
+        );
+        -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+        mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+        animation: live-current-drift 16s ease-in-out infinite;
+      }
+      .live-current::before,
+      .live-current::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(60% 22% at 50% 20%, rgba(224, 250, 255, 0.5), transparent 70%),
+          radial-gradient(45% 18% at 40% 62%, rgba(224, 250, 255, 0.32), transparent 70%);
+        animation: live-current-flow 22s linear infinite alternate;
+      }
+      .live-current::after {
+        animation-duration: 31s;
+        animation-direction: alternate-reverse;
+        opacity: 0.6;
+      }
+      /* Variante horizontale : sur téléphone la couture scène/panneau est
+         horizontale — le courant la suit au lieu de disparaître. */
+      .live-current--h {
+        top: auto;
+        bottom: auto;
+        left: -6%;
+        right: -6%;
+        width: auto;
+        height: 110px;
+        background: linear-gradient(
+          180deg,
+          transparent 0%,
+          var(--live-glow) 32%,
+          rgba(214, 248, 253, 0.28) 50%,
+          var(--live-glow) 68%,
+          transparent 100%
+        );
+        -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+        mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+      }
+
+      /* Le panneau de verre des tuiles : filet cyan, arête haute plus claire
+         (la lumière vient d'en haut), lueur intérieure, ombre portée douce. */
+      .live-pane {
+        position: relative;
+        border-radius: 20px;
+        background: linear-gradient(180deg, var(--live-pane-a) 0%, var(--live-pane-b) 100%);
+        border: 1px solid var(--live-line);
+        border-top-color: var(--live-line-top);
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+          inset 0 0 40px -12px var(--live-glow),
+          0 18px 40px -20px rgba(0, 0, 0, 0.85);
+        overflow: hidden;
+      }
+      /* Une présence IA se distingue par une arête plus vive et une lueur
+         intérieure plus marquée — jamais par une couleur étrangère à
+         l'univers courant (color-mix évité : pas garanti sur Safari 16.0). */
+      .live-pane--agent {
+        border-color: var(--live-line-top);
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+          inset 0 0 56px -10px var(--live-glow),
+          0 18px 40px -20px rgba(0, 0, 0, 0.85);
+      }
+
+      /* Commande en orbe. Le halo s'intensifie au survol/à l'appui : la
+         lumière confirme, elle ne décore pas. */
+      .live-orb {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.22), rgba(10, 42, 54, 0.55) 70%);
+        border: 1px solid var(--live-line);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 14px -4px rgba(0, 0, 0, 0.7);
+        color: var(--live-ink);
+        transition: box-shadow 0.25s ease, transform 0.2s ease, background 0.25s ease;
+      }
+      .live-orb:hover {
+        transform: translateY(-1px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 6px 18px -4px rgba(0, 0, 0, 0.75), 0 0 18px 2px var(--live-glow);
+      }
+      /* L'accent doit DOMINER : à 130 %, le dégradé restait quasi blanc et
+         l'action principale du Studio passait pour une case grise. */
+      .live-orb--active {
+        background: radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.38), var(--live-accent) 72%);
+        border-color: var(--live-line-top);
+        color: #04202a;
+        text-shadow: none;
+      }
+      .live-orb--danger {
+        background: radial-gradient(circle at 35% 25%, rgba(255, 190, 190, 0.35), rgba(190, 40, 60, 0.9) 75%);
+        border-color: rgba(255, 140, 150, 0.45);
+        color: #fff;
+      }
+
+      /* MB-1 — Une commande qui n'apparaît qu'au SURVOL n'existe pas sur un
+         téléphone : il n'y a pas de curseur. `opacity-0 group-hover:opacity-100`
+         la rendait donc définitivement invisible au doigt (mesuré au banc :
+         opacité effective 0 au repos, 390×844). Elle reste désormais visible
+         partout où le survol n'existe pas, et garde son effacement au repos
+         sur un ordinateur — là où le survol est réel. */
+      .live-hover-reveal { opacity: 1; }
+      @media (hover: hover) and (pointer: fine) {
+        .live-hover-reveal { opacity: 0; transition: opacity 0.2s ease; }
+        .group:hover .live-hover-reveal,
+        .live-hover-reveal:hover,
+        .live-hover-reveal:focus-within { opacity: 1; }
+      }
+
+      /* « ● EN DIRECT » : petites capitales espacées, point vert qui respire. */
+      @keyframes live-onair-pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 8px 2px rgba(61, 220, 151, 0.7); }
+        50% { opacity: 0.55; box-shadow: 0 0 3px 1px rgba(61, 220, 151, 0.35); }
+      }
+      .live-onair {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #9fe8f2;
+      }
+      .live-onair::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 9999px;
+        background: #3ddc97;
+        animation: live-onair-pulse 2.4s ease-in-out infinite;
+      }
+
+      /* Titre de zone : fin, très espacé, en capitales — le registre exact
+         de « MON ESPACE CITOYEN » / « CONSULTATION AVEC EXPERTS ». */
+      .live-title {
+        font-weight: 300;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--live-ink);
+      }
+
+      /* Onde de voix : la voix devient visible à côté du visage — on sait
+         qui parle sans avoir à le deviner. */
+      @keyframes live-wave-bar {
+        0%, 100% { transform: scaleY(0.32); }
+        50% { transform: scaleY(1); }
+      }
+      .live-wave {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        height: 16px;
+      }
+      .live-wave i {
+        display: block;
+        width: 2px;
+        height: 100%;
+        border-radius: 2px;
+        background: var(--live-accent);
+        transform-origin: center;
+        animation: live-wave-bar 1.1s ease-in-out infinite;
+        opacity: 0.9;
+      }
+      .live-wave--muted i {
+        animation: none;
+        transform: scaleY(0.22);
+        opacity: 0.4;
+      }
+
+      /* Plaque de nom : dégradé de lisibilité + capitales espacées. */
+      .live-nameplate {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 2.1rem 0.85rem 0.7rem;
+        background: linear-gradient(180deg, transparent 0%, rgba(3, 16, 22, 0.78) 55%, rgba(3, 16, 22, 0.93) 100%);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--live-ink);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+
+      /* MB-1 — sur un téléphone, une carte de scène fait environ 150 px de
+         large. Le nom et le rôle côte à côte ne laissaient que trois lettres
+         au NOM (mesuré à l'écran : « SAR… ANIMATEUR », « FAT… SUR SCÈNE »)
+         alors que le nom est l'information principale. En dessous de 640 px
+         ils s'empilent donc : le nom prend toute la largeur, le rôle passe
+         dessous, plus petit et plus discret. Au-delà, la rangée d'origine
+         est conservée telle quelle. */
+      /* MB-1 — sur téléphone, « EN DIRECT » à 0.18em d'espacement mangeait
+         près de 100 px d'une barre de 390 px. L'espacement se resserre : le
+         mot reste en petites capitales, il occupe simplement sa place. */
+      @media (max-width: 639px) {
+        .live-onair { letter-spacing: 0.08em; }
+      }
+
+      @media (max-width: 639px) {
+        .live-nameplate {
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: flex-end;
+          gap: 0.05rem;
+          padding-bottom: 0.55rem;
+        }
+        .live-nameplate > * { max-width: 100%; }
+        .live-nameplate .live-nameplate-role {
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          opacity: 0.68;
+        }
+      }
+
+      /* Bulles qui montent DANS la carte (la vie est dans les contenants, pas
+         seulement dans le fond). Jamais au-dessus d'une vidéo réelle : elles
+         n'habillent que les tuiles sans image (agent, attente, débordement). */
+      @keyframes live-bubble-rise {
+        0% { transform: translateY(0) scale(0.85); opacity: 0; }
+        14% { opacity: 0.55; }
+        100% { transform: translateY(-150px) scale(1.05); opacity: 0; }
+      }
+      .live-bubbles {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        border-radius: inherit;
+      }
+      .live-bubbles span {
+        position: absolute;
+        bottom: -16px;
+        border-radius: 9999px;
+        background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.55), rgba(160, 235, 245, 0.1) 60%, transparent 72%);
+        border: 1px solid rgba(200, 245, 252, 0.28);
+        animation: live-bubble-rise 9s ease-in infinite;
+      }
+
+      /* Mouvement réduit : la matière se fige, la lisibilité reste entière. */
+      @media (prefers-reduced-motion: reduce) {
+        .live-current,
+        .live-current::before,
+        .live-current::after,
+        .live-bubbles span,
+        .live-wave i,
+        .live-onair::before {
+          animation: none !important;
+        }
+      }
+
       /* Bouton de messagerie « Goutte » (mission VF-10, maquette n° 01
          validée le 01/09/2026 — components/chat/MessagingDropButton.tsx).
          Une goutte de verre épais où flotte un niveau d'eau : le prolongement
@@ -804,6 +1152,834 @@
           animation: none !important;
         }
       }
+
+      /* ══════════════════════════════════════════════════════════════════
+         MENU « MIROIR D'EAU » — habillage verre/eau (DS-M2b)
+         Proposition 06 choisie par la Direction le 3 septembre 2026, portée
+         depuis `design-lab/menu-06-miroir-eau.html` (thème `.t6`).
+
+         Tout est SCOPÉ sous `[data-miroir]`, posé par Layout.tsx sur la
+         racine de l'application. Aucune de ces règles ne touche :
+           - `contexts/ThemeContext.tsx` / `components/ui/DesignTokens.ts`
+             (les 10 palettes de marque, palette-10 par défaut, gelées par une
+             décision antérieure de la Direction pour toutes les surfaces pas
+             encore redessinées — la barre latérale desktop continue donc de
+             tirer ses couleurs de palette-10, voir la note dans Layout.tsx) ;
+           - le système verre/eau/lumière du LIVE (`[data-live-universe]`,
+             classes `.water-*`), qui a sa propre matière et ses 7 univers ;
+           - la goutte de la messagerie (`.mdb-*`), déjà en matière d'eau
+             depuis VF-10 — elle ne reçoit ici que l'arête de lumière et le
+             reflet qui lui manquaient.
+
+         Les valeurs sont des variables CSS et non des couleurs en dur : c'est
+         ce qui permettra à l'Administrateur Général de proposer plus tard
+         d'autres univers sans retoucher un seul composant. Ce sélecteur
+         d'univers n'est PAS construit ici (hors périmètre, lot 1 point 3).
+         ══════════════════════════════════════════════════════════════════ */
+      [data-miroir] {
+        --mir-bg: #EAF7FB;
+        --mir-ink: #0B3A46;
+        --mir-acc: #0F9EC2;
+        --mir-pros: #12A579;
+        --mir-pros-glow: rgba(18, 165, 121, 0.55);
+        /* Bandeaux de chrome (en-têtes) : verre très transparent. */
+        --mir-band: rgba(255, 255, 255, 0.44);
+        --mir-band-bd: rgba(255, 255, 255, 0.7);
+        /* Panneaux « glass » (carte Réseau Mooc, rail des stories, dock). */
+        --mir-panel: rgba(255, 255, 255, 0.44);
+        --mir-panel-solid: #EEF9FC;
+        /* Feuilles « sheet » : les publications du fil, où l'on LIT — la
+           maquette elle-même les met à 0.94 et non à 0.44, parce qu'un texte
+           de paragraphe ne se lit pas à travers de l'eau. */
+        --mir-sheet: rgba(255, 255, 255, 0.94);
+        --mir-sheet-bd: rgba(255, 255, 255, 0.9);
+        --mir-exp: rgba(255, 255, 255, 0.58);
+        --mir-bd: rgba(255, 255, 255, 0.85);
+        --mir-blur: blur(20px) saturate(1.2);
+        --mir-hi: rgba(255, 255, 255, 0.95);
+        --mir-lo: rgba(11, 58, 70, 0.05);
+        --mir-spec: linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 40%);
+        --mir-sh-sm: 0 10px 22px -10px rgba(10, 70, 90, 0.32);
+        --mir-sh-md: 0 18px 40px -20px rgba(10, 70, 90, 0.4);
+        --mir-sh-lg: 0 28px 56px -24px rgba(10, 70, 90, 0.45);
+        /* L'Architecte : une goutte d'eau soufflée, pas un bouton rond. */
+        --mir-arch-shape: 50% 50% 46% 46% / 58% 58% 42% 42%;
+        --mir-arch-bg: radial-gradient(circle at 36% 28%, #FFFFFF 0 12%, #BFF3FF 30%, #3FC7E0 66%, #0E7A93 100%);
+        --mir-arch-ring: rgba(191, 243, 255, 0.65);
+        --mir-arch-sh: 0 14px 30px -12px rgba(10, 70, 90, 0.55),
+          inset 0 -6px 12px rgba(0, 60, 75, 0.16),
+          inset 0 4px 10px rgba(255, 255, 255, 0.75);
+        background: var(--mir-bg);
+        color: var(--mir-ink);
+      }
+
+      /* La nappe d'eau (components/miroir/WaterMirror.tsx) : purement
+         décorative, sous tout le reste, jamais cliquable. */
+      [data-miroir] .mir-scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+        display: block;
+      }
+      /* Tout le contenu réel de l'application passe AU-DESSUS de l'eau.
+         On ne touche SURTOUT PAS `position` ici : les deux en-têtes sont en
+         `sticky`, et ce sélecteur (0,2,0) l'emporterait sur la classe
+         Tailwind `.sticky` (0,1,0) — les en-têtes cesseraient de coller en
+         haut de l'écran. Un `z-index` seul suffit : les enfants de la racine
+         sont des éléments flex, et un élément flex honore `z-index` même en
+         position statique.
+
+         `:not(header)` — LE MÊME PIÈGE, une ligne plus bas. Ce sélecteur
+         (0,2,0) l'emporte aussi sur les classes `.z-20` / `.z-30` (0,1,0) que
+         portent les deux en-têtes. Sans cette exclusion, les en-têtes tombent
+         à 1, à égalité avec le conteneur principal qui est écrit APRÈS eux :
+         l'ordre du document tranche, le conteneur peint par-dessus, et les
+         menus déroulants ancrés sous l'en-tête (langue, Notifications, et le
+         menu Compte qui porte la DÉCONNEXION) deviennent inatteignables.
+         Mesuré en navigateur réel sur la page servie : `elementFromPoint` au
+         centre de « Se déconnecter » renvoyait une carte `.bg-white` du fil,
+         jamais le bouton. Les en-têtes gardent donc leur z Tailwind. */
+      [data-miroir] > *:not(.mir-scene):not(header) {
+        z-index: 1;
+      }
+
+      /* Bandeau de verre : les deux en-têtes (mobile et desktop). */
+      [data-miroir] .mir-band {
+        background: var(--mir-band);
+        border-bottom: 1px solid var(--mir-band-bd);
+        backdrop-filter: var(--mir-blur);
+        -webkit-backdrop-filter: var(--mir-blur);
+        color: var(--mir-ink);
+      }
+
+      /* Panneau de verre soufflé : reflet spéculaire en haut, arêtes
+         internes claire et sombre — c'est ce qui donne l'épaisseur. */
+      [data-miroir] .mir-glass,
+      [data-miroir] .mir-sheet,
+      [data-miroir] .mir-dock {
+        position: relative;
+        border: 1px solid var(--mir-bd);
+        backdrop-filter: var(--mir-blur);
+        -webkit-backdrop-filter: var(--mir-blur);
+        box-shadow: var(--mir-sh-md), inset 0 1px 0 var(--mir-hi), inset 0 -1px 0 var(--mir-lo);
+      }
+      [data-miroir] .mir-glass::before,
+      [data-miroir] .mir-dock::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: var(--mir-spec);
+      }
+      [data-miroir] .mir-glass {
+        background: var(--mir-panel);
+      }
+      [data-miroir] .mir-sheet {
+        background: var(--mir-sheet);
+        border-color: var(--mir-sheet-bd);
+        box-shadow: var(--mir-sh-sm);
+      }
+      [data-miroir] .mir-exp {
+        background: var(--mir-exp);
+        border: 1px solid rgba(255, 255, 255, 0.92);
+        box-shadow: var(--mir-sh-md);
+      }
+      /* Un utilisateur qui demande moins de transparence obtient du verre
+         opaque, pas une bouillie illisible. */
+      @media (prefers-reduced-transparency: reduce) {
+        [data-miroir] .mir-band,
+        [data-miroir] .mir-glass,
+        [data-miroir] .mir-dock,
+        [data-miroir] .mir-exp {
+          background: var(--mir-panel-solid);
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+      }
+
+      /* Le dock : une pilule de verre soufflé posée sur l'eau. */
+      [data-miroir] .mir-dock {
+        background: var(--mir-panel);
+        box-shadow: var(--mir-sh-lg), inset 0 1px 0 var(--mir-hi), inset 0 -1px 0 var(--mir-lo);
+      }
+      /* L'arête de lumière qui tourne en continu autour du verre — le
+         « dock pilule » du repère de la Direction. */
+      [data-miroir] .mir-edge::after {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        pointer-events: none;
+        padding: 1.4px;
+        background: conic-gradient(
+          from var(--mir-sp, 0deg),
+          transparent 0 74%,
+          rgba(255, 255, 255, 0.95) 84%,
+          rgba(159, 230, 255, 1) 91%,
+          transparent 98%
+        );
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        animation: mir-edge 9s linear infinite;
+      }
+      /* Sans cette déclaration, `--mir-sp` reste une chaîne pour le moteur
+         CSS : l'animation sauterait de 0 à 360° au lieu de faire tourner
+         l'arête. C'est la même mécanique que `--rg` dans la maquette. */
+      @property --mir-sp {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+      @keyframes mir-edge {
+        to {
+          --mir-sp: 360deg;
+        }
+      }
+      /* L'eau reflète ce qui flotte dessus (dock et goutte). */
+      [data-miroir] .mir-reflect {
+        -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(10, 70, 90, 0.28));
+      }
+
+      /* La goutte de la messagerie (VF-10) : elle est DÉJÀ en matière d'eau,
+         on ne la reconstruit pas. Elle reçoit seulement les deux effets de la
+         proposition 06 qui lui manquaient — l'arête de lumière et le reflet.
+         Purement CSS, en visant `.mdb` depuis ce périmètre : aucune ligne de
+         `MessagingDropButton.tsx` n'est touchée, donc ses quatre états
+         (repos / non-lus / appel / ouvert) et leurs tests restent intacts.
+         L'arête tourne avec 4 s de décalage sur celle du dock, pour que les
+         deux ne s'allument jamais en même temps. */
+      [data-miroir] .mdb {
+        -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(10, 70, 90, 0.28));
+      }
+      [data-miroir] .mdb::after {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        pointer-events: none;
+        padding: 1.4px;
+        background: conic-gradient(
+          from var(--mir-sp, 0deg),
+          transparent 0 74%,
+          rgba(255, 255, 255, 0.95) 84%,
+          rgba(159, 230, 255, 1) 91%,
+          transparent 98%
+        );
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        animation: mir-edge 9s linear infinite -4s;
+      }
+
+      /* L'Architecte, au centre de la navigation principale : une goutte
+         d'eau soufflée avec sa lumière interne, son point spéculaire et son
+         anneau qui respire. Invariant Direction — un seul flottant à
+         l'écran (la goutte messagerie), l'Architecte vit dans le dock. */
+      [data-miroir] .mir-orb {
+        border-radius: var(--mir-arch-shape);
+        background: var(--mir-arch-bg);
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        color: #0E4C5C;
+        box-shadow: var(--mir-arch-sh);
+      }
+      [data-miroir] .mir-orb::before {
+        content: '';
+        position: absolute;
+        inset: -7px;
+        border-radius: var(--mir-arch-shape);
+        border: 1.5px solid var(--mir-arch-ring);
+        pointer-events: none;
+        animation: mir-pulse 4.2s ease-in-out infinite;
+      }
+      /* Le point de lumière sur le flanc de la goutte : c'est lui qui la
+         fait lire comme du verre plein et non comme un disque coloré. */
+      [data-miroir] .mir-orb::after {
+        content: '';
+        position: absolute;
+        left: 23%;
+        top: 15%;
+        width: 28%;
+        height: 20%;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+        filter: blur(1.4px);
+        pointer-events: none;
+      }
+      @keyframes mir-pulse {
+        0%, 100% {
+          transform: scale(0.9);
+          opacity: 0.75;
+        }
+        50% {
+          transform: scale(1.18);
+          opacity: 0;
+        }
+      }
+
+      /* L'emplacement actif du dock : la lumière dit où l'on est (idée
+         retenue du repère « Model 14 » de la Direction). */
+      [data-miroir] .mir-tab-active {
+        color: var(--mir-acc);
+      }
+      [data-miroir] .mir-tab-active::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 2px;
+        width: 4px;
+        height: 4px;
+        margin-left: -2px;
+        border-radius: 50%;
+        background: var(--mir-pros);
+        box-shadow: 0 0 8px 2px var(--mir-pros-glow);
+      }
+
+      /* « L'interface déclare son état » — la ligne de mode du repère
+         « Model 14 », reprise telle quelle par la proposition 06. */
+      [data-miroir] .mir-mode {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--mir-ink);
+        opacity: 0.7;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-miroir] .mir-edge::after,
+        [data-miroir] .mdb::after {
+          display: none;
+        }
+        [data-miroir] .mir-orb::before {
+          animation: none;
+        }
+        /* `unset` et non `none` : Chromium IGNORE silencieusement
+           `-webkit-box-reflect: none` (valeur calculée inchangée, aucun
+           avertissement) — vérifié au banc, le reflet survivait à la demande
+           de mouvement réduit. Même famille de piège que les teintes
+           `brand-*` absentes de la config Tailwind : une déclaration qui ne
+           peint rien sans le dire. */
+        [data-miroir] .mir-reflect,
+        [data-miroir] .mdb {
+          -webkit-box-reflect: unset;
+        }
+      }
+      /* ===================================================================
+         DS-EX-2 · LA NAPPE D'EAU RÉELLEMENT VISIBLE DANS TOUTE L'APPLICATION
+
+         Constat mesuré : `data-miroir` couvrait déjà tous les écrans, mais
+         chacun repeint un fond pleine page opaque par-dessus la nappe — d'où
+         l'impression que l'habillage s'arrête à l'accueil.
+
+         La correction ne peut PAS être « rendre tout `bg-white` transparent » :
+         les mêmes classes portent les champs de saisie, les listes déroulantes
+         et les menus, où l'opacité sert la lisibilité. Elle vise donc
+         exclusivement l'ENFANT DIRECT de `.mir-page`, c'est-à-dire la racine de
+         l'écran courant et rien d'autre.
+
+         `[class*=…]` couvre d'un coup les variantes d'opacité écrites dans le
+         code (`bg-slate-50/60`, `bg-white/80`…) sans avoir à les énumérer.
+         Spécificité (0,3,0) contre (0,1,0) pour l'utilitaire Tailwind : le
+         résultat ne dépend pas de l'ordre d'injection du CDN.
+         =================================================================== */
+      [data-miroir] .mir-page > [class*="bg-white"],
+      [data-miroir] .mir-page > [class*="bg-slate-50"],
+      [data-miroir] .mir-page > [class*="bg-slate-100"],
+      [data-miroir] .mir-page > [class*="bg-gray-50"] {
+        background-color: transparent;
+      }
+
+      /* Les cartes de contenu prennent la « feuille de lecture » : 94 %, la même
+         valeur que les publications du fil depuis DS-M2b. Un paragraphe ne se lit
+         pas à travers de l'eau — la teinte et l'ombre disent la matière, sans
+         jamais coûter en lisibilité. Le rayon 2xl/3xl distingue une CARTE d'un
+         champ de saisie (rounded-xl et en dessous), qui reste intact.
+
+         Périmètre `[data-miroir]` et NON `.mir-page` : les modales de
+         navigation (services transversaux, Mon Cap, paramètres, Architecte)
+         sont rendues par `Layout` À CÔTÉ de `<main>`, donc hors de
+         `.mir-page`. Les y laisser aurait gardé des panneaux blancs francs au
+         milieu d'une application en verre — précisément la rupture visible
+         signalée par la Direction. */
+      [data-miroir] .bg-white.rounded-3xl,
+      [data-miroir] .bg-white.rounded-2xl {
+        background-color: var(--mir-sheet);
+        border-color: var(--mir-sheet-bd);
+        box-shadow: var(--mir-sh-sm);
+      }
+
+      /* Les barres de section (en-tête d'un hub, pied d'un panneau) sont du
+         chrome, pas de la lecture : elles prennent le verre à 44 % comme les
+         en-têtes de l'application. */
+      [data-miroir] .bg-white.border-b,
+      [data-miroir] .bg-white.border-t {
+        background-color: var(--mir-band);
+        backdrop-filter: var(--mir-blur);
+        -webkit-backdrop-filter: var(--mir-blur);
+        border-color: var(--mir-band-bd);
+      }
+
+      @media (prefers-reduced-transparency: reduce) {
+        [data-miroir] .mir-page > [class*="bg-white"],
+        [data-miroir] .mir-page > [class*="bg-slate-50"],
+        [data-miroir] .mir-page > [class*="bg-slate-100"],
+        [data-miroir] .mir-page > [class*="bg-gray-50"],
+        [data-miroir] .bg-white.rounded-3xl,
+        [data-miroir] .bg-white.rounded-2xl,
+        [data-miroir] .bg-white.border-b,
+        [data-miroir] .bg-white.border-t {
+          background-color: var(--mir-panel-solid);
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+      }
+
+      /* ===== DÉBUT COUCHE AQUA GÉNÉRÉE ===== */
+      /* ===================================================================
+         COUCHE DE TRADUCTION AQUA — GÉNÉRÉE, NE PAS ÉDITER À LA MAIN.
+         Régénérer : node scripts/genMiroirAquaLayer.cjs --ecrire
+         Vérifiée par tests/miroirAquaLayer.test.ts (règles mortes,
+         familles sémantiques, planchers de contraste).
+
+         Traduit les familles de marque (blue/indigo/sky/cyan) vers la
+         rampe aqua du « Miroir d'eau », EN CONSERVANT LA MARCHE : une
+         teinte claire reste claire (Studio Live, fond sombre), une teinte
+         foncée reste foncée (écrans clairs). Le contraste est donc
+         préservé par construction.
+
+         Les familles sémantiques (red/amber/green…) et les gris ne sont
+         JAMAIS traduits : leur couleur EST l'information.
+         =================================================================== */
+      [data-miroir] {
+        --mir-aq-50: #ECFAFD;
+        --mir-aq-100: #CBF0FA;
+        --mir-aq-200: #A5E4F5;
+        --mir-aq-300: #5ECBE7;
+        --mir-aq-400: #29B4D6;
+        --mir-aq-500: #0C90B2;
+        --mir-aq-600: #0A7590;
+        --mir-aq-700: #086077;
+        --mir-aq-800: #094E60;
+        --mir-aq-900: #0A404F;
+        --mir-aq-950: #06262F;
+      }
+      [data-miroir] .accent-blue-600{accent-color:#0A7590;}
+      [data-miroir] .accent-cyan-500{accent-color:#0C90B2;}
+      [data-miroir] .accent-indigo-500{accent-color:#0C90B2;}
+      [data-miroir] .accent-indigo-600{accent-color:#0A7590;}
+      [data-miroir] .bg-blue-100{background-color:#CBF0FA;}
+      [data-miroir] .bg-blue-100\/60{background-color:rgba(203,240,250,0.6);}
+      [data-miroir] .bg-blue-100\/70{background-color:rgba(203,240,250,0.7);}
+      [data-miroir] .bg-blue-100\/80{background-color:rgba(203,240,250,0.8);}
+      [data-miroir] .bg-blue-200{background-color:#A5E4F5;}
+      [data-miroir] .bg-blue-400{background-color:#29B4D6;}
+      [data-miroir] .bg-blue-50{background-color:#ECFAFD;}
+      [data-miroir] .bg-blue-50\/30{background-color:rgba(236,250,253,0.3);}
+      [data-miroir] .bg-blue-50\/40{background-color:rgba(236,250,253,0.4);}
+      [data-miroir] .bg-blue-50\/50{background-color:rgba(236,250,253,0.5);}
+      [data-miroir] .bg-blue-50\/60{background-color:rgba(236,250,253,0.6);}
+      [data-miroir] .bg-blue-50\/70{background-color:rgba(236,250,253,0.7);}
+      [data-miroir] .bg-blue-50\/80{background-color:rgba(236,250,253,0.8);}
+      [data-miroir] .bg-blue-500{background-color:#0C90B2;}
+      [data-miroir] .bg-blue-500\/10{background-color:rgba(12,144,178,0.1);}
+      [data-miroir] .bg-blue-500\/20{background-color:rgba(12,144,178,0.2);}
+      [data-miroir] .bg-blue-500\/30{background-color:rgba(12,144,178,0.3);}
+      [data-miroir] .bg-blue-500\/5{background-color:rgba(12,144,178,0.05);}
+      [data-miroir] .bg-blue-600{background-color:#0A7590;}
+      [data-miroir] .bg-blue-600\/10{background-color:rgba(10,117,144,0.1);}
+      [data-miroir] .bg-blue-600\/20{background-color:rgba(10,117,144,0.2);}
+      [data-miroir] .bg-blue-600\/30{background-color:rgba(10,117,144,0.3);}
+      [data-miroir] .bg-blue-700\/80{background-color:rgba(8,96,119,0.8);}
+      [data-miroir] .bg-blue-900{background-color:#0A404F;}
+      [data-miroir] .bg-blue-900\/40{background-color:rgba(10,64,79,0.4);}
+      [data-miroir] .bg-blue-900\/60{background-color:rgba(10,64,79,0.6);}
+      [data-miroir] .bg-blue-950{background-color:#06262F;}
+      [data-miroir] .bg-blue-950\/20{background-color:rgba(6,38,47,0.2);}
+      [data-miroir] .bg-blue-950\/30{background-color:rgba(6,38,47,0.3);}
+      [data-miroir] .bg-blue-950\/40{background-color:rgba(6,38,47,0.4);}
+      [data-miroir] .bg-blue-950\/60{background-color:rgba(6,38,47,0.6);}
+      [data-miroir] .bg-blue-950\/80{background-color:rgba(6,38,47,0.8);}
+      [data-miroir] .bg-cyan-400{background-color:#29B4D6;}
+      [data-miroir] .bg-cyan-400\/10{background-color:rgba(41,180,214,0.1);}
+      [data-miroir] .bg-cyan-400\/12{background-color:rgba(41,180,214,0.12);}
+      [data-miroir] .bg-cyan-400\/15{background-color:rgba(41,180,214,0.15);}
+      [data-miroir] .bg-cyan-400\/25{background-color:rgba(41,180,214,0.25);}
+      [data-miroir] .bg-cyan-500{background-color:#0C90B2;}
+      [data-miroir] .bg-cyan-500\/10{background-color:rgba(12,144,178,0.1);}
+      [data-miroir] .bg-cyan-500\/20{background-color:rgba(12,144,178,0.2);}
+      [data-miroir] .bg-cyan-500\/80{background-color:rgba(12,144,178,0.8);}
+      [data-miroir] .bg-cyan-600{background-color:#0A7590;}
+      [data-miroir] .bg-cyan-600\/20{background-color:rgba(10,117,144,0.2);}
+      [data-miroir] .bg-cyan-600\/25{background-color:rgba(10,117,144,0.25);}
+      [data-miroir] .bg-cyan-900\/50{background-color:rgba(10,64,79,0.5);}
+      [data-miroir] .bg-cyan-950\/10{background-color:rgba(6,38,47,0.1);}
+      [data-miroir] .bg-cyan-950\/20{background-color:rgba(6,38,47,0.2);}
+      [data-miroir] .bg-cyan-950\/30{background-color:rgba(6,38,47,0.3);}
+      [data-miroir] .bg-cyan-950\/40{background-color:rgba(6,38,47,0.4);}
+      [data-miroir] .bg-indigo-100{background-color:#CBF0FA;}
+      [data-miroir] .bg-indigo-100\/70{background-color:rgba(203,240,250,0.7);}
+      [data-miroir] .bg-indigo-200{background-color:#A5E4F5;}
+      [data-miroir] .bg-indigo-200\/60{background-color:rgba(165,228,245,0.6);}
+      [data-miroir] .bg-indigo-400{background-color:#29B4D6;}
+      [data-miroir] .bg-indigo-50{background-color:#ECFAFD;}
+      [data-miroir] .bg-indigo-50\/40{background-color:rgba(236,250,253,0.4);}
+      [data-miroir] .bg-indigo-50\/50{background-color:rgba(236,250,253,0.5);}
+      [data-miroir] .bg-indigo-50\/60{background-color:rgba(236,250,253,0.6);}
+      [data-miroir] .bg-indigo-50\/70{background-color:rgba(236,250,253,0.7);}
+      [data-miroir] .bg-indigo-50\/80{background-color:rgba(236,250,253,0.8);}
+      [data-miroir] .bg-indigo-500{background-color:#0C90B2;}
+      [data-miroir] .bg-indigo-500\/10{background-color:rgba(12,144,178,0.1);}
+      [data-miroir] .bg-indigo-500\/20{background-color:rgba(12,144,178,0.2);}
+      [data-miroir] .bg-indigo-500\/30{background-color:rgba(12,144,178,0.3);}
+      [data-miroir] .bg-indigo-500\/80{background-color:rgba(12,144,178,0.8);}
+      [data-miroir] .bg-indigo-600{background-color:#0A7590;}
+      [data-miroir] .bg-indigo-600\/20{background-color:rgba(10,117,144,0.2);}
+      [data-miroir] .bg-indigo-600\/25{background-color:rgba(10,117,144,0.25);}
+      [data-miroir] .bg-indigo-600\/30{background-color:rgba(10,117,144,0.3);}
+      [data-miroir] .bg-indigo-600\/80{background-color:rgba(10,117,144,0.8);}
+      [data-miroir] .bg-indigo-600\/90{background-color:rgba(10,117,144,0.9);}
+      [data-miroir] .bg-indigo-700{background-color:#086077;}
+      [data-miroir] .bg-indigo-700\/80{background-color:rgba(8,96,119,0.8);}
+      [data-miroir] .bg-indigo-900{background-color:#0A404F;}
+      [data-miroir] .bg-indigo-900\/30{background-color:rgba(10,64,79,0.3);}
+      [data-miroir] .bg-indigo-900\/40{background-color:rgba(10,64,79,0.4);}
+      [data-miroir] .bg-indigo-900\/50{background-color:rgba(10,64,79,0.5);}
+      [data-miroir] .bg-indigo-900\/60{background-color:rgba(10,64,79,0.6);}
+      [data-miroir] .bg-indigo-950{background-color:#06262F;}
+      [data-miroir] .bg-indigo-950\/20{background-color:rgba(6,38,47,0.2);}
+      [data-miroir] .bg-indigo-950\/30{background-color:rgba(6,38,47,0.3);}
+      [data-miroir] .bg-indigo-950\/40{background-color:rgba(6,38,47,0.4);}
+      [data-miroir] .bg-indigo-950\/50{background-color:rgba(6,38,47,0.5);}
+      [data-miroir] .bg-indigo-950\/60{background-color:rgba(6,38,47,0.6);}
+      [data-miroir] .bg-indigo-950\/70{background-color:rgba(6,38,47,0.7);}
+      [data-miroir] .bg-indigo-950\/80{background-color:rgba(6,38,47,0.8);}
+      [data-miroir] .bg-sky-50{background-color:#ECFAFD;}
+      [data-miroir] .bg-sky-500\/10{background-color:rgba(12,144,178,0.1);}
+      [data-miroir] .bg-sky-600\/25{background-color:rgba(10,117,144,0.25);}
+      [data-miroir] .border-blue-100{border-color:#CBF0FA;}
+      [data-miroir] .border-blue-200{border-color:#A5E4F5;}
+      [data-miroir] .border-blue-200\/30{border-color:rgba(165,228,245,0.3);}
+      [data-miroir] .border-blue-200\/50{border-color:rgba(165,228,245,0.5);}
+      [data-miroir] .border-blue-200\/60{border-color:rgba(165,228,245,0.6);}
+      [data-miroir] .border-blue-200\/70{border-color:rgba(165,228,245,0.7);}
+      [data-miroir] .border-blue-200\/80{border-color:rgba(165,228,245,0.8);}
+      [data-miroir] .border-blue-300{border-color:#5ECBE7;}
+      [data-miroir] .border-blue-400{border-color:#29B4D6;}
+      [data-miroir] .border-blue-400\/30{border-color:rgba(41,180,214,0.3);}
+      [data-miroir] .border-blue-400\/40{border-color:rgba(41,180,214,0.4);}
+      [data-miroir] .border-blue-500{border-color:#0C90B2;}
+      [data-miroir] .border-blue-500\/20{border-color:rgba(12,144,178,0.2);}
+      [data-miroir] .border-blue-500\/30{border-color:rgba(12,144,178,0.3);}
+      [data-miroir] .border-blue-500\/40{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .border-blue-500\/50{border-color:rgba(12,144,178,0.5);}
+      [data-miroir] .border-blue-600{border-color:#0A7590;}
+      [data-miroir] .border-blue-700\/40{border-color:rgba(8,96,119,0.4);}
+      [data-miroir] .border-blue-700\/50{border-color:rgba(8,96,119,0.5);}
+      [data-miroir] .border-blue-800{border-color:#094E60;}
+      [data-miroir] .border-blue-800\/40{border-color:rgba(9,78,96,0.4);}
+      [data-miroir] .border-blue-800\/50{border-color:rgba(9,78,96,0.5);}
+      [data-miroir] .border-blue-800\/60{border-color:rgba(9,78,96,0.6);}
+      [data-miroir] .border-blue-900\/40{border-color:rgba(10,64,79,0.4);}
+      [data-miroir] .border-blue-900\/50{border-color:rgba(10,64,79,0.5);}
+      [data-miroir] .border-blue-900\/60{border-color:rgba(10,64,79,0.6);}
+      [data-miroir] .border-cyan-300{border-color:#5ECBE7;}
+      [data-miroir] .border-cyan-400{border-color:#29B4D6;}
+      [data-miroir] .border-cyan-400\/30{border-color:rgba(41,180,214,0.3);}
+      [data-miroir] .border-cyan-400\/40{border-color:rgba(41,180,214,0.4);}
+      [data-miroir] .border-cyan-400\/50{border-color:rgba(41,180,214,0.5);}
+      [data-miroir] .border-cyan-500{border-color:#0C90B2;}
+      [data-miroir] .border-cyan-500\/20{border-color:rgba(12,144,178,0.2);}
+      [data-miroir] .border-cyan-500\/30{border-color:rgba(12,144,178,0.3);}
+      [data-miroir] .border-cyan-500\/40{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .border-cyan-600{border-color:#0A7590;}
+      [data-miroir] .border-indigo-100{border-color:#CBF0FA;}
+      [data-miroir] .border-indigo-100\/50{border-color:rgba(203,240,250,0.5);}
+      [data-miroir] .border-indigo-100\/80{border-color:rgba(203,240,250,0.8);}
+      [data-miroir] .border-indigo-200{border-color:#A5E4F5;}
+      [data-miroir] .border-indigo-200\/60{border-color:rgba(165,228,245,0.6);}
+      [data-miroir] .border-indigo-300{border-color:#5ECBE7;}
+      [data-miroir] .border-indigo-400{border-color:#29B4D6;}
+      [data-miroir] .border-indigo-400\/30{border-color:rgba(41,180,214,0.3);}
+      [data-miroir] .border-indigo-400\/40{border-color:rgba(41,180,214,0.4);}
+      [data-miroir] .border-indigo-400\/50{border-color:rgba(41,180,214,0.5);}
+      [data-miroir] .border-indigo-400\/80{border-color:rgba(41,180,214,0.8);}
+      [data-miroir] .border-indigo-500{border-color:#0C90B2;}
+      [data-miroir] .border-indigo-500\/20{border-color:rgba(12,144,178,0.2);}
+      [data-miroir] .border-indigo-500\/30{border-color:rgba(12,144,178,0.3);}
+      [data-miroir] .border-indigo-500\/40{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .border-indigo-500\/50{border-color:rgba(12,144,178,0.5);}
+      [data-miroir] .border-indigo-500\/60{border-color:rgba(12,144,178,0.6);}
+      [data-miroir] .border-indigo-500\/80{border-color:rgba(12,144,178,0.8);}
+      [data-miroir] .border-indigo-600{border-color:#0A7590;}
+      [data-miroir] .border-indigo-700\/50{border-color:rgba(8,96,119,0.5);}
+      [data-miroir] .border-indigo-800{border-color:#094E60;}
+      [data-miroir] .border-indigo-800\/40{border-color:rgba(9,78,96,0.4);}
+      [data-miroir] .border-indigo-800\/50{border-color:rgba(9,78,96,0.5);}
+      [data-miroir] .border-indigo-800\/60{border-color:rgba(9,78,96,0.6);}
+      [data-miroir] .border-sky-200{border-color:#A5E4F5;}
+      [data-miroir] .border-sky-400\/40{border-color:rgba(41,180,214,0.4);}
+      [data-miroir] .border-sky-500\/30{border-color:rgba(12,144,178,0.3);}
+      [data-miroir] .border-t-indigo-500{border-top-color:#0C90B2;}
+      [data-miroir] .fill-blue-100{fill:#CBF0FA;}
+      [data-miroir] .focus-within\:ring-blue-100:focus-within{--tw-ring-color:#CBF0FA;}
+      [data-miroir] .focus-within\:ring-blue-500:focus-within{--tw-ring-color:#0C90B2;}
+      [data-miroir] .focus-within\:ring-blue-600\/40:focus-within{--tw-ring-color:rgba(10,117,144,0.4);}
+      [data-miroir] .focus\:border-blue-400:focus{border-color:#29B4D6;}
+      [data-miroir] .focus\:border-blue-500:focus{border-color:#0C90B2;}
+      [data-miroir] .focus\:border-cyan-500:focus{border-color:#0C90B2;}
+      [data-miroir] .focus\:border-indigo-500:focus{border-color:#0C90B2;}
+      [data-miroir] .focus\:ring-blue-500:focus{--tw-ring-color:#0C90B2;}
+      [data-miroir] .focus\:ring-blue-600:focus{--tw-ring-color:#0A7590;}
+      [data-miroir] .focus\:ring-indigo-500:focus{--tw-ring-color:#0C90B2;}
+      [data-miroir] .focus\:ring-indigo-500\/20:focus{--tw-ring-color:rgba(12,144,178,0.2);}
+      [data-miroir] .focus\:ring-indigo-600:focus{--tw-ring-color:#0A7590;}
+      [data-miroir] .from-blue-50{--tw-gradient-from:#ECFAFD var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-50\/70{--tw-gradient-from:rgba(236,250,253,0.7) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-500{--tw-gradient-from:#0C90B2 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-500\/5{--tw-gradient-from:rgba(12,144,178,0.05) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-600{--tw-gradient-from:#0A7590 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-600\/15{--tw-gradient-from:rgba(10,117,144,0.15) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-600\/40{--tw-gradient-from:rgba(10,117,144,0.4) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-700{--tw-gradient-from:#086077 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-blue-900{--tw-gradient-from:#0A404F var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-cyan-500\/20{--tw-gradient-from:rgba(12,144,178,0.2) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-cyan-600{--tw-gradient-from:#0A7590 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-cyan-950\/60{--tw-gradient-from:rgba(6,38,47,0.6) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-50{--tw-gradient-from:#ECFAFD var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-500{--tw-gradient-from:#0C90B2 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-600{--tw-gradient-from:#0A7590 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-600\/30{--tw-gradient-from:rgba(10,117,144,0.3) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-900{--tw-gradient-from:#0A404F var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-900\/40{--tw-gradient-from:rgba(10,64,79,0.4) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-950{--tw-gradient-from:#06262F var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-950\/40{--tw-gradient-from:rgba(6,38,47,0.4) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-950\/60{--tw-gradient-from:rgba(6,38,47,0.6) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .from-indigo-950\/70{--tw-gradient-from:rgba(6,38,47,0.7) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .group:hover .group-hover\:bg-blue-100{background-color:#CBF0FA;}
+      [data-miroir] .group:hover .group-hover\:bg-blue-600{background-color:#0A7590;}
+      [data-miroir] .group:hover .group-hover\:bg-indigo-100{background-color:#CBF0FA;}
+      [data-miroir] .group:hover .group-hover\:bg-indigo-50{background-color:#ECFAFD;}
+      [data-miroir] .group:hover .group-hover\:bg-indigo-600{background-color:#0A7590;}
+      [data-miroir] .group:hover .group-hover\:border-blue-400{border-color:#29B4D6;}
+      [data-miroir] .group:hover .group-hover\:border-indigo-600{border-color:#0A7590;}
+      [data-miroir] .group:hover .group-hover\:text-blue-300{color:#5ECBE7;}
+      [data-miroir] .group:hover .group-hover\:text-blue-600{color:#0A7590;}
+      [data-miroir] .group:hover .group-hover\:text-cyan-300{color:#5ECBE7;}
+      [data-miroir] .group:hover .group-hover\:text-indigo-200{color:#A5E4F5;}
+      [data-miroir] .group:hover .group-hover\:text-indigo-300{color:#5ECBE7;}
+      [data-miroir] .group:hover .group-hover\:text-indigo-400{color:#29B4D6;}
+      [data-miroir] .group:hover .group-hover\:text-indigo-600{color:#0A7590;}
+      [data-miroir] .group:hover .group-hover\:text-indigo-700{color:#086077;}
+      [data-miroir] .group:hover .group-hover\:text-indigo-900{color:#0A404F;}
+      [data-miroir] .hover\:bg-blue-100:hover{background-color:#CBF0FA;}
+      [data-miroir] .hover\:bg-blue-400:hover{background-color:#29B4D6;}
+      [data-miroir] .hover\:bg-blue-50:hover{background-color:#ECFAFD;}
+      [data-miroir] .hover\:bg-blue-50\/20:hover{background-color:rgba(236,250,253,0.2);}
+      [data-miroir] .hover\:bg-blue-50\/50:hover{background-color:rgba(236,250,253,0.5);}
+      [data-miroir] .hover\:bg-blue-500:hover{background-color:#0C90B2;}
+      [data-miroir] .hover\:bg-blue-600:hover{background-color:#0A7590;}
+      [data-miroir] .hover\:bg-blue-600\/20:hover{background-color:rgba(10,117,144,0.2);}
+      [data-miroir] .hover\:bg-blue-600\/30:hover{background-color:rgba(10,117,144,0.3);}
+      [data-miroir] .hover\:bg-blue-600\/50:hover{background-color:rgba(10,117,144,0.5);}
+      [data-miroir] .hover\:bg-blue-700:hover{background-color:#086077;}
+      [data-miroir] .hover\:bg-cyan-400\/20:hover{background-color:rgba(41,180,214,0.2);}
+      [data-miroir] .hover\:bg-cyan-400\/35:hover{background-color:rgba(41,180,214,0.35);}
+      [data-miroir] .hover\:bg-cyan-500:hover{background-color:#0C90B2;}
+      [data-miroir] .hover\:bg-cyan-500\/20:hover{background-color:rgba(12,144,178,0.2);}
+      [data-miroir] .hover\:bg-cyan-600\/20:hover{background-color:rgba(10,117,144,0.2);}
+      [data-miroir] .hover\:bg-cyan-600\/30:hover{background-color:rgba(10,117,144,0.3);}
+      [data-miroir] .hover\:bg-cyan-600\/40:hover{background-color:rgba(10,117,144,0.4);}
+      [data-miroir] .hover\:bg-indigo-100:hover{background-color:#CBF0FA;}
+      [data-miroir] .hover\:bg-indigo-50:hover{background-color:#ECFAFD;}
+      [data-miroir] .hover\:bg-indigo-50\/40:hover{background-color:rgba(236,250,253,0.4);}
+      [data-miroir] .hover\:bg-indigo-50\/50:hover{background-color:rgba(236,250,253,0.5);}
+      [data-miroir] .hover\:bg-indigo-50\/60:hover{background-color:rgba(236,250,253,0.6);}
+      [data-miroir] .hover\:bg-indigo-500:hover{background-color:#0C90B2;}
+      [data-miroir] .hover\:bg-indigo-600:hover{background-color:#0A7590;}
+      [data-miroir] .hover\:bg-indigo-600\/20:hover{background-color:rgba(10,117,144,0.2);}
+      [data-miroir] .hover\:bg-indigo-600\/30:hover{background-color:rgba(10,117,144,0.3);}
+      [data-miroir] .hover\:bg-indigo-600\/40:hover{background-color:rgba(10,117,144,0.4);}
+      [data-miroir] .hover\:bg-indigo-600\/50:hover{background-color:rgba(10,117,144,0.5);}
+      [data-miroir] .hover\:bg-indigo-700:hover{background-color:#086077;}
+      [data-miroir] .hover\:bg-indigo-900:hover{background-color:#0A404F;}
+      [data-miroir] .hover\:bg-indigo-900\/60:hover{background-color:rgba(10,64,79,0.6);}
+      [data-miroir] .hover\:bg-indigo-950\/20:hover{background-color:rgba(6,38,47,0.2);}
+      [data-miroir] .hover\:bg-sky-100:hover{background-color:#CBF0FA;}
+      [data-miroir] .hover\:bg-sky-600\/30:hover{background-color:rgba(10,117,144,0.3);}
+      [data-miroir] .hover\:border-blue-300:hover{border-color:#5ECBE7;}
+      [data-miroir] .hover\:border-blue-400:hover{border-color:#29B4D6;}
+      [data-miroir] .hover\:border-blue-500:hover{border-color:#0C90B2;}
+      [data-miroir] .hover\:border-blue-500\/40:hover{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .hover\:border-blue-500\/50:hover{border-color:rgba(12,144,178,0.5);}
+      [data-miroir] .hover\:border-blue-500\/60:hover{border-color:rgba(12,144,178,0.6);}
+      [data-miroir] .hover\:border-cyan-500\/30:hover{border-color:rgba(12,144,178,0.3);}
+      [data-miroir] .hover\:border-cyan-500\/40:hover{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .hover\:border-cyan-500\/60:hover{border-color:rgba(12,144,178,0.6);}
+      [data-miroir] .hover\:border-indigo-200:hover{border-color:#A5E4F5;}
+      [data-miroir] .hover\:border-indigo-300:hover{border-color:#5ECBE7;}
+      [data-miroir] .hover\:border-indigo-400:hover{border-color:#29B4D6;}
+      [data-miroir] .hover\:border-indigo-500:hover{border-color:#0C90B2;}
+      [data-miroir] .hover\:border-indigo-500\/40:hover{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .hover\:border-indigo-500\/50:hover{border-color:rgba(12,144,178,0.5);}
+      [data-miroir] .hover\:border-indigo-500\/60:hover{border-color:rgba(12,144,178,0.6);}
+      [data-miroir] .hover\:border-sky-500\/40:hover{border-color:rgba(12,144,178,0.4);}
+      [data-miroir] .hover\:from-blue-500:hover{--tw-gradient-from:#0C90B2 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .hover\:from-cyan-500:hover{--tw-gradient-from:#0C90B2 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .hover\:from-cyan-500\/30:hover{--tw-gradient-from:rgba(12,144,178,0.3) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .hover\:from-indigo-500:hover{--tw-gradient-from:#0C90B2 var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .hover\:from-indigo-600\/50:hover{--tw-gradient-from:rgba(10,117,144,0.5) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to);}
+      [data-miroir] .hover\:ring-indigo-100:hover{--tw-ring-color:#CBF0FA;}
+      [data-miroir] .hover\:shadow-indigo-500\/10:hover{--tw-shadow-color:rgba(12,144,178,0.1);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .hover\:shadow-indigo-500\/20:hover{--tw-shadow-color:rgba(12,144,178,0.2);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .hover\:text-blue-300:hover{color:#5ECBE7;}
+      [data-miroir] .hover\:text-blue-600:hover{color:#0A7590;}
+      [data-miroir] .hover\:text-blue-700:hover{color:#086077;}
+      [data-miroir] .hover\:text-blue-800:hover{color:#094E60;}
+      [data-miroir] .hover\:text-blue-900:hover{color:#0A404F;}
+      [data-miroir] .hover\:text-cyan-200:hover{color:#A5E4F5;}
+      [data-miroir] .hover\:text-cyan-300:hover{color:#5ECBE7;}
+      [data-miroir] .hover\:text-cyan-400:hover{color:#29B4D6;}
+      [data-miroir] .hover\:text-indigo-200:hover{color:#A5E4F5;}
+      [data-miroir] .hover\:text-indigo-300:hover{color:#5ECBE7;}
+      [data-miroir] .hover\:text-indigo-400:hover{color:#29B4D6;}
+      [data-miroir] .hover\:text-indigo-600:hover{color:#0A7590;}
+      [data-miroir] .hover\:text-indigo-700:hover{color:#086077;}
+      [data-miroir] .hover\:text-indigo-800:hover{color:#094E60;}
+      [data-miroir] .hover\:text-sky-200:hover{color:#A5E4F5;}
+      [data-miroir] .hover\:to-cyan-500:hover{--tw-gradient-to:#0C90B2 var(--tw-gradient-to-position);}
+      [data-miroir] .hover\:to-cyan-600\/50:hover{--tw-gradient-to:rgba(10,117,144,0.5) var(--tw-gradient-to-position);}
+      [data-miroir] .hover\:to-indigo-500:hover{--tw-gradient-to:#0C90B2 var(--tw-gradient-to-position);}
+      [data-miroir] .hover\:to-indigo-500\/30:hover{--tw-gradient-to:rgba(12,144,178,0.3) var(--tw-gradient-to-position);}
+      [data-miroir] .hover\:to-indigo-600:hover{--tw-gradient-to:#0A7590 var(--tw-gradient-to-position);}
+      [data-miroir] .hover\:to-indigo-600\/50:hover{--tw-gradient-to:rgba(10,117,144,0.5) var(--tw-gradient-to-position);}
+      [data-miroir] .hover\:to-indigo-700:hover{--tw-gradient-to:#086077 var(--tw-gradient-to-position);}
+      [data-miroir] .ring-blue-400{--tw-ring-color:#29B4D6;}
+      [data-miroir] .ring-blue-400\/30{--tw-ring-color:rgba(41,180,214,0.3);}
+      [data-miroir] .ring-blue-400\/40{--tw-ring-color:rgba(41,180,214,0.4);}
+      [data-miroir] .ring-blue-500{--tw-ring-color:#0C90B2;}
+      [data-miroir] .ring-blue-500\/10{--tw-ring-color:rgba(12,144,178,0.1);}
+      [data-miroir] .ring-blue-500\/20{--tw-ring-color:rgba(12,144,178,0.2);}
+      [data-miroir] .ring-blue-500\/30{--tw-ring-color:rgba(12,144,178,0.3);}
+      [data-miroir] .ring-blue-500\/40{--tw-ring-color:rgba(12,144,178,0.4);}
+      [data-miroir] .ring-blue-600{--tw-ring-color:#0A7590;}
+      [data-miroir] .ring-blue-600\/20{--tw-ring-color:rgba(10,117,144,0.2);}
+      [data-miroir] .ring-blue-800{--tw-ring-color:#094E60;}
+      [data-miroir] .ring-cyan-300\/70{--tw-ring-color:rgba(94,203,231,0.7);}
+      [data-miroir] .ring-cyan-500\/40{--tw-ring-color:rgba(12,144,178,0.4);}
+      [data-miroir] .ring-cyan-500\/50{--tw-ring-color:rgba(12,144,178,0.5);}
+      [data-miroir] .ring-indigo-200{--tw-ring-color:#A5E4F5;}
+      [data-miroir] .ring-indigo-400{--tw-ring-color:#29B4D6;}
+      [data-miroir] .ring-indigo-500{--tw-ring-color:#0C90B2;}
+      [data-miroir] .ring-indigo-500\/20{--tw-ring-color:rgba(12,144,178,0.2);}
+      [data-miroir] .ring-indigo-500\/30{--tw-ring-color:rgba(12,144,178,0.3);}
+      [data-miroir] .ring-indigo-500\/40{--tw-ring-color:rgba(12,144,178,0.4);}
+      [data-miroir] .ring-indigo-500\/50{--tw-ring-color:rgba(12,144,178,0.5);}
+      [data-miroir] .ring-indigo-600{--tw-ring-color:#0A7590;}
+      [data-miroir] .ring-offset-blue-900{--tw-ring-offset-color:#0A404F;}
+      [data-miroir] .ring-offset-blue-950{--tw-ring-offset-color:#06262F;}
+      [data-miroir] .ring-offset-indigo-600{--tw-ring-offset-color:#0A7590;}
+      [data-miroir] .shadow-blue-500\/20{--tw-shadow-color:rgba(12,144,178,0.2);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-blue-500\/30{--tw-shadow-color:rgba(12,144,178,0.3);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-blue-600\/20{--tw-shadow-color:rgba(10,117,144,0.2);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-blue-600\/30{--tw-shadow-color:rgba(10,117,144,0.3);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-blue-600\/40{--tw-shadow-color:rgba(10,117,144,0.4);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-blue-900\/50{--tw-shadow-color:rgba(10,64,79,0.5);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-cyan-600\/30{--tw-shadow-color:rgba(10,117,144,0.3);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-cyan-900\/30{--tw-shadow-color:rgba(10,64,79,0.3);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-100\/50{--tw-shadow-color:rgba(203,240,250,0.5);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-500\/20{--tw-shadow-color:rgba(12,144,178,0.2);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-500\/30{--tw-shadow-color:rgba(12,144,178,0.3);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-500\/50{--tw-shadow-color:rgba(12,144,178,0.5);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-600\/20{--tw-shadow-color:rgba(10,117,144,0.2);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-600\/30{--tw-shadow-color:rgba(10,117,144,0.3);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-950\/40{--tw-shadow-color:rgba(6,38,47,0.4);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .shadow-indigo-950\/50{--tw-shadow-color:rgba(6,38,47,0.5);--tw-shadow:var(--tw-shadow-colored);}
+      [data-miroir] .text-blue-100{color:#CBF0FA;}
+      [data-miroir] .text-blue-200{color:#A5E4F5;}
+      [data-miroir] .text-blue-200\/70{color:rgba(165,228,245,0.7);}
+      [data-miroir] .text-blue-200\/80{color:rgba(165,228,245,0.8);}
+      [data-miroir] .text-blue-300{color:#5ECBE7;}
+      [data-miroir] .text-blue-300\/80{color:rgba(94,203,231,0.8);}
+      [data-miroir] .text-blue-400{color:#29B4D6;}
+      [data-miroir] .text-blue-400\/60{color:rgba(41,180,214,0.6);}
+      [data-miroir] .text-blue-500{color:#0C90B2;}
+      [data-miroir] .text-blue-600{color:#0A7590;}
+      [data-miroir] .text-blue-700{color:#086077;}
+      [data-miroir] .text-blue-800{color:#094E60;}
+      [data-miroir] .text-blue-800\/80{color:rgba(9,78,96,0.8);}
+      [data-miroir] .text-blue-900{color:#0A404F;}
+      [data-miroir] .text-blue-900\/90{color:rgba(10,64,79,0.9);}
+      [data-miroir] .text-blue-950{color:#06262F;}
+      [data-miroir] .text-cyan-100{color:#CBF0FA;}
+      [data-miroir] .text-cyan-200{color:#A5E4F5;}
+      [data-miroir] .text-cyan-200\/80{color:rgba(165,228,245,0.8);}
+      [data-miroir] .text-cyan-300{color:#5ECBE7;}
+      [data-miroir] .text-cyan-300\/70{color:rgba(94,203,231,0.7);}
+      [data-miroir] .text-cyan-300\/80{color:rgba(94,203,231,0.8);}
+      [data-miroir] .text-cyan-400{color:#29B4D6;}
+      [data-miroir] .text-indigo-100{color:#CBF0FA;}
+      [data-miroir] .text-indigo-200{color:#A5E4F5;}
+      [data-miroir] .text-indigo-200\/80{color:rgba(165,228,245,0.8);}
+      [data-miroir] .text-indigo-300{color:#5ECBE7;}
+      [data-miroir] .text-indigo-300\/80{color:rgba(94,203,231,0.8);}
+      [data-miroir] .text-indigo-300\/90{color:rgba(94,203,231,0.9);}
+      [data-miroir] .text-indigo-400{color:#29B4D6;}
+      [data-miroir] .text-indigo-500{color:#0C90B2;}
+      [data-miroir] .text-indigo-600{color:#0A7590;}
+      [data-miroir] .text-indigo-700{color:#086077;}
+      [data-miroir] .text-indigo-800{color:#094E60;}
+      [data-miroir] .text-indigo-800\/80{color:rgba(9,78,96,0.8);}
+      [data-miroir] .text-indigo-900{color:#0A404F;}
+      [data-miroir] .text-indigo-950{color:#06262F;}
+      [data-miroir] .text-sky-200\/80{color:rgba(165,228,245,0.8);}
+      [data-miroir] .text-sky-300{color:#5ECBE7;}
+      [data-miroir] .text-sky-400{color:#29B4D6;}
+      [data-miroir] .text-sky-500{color:#0C90B2;}
+      [data-miroir] .text-sky-600{color:#0A7590;}
+      [data-miroir] .text-sky-700{color:#086077;}
+      [data-miroir] .to-blue-50{--tw-gradient-to:#ECFAFD var(--tw-gradient-to-position);}
+      [data-miroir] .to-blue-600{--tw-gradient-to:#0A7590 var(--tw-gradient-to-position);}
+      [data-miroir] .to-blue-700{--tw-gradient-to:#086077 var(--tw-gradient-to-position);}
+      [data-miroir] .to-cyan-400{--tw-gradient-to:#29B4D6 var(--tw-gradient-to-position);}
+      [data-miroir] .to-cyan-500{--tw-gradient-to:#0C90B2 var(--tw-gradient-to-position);}
+      [data-miroir] .to-cyan-600{--tw-gradient-to:#0A7590 var(--tw-gradient-to-position);}
+      [data-miroir] .to-cyan-600\/30{--tw-gradient-to:rgba(10,117,144,0.3) var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-50{--tw-gradient-to:#ECFAFD var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-500{--tw-gradient-to:#0C90B2 var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-500\/20{--tw-gradient-to:rgba(12,144,178,0.2) var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-600{--tw-gradient-to:#0A7590 var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-600\/30{--tw-gradient-to:rgba(10,117,144,0.3) var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-600\/40{--tw-gradient-to:rgba(10,117,144,0.4) var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-600\/90{--tw-gradient-to:rgba(10,117,144,0.9) var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-700{--tw-gradient-to:#086077 var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-900{--tw-gradient-to:#0A404F var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-950{--tw-gradient-to:#06262F var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-950\/40{--tw-gradient-to:rgba(6,38,47,0.4) var(--tw-gradient-to-position);}
+      [data-miroir] .to-indigo-950\/60{--tw-gradient-to:rgba(6,38,47,0.6) var(--tw-gradient-to-position);}
+      [data-miroir] .via-blue-100{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#CBF0FA var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-blue-700{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#086077 var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-blue-950{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#06262F var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-cyan-950{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#06262F var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-50{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#ECFAFD var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-50\/70{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(236,250,253,0.7) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-500{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#0C90B2 var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-500\/5{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(12,144,178,0.05) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-600{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#0A7590 var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-600\/10{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(10,117,144,0.1) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-700{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#086077 var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-950{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#06262F var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-950\/40{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(6,38,47,0.4) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-950\/50{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(6,38,47,0.5) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-950\/60{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(6,38,47,0.6) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      [data-miroir] .via-indigo-950\/70{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgba(6,38,47,0.7) var(--tw-gradient-via-position),var(--tw-gradient-to);}
+      /* ===== FIN COUCHE AQUA GÉNÉRÉE ===== */
     </style>
   <script type="importmap">
 {

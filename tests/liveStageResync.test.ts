@@ -91,8 +91,20 @@ describe('stageGridClass — grille dérivée du nombre réel de tuiles (L3)', (
         expect(stageGridClass(4)).toBe('grid-cols-2');
     });
 
-    it('au-delà de 4 : auto-fit', () => {
-        const cls = stageGridClass(5);
+    /**
+     * DS-L0 (03/09/2026) — cette attente a été REVUE, pas supprimée. Elle
+     * encodait la règle d'origine « au-delà de 4 → auto-fit ». La Direction a
+     * depuis posé la charge NOMINALE d'un LIVE MokNet : six cartes (1 hôte +
+     * 5 invités, humains et agents confondus). Cinq et six cartes ont donc
+     * maintenant une grille dédiée ; l'auto-fit ne sert plus qu'au-delà.
+     */
+    it('5 et 6 tuiles : la charge nominale a sa grille (2 colonnes mobile, 3 desktop)', () => {
+        expect(stageGridClass(5)).toBe('grid-cols-2 md:grid-cols-3');
+        expect(stageGridClass(6)).toBe('grid-cols-2 md:grid-cols-3');
+    });
+
+    it('au-delà de six : auto-fit', () => {
+        const cls = stageGridClass(7);
         expect(cls).toContain('auto-fit');
         expect(stageGridClass(9)).toBe(cls);
     });
