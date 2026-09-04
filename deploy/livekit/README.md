@@ -274,7 +274,18 @@ Puis ouvrir `moknet.net` : tout doit fonctionner exactement comme avant.
 **Risque** : celui d'un déploiement front ordinaire (Green Gate vert, 924
 tests, aucun changement de comportement attendu).
 
-**Retour arrière** : `git revert -m 1 <sha-du-merge> && git push origin main`.
+**Retour arrière** :
+
+```bash
+git revert <sha-du-commit-de-squash> && git push origin main
+```
+
+*Squash and merge* dépose sur `main` un commit ordinaire à **un seul parent** :
+c'est bien son empreinte qu'on annule, pas celle d'un commit de fusion. Le
+`-m 1` des retours arrière de fusion est donc **inutile ici** — vérifié sur le
+`git` de ce dépôt (2.43) : il est accepté sans erreur sur un commit à un parent,
+mais il n'apporte rien. Il ne redeviendrait nécessaire qu'avec une fusion faite
+en *Create a merge commit*.
 
 ### Étape 2 — Déployer la fonction Edge `livekit-token`
 
