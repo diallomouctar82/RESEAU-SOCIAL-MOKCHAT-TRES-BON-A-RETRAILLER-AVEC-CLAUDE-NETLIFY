@@ -5384,7 +5384,10 @@ export interface PlatformDetailedModuleSettings {
   architecteAvatar: {
     photoUrl: string;
     /** Où sont les yeux et la mâchoire sur cette photo — sans quoi rien ne s'anime. */
-    rig: { eyeLinePercent: number; eyeBandPercent: number; jawLinePercent: number; jawTravelPercent: number };
+    rig: {
+      eyeLinePercent: number; eyeBandPercent: number; jawLinePercent: number; jawTravelPercent: number;
+      chinLinePercent: number; eyeLeftXPercent: number; eyeRightXPercent: number; eyeWidthPercent: number;
+    };
     displayName: string;
     mouthAnchor: { xPercent: number; yPercent: number; widthPercent: number; tiltDeg?: number };
     animationsEnabled: boolean;

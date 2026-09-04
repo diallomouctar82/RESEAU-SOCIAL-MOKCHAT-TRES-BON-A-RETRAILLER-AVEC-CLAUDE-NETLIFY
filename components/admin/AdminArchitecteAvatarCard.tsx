@@ -185,6 +185,10 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                                     ['eyeBandPercent', 'Hauteur des yeux'],
                                     ['jawLinePercent', 'Ligne de mâchoire'],
                                     ['jawTravelPercent', 'Ouverture mâchoire'],
+                                    ['chinLinePercent', 'Bas du menton'],
+                                    ['eyeLeftXPercent', 'Œil gauche (horizontale)'],
+                                    ['eyeRightXPercent', 'Œil droit (horizontale)'],
+                                    ['eyeWidthPercent', 'Largeur d’un œil'],
                                 ] as const).map(([key, label]) => (
                                     <label key={key} className="text-[11px] text-slate-500">
                                         {label}

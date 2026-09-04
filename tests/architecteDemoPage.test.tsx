@@ -26,7 +26,7 @@ describe('Page publique de démonstration de l’avatar', () => {
         const avatar = screen.getByTestId('architecte-avatar');
         expect(avatar).toBeInTheDocument();
         expect(avatar).toHaveStyle({ width: '400px', height: '400px' });
-        expect(container.querySelector('svg image')).toHaveAttribute('href', '/architecte/architecte.webp');
+        expect(container.querySelector('canvas')).toHaveAttribute('data-portrait-src', '/architecte/architecte.webp');
     });
 
     it('annonce l’identité officielle et l’état en clair', () => {

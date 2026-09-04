@@ -95,7 +95,8 @@ describe('Le bouton PERMANENT porte l’avatar — défaut relevé par la Direct
         const { container } = renderAvatar({ testId: 'architecte-flottant' });
         // Le visage est là immédiatement : c'est toute la différence entre
         // une présence permanente et un avatar caché derrière une ouverture.
-        expect(container.querySelector('svg')).toBeInTheDocument();
+        // (Canvas depuis la refonte du 04/09 : le portrait est peint, pas un SVG.)
+        expect(container.querySelector('canvas[data-portrait-src]')).toBeInTheDocument();
         expect(screen.getByTestId('architecte-flottant')).toHaveAttribute('data-presence', 'rest');
     });
 });
@@ -159,22 +160,24 @@ describe('Photo et média synthétique', () => {
         // Refonte du 04/09 : la Direction a refusé l'androïde vectoriel.
         // L'avatar livré part d'un portrait photographique.
         const { container } = renderAvatar();
-        const image = container.querySelector('svg image');
-        expect(image).toBeInTheDocument();
-        expect(image).toHaveAttribute('href', DEFAULT_ARCHITECTE_AVATAR.photoUrl);
+        // Depuis la refonte Canvas, la photo est peinte image par image ; le
+        // canvas porte l'adresse du portrait qu'il anime.
+        const portrait = container.querySelector('canvas');
+        expect(portrait).toBeInTheDocument();
+        expect(portrait).toHaveAttribute('data-portrait-src', DEFAULT_ARCHITECTE_AVATAR.photoUrl);
         expect(DEFAULT_ARCHITECTE_AVATAR.photoUrl).toMatch(/\.(webp|png|jpe?g)$/);
     });
 
     it('une autre photo prend la place de celle livrée', () => {
         const { container } = renderAvatar({ config: config({ photoUrl: 'https://cdn.moknet.app/visage.jpg' }) });
-        expect(container.querySelector('svg image')).toHaveAttribute('href', 'https://cdn.moknet.app/visage.jpg');
+        expect(container.querySelector('canvas')).toHaveAttribute('data-portrait-src', 'https://cdn.moknet.app/visage.jpg');
     });
 
     it('sans AUCUNE photo, un repli technique évite le cadre vide', () => {
         const { container } = renderAvatar({ config: config({ photoUrl: '' }) });
         // Le tracé vectoriel n'est pas l'avatar : c'est un filet de sécurité.
         expect(container.querySelector('svg')).toBeInTheDocument();
-        expect(container.querySelector('svg image')).not.toBeInTheDocument();
+        expect(container.querySelector('canvas')).not.toBeInTheDocument();
     });
 
     it('une photo affiche la pastille « média synthétique », le repli non', () => {

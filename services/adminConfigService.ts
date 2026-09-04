@@ -1428,7 +1428,10 @@ const INITIAL_DETAILED_SETTINGS: PlatformDetailedModuleSettings = {
     // Portrait photoréaliste livré avec l'application, et son calage relevé
     // sur CETTE image. C'est lui qui respire, cligne et parle.
     photoUrl: '/architecte/architecte.webp',
-    rig: { eyeLinePercent: 46.3, eyeBandPercent: 5.2, jawLinePercent: 67.3, jawTravelPercent: 5.2 },
+    rig: {
+      eyeLinePercent: 46.3, eyeBandPercent: 5.2, jawLinePercent: 67.3, jawTravelPercent: 5.2,
+      chinLinePercent: 80, eyeLeftXPercent: 41.75, eyeRightXPercent: 63.25, eyeWidthPercent: 9,
+    },
     displayName: "L'Architecte",
     mouthAnchor: { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 },
     animationsEnabled: true,

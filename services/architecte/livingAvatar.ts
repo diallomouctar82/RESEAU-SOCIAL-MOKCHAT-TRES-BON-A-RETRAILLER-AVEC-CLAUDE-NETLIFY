@@ -35,6 +35,13 @@ export interface PortraitRig {
     jawLinePercent: number;
     /** Amplitude maximale de descente de la mâchoire, en % de la hauteur. */
     jawTravelPercent: number;
+    /** Bas du menton : en dessous, la peau se comprime vers le cou — qui, lui, ne bouge pas. */
+    chinLinePercent: number;
+    /** Centre de chaque œil (0 = bord gauche, 100 = bord droit) — pour le regard et les paupières. */
+    eyeLeftXPercent: number;
+    eyeRightXPercent: number;
+    /** Largeur d'un œil, en % de la largeur du cadre. */
+    eyeWidthPercent: number;
 }
 
 export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
@@ -48,6 +55,11 @@ export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
     // fixe, celle du bas descend — c'est ainsi qu'une bouche s'ouvre.
     jawLinePercent: 67.3,
     jawTravelPercent: 5.2,
+    // Menton à 80 %, pupilles à 41,75 et 63,25 % de la largeur, œil large de 9 %.
+    chinLinePercent: 80,
+    eyeLeftXPercent: 41.75,
+    eyeRightXPercent: 63.25,
+    eyeWidthPercent: 9,
 };
 
 export function clampPortraitRig(rig: Partial<PortraitRig>): PortraitRig {
@@ -58,6 +70,10 @@ export function clampPortraitRig(rig: Partial<PortraitRig>): PortraitRig {
         eyeBandPercent: clamp(rig.eyeBandPercent!, 2, 25, DEFAULT_PORTRAIT_RIG.eyeBandPercent),
         jawLinePercent: clamp(rig.jawLinePercent!, 10, 98, DEFAULT_PORTRAIT_RIG.jawLinePercent),
         jawTravelPercent: clamp(rig.jawTravelPercent!, 0, 12, DEFAULT_PORTRAIT_RIG.jawTravelPercent),
+        chinLinePercent: clamp(rig.chinLinePercent!, 20, 99, DEFAULT_PORTRAIT_RIG.chinLinePercent),
+        eyeLeftXPercent: clamp(rig.eyeLeftXPercent!, 5, 95, DEFAULT_PORTRAIT_RIG.eyeLeftXPercent),
+        eyeRightXPercent: clamp(rig.eyeRightXPercent!, 5, 95, DEFAULT_PORTRAIT_RIG.eyeRightXPercent),
+        eyeWidthPercent: clamp(rig.eyeWidthPercent!, 2, 30, DEFAULT_PORTRAIT_RIG.eyeWidthPercent),
     };
 }
 
@@ -187,12 +203,81 @@ export function restTilt(elapsedMs: number): number {
 }
 
 /**
- * Hochement de parole : la tête descend légèrement sur une syllabe forte et
- * remonte. Proportionnel à l'ouverture de bouche, donc synchrone à la voix.
+ * Hochement de parole : la tête accompagne le PHRASÉ, pas chaque syllabe.
+ *
+ * Première version : proportionnel à l'ouverture de bouche instantanée — la
+ * tête sautillait à chaque syllabe, à 4-6 Hz, comme une marionnette (« pas
+ * naturel », Direction, 04/09). L'entrée est désormais l'EMPHASE : une
+ * enveloppe lente de la voix (≈ 0,4 s), calculée par l'appelant.
  */
-export function speechNod(mouthOpenness: number): { y: number; rotate: number } {
-    const o = Math.min(1, Math.max(0, Number.isFinite(mouthOpenness) ? mouthOpenness : 0));
-    return { y: o * 1.6, rotate: o * 1.4 };
+export function speechNod(emphasis: number): { y: number; rotate: number } {
+    const e = Math.min(1, Math.max(0, Number.isFinite(emphasis) ? emphasis : 0));
+    return { y: e * 0.7, rotate: e * 0.6 };
+}
+
+/**
+ * Lèvres entrouvertes pendant une phrase : entre deux syllabes, une bouche qui
+ * se referme complètement CLAQUE. Plancher d'ouverture à appliquer avant le
+ * lissage, tant que l'Architecte parle.
+ */
+export const LIPS_PARTED_WHILE_SPEAKING = 0.05;
+
+/**
+ * Largeur de bouche pendant la parole : une bouche qui parle s'arrondit et
+ * s'étire, elle ne fait pas que s'ouvrir. Facteur autour de 1, deux périodes
+ * incommensurables — jamais un battement régulier. 1 hors parole.
+ */
+export function mouthWidthFactor(elapsedMs: number, speaking: boolean): number {
+    if (!speaking || !Number.isFinite(elapsedMs)) return 1;
+    const t = elapsedMs / 1000;
+    return 1 + 0.08 * Math.sin((2 * Math.PI * t) / 0.93) + 0.06 * Math.sin((2 * Math.PI * t) / 1.71);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4 bis. REGARD
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Saccades du regard : à intervalles irréguliers, les yeux partent
+ * brièvement de côté puis reviennent sur l'interlocuteur. Un regard
+ * parfaitement fixe est ce qui trahit le plus vite une image.
+ * Déplacements en % du cadre — moins d'un pour cent : la pupille bouge,
+ * pas la tête.
+ */
+export const GAZE_INTERVALS_MS = [5200, 8700, 4100, 11300, 6600, 9400] as const;
+const GAZE_TARGETS: readonly (readonly [number, number])[] = [
+    [-0.9, 0.1], [0.7, -0.1], [-0.5, 0.2], [1.0, 0], [0.6, 0.2], [-0.8, -0.1],
+];
+const GAZE_HOLDS_MS = [900, 1400, 700, 1100, 1600, 800] as const;
+/** Durée d'une saccade (aller ou retour) : un regard se déplace vite. */
+export const GAZE_MOVE_MS = 90;
+const GAZE_CYCLE_MS = GAZE_INTERVALS_MS.reduce((a, b, i) => a + b + 2 * GAZE_MOVE_MS + GAZE_HOLDS_MS[i], 0);
+
+const smoothstep = (s: number) => s * s * (3 - 2 * s);
+
+export function gazeOffset(elapsedMs: number): { x: number; y: number } {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return { x: 0, y: 0 };
+    const position = elapsedMs % GAZE_CYCLE_MS;
+    let curseur = 0;
+    for (let i = 0; i < GAZE_INTERVALS_MS.length; i += 1) {
+        const depart = curseur + GAZE_INTERVALS_MS[i];
+        if (position < depart) return { x: 0, y: 0 };
+        const [tx, ty] = GAZE_TARGETS[i];
+        const arrivee = depart + GAZE_MOVE_MS;
+        const finTenue = arrivee + GAZE_HOLDS_MS[i];
+        const retour = finTenue + GAZE_MOVE_MS;
+        if (position < arrivee) {
+            const k = smoothstep((position - depart) / GAZE_MOVE_MS);
+            return { x: tx * k, y: ty * k };
+        }
+        if (position < finTenue) return { x: tx, y: ty };
+        if (position < retour) {
+            const k = 1 - smoothstep((position - finTenue) / GAZE_MOVE_MS);
+            return { x: tx * k, y: ty * k };
+        }
+        curseur = retour;
+    }
+    return { x: 0, y: 0 };
 }
 
 /** Période du balancement latéral de parole — lent, jamais un tic. */
@@ -224,6 +309,11 @@ export interface LivingPose {
     eyelid: number;
     /** 0 = bouche close, 1 = mâchoire à son ouverture maximale. */
     jawOpen: number;
+    /** Facteur de largeur de la bouche (1 = largeur de la photo). */
+    mouthWidth: number;
+    /** Déplacement du regard, en % du cadre. */
+    gazeX: number;
+    gazeY: number;
 }
 
 /** Pose strictement immobile — mouvement réduit, onglet caché, hors écran, réglage coupé. */
@@ -235,12 +325,20 @@ export const STILL_POSE: LivingPose = {
     headY: 0,
     eyelid: 0,
     jawOpen: 0,
+    mouthWidth: 1,
+    gazeX: 0,
+    gazeY: 0,
 };
 
 export interface LivingPoseInputs {
     elapsedMs: number;
     /** Ouverture de bouche issue de la synchro labiale (0..1). */
     mouthOpenness: number;
+    /**
+     * Emphase de la voix (0..1) : enveloppe LENTE de l'ouverture, lissée par
+     * l'appelant sur ~0,4 s. Pilote les hochements. Absente = pas de hochement.
+     */
+    emphasis?: number;
     /** `false` = pose figée. Décidé par l'appelant (`shouldAnimate`). */
     animated: boolean;
     /**
@@ -248,6 +346,14 @@ export interface LivingPoseInputs {
      * qu'à peine pendant une phrase — l'attention doit aller à la bouche.
      */
     speaking: boolean;
+    /**
+     * Part « parole » LISSÉE (0..1), fournie par l'appelant sur ~200 ms.
+     * Sans elle, chaque bascule parole ↔ repos faisait sauter d'un coup la
+     * respiration, le balancement et l'inclinaison — un à-coup visible à
+     * chaque fin de phrase (vu sur le journal de pose du rendu). Absente =
+     * `speaking` converti en 0/1.
+     */
+    speakingBlend?: number;
 }
 
 /**
@@ -265,18 +371,28 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
 
     const respiration = breathPhase(inputs.elapsedMs);
     const derive = headDrift(inputs.elapsedMs);
+    // Toute influence de la parole passe par une part LISSÉE : rien ne saute
+    // quand une phrase commence ou finit.
+    const blend = Math.min(1, Math.max(0, Number.isFinite(inputs.speakingBlend!) ? inputs.speakingBlend! : inputs.speaking ? 1 : 0));
     // Respiration atténuée pendant la parole : la poitrine se calme quand on
     // parle, et le mouvement de fond ne doit pas concurrencer la bouche.
-    const ampleur = inputs.speaking ? 0.6 : 1;
+    const ampleur = 1 - 0.4 * blend;
 
-    const nod = inputs.speaking ? speechNod(jawOpen) : { y: 0, rotate: 0 };
-    const sway = inputs.speaking ? speechSway(inputs.elapsedMs) : 0;
-    const tilt = inputs.speaking ? 0 : restTilt(inputs.elapsedMs);
+    const emphasis = Math.min(1, Math.max(0, Number.isFinite(inputs.emphasis!) ? inputs.emphasis! : 0));
+    // L'emphase est déjà une enveloppe lente : le hochement s'éteint de
+    // lui-même en fin de phrase, sans coupure.
+    const nod = speechNod(emphasis);
+    const regard = gazeOffset(inputs.elapsedMs);
+    const sway = speechSway(inputs.elapsedMs) * blend;
+    // L'inclinaison d'écoute continue pendant la parole : la couper à la
+    // volée faisait basculer la tête d'un coup en fin de phrase.
+    const tilt = restTilt(inputs.elapsedMs);
 
     return {
-        // Respiration visible : ~2 % d'échelle, les épaules montent avec.
-        breathScale: 1 + respiration * 0.02 * ampleur,
-        breathY: -respiration * 1.3 * ampleur,
+        // Respiration visible sans devenir un effet : 1,5 % d'échelle, les
+        // épaules montent avec — devant un fond qui, lui, ne bouge pas.
+        breathScale: 1 + respiration * 0.015 * ampleur,
+        breathY: -respiration * 1.0 * ampleur,
         headRotate: derive.rotate + tilt + nod.rotate,
         headX: derive.x + sway,
         headY: derive.y + nod.y,
@@ -285,5 +401,8 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
         // en 29 s ne suffisaient pas à convaincre.
         eyelid: blinkAmount(inputs.elapsedMs),
         jawOpen,
+        mouthWidth: 1 + (mouthWidthFactor(inputs.elapsedMs, true) - 1) * blend,
+        gazeX: regard.x,
+        gazeY: regard.y,
     };
 }

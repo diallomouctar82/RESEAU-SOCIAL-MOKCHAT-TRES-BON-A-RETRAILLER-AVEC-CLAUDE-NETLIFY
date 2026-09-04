@@ -29,3 +29,10 @@ export function setOnline(value: boolean): void {
         get: () => value,
     });
 }
+
+// jsdom n'implémente pas Canvas 2D : le portrait vivant (Canvas) reste inerte
+// en test, sans « Not implemented » à chaque montage. Le rendu réel est prouvé
+// dans un vrai navigateur (captures et vidéo du design-lab / de la page /architecte).
+if (typeof HTMLCanvasElement !== 'undefined') {
+    HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement['getContext'];
+}

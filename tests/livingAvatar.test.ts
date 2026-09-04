@@ -8,9 +8,12 @@ import {
     blinkAmount,
     breathPhase,
     clampPortraitRig,
+    gazeOffset,
     headDrift,
+    mouthWidthFactor,
     resolveLivingPose,
     restTilt,
+    TILT_INTERVALS_MS,
 } from '../services/architecte/livingAvatar';
 
 /**
@@ -140,7 +143,14 @@ describe('Calage du portrait — le code ne devine pas un visage', () => {
         expect(clampPortraitRig({ eyeLinePercent: NaN, jawLinePercent: NaN })).toMatchObject({
             eyeLinePercent: DEFAULT_PORTRAIT_RIG.eyeLinePercent,
             jawLinePercent: DEFAULT_PORTRAIT_RIG.jawLinePercent,
+            chinLinePercent: DEFAULT_PORTRAIT_RIG.chinLinePercent,
+            eyeLeftXPercent: DEFAULT_PORTRAIT_RIG.eyeLeftXPercent,
+            eyeRightXPercent: DEFAULT_PORTRAIT_RIG.eyeRightXPercent,
+            eyeWidthPercent: DEFAULT_PORTRAIT_RIG.eyeWidthPercent,
         });
+        // Un calage hérité (quatre champs) reçoit les nouveaux sans casser.
+        expect(DEFAULT_PORTRAIT_RIG.chinLinePercent).toBeGreaterThan(DEFAULT_PORTRAIT_RIG.jawLinePercent);
+        expect(DEFAULT_PORTRAIT_RIG.eyeRightXPercent).toBeGreaterThan(DEFAULT_PORTRAIT_RIG.eyeLeftXPercent);
     });
 });
 
@@ -188,10 +198,62 @@ describe('Pose complète', () => {
         expect(amplitudeMax).toBeGreaterThan(0.01);
     });
 
-    it('hoche la tête sur les syllabes quand il parle — la tête suit la voix', () => {
-        const muet = resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0 });
-        const fort = resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0.9 });
-        expect(fort.headY).toBeGreaterThan(muet.headY);
+    it('hoche la tête sur le PHRASÉ quand il parle — pas sur chaque syllabe', () => {
+        const calme = resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0.9, emphasis: 0 });
+        const appuye = resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0.9, emphasis: 0.9 });
+        // Même ouverture de bouche instantanée : seule l'emphase (enveloppe
+        // lente) fait bouger la tête — une tête qui sautille à chaque syllabe
+        // est une marionnette (retour Direction, 04/09).
+        expect(appuye.headY).toBeGreaterThan(calme.headY);
+        expect(calme.headY).toBeCloseTo(resolveLivingPose({ ...base, speaking: true, mouthOpenness: 0, emphasis: 0 }).headY, 6);
+        // Et le hochement reste petit : moins d'un pour cent du cadre.
+        expect(appuye.headY - calme.headY).toBeLessThan(1);
+    });
+
+    it('déplace le regard par saccades brèves, puis revient sur l’interlocuteur', () => {
+        let ecarts = 0, maxX = 0, retours = 0, dehors = false;
+        for (let t = 0; t < 120_000; t += 20) {
+            const g = gazeOffset(t);
+            maxX = Math.max(maxX, Math.abs(g.x));
+            const loin = Math.abs(g.x) > 0.3;
+            if (loin && !dehors) ecarts += 1;
+            if (!loin && dehors) retours += 1;
+            dehors = loin;
+        }
+        expect(ecarts).toBeGreaterThanOrEqual(6); // plusieurs saccades en deux minutes
+        expect(retours).toBe(ecarts); // chacune revient au centre
+        expect(maxX).toBeLessThanOrEqual(1); // la pupille bouge, pas la tête
+        expect(gazeOffset(0)).toEqual({ x: 0, y: 0 });
+    });
+
+    it('la bouche s’arrondit et s’étire en parlant, jamais au repos', () => {
+        let min = 1, max = 1;
+        for (let t = 0; t < 20_000; t += 16) {
+            const w = mouthWidthFactor(t, true);
+            min = Math.min(min, w);
+            max = Math.max(max, w);
+            expect(mouthWidthFactor(t, false)).toBe(1);
+        }
+        expect(min).toBeGreaterThan(0.8);
+        expect(max).toBeLessThan(1.2);
+        expect(max - min).toBeGreaterThan(0.15);
+    });
+
+    it('aucun à-coup entre parole et repos : la part de parole lissée pilote tout', () => {
+        // Au milieu d'une inclinaison d'écoute, passer de parole à repos ne doit
+        // rien faire sauter — la pose à blend 0,5 est entre les deux extrêmes.
+        const t = TILT_INTERVALS_MS[0] + 1100;
+        const repos = resolveLivingPose({ ...base, elapsedMs: t, speaking: false, speakingBlend: 0 });
+        const parole = resolveLivingPose({ ...base, elapsedMs: t, speaking: true, speakingBlend: 1 });
+        const milieu = resolveLivingPose({ ...base, elapsedMs: t, speaking: true, speakingBlend: 0.5 });
+        // L'inclinaison d'écoute n'est plus coupée pendant la parole.
+        expect(Math.abs(parole.headRotate - repos.headRotate)).toBeLessThan(2);
+        for (const cle of ['breathScale', 'headX', 'mouthWidth'] as const) {
+            const lo = Math.min(repos[cle], parole[cle]);
+            const hi = Math.max(repos[cle], parole[cle]);
+            expect(milieu[cle]).toBeGreaterThanOrEqual(lo - 1e-9);
+            expect(milieu[cle]).toBeLessThanOrEqual(hi + 1e-9);
+        }
     });
 
     it('incline la tête au repos, à intervalles irréguliers, en alternant le côté', () => {

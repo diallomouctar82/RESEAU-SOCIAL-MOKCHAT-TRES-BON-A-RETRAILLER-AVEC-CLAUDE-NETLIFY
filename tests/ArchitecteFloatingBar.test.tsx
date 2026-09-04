@@ -144,7 +144,7 @@ describe('État fermé', () => {
         // Le visage est réellement rendu au repos, sans aucune interaction :
         // c'est la différence entre une présence permanente et un avatar
         // caché derrière une ouverture (défaut relevé par la Direction).
-        expect(pastille.querySelector('svg')).toBeInTheDocument();
+        expect(pastille.querySelector('canvas[data-portrait-src]')).toBeInTheDocument();
         expect(container).not.toBeEmptyDOMElement();
     });
 

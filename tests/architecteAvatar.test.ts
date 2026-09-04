@@ -303,8 +303,11 @@ describe('Synchro labiale — de l’amplitude à l’ouverture', () => {
     it('lisse : ouverture rapide à l’attaque, fermeture plus lente', () => {
         const montee = smoothOpenness(0, 1);
         const descente = smoothOpenness(1, 0);
-        expect(montee).toBeCloseTo(0.55, 5);
-        expect(1 - descente).toBeCloseTo(0.25, 5);
+        // 0,35 : ~4 images à 60 i/s pour 80 % de l'ouverture (≈ 70 ms), comme une
+        // lèvre. La valeur initiale (0,55) ouvrait en deux images et claquait —
+        // mesuré par simulation de la boucle réelle le 04/09.
+        expect(montee).toBeCloseTo(0.35, 5);
+        expect(1 - descente).toBeCloseTo(0.22, 5);
         // La montée est plus franche que la descente : une bouche a de l'inertie.
         expect(montee).toBeGreaterThan(1 - descente);
     });

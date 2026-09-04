@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { avatarHaloProps } from '../../services/live/liveMaterialSystem';
 import {
     ARCHITECTE_DISCLOSURE,
@@ -15,9 +15,9 @@ import {
     smoothOpenness,
 } from '../../services/architecte/lipSync';
 import { realAvatarUrl } from '../../services/studio/avatarIdentity';
-import { resolveLivingPose, STILL_POSE, type LivingPose } from '../../services/architecte/livingAvatar';
+import { resolveLivingPose, STILL_POSE, type LivingPose, LIPS_PARTED_WHILE_SPEAKING } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatarFace } from './ArchitecteAvatarFace';
-import { LivingPortrait } from './LivingPortrait';
+import { LivingPortrait, type LivingPortraitHandle } from './LivingPortrait';
 
 /**
  * AVATAR VIVANT DE L'ARCHITECTE — présence P1 + P2 (AI Core, playbook 15).
@@ -119,10 +119,6 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     testId = 'architecte-avatar',
 }) => {
     const hostRef = useRef<HTMLButtonElement>(null);
-    // Les `clipPath` SVG partagent l'espace de noms du document : deux avatars
-    // sur le même écran (bouton flottant + aperçu admin) se voleraient leurs
-    // découpes sans identifiant propre.
-    const instanceId = useId().replace(/:/g, '');
     const prefersReducedMotion = usePrefersReducedMotion();
     const documentVisible = useDocumentVisible();
     const onScreen = useOnScreen(hostRef as React.RefObject<HTMLElement>);
@@ -161,6 +157,14 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     // même point — et les premiers clignements n'arriveraient jamais.
     const origineRef = useRef<number | null>(null);
     const wordPulseRef = useRef<{ at: number; length: number } | null>(null);
+    // Emphase : enveloppe LENTE de la voix, pour des hochements qui suivent
+    // le phrasé et non chaque syllabe (retour Direction : « pas naturel »).
+    const emphasisRef = useRef(0);
+    // Part « parole » lissée (~200 ms) : les transitions parole ↔ repos ne
+    // font sauter ni la respiration, ni le balancement, ni l'inclinaison.
+    const speakingBlendRef = useRef(0);
+    // Le portrait se peint lui-même (Canvas) : pas de rendu React à 60 Hz.
+    const portraitRef = useRef<LivingPortraitHandle>(null);
     levelRef.current = outputLevel;
     wordPulseRef.current = wordPulse;
     speakingRef.current = presence === 'speaking';
@@ -168,6 +172,9 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     useEffect(() => {
         if (!animated) {
             opennessRef.current = 0;
+            emphasisRef.current = 0;
+            speakingBlendRef.current = 0;
+            portraitRef.current?.draw(STILL_POSE);
             setPose(STILL_POSE);
             return;
         }
@@ -176,20 +183,29 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         const debut = origineRef.current;
         const boucle = (maintenant: number) => {
             const pulse = wordPulseRef.current;
-            const cible = resolveMouthOpenness(lipSyncLevel, {
+            let cible = resolveMouthOpenness(lipSyncLevel, {
                 amplitude: levelRef.current,
                 elapsedMs: pulse ? maintenant - pulse.at : undefined,
                 wordLength: pulse ? pulse.length : undefined,
             });
+            // Lèvres entrouvertes tant qu'il parle : une bouche qui se referme
+            // complètement entre deux syllabes claque comme une marionnette.
+            if (speakingRef.current) cible = Math.max(cible, LIPS_PARTED_WHILE_SPEAKING);
             opennessRef.current = smoothOpenness(opennessRef.current, cible);
-            setPose(
-                resolveLivingPose({
-                    elapsedMs: maintenant - debut,
-                    mouthOpenness: opennessRef.current,
-                    animated: true,
-                    speaking: speakingRef.current,
-                }),
-            );
+            const ouverture = opennessRef.current;
+            emphasisRef.current += (ouverture - emphasisRef.current) * (ouverture > emphasisRef.current ? 0.06 : 0.035);
+            speakingBlendRef.current += ((speakingRef.current ? 1 : 0) - speakingBlendRef.current) * 0.08;
+            const pose = resolveLivingPose({
+                elapsedMs: maintenant - debut,
+                mouthOpenness: ouverture,
+                emphasis: emphasisRef.current,
+                animated: true,
+                speaking: speakingRef.current,
+                speakingBlend: speakingBlendRef.current,
+            });
+            // Photo : le portrait se peint directement. Repli vectoriel : état React.
+            if (portraitRef.current) portraitRef.current.draw(pose);
+            else setPose(pose);
             frame = requestAnimationFrame(boucle);
         };
         frame = requestAnimationFrame(boucle);
@@ -228,12 +244,11 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             {photo ? (
                 /* LE PORTRAIT VIVANT : la photo respire, cligne et parle. */
                 <LivingPortrait
+                    ref={portraitRef}
                     photoUrl={photo}
-                    pose={pose}
                     rig={config.rig}
                     mouth={mouth}
                     accent={accent}
-                    instanceId={instanceId}
                 />
             ) : (
                 /* Repli technique quand AUCUNE photo n'est configurée. Ce n'est

@@ -90,7 +90,10 @@ export function amplitudeToOpenness(amplitude: number): number {
  * L'ouverture monte vite (une syllabe attaque) et retombe plus lentement.
  */
 export function smoothOpenness(previous: number, target: number): number {
-    const factor = target > previous ? 0.55 : 0.25;
+    // Attaque en ~4 images à 60 i/s (≈ 70 ms pour 80 % de l'ouverture), comme
+    // une lèvre qui s'ouvre — 0,55 ouvrait en deux images et claquait (mesuré
+    // par simulation de la boucle réelle, 04/09). Retombée plus lente.
+    const factor = target > previous ? 0.35 : 0.22;
     return previous + (target - previous) * factor;
 }
 
