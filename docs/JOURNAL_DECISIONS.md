@@ -20,9 +20,9 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
-### [DEC-2026-053] — 4 Septembre 2026
+### [DEC-2026-055] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, page publique `/architecte`, banc `design-lab/banc/portrait.html`.
-* **Problème / Besoin initial** : après la vidéo de DEC-2026-052, la Direction : « c'est un bon début, mais ce n'est pas assez fluide ni naturel ». Mesure faite avant d'agir : la page tourne à **60 i/s** dans le navigateur de preuve (301 images en 5 s, 16,7 ms médian) — la cadence n'est pas en cause. Ce qui l'est : le MOUVEMENT lui-même. En SVG, chaque partie mobile était une copie entière de la photo translatée d'un bloc sous un masque : la lèvre du bas, le menton, le cou et le col descendaient ensemble ; la tête et le fond de bureau pivotaient ensemble ; la tête hochait à CHAQUE syllabe (4-6 Hz, marionnette) ; la bouche se refermait complètement entre deux syllabes (claquement) ; le regard était parfaitement fixe.
+* **Problème / Besoin initial** : après la vidéo de DEC-2026-054, la Direction : « c'est un bon début, mais ce n'est pas assez fluide ni naturel ». Mesure faite avant d'agir : la page tourne à **60 i/s** dans le navigateur de preuve (301 images en 5 s, 16,7 ms médian) — la cadence n'est pas en cause. Ce qui l'est : le MOUVEMENT lui-même. En SVG, chaque partie mobile était une copie entière de la photo translatée d'un bloc sous un masque : la lèvre du bas, le menton, le cou et le col descendaient ensemble ; la tête et le fond de bureau pivotaient ensemble ; la tête hochait à CHAQUE syllabe (4-6 Hz, marionnette) ; la bouche se refermait complètement entre deux syllabes (claquement) ; le regard était parfaitement fixe.
 * **Compétence de référence** : AI Core playbook 15 § 3 (respiration non mécanique, clignement à variation naturelle, micro-mouvements « de tête ou de regard ») et § 10 (mesurer la cadence sur appareil de référence avant toute déclaration de qualité).
 * **Idées / Options envisagées** : (1) vidéo générée par un fournisseur — écartée (§ 3, et incapable de suivre la voix réelle) ; (2) rester en SVG avec plus de couches — écartée, une image translatée ne se DÉFORME pas ; (3) retenue : **rendu Canvas 2D image par image** (`services/architecte/portraitPainter.ts`), où le visage se déforme.
 * **Décision retenue** :
@@ -45,7 +45,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-052] — 4 Septembre 2026
+### [DEC-2026-054] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, `Espace Super-Admin (paramètres plateforme)`, page publique `/architecte`.
 * **Problème / Besoin initial** : la Direction a refusé trois versions successives de l'avatar — « ce n'est pas un avatar vivant, ce n'est pas humain » (dessin vectoriel), « tu as juste posé une image » (photo immobile), puis une bouche qui s'ouvrait **sous** les lèvres et des clignements qui ramenaient les **sourcils** sur les yeux (constaté image par image sur la vidéo de preuve). Exigence finale : « un vrai avatar vivant qui parle, visible dans MokNet et testé par moi » — ouverture/fermeture de la bouche, clignement, respiration, mouvements de tête et gestes menus, preuve vidéo, lien fonctionnel sans connexion.
 * **Compétence de référence** : Vision Smart AI Core, playbook 15 § 3 (« animation vivante légère : respiration lente NON mécanique, clignement à variation naturelle, micro-mouvements de tête, CSS/SVG et jamais vidéo bouclée »), § 5 (ne jamais surpromettre la synchro labiale), § 9 (média synthétique déclaré), § 10 (arrêt hors écran / mouvement réduit) ; playbook 09 (chorégraphie du mouvement).
@@ -66,7 +66,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-051] — 4 Septembre 2026
+### [DEC-2026-053] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, `Espace Super-Admin (paramètres plateforme)`, `Moteur vocal`.
 * **Problème / Besoin initial** : mission de la Direction — « livrer un avatar visible à la place du bouton Architecte, avec des états animés et une synchro labiale », plus quatre réglages Super-Admin. L'Architecte est « le guide permanent de toute la maison MokNet » (consigne RO-3) mais n'était qu'un rond de 48 px portant l'icône `UserRound` : aucun visage, et l'état n'était porté que par une couleur de fond.
 * **Compétence de référence** : la Direction a imposé de construire à partir des compétences capitalisées dans **Vision Smart AI Core**. Le dépôt VISION-SMART-AI-CORP a été rattaché à la session et son **playbook 15 « Avatar vivant personnalisable — Présence conversationnelle vivante » (v1.0.0)** a servi de guide, avec `skills/FUTURE_UI_UX_STANDARD.md`.
@@ -88,7 +88,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-050] — 4 Septembre 2026
+### [DEC-2026-052] — 4 Septembre 2026
 * **Module(s)** : `Studio & Création (module 11)`, `Espace Super-Admin (paramètres plateforme)`, `Profil & identité`.
 * **Problème / Besoin initial** : l'identité visuelle d'un membre n'avait aucun propriétaire. Un nouveau compte héritait d'un cliché Unsplash codé en dur (`photo-1534528741775-53994a69daeb`) que le reste de l'application traite déjà comme « avatar absent » (`isStockPlaceholderAvatar`) — donc un visage d'inconnu qui n'était même pas affiché. Aucun réglage ne permettait à l'Admin-Général de définir l'avatar institutionnel des nouveaux comptes, et aucune notion d'abonnement Pro n'existait pour ouvrir un avatar personnel.
 * **Idées / Options envisagées** : (1) nouvelle table `avatars` + migration Supabase ; (2) nouvelle colonne `profiles.personal_avatar` ; (3) réutiliser les chemins de persistance RÉELS déjà écrits par le client — `profiles.avatar_url` pour la photo et le JSON `profiles.privacy_settings` pour la persona, exactement comme la fiche de consentement de l'Architecte.
@@ -1204,6 +1204,172 @@ Chaque décision respecte le formalisme strict suivant :
 * **Restes assumés** : rien de la vision n'est codé par cette décision. Le
   prochain lot de code est **LV-6** — la preuve réelle à deux comptes —, verrou
   de tout ce qui suit.
+
+---
+
+### [DEC-2026-051] — 4 Septembre 2026
+
+* **Module(s)** : `Navigation globale (en-têtes ordinateur et téléphone, barre latérale)`, `Accueil / Tableau de bord`
+* **Problème / Besoin initial** : la Direction a envoyé cinq captures de
+  l'accueil — « l'interface est trop chargée », surtout la barre du haut et la
+  barre latérale — et demandé de **retirer ces boutons de l'affichage** sans
+  supprimer les fonctions dans le système : le badge « v5.12 », la pilule
+  « Services », la bannière « Lier Google Workspace », le compteur
+  « 1 000 000 Ⓒ », le bouton « Services Transversaux · Google » du pied de
+  barre latérale et la carte « Conseiller Référent · Conseiller Diallo » du
+  tableau de bord. Aucune fusion ni production avant son contrôle.
+* **Audit de l'existant, avant d'y toucher** : la même modale
+  `TransversalServicesModal` avait **trois** déclencheurs (pilule d'en-tête,
+  pied de barre latérale, tiroir mobile) plus la recherche ⌘K. Les quatre
+  centres Google (`google-maps` / `google-drive` / `google-meet` /
+  `google-chat`) ne sont **pas** des entrées de `MAIN_NAV_ITEMS` mais de
+  `TRANSVERSAL_SERVICES` : sur ordinateur, ils n'étaient joignables QUE par
+  cette modale ou par ⌘K — retirer les deux boutons sans rien redonner aurait
+  rendu quatre écrans quasi inatteignables. « Lier Google Workspace » est
+  aussi porté, en version complète, par les centres Drive, Chat et Meet. Le
+  solde de crédits vit dans « Finance & Wallet » (navigation principale). Le
+  badge « v5.12 » était **faux** (v6.14.1 en production). La carte de
+  conseiller était la prop `leadAdvisor` de `PointAToBPathway`, encore
+  utilisée par la vitrine du Design System.
+* **Idées envisagées** :
+  1. Masquer par CSS (`hidden`) — **rejeté** : du DOM mort, des tests
+     trompeurs, et « pas de faux boutons » (`AGENTS.md` § 4).
+  2. Supprimer aussi la modale et la variante compacte de la bannière —
+     **rejeté** : la Direction a interdit de supprimer les fonctions.
+  3. **Retenu** : retirer les six déclencheurs de l'affichage, garder les
+     composants et la modale, et **redonner au hub un chemin sur ordinateur**
+     — un rang « Services Google & Sécurité » dans le menu Compte (avatar),
+     symétrique de l'entrée du tiroir mobile.
+* **Décision** : dans `Layout.tsx`, l'en-tête ordinateur perd le badge de
+  version, la pilule « Services », la bannière compacte Google Workspace et
+  le compteur de crédits ; l'en-tête téléphone perd le même compteur (même
+  élément, même raison) ; le pied de barre latérale perd le bouton « Services
+  Transversaux · Google » ; le menu Compte gagne un rang « Services Google &
+  Sécurité » (`data-testid="compte-services-transversaux"`) qui ouvre la
+  même modale. Dans `Dashboard.tsx`, la trajectoire Point A → Point B est
+  rendue sans `leadAdvisor` ni `onOpenAdvisor`. Le tiroir mobile est
+  **inchangé** (hors périmètre — ni barre du haut ni barre latérale
+  d'ordinateur — et seul chemin mobile vers le hub). `GoogleWorkspaceBanner`
+  et `TransversalServicesModal` ne sont pas modifiés.
+* **Justification** : moins de chrome à l'accueil sans perte de capacité —
+  chaque fonction garde au moins un chemin réel sur ordinateur ET sur
+  téléphone, prouvé par test ; un badge de version faux est une
+  documentation qui ment (défaut au même titre qu'un bug).
+* **Éléments techniques** : `components/Layout.tsx` (−4 éléments d'en-tête,
+  −1 élément d'en-tête mobile, −1 bouton de barre latérale, +1 rang de menu
+  Compte, import orphelin `GoogleWorkspaceBanner` retiré),
+  `components/Dashboard.tsx`, `tests/homeChromeCleanup.test.tsx` (nouveau :
+  6 tests « retiré de l'affichage » + 5 tests « toujours atteignable »).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **935/935 (68 fichiers, +11)** ·
+  `npm run build` propre · captures avant/après **ordinateur 1600×900** et
+  **téléphone 390×844** (harnais local non versionné rendant Layout +
+  Dashboard authentifiés sur `origin/main` et sur la branche), versées dans
+  `docs/captures/2026-09-04-nettoyage-accueil/` avec les recadrages
+  en-tête / barre latérale / menu Compte / trajectoire.
+* **Statut** : `Développé`, `Testé`, `Validé` — **validation de la Direction
+  le 4 septembre 2026** (« Je valide ta proposition, mais exécution contrôlée
+  uniquement. Rien ne doit régresser. Objectif : zéro régression. Preuve et
+  test à la fin. ») après contrôle de l’aperçu Netlify et des captures ;
+  fusionnée dans `main` via la PR #73, déploiement automatique Netlify sur
+  moknet.net, contrôle post-déploiement (bundle servi, absence d’erreur de
+  page) consigné dans la PR.
+* **Restes assumés** : le jugement visuel (« est-ce assez aéré ? ») revient à
+  la Direction ; `GoogleWorkspaceBanner compact` n'a plus d'appelant
+  (variante conservée) ; `PointAToBPathway.leadAdvisor` reste (vitrine).
+
+---
+
+### [DEC-2026-050] — 4 Septembre 2026
+
+* **Module(s)** : `Live / Directs`, `Fonction Edge livekit-token`, `Déploiement VPS LiveKit`
+* **Problème / Besoin initial** : la porte serveur (SAT-2) et l'écran « c'est
+  complet » (SAT-3) étaient l'un et l'autre corrects, testés et prouvés au
+  banc — et pourtant **inertes en production**. Cause racine trouvée en
+  remontant la chaîne : **rien dans le dépôt n'appelait jamais `createRoom`**.
+  LiveKit crée donc la room tout seul à l'arrivée du premier participant,
+  sans `maxParticipants` — et `0` est sa convention pour « aucune limite ».
+  La porte lisait donc fidèlement un plafond nul et ne pouvait refuser
+  personne, quoi qu'elle compte. Un garde-fou complet, correct et sans
+  effet.
+* **Options envisagées** :
+  1. **Un chiffre en dur** (ex. 200 places) — écarté par la Direction dès
+     SAT-0 : un plafond arbitraire est faux sur toute machine qui n'est pas
+     celle pour laquelle il a été choisi.
+  2. **Un réglage manuel par direct** — écarté également : demande à
+     l'animateur une information qu'il n'a pas.
+  3. **Un plafond dérivé de la machine réelle** — retenu.
+* **Ce que le banc a mesuré, et qui a dicté la conception** (sonde exécutée
+  contre les DEUX binaires : `livekit-server` **1.8.4**, la version exacte du
+  VPS, et **1.13.6**, la cible épinglée dans `deploy/livekit/`) :
+  * `/metrics` **n'existe que si `prometheus_port` est configuré** ; sans
+    lui, HTTP 404 sur tous les ports. Le VPS ne l'a pas.
+  * `createRoom({maxParticipants})` pose réellement le plafond ; un **second**
+    `createRoom` sur la même room **ne le change pas** (3 reste 3), et
+    **aucune** des 13 méthodes du SDK serveur ne le corrige ensuite. Le
+    plafond ne se pose donc qu'**à la création**.
+  * `listRooms()` sans filtre donne la charge de tout le nœud — la marge est
+    lisible sans Prometheus.
+  * une room vide **disparaît** (`empty_timeout`) : le plafond est perdu avec
+    elle et doit être re-posé à chaque renaissance.
+  * les étiquettes exposées par `/metrics` sont `code, direction, le, method,
+    node_id, node_type, quantile, service, status, transmission, version` —
+    **zéro nom de room, zéro identité de participant**. Aucune donnée
+    personnelle ne transite par ce canal.
+* **Décision** : le plafond suit **deux lectures vivantes** — les cœurs que
+  le serveur LiveKit voit (`go_sched_gomaxprocs_threads`) et l'occupation
+  réelle du nœud (`listRooms()`) — appliquées à **une seule référence, elle
+  aussi mesurée** : **0,00767 cœur par spectateur**, relevé au banc en audio,
+  dans la topologie d'un direct (un animateur publie, les autres reçoivent),
+  sur le compteur `process_cpu_seconds_total` du processus LiveKit. Soit
+  **130 places par cœur**, dont **la moitié seulement est engagée**.
+* **Pourquoi la moitié, et pas plus** : la part réservée n'est pas une marge
+  de confort, c'est l'écart **assumé** entre ce que le banc a pu mesurer
+  (audio seul, cinq participants) et ce que la machine porte réellement
+  (vidéo, appels 1-à-1, relais TURN, système). Une première mesure avait été
+  faite en topologie « réunion » (trois participants publiant tous) et donne
+  0,0127 cœur chacun ; elle a été **rejetée** : le coût d'un SFU croît en N²
+  dans ce cas, ce qui décrit une réunion, pas un direct.
+* **Refus de deviner, posé en dur dans le code** : toute incertitude rend
+  `null` et **ne pose aucun plafond** — pas d'URL de métriques, `/metrics`
+  injoignable ou en 404, machine inconnue, création refusée. Le direct se
+  comporte alors exactement comme avant, et la porte laisse entrer. Mieux
+  vaut un direct sans plafond qu'un plafond fabriqué.
+* **Le piège nommé et gardé** : le plancher est **1, jamais 0**. Un nœud
+  saturé dont le calcul tomberait à zéro poserait un direct **sans aucune
+  limite** — exactement l'inverse de son intention. Un test dédié l'éprouve
+  sur trois occupations extrêmes.
+* **Conséquences système** :
+  * `supabase/functions/livekit-token/nodeCapacity.ts` (nouveau, pur : ni
+    Deno, ni Supabase, ni réseau — ce qui permet au banc d'exécuter **la
+    fonction du dépôt elle-même** contre un vrai serveur, au lieu d'en
+    rejouer une imitation).
+  * `deploy/livekit/docker-compose.yml` : `prometheus_port` sur la **boucle
+    locale uniquement** — jamais exposé publiquement depuis ce fichier ; le
+    filtrage par jeton se fait au reverse-proxy (procédure dans
+    `deploy/livekit/README.md`).
+  * **Rien n'est actif en production** : `prometheus_port` n'est pas
+    configuré sur le VPS, `/metrics` y répond 404, donc **aucun plafond
+    n'est posé aujourd'hui**. Le code est prêt, l'infrastructure ne l'est
+    pas — c'est SAT-1b, une action SSH.
+  * La fonction Edge `livekit-token` n'est **pas déployée** avec ces
+    changements. Elle est globale et unique : la déployer, c'est la
+    production.
+* **Une garde trouvée COMPLAISANTE et corrigée** (le constat le plus utile de
+  cette boucle) : la contre-épreuve retirait l'ancre `^` de l'expression qui
+  lit le nombre de cœurs, et **les 27 tests restaient verts**. Le test
+  n'essayait qu'un nom **suffixé** (`..._threads_total`), que même une
+  expression sans ancre rejette — ce qui suit le nom n'y est ni un espace ni
+  un chiffre. Le vrai risque est un nom **préfixé** :
+  `livekit_go_sched_gomaxprocs_threads 99` aurait fait annoncer 99 cœurs
+  pour une machine qui n'en a pas. Test réécrit sur ce cas, contre-épreuve
+  rejouée : exactement **1 test rouge**, fichier restauré à l'empreinte
+  SHA-256 identique.
+* **Statut** : `Développé`, `Testé`, **`En attente de validation visuelle de
+  la Direction`** — tsc 0 · vitest 924/924 (67 fichiers, +27) · build propre ·
+  banc réel **21 OK / 0 DÉFAUT** sur 1.8.4 **et** 1.13.6 · **8
+  contre-épreuves / 8 conformes** · aucune écriture en base, aucun compte de
+  test, rien à nettoyer. **Aucune fusion, aucun déploiement de la fonction
+  Edge sans le feu vert de la Direction.**
 
 ---
 

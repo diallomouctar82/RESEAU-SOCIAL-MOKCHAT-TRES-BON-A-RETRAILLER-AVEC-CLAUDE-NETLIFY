@@ -753,7 +753,14 @@ describe('MoocChatFloating — signaux, multi-appareils (VF-2) et push (VF-1)', 
         expect(screen.getByText('Appel vidéo entrant…')).toBeTruthy(); // mise en page vidéo : l'appel entrant est nommé, pas « en attente de l'image »
         expect(screen.getByTitle('Appel Audio')).toBeTruthy(); // la conversation est ouverte derrière l'écran d'appel
         expect(signalCalls('call_accepted')).toEqual([]);
-        expect(rig.startRinging).toHaveBeenCalled();
+        // `startRinging` est déclenché par l'effet dérivé de `callRingingPhase`,
+        // qui s'exécute APRÈS le rendu qui fait apparaître « Décrocher » — un
+        // tour de boucle plus tard. Un `expect` synchrone ici passait presque
+        // toujours et tombait sous charge CPU (constaté : 923/924 quand la suite
+        // tourne en concurrence avec `tsc`). L'attente porte sur la même
+        // exigence, jamais moins : si la sonnerie ne démarre pas, `waitFor`
+        // expire et le test échoue.
+        await waitFor(() => expect(rig.startRinging).toHaveBeenCalled());
     });
 
     it('lancement par la notification (fenêtre fermée) : conversation ouverte, appel frais accepté avec le nom réel de l’appelant', async () => {

@@ -59,6 +59,25 @@ services:
       # de .env.production, avant que le conteneur ne démarre.
       LIVEKIT_CONFIG: |
         port: 7880
+        # SAT-1 — LE SEUL ENDROIT QUI DIT LA TAILLE DE LA MACHINE.
+        #
+        # Sans cette ligne, `/metrics` répond 404 (mesuré au banc contre 1.8.4
+        # ET 1.13.6, sur le port principal comme sur tout autre). Or c'est la
+        # seule source qui expose `go_sched_gomaxprocs_threads`, le nombre de
+        # cœurs — et donc la seule façon de faire suivre le plafond d'un direct
+        # à la machine sans qu'un humain saisisse un chiffre.
+        #
+        # Sans elle, SAT-1 ne pose AUCUN plafond : la porte SAT-2 reste en
+        # place mais ne refuse personne, exactement comme avant. Aucune panne,
+        # aucune régression — simplement une protection inactive.
+        #
+        # Ce que ces métriques contiennent, VÉRIFIÉ ligne par ligne au banc :
+        # des agrégats et des compteurs Go. Étiquettes présentes : code,
+        # direction, le, method, node_id, node_type, quantile, service, status,
+        # transmission, version. ZÉRO nom de room, ZÉRO identité de
+        # participant. Les exposer ne divulgue donc pas de donnée personnelle —
+        # seulement la charge du nœud.
+        prometheus_port: 6789
         rtc:
           tcp_port: 7881
           port_range_start: 50000
@@ -77,6 +96,11 @@ services:
       - "50000-50100:50000-50100/udp"
       # Relais TURN (UDP) — pour les participants derrière un NAT/pare-feu strict.
       - "3478:3478/udp"
+      # Métriques SAT-1 — liées à la BOUCLE LOCALE, jamais ouvertes sur
+      # Internet par ce fichier. LiveKit ne protège pas cet endpoint : c'est le
+      # reverse-proxy qui doit le publier derrière un jeton, et lui seul.
+      # Recette exacte dans README.md, section « SAT-1 ».
+      - "127.0.0.1:6789:6789/tcp"
 
   caddy:
     image: caddy:2-alpine

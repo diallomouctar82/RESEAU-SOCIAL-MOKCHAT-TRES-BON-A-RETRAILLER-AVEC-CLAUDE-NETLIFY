@@ -45,7 +45,6 @@ import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
 import { ArchitecteAvatarFace } from './architecte/ArchitecteAvatarFace';
 import { WaterMirror } from './miroir/WaterMirror';
 import { emitWaterRippleFrom } from '../services/miroir/waterRipple';
-import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
 import { PushPermissionPrompt } from './push/PushPermissionPrompt';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -379,14 +378,13 @@ export const Layout: React.FC<LayoutProps> = ({
               <Globe className="text-white" size={20} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-700">
-                  Le Monde à Vous
-                </h1>
-                <span className="px-1.5 py-0.2 rounded-md bg-brand-50 border border-brand-200/60 text-[9px] font-extrabold text-brand-700 uppercase tracking-wide">
-                  v5.12
-                </span>
-              </div>
+              {/* Nettoyage accueil (DEC-2026-051) : le badge de version « v5.12 » a
+                  été retiré — il était faux (l’application est en v6.x) et
+                  n’apportait rien à l’utilisateur. La version vit dans
+                  docs/HISTORIQUE_VERSIONS.md. */}
+              <h1 className="text-lg font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-700">
+                Le Monde à Vous
+              </h1>
               <p className="text-[10px] text-slate-400 font-medium">Plateforme Universelle d’Accomplissement</p>
             </div>
           </div>
@@ -505,31 +503,15 @@ export const Layout: React.FC<LayoutProps> = ({
               <span>Bilingue</span>
             </button>
 
-            {/* Transversal Google Services Hub Button */}
-            <button
-              onClick={() => setIsTransversalModalOpen(true)}
-              className="hidden 2xl:flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.98]"
-              title="Ouvrir le Hub des Capacités Transversales (Maps, Drive, Meet, Chat)"
-            >
-              <Layers size={14} className="text-white" />
-              <span>Services</span>
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-            </button>
-
-            {/* Google Workspace Connection Banner (compact) */}
-            <div className="hidden sm:block">
-              <GoogleWorkspaceBanner compact />
-            </div>
-
-            {/* Credits Counter */}
-            <div 
-              onClick={() => onTabChange('wallet')}
-              className="hidden xl:flex items-center gap-1.5 bg-yellow-50 hover:bg-yellow-100 cursor-pointer px-3 py-1.5 rounded-full border border-yellow-200 text-xs font-bold text-yellow-700 transition"
-              title="Ouvrir Finance & Wallet"
-            >
-              <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] text-white font-black">Ⓒ</div>
-              {userProfile.credits.toLocaleString()}
-            </div>
+            {/* Nettoyage accueil (DEC-2026-051) : trois éléments retirés de
+                l’en-tête, sans supprimer les fonctions qu’ils ouvraient —
+                • la pilule « Services » (hub transversal) : le hub reste
+                  ouvrable depuis le menu Compte (avatar, ci-dessous), le tiroir
+                  mobile et la recherche ⌘K ;
+                • la bannière « Lier Google Workspace » : la liaison se fait dans
+                  les centres Drive, Chat et Meet, qui portent la bannière complète ;
+                • le compteur de crédits : l’onglet « Finance & Wallet » de la
+                  navigation affiche le solde et l’historique. */}
 
             {/* Language Selector */}
             <div className="relative group">
@@ -638,6 +620,19 @@ export const Layout: React.FC<LayoutProps> = ({
                     <button onClick={() => {setIsSettingsModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Settings size={14} /> Paramètres & Connecteurs
                     </button>
+                    {/* Nettoyage accueil (DEC-2026-051) : le hub transversal (Maps,
+                        Drive, Meet, Chat, Coffre-fort) a quitté l’en-tête et le pied
+                        de la barre latérale ; sur ordinateur il s’ouvre désormais
+                        d’ici — un rang du menu Compte, comme dans le tiroir mobile —
+                        et depuis la recherche ⌘K. Même modale, même fonction. */}
+                    <button
+                      onClick={() => {setIsTransversalModalOpen(true); setIsProfileMenuOpen(false);}}
+                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium"
+                      title="Maps, Drive, Meet, Chat et Coffre-fort — à la demande"
+                      data-testid="compte-services-transversaux"
+                    >
+                      <Layers size={14} /> Services Google & Sécurité
+                    </button>
                     <button onClick={() => {setIsShowcaseModalOpen(true); setIsProfileMenuOpen(false);}} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 rounded-xl text-xs flex items-center gap-2 text-slate-700 font-medium">
                       <Layers size={14} /> Galerie Design System
                     </button>
@@ -691,9 +686,6 @@ export const Layout: React.FC<LayoutProps> = ({
             <Search size={16} />
           </button>
           
-          <div className="text-xs font-bold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-200">
-            {userProfile.credits} Ⓒ
-          </div>
 
           <button onClick={() => onTabChange('profile')} className="w-7 h-7 rounded-full overflow-hidden border border-gray-200">
             <img src={userProfile.avatarUrl} className="w-full h-full object-cover" />
@@ -969,7 +961,6 @@ export const Layout: React.FC<LayoutProps> = ({
             }}
           >
             
-            {/* Transversal Services Quick Access */}
             {/* ✉ MESSAGERIE — RO-3 : entrée FIXE de la navigation desktop.
                 Sur ordinateur il n'y a pas de barre du bas ; l'équivalent de
                 l'emplacement fixe demandé par la Direction est ici, en pied de
@@ -996,31 +987,10 @@ export const Layout: React.FC<LayoutProps> = ({
               )}
             </div>
 
-            <button
-              onClick={() => setIsTransversalModalOpen(true)}
-              className={`w-full py-2 px-2.5 rounded-xl border flex items-center justify-between text-xs font-bold transition shadow-2xs ${
-                isSidebarCollapsed ? 'justify-center' : ''
-              }`}
-              style={{
-                backgroundColor: currentPalette.colors.sidebarBg,
-                borderColor: currentPalette.colors.sidebarBorder,
-                color: currentPalette.colors.sidebarText
-              }}
-              title="Outils & Services Google Workspace"
-            >
-              <div className="flex items-center gap-2">
-                <Layers size={15} style={{ color: currentPalette.colors.sidebarHighlight }} className="shrink-0" />
-                {!isSidebarCollapsed && <span>Services Transversaux</span>}
-              </div>
-              {!isSidebarCollapsed && (
-                <span 
-                  className="text-[9px] px-1.5 py-0.2 rounded-md font-extrabold text-white"
-                  style={{ backgroundColor: currentPalette.colors.sidebarActiveBg }}
-                >
-                  Google
-                </span>
-              )}
-            </button>
+            {/* Nettoyage accueil (DEC-2026-051) : le bouton « Services Transversaux
+                · Google » du pied de barre latérale a été retiré — troisième
+                déclencheur de la même modale. Elle reste montée et s’ouvre depuis
+                le menu Compte (ordinateur), le tiroir mobile et la recherche ⌘K. */}
 
             {/* User Compact Card */}
             <div 

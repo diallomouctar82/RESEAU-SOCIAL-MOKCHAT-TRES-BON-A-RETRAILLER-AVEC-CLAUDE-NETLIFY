@@ -136,7 +136,7 @@ describe('État fermé', () => {
         // Ce test est donc l'exact opposé du précédent, volontairement.
         const pastille = screen.getByTestId('architecte-flottant');
         expect(pastille).toBeInTheDocument();
-        // Depuis DEC-2026-051, cette présence est l'AVATAR VIVANT et non plus
+        // Depuis DEC-2026-053, cette présence est l'AVATAR VIVANT et non plus
         // une icône : son nom accessible porte donc aussi l'état, exigence du
         // playbook AI Core 15 (« aucun mouvement ne doit être le seul moyen
         // d'indiquer un statut »). L'action reste annoncée, un état s'y ajoute.
