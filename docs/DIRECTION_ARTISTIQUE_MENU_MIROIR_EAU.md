@@ -311,3 +311,84 @@ et le banc le vérifie sur des témoins réels à l'écran.
 Aucun test ne peut dire si l'ensemble **a l'air juste**. Le banc prouve que
 les bonnes valeurs sont calculées par le navigateur sur les vrais composants,
 et que rien de sémantique n'a bougé. L'appréciation reste la vôtre.
+
+---
+
+## 7. La règle qui ne peignait rien (04/09/2026) — refus de validation et correctif
+
+La Direction a refusé la validation : « ce qui est visible dans l'application
+ne correspond pas aux captures ni aux changements annoncés ». Elle avait
+raison, et pour deux raisons distinctes.
+
+### 7.1 Ce qui n'était PAS en cause
+
+Le lien, la branche et le commit étaient les bons. L'`index.html` servi par
+l'aperçu est identique octet pour octet au build local du commit — seul
+diffère l'encart de déploiement que Netlify injecte — et l'empreinte SHA-256
+du bloc aqua est la même des deux côtés. Le cache et le service worker sont
+également hors de cause : la couche voyage entièrement dans le document, et
+le document est servi en « réseau d'abord » avec `max-age=0`.
+
+### 7.2 La mesure qui tranche
+
+Le banc annonçait « 54 OK / 0 DÉFAUT ». Il mesurait **uniquement là où il
+s'attendait à trouver quelque chose** : la couleur calculée d'une poignée
+d'éléments choisis. En décodant les captures et en comparant **pixel à
+pixel**, la réalité apparaît : accueil 19,63 %, modale ordinateur 3,40 %,
+modale téléphone 1,14 %, **Studio Live 0,35 %**.
+
+### 7.3 Cause n° 1 — un commentaire refermé une ligne trop tôt
+
+Le commentaire du bloc de matière se fermait à sa cinquième ligne. Les six
+lignes de prose suivantes restaient **dans la feuille de style** ;
+l'analyseur les agglutinait au sélecteur suivant pour en faire un sélecteur
+invalide, et jetait silencieusement la règle « cartes en verre »
+(`[data-miroir] .bg-white.rounded-3xl / .rounded-2xl`) — **349 cartes et
+panneaux**. Prouvé sur la page réellement servie : ce sélecteur était
+**absent du CSSOM** (0 occurrence sur 668 règles).
+
+Effet mesuré du correctif, mêmes composants et mêmes conditions :
+
+| Écran | Avant correctif | Après correctif |
+|---|---|---|
+| Modale ordinateur | 3,40 % | **32,54 %** |
+| Modale téléphone | 1,14 % | **55,67 %** |
+| Accueil ordinateur | 19,63 % | 19,68 % |
+| Studio Live | 0,35 % | 0,42 % |
+
+### 7.4 Cause n° 2 — le Studio Live était déjà aqua
+
+Le Studio n'est pas peint par des classes Tailwind mais par ses propres
+jetons `--live-*` posés sur `[data-live-universe]`. La couche aqua ne
+pouvait donc pas l'atteindre — et n'avait rien à y faire : son abysse est
+déjà `#0a2430` avec l'accent `#7fd9e6` depuis DS-L1, traitement validé par
+la Direction le 03/09. Les 0,35 % ne sont pas un manque ; repeindre ce
+module aurait modifié un design déjà validé.
+
+### 7.5 Le garde-fou, refait
+
+L'ancien vérifiait que le **texte** d'`index.html` contenait le sélecteur :
+il restait vert alors que la règle ne parvenait jamais au navigateur.
+`tests/miroirFeuilleAnalysee.test.ts` **analyse** désormais la feuille
+(postcss) : aucun sélecteur ne peut contenir de prose, aucun ne peut
+dépasser une longueur invraisemblable, et les règles de matière doivent
+exister **après analyse**. Contre-épreuve faite : défaut réintroduit →
+2 tests rouges ; restauré → 5/5 verts.
+
+**Quatrième occurrence de la même famille de piège** dans ce dépôt — une
+déclaration qui ne peint rien sans le dire : `-webkit-box-reflect: none`
+ignoré par Chromium, teintes `brand-*` absentes de la config Tailwind,
+`hidden sm:flex` annulé par un `flex` nu, et maintenant un commentaire mal
+fermé.
+
+### 7.6 Aveu de méthode sur les preuves
+
+Les captures précédemment fournies venaient d'un banc local montant les
+composants avec des modules simulés, **pas du lien public**. C'était une
+faille de preuve. Les captures viennent désormais des fichiers réellement
+servis par l'aperçu (relais octet-exact, SHA-256 comparés). Limite dite
+franchement : le navigateur de l'environnement de développement ne peut pas
+ouvrir l'URL lui-même — le relais du proxy de sortie ferme le tunnel — donc
+chaque octet est téléchargé depuis l'URL publique par `curl` puis rendu dans
+un vrai navigateur. **La validation reste l'ouverture du lien public par la
+Direction.**

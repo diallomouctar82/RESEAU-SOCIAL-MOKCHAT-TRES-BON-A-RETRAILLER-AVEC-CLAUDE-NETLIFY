@@ -1122,6 +1122,73 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-048] — 4 Septembre 2026
+
+* **Module(s)** : `Design System`, `Transversal`, `Qualité`
+* **Problème / Besoin initial** : la Direction refuse la validation de
+  l'habillage « Miroir d'eau » étendu (DEC-2026-047) — « ce qui est visible
+  dans l'application ne correspond pas aux captures ni aux changements
+  annoncés ». Le lien, la branche et le commit sont pourtant les bons :
+  l'`index.html` servi par l'aperçu Netlify est identique octet pour octet
+  au build local du commit `6e17d29` (seul diffère l'encart de déploiement
+  injecté par Netlify), et l'empreinte SHA-256 du bloc aqua est la même des
+  deux côtés.
+* **Mesure qui tranche** : au lieu de recompter les couleurs sondées, les
+  captures avant/après ont été **décodées et comparées pixel à pixel**.
+  Accueil 19,63 % de pixels modifiés · modale ordinateur 3,40 % · modale
+  téléphone 1,14 % · **Studio Live 0,35 %**. Le banc DS-EX annonçait
+  « 54 OK / 0 DÉFAUT » parce qu'il mesurait **uniquement là où il
+  s'attendait à trouver quelque chose**.
+* **Cause racine n° 1, décisive** : un **commentaire CSS refermé une ligne
+  trop tôt** (`index.html`, ancien bloc DS-EX-2). Six lignes de prose
+  restaient dans la feuille de style ; l'analyseur les agglutinait au
+  sélecteur suivant pour en faire un sélecteur invalide, et jetait
+  silencieusement la règle « cartes en verre »
+  (`[data-miroir] .bg-white.rounded-3xl / .rounded-2xl`) qui visait
+  **349 cartes et panneaux**. Prouvé sur la page RÉELLEMENT SERVIE par
+  l'aperçu : ce sélecteur était **absent du CSSOM** (0 occurrence sur
+  668 règles) alors que le texte, lui, était bien présent dans le fichier.
+* **Cause racine n° 2, indépendante** : le Studio Live ne peut pas être
+  atteint par la couche aqua **par construction** — il est peint par ses
+  propres jetons `--live-*` posés sur `[data-live-universe]`, jamais par des
+  classes Tailwind. Constat honnête : il n'y avait rien à y repeindre,
+  **il est déjà aqua** depuis DS-L1 (`--live-abyss-a: #0a2430`, accent
+  `#7fd9e6`), traitement validé par la Direction le 03/09. Les 0,35 % ne
+  sont donc pas un manque, et repeindre ce module aurait modifié un design
+  déjà validé.
+* **Décision** : refermer le commentaire (la règle revient à la vie) et
+  remplacer le garde-fou par un test qui **ANALYSE** la feuille de style au
+  lieu d'y chercher une chaîne de caractères
+  (`tests/miroirFeuilleAnalysee.test.ts`, postcss). L'ancien garde-fou
+  vérifiait que le TEXTE d'`index.html` contenait le sélecteur — il restait
+  vert alors que la règle ne parvenait jamais au navigateur.
+* **Effet mesuré du correctif** (mêmes composants, mêmes conditions) :
+  modale ordinateur **3,40 % → 32,54 %**, modale téléphone
+  **1,14 % → 55,67 %**. Accueil et Studio Live inchangés, ce qui est
+  cohérent avec les deux causes ci-dessus.
+* **Règle permanente ajoutée** : c'est la **quatrième** occurrence dans ce
+  dépôt de la même famille de piège — *une déclaration qui ne peint rien
+  sans le dire* (`-webkit-box-reflect: none` ignoré par Chromium, teintes
+  `brand-*` absentes de la config Tailwind, `hidden sm:flex` annulé par un
+  `flex` nu, et maintenant un commentaire mal fermé). Un garde-fou de style
+  ne doit jamais se contenter de chercher du texte : il doit analyser, et
+  sa contre-épreuve doit prouver qu'il vire au rouge quand on reproduit le
+  défaut. Vérifié ici : défaut réintroduit → 2 tests rouges ; restauré →
+  5/5 verts.
+* **Aveu de méthode** : les captures précédemment fournies à la Direction
+  provenaient d'un banc local montant les composants avec des modules
+  simulés, **pas du lien public**. C'était une faille de preuve, corrigée :
+  les captures viennent désormais des fichiers réellement servis par
+  l'aperçu (relais octet-exact, SHA-256 comparés).
+* **Limite d'environnement, dite honnêtement** : le navigateur de
+  l'environnement de développement ne peut pas ouvrir l'URL d'aperçu
+  lui-même (le relais du proxy de sortie ferme le tunnel — vérifié côté
+  proxy). Chaque octet est donc téléchargé depuis l'URL publique par `curl`
+  puis rendu dans un vrai navigateur. La validation finale reste
+  l'ouverture du lien public par la Direction.
+
+---
+
 ### [DEC-2026-047] — 4 Septembre 2026
 
 * **Module(s)** : `Design System`, `Transversal`, `Layout`, `Studio Live`
