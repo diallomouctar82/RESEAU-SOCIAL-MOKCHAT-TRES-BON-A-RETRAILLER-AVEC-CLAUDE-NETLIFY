@@ -7,8 +7,15 @@
 // dernière émet des jetons éphémères Gemini Live (appels vocaux/vidéo IA),
 // sans rapport avec le transport vidéo multi-participants LiveKit.
 
-import { AccessToken } from 'npm:livekit-server-sdk@2.18.0';
+import { AccessToken, RoomServiceClient } from 'npm:livekit-server-sdk@2.18.0';
 import { createServiceRoleClient, createUserScopedClient } from './supabase.ts';
+import {
+    type AdmissionVerdict,
+    assessCapacity,
+    decideWithRoster,
+    liveSessionIdFromRoomName,
+    toLiveKitHttpUrl,
+} from './capacityGate.ts';
 
 const CORS_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -51,6 +58,72 @@ interface TokenRequestBody {
 }
 
 const DEVICE_ID_PATTERN = /^[A-Za-z0-9_-]{4,32}$/;
+
+/**
+ * SAT-2 — plafond de temps accordé à l'API serveur de LiveKit.
+ *
+ * Cette porte s'ajoute au chemin d'entrée d'un direct, or LT-1 et LT-2 ont
+ * gagné leur latence au dixième de seconde. Au-delà de ce délai on cesse
+ * d'attendre et on laisse entrer : mieux vaut un direct un peu trop plein
+ * qu'un direct où personne n'entre parce qu'un appel réseau traîne.
+ */
+const ROOM_SERVICE_TIMEOUT_MS = 1500;
+
+/** Rend `null` plutôt que de propager un échec ou une attente sans fin. */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
+    return Promise.race([
+        work.catch((error) => {
+            console.error('livekit-token: API serveur LiveKit injoignable', error);
+            return null;
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+}
+
+/**
+ * SAT-2 — décide si cette personne entre dans ce direct.
+ *
+ * Un appel réseau sur le chemin normal (lire le plafond), un second
+ * uniquement quand un plafond existe réellement — et ce second appel donne
+ * d'un coup le compte EXACT et la liste des présents.
+ *
+ * On ne compte JAMAIS avec `numParticipants` : mesuré au banc, cet agrégat
+ * met 1 à 3 s (serveur 1.8.4) et 3 à 6 s (1.13.6) à rattraper la réalité.
+ * Une porte fondée dessus serait inopérante pendant une ruée. Détail complet
+ * dans `capacityGate.ts`.
+ */
+async function decideLiveAdmission(
+    rooms: RoomServiceClient,
+    roomName: string,
+    identity: string,
+    isHost: boolean,
+): Promise<AdmissionVerdict> {
+    if (isHost) return { admitted: true, reason: 'host' };
+
+    const listed = await withTimeout(rooms.listRooms([roomName]), ROOM_SERVICE_TIMEOUT_MS);
+
+    // Trois cas distincts, et ils ne veulent pas dire la même chose :
+    //  - `null`  : LiveKit n'a pas répondu → on ne sait pas → on laisse entrer.
+    //  - `[]`    : la room n'existe pas encore → aucun plafond, personne dedans.
+    //  - `[room]`: le plafond réellement porté par la room.
+    const maxParticipants = listed === null
+        ? null
+        : Number(listed[0]?.maxParticipants ?? 0);
+
+    const assessment = assessCapacity({ isHost, maxParticipants });
+    if (assessment.outcome === 'admit') return { admitted: true, reason: assessment.reason };
+
+    // Un plafond existe : on compte sur la liste réelle des présents. Elle
+    // sert aussi à reconnaître la personne dont le réseau est tombé et qui
+    // revient — sa place est encore occupée par elle-même, la refuser
+    // l'expulserait d'un direct qu'elle n'a jamais quitté.
+    const participants = await withTimeout(rooms.listParticipants(roomName), ROOM_SERVICE_TIMEOUT_MS);
+    const identities = Array.isArray(participants)
+        ? participants.map((participant) => participant.identity)
+        : null;
+
+    return decideWithRoster({ capacity: assessment.capacity, identities, identity });
+}
 
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
@@ -112,7 +185,10 @@ Deno.serve(async (req: Request) => {
 
     if (configError || !config) {
         console.error('livekit-token: config de transport introuvable', configError);
-        return json({ error: "Aucune configuration de transport LIVE active pour cet environnement." }, 503);
+        // `code` ajouté par SAT-2 : le client doit pouvoir distinguer « le
+        // transport n'est pas configuré » d'« il n'y a plus de place », sans
+        // lire un message destiné à un humain.
+        return json({ error: "Aucune configuration de transport LIVE active pour cet environnement.", code: 'transport_unconfigured' }, 503);
     }
 
     // L'identité correspond à profiles.id — voir LiveParticipantHandle.identity
@@ -126,6 +202,47 @@ Deno.serve(async (req: Request) => {
     const deviceId = DEVICE_ID_PATTERN.test(deviceRaw) ? deviceRaw : null;
     const identity = roomName.startsWith('call-') && deviceId ? `${authData.user.id}::${deviceId}` : authData.user.id;
     const name = (body.participantName ?? '').trim() || authData.user.id;
+
+    // SAT-2 — LA PORTE D'ENTRÉE DU DIRECT.
+    //
+    // Elle est ici, à l'émission du jeton, parce que c'est le seul point
+    // qu'un client ne peut pas contourner : sans jeton signé, aucune room ne
+    // s'ouvre, quoi que fasse le navigateur.
+    //
+    // Elle ne concerne QUE les directs — jamais les rooms d'appel, dont la
+    // latence a été travaillée au dixième de seconde (LT-1, LT-2) et à
+    // laquelle cette porte n'ajoute pas une seule lecture.
+    const liveSessionId = liveSessionIdFromRoomName(roomName);
+    if (liveSessionId) {
+        const { data: session } = await service
+            .from('live_sessions')
+            .select('host_id')
+            .eq('id', liveSessionId)
+            .maybeSingle<{ host_id: string }>();
+
+        // L'animateur passe avant tout appel réseau : il n'est jamais mis à
+        // la porte de son propre direct, et il n'en paie pas la latence.
+        const isHost = !!session && session.host_id === authData.user.id;
+
+        const rooms = new RoomServiceClient(
+            toLiveKitHttpUrl(config.server_url),
+            config.api_key,
+            config.api_secret,
+        );
+        const verdict = await decideLiveAdmission(rooms, roomName, identity, isHost);
+
+        if (!verdict.admitted) {
+            // Dire la vérité, avec les chiffres. SAT-3 s'appuiera sur `code`
+            // pour montrer un écran honnête au lieu d'un « Connexion… » qui
+            // tourne sans fin.
+            return json({
+                error: 'Ce direct est complet.',
+                code: 'live_full',
+                occupied: verdict.occupied,
+                capacity: verdict.capacity,
+            }, 409);
+        }
+    }
 
     const at = new AccessToken(config.api_key, config.api_secret, { identity, name });
     at.addGrant({

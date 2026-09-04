@@ -170,6 +170,101 @@ appareils — jamais par une sonde depuis cet environnement.
 
 ---
 
+---
+
+# SAT-2 — La porte d'entrée, côté serveur
+
+Construite sur le constat ci-dessus. Elle vit dans
+`supabase/functions/livekit-token/`, à l'émission du jeton : c'est le seul
+point qu'un client ne peut pas contourner, puisque sans jeton signé aucune
+room ne s'ouvre.
+
+## Le constat qui a changé la conception
+
+La première version comptait avec `numParticipants` (rapporté par
+`ListRooms`). Le banc l'a démentie. Mesure faite avec **deux vrais
+navigateurs connectés à une vraie room**, sur les deux binaires :
+
+| | 1.8.4 (le VPS) | 1.13.6 (la cible du dépôt) |
+|---|---|---|
+| `listRooms().numParticipants` | juste après **1–3 s** | juste après **3–6 s** |
+| `listParticipants().length` | **exact immédiatement** | **exact immédiatement** |
+| `maxParticipants` | exact immédiatement | exact immédiatement |
+
+`numParticipants` est un agrégat à consistance différée. Une porte fondée
+dessus aurait été **silencieusement inopérante pendant une ruée** — c'est-à-dire
+au seul moment qui compte : le temps que le compteur rattrape, des dizaines de
+personnes seraient déjà entrées, et rien à l'écran n'aurait signalé que la
+porte ne servait à rien.
+
+Conception retenue : **le plafond se lit dans `listRooms`, le comptage se fait
+dans `listParticipants`** — qui donne du même coup la liste des identités
+présentes, donc le nombre ET le contrôle de reconnexion en un seul appel.
+
+## Le plafond ne vient jamais du code
+
+Il vient de `maxParticipants`, porté par la room côté LiveKit. Aucun chiffre
+n'est écrit en dur, et aucun réglage manuel n'existe — la Direction a écarté
+les deux. Tant que rien n'a posé de plafond, LiveKit rapporte `0`, sa
+convention pour « aucune limite », et **la porte ne refuse personne**.
+
+C'est aussi le point d'accroche de SAT-1 : quand la capacité deviendra
+auto-régulée, elle posera cette valeur sur la room et la porte suivra sans
+qu'on la retouche.
+
+## Les règles, et pourquoi
+
+| Situation | Décision | Raison |
+|---|---|---|
+| Le demandeur est l'animateur | **entre**, sans aucun appel réseau | On ne met personne à la porte de son propre direct — et il n'en paie pas la latence |
+| Plafond illisible (LiveKit muet) | **entre** | On ne sait pas : un direct un peu trop plein reste un direct, un direct qui refuse tout le monde est une panne |
+| Plafond à 0 | **entre**, sans second appel | Aucune limite posée |
+| Places disponibles | **entre** | — |
+| Room pleine, personne déjà dedans | **entre** | Réseau tombé et reconnexion : sa place est encore occupée par elle-même |
+| Room pleine, liste illisible | **entre** | On ne sait pas que c'est plein |
+| Room pleine, nouvel arrivant | **REFUSÉ** — `409`, `code: 'live_full'`, avec `occupied` et `capacity` | Un plein **constaté** est ferme ; la tolérance ne vaut que pour le doute |
+
+La distinction est délibérée : **on laisse entrer quand on ne sait pas, jamais
+quand on sait que c'est plein.**
+
+## Ce que la porte ne touche pas
+
+- **Les appels (`call-…`)** : un appel à deux ne sature rien, et LT-1/LT-2 ont
+  travaillé sa latence au dixième de seconde. La porte n'y ajoute pas une
+  seule lecture.
+- **Un nom de room qui n'est pas un UUID** : jamais envoyé vers la base.
+  `live_sessions.id` est de type `uuid` ; un cast raté rendrait un `22P02` qui
+  deviendrait un refus au lieu d'un « ce n'est pas un direct ».
+
+## Coût en latence
+
+Un appel réseau sur le chemin normal (lire le plafond), un second uniquement
+quand un plafond existe réellement. Délai plafonné à **1,5 s** par appel :
+au-delà, on cesse d'attendre et on laisse entrer.
+
+## Preuves
+
+- **18 cas unitaires** sur la vraie fonction de décision, plus **7
+  contre-épreuves** : chaque règle cassée fait rougir exactement le cas qui la
+  protège, fichier restauré à l'empreinte identique.
+- **Banc d'intégration 18 OK / 0 DÉFAUT sur les DEUX binaires** (1.8.4 et
+  1.13.6) : vrai serveur, vrais navigateurs connectés, vraie fonction de
+  décision. Prouvé de bout en bout — le plafond lu du serveur, un nouvel
+  arrivant refusé avec les chiffres réels, le revenant laissé entrer,
+  l'animateur qui passe, la place libérée qui rouvre la porte aussitôt.
+
+## Ce qui reste
+
+- **La fonction Edge n'est pas déployée.** La déployer, c'est la production :
+  elle est globale et unique. Elle attend la validation à l'écran de la
+  Direction.
+- **SAT-3** : l'écran côté client quand `409 live_full` arrive — il s'appuiera
+  sur `code`, jamais sur un message destiné à un humain.
+- **SAT-1** : poser réellement `maxParticipants` sur la room. Sans lui, cette
+  porte est en place mais ne refusera jamais personne, faute de plafond.
+
+---
+
 ## Noté pour la santé globale — hors périmètre, non développé
 
 Relevé en passant, sans y toucher, conformément au cadrage de la Direction :
