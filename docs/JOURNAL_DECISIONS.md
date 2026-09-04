@@ -1122,6 +1122,58 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-047] — 4 Septembre 2026
+
+* **Module(s)** : `Design System`, `Transversal`, `Layout`, `Studio Live`
+* **Problème / Besoin initial** : la Direction constate que l'habillage
+  « Miroir d'eau » **ne se voit que sur l'accueil** : « Les couleurs ne
+  doivent pas rester juste sur l'interface d'accueil. Il faut les voir
+  vraiment dans l'app, sur l'accueil, dans le live, partout où c'est
+  concerné. »
+* **Ce que la mesure a montré, contre l'hypothèse de départ** : le périmètre
+  n'était **pas** le problème — `data-miroir` est posé sur la racine de
+  `Layout.tsx`, donc tous les écrans, le Studio Live et les modales rendent
+  déjà dedans. Le manque venait de trois endroits : **~2 400 occurrences**
+  `blue`/`indigo` repeignant l'accent, **549 `bg-slate-50`** + **169
+  `bg-white`** repeignant le fond par-dessus la nappe d'eau, et la **barre
+  latérale** peinte par **styles en ligne** — hors de portée de toute règle
+  CSS, quelle que soit sa spécificité.
+* **Idées envisagées** :
+  1. Éditer les ~190 fichiers à la main — **rejeté** : 409 utilitaires
+     distincts, source garantie d'oublis et d'incohérences.
+  2. Remapper tout l'accent vers une couleur unique — **rejeté par la
+     mesure** : sur fond clair l'app emploie les marches foncées
+     (`text-blue-600`), dans le Studio sombre les marches claires
+     (`text-indigo-300/400`). Un aplat aurait cassé le contraste d'un côté.
+  3. **Retenu** : une **rampe aqua à 11 marches**, chacune de luminance
+     comparable à la marche Tailwind qu'elle remplace, appliquée par une
+     couche **générée depuis le code réel** et scopée `[data-miroir]`
+     (spécificité 0,2,0 > 0,1,0 : indépendante de l'ordre d'injection du CDN
+     Tailwind). L'échelle de clarté est conservée, donc le contraste est
+     préservé **par construction**.
+* **Décision** : couche générée par `scripts/genMiroirAquaLayer.cjs` (409
+  classes traduites) ; fond pleine page neutralisé pour le **seul enfant
+  direct** de `.mir-page` (nouveau repère dans `Layout.tsx`) afin de ne
+  jamais atteindre les champs de saisie ; matière verre étendue aux modales
+  (rendues hors de `.mir-page` par `Layout`) ; **arbitrage de DS-M2b tranché
+  par la Direction** — `palette-10` recalée sur l'aqua, ce qui habille enfin
+  la barre latérale. Le gel du Chantier 3 portait sur le **sélecteur** de
+  palettes, pas sur les valeurs : les neuf autres palettes sont intactes,
+  vérifié par test.
+* **Ce qui n'est JAMAIS traduit** : les familles sémantiques (red, rose,
+  amber, orange, yellow, green, emerald, teal, lime) et les gris — leur
+  couleur **est** l'information. Interdit par le garde-fou, vérifié au banc
+  sur des témoins réellement affichés.
+* **Preuves** : `tsc` 0 · `vitest` **843/843** · `build` propre · garde-fou
+  **vérifié non complaisant** (trois brèches délibérées le font rougir, puis
+  il redevient vert) · banc navigateur réel avant/après sur accueil, Studio
+  Live et modale × ordinateur et téléphone, avec **deux bundles** parce que
+  la palette de la barre vit dans le bundle et non dans le CSS.
+* **Limite honnête** : aucun test ne peut dire si l'ensemble **a l'air
+  juste** — l'appréciation visuelle reste celle de la Direction.
+
+---
+
 ### [DEC-2026-046] — 3 Septembre 2026
 
 * **Module(s)** : `LIVE`, `Partage`, `Documentation`

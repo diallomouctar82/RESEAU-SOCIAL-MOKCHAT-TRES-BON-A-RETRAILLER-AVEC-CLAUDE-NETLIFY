@@ -216,6 +216,98 @@ Deux points sur lesquels votre avis est explicitement attendu :
    **mobile**. Sur desktop, l'en-tête est déjà dense (logo, navigation,
    recherche, palette, crédits, avatar) et une ligne de plus déborderait. Si
    vous la voulez aussi sur ordinateur, il faudra libérer de la place.
-2. **La barre latérale desktop garde la palette gelée.** Elle cohabite donc
-   avec un chrome aqua. Si vous souhaitez l'habiller aussi, cela demande de
-   lever le gel de `palette-10` — une décision qui vous revient.
+2. ~~**La barre latérale desktop garde la palette gelée.**~~ **TRANCHÉ par la
+   Direction le 04/09/2026** — voir § 6.
+
+
+---
+
+## 6. L'habillage étendu à toute l'application (DS-EX, 04/09/2026)
+
+### 6.1 Ce que la Direction a constaté
+
+« Les couleurs ne doivent pas rester juste sur l'interface d'accueil. Il faut
+les voir vraiment dans l'app, sur l'accueil, dans le live, partout où c'est
+concerné. »
+
+### 6.2 Ce que la mesure a montré — le périmètre n'était pas le problème
+
+`data-miroir` est posé sur la **racine de `Layout.tsx`** : tous les écrans,
+le Studio Live et les modales rendent déjà à l'intérieur. Le manque venait
+d'ailleurs, et il était massif :
+
+- **~2 400 occurrences** des familles de marque `blue`/`indigo` dans
+  `components/` (215 utilitaires distincts, 409 en comptant les variantes) ;
+- **549 `bg-slate-50`** et **169 `bg-white`** repeignant un fond par-dessus
+  la nappe d'eau ;
+- la **barre latérale** peinte par **styles en ligne** issus de `palette-10`,
+  donc hors de portée de toute règle CSS quelle que soit sa spécificité.
+
+### 6.3 La mesure qui a déterminé la méthode
+
+Sur fond clair l'application emploie les marches **foncées**
+(`text-blue-600`) ; dans le Studio Live, qui est sombre, les marches
+**claires** (`text-indigo-300/400`, 32 occurrences). **Un remplacement à plat
+par une seule couleur d'accent aurait cassé le contraste d'un côté ou de
+l'autre.** La traduction retenue conserve donc l'échelle de clarté et ne
+change que la famille de teinte : une rampe aqua à 11 marches dont chacune a
+une **luminance comparable** à la marche Tailwind qu'elle remplace. Le
+contraste est préservé *par construction*, pas par chance — et le garde-fou
+le recalcule au lieu de faire confiance à ce paragraphe.
+
+| Marche | Aqua | Remplace | Contraste vérifié |
+|---|---|---|---|
+| 600 | `#0A7590` | `blue-600` | 5,35:1 sur blanc · 5,01:1 sur aqua-50 |
+| 300 | `#5ECBE7` | `indigo-300` | 8,59:1 sur l'abysse du Studio |
+| 950 | `#06262F` | `blue-950` | fond sombre |
+
+### 6.4 Un générateur, pas du CSS écrit à la main
+
+`scripts/genMiroirAquaLayer.cjs` lit le code réel et émet la couche.
+Écrite à la main, elle aurait deux défauts certains : des **règles mortes**
+(une classe remappée qui n'existe plus) et des **oublis** (une classe ajoutée
+plus tard qui reste bleue au milieu d'un écran aqua). Le garde-fou régénère
+et compare : une classe bleue ajoutée demain fait échouer la suite.
+
+**La spécificité plutôt que l'ordre** : Tailwind est servi par CDN et injecte
+ses règles à l'exécution. Les règles générées sont préfixées `[data-miroir]`,
+soit (0,2,0) contre (0,1,0) — elles gagnent quel que soit l'ordre d'injection.
+
+**Ce qui n'est jamais traduit** : les familles sémantiques (red, rose, amber,
+orange, yellow, green, emerald, teal, lime) et les gris. Leur couleur **est**
+l'information — les repeindre en aqua l'effacerait. Le garde-fou l'interdit,
+et le banc le vérifie sur des témoins réels à l'écran.
+
+### 6.5 Les deux endroits qui ne relèvent pas du CSS
+
+1. **Le fond pleine page de chaque écran.** Neutralisé pour le seul **enfant
+   direct** de `.mir-page`, un repère ajouté dans `Layout.tsx`. Le `>` est ce
+   qui empêche la règle d'atteindre les champs de saisie et les listes
+   déroulantes, qui emploient les mêmes classes plus bas dans l'arbre — là où
+   l'opacité sert directement la lisibilité.
+2. **La barre latérale.** Styles en ligne : seule une retouche des **valeurs**
+   de `palette-10` pouvait l'atteindre. Le gel décidé au Chantier 3 portait
+   sur le **sélecteur** de palettes, pas sur les valeurs de la palette
+   retenue ; les neuf autres palettes sont intactes (vérifié par test), et le
+   futur sélecteur de l'Administrateur Général reste possible.
+
+### 6.6 Preuves
+
+- `tsc --noEmit` **0 erreur** · `npm run build` propre · **vitest 843/843**
+  (61 fichiers, +14 dans `tests/miroirAquaLayer.test.ts`).
+- **Garde-fou vérifié non complaisant** : trois brèches délibérées le font
+  rougir — une classe `bg-sky-700` ajoutée ailleurs (couche périmée), une
+  règle `bg-red-600` injectée (famille sémantique), une marche remplacée par
+  un cyan clair (planchers de contraste **et** échelle décroissante). Rétabli
+  → 14/14 vert.
+- **Banc navigateur réel, avant/après sur les mêmes composants** : accueil,
+  Studio Live et modale × ordinateur (1440×900) et téléphone (390×844).
+  L'« avant » sert l'ancienne feuille de style **et** l'ancien bundle, parce
+  que la palette de la barre vit dans le bundle : sans ça la comparaison
+  serait faussée en faveur du correctif.
+
+### 6.7 Ce qui reste à votre jugement
+
+Aucun test ne peut dire si l'ensemble **a l'air juste**. Le banc prouve que
+les bonnes valeurs sont calculées par le navigateur sur les vrais composants,
+et que rien de sémantique n'a bougé. L'appréciation reste la vôtre.

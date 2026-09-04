@@ -1075,7 +1075,14 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* min-h-0 : autorise un enfant plein écran (ExpertsHub…) à
                 gérer son propre défilement sans créer un double scroll
                 imbriqué avec <main>. */}
-            <div className="flex-1 min-h-0">
+            {/* DS-EX-2 : `mir-page` marque le PARENT DIRECT de l'écran courant.
+                C'est ce qui permet de neutraliser le fond pleine page d'un écran
+                (`bg-slate-50`, `bg-white`…) — et lui seul — sans jamais toucher
+                aux champs de saisie ni aux listes déroulantes qui emploient les
+                mêmes classes plus bas dans l'arbre, où l'opacité sert la
+                lisibilité. Sans ce repère, la nappe d'eau reste cachée partout
+                sauf sur l'accueil. */}
+            <div className="mir-page flex-1 min-h-0">
               {children}
             </div>
           </div>
