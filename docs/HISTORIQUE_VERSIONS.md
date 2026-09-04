@@ -30,12 +30,53 @@
 | **v6.13.0** | 3 Septembre 2026 | **Menu « Miroir d'eau » (proposition 06 retenue par la Direction) — habillage verre/eau scopé, nappe d'eau animée avec onde à l'appui, Architecte en goutte au centre du dock** | Navigation globale, Accueil réseau social, Goutte messagerie | DS-M2a `61ca0fd` + DS-M2b `d54c7ec` / DEC-2026-042 | **Stable — en production (PR #60 → `0ad30ee`), validée par la Direction sur moknet.net le 4/09** |
 | **v6.14.0** | 3 Septembre 2026 | **Studio Live à l'image de la seconde référence — abysse, colonne d'eau liquide, verre cyan, vidéo dans le verre, « ● EN DIRECT » honnête ; un agent IA peut enfin être retiré de la scène** | Studio Live, Barre d'actions du Live, Transport LiveKit (badge) | DS-L0 `2a57c92`+`72406a2` + DS-L1 `b118541` / DEC-2026-043 | **Stable — en production (PR #60 → `0ad30ee`), validée par la Direction sur moknet.net le 4/09** |
 | **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Courante (Active) — en production, vérifiée sur moknet.net** |
+| **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 (`ddde79a`, `82e4d6c`, `da43971`, `c5911d6`) / DEC-2026-050 | **Développée et testée — EN ATTENTE DE VALIDATION DE LA DIRECTION** (PR en brouillon, fonction Edge non déployée, `prometheus_port` pas encore posé sur le VPS) |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.15.0] — 4 Septembre 2026 (Saturation des directs — mission SAT, boucles 0 à 3)
+
+* **Le problème réel** : la porte (SAT-2) et l'écran (SAT-3) étaient corrects
+  et prouvés au banc, et pourtant **sans effet**. Cause racine : rien
+  n'appelait jamais `createRoom`, donc chaque room naissait avec
+  `maxParticipants = 0` — la convention LiveKit pour « aucune limite ». Un
+  garde-fou complet qui ne pouvait refuser personne.
+* **SAT-1 — ce qui change** : `poseRoomCeiling()` pose le plafond **à la
+  création** de la room (mesuré : aucune méthode du SDK ne le corrige
+  ensuite, et une room vide disparaît par `empty_timeout`, donc le plafond
+  est re-posé à chaque renaissance). Le chiffre suit **deux lectures
+  vivantes** — cœurs du nœud (`go_sched_gomaxprocs_threads`) et occupation
+  réelle (`listRooms()`) — appliquées à une référence **mesurée au banc** :
+  0,00767 cœur par spectateur en audio dans la topologie d'un direct, soit
+  130 places par cœur, dont la moitié seulement est engagée.
+* **Refus de deviner** : toute incertitude (pas d'URL de métriques,
+  `/metrics` en 404, machine inconnue, création refusée) ne pose **aucun**
+  plafond — le direct se comporte comme avant. Plancher à **1**, jamais 0.
+* **Preuves** : `tsc --noEmit` 0 · `vitest` 924/924 (67 fichiers, +27) ·
+  `npm run build` propre · banc réel **21 OK / 0 DÉFAUT** contre les deux
+  binaires (`livekit-server` **1.8.4**, la version exacte du VPS, et
+  **1.13.6**, la cible) · **8 contre-épreuves / 8 conformes**, dont une
+  garde trouvée **complaisante** et corrigée (le lecteur de métriques
+  n'était éprouvé que sur un nom suffixé, jamais préfixé) · aucune écriture
+  en base, aucun compte de test.
+* **Ce qui n'est PAS actif** : `prometheus_port` n'est pas configuré sur le
+  VPS (`/metrics` y répond 404), donc **aucun plafond n'est posé en
+  production aujourd'hui** — c'est SAT-1b, une action SSH documentée dans
+  `deploy/livekit/README.md`. La fonction Edge `livekit-token` n'est **pas
+  déployée** avec ces changements.
+* **Correctif d'hygiène du même lot** : un test de la mission SN
+  (`callRingingFlow`, lancement à froid par notification) affirmait le
+  démarrage de la sonnerie de façon synchrone alors qu'il est déclenché par
+  un effet dérivé, un tour de boucle plus tard — vert presque toujours,
+  rouge sous charge CPU. Passé en attente réelle ; contre-épreuve faite
+  (sonnerie neutralisée → 4 tests rouges, fichier restauré à l'empreinte
+  identique).
+
+---
 
 ### [Version 6.14.0] — 3 Septembre 2026 (Studio Live à l'image de la seconde référence — mission DS, loupe LIVE)
 - **Objectif** : appliquer au Studio Live la seconde image de référence fournie par la Direction (abysse turquoise, ruban de lumière liquide séparant scène et panneau, cartes de verre cyan, vidéo **dans** le verre avec pastille d'avatar et onde de voix, plaque de nom en capitales, orbes cyan, « ● EN DIRECT » à point vert, bulles montant à l'intérieur des cartes) — sans toucher à la matière déjà validée ailleurs.
