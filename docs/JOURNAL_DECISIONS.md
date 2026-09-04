@@ -1122,6 +1122,90 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-050] — 4 Septembre 2026
+
+* **Module(s)** : `Santé Globale (Super Admin)`, `Supabase (coffre de
+  sauvegarde, catalogue fermé)`, `Edge health-guardian`, `Navigation (lien
+  profond)`, `Observabilité de version`.
+* **Problème / Besoin initial** : l'audit de sécurité du 4 septembre a produit
+  un état des lieux figé — utile une fois, périmé le lendemain, et incapable de
+  faire agir. Deux des constats les plus graves (forge de crédits
+  `award_xp_and_credits` ouverte à tout compte connecté ; crédit de
+  portefeuille auto-déclaré) **n'étaient pas visibles dans le code source** :
+  ils n'apparaissaient qu'en interrogeant la base réelle. Un rapport lu dans le
+  dépôt ne pouvait donc structurellement pas les voir. La Direction a demandé
+  non pas un rapport mais « un vrai paramètre de santé globale intégré au
+  tableau de bord, ligne par ligne, avec un bouton contrôlé quand c'est orange
+  ou rouge ».
+* **Options envisagées** :
+  1. Un rapport régénéré périodiquement — écarté : c'est le défaut d'origine.
+  2. Une console de santé avec exécution SQL libre côté administrateur —
+     écarté : une porte dérobée d'exécution arbitraire annule tout le bénéfice
+     de sécurité qu'elle prétend surveiller.
+  3. Une console de santé avec **catalogue fermé** de réparations défini en
+     SQL : le navigateur n'envoie qu'un identifiant, jamais une table, une
+     condition ni du SQL.
+* **Décision retenue** : option 3. 12 domaines, 52 lignes mesurées, 15
+  réparations au catalogue. Chaque réparation exige un diagnostic préalable,
+  affiche son périmètre chiffré, réclame une confirmation, et porte un jeton
+  signé HMAC lié au nombre d'éléments montré — si ce nombre bouge entre
+  l'affichage et le clic, l'application est refusée (HTTP 409). La sauvegarde
+  et l'action sont dans la **même transaction** : il est impossible d'obtenir
+  un changement sans sa sauvegarde.
+* **Justification & Valeur ajoutée** : le principe directeur est « aucun faux
+  vert ». Une ligne non mesurée est **blanche**, jamais verte ; le score voyage
+  toujours avec sa couverture ; une sonde qui tombe fait baisser la couverture,
+  jamais monter la note. L'écriture est réservée au rôle `super_admin`
+  (`health_require_general_admin`) — `is_admin()` ne convenait pas, il répond
+  vrai pour `admin` **comme** pour `super_admin`.
+* **Conséquences & Impacts transversaux** :
+  1. **Deux relations orphelines supposées se sont révélées impossibles** :
+     toutes les relations visées sont protégées par une clé étrangère
+     `ON DELETE CASCADE`. Les boutons de purge correspondants ont été retirés
+     — ils n'auraient jamais rien purgé et auraient masqué la vraie cause.
+  2. **Le lien profond a dû être créé** : l'application écrivait le hash de
+     l'URL depuis la LOOP I4 mais ne l'a jamais relu. Aucune adresse ne pouvait
+     ouvrir un écran précis. `services/navigation/deepLink.ts` corrige la cause,
+     pas le symptôme, et filtre les hash d'authentification Supabase.
+  3. **Un défaut d'observabilité a été mis au jour et corrigé** : le bandeau
+     Super Admin affichait `Diallo OS v2.5 — Supabase Cloud`, chaîne écrite en
+     dur, donc identique **au bit près** en production et dans un aperçu.
+     Conséquence mesurée : trois constats successifs « je ne vois aucun
+     changement » alors que le changement existait, mais sur une autre adresse.
+     Le bandeau nomme désormais sa propre version à partir de ce que Netlify
+     fournit réellement, et passe en ambre hors production.
+* **Éléments techniques concernés** : `services/health/` (types, registre,
+  moteur de notation, service client à 8 sondes navigateur),
+  `supabase/migrations/20260904150000_health_guardian.sql` (table
+  `health_snapshots`, 13 fonctions `health_*`), `supabase/functions/health-guardian/`,
+  `supabase/rollback/20260904150000_health_guardian_rollback.sql`,
+  `components/admin/AdminHealthTab.tsx`, `components/AdminDashboard.tsx`,
+  `services/navigation/deepLink.ts`, `services/build/buildInfo.ts`,
+  `vite.config.ts`, `tests/healthScore.test.ts`, `tests/healthGuardian.test.ts`,
+  `tests/deepLink.test.ts`, `tests/buildInfo.test.ts`.
+* **Statut** : `Développé`, `Testé` — tsc 0 erreur, **917 tests verts (67
+  fichiers)**, build propre. Déploiement contrôlé effectué **côté base
+  seulement** : migration appliquée et Edge Function `health-guardian` ACTIVE
+  sur le projet de production ; **le front n'est PAS en production**
+  (vérifié : `health-guardian` absent du bundle servi par moknet.net). PR #70
+  en brouillon, non fusionnée, en attente du constat écran de la Direction.
+* **Preuve d'innocuité** : relevé instruction par instruction de la migration —
+  toutes les écritures visent `public.health_snapshots`, table créée par cette
+  même migration. Aucun `alter`, `update`, `delete` ou `drop` sur une table
+  MokNet préexistante. Après application : coffre 0 ligne, journal santé 0
+  entrée, 0 table sans RLS.
+* **Restes assumés** :
+  1. `HEALTH_ALLOWED_ORIGINS` n'est pas définie ; la fonction se replie sur `*`
+     en le journalisant, pour ne pas transformer un durcissement CORS en panne
+     d'écran. À restreindre aux domaines MokNet — décision de configuration,
+     hors périmètre du code.
+  2. **Aucun compte n'a le rôle `super_admin`** (1 `admin`, 0 `super_admin`).
+     Le diagnostic fonctionne ; « Réparer » et « Restaurer » refuseront tant
+     qu'un compte ne sera pas promu. Aucun rôle n'a été modifié : ce n'est pas
+     une décision d'outillage.
+
+---
+
 ### [DEC-2026-049] — 4 Septembre 2026
 
 * **Module(s)** : `Design System`, `Navigation globale`, `Studio Live`,
