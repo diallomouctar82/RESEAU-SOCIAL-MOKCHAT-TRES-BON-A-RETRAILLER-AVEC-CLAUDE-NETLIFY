@@ -139,13 +139,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onNavigate, o
                             status: 'upcoming'
                         }
                     ]}
-                    leadAdvisor={{
-                        name: "Conseiller Diallo",
-                        role: "Stratège Carrière & Marché",
-                    }}
                     onStepClick={(idx) => onNavigate('career')}
-                    onOpenAdvisor={() => onNavigate('chat')}
                 />
+                {/* Nettoyage accueil (DEC-2026-051) : la carte « Conseiller
+                    Référent · Conseiller Diallo » (prop `leadAdvisor`) n’est
+                    plus affichée ici — elle doublonnait la Famille Diallo
+                    déjà joignable par « Équipe & Experts » et l’Architecte.
+                    Le composant PointAToBPathway garde la prop (vitrine du
+                    Design System). */}
 
                 {/* 3. GRILLE COMPLÉMENTAIRE : DOSSIERS VIVANTS & COMPTES */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
