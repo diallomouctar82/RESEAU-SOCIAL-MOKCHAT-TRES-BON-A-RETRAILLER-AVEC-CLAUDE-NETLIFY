@@ -1230,8 +1230,19 @@
          Tailwind `.sticky` (0,1,0) — les en-têtes cesseraient de coller en
          haut de l'écran. Un `z-index` seul suffit : les enfants de la racine
          sont des éléments flex, et un élément flex honore `z-index` même en
-         position statique. */
-      [data-miroir] > *:not(.mir-scene) {
+         position statique.
+
+         `:not(header)` — LE MÊME PIÈGE, une ligne plus bas. Ce sélecteur
+         (0,2,0) l'emporte aussi sur les classes `.z-20` / `.z-30` (0,1,0) que
+         portent les deux en-têtes. Sans cette exclusion, les en-têtes tombent
+         à 1, à égalité avec le conteneur principal qui est écrit APRÈS eux :
+         l'ordre du document tranche, le conteneur peint par-dessus, et les
+         menus déroulants ancrés sous l'en-tête (langue, Notifications, et le
+         menu Compte qui porte la DÉCONNEXION) deviennent inatteignables.
+         Mesuré en navigateur réel sur la page servie : `elementFromPoint` au
+         centre de « Se déconnecter » renvoyait une carte `.bg-white` du fil,
+         jamais le bouton. Les en-têtes gardent donc leur z Tailwind. */
+      [data-miroir] > *:not(.mir-scene):not(header) {
         z-index: 1;
       }
 

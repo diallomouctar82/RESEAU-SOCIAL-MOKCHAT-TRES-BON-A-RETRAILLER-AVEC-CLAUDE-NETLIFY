@@ -108,3 +108,77 @@ describe("la feuille de style d'index.html, telle qu'un navigateur l'analyse", (
     expect(sels).not.toContain('[data-miroir] .bg-white.rounded-3xl');
   });
 });
+
+/**
+ * Aucune règle de l'habillage ne doit voler leur plan aux en-têtes.
+ *
+ * `[data-miroir] > …` a une spécificité de (0,2,0) : elle l'emporte sur les
+ * classes utilitaires `.z-20` / `.z-30` (0,1,0) que portent les deux en-têtes
+ * de `Layout.tsx`. Quand cela arrive, les en-têtes retombent au même plan que
+ * le conteneur principal, écrit APRÈS eux : l'ordre du document tranche, le
+ * conteneur peint par-dessus, et les menus ancrés sous l'en-tête — langue,
+ * Notifications, et le menu Compte qui porte la DÉCONNEXION — deviennent
+ * inatteignables. Mesuré en navigateur : `elementFromPoint` au centre de
+ * « Se déconnecter » renvoyait une carte du fil.
+ *
+ * Ce garde-fou ne cherche pas une chaîne de caractères : il construit un vrai
+ * en-tête et demande au moteur de sélecteurs s'il correspond.
+ */
+describe("les en-têtes gardent leur plan (z-index) sous l'habillage", () => {
+  /** Les deux en-têtes réels de `Layout.tsx` (lignes 372 et 674). */
+  const ENTETES = [
+    'hidden md:block mir-band z-20 sticky top-0',
+    'md:hidden mir-band px-4 pt-1.5 pb-2.5 sticky top-0 z-30',
+  ];
+
+  /** Un en-tête réel, enfant direct de la racine, tel que le DOM le produit. */
+  function entete(classes: string): HTMLElement {
+    const racine = document.createElement('div');
+    racine.setAttribute('data-miroir', '');
+    const h = document.createElement('header');
+    h.className = classes;
+    racine.appendChild(h);
+    return h;
+  }
+
+  /** Les sélecteurs de l'habillage qui imposent un `z-index` à un enfant direct. */
+  function selecteursImposantUnPlan(): string[] {
+    const racine = postcss.parse(feuilleDeStyle());
+    const sortie: string[] = [];
+    racine.walkRules((regle) => {
+      let imposeUnPlan = false;
+      regle.walkDecls('z-index', () => {
+        imposeUnPlan = true;
+      });
+      if (!imposeUnPlan) return;
+      for (const s of regle.selectors) {
+        const sel = s.trim();
+        if (sel.startsWith('[data-miroir]') && sel.includes('>')) sortie.push(sel);
+      }
+    });
+    return sortie;
+  }
+
+  it("aucune règle scopée sous [data-miroir] n'écrase le z-index des deux en-têtes", () => {
+    const selecteurs = selecteursImposantUnPlan();
+    expect(selecteurs.length, "l'habillage doit bien poser un plan à ses enfants directs").toBeGreaterThan(0);
+    const fautifs: string[] = [];
+    for (const classes of ENTETES) {
+      const h = entete(classes);
+      for (const sel of selecteurs) {
+        if (h.matches(sel)) fautifs.push(`${sel}  ←  <header class="${classes}">`);
+      }
+    }
+    expect(
+      fautifs,
+      'un en-tête qui perd son z-index enterre le menu Compte, donc la déconnexion',
+    ).toEqual([]);
+  });
+
+  it('garde-fou non complaisant : la règle sans son exclusion est bien détectée', () => {
+    // Contre-épreuve : le sélecteur tel qu'il était avant le correctif.
+    const avantCorrectif = '[data-miroir] > *:not(.mir-scene)';
+    const touches = ENTETES.filter((c) => entete(c).matches(avantCorrectif));
+    expect(touches, 'la détection doit voir les deux en-têtes capturés').toHaveLength(2);
+  });
+});
