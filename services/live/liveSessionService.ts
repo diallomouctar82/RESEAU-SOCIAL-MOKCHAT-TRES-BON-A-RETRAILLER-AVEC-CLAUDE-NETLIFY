@@ -282,6 +282,19 @@ export interface CreateLiveSessionParams {
     isScheduled?: boolean;
     scheduledFor?: string;
     timezone?: string;
+    /**
+     * Consentement de conservation de la parole (LP-7), tel que l'animateur
+     * l'a RÉELLEMENT laissé dans la modale de création (« Enregistrement &
+     * Replay Intelligent »). Même défaut que la base — `false` — pour tout
+     * appelant qui ne le transmet pas : rien n'est gardé sans un geste.
+     *
+     * Il était collecté par `LiveCreationModal` et transporté jusqu'ici, mais
+     * l'insert ne l'écrivait pas : l'animateur voyait l'enregistrement ACTIF
+     * et la parole n'était conservée nulle part — exactement le mensonge
+     * d'interface que LP-8 existe pour supprimer. Même famille que
+     * `scheduled_for` juste au-dessus.
+     */
+    isRecordingEnabled?: boolean;
 }
 
 /** Crée une session réelle, hôte = utilisateur courant (contrainte RLS live_sessions_insert_own). */
@@ -309,6 +322,7 @@ export async function createLiveSession(
             is_scheduled: params.isScheduled ?? false,
             scheduled_for: params.scheduledFor ?? null,
             timezone: params.timezone ?? null,
+            is_recording_enabled: params.isRecordingEnabled ?? false,
         })
         .select()
         .single();

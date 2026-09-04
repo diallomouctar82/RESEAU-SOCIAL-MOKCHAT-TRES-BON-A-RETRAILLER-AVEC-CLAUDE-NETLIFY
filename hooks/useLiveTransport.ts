@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveKitTransportProvider } from '../services/live/liveKitTransportProvider';
 import type { LiveAudioStats, LiveCameraFacing, LiveConnectionQuality, LiveConnectionState, LiveParticipantHandle, LiveTrackHandle, LiveTransportDiagnostics, SendDataOptions } from '../services/live/liveTransportTypes';
 import { INTERPRETER_TRACK_NAME, describeDisconnectReason, isDuplicateIdentityReason, isInterpreterTrackName } from '../services/live/liveTransportTypes';
+import { languageFromInterpreterTrackName } from '../services/live/liveListeningLanguage';
 import { fetchLiveKitToken } from '../services/live/liveKitToken';
 import { recordCallEvent } from '../services/calls/callDiagnostics';
 
@@ -25,6 +26,25 @@ export interface RemoteParticipantMedia {
      * pendant l'interprétation.
      */
     interpreterAudioTrack?: LiveTrackHandle;
+    /**
+     * LIVE PLANÉTAIRE : les pistes d'interprète de ce participant, INDEXÉES
+     * PAR LANGUE (`interpreter:en`, `interpreter:es`…).
+     *
+     * Un appel n'a qu'un correspondant, donc une seule voix d'interprète —
+     * d'où le champ unique ci-dessus, qui reste le chemin des appels et n'est
+     * pas touché. Un direct, lui, peut porter plusieurs langues en même temps
+     * pour le même intervenant : chaque auditeur s'abonne à celle qu'il a
+     * choisie. Une seule piste par langue, partagée par tous ceux qui l'ont
+     * demandée — jamais une par auditeur.
+     */
+    interpreterTracksByLanguage?: Record<string, LiveTrackHandle>;
+    /**
+     * Métadonnées du participant telles que le transport les transmet — dans
+     * un direct, elles portent la langue d'écoute choisie
+     * (services/live/liveListeningLanguage.ts). Chaîne brute : c'est
+     * l'appelant qui la décode, jamais le transport.
+     */
+    metadata?: string;
 }
 
 export interface UseLiveTransportOptions {
@@ -161,8 +181,13 @@ export interface UseLiveTransportResult {
      * ligne n'est pas connectée, l'appelant décide alors du repli (message
      * « voix indisponible » au correspondant). Référence stable (deps []).
      */
-    publishInterpreterAudio: (track: MediaStreamTrack) => Promise<void>;
-    unpublishInterpreterAudio: () => Promise<void>;
+    /** `name` : `interpreter:<langue>` dans un direct ; par défaut `interpreter`, comme les appels. */
+    publishInterpreterAudio: (track: MediaStreamTrack, name?: string) => Promise<void>;
+    unpublishInterpreterAudio: (name?: string) => Promise<void>;
+    /** LIVE PLANÉTAIRE : publie mon état de participant (langue d'écoute) ; sans effet hors connexion. */
+    publishLocalMetadata: (metadata: string) => Promise<void>;
+    /** Mes métadonnées actuelles — à relire avant d'écrire, pour ne pas effacer les clés d'autrui. */
+    getLocalMetadata: () => string | undefined;
 }
 
 /** Média local voulu pour une connexion : micro et/ou caméra. */
@@ -367,6 +392,27 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
             });
         };
 
+        /**
+         * LIVE PLANÉTAIRE : range (ou retire) UNE piste d'interprète dans la
+         * table par langue de ce participant. Table à part et non un champ
+         * unique : dans un direct, le même intervenant peut porter plusieurs
+         * langues en même temps. Le champ `interpreterAudioTrack` des APPELS
+         * n'est pas touché ici — les deux chemins coexistent.
+         */
+        const patchInterpreterTrack = (identity: string, language: string, track?: LiveTrackHandle) => {
+            setRemoteParticipants((prev) => {
+                const idx = prev.findIndex((p) => p.participant.identity === identity);
+                if (idx === -1) return prev; // aucune entrée : rien à indexer, `upsertRemote` l'aura créée d'abord
+                const current = prev[idx].interpreterTracksByLanguage ?? {};
+                const nextMap = { ...current };
+                if (track) nextMap[language] = track;
+                else delete nextMap[language];
+                const next = [...prev];
+                next[idx] = { ...next[idx], interpreterTracksByLanguage: nextMap };
+                return next;
+            });
+        };
+
         (async () => {
             try {
                 // Sérialisation (L2) : attendre que la connexion précédente —
@@ -416,7 +462,15 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         if (identity === localId) setConnectionQuality(quality);
                         else setRemoteConnectionQuality(quality);
                     },
-                    onParticipantConnected: (p) => { if (!cancelled) upsertRemote(p.identity, { participant: p }); },
+                    onParticipantConnected: (p) => { if (!cancelled) upsertRemote(p.identity, { participant: p, metadata: p.metadata }); },
+                    // LIVE PLANÉTAIRE : la langue d'écoute d'un participant vit
+                    // dans ses métadonnées. C'est un ÉTAT, pas un événement —
+                    // le serveur le retransmet à qui rejoint plus tard, donc un
+                    // intervenant arrivé en cours de route connaît aussitôt les
+                    // langues à produire, sans que personne ré-annonce rien.
+                    onParticipantMetadataChanged: (identity, metadata) => {
+                        if (!cancelled) upsertRemote(identity, { metadata });
+                    },
                     onParticipantDisconnected: (identity) => {
                         if (cancelled) return;
                         setRemoteParticipants((prev) => prev.filter((p) => p.participant.identity !== identity));
@@ -424,8 +478,15 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     onTrackSubscribed: (track) => {
                         if (cancelled) return;
                         if (track.kind === 'video') upsertRemote(track.participantIdentity, { videoTrack: track });
-                        // Mission VT : la piste nommée « interpreter[:compte] » est la voix de l'interprète, jamais le micro.
-                        else if (track.kind === 'audio' && isInterpreterTrackName(track.name)) upsertRemote(track.participantIdentity, { interpreterAudioTrack: track });
+                        // Mission VT : la piste nommée « interpreter[:cible] » est la voix de l'interprète, jamais le micro.
+                        else if (track.kind === 'audio' && isInterpreterTrackName(track.name)) {
+                            upsertRemote(track.participantIdentity, { interpreterAudioTrack: track });
+                            // LIVE PLANÉTAIRE : quand la cible est une LANGUE, on
+                            // l'indexe aussi par langue. `upsertRemote` d'abord :
+                            // l'entrée doit exister avant d'y ranger la table.
+                            const language = languageFromInterpreterTrackName(track.name);
+                            if (language) patchInterpreterTrack(track.participantIdentity, language, track);
+                        }
                         else if (track.kind === 'audio') upsertRemote(track.participantIdentity, { audioTrack: track });
                         else if (track.kind === 'screen_share') upsertRemote(track.participantIdentity, { screenShareTrack: track });
                         else if (track.kind === 'screen_share_audio') upsertRemote(track.participantIdentity, { screenShareAudioTrack: track });
@@ -433,7 +494,11 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     onTrackUnsubscribed: (identity, kind, name) => {
                         if (cancelled) return;
                         if (kind === 'video') upsertRemote(identity, { videoTrack: undefined });
-                        else if (kind === 'audio' && isInterpreterTrackName(name)) upsertRemote(identity, { interpreterAudioTrack: undefined });
+                        else if (kind === 'audio' && isInterpreterTrackName(name)) {
+                            upsertRemote(identity, { interpreterAudioTrack: undefined });
+                            const language = languageFromInterpreterTrackName(name);
+                            if (language) patchInterpreterTrack(identity, language, undefined);
+                        }
                         else if (kind === 'audio') upsertRemote(identity, { audioTrack: undefined });
                         else if (kind === 'screen_share') upsertRemote(identity, { screenShareTrack: undefined });
                         else if (kind === 'screen_share_audio') upsertRemote(identity, { screenShareAudioTrack: undefined });
@@ -524,7 +589,16 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                 // Participants déjà présents à la connexion — arrivent via ce
                 // snapshot, pas via onParticipantConnected (réservé aux
                 // arrivées ultérieures, voir LOOP 01/14).
-                for (const p of provider.getRemoteParticipants()) upsertRemote(p.identity, { participant: p });
+                // LIVE PLANÉTAIRE (LP-6) : `metadata` fait partie de ce
+                // snapshot, au même titre que le handle. Sans lui, un
+                // intervenant qui rejoint un direct où les auditeurs ont DÉJÀ
+                // choisi leur langue ne l'apprend jamais — `onParticipantMetadataChanged`
+                // ne se déclenche qu'aux changements ULTÉRIEURS. C'est
+                // exactement l'inverse de ce que promet le commentaire de cet
+                // événement (« le serveur le retransmet à qui rejoint plus
+                // tard ») : le serveur le retransmet bien, c'est le client qui
+                // le jetait.
+                for (const p of provider.getRemoteParticipants()) upsertRemote(p.identity, { participant: p, metadata: p.metadata });
 
                 // VF-3 : ce qui est publié ici est ce que cette tentative VEUT —
                 // options « à la connexion » (appelant, LIVE) et/ou activation
@@ -705,14 +779,30 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     // Mission VT : la piste de l'interprète part par le transport de l'appel.
     // Rejet honnête hors connexion — jamais une publication « en attente »
     // silencieuse : l'appelant prévient le correspondant que la voix manque.
-    const publishInterpreterAudio = useCallback(async (track: MediaStreamTrack): Promise<void> => {
+    // `name` (LIVE PLANÉTAIRE) : `interpreter:<langue>` pour un direct, où
+    // plusieurs langues coexistent. Par défaut `interpreter` tout court —
+    // exactement ce que faisaient les appels, dont le comportement ne change pas.
+    const publishInterpreterAudio = useCallback(async (track: MediaStreamTrack, name: string = INTERPRETER_TRACK_NAME): Promise<void> => {
         const provider = providerRef.current;
         if (!provider || provider.getConnectionState() !== 'connected') throw new Error('Ligne non connectée : la piste de l’interprète ne peut pas être publiée maintenant.');
-        await provider.publishAuxiliaryAudio(track, INTERPRETER_TRACK_NAME);
+        await provider.publishAuxiliaryAudio(track, name);
     }, []);
-    const unpublishInterpreterAudio = useCallback(async (): Promise<void> => {
-        await providerRef.current?.unpublishAuxiliaryAudio(INTERPRETER_TRACK_NAME);
+    const unpublishInterpreterAudio = useCallback(async (name: string = INTERPRETER_TRACK_NAME): Promise<void> => {
+        await providerRef.current?.unpublishAuxiliaryAudio(name);
     }, []);
+    /**
+     * LIVE PLANÉTAIRE : publie mon état de participant (langue d'écoute).
+     * Silencieux hors connexion — un choix fait avant d'être connecté sera
+     * republié à la connexion par l'appelant, jamais perdu en levant une
+     * exception au milieu d'un clic.
+     */
+    const publishLocalMetadata = useCallback(async (metadata: string): Promise<void> => {
+        const provider = providerRef.current;
+        if (!provider || provider.getConnectionState() !== 'connected') return;
+        await provider.setLocalMetadata(metadata);
+    }, []);
+    /** Mes propres métadonnées telles que le transport les porte (pour une écriture non destructive). */
+    const getLocalMetadata = useCallback((): string | undefined => providerRef.current?.getLocalParticipant()?.metadata, []);
 
     return {
         connectionState,
@@ -744,6 +834,8 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         getLocalAudioTrack,
         publishInterpreterAudio,
         unpublishInterpreterAudio,
+        publishLocalMetadata,
+        getLocalMetadata,
     };
 }
 

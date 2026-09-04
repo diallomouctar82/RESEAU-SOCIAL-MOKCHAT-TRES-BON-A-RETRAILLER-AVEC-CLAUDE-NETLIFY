@@ -40,6 +40,16 @@ import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
 import { LiveParticipantsPanel, ROLE_LABELS } from './live/LiveParticipantsPanel';
 import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
+import {
+  decodeLiveParticipantMeta, listeningLanguageCode, listeningChoiceLabel, speakerAudioDecision, subtitleForListener,
+  type ListeningChoice, type LiveSubtitle,
+} from '../services/live/liveListeningLanguage';
+import { decodeCallData } from '../services/messaging/speechLanguage';
+import { keepLiveTranscriptLine, getLiveTranscript } from '../services/live/liveTranscriptService';
+import { buildCatchUpMaterial, catchUpPrompt, assistantPrompt, catchUpEmptyMessage, type CatchUpMaterial } from '../services/live/liveCatchUp';
+import type { LiveTranscriptLine } from '../services/live/liveInterpreterProducer';
+import { useLiveListeningLanguage } from '../hooks/useLiveListeningLanguage';
+import { ListeningLanguagePicker } from './live/ListeningLanguagePicker';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
 import { getCapabilitiesByDomain } from '../services/architecte/capabilityRegistry';
 import {
@@ -121,23 +131,64 @@ const RemoteParticipantTile: React.FC<{ media: RemoteParticipantMedia; roleLabel
  * réunion, commerce, masterclass) — tous les spectateurs entendent le
  * présentateur en permanence. Detach réel au démontage.
  */
-const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[] }> = ({ participants }) => (
+const RemoteAudioSink: React.FC<{ participants: RemoteParticipantMedia[]; listeningChoice?: ListeningChoice }> = ({ participants, listeningChoice = null }) => (
   <>
-    {participants.map((media) => (
-      <React.Fragment key={media.participant.identity}>
-        {media.audioTrack && <SinkAudioElement track={media.audioTrack} />}
-        {media.screenShareAudioTrack && <SinkAudioElement track={media.screenShareAudioTrack} />}
-      </React.Fragment>
-    ))}
+    {participants.map((media) => {
+      // LIVE PLANÉTAIRE — décision PAR INTERVENANT, jamais globale : dans un
+      // direct, je peux entendre l'un en version originale (il parle déjà ma
+      // langue) et l'autre par l'interprète, au même instant.
+      const mine = listeningLanguageCode(listeningChoice);
+      const interpreterTrack = mine ? media.interpreterTracksByLanguage?.[mine] : undefined;
+      const decision = speakerAudioDecision({
+        myChoice: listeningChoice,
+        speakerLanguage: decodeLiveParticipantMeta(media.metadata).spoken,
+        interpreterAvailable: !!interpreterTrack,
+      });
+      return (
+        <React.Fragment key={media.participant.identity}>
+          {/* La voix originale est COUPÉE (`muted`), jamais retirée du DOM :
+              elle doit reprendre instantanément si l'interprète s'arrête, et
+              `muted` est la seule commande que les téléphones honorent
+              réellement (le volume est ignoré sur iOS — mesuré côté appels). */}
+          {media.audioTrack && (
+            <SinkAudioElement
+              track={media.audioTrack}
+              muted={decision.originalVolume === 0}
+              testId={`live-original-audio-${media.participant.identity}`}
+            />
+          )}
+          {decision.interpreted && interpreterTrack && (
+            <SinkAudioElement
+              track={interpreterTrack}
+              testId={`live-interpreter-audio-${media.participant.identity}`}
+              language={mine ?? undefined}
+            />
+          )}
+          {media.screenShareAudioTrack && <SinkAudioElement track={media.screenShareAudioTrack} />}
+        </React.Fragment>
+      );
+    })}
   </>
 );
 
-const SinkAudioElement: React.FC<{ track: NonNullable<RemoteParticipantMedia['audioTrack']> }> = ({ track }) => {
+/**
+ * Un élément de son, nommé. Le nom (`data-testid`) et la langue rendue
+ * (`data-language`) ne changent rien à ce qui s'entend : ils rendent le
+ * chemin audio OBSERVABLE, exactement comme côté appels
+ * (`original-audio` / `interpreter-audio`). Sans eux, « la bonne voix sort
+ * du bon haut-parleur » ne se mesure pas — il faudrait le croire.
+ */
+const SinkAudioElement: React.FC<{
+  track: NonNullable<RemoteParticipantMedia['audioTrack']>;
+  muted?: boolean;
+  testId?: string;
+  language?: string;
+}> = ({ track, muted, testId, language }) => {
   const ref = useCallback((el: HTMLAudioElement | null) => {
     if (el) track.attach(el);
     else track.detach();
   }, [track]);
-  return <audio ref={ref} autoPlay />;
+  return <audio ref={ref} autoPlay muted={muted} data-testid={testId} data-language={language} />;
 };
 
 export const SocialLive: React.FC<SocialLiveProps> = ({ 
@@ -365,6 +416,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           isScheduled: liveData.isScheduled,
           scheduledFor: liveData.scheduledFor,
           timezone: liveData.timezone,
+          // Le consentement de conservation vient de la modale de création
+          // (« Enregistrement & Replay Intelligent »). Sans cette ligne, il
+          // s'arrêtait ici : l'écran affichait l'enregistrement ACTIF et la
+          // base gardait `false`, donc la parole n'était conservée nulle part
+          // et le rattrapage répondait, à juste titre mais de façon
+          // incompréhensible, « ce direct n'enregistre pas la parole ».
+          isRecordingEnabled: liveData.isRecordingEnabled,
         });
         if (!cancelled) {
           setRealSessionId(created.id);
@@ -446,12 +504,70 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // consentement explicite (LOOP 12/16) — jamais de getUserMedia déclenché
   // avant ce choix. Désactivé tant que la session réelle n'est pas
   // confirmée (voir ci-dessus).
+  // LP-7 — le canal de données de la room porte la parole du direct
+  // (sous-titres). Le vrai traitement est écrit plus bas, là où la langue
+  // d'écoute et le roster sont connus ; on ne passe ici qu'un relais, parce
+  // que le transport se monte avant eux.
+  const onLiveDataRef = useRef<(payload: Uint8Array, from?: string) => void>(() => { /* pas encore prêt */ });
   const liveTransport = useLiveTransport({
     roomName: realSessionId || '',
     participantName: userProfile.name,
     canPublish: isUserOnStage && hasMediaConsent,
     enabled: !!realSessionId,
+    onDataReceived: (payload, from) => onLiveDataRef.current(payload, from),
   });
+
+  // LIVE PLANÉTAIRE — MA langue d'écoute (LP-3).
+  //
+  // Deux moitiés indépendantes, tenues par un seul crochet :
+  //  - AUDITEUR : tout le monde, y compris un spectateur sans micro ni
+  //    caméra ; mon choix voyage dans mes métadonnées pour que les
+  //    intervenants sachent quelles langues produire.
+  //  - INTERVENANT : seulement si je suis réellement sur scène avec un micro
+  //    publié ; une transcription, N traductions, une piste par LANGUE —
+  //    jamais une par auditeur.
+  //
+  // Par défaut : Original. Personne n'entend une traduction sans l'avoir
+  // demandée, et rien n'est produit tant que personne n'en demande.
+  const interpreterAudibleRef = useRef(false);
+  // Relais vers ma propre barre de sous-titres (voir plus bas) : ce que je
+  // produis ne me revient pas par le canal de données.
+  const onLocalTranscriptRef = useRef<(line: LiveTranscriptLine) => void>(() => { /* pas encore prêt */ });
+  const listening = useLiveListeningLanguage({
+    transport: liveTransport,
+    canProduce: isUserOnStage && hasMediaConsent,
+    myLanguageHint: userProfile.preferredLanguage || undefined,
+    isInterpreterAudible: () => interpreterAudibleRef.current,
+    // LP-7 — GARDER la parole, mais seulement les mots d'origine (les
+    // traductions se recalculent) et seulement si l'animateur a activé
+    // l'enregistrement : la base refuse l'écriture sinon, c'est elle qui fait
+    // foi, pas cette condition côté écran.
+    onTranscript: (line) => {
+      // D'abord ma propre barre — y compris pour les copies traduites, parce
+      // qu'un intervenant qui écoute en anglais doit lire l'anglais comme
+      // tout le monde. Le tri est fait par la même règle que pour les autres.
+      onLocalTranscriptRef.current(line);
+      if (line.targetLanguage || !realSessionId) return;
+      void keepLiveTranscriptLine({
+        sessionId: realSessionId,
+        speakerId: userProfile.id,
+        speakerName: userProfile.name,
+        text: line.text,
+        language: line.language,
+      });
+    },
+  });
+  // Une voix d'interprète sort de MON haut-parleur quand je suis abonné à une
+  // piste dans MA langue chez quelqu'un que le serveur détecte en train de
+  // parler : mon micro capte alors autre chose que ma voix, et le découpeur
+  // doit se mettre en pause (leçon des appels — sans quoi on retraduit la
+  // traduction).
+  interpreterAudibleRef.current = (() => {
+    const mine = listeningLanguageCode(listening.choice);
+    if (!mine) return false;
+    return liveTransport.remoteParticipants.some((p) =>
+      !!p.interpreterTracksByLanguage?.[mine] && liveTransport.activeSpeakerIds.includes(p.participant.identity));
+  })();
 
   // Référence conservée pour la capture de frame réelle (LOOP 11/14, Vision
   // IA) — le ref-callback ci-dessous attache la vraie piste LiveKit, on garde
@@ -703,12 +819,71 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   
   // 5. Diallo OS Copilot & Real-Time Multilingual Subtitles
   const [subtitlesMode, setSubtitlesMode] = useState<'off' | 'original' | 'translated' | 'bilingual'>('bilingual');
-  const [selectedViewerLang, setSelectedViewerLang] = useState<string>('Français');
-  const [currentSubtitle, setCurrentSubtitle] = useState<{ speaker: string; text: string; translated?: string }>({
-    speaker: liveData.hostName,
-    text: 'Nous abordons maintenant la structuration du plan de financement...',
-    translated: 'We are now covering the structure of the financing plan...'
-  });
+  // LP-4 — la barre de sous-titres affichait une phrase française FIGÉE avec
+  // sa « traduction » anglaise FIGÉE : `setCurrentSubtitle` n'était appelé
+  // nulle part dans ce fichier, donc cet état initial ÉTAIT l'affichage,
+  // pour toujours et pour tout le monde. C'était la partie la plus visible
+  // de la promesse décorative relevée par l'audit LP-0.
+  // Elle démarre désormais vide : la barre dit honnêtement qu'elle n'a rien
+  // à montrer plutôt que d'inventer une phrase. Depuis LP-7, elle se remplit
+  // pour de bon — avec la parole réellement captée dans le direct.
+  const [currentSubtitle, setCurrentSubtitle] = useState<LiveSubtitle | null>(null);
+
+  // LP-7 — un sous-titre reçu s'affiche, puis s'efface tout seul : sans cela,
+  // la dernière phrase d'un intervenant qui s'est tu resterait à l'écran
+  // jusqu'à la fin du direct, comme si elle venait d'être prononcée.
+  const subtitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current); }, []);
+
+  const afficherSousTitre = (mine: LiveSubtitle | null) => {
+    if (!mine) return; // ce sous-titre est celui d'une autre langue que la mienne
+    setCurrentSubtitle(mine);
+    if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+    subtitleTimerRef.current = setTimeout(() => setCurrentSubtitle(null), 8000);
+  };
+
+  onLiveDataRef.current = (payload, from) => {
+    const message = decodeCallData(payload);
+    if (!message || message.t !== 'caption') return;
+    // Le nom vient du roster de la room, jamais du message : personne ne
+    // choisit sous quel nom sa parole s'affiche chez les autres.
+    const speaker = liveTransport.remoteParticipants
+      .find((p) => p.participant.identity === from)?.participant.name;
+    if (!speaker) return;
+    afficherSousTitre(subtitleForListener({
+      caption: {
+        text: message.text,
+        lang: message.lang,
+        translated: message.translated,
+        targetLang: message.targetLang,
+      },
+      myChoice: listening.choice,
+      speakerName: speaker,
+    }));
+  };
+
+  // LP-7 — MA PROPRE PAROLE. Le canal de données de LiveKit ne renvoie jamais
+  // un message à celui qui l'a émis : sans ce relais, l'intervenant serait le
+  // SEUL du direct à ne rien lire, sa barre répétant « Aucun sous-titre pour
+  // l'instant » pendant que tous les autres lisent ses mots. C'est aussi sa
+  // seule preuve à l'écran que la transcription tourne réellement — et, dès
+  // que l'enregistrement est activé, que quelque chose est bien capté.
+  //
+  // Même règle que pour les autres, pas une seconde : `subtitleForListener`
+  // décide. J'écoute en Original → je lis mes mots d'origine ; j'écoute en
+  // anglais → je lis la copie anglaise que je produis déjà pour les autres.
+  onLocalTranscriptRef.current = (line) => {
+    afficherSousTitre(subtitleForListener({
+      caption: {
+        text: line.text,
+        lang: line.language,
+        translated: line.translated,
+        targetLang: line.targetLanguage,
+      },
+      myChoice: listening.choice,
+      speakerName: userProfile.name,
+    }));
+  };
   const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
   // Grammaire d'états de l'avatar (LOOP 10/14) — piloté par les vrais signaux
   // du copilote vocal (voir dispatchVoiceAction plus bas), pas un état
@@ -1327,10 +1502,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     { id: 'act-2', title: 'Consulter l\'Expert Juridique pour le pacte d\'actionnaires', category: 'juridique', deadline: 'Vendredi', completed: false }
   ]);
 
-  // Private Participant Assistant
-  const [assistantMessages, setAssistantMessages] = useState<{ query: string; answer: string }[]>([
-    { query: 'Qu\'est-ce qu\'une lettre d\'intention ?', answer: 'Une lettre d\'intention (LOI) est un document précontractuel où un investisseur ou partenaire confirme son intérêt formel pour financer ou collaborer sur votre projet.' }
-  ]);
+  // Private Participant Assistant.
+  //
+  // LP-8b : la liste démarre VIDE. Elle était pré-remplie d'un échange
+  // fabriqué (« Qu'est-ce qu'une lettre d'intention ? » et sa définition),
+  // affiché à chacun comme s'il l'avait demandé — une réponse que personne
+  // n'a posée, sur un direct dont elle ne venait pas. C'est le même défaut
+  // que les deux replis inventés supprimés plus bas : mieux vaut un panneau
+  // vide et honnête qu'une conversation qui n'a pas eu lieu.
+  const [assistantMessages, setAssistantMessages] = useState<{ query: string; answer: string }[]>([]);
   const [assistantInput, setAssistantInput] = useState('');
   const [isAssistantThinking, setIsAssistantThinking] = useState(false);
 
@@ -1754,26 +1934,59 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   };
 
   /**
-   * "Ce que vous avez manqué" (LOOP 11/14) — nourri du vrai chat
-   * (`messages`, réel depuis le LOOP 05/14 : live_messages via Supabase),
-   * pas seulement du titre du LIVE (ancien comportement, vérifié par audit :
-   * `generateText` ne recevait que `liveData.title`). Sans transcript
-   * réel, le résumé le dit honnêtement plutôt que d'en inventer un.
+   * LP-8 — LA MATIÈRE RÉELLE DU DIRECT.
+   *
+   * Le rattrapage ET l'assistant privé lisent la MÊME chose : la parole
+   * réellement prononcée (LP-7, `live_transcript_lines`) ET le chat tapé
+   * (LOOP 05/14, `live_messages`). Avant, l'un ne lisait que le chat et
+   * l'autre ne recevait que le TITRE — d'où « aucun message échangé » sur un
+   * direct où l'on avait parlé vingt minutes, et des réponses fabriquées.
+   *
+   * `isRecordingEnabled` vient de la ligne réelle `live_sessions` (fusionnée
+   * par `mergeLiveStreamWithRealSession`) : c'est lui qui distingue « rien
+   * n'a encore été dit » de « la parole n'était pas conservée ».
+   */
+  const collectCatchUpMaterial = async (): Promise<CatchUpMaterial> => {
+    const spoken = realSessionId
+      ? await getLiveTranscript(realSessionId).catch(() => [])
+      : [];
+    return buildCatchUpMaterial({
+      spoken: spoken.map((l) => ({
+        speakerName: l.speakerName || 'Quelqu\'un',
+        text: l.text,
+        spokenAt: l.spokenAt,
+      })),
+      chat: messages.map((m) => ({ authorName: m.authorName, text: m.text })),
+      // Sans session réelle, rien n'est conservé nulle part — quelle que soit
+      // la valeur de démonstration portée par `liveData`. On ne peut donc pas
+      // affirmer que personne n'a rien dit : c'est le cas « non conservé ».
+      transcriptKept: !!realSessionId && !!liveData.isRecordingEnabled,
+    });
+  };
+
+  /** La langue d'écoute choisie (LP-1), ou `undefined` en Original — on ne force alors rien. */
+  const myListeningLabel = (): string | undefined =>
+    listening.choice ? listeningChoiceLabel(listening.choice) : undefined;
+
+  /**
+   * « Ce que vous avez manqué » — la parole du direct ET le chat, résumés
+   * dans MA langue d'écoute.
    */
   const handleRequestCatchup = async () => {
     setShowCatchupSummary(true);
+    setCatchupDigest('Lecture de ce qui a été dit et écrit dans ce direct…');
 
-    if (messages.length === 0) {
-      setCatchupDigest("Aucun message n'a encore été échangé dans ce direct — rien à résumer pour l'instant.");
+    const material = await collectCatchUpMaterial();
+    if (material.kind === 'empty') {
+      // Deux situations, deux phrases : « personne n'a rien dit » n'est pas
+      // « la parole n'a pas été conservée ».
+      setCatchupDigest(catchUpEmptyMessage(material.reason));
       return;
     }
 
-    setCatchupDigest("Génération du résumé à partir du chat réel par Diallo OS...");
-    const transcript = messages.slice(-60).map((m) => `${m.authorName}: ${m.text}`).join('\n');
-
     try {
       const response = await generateText(
-        `Voici le chat réel du LIVE "${liveData.title}" (messages les plus récents en dernier) :\n\n${transcript}\n\nRésume en 3 puces percutantes ce qui s'est dit, à l'attention d'un spectateur qui arrive en retard. Base-toi uniquement sur ce chat, n'invente rien.`
+        catchUpPrompt({ material, title: liveData.title, language: myListeningLabel() })
       );
       setCatchupDigest(response || "Le résumé n'a pas pu être généré pour le moment — réessayez dans un instant.");
     } catch (e) {
@@ -1781,7 +1994,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     }
   };
 
-  // Private Assistant Inquiry
+  /**
+   * L'assistant privé. Il reçoit la matière RÉELLE et le droit de ne pas
+   * savoir : ses deux anciens replis fabriquaient des définitions (« ce terme
+   * désigne la conformité légale obligatoire ») sur un direct dont il ne
+   * connaissait que le titre. Une panne se dit maintenant comme une panne.
+   */
   const handleAskPrivateAssistant = async () => {
     if (!assistantInput.trim()) return;
     const query = assistantInput.trim();
@@ -1789,16 +2007,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     setIsAssistantThinking(true);
 
     try {
+      const material = await collectCatchUpMaterial();
       const response = await generateText(
-        `Tu es l'assistant privé et discret d'un spectateur du Live "${liveData.title}".
-            L'utilisateur te demande en aparté : "${query}".
-            Réponds de façon ultra-concise, pédagogique et bienveillante en 2-3 phrases max.`
+        assistantPrompt({ material, question: query, title: liveData.title, language: myListeningLabel() })
       );
-
-      const answer = response || "C'est une démarche clé qui facilite la validation auprès des autorités compétentes.";
-      setAssistantMessages(prev => [...prev, { query, answer }]);
+      setAssistantMessages(prev => [...prev, {
+        query,
+        answer: response || "Je n'ai pas pu répondre à l'instant — réessayez dans un moment.",
+      }]);
     } catch (e) {
-      setAssistantMessages(prev => [...prev, { query, answer: "Explication synthétique : ce terme désigne la conformité légale obligatoire." }]);
+      setAssistantMessages(prev => [...prev, {
+        query,
+        answer: "Je n'ai pas pu répondre : l'assistant est momentanément indisponible. Rien n'a été deviné à sa place.",
+      }]);
     } finally {
       setIsAssistantThinking(false);
     }
@@ -2509,6 +2730,28 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             commande la plus essentielle du direct ne peut plus ni rétrécir ni
             partir hors de l'écran. */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 max-w-[70%] sm:max-w-none">
+          {/* LIVE PLANÉTAIRE (LP-4) — « J'écoute en… ».
+              Placé HORS de la rangée défilante et HORS de
+              `contextualChromeClass`, pour trois raisons de fond :
+              1. il doit rester atteignable PENDANT le direct (§15), donc il
+                 ne s'efface pas au repos comme le chrome contextuel ;
+              2. il concerne TOUS les rôles — un spectateur sans micro ni
+                 caméra y a droit exactement comme l'animateur, la traduction
+                 ne dépend d'aucun droit de publication (§5) ;
+              3. `shrink-0` : la leçon de MB-1 (« Quitter » mesuré écrasé à
+                 20 px comme seul enfant d'un conteneur défilant) vaut ici —
+                 la commande qui décide de ce que j'entends ne peut pas
+                 rétrécir ni sortir de l'écran.
+              Ce n'est PAS un réglage de la diffusion : mon choix ne change
+              rien pour les autres. */}
+          <ListeningLanguagePicker
+            choice={listening.choice}
+            onChoose={listening.choose}
+            waitingForMyLanguage={listening.waitingForMyLanguage}
+            producerError={listening.producerError}
+            choiceBroadcastError={listening.choiceBroadcastError}
+            className="shrink-0"
+          />
           <div className={`flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-x-auto no-scrollbar ${contextualChromeClass}`}>
             {/* Audio Only Mode (Low Data) — personnel, utile à tout spectateur */}
             <button
@@ -2607,9 +2850,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </button>
             )}
 
+            {/* LP-8b — MESURÉ AVANT DE CORRIGER : ce bouton était le SEUL
+                chemin tactile vers « Ce que vous avez manqué », et il était en
+                `hidden 2xl:flex` — donc invisible sous 1536 px. La feuille
+                « Gérer la scène » s'arrête, elle, à `lg:hidden` (< 1024 px).
+                Entre les deux — tout portable de 1024 à 1535 px — il
+                n'existait AUCUN chemin : ni bouton, ni feuille. Le seuil est
+                désormais exactement celui de la feuille, si bien que les deux
+                domaines se rejoignent sans trou et sans se recouvrir. */}
             <button
               onClick={handleRequestCatchup}
-              className="px-3 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
+              data-testid="live-catchup-open"
+              className="px-3 py-1.5 min-h-[44px] bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1.5 transition-all"
+              title="Ce que vous avez manqué — résumé dans votre langue d’écoute"
             >
               <Sparkles size={14} /> Résumé
             </button>
@@ -2718,7 +2971,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             {/* Équipe F3 : audio de scène PERMANENT (indépendant du mode
                 d'affichage) + états honnêtes du transport — plus jamais un
                 silence ou une panne inexpliqués. */}
-            <RemoteAudioSink participants={liveTransport.remoteParticipants} />
+            <RemoteAudioSink participants={liveTransport.remoteParticipants} listeningChoice={listening.choice} />
             {liveTransport.audioPlaybackBlocked && (
               <button
                 onClick={(e) => { e.stopPropagation(); void liveTransport.startAudio(); }}
@@ -3238,36 +3491,39 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   <Globe size={16} />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
-                    <p className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
-                  </div>
-                  {subtitlesMode === 'bilingual' && currentSubtitle.translated && (
-                    <p className="text-[11px] text-indigo-300 truncate font-sans">
-                      🌍 {currentSubtitle.translated}
+                  {currentSubtitle ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span data-testid="subtitle-speaker" className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
+                        <p data-testid="subtitle-text" className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
+                      </div>
+                      {subtitlesMode === 'bilingual' && currentSubtitle.translated && (
+                        <p data-testid="subtitle-translated" className="text-[11px] text-indigo-300 truncate font-sans">
+                          🌍 {currentSubtitle.translated}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    // Honnêteté (§27) : tant que la parole du direct n'est pas
+                    // réellement transcrite (LP-7), cette barre n'a rien à
+                    // dire — elle le dit, au lieu d'afficher indéfiniment une
+                    // phrase inventée avec sa fausse traduction.
+                    <p className="text-[11px] text-slate-400 truncate" data-testid="subtitles-empty">
+                      Aucun sous-titre pour l'instant.
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Subtitles Language Toggle */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <select
-                  value={selectedViewerLang}
-                  onChange={(e) => {
-                    setSelectedViewerLang(e.target.value);
-                    addNotification("Langue Modifiée 🌐", `Sous-titres synchronisés en ${e.target.value}.`, "info");
-                  }}
-                  className="bg-black/40 border border-white/10 rounded-xl px-2.5 py-1 text-[11px] font-bold text-white outline-none"
-                >
-                  <option value="Français">Français</option>
-                  <option value="Anglais">Anglais</option>
-                  <option value="Arabe">Arabe</option>
-                  <option value="Wolof">Wolof</option>
-                  <option value="Pulaar">Pulaar</option>
-                  <option value="Malinké">Malinké</option>
-                  <option value="Espagnol">Espagnol</option>
-                </select>
+                {/* LP-4 : le sélecteur à sept libellés qui vivait ici ne
+                    faisait qu'afficher une notification — il ne changeait
+                    NI les sous-titres, NI l'audio. Il est retiré : la langue
+                    d'écoute se choisit à un seul endroit, la pastille
+                    « J'écoute en… » du bandeau, et ce choix pilote réellement
+                    ce que l'on entend. Deux sélecteurs concurrents pour une
+                    même intention, c'est exactement ce que la mission
+                    précédente sur la messagerie avait dû défaire. */}
 
                 {/* MB-1 : ce bouton affichait la valeur technique brute
                     (« bilingual », « original », « off ») à un public
@@ -3498,6 +3754,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     onClick={() => setShowMoreTabs(v => !v)}
                     aria-expanded={showMoreTabs}
                     aria-haspopup="menu"
+                    data-testid="live-side-tab-more"
                     className={`w-full h-full px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeMore || showMoreTabs ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                   >
                     <MoreIcon size={13} />
@@ -3515,6 +3772,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                               key={t.id}
                               role="menuitem"
                               onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
+                              data-testid={`live-side-tab-${t.id}`}
                               className={`px-2 py-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'}`}
                             >
                               <Icon size={14} />
@@ -3880,12 +4138,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 </div>
 
                 <div className="space-y-3">
+                  {assistantMessages.length === 0 && !isAssistantThinking && (
+                    <p className="text-[11px] text-slate-400 leading-relaxed" data-testid="live-assistant-empty">
+                      Rien ne vous a encore été répondu ici. Posez votre question : la réponse
+                      s’appuiera sur ce qui a réellement été dit dans ce direct — et si la
+                      réponse ne s’y trouve pas, elle vous le dira au lieu de l’inventer.
+                    </p>
+                  )}
+
                   {assistantMessages.map((item, idx) => (
-                    <div key={idx} className="space-y-1.5 text-xs">
-                      <div className="bg-slate-800 p-2.5 rounded-xl rounded-br-none text-slate-200">
+                    <div key={idx} className="space-y-1.5 text-xs" data-testid="live-assistant-exchange">
+                      <div className="bg-slate-800 p-2.5 rounded-xl rounded-br-none text-slate-200" data-testid="live-assistant-question">
                         {item.query}
                       </div>
-                      <div className="bg-indigo-900/40 border border-indigo-500/30 p-2.5 rounded-xl rounded-bl-none text-indigo-100 leading-relaxed">
+                      <div className="bg-indigo-900/40 border border-indigo-500/30 p-2.5 rounded-xl rounded-bl-none text-indigo-100 leading-relaxed" data-testid="live-assistant-answer">
                         {item.answer}
                       </div>
                     </div>
@@ -4092,6 +4358,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               <div className="flex gap-2">
                 <input
                   type="text"
+                  data-testid="live-assistant-input"
                   value={assistantInput}
                   onChange={(e) => setAssistantInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAskPrivateAssistant()}
@@ -4099,6 +4366,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
                 />
                 <button
+                  data-testid="live-assistant-send"
                   onClick={handleAskPrivateAssistant}
                   disabled={isAssistantThinking}
                   className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors disabled:opacity-40"
@@ -4195,6 +4463,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   elles n'y tenaient pas (le cœur et son compteur sortaient de
                   l'écran) ET elles y étaient muettes — deux icônes sans mot.
                   Ici elles ont enfin leur nom et ce qu'elles font. */}
+              {/* LP-8b : « Ce que vous avez manqué » n'avait aucun chemin
+                  tactile sur téléphone. Ce qui ne tient pas dans la barre
+                  n'est jamais retiré du téléphone — il vient ici, et y gagne
+                  son nom (même règle que MB-1). */}
+              <button
+                data-testid="mobile-catchup"
+                onClick={() => { setShowMobileStageSheet(false); handleRequestCatchup(); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-indigo-600/25 border border-indigo-400/40 text-left"
+              >
+                <Sparkles size={18} className="text-indigo-300" />
+                <span className="text-xs font-bold text-white">Ce que vous avez manqué</span>
+                <span className="text-[10px] text-indigo-200/80">Résumé dans votre langue d’écoute</span>
+              </button>
+
               <button
                 data-testid="mobile-transform-parcours"
                 onClick={() => { setShowMobileStageSheet(false); handleTransformToParcours(); }}
@@ -4354,7 +4636,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
       {/* 4. CATCHUP SUMMARY DIALOG ("Ce que vous avez manqué") */}
       {showCatchupSummary && (
-        <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4" data-testid="live-catchup-dialog">
           <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-scale-in">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
@@ -4365,7 +4647,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </button>
             </div>
 
-            <div className="p-4 bg-slate-950 rounded-2xl border border-white/5 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
+            <div data-testid="live-catchup-digest" className="p-4 bg-slate-950 rounded-2xl border border-white/5 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
               {catchupDigest}
             </div>
 

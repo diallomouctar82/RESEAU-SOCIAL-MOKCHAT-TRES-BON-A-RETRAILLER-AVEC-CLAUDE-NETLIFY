@@ -223,8 +223,20 @@ export class LiveKitTransportProvider implements LiveTransportProvider {
         room.on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
             events.onParticipantDisconnected?.(p.identity);
         });
-        room.on(RoomEvent.ParticipantMetadataChanged, (metadata: string | undefined, p: Participant) => {
-            events.onParticipantMetadataChanged?.(p.identity, metadata);
+        // LIVE PLANÉTAIRE (LP-6) — LE PREMIER ARGUMENT EST L'ANCIENNE VALEUR.
+        //
+        // Le SDK documente `args: (prevMetadata: string, Participant)` et
+        // ajoute « To access the current metadata, see Participant.metadata »
+        // (livekit-client, room/events.d.ts). L'ancienne version nommait ce
+        // premier argument `metadata` et le transmettait comme la NOUVELLE :
+        // au tout premier choix de langue (métadonnées vides → `{"lang":"en"}`)
+        // on propageait donc la chaîne VIDE. Résultat mesuré : plus aucune
+        // langue jamais demandée, plus aucune piste d'interprète produite, et
+        // chaque auditeur restant sur l'audio d'origine — sans la moindre
+        // erreur nulle part. On lit la valeur COURANTE sur le participant, et
+        // le paramètre précédent est nommé pour ce qu'il est.
+        room.on(RoomEvent.ParticipantMetadataChanged, (_previousMetadata: string | undefined, p: Participant) => {
+            events.onParticipantMetadataChanged?.(p.identity, p.metadata);
         });
         room.on(RoomEvent.TrackSubscribed, (track, publication, participant: RemoteParticipant) => {
             // Mission VT : la piste AUXILIAIRE de l'interprète (source « inconnue »
