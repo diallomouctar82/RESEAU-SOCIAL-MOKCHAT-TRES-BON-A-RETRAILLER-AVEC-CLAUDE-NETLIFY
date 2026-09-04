@@ -16,6 +16,7 @@ import {
     liveSessionIdFromRoomName,
     toLiveKitHttpUrl,
 } from './capacityGate.ts';
+import { poseRoomCeiling } from './nodeCapacity.ts';
 
 const CORS_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -97,10 +98,13 @@ async function decideLiveAdmission(
     roomName: string,
     identity: string,
     isHost: boolean,
+    /**
+     * SAT-1 : la lecture de la room est faite EN AMONT (elle sert aussi à
+     * savoir s'il faut poser le plafond), on ne la refait donc pas ici.
+     */
+    listed: { maxParticipants?: unknown }[] | null,
 ): Promise<AdmissionVerdict> {
     if (isHost) return { admitted: true, reason: 'host' };
-
-    const listed = await withTimeout(rooms.listRooms([roomName]), ROOM_SERVICE_TIMEOUT_MS);
 
     // Trois cas distincts, et ils ne veulent pas dire la même chose :
     //  - `null`  : LiveKit n'a pas répondu → on ne sait pas → on laisse entrer.
@@ -123,6 +127,49 @@ async function decideLiveAdmission(
         : null;
 
     return decideWithRoster({ capacity: assessment.capacity, identities, identity });
+}
+
+/**
+ * SAT-1 — POSER LE PLAFOND, une seule fois, à la création de la room.
+ *
+ * Mesuré au banc contre les deux binaires : `createRoom({maxParticipants})`
+ * pose bien le plafond, mais un SECOND `createRoom` ne le change plus (3 reste
+ * 3 même en redemandant 7), et aucune méthode du SDK ne le corrige ensuite.
+ * La création est donc l'unique fenêtre — et comme une room vide DISPARAÎT
+ * (empty_timeout, mesuré aussi), il faut repasser ici à chaque renaissance du
+ * direct. D'où l'appel systématique quand `listRooms` rend `[]`.
+ *
+ * Rien de tout cela ne peut empêcher quelqu'un d'entrer : chaque étape est
+ * bornée en temps, et le moindre échec laisse simplement la room sans plafond,
+ * exactement comme avant SAT-1.
+ */
+async function poserPlafond(
+    rooms: RoomServiceClient,
+    roomName: string,
+    metricsUrl: string | null,
+): Promise<number | null> {
+    // Sans URL de métriques, on ne connaît pas la machine — et on ne devine
+    // pas sa taille. C'est le cas du VPS aujourd'hui : `prometheus_port` n'est
+    // pas configuré (SAT-1b). Aucun plafond n'est alors posé.
+    if (!metricsUrl) return null;
+
+    // La DÉCISION vit dans nodeCapacity.ts ; ici on ne fournit que les trois
+    // accès au monde extérieur, chacun borné en temps et incapable de lever.
+    const capacity = await poseRoomCeiling(roomName, {
+        readMetrics: () => withTimeout(
+            fetch(metricsUrl, { signal: AbortSignal.timeout(ROOM_SERVICE_TIMEOUT_MS) })
+                .then((r) => (r.ok ? r.text() : null)),
+            ROOM_SERVICE_TIMEOUT_MS,
+        ),
+        listAllRooms: () => withTimeout(rooms.listRooms(), ROOM_SERVICE_TIMEOUT_MS),
+        createRoom: (name, maxParticipants) => withTimeout(
+            rooms.createRoom({ name, maxParticipants }).then(() => true),
+            ROOM_SERVICE_TIMEOUT_MS,
+        ).then((ok) => ok === true),
+    });
+
+    if (capacity !== null) console.log(`livekit-token: plafond ${capacity} posé sur ${roomName}`);
+    return capacity;
 }
 
 Deno.serve(async (req: Request) => {
@@ -229,7 +276,23 @@ Deno.serve(async (req: Request) => {
             config.api_key,
             config.api_secret,
         );
-        const verdict = await decideLiveAdmission(rooms, roomName, identity, isHost);
+
+        // SAT-1 — une seule lecture, deux usages : savoir si la room existe
+        // (pour poser le plafond) et connaître le plafond qu'elle porte (pour
+        // la porte SAT-2).
+        let listed = await withTimeout(rooms.listRooms([roomName]), ROOM_SERVICE_TIMEOUT_MS);
+
+        if (Array.isArray(listed) && listed.length === 0) {
+            // La room n'existe pas encore : c'est LE moment, et le seul. Si le
+            // plafond est posé, on relit pour que la porte travaille sur l'état
+            // réel plutôt que sur ce qu'on croit avoir écrit.
+            const capacity = await poserPlafond(rooms, roomName, Deno.env.get('LIVE_NODE_METRICS_URL') ?? null);
+            if (capacity !== null) {
+                listed = await withTimeout(rooms.listRooms([roomName]), ROOM_SERVICE_TIMEOUT_MS);
+            }
+        }
+
+        const verdict = await decideLiveAdmission(rooms, roomName, identity, isHost, listed);
 
         if (!verdict.admitted) {
             // Dire la vérité, avec les chiffres. SAT-3 s'appuiera sur `code`

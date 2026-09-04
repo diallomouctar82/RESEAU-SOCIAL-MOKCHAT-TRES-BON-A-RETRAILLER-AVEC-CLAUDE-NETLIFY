@@ -190,3 +190,99 @@ et regardez l'écran d'appel. Avant, le diagnostic en bas à droite affichait
 « Vous recevez sa voix », et le bandeau ambre « La ligne du serveur d'appel se
 rétablit en boucle » ne doit jamais apparaître. Le rapport complet reste écrit
 côté serveur dans `public.call_diagnostics` à chaque appel.
+
+---
+
+## SAT-1 — Activer le plafond automatique des directs (`prometheus_port`)
+
+**Ce que cela change.** Aujourd'hui, aucune room LiveKit ne porte de plafond :
+LiveKit la crée tout seul à l'arrivée du premier participant, sans
+`maxParticipants`, et `0` signifie « aucune limite ». La porte SAT-2 et l'écran
+SAT-3 sont donc en place mais **ne refusent personne**. SAT-1 pose un plafond
+réel — calculé à partir du nombre de cœurs de CETTE machine — mais il lui faut
+lire ce nombre, et il n'existe qu'un seul endroit qui le donne : l'endpoint
+Prometheus de LiveKit.
+
+**Mesuré au banc, pas supposé** (binaires 1.8.4 du VPS et 1.13.6 de la cible) :
+
+| Question | Constat |
+|---|---|
+| `/metrics` sans `prometheus_port` | **HTTP 404**, sur le port principal comme ailleurs |
+| `/metrics` avec `prometheus_port` | HTTP 200 · `go_sched_gomaxprocs_threads` = nombre de cœurs |
+| Contenu | agrégats + compteurs Go · **zéro nom de room, zéro identité** |
+| `createRoom({maxParticipants})` | pose réellement le plafond |
+| un SECOND `createRoom` | **ne change plus rien** — le plafond ne se pose qu'à la création |
+| room vide | **disparaît** (`empty_timeout`) → le plafond se repose à la renaissance |
+
+### Étape 1 — redémarrer LiveKit avec les métriques
+
+Le `docker-compose.yml` de ce dossier porte déjà `prometheus_port: 6789`, et
+publie ce port **sur la boucle locale uniquement** (`127.0.0.1:6789`). Il suffit
+de reprendre la configuration :
+
+```bash
+cd /opt/moknet-livekit          # le dossier où deploy/livekit a été copié
+docker compose up -d livekit    # recharge la config, ne touche pas Redis
+curl -s http://127.0.0.1:6789/metrics | grep gomaxprocs
+# attendu : go_sched_gomaxprocs_threads <nombre de cœurs du VPS>
+```
+
+### Étape 2 — publier les métriques, derrière un jeton
+
+La fonction Edge `livekit-token` tourne chez Supabase : elle doit joindre cet
+endpoint depuis Internet. **LiveKit ne protège pas `/metrics`** — c'est au
+reverse-proxy de le faire. Sur ce VPS, le proxy est CloudPanel/nginx (Caddy a
+été retiré au profit du site déjà en place, voir plus haut).
+
+Ajouter dans le `vhost` de `live.moknet.net`, avec un chemin et un jeton que
+vous seul connaissez (le jeton ci-dessous est un EXEMPLE à remplacer) :
+
+```nginx
+location /sat1-metrics {
+    if ($http_x_moknet_metrics != "REMPLACEZ_PAR_UN_JETON_ALEATOIRE") { return 404; }
+    proxy_pass http://127.0.0.1:6789/metrics;
+}
+```
+
+Générer le jeton sur le VPS : `openssl rand -hex 24`. Puis recharger nginx
+(`clpctl` ou `systemctl reload nginx`) et vérifier :
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://live.moknet.net/sat1-metrics          # attendu 404
+curl -s -H 'X-Moknet-Metrics: <le jeton>' https://live.moknet.net/sat1-metrics | grep gomaxprocs   # attendu la ligne
+```
+
+### Étape 3 — donner l'adresse à la fonction Edge
+
+`livekit-token` lit la variable d'environnement `LIVE_NODE_METRICS_URL`.
+Aucune valeur codée en dur, aucun secret dans le dépôt.
+
+Tableau de bord Supabase → Edge Functions → Secrets, ou API de gestion. La
+valeur inclut le jeton :
+
+```
+LIVE_NODE_METRICS_URL = https://live.moknet.net/sat1-metrics
+```
+
+> La lecture avec en-tête n'étant pas exprimable dans une URL, préférez un
+> chemin qui contient lui-même le secret
+> (`location /sat1-metrics-<jeton aléatoire>`) et donnez cette URL complète.
+> Le code n'ajoute aucun en-tête : il fait un simple `GET`.
+
+### Étape 4 — constater que le plafond est réellement posé
+
+Ouvrir un direct, puis :
+
+```bash
+# Depuis le VPS (l'API twirp demande une signature, d'où le passage par l'app)
+docker compose logs livekit --since 5m | grep -i room
+```
+
+Plus simple : les journaux de la fonction Edge affichent, à chaque création,
+`plafond N posé sur <room> (C cœurs)`.
+
+### Ce qui se passe si vous ne faites rien
+
+Rien ne casse. `LIVE_NODE_METRICS_URL` absente → aucun plafond posé → la porte
+SAT-2 laisse entrer tout le monde, exactement comme aujourd'hui. C'est le
+comportement voulu : **on ne devine jamais la taille d'une machine.**

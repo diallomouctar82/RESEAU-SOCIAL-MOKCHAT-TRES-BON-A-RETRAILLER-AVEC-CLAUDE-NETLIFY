@@ -358,3 +358,137 @@ Relevé en passant, sans y toucher, conformément au cadrage de la Direction :
   de mesures existant aujourd'hui. Il mesure la croissance, pas la santé.
 - `live_attendance` et `is_waiting_room_enabled` : deux schémas morts, à
   trancher (brancher ou retirer) dans un autre chantier que celui-ci.
+
+---
+
+# SAT-1 — Le plafond des rooms, posé pour de vrai
+
+## Le constat qui rendait SAT-2 et SAT-3 inertes
+
+La porte (SAT-2) lit `maxParticipants` sur la room. L'écran (SAT-3) affiche le
+refus. Mais **personne ne posait jamais de plafond** : `livekit-token` n'appelait
+pas `createRoom`, donc LiveKit créait la room tout seul à l'arrivée du premier
+participant — sans `maxParticipants`. Et `0`, chez LiveKit, veut dire « aucune
+limite ». Les deux briques précédentes étaient donc en place et ne refusaient
+personne, quoi qu'il arrive.
+
+Vérifié au banc, avant d'écrire une ligne : une room auto-créée par un arrivant
+porte bien `maxParticipants = 0`, et `assessCapacity` répond `no_limit`.
+
+## Six questions mesurées avant toute conception
+
+Sonde `/tmp/lkprobe/sat1/audit.mjs`, exécutée contre les DEUX binaires —
+`livekit-server` **1.8.4** (la version du VPS) et **1.13.6** (la cible du dépôt).
+Réponses identiques sur les deux.
+
+| | Constat mesuré |
+|---|---|
+| **Q1** `/metrics` | N'existe QUE si `prometheus_port` est configuré. Sinon **HTTP 404**, sur le port principal comme ailleurs. Le VPS ne l'a pas. |
+| **Q1 bis** contenu | `go_sched_gomaxprocs_threads` = nombre de cœurs · `process_cpu_seconds_total` · `livekit_participant_total` · `livekit_room_total`. **Aucun plafond n'est exposé** : LiveKit dit ce que la machine A, jamais ce qu'elle PEUT. |
+| **Q2** poser | `createRoom({maxParticipants: 3})` → plafond relu à 3. |
+| **Q3** corriger | Un **second** `createRoom({maxParticipants: 7})` sur la même room laisse **3**. Aucune des 13 méthodes du SDK ne modifie `maxParticipants` ensuite. |
+| **Q4** room inconnue | `listRooms([nom])` → `[]`. |
+| **Q5** charge du nœud | `listRooms()` sans filtre → toutes les rooms + leur occupation. Lisible **sans** prometheus. |
+| **Q6** room vide | **Disparaît** (`empty_timeout`) — le plafond meurt avec elle. |
+
+Q3 et Q6 dictent tout le reste : le plafond ne se pose qu'**à la création**, et
+il faut le reposer **à chaque renaissance** du direct.
+
+## D'où vient le chiffre — et pourquoi il n'est pas inventé
+
+Le plafond suit la machine par `go_sched_gomaxprocs_threads` : si le VPS passe
+de 2 à 8 cœurs, il double sans qu'on retouche une ligne. Restait à savoir ce que
+COÛTE une place. Ce chiffre a été **mesuré**, pas supposé —
+`/tmp/lkprobe/sat1/cout.cjs`, binaire 1.8.4 exact, vrais navigateurs, topologie
+d'un direct (un animateur publie, les autres reçoivent), compteur
+`process_cpu_seconds_total` du processus LiveKit :
+
+```
+repos (0 participant) .................... 0,0017 cœur
+1 animateur + 4 spectateurs .............. 0,0323 cœur
+coût marginal d'UN spectateur ............ 0,00767 cœur
+→ PLACES PAR CŒUR ........................ 130
+```
+
+Première mesure écartée, et pourquoi : elle portait sur **3 personnes publiant
+toutes** (0,0127 cœur/personne). Ce n'est pas un direct, c'est une réunion — et
+le coût y croît en N². La mesure retenue est celle de la bonne topologie.
+
+**Limites assumées de cette mesure**, et ce sont elles qui justifient la part
+réservée : elle est faite en **audio seul** (une piste vidéo coûte nettement
+plus), à **5 participants** et non à 500, sur une machine à 4 cœurs, et le nœud
+sert aussi les appels 1-à-1, le relais TURN et le système. On n'engage donc que
+**la moitié** de ce que la mesure autorise (`PART_ENGAGEE = 0.5`). Ce n'est pas
+une marge de confort : c'est l'écart assumé entre ce qui a pu être mesuré ici et
+ce que la vraie machine porte. La même sonde, lancée sur le VPS, donne le
+chiffre de la vraie machine.
+
+## La règle
+
+```
+plafond = ⌊ cœurs × 130 × 0,5 ⌋ − participants déjà présents sur le nœud
+```
+
+- **cœurs** : mesuré en direct sur `/metrics`. Suit la machine.
+- **occupation** : mesurée en direct sur `listRooms()`. Suit la charge.
+- **jamais `null` → jamais de plafond.** Pas d'URL de métriques, métriques
+  illisibles, machine inconnue, création refusée : dans chacun de ces cas la
+  room naît comme avant SAT-1 et la porte laisse entrer. On ne devine jamais la
+  taille d'une machine.
+- **jamais 0.** Le piège est mortel : `maxParticipants: 0` signifie « aucune
+  limite » chez LiveKit. Un nœud saturé qui calculerait 0 poserait donc
+  exactement l'inverse de ce qu'il croit poser. Plancher à 1, testé.
+
+Le retard de `numParticipants` (1-3 s sur 1.8.4, 3-6 s sur 1.13.6, mesuré à
+SAT-2) est sans conséquence ici : il s'agit d'une charge de nœud à l'échelle de
+la minute, pas d'une ruée sur une seule room. C'est précisément pourquoi la
+PORTE, elle, continue de compter sur `listParticipants`.
+
+## Preuves
+
+**Banc réel `preuve-sat1.cjs` — 21 OK / 0 DÉFAUT sur 1.8.4 ET sur 1.13.6.**
+Il exécute la **vraie** fonction `poseRoomCeiling` du dépôt (transpilée depuis
+`nodeCapacity.ts`, jamais recopiée) et la **vraie** porte `capacityGate.ts`,
+contre un vrai serveur, avec de vrais navigateurs.
+
+Prouvé : sans SAT-1 une room porte `0` · sans URL de métriques aucun plafond
+n'est posé et aucune room fantôme n'est créée · le plafond posé vaut exactement
+ce que la machine mesurée impose (4 cœurs → 260) · la room le porte réellement ·
+un second appel ne le change pas · trois vraies personnes entrent sans gêne · un
+second direct hérite de 257 = 260 − 3 (l'écart est exactement la charge mesurée) ·
+la room vide disparaît et le plafond se repose à la renaissance.
+
+**27 tests unitaires** sur la vraie fonction importée depuis la fonction Edge,
+avec un extrait RÉEL de `/metrics` 1.8.4 comme donnée d'entrée.
+
+**8 contre-épreuves**, fichier restauré à l'empreinte SHA-256 identique :
+plafond pouvant tomber à 0 · machine devinée quand `/metrics` est muet · charge
+du nœud non retranchée · plafond posé sans URL · échec de création présenté
+comme un succès · machine engagée en entier · **CP7 : une garde trouvée
+COMPLAISANTE et corrigée** — le test « métrique au nom voisin » n'essayait qu'un
+nom SUFFIXÉ (`..._threads_total`), que même une expression sans ancre rejette ;
+il restait vert alors que l'ancre venait d'être retirée. Le vrai risque est un
+nom PRÉFIXÉ (`livekit_go_sched_gomaxprocs_threads 99` → 99 cœurs pour une
+machine qui n'en a pas). Test réécrit, CP7-bis vire alors au rouge, seul ·
+**CP8 : contre-épreuve du BANC lui-même** — plafond annoncé mais jamais posé →
+le banc le voit (`maxParticipants` NaN), il n'est donc pas complaisant.
+
+`tsc` 0 · `vitest` 924/924 (67 fichiers) · `npm run build` propre.
+
+## Ce qui reste, et c'est dit sans détour
+
+**Sur le VPS, SAT-1 ne pose aucun plafond aujourd'hui**, parce que
+`prometheus_port` n'y est pas configuré — la machine ne dit pas sa taille, on ne
+l'invente pas. Quatre commandes suffisent à l'activer
+(`deploy/livekit/README.md`, section SAT-1) : recharger LiveKit avec la
+configuration déjà présente dans le dépôt, publier `/metrics` derrière un jeton
+au reverse-proxy, et poser `LIVE_NODE_METRICS_URL` sur la fonction Edge. C'est
+SAT-1b, et c'est une action SSH.
+
+Tant que ce n'est pas fait — et tant que la fonction Edge n'est pas déployée —
+rien ne change pour personne : la porte reste ouverte, exactement comme avant.
+
+Ce que le banc **ne peut pas** faire ici : remplir les 260 places calculées sur
+cette machine à 4 cœurs. Le refus À CE PLAFOND-LÀ est donc prouvé par
+composition — le plafond réellement posé est injecté dans la vraie porte SAT-2,
+qui refuse avec les bons chiffres — et non par 260 navigateurs.
