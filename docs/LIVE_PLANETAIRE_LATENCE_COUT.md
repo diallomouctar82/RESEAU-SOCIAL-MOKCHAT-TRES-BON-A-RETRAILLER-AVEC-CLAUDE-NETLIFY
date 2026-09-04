@@ -17,7 +17,7 @@ emporter le direct**. L'audio d'origine continue dans tous les cas.
 | Traduction disponible | La voix traduite ; l'originale est coupée | Rien | `speakerAudioDecision → 'interpreted'` |
 | Personne ne produit encore ma langue | **L'audio d'origine** | « Traduction en X pas encore disponible » (point ambre) | `speakerAudioDecision → 'not_available_yet'` + `listeningStatusLine` |
 | La personne parle déjà ma langue | L'audio d'origine, entier | Rien — il n'y a rien à traduire | `speakerAudioDecision → 'same_language'` |
-| **Traduction texte OK, voix en panne** | L'audio d'origine, **et le texte traduit s'affiche** | Le sous-titre lui-même | `onPhraseOutcome → 'subtitled'` + `publishCaption` |
+| **Traduction texte OK, voix en panne** | L'audio d'origine, **et le texte traduit s'affiche** | Le sous-titre lui-même | `onPhraseOutcome → 'subtitled'` + `publishTranscript` (LP-7) |
 | Traduction texte en panne | L'audio d'origine | Rien pour cette phrase ; la suivante réessaie | `voiceFor` catch → étape `failed` |
 | Chaîne indisponible chez l'intervenant | L'audio d'origine | « Traduction indisponible pour l'instant » (point rouge) | `onUnavailable` → `producerError` |
 | Plus de 3 langues demandées | Les 3 servies s'entendent ; les autres restent en original | Les langues non servies sont **nommées** dans `plan.unserved` | `languagesToProduce` |

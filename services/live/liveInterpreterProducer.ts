@@ -66,6 +66,28 @@ export interface LiveInterpreterStage {
     reason?: string;
 }
 
+/**
+ * LP-7 — une phrase du direct, telle qu'elle a été RÉELLEMENT dite.
+ *
+ * C'est la matière première de tout ce qui suit (« me mettre à jour »,
+ * compte-rendu, questions intelligentes, extraits) : on la produit UNE fois,
+ * au moment où la transcription tombe, et on la fait voyager telle quelle.
+ * Rien n'est inventé ici — `language` est la langue DÉTECTÉE, jamais celle
+ * qu'on supposait ; elle vaut `null` quand la reconnaissance ne l'a pas
+ * rendue, plutôt que de reprendre la langue déclarée du profil.
+ */
+export interface LiveTranscriptLine {
+    /** Identifiant de la phrase, commun à sa version d'origine et à ses traductions. */
+    id: string;
+    /** Les mots d'origine, tels que prononcés. */
+    text: string;
+    /** Langue DÉTECTÉE de `text`, `null` si la reconnaissance ne l'a pas donnée. */
+    language: string | null;
+    /** Traduction de `text`, présente uniquement sur la copie destinée à `targetLanguage`. */
+    translated?: string;
+    targetLanguage?: string;
+}
+
 export interface LiveInterpreterProducerOptions {
     /** Ma piste micro publiée (LiveKit) ; relue tant qu'elle n'existe pas encore. */
     getLocalAudioTrack: () => MediaStreamTrack | null;
@@ -79,13 +101,22 @@ export interface LiveInterpreterProducerOptions {
     isPaused?: () => boolean;
     onStage?: (stage: LiveInterpreterStage) => void;
     /**
-     * Repli §17 — la traduction TEXTE a réussi mais la voix n'est pas sortie.
-     * Le texte part alors vers les auditeurs de cette langue : ils LISENT au
-     * lieu d'entendre, et la voix d'origine continue. Sans ce chemin, une
-     * panne de synthèse produirait un silence inexpliqué chez des gens qui
-     * ont pourtant une traduction parfaitement disponible.
+     * LP-7 — la parole du direct, transcrite UNE fois, PUBLIÉE.
+     *
+     * Appelé deux fois par phrase captée, jamais davantage :
+     *  - une fois avec les mots d'origine et leur langue DÉTECTÉE, pour ceux
+     *    qui écoutent en « Original » ;
+     *  - une fois par langue réellement produite, avec la traduction, dès
+     *    qu'elle est connue — c'est-à-dire AVANT que la voix ne sorte.
+     *
+     * Cet ordre n'est pas un détail : il rend le repli §17 automatique. Quand
+     * la synthèse échoue, le texte est DÉJÀ chez l'auditeur — il lit au lieu
+     * d'entendre, la voix d'origine continue, et personne ne reste devant un
+     * silence inexpliqué. Un chemin qui ne se déclenchait qu'À l'échec (ce
+     * qu'était `publishCaption`) laissait au contraire les 87 % de phrases
+     * réussies sans le moindre sous-titre.
      */
-    publishCaption?: (caption: { id: string; language: string; text: string }) => void;
+    publishTranscript?: (line: LiveTranscriptLine) => void;
     /** Le plan a changé (quelqu'un a choisi ou quitté une langue). */
     onPlanChanged?: (plan: ProductionPlan) => void;
     /** La chaîne ne peut pas démarrer du tout (micro absent, navigateur trop ancien). */
@@ -111,6 +142,8 @@ export class LiveInterpreterProducer {
     private spokenLanguage: string | undefined;
     private running = false;
     private phraseSeq = 0;
+    /** Une phrase captée = un identifiant, partagé par son original et toutes ses traductions. */
+    private captionSeq = 0;
     /**
      * File d'attente des alignements de pistes.
      *
@@ -286,6 +319,14 @@ export class LiveInterpreterProducer {
         }
         this.options.onStage?.({ id: 'stt', stage: 'transcribed', ms: 0, sinceCaptureMs: 0, chars: caption.text.length });
 
+        // LP-7 — la parole part telle qu'elle a été dite, AVANT toute
+        // traduction et sans attendre la moindre voix. C'est ce que lisent
+        // ceux qui écoutent en « Original », et c'est ce qui sera gardé.
+        const captionId = `c${++this.captionSeq}`;
+        if (caption.text.trim()) {
+            this.options.publishTranscript?.({ id: captionId, text: caption.text, language: detected ?? null });
+        }
+
         // Découpage en phrases courtes : une phrase dite tôt vaut mieux qu'un
         // paragraphe dit tard — c'est ce qui rend la conversation vivante.
         const phrases = splitForInterpretation(caption.text);
@@ -297,11 +338,12 @@ export class LiveInterpreterProducer {
             const free = caption.translated && listeningLanguageCode(caption.targetLang) === language
                 ? caption.translated
                 : null;
-            void this.voiceFor(language, voice, phrases, free, capturedAt);
+            void this.voiceFor(captionId, language, voice, phrases, free, capturedAt);
         }
     }
 
     private async voiceFor(
+        captionId: string,
         language: string,
         voice: InterpreterVoiceTrack,
         phrases: string[],
@@ -309,12 +351,13 @@ export class LiveInterpreterProducer {
         capturedAt: number,
     ): Promise<void> {
         const id = `p${++this.phraseSeq}`;
+        const original = phrases.join(' ');
         let text = alreadyTranslated;
         if (!text) {
             const t0 = Date.now();
             try {
                 const result = await translationService.translateText({
-                    text: phrases.join(' '),
+                    text: original,
                     targetLanguage: language,
                     sourceLanguage: this.spokenLanguage,
                     context: 'live',
@@ -335,9 +378,16 @@ export class LiveInterpreterProducer {
             this.options.onStage?.({ id, stage: 'translated', language, ms: 0, sinceCaptureMs: Date.now() - capturedAt, chars: text.length });
         }
         if (!text.trim()) return;
+        // LP-7 — la traduction part MAINTENANT, pas quand la voix aura fini.
+        // L'auditeur peut donc lire la phrase pendant qu'elle se synthétise,
+        // et si la synthèse échoue il l'a déjà : c'est le repli §17, obtenu
+        // sans chemin d'échec dédié.
+        this.options.publishTranscript?.({
+            id: captionId, text: original, language: this.spokenLanguage ?? null,
+            translated: text, targetLanguage: language,
+        });
         // On NOTE la phrase avant de la confier à la voix : c'est la piste
-        // qui dira si du son est réellement sorti, et c'est ce texte-là qui
-        // deviendra le sous-titre si la voix échoue.
+        // qui dira si du son est réellement sorti.
         this.pending.set(id, { language, text, capturedAt });
         voice.speak(id, text);
     }
@@ -368,8 +418,13 @@ export class LiveInterpreterProducer {
         }
         if (report.status !== 'failed') return; // 'generated' / 'ended' : rien de neuf à dire
         this.pending.delete(report.id);
-        if (this.options.publishCaption) {
-            this.options.publishCaption({ id: report.id, language: entry.language, text: entry.text });
+        // Le texte est-il DÉJÀ parti chez l'auditeur ? Il l'est dès qu'un
+        // publieur est branché, puisque la traduction voyage à l'instant où
+        // elle est connue (voir `voiceFor`). On ne le renvoie donc pas : ce
+        // serait remettre à l'écran une phrase qu'une plus récente a peut-être
+        // déjà remplacée. On se contente de nommer le demi-succès pour ce
+        // qu'il est — l'auditeur lit au lieu d'entendre.
+        if (this.options.publishTranscript) {
             this.options.onStage?.({
                 id: report.id, stage: 'subtitled', language: entry.language,
                 ms: Date.now() - entry.capturedAt, sinceCaptureMs: Date.now() - entry.capturedAt,

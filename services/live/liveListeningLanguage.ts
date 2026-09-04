@@ -297,6 +297,70 @@ export function speakerAudioDecision(params: {
     return { originalVolume: 0, interpreted: true, reason: 'interpreted' };
 }
 
+// ── LP-7 : quel sous-titre est POUR MOI ? ──────────────────────────────────
+
+/** Un sous-titre du direct, tel qu'il arrive par le canal de données. */
+export interface LiveCaptionPayload {
+    /** Les mots d'origine, tels que prononcés. */
+    text: string;
+    /** Langue DÉTECTÉE de `text`, `null` si inconnue. */
+    lang: string | null;
+    /** Traduction, présente uniquement sur la copie destinée à `targetLang`. */
+    translated?: string;
+    targetLang?: string;
+}
+
+/** Ce que la barre de sous-titres affiche : qui parle, ses mots, et ma version. */
+export interface LiveSubtitle {
+    speaker: string;
+    /** Les mots d'origine. */
+    text: string;
+    /** Ma version, absente quand j'écoute l'original ou que l'intervenant parle déjà ma langue. */
+    translated?: string;
+}
+
+/**
+ * Un intervenant publie N+1 sous-titres par phrase : l'original, plus une
+ * copie traduite par langue produite. Chacun n'en lit QU'UN — le sien.
+ *
+ * Sans ce tri, tout le monde verrait tout : l'auditeur en « Original »
+ * recevrait les traductions anglaise, russe et espagnole par-dessus les mots
+ * qu'il voulait lire, et chaque nouveau participant qui choisit une langue
+ * ajouterait une ligne de plus à l'écran des autres.
+ *
+ * Le cas qui mérite l'attention est le dernier : j'écoute en anglais, et
+ * l'intervenant parle DÉJÀ anglais. Il n'a alors rien à traduire (§ « ne
+ * jamais traduire inutilement ») — donc aucune copie traduite n'existe, et
+ * c'est l'original qui est ma version. Le refuser me laisserait sans
+ * sous-titre alors que je comprends parfaitement ce qui se dit.
+ */
+export function subtitleForListener(params: {
+    caption: LiveCaptionPayload;
+    myChoice: ListeningChoice;
+    speakerName: string;
+}): LiveSubtitle | null {
+    const { caption, speakerName } = params;
+    if (!caption.text.trim()) return null;
+    const mine = listeningLanguageCode(params.myChoice);
+    const target = listeningLanguageCode(caption.targetLang);
+
+    // J'écoute en « Original » : seuls les mots d'origine me concernent.
+    if (!mine) return target ? null : { speaker: speakerName, text: caption.text };
+
+    // J'ai choisi une langue : la copie qui la porte est la mienne.
+    if (target) {
+        return target === mine
+            ? { speaker: speakerName, text: caption.text, translated: caption.translated }
+            : null;
+    }
+
+    // Copie d'origine, et j'ai choisi une langue : elle ne me sert que si
+    // c'est déjà celle qui est parlée.
+    return listeningLanguageCode(caption.lang) === mine
+        ? { speaker: speakerName, text: caption.text }
+        : null;
+}
+
 /** Libellé d'une langue d'écoute pour l'écran — « Original » quand rien n'est choisi. */
 export function listeningChoiceLabel(choice: ListeningChoice): string {
     const code = listeningLanguageCode(choice);

@@ -9,8 +9,9 @@ import {
     type ListeningChoice,
     type ProductionPlan,
 } from '../services/live/liveListeningLanguage';
-import { LiveInterpreterProducer, type LiveInterpreterStage } from '../services/live/liveInterpreterProducer';
+import { LiveInterpreterProducer, type LiveInterpreterStage, type LiveTranscriptLine } from '../services/live/liveInterpreterProducer';
 import { summarizeLiveLatency, type LiveLatencyReport } from '../services/live/liveLatency';
+import { encodeCallData } from '../services/messaging/speechLanguage';
 
 /**
  * LIVE PLANÉTAIRE — le pont entre l'écran du direct et la traduction.
@@ -38,13 +39,21 @@ import { summarizeLiveLatency, type LiveLatencyReport } from '../services/live/l
 export interface UseLiveListeningLanguageOptions {
     transport: Pick<UseLiveTransportResult,
         'connectionState' | 'remoteParticipants' | 'publishLocalMetadata' | 'getLocalMetadata'
-        | 'publishInterpreterAudio' | 'unpublishInterpreterAudio' | 'getLocalAudioTrack' | 'localAudioPublished'>;
+        | 'publishInterpreterAudio' | 'unpublishInterpreterAudio' | 'getLocalAudioTrack' | 'localAudioPublished'
+        | 'sendData'>;
     /** Je suis sur scène ET mon micro est réellement publié : je peux produire. */
     canProduce: boolean;
     /** Ma langue de profil — simple indication de départ pour la transcription ; la détection prime. */
     myLanguageHint?: string;
     /** Vrai pendant qu'une voix d'interprète sort de mon haut-parleur (mon micro capte alors autre chose que ma voix). */
     isInterpreterAudible?: () => boolean;
+    /**
+     * LP-7 — ma parole vient d'être transcrite (et, ligne suivante, traduite).
+     * Le crochet l'a DÉJÀ envoyée aux autres par le canal de données ; ceci
+     * est le second usage, celui qui la GARDE. L'appelant décide s'il y a
+     * lieu de la conserver — ce n'est jamais automatique.
+     */
+    onTranscript?: (line: LiveTranscriptLine) => void;
 }
 
 export interface UseLiveListeningLanguageResult {
@@ -79,7 +88,7 @@ const EMPTY_PLAN: ProductionPlan = { produce: [], unserved: [], alreadySpoken: [
 const MAX_STAGES = 40;
 
 export function useLiveListeningLanguage(options: UseLiveListeningLanguageOptions): UseLiveListeningLanguageResult {
-    const { transport, canProduce, myLanguageHint, isInterpreterAudible } = options;
+    const { transport, canProduce, myLanguageHint, isInterpreterAudible, onTranscript } = options;
     const [choice, setChoice] = useState<ListeningChoice>(null); // Original, toujours, au départ
     const [plan, setPlan] = useState<ProductionPlan>(EMPTY_PLAN);
     const [stages, setStages] = useState<LiveInterpreterStage[]>([]);
@@ -101,6 +110,14 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
 
     const audibleRef = useRef(isInterpreterAudible);
     audibleRef.current = isInterpreterAudible;
+
+    // Ces deux-là changent à chaque rendu ; les lire par référence évite de
+    // détruire et recréer le producteur (donc de couper la transcription en
+    // cours) à chaque fois que le composant se redessine.
+    const sendDataRef = useRef(transport.sendData);
+    sendDataRef.current = transport.sendData;
+    const onTranscriptRef = useRef(onTranscript);
+    onTranscriptRef.current = onTranscript;
 
     // ── Moitié auditeur : publier MON choix ────────────────────────────────
     //
@@ -149,6 +166,32 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
             publishTrack: (track, name) => transport.publishInterpreterAudio(track, name),
             unpublishTrack: (name) => transport.unpublishInterpreterAudio(name),
             isPaused: () => audibleRef.current?.() ?? false,
+            // LP-7 — la parole part par le canal de données de la room, le
+            // même chemin que les appels utilisent depuis HL-4 (`caption`,
+            // encodé par `encodeCallData`). Réutiliser ce format plutôt que
+            // d'en inventer un second, c'est éviter deux protocoles à
+            // maintenir pour exactement la même chose : un texte, sa langue,
+            // et sa traduction éventuelle.
+            //
+            // `reliable: true` — un sous-titre perdu ne se rattrape pas, et
+            // le volume est celui d'une phrase, pas d'un flux audio.
+            publishTranscript: (line) => {
+                void sendDataRef.current(encodeCallData({
+                    t: 'caption', v: 1,
+                    id: line.targetLanguage ? `${line.id}:${line.targetLanguage}` : line.id,
+                    text: line.text,
+                    lang: line.language,
+                    final: true,
+                    ts: Date.now(),
+                    ...(line.translated && line.targetLanguage
+                        ? { translated: line.translated, targetLang: line.targetLanguage }
+                        : {}),
+                }), { reliable: true }).catch(() => {
+                    // Un sous-titre non distribué n'interrompt jamais la
+                    // voix : elle voyage, elle, par la piste audio.
+                });
+                onTranscriptRef.current?.(line);
+            },
             onPlanChanged: (p) => {
                 setPlan(p);
                 // Même convention de journal que les appels (`[appel] …`) : sans

@@ -41,8 +41,11 @@ import { LiveParticipantsPanel, ROLE_LABELS } from './live/LiveParticipantsPanel
 import { LiveInviteModal } from './live/LiveInviteModal';
 import { interpretLiveVoiceCommand, isVoiceCapabilityAllowed, LiveVoiceAction } from '../services/live/liveVoiceCommands';
 import {
-  decodeLiveParticipantMeta, listeningLanguageCode, speakerAudioDecision, type ListeningChoice,
+  decodeLiveParticipantMeta, listeningLanguageCode, speakerAudioDecision, subtitleForListener,
+  type ListeningChoice, type LiveSubtitle,
 } from '../services/live/liveListeningLanguage';
+import { decodeCallData } from '../services/messaging/speechLanguage';
+import { keepLiveTranscriptLine } from '../services/live/liveTranscriptService';
 import { useLiveListeningLanguage } from '../hooks/useLiveListeningLanguage';
 import { ListeningLanguagePicker } from './live/ListeningLanguagePicker';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
@@ -492,11 +495,17 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // consentement explicite (LOOP 12/16) — jamais de getUserMedia déclenché
   // avant ce choix. Désactivé tant que la session réelle n'est pas
   // confirmée (voir ci-dessus).
+  // LP-7 — le canal de données de la room porte la parole du direct
+  // (sous-titres). Le vrai traitement est écrit plus bas, là où la langue
+  // d'écoute et le roster sont connus ; on ne passe ici qu'un relais, parce
+  // que le transport se monte avant eux.
+  const onLiveDataRef = useRef<(payload: Uint8Array, from?: string) => void>(() => { /* pas encore prêt */ });
   const liveTransport = useLiveTransport({
     roomName: realSessionId || '',
     participantName: userProfile.name,
     canPublish: isUserOnStage && hasMediaConsent,
     enabled: !!realSessionId,
+    onDataReceived: (payload, from) => onLiveDataRef.current(payload, from),
   });
 
   // LIVE PLANÉTAIRE — MA langue d'écoute (LP-3).
@@ -517,6 +526,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     canProduce: isUserOnStage && hasMediaConsent,
     myLanguageHint: userProfile.preferredLanguage || undefined,
     isInterpreterAudible: () => interpreterAudibleRef.current,
+    // LP-7 — GARDER la parole, mais seulement les mots d'origine (les
+    // traductions se recalculent) et seulement si l'animateur a activé
+    // l'enregistrement : la base refuse l'écriture sinon, c'est elle qui fait
+    // foi, pas cette condition côté écran.
+    onTranscript: (line) => {
+      if (line.targetLanguage || !realSessionId) return;
+      void keepLiveTranscriptLine({
+        sessionId: realSessionId,
+        speakerId: userProfile.id,
+        speakerName: userProfile.name,
+        text: line.text,
+        language: line.language,
+      });
+    },
   });
   // Une voix d'interprète sort de MON haut-parleur quand je suis abonné à une
   // piste dans MA langue chez quelqu'un que le serveur détecte en train de
@@ -786,9 +809,39 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // pour toujours et pour tout le monde. C'était la partie la plus visible
   // de la promesse décorative relevée par l'audit LP-0.
   // Elle démarre désormais vide : la barre dit honnêtement qu'elle n'a rien
-  // à montrer plutôt que d'inventer une phrase, et se remplira le jour où
-  // les notes vivantes du direct existeront réellement (LP-7).
-  const [currentSubtitle, setCurrentSubtitle] = useState<{ speaker: string; text: string; translated?: string } | null>(null);
+  // à montrer plutôt que d'inventer une phrase. Depuis LP-7, elle se remplit
+  // pour de bon — avec la parole réellement captée dans le direct.
+  const [currentSubtitle, setCurrentSubtitle] = useState<LiveSubtitle | null>(null);
+
+  // LP-7 — un sous-titre reçu s'affiche, puis s'efface tout seul : sans cela,
+  // la dernière phrase d'un intervenant qui s'est tu resterait à l'écran
+  // jusqu'à la fin du direct, comme si elle venait d'être prononcée.
+  const subtitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current); }, []);
+
+  onLiveDataRef.current = (payload, from) => {
+    const message = decodeCallData(payload);
+    if (!message || message.t !== 'caption') return;
+    // Le nom vient du roster de la room, jamais du message : personne ne
+    // choisit sous quel nom sa parole s'affiche chez les autres.
+    const speaker = liveTransport.remoteParticipants
+      .find((p) => p.participant.identity === from)?.participant.name;
+    if (!speaker) return;
+    const mine = subtitleForListener({
+      caption: {
+        text: message.text,
+        lang: message.lang,
+        translated: message.translated,
+        targetLang: message.targetLang,
+      },
+      myChoice: listening.choice,
+      speakerName: speaker,
+    });
+    if (!mine) return; // ce sous-titre est celui d'une autre langue que la mienne
+    setCurrentSubtitle(mine);
+    if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+    subtitleTimerRef.current = setTimeout(() => setCurrentSubtitle(null), 8000);
+  };
   const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
   // Grammaire d'états de l'avatar (LOOP 10/14) — piloté par les vrais signaux
   // du copilote vocal (voir dispatchVoiceAction plus bas), pas un état

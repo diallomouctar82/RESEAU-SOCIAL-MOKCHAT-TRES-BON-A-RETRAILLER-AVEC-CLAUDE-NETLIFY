@@ -11,6 +11,7 @@ import {
     listeningLanguageCode,
     requestedLanguageCounts,
     speakerAudioDecision,
+    subtitleForListener,
 } from '../services/live/liveListeningLanguage';
 import { isInterpreterTrackForMe } from '../services/messaging/speechLanguage';
 
@@ -209,5 +210,64 @@ describe('libellés', () => {
         expect(listeningChoiceLabel('klingon')).toBe('Original');
         expect(listeningChoiceLabel('en')).toBe('English');
         expect(listeningChoiceLabel('ar')).toBe('العربية');
+    });
+});
+
+/**
+ * LP-7 — le tri des sous-titres à l'arrivée.
+ *
+ * Un intervenant publie l'original PLUS une copie traduite par langue
+ * produite. Sans tri, un auditeur verrait défiler les quatre versions de la
+ * même phrase, et chaque personne qui choisit une langue en ajouterait une
+ * de plus à l'écran de tout le monde.
+ */
+describe('LP-7 — quel sous-titre est pour moi', () => {
+    const original = { text: 'Bonjour.', lang: 'fr' } as const;
+    const versEn = { text: 'Bonjour.', lang: 'fr', translated: 'Hello.', targetLang: 'en' } as const;
+    const versRu = { text: 'Bonjour.', lang: 'fr', translated: 'Привет.', targetLang: 'ru' } as const;
+
+    it('en Original : je lis les mots d’origine, et RIEN d’autre', () => {
+        expect(subtitleForListener({ caption: original, myChoice: null, speakerName: 'Awa' }))
+            .toEqual({ speaker: 'Awa', text: 'Bonjour.' });
+        expect(subtitleForListener({ caption: versEn, myChoice: null, speakerName: 'Awa' })).toBeNull();
+        expect(subtitleForListener({ caption: versRu, myChoice: null, speakerName: 'Awa' })).toBeNull();
+    });
+
+    it('en anglais : je lis la version anglaise, jamais la russe', () => {
+        expect(subtitleForListener({ caption: versEn, myChoice: 'en', speakerName: 'Awa' }))
+            .toEqual({ speaker: 'Awa', text: 'Bonjour.', translated: 'Hello.' });
+        expect(subtitleForListener({ caption: versRu, myChoice: 'en', speakerName: 'Awa' })).toBeNull();
+    });
+
+    it('la copie d’origine ne me sert pas quand j’ai choisi une AUTRE langue', () => {
+        expect(subtitleForListener({ caption: original, myChoice: 'en', speakerName: 'Awa' })).toBeNull();
+    });
+
+    it('mais elle me sert quand l’intervenant parle DÉJÀ ma langue — rien à traduire', () => {
+        // Le cas qu'un tri naïf casserait : aucune copie traduite n'existe
+        // (on ne traduit jamais inutilement), donc l'original EST ma version.
+        const enAnglais = { text: 'Good morning.', lang: 'en' } as const;
+        expect(subtitleForListener({ caption: enAnglais, myChoice: 'en', speakerName: 'Chen' }))
+            .toEqual({ speaker: 'Chen', text: 'Good morning.' });
+    });
+
+    it('trois auditeurs, une phrase : chacun en reçoit exactement une version', () => {
+        const toutes = [original, versEn, versRu];
+        const compte = (choix: string | null) =>
+            toutes.filter((c) => subtitleForListener({ caption: c, myChoice: choix, speakerName: 'Awa' })).length;
+        expect(compte(null)).toBe(1);
+        expect(compte('en')).toBe(1);
+        expect(compte('ru')).toBe(1);
+        // Personne ne demande l'espagnol : ni original (langue différente), ni copie.
+        expect(compte('es')).toBe(0);
+    });
+
+    it('un texte vide n’affiche jamais un sous-titre creux', () => {
+        expect(subtitleForListener({ caption: { text: '   ', lang: 'fr' }, myChoice: null, speakerName: 'Awa' })).toBeNull();
+    });
+
+    it('le nom affiché est celui du roster, jamais un nom porté par le message', () => {
+        const recu = subtitleForListener({ caption: original, myChoice: null, speakerName: 'Awa Ndiaye' });
+        expect(recu?.speaker).toBe('Awa Ndiaye');
     });
 });
