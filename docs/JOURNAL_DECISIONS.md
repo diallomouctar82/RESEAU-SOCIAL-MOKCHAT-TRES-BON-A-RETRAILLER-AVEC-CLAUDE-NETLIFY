@@ -953,3 +953,400 @@ Chaque décision respecte le formalisme strict suivant :
 * **Statut** : `Développé`, `Testé` & `Validé`.
 
 ---
+
+### [DEC-2026-042] — 3 Septembre 2026
+* **Module(s)** : `Navigation globale`, `Réseau social (accueil)`, `Direction artistique`
+* **Problème / Besoin initial** : la Direction a retenu la proposition 06
+  « Miroir d'eau » parmi les six traitements du menu construits dans le
+  laboratoire isolé `design-lab/`. Il fallait la porter en production sans
+  toucher aux systèmes visuels déjà gelés ni au périmètre du LIVE.
+* **Idées envisagées** :
+  1. Réécrire le thème global (`ThemeContext` / `DesignTokens`) pour y loger
+     la palette aqua.
+  2. Ajouter un système de tokens **scopé** sous un attribut `[data-miroir]`,
+     posé sur la racine de l'application, sans toucher aux 10 palettes de
+     marque ni au système verre/eau/lumière du LIVE.
+* **Décision retenue** : option 2. Les couleurs et les matières vivent dans
+  des variables CSS `--mir-*` dans le bloc `<style>` d'`index.html` ; les
+  composants ne portent que des classes `.mir-*`.
+* **Justification** : `palette-10` est gelée par une décision antérieure de la
+  Direction pour toutes les surfaces pas encore redessinées, et le LIVE a sa
+  propre matière (7 univers). Un habillage scopé permet d'appliquer le choix
+  de la Direction sans casser ni l'un ni l'autre — et prépare le futur
+  sélecteur d'univers de l'Administrateur Général (hors périmètre ici) sans
+  qu'il faille retoucher un composant.
+* **Conséquences** :
+  - Le réseau social est l'écran d'accueil par défaut ; l'Architecte occupe la
+    place centrale de la navigation ; la goutte de la messagerie est le seul
+    élément flottant ; « Équipe & Experts » est au premier niveau.
+  - La barre latérale desktop conserve `palette-10` et ses 17 entrées — choix
+    assumé, documenté, pas un oubli.
+  - La goutte de la messagerie reçoit l'arête de lumière et le reflet **par
+    CSS uniquement** : `MessagingDropButton.tsx` n'est pas modifié, ses quatre
+    états et leurs tests restent intacts.
+* **Piège technique consigné** : `-webkit-box-reflect: none` est ignoré
+  silencieusement par Chromium (valeur calculée inchangée, aucun
+  avertissement) — il faut `unset`. Même famille que les teintes `brand-*`
+  absentes de la config Tailwind : une déclaration qui ne peint rien sans le
+  dire. Un garde-fou de test vérifie désormais que toute classe `.mir-*`
+  utilisée existe réellement, et qu'aucune ne vit hors du périmètre scopé.
+* **Éléments techniques** : `index.html` (tokens + classes `.mir-*`),
+  `components/miroir/WaterMirror.tsx`, `services/miroir/waterRipple.ts`,
+  `components/Layout.tsx`, `components/SocialFeed.tsx`,
+  `tests/miroirWater.test.tsx`, `docs/DIRECTION_ARTISTIQUE_MENU_MIROIR_EAU.md`.
+* **Statut** : `Développé`, `Testé` (777 tests, tsc 0, build, banc navigateur
+  réel 76 OK / 0 défaut) — **appréciation visuelle en attente de la Direction**.
+
+---
+
+### [DEC-2026-043] — 3 Septembre 2026
+* **Module(s)** : `Studio Live`, `Direction artistique`
+* **Problème / Besoin initial** : la Direction a fourni une **seconde image de
+  référence**, propre au LIVE (abysse turquoise, ruban de lumière liquide,
+  cartes de verre cyan, vidéo dans le verre, plaque de nom en capitales,
+  orbes, « ● EN DIRECT », bulles dans les cartes) avec la consigne « je veux
+  que le design du live soit à l'image de ceci exactement ». Le Studio portait
+  la matière verre/eau/lumière des LOOP 07-08 et la palette DA-1, mais pas
+  cette esthétique précise — et reposait encore sur des aplats `bg-slate-950`.
+* **Idées envisagées** :
+  1. Déclarer les nouvelles variables sur `:root`, comme la palette DA-1
+     (`--water-accent`).
+  2. Les déclarer sur **`[data-live-universe]`**, un attribut qui n'existe que
+     sur la racine du Studio.
+* **Décision retenue** : option 2. Toutes les variables `--live-*` sont
+  scopées au Studio ; aucune n'est posée sur `:root`.
+* **Justification** : `--water-accent` sur `:root` est **consommé par la
+  goutte de la messagerie** (`--mdb-acc`, maquette 01 validée le 01/09, DEC-2026-035).
+  Une nouvelle variable globale aurait pu déplacer un composant déjà validé
+  ailleurs. Le scope rend l'habillage du LIVE incapable de sortir du LIVE.
+* **Conséquences** :
+  - Une seule architecture pour les 7 univers : seuls `--live-abyss-a/-b` et
+    `--live-glow` sont redéfinis par univers, jamais une famille de classes.
+  - `liveBadge()` expose désormais `isOnAir` : « EN DIRECT » ne s'affiche que
+    quand le direct passe **vraiment** (jamais en aperçu, interruption,
+    reconnexion ou connexion) — la vue ne re-déduit plus l'état.
+  - Les motifs vivants sont **déterministes** (bulles) et **mesurés** (l'onde
+    de voix suit le vrai niveau audio, ne mime rien quand il est absent).
+* **Lacune produit trouvée en construisant les preuves, corrigée** : la scène
+  à une seule carte était **impossible à produire** — `aiAgent` retombait sans
+  condition sur `AGENTS[0]` et `stageAgents` le ré-injectait à chaque rendu,
+  donc **un agent IA ne pouvait jamais être retiré de la scène**, contre la
+  règle « inviter, retirer, gérer humain et agent ». `agentsRetires` corrige
+  la capacité manquante (la croix n'est offerte qu'à l'hôte, une nouvelle
+  invitation fait revenir l'agent).
+* **Pièges techniques consignés** : (1) le vignettage doit être une **couche
+  de `background`**, pas un `::after` — un pseudo-élément est peint après tous
+  les enfants et aurait assombri la vidéo ; (2) `color-mix()` évité pour la
+  tuile agent (non garanti sur Safari 16.0) ; (3) la colonne d'eau est placée
+  par un **style en ligne**, jamais par une valeur arbitraire Tailwind —
+  Tailwind est servi par CDN et injecte ses règles à l'exécution.
+* **Éléments techniques** : `index.html` (variables et classes `.live-*`),
+  `components/live/LiveMatter.tsx`, `components/SocialLive.tsx`,
+  `components/LiveSmartActionBar.tsx`, `hooks/useLiveTransport.ts`
+  (`LiveBadgeState.isOnAir`), `tests/liveStudioMatter.test.tsx`,
+  `docs/DIRECTION_ARTISTIQUE_STUDIO_LIVE.md` § 8.
+* **Statut** : `Développé`, `Testé` (800 tests, tsc 0, build, banc navigateur
+  réel 8/8 sans défaut sur ordinateur et téléphone) — **design validé par la
+  Direction le 03/09/2026** sur les captures d'ordinateur et de téléphone.
+* **Restes assumés** : le cœur rose des réactions n'est pas ramené sur la
+  palette cyan, et trois écrans satellites du LIVE (`LiveCreationModal`,
+  `LiveReplayModal`, `MultimodalCameraHUD`) gardent leur dégradé bleu→indigo —
+  la loupe n'a pas été élargie sans accord de la Direction.
+
+---
+
+### [DEC-2026-044] — 3 Septembre 2026
+
+* **Module(s)** : `Documentation`, `LIVE`, `Campus & Éducation`
+* **Problème / Besoin initial** : consigne explicite de la Direction —
+  « Distingue clairement ce qui existe déjà et ne doit pas être cassé, la
+  vision future à documenter, et ce qu'on code maintenant. Documente d'abord
+  l'existant à protéger, puis la vision, puis une roadmap priorisée. Ne mélange
+  pas tout dans le code. » La documentation du LIVE mélangeait effectivement
+  les trois : `LIVE_INTELLIGENT.md` portait à la fois l'état mesuré du socle et
+  l'ambition, et **aucun document ne recensait ce qui ne doit pas casser**.
+* **Idées envisagées** :
+  1. Ajouter un chapitre « existant » dans le document de vision.
+  2. Créer un **document séparé**, lu en premier, qui ne contient aucune
+     ambition.
+* **Décision retenue** : option 2 — `docs/LIVE_SOCLE_EXISTANT.md`. Trois
+  documents, trois rôles, jamais mélangés : **l'existant à protéger**, **la
+  vision** (`LIVE_INTELLIGENT.md` + `LIVE_CAMPUS_EDUCATION.md`), **la roadmap
+  priorisée et les preuves** (`LIVE_INTELLIGENT_VALIDATION.md`).
+* **Justification** : une ambition rangée à côté d'un constat finit par se lire
+  comme un constat. Ce dépôt en a payé le prix trois fois — sauvegarde de
+  profil en échec depuis l'origine, diffusion admin qui n'écrivait qu'en
+  mémoire, chat du direct sans un seul message persisté —, chaque fois sur une
+  capacité « documentée comme opérationnelle ». Un document qui ne contient
+  **que** du mesuré ne peut pas produire cette confusion.
+* **Conséquences** :
+  - **Neuf invariants** nommés (I1…I9), chacun rattaché au défaut réel qui l'a
+    fait naître. En cas de conflit avec la vision, **le socle gagne**.
+  - Une loupe qui fait bouger une brique du § 2 du socle sans preuve
+    équivalente est une **régression**, pas un progrès.
+  - La roadmap devient **priorisée en trois vagues** — direct réel (LV-1→LV-6),
+    direct intelligent (LV-7→LV-11), direct qui forme (LV-12→LV-18) — au lieu
+    d'une liste plate. **LV-6 est un verrou explicite** : rien de la vague B ne
+    démarre avant la preuve à deux comptes réels.
+  - **LV-1, LV-3 et LV-4 passent de « EN COURS » à `PARTIEL`**, reste-à-faire
+    nommé. Leur code est livré et testé ; la preuve d'usage réel manque. Les
+    annoncer TERMINÉS serait exactement le mensonge que l'invariant I9
+    interdit.
+  - Sept loupes ajoutées (LV-12 à LV-18) pour la branche éducation, chacune
+    avec ses critères et ses preuves, **toutes bloquées derrière LV-6**.
+* **Fragilités désormais nommées plutôt que découvertes deux fois** :
+  `live_messages` = 0 ligne, 21 tables `live_*` sans consommateur, serveur
+  LiveKit du VPS toujours en 1.8.4, aucun identifiant de build exposé au
+  runtime (instances périmées indétectables), doublon acoustique de
+  l'interprète identifié mais jamais mesuré, vocabulaire de rôles
+  d'`AdminConfigService` jamais réconcilié, dossiers de vie et moteurs Carrière
+  100 % `localStorage`.
+* **Correction d'une documentation fausse, dans le même geste** :
+  `docs/modules/04_campus_et_education.md` annonçait « Statut : 100 %
+  Opérationnel » et des « examens blancs opérationnels » alors que `courses`,
+  `enrollments`, `certificates` et `exam_sessions` sont à **0 ligne** et
+  **sans aucun lecteur** dans le code. Remplacé par un partage mesuré
+  RÉEL / NON PERSISTÉ. Une documentation qui ment est un défaut au même titre
+  qu'un bug.
+* **Éléments techniques** : `docs/LIVE_SOCLE_EXISTANT.md` (nouveau),
+  `docs/LIVE_CAMPUS_EDUCATION.md` (nouveau),
+  `docs/LIVE_INTELLIGENT_VALIDATION.md` (priorisation + LV-12→LV-18),
+  `docs/LIVE_INTELLIGENT.md` (rôle de document clarifié),
+  `docs/modules/04_campus_et_education.md`, `docs/README.md` (index 20→24).
+* **Statut** : `Développé`, `Testé` — aucune ligne de code applicatif touchée :
+  tsc 0, **801 tests verts (59 fichiers)**, build propre, tous identiques à
+  l'état d'avant. C'est précisément ce qu'on attend d'un lot documentaire.
+* **Restes assumés** : rien de la vision n'est codé par cette décision. Le
+  prochain lot de code est **LV-6** — la preuve réelle à deux comptes —, verrou
+  de tout ce qui suit.
+
+---
+
+### [DEC-2026-048] — 4 Septembre 2026
+
+* **Module(s)** : `Design System`, `Transversal`, `Qualité`
+* **Problème / Besoin initial** : la Direction refuse la validation de
+  l'habillage « Miroir d'eau » étendu (DEC-2026-047) — « ce qui est visible
+  dans l'application ne correspond pas aux captures ni aux changements
+  annoncés ». Le lien, la branche et le commit sont pourtant les bons :
+  l'`index.html` servi par l'aperçu Netlify est identique octet pour octet
+  au build local du commit `6e17d29` (seul diffère l'encart de déploiement
+  injecté par Netlify), et l'empreinte SHA-256 du bloc aqua est la même des
+  deux côtés.
+* **Mesure qui tranche** : au lieu de recompter les couleurs sondées, les
+  captures avant/après ont été **décodées et comparées pixel à pixel**.
+  Accueil 19,63 % de pixels modifiés · modale ordinateur 3,40 % · modale
+  téléphone 1,14 % · **Studio Live 0,35 %**. Le banc DS-EX annonçait
+  « 54 OK / 0 DÉFAUT » parce qu'il mesurait **uniquement là où il
+  s'attendait à trouver quelque chose**.
+* **Cause racine n° 1, décisive** : un **commentaire CSS refermé une ligne
+  trop tôt** (`index.html`, ancien bloc DS-EX-2). Six lignes de prose
+  restaient dans la feuille de style ; l'analyseur les agglutinait au
+  sélecteur suivant pour en faire un sélecteur invalide, et jetait
+  silencieusement la règle « cartes en verre »
+  (`[data-miroir] .bg-white.rounded-3xl / .rounded-2xl`) qui visait
+  **349 cartes et panneaux**. Prouvé sur la page RÉELLEMENT SERVIE par
+  l'aperçu : ce sélecteur était **absent du CSSOM** (0 occurrence sur
+  668 règles) alors que le texte, lui, était bien présent dans le fichier.
+* **Cause racine n° 2, indépendante** : le Studio Live ne peut pas être
+  atteint par la couche aqua **par construction** — il est peint par ses
+  propres jetons `--live-*` posés sur `[data-live-universe]`, jamais par des
+  classes Tailwind. Constat honnête : il n'y avait rien à y repeindre,
+  **il est déjà aqua** depuis DS-L1 (`--live-abyss-a: #0a2430`, accent
+  `#7fd9e6`), traitement validé par la Direction le 03/09. Les 0,35 % ne
+  sont donc pas un manque, et repeindre ce module aurait modifié un design
+  déjà validé.
+* **Décision** : refermer le commentaire (la règle revient à la vie) et
+  remplacer le garde-fou par un test qui **ANALYSE** la feuille de style au
+  lieu d'y chercher une chaîne de caractères
+  (`tests/miroirFeuilleAnalysee.test.ts`, postcss). L'ancien garde-fou
+  vérifiait que le TEXTE d'`index.html` contenait le sélecteur — il restait
+  vert alors que la règle ne parvenait jamais au navigateur.
+* **Effet mesuré du correctif** (mêmes composants, mêmes conditions) :
+  modale ordinateur **3,40 % → 32,54 %**, modale téléphone
+  **1,14 % → 55,67 %**. Accueil et Studio Live inchangés, ce qui est
+  cohérent avec les deux causes ci-dessus.
+* **Règle permanente ajoutée** : c'est la **quatrième** occurrence dans ce
+  dépôt de la même famille de piège — *une déclaration qui ne peint rien
+  sans le dire* (`-webkit-box-reflect: none` ignoré par Chromium, teintes
+  `brand-*` absentes de la config Tailwind, `hidden sm:flex` annulé par un
+  `flex` nu, et maintenant un commentaire mal fermé). Un garde-fou de style
+  ne doit jamais se contenter de chercher du texte : il doit analyser, et
+  sa contre-épreuve doit prouver qu'il vire au rouge quand on reproduit le
+  défaut. Vérifié ici : défaut réintroduit → 2 tests rouges ; restauré →
+  5/5 verts.
+* **Aveu de méthode** : les captures précédemment fournies à la Direction
+  provenaient d'un banc local montant les composants avec des modules
+  simulés, **pas du lien public**. C'était une faille de preuve, corrigée :
+  les captures viennent désormais des fichiers réellement servis par
+  l'aperçu (relais octet-exact, SHA-256 comparés).
+* **Limite d'environnement, dite honnêtement** : le navigateur de
+  l'environnement de développement ne peut pas ouvrir l'URL d'aperçu
+  lui-même (le relais du proxy de sortie ferme le tunnel — vérifié côté
+  proxy). Chaque octet est donc téléchargé depuis l'URL publique par `curl`
+  puis rendu dans un vrai navigateur. La validation finale reste
+  l'ouverture du lien public par la Direction.
+
+---
+
+### [DEC-2026-047] — 4 Septembre 2026
+
+* **Module(s)** : `Design System`, `Transversal`, `Layout`, `Studio Live`
+* **Problème / Besoin initial** : la Direction constate que l'habillage
+  « Miroir d'eau » **ne se voit que sur l'accueil** : « Les couleurs ne
+  doivent pas rester juste sur l'interface d'accueil. Il faut les voir
+  vraiment dans l'app, sur l'accueil, dans le live, partout où c'est
+  concerné. »
+* **Ce que la mesure a montré, contre l'hypothèse de départ** : le périmètre
+  n'était **pas** le problème — `data-miroir` est posé sur la racine de
+  `Layout.tsx`, donc tous les écrans, le Studio Live et les modales rendent
+  déjà dedans. Le manque venait de trois endroits : **~2 400 occurrences**
+  `blue`/`indigo` repeignant l'accent, **549 `bg-slate-50`** + **169
+  `bg-white`** repeignant le fond par-dessus la nappe d'eau, et la **barre
+  latérale** peinte par **styles en ligne** — hors de portée de toute règle
+  CSS, quelle que soit sa spécificité.
+* **Idées envisagées** :
+  1. Éditer les ~190 fichiers à la main — **rejeté** : 409 utilitaires
+     distincts, source garantie d'oublis et d'incohérences.
+  2. Remapper tout l'accent vers une couleur unique — **rejeté par la
+     mesure** : sur fond clair l'app emploie les marches foncées
+     (`text-blue-600`), dans le Studio sombre les marches claires
+     (`text-indigo-300/400`). Un aplat aurait cassé le contraste d'un côté.
+  3. **Retenu** : une **rampe aqua à 11 marches**, chacune de luminance
+     comparable à la marche Tailwind qu'elle remplace, appliquée par une
+     couche **générée depuis le code réel** et scopée `[data-miroir]`
+     (spécificité 0,2,0 > 0,1,0 : indépendante de l'ordre d'injection du CDN
+     Tailwind). L'échelle de clarté est conservée, donc le contraste est
+     préservé **par construction**.
+* **Décision** : couche générée par `scripts/genMiroirAquaLayer.cjs` (409
+  classes traduites) ; fond pleine page neutralisé pour le **seul enfant
+  direct** de `.mir-page` (nouveau repère dans `Layout.tsx`) afin de ne
+  jamais atteindre les champs de saisie ; matière verre étendue aux modales
+  (rendues hors de `.mir-page` par `Layout`) ; **arbitrage de DS-M2b tranché
+  par la Direction** — `palette-10` recalée sur l'aqua, ce qui habille enfin
+  la barre latérale. Le gel du Chantier 3 portait sur le **sélecteur** de
+  palettes, pas sur les valeurs : les neuf autres palettes sont intactes,
+  vérifié par test.
+* **Ce qui n'est JAMAIS traduit** : les familles sémantiques (red, rose,
+  amber, orange, yellow, green, emerald, teal, lime) et les gris — leur
+  couleur **est** l'information. Interdit par le garde-fou, vérifié au banc
+  sur des témoins réellement affichés.
+* **Preuves** : `tsc` 0 · `vitest` **843/843** · `build` propre · garde-fou
+  **vérifié non complaisant** (trois brèches délibérées le font rougir, puis
+  il redevient vert) · banc navigateur réel avant/après sur accueil, Studio
+  Live et modale × ordinateur et téléphone, avec **deux bundles** parce que
+  la palette de la barre vit dans le bundle et non dans le CSS.
+* **Limite honnête** : aucun test ne peut dire si l'ensemble **a l'air
+  juste** — l'appréciation visuelle reste celle de la Direction.
+
+---
+
+### [DEC-2026-046] — 3 Septembre 2026
+
+* **Module(s)** : `LIVE`, `Partage`, `Documentation`
+* **Problème / Besoin initial** : DEC-2026-045 a laissé LV-6 à 9 étapes sur
+  10 et LV-4 en PARTIEL, avec un reste-à-faire nommé : « le lien de partage
+  est prouvé réel, son **ouverture** ne l'est pas ». La Direction a demandé le
+  03/09 de terminer tout ce qui restait PARTIEL, avec des **captures d'écran**
+  comme preuve et un **lien d'aperçu Netlify** pour juger avant la fusion.
+* **Idées envisagées** :
+  1. Considérer le lien prouvé parce qu'il a la bonne forme — **rejeté** :
+     une URL bien formée ne démontre pas qu'elle mène quelque part.
+  2. Faire rouvrir le lien par un compte déjà dans le direct — **rejeté** :
+     cela ne prouve rien, la personne y était déjà.
+  3. **Retenu** : un **troisième** compte, qui n'ouvre **que** l'URL — aucun
+     fil, aucune liste, aucune notification —, se connecte depuis cette page,
+     et dont on mesure ce qu'il voit et ce qu'il reçoit.
+* **Décision** : étape 9 prouvée. Le banc passe à **32 OK / 0 DÉFAUT** sur les
+  **dix** étapes. Mariama Sow LV6 ouvre `?live=50040654-…`, atterrit sur la
+  scène de CE direct (titre lu, « à l'antenne », animatrice au trombinoscope,
+  paramètre retiré de l'URL après usage) et **reçoit 2 455 135 octets dont
+  160 614 d'audio**. Le même lien vérifié au format téléphone (390 × 844).
+  L'identifiant du lien recoupé en base : `live_sessions` porte bien le titre
+  `Direct de preuve LV6`, `host_id` = A, `is_private = false`. **LV-1, LV-3,
+  LV-4 et LV-6 passent à TERMINÉ.**
+* **Ce qui reste PARTIEL, nommé plutôt que dissimulé** :
+  - **LV-2** : deux critères jamais mesurés — le son débloqué *dans le geste*
+    (le banc lance Chromium avec `--autoplay-policy=no-user-gesture-required`,
+    il ne peut rien prouver là-dessus) et un direct **privé** invisible pour un
+    non-invité.
+  - **LV-5** : manque **découvert en route et mesuré** — `live_speakers` ne
+    contient que des personnes (A, B, C) ; **aucun agent IA n'est persisté**.
+    Conséquence : l'animatrice voit 3 cartes, la spectatrice arrivée par le
+    lien n'en voit que 2 — l'agent invité n'est pas partagé. La colonne
+    `is_ai` existe déjà sur cette table et n'a jamais servi.
+  - **Deux téléphones physiques** : à la Direction. Le bac à sable n'ouvre que
+    le TCP 443, le média du banc passe par un serveur LiveKit local.
+* **Une passe a échoué, et l'erreur venait encore du banc** : je lisais le
+  trombinoscope sans ouvrir l'onglet latéral « Personnes » (l'animatrice doit
+  elle aussi le cliquer à l'étape 3). Liste vide relevée, « défaut » imputé à
+  tort au produit. C'est la troisième fois de cette loupe qu'un critère de banc
+  mal posé accuse le produit — d'où la règle qui vaut pour la suite : **avant
+  d'appeler « défaut » ce qu'un banc relève, vérifier que le banc a fait le
+  geste qu'un humain aurait fait.**
+* **Preuves** : banc `preuve-lv6.cjs`, journal + 20 captures ; lignes
+  `live_sessions` / `live_speakers` relues en base ; aperçu Netlify
+  `deploy-preview-60--…` servant `assets/index-DurKTJ5-.js` avec
+  `singlePeerConnection:!1` × 2. Nettoyage zéro trace des trois comptes de
+  preuve, balayage des clés étrangères = 0.
+
+---
+
+### [DEC-2026-045] — 3 Septembre 2026
+
+* **Module(s)** : `LIVE`, `Transport LiveKit`, `Tests`
+* **Problème / Besoin initial** : LV-6 est le **verrou** de la vague A de la
+  feuille de route LIVE — « pas juste un décor : une preuve réelle que ça
+  marche, avec un test entre deux comptes ». LV-1, LV-3 et LV-4 étaient codés
+  et testés unitairement, mais **personne n'avait jamais vu deux personnes
+  réelles se voir sur la scène**. Tant que cette preuve manquait, tout ce qui
+  se construisait au-dessus reposait sur une hypothèse.
+* **Idées envisagées** :
+  1. Déclarer les loupes TERMINÉES sur la foi des tests unitaires — **rejeté** :
+     contraire à la règle du 30/08 (TERMINÉ seulement si DÉMONTRÉ).
+  2. Attendre la validation sur deux téléphones — **rejeté comme préalable** :
+     cela bloque tout le reste sur une action qui n'est pas la nôtre.
+  3. **Retenu** : un banc à deux navigateurs réels contre le binaire
+     `livekit-server` **1.8.4** — la version exacte du VPS —, en mesurant les
+     octets WebRTC réels, puis nommer précisément ce qui reste.
+* **Décision** : LV-6 prouvé au banc à **23 OK / 0 DÉFAUT** sur 9 des 10
+  étapes. Média réel mesuré dans les deux sens : B reçoit **2 320 613 octets**
+  (dont 171 578 d'audio), A envoie **7 831 248 octets** (dont 501 442
+  d'audio). Roster réel avec les vrais noms, promotion en « Sur scène »,
+  boutons couper/retirer, lien de partage réel, **zéro erreur de page**.
+* **Le seul défaut RÉEL du produit, trouvé et corrigé** : la sonde
+  « v1 RTC path » du SDK n'était désactivée que pour les **appels**
+  (`audioProfile === 'call'`). Le réglage avait été groupé en LT-1 avec
+  `adaptiveStream`/`dynacast`, qui sont bien spécifiques aux appels — alors
+  que sa raison tient au **serveur** (1.8.4 ne connaît pas le chemin « v1 »),
+  pas au type de session. Le direct payait donc encore 0,8 s par connexion et
+  affichait une erreur `WebSocket … /rtc/v1` des deux côtés. Corrigé dans
+  `services/live/liveKitTransportProvider.ts` ; `adaptiveStream`/`dynacast`
+  restent activés pour le LIVE, où ils gardent tout leur sens.
+* **Trois « défauts » qui n'en étaient pas — et ce qu'ils enseignent** :
+  le banc ne cliquait pas l'écran de consentement caméra/micro de LOOP 12
+  (11 échecs imputés à tort au produit), exigeait ce même consentement d'un
+  **spectateur** qui ne publie rien, et lisait le lien de partage avec
+  `inputValue()` alors que c'est un `<code>`. **Un banc faux accuse le produit
+  à tort** : chaque défaut a été instruit avant d'être imputé.
+* **Invariant I4 reformulé** : il disait « six cartes minimum », ce qui se
+  lisait « toujours peindre six cartes » — faux et dangereux, cela reviendrait
+  à peindre quatre cartes vides quand deux personnes sont là, exactement ce que
+  I1 interdit. `STAGE_VISIBLE_MAX = 6` est la **capacité** de la scène,
+  prouvée par `tests/liveStageComposition.test.ts`, pas un plancher.
+* **Éléments techniques** : `services/live/liveKitTransportProvider.ts`
+  (`singlePeerConnection: false` pour le LIVE), `components/SocialLive.tsx`
+  (`data-testid="live-stage-grid"`, ancrage de test stable — aucun changement
+  de comportement), `tests/livekitClientPin.test.ts` (+2 garde-fous),
+  `tests/callRoomOptions.test.ts` (garde AU-8 resserrée sur son vrai sujet),
+  `docs/LIVE_INTELLIGENT_VALIDATION.md`, `docs/LIVE_SOCLE_EXISTANT.md`.
+* **Statut** : `Développé`, `Testé` — tsc 0, **804 tests verts (59 fichiers)**,
+  build propre, banc réel 23/23.
+* **Restes assumés, nommés** : l'**étape 9** (ouvrir réellement le lien de
+  partage dans une troisième session — le lien est prouvé réel, son ouverture
+  ne l'est pas), l'**aperçu Netlify** exigé par le barème, et la démonstration
+  sur **deux téléphones physiques**, qui reste à la Direction comme pour les
+  appels. LV-1, LV-3 et LV-4 restent donc `PARTIEL` : il ne leur manque plus
+  que l'aperçu.
+
+---

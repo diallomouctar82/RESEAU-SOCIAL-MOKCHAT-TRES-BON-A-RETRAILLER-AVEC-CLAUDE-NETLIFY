@@ -32,6 +32,7 @@ import {
   Clock,
   Layers,
   Compass,
+  DraftingCompass,
   Lock,
   User,
   Shield,
@@ -41,6 +42,8 @@ import {
 import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
 import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
+import { WaterMirror } from './miroir/WaterMirror';
+import { emitWaterRippleFrom } from '../services/miroir/waterRipple';
 import { GoogleWorkspaceBanner } from './GoogleWorkspaceBanner';
 import { MoocChatFloating } from './MoocChatFloating';
 import { PushPermissionPrompt } from './push/PushPermissionPrompt';
@@ -190,8 +193,30 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isDialloOSOpen, setIsDialloOSOpen] = useState(false);
   const [dialloInitialPrompt, setDialloInitialPrompt] = useState<string | undefined>(undefined);
+  // DS-M2 (menu « Miroir d'eau ») — même patron que `chatOpenSignal` : le
+  // bouton central du dock (mobile) et l'entrée dédiée de la sidebar
+  // (desktop) incrémentent ce compteur au lieu d'ouvrir DialloOS, qui reste
+  // le lanceur de navigation accessible par ses propres entrées (header,
+  // commande rapide) — voir ArchitecteFloatingBar.tsx pour la lecture du
+  // signal.
+  const [architecteOpenSignal, setArchitecteOpenSignal] = useState(0);
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  /* RO-2 — le menu latéral se ferme aussi à Échap, et le fond de page ne
+     défile plus derrière lui. Sans ce verrou, faire glisser le doigt sur le
+     voile déplaçait la page sous le tiroir. */
+  useEffect(() => {
+    if (!isMobileMenuExpanded || typeof document === 'undefined') return;
+    const surEchap = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsMobileMenuExpanded(false); };
+    document.addEventListener('keydown', surEchap);
+    const defilementInitial = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', surEchap);
+      document.body.style.overflow = defilementInitial;
+    };
+  }, [isMobileMenuExpanded]);
   
   // Modals state (isSearchModalOpen vient désormais de App.tsx — voir LayoutProps)
   const [isTransversalModalOpen, setIsTransversalModalOpen] = useState(false);
@@ -333,10 +358,18 @@ export const Layout: React.FC<LayoutProps> = ({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#f0f2f5] overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>
-      
+    // DS-M2b (menu « Miroir d'eau ») — `data-miroir` active l'habillage
+    // verre/eau scopé défini dans le bloc <style> d'index.html (tokens
+    // --mir-*, classes .mir-*). Le fond n'est plus la classe Tailwind
+    // `bg-[#f0f2f5]` mais le token `--mir-bg` : la nappe d'eau animée est
+    // peinte par-dessus par <WaterMirror /> et doit pouvoir transparaître.
+    <div data-miroir className="h-screen flex flex-col overflow-hidden font-sans text-slate-900" dir={currentLang === 'ar' ? 'rtl' : 'ltr'}>
+
+      {/* La surface d'eau : décor, sous tout le reste, jamais cliquable. */}
+      <WaterMirror />
+
       {/* ─── DESKTOP HEADER ─── */}
-      <header className="hidden md:block bg-white/90 backdrop-blur-md border-b border-gray-200 z-20 sticky top-0">
+      <header className="hidden md:block mir-band z-20 sticky top-0">
         <div className="max-w-[1920px] mx-auto px-6 py-2.5 flex items-center justify-between gap-4">
           
           {/* Logo & Platform Name */}
@@ -632,7 +665,15 @@ export const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* ─── MOBILE HEADER ─── */}
-      <header className="md:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-2.5 flex justify-between items-center sticky top-0 z-30">
+      {/* DS-M2b : bandeau de verre (.mir-band) au lieu du blanc opaque, et
+          la ligne d'état « Réseau · en éveil » au-dessus — l'idée « l'interface
+          déclare son mode » retenue du repère « Model 14 » de la Direction et
+          reprise par la proposition 06. Elle est portée par l'en-tête mobile
+          seulement : sur desktop l'en-tête est déjà dense (logo, navigation,
+          recherche, crédits, avatar) et une ligne de plus déborderait. */}
+      <header className="md:hidden mir-band px-4 pt-1.5 pb-2.5 sticky top-0 z-30">
+        <div className="mir-mode leading-none pb-1.5">Réseau · en éveil</div>
+        <div className="flex justify-between items-center">
         <div className="flex items-center gap-2" onClick={() => onTabChange('home')}>
           <div className="bg-gradient-to-tr from-brand-600 to-purple-600 p-1.5 rounded-lg">
             <Globe className="text-white" size={16} />
@@ -656,6 +697,7 @@ export const Layout: React.FC<LayoutProps> = ({
           <button onClick={() => onTabChange('profile')} className="w-7 h-7 rounded-full overflow-hidden border border-gray-200">
             <img src={userProfile.avatarUrl} className="w-full h-full object-cover" />
           </button>
+        </div>
         </div>
       </header>
 
@@ -707,7 +749,25 @@ export const Layout: React.FC<LayoutProps> = ({
 
           {/* Navigation Scrollable Body */}
           <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-4">
-            
+
+            {/* ✦ L'ARCHITECTE — DS-M2 (menu « Miroir d'eau ») : place
+                centrale de la navigation principale desktop, invariant
+                Direction. Toujours en tête, avant les favoris/récents/
+                catégories — identité visuelle cyan volontairement distincte
+                du reste de la sidebar (même identité que la barre ouverte
+                elle-même), pas la palette de marque figée du reste du menu. */}
+            <div>
+              <button
+                onClick={() => setArchitecteOpenSignal(s => s + 1)}
+                title={isSidebarCollapsed ? "L'Architecte" : ''}
+                aria-label="Ouvrir l'Architecte"
+                className={`w-full flex items-center gap-2.5 py-2 rounded-xl text-xs font-bold text-cyan-100 bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 hover:from-cyan-500/30 hover:to-indigo-500/30 transition-all duration-150 ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}`}
+              >
+                <DraftingCompass size={16} className="shrink-0 text-cyan-300" />
+                {!isSidebarCollapsed && <span className="truncate flex-1 text-left">L'Architecte</span>}
+              </button>
+            </div>
+
             {/* 🌟 1. MES FAVORIS ÉPINGLÉS (si existants) */}
             {favorites.length > 0 && (
               <div>
@@ -900,6 +960,32 @@ export const Layout: React.FC<LayoutProps> = ({
           >
             
             {/* Transversal Services Quick Access */}
+            {/* ✉ MESSAGERIE — RO-3 : entrée FIXE de la navigation desktop.
+                Sur ordinateur il n'y a pas de barre du bas ; l'équivalent de
+                l'emplacement fixe demandé par la Direction est ici, en pied de
+                barre latérale. Même mécanique que le dock : un emplacement
+                d'accueil, la goutte validée (VF-10) y est rendue par portail
+                depuis <MoocChatFloating />, avec ses vrais états. */}
+            <div
+              className={`rounded-xl border shadow-2xs flex items-center ${isSidebarCollapsed ? 'justify-center p-1' : 'p-1.5 gap-2'}`}
+              style={{
+                backgroundColor: currentPalette.colors.sidebarBg,
+                borderColor: currentPalette.colors.sidebarBorder,
+                color: currentPalette.colors.sidebarText
+              }}
+            >
+              <div
+                id="moknet-sidebar-messaging-slot"
+                data-testid="sidebar-messaging-slot"
+                className={`shrink-0 flex items-center justify-center w-16 h-16 ${isSidebarCollapsed ? 'scale-90' : ''}`}
+              />
+              {!isSidebarCollapsed && (
+                <span className="text-[11px] font-bold truncate" style={{ color: currentPalette.colors.sidebarText }}>
+                  Messagerie
+                </span>
+              )}
+            </div>
+
             <button
               onClick={() => setIsTransversalModalOpen(true)}
               className={`w-full py-2 px-2.5 rounded-xl border flex items-center justify-between text-xs font-bold transition shadow-2xs ${
@@ -956,7 +1042,11 @@ export const Layout: React.FC<LayoutProps> = ({
         {/* pb-56 mobile : réserve le dock (h-16 + marges) ET la pastille
             Architecte (bottom-44 + h-14) — avec pb-36, la fin du contenu
             restait cachée derrière elle. */}
-        <main className="flex-1 overflow-y-auto relative w-full bg-[#f8fafc] scroll-smooth pb-56 md:pb-0">
+        {/* DS-M2b : plus de fond opaque `bg-[#f8fafc]` — le contenu défile
+            AU-DESSUS de la nappe d'eau, exactement comme `.scroll` par-dessus
+            `.scene` dans la maquette. Les surfaces qui portent du texte
+            reprennent leur opacité localement (classes .mir-glass/.mir-sheet). */}
+        <main className="flex-1 overflow-y-auto relative w-full scroll-smooth pb-56 md:pb-0">
           <div className="max-w-[1700px] mx-auto h-full flex flex-col">
             {activeTab !== 'home' && (() => {
               const currentItem = MAIN_NAV_ITEMS.find(item => item.id === activeTab);
@@ -985,56 +1075,102 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* min-h-0 : autorise un enfant plein écran (ExpertsHub…) à
                 gérer son propre défilement sans créer un double scroll
                 imbriqué avec <main>. */}
-            <div className="flex-1 min-h-0">
+            {/* DS-EX-2 : `mir-page` marque le PARENT DIRECT de l'écran courant.
+                C'est ce qui permet de neutraliser le fond pleine page d'un écran
+                (`bg-slate-50`, `bg-white`…) — et lui seul — sans jamais toucher
+                aux champs de saisie ni aux listes déroulantes qui emploient les
+                mêmes classes plus bas dans l'arbre, où l'opacité sert la
+                lisibilité. Sans ce repère, la nappe d'eau reste cachée partout
+                sauf sur l'accueil. */}
+            <div className="mir-page flex-1 min-h-0">
               {children}
             </div>
           </div>
         </main>
 
-        {/* ─── MOBILE SMART DOCK (COMPACT & EXPANDABLE) ─── */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-          
-          {/* Expanded Menu Drawer */}
-          <div 
-            className={`bg-white/95 backdrop-blur-2xl border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden pointer-events-auto ${
-              isMobileMenuExpanded ? 'h-auto max-h-[85vh] opacity-100 shadow-[0_-10px_40px_rgba(0,0,0,0.25)]' : 'h-0 opacity-0'
+        {/* ─── RO-2 · MENU LATÉRAL OUVRABLE ET FERMABLE (téléphone) ───
+            Consigne Direction (04/09/2026) : « il ne faut pas tout afficher en
+            vrac sur l'accueil, sinon c'est lourd. Il faut donc un menu latéral
+            ouvrable et fermable, surtout sur mobile, pour accéder à tout :
+            Campus, Langues, Carrière, Santé, Habitat, Finance, Démarches,
+            Droit, Mobilité, Studio, Marché mondial, etc. »
+
+            Ce qui existait n'était PAS un menu latéral : un panneau qui montait
+            du bas du dock (`h-0` → `max-h-[85vh]`), avec une grille de quatre
+            tuiles par rangée où le libellé, coupé à une ligne
+            (`line-clamp-1`), ne disait pas toujours de quoi il s'agissait.
+            Il devient un vrai tiroir : il glisse depuis le bord gauche, occupe
+            toute la hauteur, se ferme au voile, à la croix ou par le même
+            bouton du dock qui l'a ouvert.
+
+            La liste est VERTICALE, une entrée par ligne, libellé entier —
+            c'est la forme qui convient à ~25 modules répartis en sections,
+            et celle des repères fournis par la Direction. Chaque ligne fait
+            au moins 48 px de haut (règle des 44 px du projet). */}
+        <div
+          className={`md:hidden fixed inset-0 z-[55] transition-opacity duration-300 ${
+            isMobileMenuExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+          aria-hidden={!isMobileMenuExpanded}
+        >
+          {/* Voile : ferme le tiroir. Il est SOUS le panneau, jamais dessus. */}
+          <div
+            className="absolute inset-0 bg-slate-950/50"
+            onClick={() => setIsMobileMenuExpanded(false)}
+            data-testid="menu-lateral-voile"
+          />
+
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu des espaces MokNet"
+            data-testid="menu-lateral"
+            className={`absolute inset-y-0 left-0 w-[86%] max-w-[340px] bg-white/97 backdrop-blur-2xl border-r border-slate-200 shadow-[10px_0_40px_rgba(0,0,0,0.28)] transition-transform duration-300 ease-out ${
+              isMobileMenuExpanded ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
-            <div className="p-4 pb-28 flex flex-col h-full">
-              <div className="flex justify-between items-center mb-3 shrink-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-black text-slate-900">Espaces & Piliers de Vie</h2>
+            <div className="flex flex-col h-full p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+
+              {/* En-tête du tiroir */}
+              <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h2 className="text-base font-black text-slate-900 truncate">Espaces &amp; Piliers de Vie</h2>
                   <button
                     onClick={() => { onOpenGoalModal(); setIsMobileMenuExpanded(false); }}
-                    className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold border border-indigo-200"
+                    className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold border border-indigo-200 shrink-0"
                   >
                     Mon Cap
                   </button>
                 </div>
-                <button onClick={() => setIsMobileMenuExpanded(false)} className="p-1.5 bg-slate-100 rounded-full text-slate-500">
-                  <ChevronDown size={18} />
+                <button
+                  onClick={() => setIsMobileMenuExpanded(false)}
+                  aria-label="Fermer le menu"
+                  data-testid="menu-lateral-fermer"
+                  className="w-11 h-11 shrink-0 flex items-center justify-center bg-slate-100 rounded-full text-slate-600 active:scale-95 transition-transform"
+                >
+                  <X size={20} />
                 </button>
               </div>
 
-              {/* Transversal Banner on Mobile */}
+              {/* Services transversaux */}
               <button
                 onClick={() => { setIsTransversalModalOpen(true); setIsMobileMenuExpanded(false); }}
-                className="w-full mb-3 p-2.5 bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl flex items-center justify-between text-xs font-bold"
+                className="w-full mb-3 shrink-0 min-h-[48px] px-3 bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl flex items-center justify-between text-xs font-bold"
               >
                 <div className="flex items-center gap-2">
                   <Layers size={16} className="text-indigo-300" />
-                  <span>Services Transversaux Google & Sécurité</span>
+                  <span>Services Transversaux Google &amp; Sécurité</span>
                 </div>
-                <ChevronRight size={14} className="text-slate-400" />
+                <ChevronRight size={14} className="text-slate-400 shrink-0" />
               </button>
 
-              {/* Outils rapides — desktop-only jusqu'ici (Notifications,
-                  Scanner, Bilingue, Guide-moi n'avaient aucun déclencheur
-                  mobile). */}
-              <div className="grid grid-cols-4 gap-2 mb-3">
+              {/* Outils rapides — desktop-only jusqu'à la mission qui les a
+                  ajoutés ici (Notifications, Scanner, Bilingue, Guide-moi
+                  n'avaient aucun déclencheur mobile). Conservés tels quels. */}
+              <div className="grid grid-cols-4 gap-2 mb-3 shrink-0">
                 <button
                   onClick={() => { setIsNotifOpen(true); setIsMobileMenuExpanded(false); }}
-                  className="relative flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                  className="relative flex flex-col items-center gap-1 py-2 min-h-[56px] rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
                 >
                   <Bell size={16} />
                   {unreadCount > 0 && !userProfile.privacySettings?.notificationsMuted && (
@@ -1055,34 +1191,36 @@ export const Layout: React.FC<LayoutProps> = ({
                     setIsScannerOpen(true);
                     setIsMobileMenuExpanded(false);
                   }}
-                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                  className="flex flex-col items-center gap-1 py-2 min-h-[56px] rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
                 >
                   <Search size={16} />
                   <span className="text-[9px] font-bold">Scanner</span>
                 </button>
                 <button
                   onClick={() => { setIsBilingualModalOpen(true); setIsMobileMenuExpanded(false); }}
-                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                  className="flex flex-col items-center gap-1 py-2 min-h-[56px] rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
                 >
                   <Languages size={16} />
                   <span className="text-[9px] font-bold">Bilingue</span>
                 </button>
                 <button
                   onClick={() => { setIsGuidedModeOpen(true); setIsMobileMenuExpanded(false); }}
-                  className="flex flex-col items-center gap-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
+                  className="flex flex-col items-center gap-1 py-2 min-h-[56px] rounded-2xl bg-slate-50 border border-slate-200 text-slate-700"
                 >
                   <Compass size={16} />
                   <span className="text-[9px] font-bold">Guide-moi</span>
                 </button>
               </div>
 
-              <div className="space-y-4 overflow-y-auto flex-1">
+              {/* Tous les modules, par section, en liste verticale */}
+              <div className="space-y-4 overflow-y-auto flex-1 -mx-1 px-1">
                 {categoryOrder.map((category) => {
                   const items = groupedNavItems[category] || [];
+                  if (items.length === 0) return null;
                   return (
                     <div key={`mob-cat-${category}`}>
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{category}</h3>
-                      <div className="grid grid-cols-4 gap-2">
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1">{category}</h3>
+                      <div className="flex flex-col">
                         {items.map((item) => {
                           const Icon = item.icon;
                           const isActive = activeTab === item.id;
@@ -1090,13 +1228,16 @@ export const Layout: React.FC<LayoutProps> = ({
                             <button
                               key={`mob-item-${item.id}`}
                               onClick={() => { onTabChange(item.id); setIsMobileMenuExpanded(false); }}
-                              className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all active:scale-95
-                                ${isActive ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200 shadow-xs' : 'text-slate-700 hover:bg-slate-50'}`}
+                              data-testid={`menu-lateral-item-${item.id}`}
+                              aria-current={isActive ? 'page' : undefined}
+                              className={`w-full min-h-[48px] flex items-center gap-3 px-2 rounded-xl transition-all active:scale-[0.98]
+                                ${isActive ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200' : 'text-slate-700 hover:bg-slate-50'}`}
                             >
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                                <Icon size={18} />
-                              </div>
-                              <span className="text-[9px] font-bold text-center leading-tight line-clamp-1 w-full">{item.shortLabel || item.label}</span>
+                              <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                <Icon size={17} />
+                              </span>
+                              <span className="text-[13px] font-bold text-left flex-1 truncate">{item.label}</span>
+                              <ChevronRight size={15} className="text-slate-300 shrink-0" />
                             </button>
                           );
                         })}
@@ -1105,70 +1246,102 @@ export const Layout: React.FC<LayoutProps> = ({
                   );
                 })}
               </div>
-              
+
+              {/* Pied du tiroir */}
               <div className="mt-3 pt-3 border-t border-slate-100 shrink-0 flex gap-2">
                 {(userProfile.role === 'admin' || (userProfile.role as string) === 'super_admin') && (
-                  <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
-                    <Shield size={14} /> Super-Admin (IA & Comptes)
+                  <button onClick={() => {onTabChange('admin'); setIsMobileMenuExpanded(false);}} className="flex-1 min-h-[44px] px-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm">
+                    <Shield size={14} /> Super-Admin
                   </button>
                 )}
                 {/* Ouvre la même UnifiedSettingsModal que le desktop — le
                     tab 'settings'/Settings.tsx était une implémentation
                     séparée, propre au mobile, sans équivalent desktop. */}
-                <button onClick={() => {setIsSettingsModalOpen(true); setIsMobileMenuExpanded(false);}} className="px-3 py-2 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                <button onClick={() => {setIsSettingsModalOpen(true); setIsMobileMenuExpanded(false);}} className="flex-1 min-h-[44px] px-3 bg-slate-100 rounded-xl text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5">
                   <Settings size={14} /> Paramètres
                 </button>
                 {onLogout && (
-                  <button onClick={onLogout} className="px-3 py-2 border border-red-200 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1">
+                  <button onClick={onLogout} aria-label="Se déconnecter" className="w-11 min-h-[44px] border border-red-200 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center shrink-0">
                     <LogOut size={14} />
                   </button>
                 )}
               </div>
-            </div>
-          </div>
 
+            </div>
+          </aside>
+        </div>
+
+        {/* ─── MOBILE SMART DOCK (COMPACT & EXPANDABLE) ─── */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
+          
           {/* Bottom Dock Bar (5 Essential Actions) */}
-          <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 bg-gradient-to-t from-[#f0f2f5] via-[#f0f2f5]/90 to-transparent pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
-              
+          {/* DS-M2b : le voile dégradé `from-[#f0f2f5]` qui masquait le bas de
+              l'écran est retiré — la pilule doit FLOTTER sur l'eau, pas être
+              posée sur un socle gris. Chaque appui envoie une vraie onde à
+              l'endroit touché (services/miroir/waterRipple.ts). */}
+          <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 pointer-events-auto">
+            <div className="mir-dock mir-edge mir-reflect rounded-[2.5rem] p-2 flex items-center justify-between relative px-3 sm:px-6 h-16">
+
               {/* 1. Home */}
-              <button 
-                onClick={() => {onTabChange('home'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'text-brand-600' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); onTabChange('home'); setIsMobileMenuExpanded(false);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'home' ? 'mir-tab-active' : 'text-slate-400'}`}
               >
                 <LayoutGrid size={22} className={activeTab === 'home' ? 'stroke-[2.5]' : ''} />
               </button>
 
               {/* 2. Mon Parcours */}
-              <button 
-                onClick={() => {onTabChange('parcours'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'text-brand-600' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); onTabChange('parcours'); setIsMobileMenuExpanded(false);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'parcours' || activeTab === 'dossiers' ? 'mir-tab-active' : 'text-slate-400'}`}
               >
                 <FolderKanban size={22} className={activeTab === 'parcours' ? 'stroke-[2.5]' : ''} />
               </button>
 
-              {/* 3. Central Diallo OS Button */}
-              <button 
-                onClick={() => setIsDialloOSOpen(true)}
-                className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 rounded-full shadow-lg shadow-brand-500/40 text-white transform -translate-y-5 hover:scale-110 active:scale-95 transition-transform border-4 border-[#f0f2f5] z-20 shrink-0"
-              >
-                <Sparkles size={22} className="animate-pulse" />
-              </button>
+              {/* 3. LA MESSAGERIE — RO-3 (04/09/2026), place centrale du dock.
+                  Consigne Direction : « La messagerie n'est pas un simple
+                  raccourci flottant ; c'est une base sociale, donc bouton fixe
+                  dans la barre du bas. L'architecte est le guide permanent de
+                  toute la maison Moknet, donc bouton flottant visible en
+                  permanence. » Les deux rôles posés à DS-M2a sont donc
+                  échangés : l'Architecte quitte cette place pour redevenir
+                  flottant (ArchitecteFloatingBar), la messagerie la prend.
+
+                  Ce n'est pas un bouton de plus : c'est un EMPLACEMENT D'ACCUEIL
+                  où <MoocChatFloating /> vient rendre la goutte déjà validée
+                  (VF-10) par un portail React. Refaire un bouton ici aurait
+                  dupliqué le niveau d'eau des non-lus, l'état d'appel entrant
+                  et le maintien long d'installation — trois comportements
+                  réels qui vivent dans ce composant, pas dans le dock.
+                  Si le portail ne trouve pas cet emplacement, la goutte
+                  retombe sur son ancienne position flottante : la messagerie
+                  reste joignable en toutes circonstances. */}
+              <div
+                id="moknet-dock-messaging-slot"
+                data-testid="dock-messaging-slot"
+                onPointerDown={(e) => emitWaterRippleFrom(e.currentTarget)}
+                className="relative flex items-center justify-center w-16 h-16 transform -translate-y-5 z-20 shrink-0"
+              />
 
               {/* 4. Réseau MOC */}
-              <button 
-                onClick={() => {onTabChange('social'); setIsMobileMenuExpanded(false);}} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'text-brand-600' : 'text-slate-400'}`}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); onTabChange('social'); setIsMobileMenuExpanded(false);}}
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${activeTab === 'social' ? 'mir-tab-active' : 'text-slate-400'}`}
               >
                 <Users size={22} className={activeTab === 'social' ? 'stroke-[2.5]' : ''} />
               </button>
 
-              {/* 5. Menu Drawer Toggle */}
-              <button 
-                onClick={() => setIsMobileMenuExpanded(!isMobileMenuExpanded)} 
-                className={`flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}
+              {/* 5. Ouverture du menu latéral (RO-2) — le chevron « bas »
+                  décrivait un panneau qui montait du dock ; ce n'est plus le
+                  cas, le tiroir vient du côté. */}
+              <button
+                onClick={(e) => {emitWaterRippleFrom(e.currentTarget); setIsMobileMenuExpanded(!isMobileMenuExpanded);}}
+                aria-label={isMobileMenuExpanded ? 'Fermer le menu' : 'Ouvrir le menu'}
+                aria-expanded={isMobileMenuExpanded}
+                data-testid="dock-menu-toggle"
+                className={`relative flex flex-col items-center justify-center w-10 sm:w-11 h-10 sm:h-11 rounded-full transition-all ${isMobileMenuExpanded ? 'bg-white/70 text-slate-900' : 'text-slate-400'}`}
               >
-                {isMobileMenuExpanded ? <ChevronDown size={22} /> : <Menu size={22} />}
+                {isMobileMenuExpanded ? <X size={22} /> : <Menu size={22} />}
               </button>
             </div>
           </div>
@@ -1199,6 +1372,7 @@ export const Layout: React.FC<LayoutProps> = ({
           userProfile={userProfile}
           onNavigate={onTabChange}
           onUpdateProfile={onUpdateProfile ?? (async () => false)}
+          openSignal={architecteOpenSignal}
         />
 
         {/* ─── MODALS & ORCHESTRATION OVERLAYS ─── */}

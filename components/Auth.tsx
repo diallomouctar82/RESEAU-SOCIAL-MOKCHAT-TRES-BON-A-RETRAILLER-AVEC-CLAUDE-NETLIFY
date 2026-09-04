@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Globe, Loader2, AlertCircle, CheckCircle2, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { WaterMirror } from './miroir/WaterMirror';
 import {
     signInWithGoogle,
     signInWithEmail,
@@ -179,8 +180,17 @@ export const Auth: React.FC = () => {
     );
 
     return (
-        <div className="fixed inset-0 bg-[#f0f2f5] flex items-center justify-center font-sans overflow-y-auto py-8">
-            <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-xl p-8 md:p-10 border border-gray-100 flex flex-col items-center animate-fade-up my-auto">
+        // DS-M2c : l'habillage « Miroir d'eau » commence ICI, au tout premier
+        // écran. Il vivait jusqu'ici uniquement dans `Layout`, c'est-à-dire
+        // APRÈS connexion — donc invisible pour quiconque ouvre un simple lien
+        // (un aperçu de déploiement est une autre origine : aucune session n'y
+        // suit, on arrive toujours sur cet écran-là).
+        <div data-miroir className="fixed inset-0 flex items-center justify-center font-sans overflow-y-auto py-10">
+            <WaterMirror />
+            {/* La carte laisse volontairement l'eau respirer sur les quatre côtés :
+                à pleine largeur sur téléphone, elle masquait la ligne d'eau et
+                l'habillage redevenait invisible — le défaut même qu'on corrige. */}
+            <div className="w-[calc(100%-2.5rem)] max-w-[440px] mir-sheet rounded-3xl p-6 md:p-10 border flex flex-col items-center animate-fade-up my-auto">
 
                 <div className="mb-6 text-center">
                     <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">

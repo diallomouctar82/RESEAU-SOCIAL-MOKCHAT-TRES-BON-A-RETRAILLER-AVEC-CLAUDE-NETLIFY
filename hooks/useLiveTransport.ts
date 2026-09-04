@@ -786,12 +786,132 @@ export function stageGridClass(tileCount: number): string {
     if (tileCount <= 1) return 'grid-cols-1 grid-rows-1';
     if (tileCount === 2) return 'grid-cols-1 sm:grid-cols-2';
     if (tileCount <= 4) return 'grid-cols-2';
+    // DS-L0 : cinq et six cartes sont la charge NOMINALE d'un LIVE MokNet
+    // (1 hôte + 5 invités, humains et agents confondus), pas un cas extrême.
+    // Deux colonnes sur téléphone (3 rangées), trois sur ordinateur (2
+    // rangées) — l'auto-fit précédent laissait des cartes de 220 px perdues
+    // au milieu d'un écran large dès qu'on dépassait quatre présences.
+    if (tileCount <= STAGE_VISIBLE_MAX) return 'grid-cols-2 md:grid-cols-3';
     return 'grid-cols-2 md:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]';
+}
+
+/**
+ * DS-L0 — règle centrale posée par la Direction le 3 septembre 2026 : la scène
+ * d'un LIVE MokNet montre **six cartes au minimum** (1 hôte + 5 invités),
+ * **humains et agents IA confondus**.
+ *
+ * Le défaut corrigé ici était structurel, pas cosmétique : le comptage de
+ * l'ancienne scène n'accordait de carte à l'agent IA que
+ * `si aucun humain distant ne publiait`. On pouvait donc inviter cinq experts
+ * (santé, enseignement, partenariats, commercial, architecte…) — ils
+ * entraient bien dans la liste des intervenants — et n'en voir AUCUN dès
+ * qu'une seule personne allumait sa caméra. « Humains plus agents confondus »
+ * était donc impossible à l'écran.
+ */
+export const STAGE_VISIBLE_MAX = 6;
+
+export type StageTileKind = 'self' | 'human' | 'agent' | 'placeholder';
+
+export interface StageTile {
+    /** Identifiant stable : clé de rendu et ancre de vérification. */
+    id: string;
+    name: string;
+    kind: StageTileKind;
+}
+
+export interface StageComposition {
+    tiles: StageTile[];
+    /** Présences réelles qui ne tiennent pas dans les cartes visibles. */
+    overflow: number;
+    /** Total réel, cartes visibles + débordement — jamais un chiffre décoratif. */
+    presenceCount: number;
+}
+
+/**
+ * Compose la scène : moi (si je suis sur scène), puis les humains qui
+ * publient, puis les agents invités — **toujours**, jamais sous condition.
+ * L'emplacement d'attente n'apparaît que si la scène serait autrement vide.
+ */
+export function composeStage(input: {
+    isUserOnStage: boolean;
+    selfName?: string;
+    humans: ReadonlyArray<{ id: string; name: string }>;
+    agents: ReadonlyArray<{ id: string; name: string }>;
+    max?: number;
+    /**
+     * EX-5 — expert mis en avant par l'animateur (live_sessions.featured_agent_id).
+     * Sa carte passe en PREMIÈRE position et ne peut jamais tomber dans le
+     * débordement : « mettre en avant » n'aurait aucun sens si la personne
+     * mise en avant pouvait rester invisible parce que la scène est pleine.
+     */
+    spotlightAgentId?: string;
+}): StageComposition {
+    const max = Math.max(1, input.max ?? STAGE_VISIBLE_MAX);
+    const toutes: StageTile[] = [];
+
+    if (input.isUserOnStage) {
+        toutes.push({ id: 'self', name: input.selfName || 'Vous', kind: 'self' });
+    }
+    for (const h of input.humans) toutes.push({ id: `human:${h.id}`, name: h.name, kind: 'human' });
+    for (const a of input.agents) toutes.push({ id: `agent:${a.id}`, name: a.name, kind: 'agent' });
+
+    if (input.spotlightAgentId) {
+        const cle = `agent:${input.spotlightAgentId}`;
+        const index = toutes.findIndex((t) => t.id === cle);
+        // Mettre en avant un expert absent de la scène ne fabrique pas sa carte :
+        // on ne montre jamais une présence qui n'est pas là.
+        if (index > 0) toutes.unshift(...toutes.splice(index, 1));
+    }
+
+    if (toutes.length === 0) {
+        return {
+            tiles: [{ id: 'placeholder', name: 'En attente du présentateur', kind: 'placeholder' }],
+            overflow: 0,
+            presenceCount: 0,
+        };
+    }
+
+    return {
+        tiles: toutes.slice(0, max),
+        overflow: Math.max(0, toutes.length - max),
+        presenceCount: toutes.length,
+    };
+}
+
+/**
+ * EX-6 — De l'ordre DÉCIDÉ par `composeStage` à l'ordre réellement PEINT.
+ *
+ * `composeStage` place l'expert mis en avant en première carte, mais le rendu
+ * écrivait ses cartes d'agent dans un bloc fixe, toujours après la caméra et
+ * les humains : la mise en avant ne déplaçait rien à l'écran (mesuré au banc,
+ * position 2 sur 3 pour l'expert « à la une »). Cette règle rend les deux
+ * cohérents — et elle est testable, contrairement au JSX.
+ *
+ * `enTete` dit si le bloc des experts doit passer DEVANT le reste : c'est le
+ * cas exactement quand la toute première carte revient à un agent.
+ */
+export function orderStageAgents<T extends { id: string }>(
+    agents: ReadonlyArray<T>,
+    tiles: ReadonlyArray<StageTile>,
+): { visibles: T[]; enTete: boolean } {
+    const rang = new Map(tiles.map((t, i) => [t.id, i] as const));
+    const visibles = agents
+        .filter((a) => rang.has(`agent:${a.id}`))
+        .sort((x, y) => (rang.get(`agent:${x.id}`) as number) - (rang.get(`agent:${y.id}`) as number));
+    return { visibles, enTete: tiles[0]?.kind === 'agent' };
 }
 
 export interface LiveBadgeState {
     label: string;
     className: string;
+    /**
+     * DS-L1 : vrai UNIQUEMENT quand le direct passe réellement. L'image de
+     * référence affiche « ● EN DIRECT » en petites capitales, pas une pastille
+     * rouge — mais les états anormaux (aperçu, interruption, reconnexion)
+     * doivent rester bruyants. Ce champ évite de redériver la condition dans
+     * la vue : une seule source de vérité pour « on est à l'antenne ».
+     */
+    isOnAir: boolean;
 }
 
 /**
@@ -800,11 +920,11 @@ export interface LiveBadgeState {
  * panne, une reconnexion ou un simple aperçu de démonstration.
  */
 export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean): LiveBadgeState {
-    if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200' };
-    if (hasError) return { label: 'INTERROMPU', className: 'bg-rose-700 text-white' };
-    if (state === 'connected') return { label: 'LIVE', className: 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/40' };
-    if (state === 'reconnecting') return { label: 'RECONNEXION', className: 'bg-amber-500 text-slate-950 animate-pulse' };
-    return { label: 'CONNEXION', className: 'bg-amber-500/80 text-slate-950' };
+    if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200', isOnAir: false };
+    if (hasError) return { label: 'INTERROMPU', className: 'bg-rose-700 text-white', isOnAir: false };
+    if (state === 'connected') return { label: 'LIVE', className: 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/40', isOnAir: true };
+    if (state === 'reconnecting') return { label: 'RECONNEXION', className: 'bg-amber-500 text-slate-950 animate-pulse', isOnAir: false };
+    return { label: 'CONNEXION', className: 'bg-amber-500/80 text-slate-950', isOnAir: false };
 }
 
 /**

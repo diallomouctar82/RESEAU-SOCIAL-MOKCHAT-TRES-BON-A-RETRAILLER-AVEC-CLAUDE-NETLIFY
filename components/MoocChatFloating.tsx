@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MessageCircle, X, Send, Paperclip, Mic, MicOff, Image, Video, Phone, PhoneCall,
   PhoneOff, Search, Users, User, FileText, Smile, Shield, Info, Volume2,
@@ -263,6 +264,36 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
 }) => {
   // Module autonome : la fenêtre est le module, elle s'ouvre d'emblée.
   const [isOpen, setIsOpen] = useState<boolean>(standalone);
+
+  /* RO-3 — emplacement FIXE où rendre la goutte de la messagerie.
+     Téléphone → l'emplacement central du dock ; ordinateur → le pied de la
+     barre latérale. Le choix se fait sur une VRAIE requête média, jamais sur
+     la classe `md:hidden` du dock : cette classe masque l'élément mais le
+     laisse dans le DOM, donc un simple `getElementById` aurait rendu la
+     goutte dans un conteneur invisible sur ordinateur. Le point de bascule
+     (768 px) est exactement celui de `md:` — les deux ne peuvent pas être en
+     désaccord. */
+  const [emplacementFixe, setEmplacementFixe] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (standalone || typeof document === 'undefined') return;
+    const surTelephone = () =>
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(max-width: 767px)').matches
+        : false;
+    const choisir = () => {
+      setEmplacementFixe(
+        document.getElementById(
+          surTelephone() ? 'moknet-dock-messaging-slot' : 'moknet-sidebar-messaging-slot',
+        ),
+      );
+    };
+    choisir();
+    const mq = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 767px)')
+      : null;
+    mq?.addEventListener?.('change', choisir);
+    return () => mq?.removeEventListener?.('change', choisir);
+  }, [standalone]);
   const [conversations, setConversations] = useState<ChatConversation[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONVERSATIONS);
@@ -1926,29 +1957,51 @@ export const MoocChatFloating: React.FC<MoocChatFloatingProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDirectChatMember]);
 
+  /* Bouton « Goutte » (VF-10, maquette 01 validée) : le niveau d'eau suit les
+     VRAIS non-lus, l'état « appel » n'existe que pendant une vraie sonnerie
+     entrante, le maintien long propose d'installer la messagerie comme
+     application autonome (VF-9). Le composant lui-même est INCHANGÉ — seul
+     l'endroit où il est rendu change (RO-3). */
+  const goutte = (
+    <MessagingDropButton
+      isOpen={isOpen}
+      unreadCount={totalUnread}
+      incomingCall={isIncomingCall && activeCallSession && activeCallSession.status === 'ringing'
+        ? { callerName: activeCallSession.initiatorName, callType: activeCallSession.type }
+        : null}
+      onToggle={() => setIsOpen(!isOpen)}
+      onInstallRequest={handleInstallMessagingModule}
+    />
+  );
+
   return (
     <>
-      {/* Floating Action Button - Positioned above dock on mobile & bottom right on desktop */}
-      {/* Module autonome : masqué — la fenêtre occupe tout l'écran, rien à basculer. */}
+      {/* RO-3 — LA MESSAGERIE N'EST PLUS UN FLOTTANT.
+          Consigne Direction (04/09/2026) : « c'est une base sociale, donc
+          bouton fixe dans la barre du bas ». La goutte est rendue DANS
+          l'emplacement fixe de la navigation — le dock sur téléphone, le pied
+          de barre latérale sur ordinateur — au lieu de flotter par-dessus le
+          contenu. Elle recouvrait d'ailleurs l'emplacement central du dock.
+
+          Portail plutôt qu'un bouton dupliqué dans Layout : le niveau d'eau
+          des non-lus, l'état d'appel entrant et le maintien long
+          d'installation vivent ici, avec leurs abonnements. Les recopier
+          ailleurs aurait créé deux sources de vérité.
+
+          `emplacementFixe === null` (module autonome, ou emplacement absent)
+          → repli sur l'ancienne position flottante : la messagerie reste
+          joignable quoi qu'il arrive. */}
       {!standalone && (
-      <div
-        id="mooc-chat-floating-container"
-        className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-40 flex items-center justify-end"
-      >
-        {/* Bouton « Goutte » (VF-10, maquette 01 validée) : le niveau d'eau
-            suit les VRAIS non-lus, l'état « appel » n'existe que pendant une
-            vraie sonnerie entrante, le maintien long propose d'installer la
-            messagerie comme application autonome (VF-9). */}
-        <MessagingDropButton
-          isOpen={isOpen}
-          unreadCount={totalUnread}
-          incomingCall={isIncomingCall && activeCallSession && activeCallSession.status === 'ringing'
-            ? { callerName: activeCallSession.initiatorName, callType: activeCallSession.type }
-            : null}
-          onToggle={() => setIsOpen(!isOpen)}
-          onInstallRequest={handleInstallMessagingModule}
-        />
-      </div>
+        emplacementFixe
+          ? createPortal(goutte, emplacementFixe)
+          : (
+            <div
+              id="mooc-chat-floating-container"
+              className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-40 flex items-center justify-end"
+            >
+              {goutte}
+            </div>
+          )
       )}
 
       {/* Main Chat Window Panel */}

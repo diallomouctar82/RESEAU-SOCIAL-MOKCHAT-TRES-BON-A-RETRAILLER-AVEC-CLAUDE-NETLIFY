@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Globe, Loader2, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { updatePassword } from '../services/auth';
+import { WaterMirror } from './miroir/WaterMirror';
 
 interface ResetPasswordProps {
     onDone: () => void;
@@ -38,8 +39,10 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ onDone }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-[#f0f2f5] flex items-center justify-center font-sans">
-            <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-xl p-8 md:p-10 border border-gray-100 flex flex-col items-center animate-fade-up">
+        // DS-M2c : même monde que l'écran de connexion — voir Auth.tsx.
+        <div data-miroir className="fixed inset-0 flex items-center justify-center font-sans">
+            <WaterMirror />
+            <div className="w-[calc(100%-2.5rem)] max-w-[440px] mir-sheet rounded-3xl p-6 md:p-10 border flex flex-col items-center animate-fade-up">
                 <div className="mb-6 text-center">
                     <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                         <Globe className="text-white" size={24} />

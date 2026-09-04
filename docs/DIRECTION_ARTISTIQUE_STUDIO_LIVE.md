@@ -179,3 +179,135 @@ Tailwind et le bloc `<style>` d'`index.html` copiés tels quels, fond clair et
 sombre, à côté de la pastille de l'Architecte) : captures des 5 états +
 maintien long + mobile 390 px, survol réel, clic et clavier réels,
 mouvement réduit émulé.
+
+## 8. L'abysse — deuxième image de référence (DS-L0 + DS-L1, 03/09/2026)
+
+Une **seconde image de référence** a été fournie par la Direction le
+03/09/2026, propre au LIVE : abysse turquoise très sombre, ruban de lumière
+liquide vertical séparant deux zones, cartes de verre cyan bioluminescent,
+vidéo **dans** le verre avec pastille d'avatar et onde de voix, plaque de nom
+en capitales espacées, commandes en orbes cyan, « ● EN DIRECT » à point vert,
+bulles qui montent **à l'intérieur** des cartes.
+
+Elle ne remplace pas les sections 1 à 6 : la matière verre/eau/lumière et les
+7 univers restent la fondation. Elle **précise l'aspect du Studio** — ce que
+les sections précédentes ne disaient pas. La Direction a validé le résultat
+sur les captures du banc (ordinateur et téléphone) le 03/09/2026.
+
+### 8.1 Portée et périmètre de scope (décision structurante)
+
+`--water-accent` sur `:root` est consommé par la **goutte de la messagerie**
+(`--mdb-acc: var(--water-accent, #7dd3fc)`, § 7, maquette validée le 01/09).
+Toutes les variables `--live-*` sont donc déclarées sur
+**`[data-live-universe]`** — un attribut qui n'existe que sur la racine du
+Studio — et **jamais sur `:root`**. Habiller le LIVE ne peut pas déplacer un
+composant déjà validé ailleurs.
+
+Même architecture que les 7 univers : seuls `--live-abyss-a`,
+`--live-abyss-b` et `--live-glow` sont redéfinis par univers ; jamais une
+famille de classes par univers.
+
+| Variable | Rôle | Valeur de référence (`crystal`) |
+|---|---|---|
+| `--live-abyss-a` / `-b` | haut / bas de l'abysse | `#0a2430` / `#04121a` |
+| `--live-glow` | lueur de l'univers (halo, courant, lueur interne) | `rgba(127,217,230,.18)` |
+| `--live-line` / `-line-top` | filet du verre / arête haute éclairée | `rgba(160,235,245,.2)` / `rgba(214,248,253,.42)` |
+| `--live-pane-a` / `-b` | haut / bas du panneau de verre | `rgba(255,255,255,.055)` / `rgba(9,38,48,.42)` |
+| `--live-ink` / `-ink-soft` | encre principale / atténuée | `#e6f8fb` / `#93bcc7` |
+| `--live-accent` | accent (orbe actif, onde de voix) | `var(--water-accent, #7fd9e6)` |
+
+### 8.2 Les classes (bloc `<style>` d'`index.html`)
+
+| Classe | Ce qu'elle peint |
+|---|---|
+| `.live-abyss` | Fond du Studio : halo haut, dégradé vertical, **vignettage en couche de fond** |
+| `.live-current` | Colonne d'eau : deux nappes qui dérivent (22 s / 31 s) derrière `blur(14px)`, masquée en haut et en bas, `z-index: 1` |
+| `.live-current--h` | Variante horizontale — sur téléphone la couture scène/panneau est horizontale |
+| `.live-pane` / `--agent` | Verre des tuiles : rayon 20 px, arête haute claire, lueur intérieure, ombre portée. La variante agent se distingue par une arête plus vive, **jamais par une couleur étrangère à l'univers** |
+| `.live-orb` / `--active` / `--danger` | Commandes rondes ; le halo s'intensifie au survol — la lumière confirme, elle ne décore pas |
+| `.live-onair` | « EN DIRECT » en petites capitales espacées, point vert qui pulse (2,4 s) |
+| `.live-title` | Titres en capitales espacées, graisse 300 |
+| `.live-wave` / `--muted` | Onde de voix : 5 barres ; micro coupé = repos visible |
+| `.live-nameplate` | Plaque de nom en pied de tuile, dégradé montant |
+| `.live-bubbles` | Bulles qui montent **dans** la carte |
+
+Deux pièges consignés, tous deux du même genre que le
+`-webkit-box-reflect: none` du menu (§ DIRECTION_ARTISTIQUE_MENU) :
+
+- **Le vignettage est une couche de `background`, pas un `::after`.** Un
+  pseudo-élément est peint **après** tous les enfants : il aurait assombri la
+  vidéo elle-même.
+- **`color-mix()` évité** pour la tuile agent (non garanti sur Safari 16.0) —
+  remplacé par l'arête `--live-line-top` et une lueur interne plus marquée.
+
+La colonne d'eau est positionnée par un **style en ligne**
+(`right: isPanelCollapsed ? -65 : 319`), jamais par une valeur arbitraire
+Tailwind : Tailwind est servi par CDN et injecte ses règles à l'exécution —
+rien ne doit dépendre de l'ordre des feuilles de style.
+
+### 8.3 Les deux motifs vivants (`components/live/LiveMatter.tsx`)
+
+- `LiveBubbles` — positions, tailles et retards **déterministes** (dérivés de
+  l'index) : un re-rendu React ne redistribue jamais les bulles. Rendu
+  uniquement là où il n'y a **pas** de vraie vidéo, jamais sur du texte dense.
+- `LiveVoiceWave` — suit le **vrai** niveau audio quand il est mesuré
+  (`level`), et n'anime rien de simulé quand il ne l'est pas. Micro coupé =
+  barres au repos, jamais une fausse parole.
+
+### 8.4 Câblage (`components/SocialLive.tsx`)
+
+- Racine : `.live-abyss` (remplace l'aplat `bg-slate-950`) ; les 4 grilles de
+  scène n'ont plus d'aplat opaque.
+- En-tête : `.live-onair` **seulement quand le direct passe vraiment** —
+  `liveBadge()` expose désormais `isOnAir`, la vue ne re-déduit plus l'état.
+  Aperçu, interruption, reconnexion et connexion gardent leur pastille.
+- Espace de travail : `.live-current` verticale sur ordinateur, `--h`
+  horizontale sur téléphone quand le panneau est ouvert.
+- Tuiles : `.live-pane` (+ `--agent`), pastille d'avatar et onde de voix en
+  haut à gauche, `.live-nameplate` en pied, bulles seulement sans vidéo.
+- Dock : orbes de 44 px (`--danger` micro/caméra coupés, `--active` partage
+  d'écran et voix).
+- Chrome harmonisé sur l'accent : sélecteur de mode, « Appeler un Expert »,
+  bandeau de suggestion, onglets du panneau, « Transformer en Parcours »,
+  « Continuer en Privé » — `whitespace-nowrap` pour qu'aucun libellé ne se
+  coupe.
+
+### 8.5 Une lacune produit trouvée en construisant les preuves
+
+Impossible de produire la scène **à une seule carte** : `aiAgent` retombait
+sans condition sur `AGENTS[0]` et `stageAgents` le ré-injectait à chaque
+rendu — **un agent IA ne pouvait jamais être retiré de la scène**, ce qui
+contredit la règle de la Direction « inviter, retirer, gérer humain et
+agent ». Corrigé : `agentsRetires` retire l'agent de `stageAgents` ; une
+nouvelle invitation le fait revenir ; la croix n'est offerte qu'à l'hôte.
+Ce n'est pas un ajustement visuel — c'est une capacité qui manquait.
+
+### 8.6 Preuves (03/09/2026)
+
+- `tsc --noEmit` **0 erreur** · `npm run build` propre · **vitest 800/800**
+  (59 fichiers, +10 dans `tests/liveStudioMatter.test.tsx`).
+- Le garde-fou de `tests/liveStudioMatter.test.tsx` vérifie que **toute
+  classe `.live-*` employée existe réellement** dans `index.html`, que
+  **toute variable `--live-*` référencée est déclarée**, que les 7 univers
+  redéfinissent bien l'abysse, et que le mouvement réduit fige la matière.
+  Il a **échoué à sa première exécution** (il confondait les variables
+  `--live-line`/`--live-ink` avec des classes) : la preuve qu'il n'est pas
+  complaisant.
+- **Banc navigateur réel 8/8 sans défaut** (le vrai `SocialLive`, bundle
+  esbuild, ordinateur 1440×900 + téléphone 390×844, scènes à 1, 2, 4 et 6
+  cartes dont un agent IA invité, vraie vidéo de canevas dans 4 tuiles) :
+  abysse mesuré `#0a2430`, accent `#7fd9e6`, rayon des tuiles 20 px, filet
+  `rgba(214,248,253,.42)`, courant `blur(14px)`, 12 orbes, 6 plaques de nom,
+  largeur de page 1440 (aucun défilement horizontal), 0 erreur de page.
+- **Aucun compte ni écriture en base** : cet habillage ne touche pas la base.
+
+### 8.7 Ce qui reste ouvert
+
+- La **teinte rose du cœur des réactions** n'a pas été ramenée sur la palette
+  cyan — décision de la Direction, pas un oubli.
+- Trois écrans **satellites** du LIVE gardent leur dégradé bleu→indigo :
+  `LiveCreationModal.tsx`, `LiveReplayModal.tsx`, `MultimodalCameraHUD.tsx`.
+  Vérifié absent de `SocialLive.tsx` et `LiveSmartActionBar.tsx`. La loupe
+  n'a pas été élargie sans accord.
+- Aucun test ne peut dire si l'abysse **a l'air d'un abysse** : le banc prouve
+  que les bonnes valeurs sont appliquées, l'appréciation reste humaine.

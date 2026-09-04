@@ -1,0 +1,391 @@
+<title>MokNet — Miroir d'eau</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* ═════════ COQUILLE DE GALERIE ═════════ */
+:root{--g:#F1F4F8;--s:#FFFFFF;--l:#E2E8F0;--t:#14202E;--m:#5B6B7D;--d:#8A98A8;--a:#0F9B6C;
+ --disp:'Poppins',system-ui,sans-serif;--txt:'Source Sans 3','Source Sans Pro',system-ui,sans-serif;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--g);color:var(--t);font-family:var(--txt);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--a);outline-offset:3px;border-radius:6px}
+.lab{min-height:100vh;display:flex;flex-direction:column}
+.lab>.bar{display:flex;align-items:center;gap:16px;padding:13px 20px;border-bottom:1px solid var(--l);background:var(--s);position:sticky;top:0;z-index:10;flex-wrap:wrap}
+.bar-name{font-family:var(--disp);font-weight:700;font-size:19px;white-space:nowrap}
+.bar-p{color:var(--m);font-size:14px;line-height:1.45;flex:1;min-width:220px;max-width:66ch}
+.tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.seg{display:flex;border:1px solid var(--l);border-radius:10px;overflow:hidden;background:var(--s)}
+.seg button{padding:9px 13px;font-size:13px;font-weight:600;color:var(--m);transition:.18s}
+.seg button[aria-pressed=true]{background:rgba(15,155,108,.12);color:var(--a)}
+.stage{flex:1;display:grid;place-items:center;padding:24px 20px 30px;overflow:auto}
+.frame{position:relative;background:#fff;overflow:hidden}
+.frame[data-device=desktop]{width:min(1180px,94vw);aspect-ratio:16/10;border-radius:14px;border:1px solid #D5DDE7;box-shadow:0 40px 90px -36px rgba(20,40,70,.45)}
+.frame[data-device=mobile]{width:min(390px,92vw);aspect-ratio:390/812;border-radius:40px;border:9px solid #1A222D;box-shadow:0 40px 90px -30px rgba(20,40,70,.55)}
+.app{position:absolute;inset:0;overflow:hidden;isolation:isolate}
+.foot{padding:0 20px 24px;display:flex;justify-content:center}
+.foot-in{max-width:1000px;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.card{border:1px solid var(--l);border-radius:12px;padding:12px 14px;background:var(--s)}
+.card h4{margin:0 0 5px;font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--d)}
+.card p{margin:0;font-size:13.5px;line-height:1.5;color:#3B4A5C}
+
+/* ═════════ L'ÉCRAN — la même disposition fixe déjà validée par la Direction ═════════ */
+.app{color:var(--ink);font-family:var(--body);background:var(--bg0);--padL:0px}
+.app[data-device=desktop]{--padL:60px}
+.sky{position:absolute;inset:0;z-index:0}
+.scene{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;z-index:2}
+.scroll::-webkit-scrollbar{display:none}
+.glass{position:relative;background:var(--panel);border:var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--sh-md),inset 0 1px 0 var(--hi),inset 0 -1px 0 var(--lo)}
+.glass::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:var(--spec)}
+.sheet{background:var(--sheet);border:1px solid var(--sheetBd);box-shadow:var(--sh-sm);color:var(--sheetInk)}
+.sheet .h b,.sheet p{color:inherit}
+@media (prefers-reduced-transparency:reduce){.glass{background:var(--panelSolid);backdrop-filter:none;-webkit-backdrop-filter:none}}
+.hd,.sub{position:relative;z-index:2;color:var(--inkTop);background:var(--band);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
+.hd{display:flex;align-items:center;gap:8px;padding:13px 15px 8px}
+.sub{display:flex;align-items:center;justify-content:flex-end;gap:9px;padding:6px 15px 13px;border-bottom:var(--bandBd);margin-bottom:13px}
+.mode{display:block;position:relative;z-index:2;padding:8px 15px 0;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--inkTop);opacity:.75;background:var(--band)}
+.hd .logo{width:40px;height:40px;border-radius:var(--r-sm);display:grid;place-items:center;flex:0 0 auto;background:var(--brandGrad);color:#fff;box-shadow:var(--sh-sm)}
+.hd .logo svg{width:22px;height:22px}
+.hd .nm{font-family:var(--disp);font-weight:700;font-size:16px;line-height:1.08;letter-spacing:-.015em;max-width:112px}
+.hd .rnd{width:44px;height:44px;border-radius:var(--r-rnd);display:grid;place-items:center;flex:0 0 auto;color:var(--inkTop);transition:transform .22s,color .22s}
+.hd .rnd:hover{color:var(--acc);transform:translateY(-1px)}
+.hd .rnd:active{transform:scale(.96)}
+.hd .rnd svg{width:19px;height:19px}
+.hd .arch-h{color:var(--acc)}
+.hd .arch-h::after{content:'';position:absolute;inset:-4px;border-radius:inherit;border:1.5px solid var(--accBd);animation:pulse 4s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(.9);opacity:.75}50%{transform:scale(1.18);opacity:0}}
+.hd .pal{display:flex;align-items:center;gap:5px;padding:0 11px;height:40px;border-radius:var(--r-rnd);border:1px solid var(--warmBd);color:var(--warm);background:var(--warmSoft);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.hd .pal svg{width:16px;height:16px}
+.hd .cr{margin-left:auto;display:flex;align-items:center;gap:4px;padding:8px 13px;border-radius:var(--r-rnd);background:var(--goldSoft);border:1px solid var(--goldBd);color:var(--gold);font-family:var(--disp);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;flex:0 0 auto}
+.hd .cr i{font-style:normal;font-size:10px;opacity:.75}
+.hd .av{width:40px;height:40px;border-radius:var(--r-rnd);overflow:hidden;flex:0 0 auto;border:var(--bd);box-shadow:var(--sh-xs)}
+.hd .av svg{width:100%;height:100%;display:block}
+.sub .sq{width:44px;height:44px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--inkTop);transition:transform .22s,color .22s}
+.sub .sq:hover{color:var(--acc);transform:translateY(-1px)}
+.sub .sq svg{width:19px;height:19px}
+.sub .exp{display:flex;align-items:center;gap:9px;min-height:46px;padding:10px 20px;border-radius:var(--r-rnd);background:var(--expBg);border:var(--expBd);color:var(--expInk);font-weight:700;font-size:14.5px;box-shadow:var(--expSh);transition:transform .24s,box-shadow .24s}
+.sub .exp:hover{transform:translateY(-2px)}
+.sub .exp:active{transform:scale(.98)}
+.sub .exp svg{width:19px;height:19px}
+.mooc{margin:0 15px 13px;padding:18px 17px 16px;border-radius:var(--r-lg);position:relative;overflow:hidden;color:var(--inkPanel)}
+.mooc .top{display:flex;align-items:flex-start;gap:13px;position:relative}
+.mooc .ic{width:54px;height:54px;border-radius:var(--r-md);display:grid;place-items:center;flex:0 0 auto;background:var(--brandGrad);color:#fff;box-shadow:var(--sh-sm)}
+.mooc .ic svg{width:27px;height:27px}
+.mooc h1{margin:0;font-family:var(--disp);font-weight:800;font-size:27px;line-height:1.02;letter-spacing:-.025em;color:inherit}
+.mooc .tag{margin-left:auto;padding:9px 14px;border-radius:var(--r-md);font-size:12px;font-weight:600;line-height:1.25;color:inherit;background:var(--chip);border:var(--bd);text-align:center;max-width:132px;flex:0 0 auto;opacity:.92}
+.mooc .dsc{margin:10px 0 13px;font-size:14px;line-height:1.5;color:inherit;opacity:.85;max-width:44ch;position:relative}
+.mooc .tabs{display:flex;gap:3px;padding:4px;border-radius:var(--r-md);background:var(--well);overflow-x:auto;scrollbar-width:none;margin-bottom:13px;position:relative;-webkit-mask-image:linear-gradient(90deg,#000 84%,transparent 99%);mask-image:linear-gradient(90deg,#000 84%,transparent 99%)}
+.mooc .tabs::-webkit-scrollbar{display:none}
+.mooc .tabs button{flex:0 0 auto;min-height:40px;padding:8px 15px;border-radius:calc(var(--r-md) - 4px);font-size:14px;font-weight:600;color:inherit;opacity:.8;white-space:nowrap;transition:.22s;position:relative}
+.mooc .tabs button:hover{opacity:1}
+.mooc .tabs button[aria-current=true]{background:var(--tabOn);color:var(--tabInk);opacity:1;font-weight:700;box-shadow:var(--tabSh)}
+.mooc .tabs button::after{content:'';position:absolute;left:50%;bottom:3px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--pros);box-shadow:0 0 8px 2px var(--prosGlow);opacity:0;transform:scale(.4);transition:.3s cubic-bezier(.2,.9,.2,1)}
+.mooc .tabs button[aria-current=true]::after{opacity:1;transform:scale(1)}
+.dotlive{display:inline-block;width:6px;height:6px;border-radius:50%;background:#E5484D;margin-left:6px;vertical-align:2px}
+.mooc .mine{display:flex;align-items:center;gap:10px;min-height:46px;padding:12px 19px;border-radius:var(--r-rnd);background:var(--mineBg);color:var(--mineInk);border:var(--mineBd);font-weight:700;font-size:15px;box-shadow:var(--sh-md);position:relative;overflow:hidden;transition:transform .24s,box-shadow .24s}
+.mooc .mine:hover{transform:translateY(-2px);box-shadow:var(--sh-lg)}
+.mooc .mine:active{transform:scale(.98)}
+.mooc .mine .b{width:24px;height:24px;border-radius:7px;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--brandInk);font-size:9px;font-weight:800;letter-spacing:-.03em;position:relative}
+.st{margin:0 15px 13px;padding:14px 13px 12px;border-radius:var(--r-lg);position:relative;color:var(--inkPanel)}
+.st .row{display:flex;gap:13px;overflow-x:auto;scrollbar-width:none;position:relative;-webkit-mask-image:linear-gradient(90deg,#000 84%,transparent 99%);mask-image:linear-gradient(90deg,#000 84%,transparent 99%)}
+.st .row::-webkit-scrollbar{display:none}
+.st .one{flex:0 0 auto;width:78px;text-align:center;position:relative}
+.st .one .ph{width:74px;height:74px;border-radius:var(--r-ph);overflow:hidden;position:relative;margin:0 auto 7px;border:2.5px solid var(--ring);box-shadow:var(--phSh);transition:transform .26s,border-color .26s}
+.st .one:hover .ph{transform:translateY(-3px);border-color:var(--acc)}
+.st .one .ph svg{width:100%;height:100%;display:block}
+.st .one.me .ph{border-color:var(--bdSoft);background:var(--well);display:grid;place-items:center}
+.st .one.me .plus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:32px;height:32px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;box-shadow:var(--sh-sm)}
+.st .one.me .plus svg{width:17px;height:17px}
+.st .one b{display:block;font-size:12.5px;font-weight:600;color:inherit;line-height:1.2}
+.ring-live{position:absolute;inset:-3.5px;border-radius:inherit;pointer-events:none;background:conic-gradient(from var(--rg,0deg),transparent 0 58%,var(--pros) 74%,var(--acc) 88%,transparent 96%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;padding:2.5px;animation:spin 4.5s linear infinite}
+@keyframes spin{to{--rg:360deg}}
+@property --rg{syntax:'<angle>';initial-value:0deg;inherits:false}
+.st .one.live .lbl{display:inline-block;margin-top:3px;font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--pros)}
+.st .prog{height:8px;border-radius:5px;background:var(--well);margin-top:11px;overflow:hidden;position:relative}
+.st .prog i{display:block;height:100%;width:38%;border-radius:5px;background:linear-gradient(90deg,var(--pros),var(--acc))}
+.fd{margin:0 15px;display:grid;gap:11px;padding-bottom:132px;position:relative}
+.fd article{padding:14px 15px;border-radius:var(--r-lg)}
+.fd .h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.fd .h svg{width:34px;height:34px;border-radius:50%;flex:0 0 auto}
+.fd .h b{font-size:14px;font-weight:700}
+.fd .h i{font-style:normal;font-size:12px;opacity:.6;margin-left:auto}
+.fd p{margin:0;font-size:14.5px;line-height:1.55}
+.fd .acts{display:flex;gap:16px;margin-top:10px;font-size:12.5px;font-weight:600;opacity:.6}
+.fd .acts span{transition:color .2s;cursor:pointer}
+.fd .acts span:hover{color:var(--acc)}
+.drop{position:absolute;right:16px;bottom:112px;width:58px;height:58px;z-index:40;border-radius:52% 52% 48% 48%/58% 58% 42% 42%;display:grid;place-items:center;color:var(--dropInk);transition:transform .24s cubic-bezier(.2,.9,.2,1)}
+.drop:hover{transform:translateY(-3px)}
+.drop:active{transform:scale(.96)}
+.drop .cup{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none}
+.drop .lvl{position:absolute;left:0;right:0;bottom:0;height:46%;background:var(--acc);opacity:.26}
+.drop .lvl::before{content:'';position:absolute;left:-10%;right:-10%;top:-6px;height:12px;border-radius:50%;background:inherit;opacity:.6}
+.drop svg{position:relative;width:23px;height:23px}
+.drop .n{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--alert);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid #fff;font-variant-numeric:tabular-nums}
+.dock{position:absolute;left:12px;right:12px;bottom:14px;height:68px;z-index:41;border-radius:var(--r-dock);display:flex;align-items:center;justify-content:space-around;padding:0 6px;color:var(--inkTop)}
+.dock>button{width:56px;height:56px;border-radius:var(--r-sm);display:grid;place-items:center;align-content:center;gap:3px;color:inherit;opacity:.7;transition:opacity .2s,transform .2s;position:relative}
+.dock>button:hover{opacity:1}
+.dock>button:active{transform:scale(.95)}
+.dock>button svg{width:22px;height:22px}
+.dock>button em{font-style:normal;font-size:9px;font-weight:700;letter-spacing:.02em;line-height:1}
+.dock>button[aria-current=true]{color:var(--acc);opacity:1}
+.dock>button[aria-current=true]::after{content:'';position:absolute;left:50%;top:6px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--pros);box-shadow:0 0 8px 2px var(--prosGlow)}
+.dock .arch{width:78px;height:68px;grid-template-rows:auto auto;gap:2px;overflow:visible;opacity:1}
+.dock .arch .orb{width:58px;height:58px;margin-top:-34px;border-radius:var(--r-arch);display:grid;place-items:center;position:relative;background:var(--archBg);border:var(--archBd);color:var(--archInk);box-shadow:var(--archSh);transition:transform .3s cubic-bezier(.2,.9,.2,1),box-shadow .3s}
+.dock .arch:hover .orb{transform:translateY(-4px) scale(1.05)}
+.dock .arch .orb svg{width:27px;height:27px;position:relative}
+.dock .arch em{color:var(--acc)}
+.dock .arch .orb::before{content:'';position:absolute;inset:-7px;border-radius:calc(var(--r-arch) + 7px);border:1.5px solid var(--archRing);animation:pulse 4.2s ease-in-out infinite}
+.aura{position:absolute;inset:-16px;border-radius:50%;pointer-events:none;z-index:-1;opacity:.6;background:conic-gradient(from 0deg,transparent,var(--pros),var(--acc),transparent 72%);filter:blur(10px);animation:aura 9s linear infinite}
+@keyframes aura{to{transform:rotate(360deg)}}
+.app[data-device=mobile] .hd{gap:3px;padding:11px 12px 6px}
+.app[data-device=mobile] .hd .logo{width:32px;height:32px;border-radius:calc(var(--r-sm) - 2px)}
+.app[data-device=mobile] .hd .logo svg{width:18px;height:18px}
+.app[data-device=mobile] .hd .nm{font-size:12px;max-width:66px;flex:0 0 auto;line-height:1.12}
+.app[data-device=mobile] .hd .rnd{width:38px;height:38px}
+.app[data-device=mobile] .hd .rnd svg{width:17px;height:17px}
+.app[data-device=mobile] .hd .pal{height:32px;padding:0 7px;gap:3px;font-size:11px}
+.app[data-device=mobile] .hd .pal svg{width:14px;height:14px}
+.app[data-device=mobile] .hd .cr{padding:6px 7px;font-size:10.5px;gap:3px}
+.app[data-device=mobile] .hd .av{width:32px;height:32px}
+.app[data-device=mobile] .sub{padding:4px 12px 12px}
+.app[data-device=mobile] .mode{padding:7px 12px 0}
+.app[data-device=mobile] .mooc,.app[data-device=mobile] .st,.app[data-device=mobile] .fd{margin-inline:12px}
+.app[data-device=desktop] .scroll{padding:0 0 0 var(--padL)}
+.app[data-device=desktop] .hd,.app[data-device=desktop] .sub,.app[data-device=desktop] .mode{margin-left:calc(-1*var(--padL));padding-left:var(--padL);padding-right:40px}
+.app[data-device=desktop] .hd{padding-top:14px;padding-bottom:8px}
+.app[data-device=desktop] .hd .nm{max-width:none;font-size:18px}
+.app[data-device=desktop] .sub{padding-bottom:14px;margin-bottom:16px}
+.app[data-device=desktop] .mooc,.app[data-device=desktop] .st,.app[data-device=desktop] .fd{margin-inline:0;max-width:860px}
+.app[data-device=desktop] .mooc h1{font-size:33px}
+.app[data-device=desktop] .mooc .top{max-width:880px}
+.app[data-device=desktop] .mooc .tabs{width:max-content;max-width:100%}
+.app[data-device=desktop] .fd{padding-bottom:124px;grid-template-columns:1fr 1fr}
+.app[data-device=desktop] .dock{left:50%;right:auto;transform:translateX(-50%);width:auto;justify-content:center;gap:6px;padding:0 14px}
+.app[data-device=desktop] .drop{right:26px;bottom:104px}
+@media (prefers-reduced-motion:reduce){.app *{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* ══════════ MIROIR D'EAU — synthèse de vos deux premières idées ══════════
+   « La ligne d'eau » (le menu est une surface d'eau, l'Architecte une goutte) et
+   « Le dock pilule » (verre soufflé, arête de lumière, reflet) — sur la disposition
+   fixe déjà validée. La physique de l'eau (rides, caustiques, chemin de lumière,
+   étincelles sur les crêtes) porte maintenant le vrai dock à cinq emplacements :
+   il flotte à la surface, elle le reflète, un appui y envoie une onde réelle. */
+.t6{--bg0:#EAF7FB;--ink:#0B3A46;--inkTop:#0B3A46;--inkPanel:#0B3A46;--acc:#0F9EC2;--accBd:rgba(15,158,194,.45);--pros:#12A579;--prosGlow:rgba(18,165,121,.55);
+ --warm:#9C6B1F;--warmSoft:rgba(255,224,168,.5);--warmBd:rgba(156,107,31,.32);--gold:#8A6614;--goldSoft:rgba(255,244,214,.88);--goldBd:#E9D8A6;--alert:#E5484D;
+ --band:rgba(255,255,255,.44);--bandBd:1px solid rgba(255,255,255,.7);
+ --panel:rgba(255,255,255,.44);--panelSolid:#EEF9FC;--sheet:rgba(255,255,255,.94);--sheetBd:rgba(255,255,255,.9);--sheetInk:#0B3A46;
+ --well:rgba(11,58,70,.07);--chip:rgba(255,255,255,.58);--bd:1px solid rgba(255,255,255,.85);--bdSoft:rgba(11,58,70,.16);--blur:blur(20px) saturate(1.2);
+ --hi:rgba(255,255,255,.95);--lo:rgba(11,58,70,.05);--spec:linear-gradient(180deg,rgba(255,255,255,.4),transparent 40%);
+ --brandGrad:linear-gradient(160deg,#8CEBFB,#0F9EC2);--brandInk:#0E7A93;--ring:#12A579;
+ --r-sm:14px;--r-md:18px;--r-lg:26px;--r-rnd:999px;--r-dock:999px;--r-arch:50% 50% 46% 46%/58% 58% 42% 42%;--r-ph:50%;
+ --sh-xs:0 1px 3px rgba(10,60,80,.12);--sh-sm:0 10px 22px -10px rgba(10,70,90,.32);--sh-md:0 18px 40px -20px rgba(10,70,90,.4);--sh-lg:0 28px 56px -24px rgba(10,70,90,.45);--phSh:var(--sh-sm);
+ --expBg:rgba(255,255,255,.58);--expBd:1px solid rgba(255,255,255,.92);--expInk:#0B3A46;--expSh:var(--sh-md);
+ --mineBg:linear-gradient(160deg,#8CEBFB,#0F9EC2);--mineInk:#fff;--mineBd:1px solid rgba(255,255,255,.6);
+ --tabOn:#fff;--tabInk:#0B3A46;--tabSh:0 2px 6px rgba(10,70,90,.12);--dropInk:#0F9EC2;
+ --archBg:radial-gradient(circle at 36% 28%,#FFFFFF 0 12%,#BFF3FF 30%,#3FC7E0 66%,#0E7A93 100%);--archBd:2px solid rgba(255,255,255,.85);--archInk:#0E4C5C;--archRing:rgba(191,243,255,.65);
+ --archSh:0 14px 30px -12px rgba(10,70,90,.55),inset 0 -6px 12px rgba(0,60,75,.16),inset 0 4px 10px rgba(255,255,255,.75);--body:var(--txt)}
+/* l'interface déclare son état, comme votre repère « Model 14 » */
+.t6 .mode::before{content:'Réseau · en éveil'}
+/* le dock est un verre soufflé dont l'arête de lumière tourne en continu (repère « dock pilule ») */
+.t6 .dock::after,.t6 .drop::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;padding:1.4px;
+ background:conic-gradient(from var(--sp,0deg),transparent 0 74%,rgba(255,255,255,.95) 84%,rgba(159,230,255,1) 91%,transparent 98%);
+ -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:t6edge 9s linear infinite}
+.t6 .drop::after{animation-delay:-4s}
+@keyframes t6edge{to{--sp:360deg}}
+@property --sp{syntax:'<angle>';initial-value:0deg;inherits:false}
+/* le dock et la goutte se reflètent dans l'eau, comme sur votre repère */
+.t6 .dock,.t6 .drop{-webkit-box-reflect:below 4px linear-gradient(transparent 40%,rgba(10,70,90,.28))}
+/* l'Architecte : une goutte d'eau soufflée, pas un simple bouton — reprend la forme exacte de « ligne d'eau » */
+.t6 .dock .arch .orb::after{content:'';position:absolute;left:23%;top:15%;width:28%;height:20%;border-radius:50%;background:rgba(255,255,255,.9);filter:blur(1.4px);pointer-events:none}
+.t6 .hd .nm,.t6 .mooc h1{letter-spacing:-.01em}
+
+@media (prefers-reduced-motion:reduce){.t6 .dock::after,.t6 .drop::after{display:none}}
+</style>
+
+<div class="lab">
+  <header class="bar">
+    <span class="bar-name">06 · Miroir d'eau</span>
+    <p class="bar-p">Synthèse de vos deux premières idées — « la ligne d'eau » et « le dock pilule » — avec leurs effets de lumière et de transparence développés, sur la disposition déjà validée. Le réseau social reste l'écran par défaut ; un appui sur le dock envoie une vraie onde dans l'eau.</p>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="Appareil">
+        <button id="bMob" aria-pressed="true">Téléphone</button>
+        <button id="bDesk" aria-pressed="false">Ordinateur</button>
+      </div>
+    </div>
+  </header>
+  <div class="stage"><div class="frame" id="frame" data-device="mobile"><div class="app t6" id="app"></div></div></div>
+  <footer class="foot"><div class="foot-in">
+    <div class="card"><h4>Ce qui vient de « la ligne d'eau »</h4><p>La surface d'eau réelle (rides, caustiques, chemin de lumière, étincelles sur les crêtes) — et maintenant elle réagit : un appui sur le dock y envoie une onde qui se propage.</p></div>
+    <div class="card"><h4>Ce qui vient du « dock pilule »</h4><p>Le verre soufflé du dock et de la goutte, l'arête de lumière qui tourne sans s'arrêter, le reflet sous les deux — repris à l'identique de votre repère.</p></div>
+    <div class="card"><h4>Ce qui est nouveau</h4><p>Le dock flotte littéralement à la surface de l'eau plutôt que d'être simplement posé dessus : une lueur monte de l'eau jusque sous le verre, en continu.</p></div>
+    <div class="card"><h4>Réseau social par défaut</h4><p>L'écran qui s'ouvre est le fil — onglet « Fil d'actu » actif, publications réelles visibles sans action. L'Architecte reste central dans le dock, la goutte reste le seul élément flottant.</p></div>
+  </div></footer>
+</div>
+
+<script>
+const STORIES=[{n:'Maître Diallo'},{n:'Sarah Camara'},{n:'Fatou Barry'},{n:'Ibrahima Sow'},{n:'Awa Baldé'}];
+const POSTS=[
+ {a:'Aminata Diallo',t:'8 min',b:"La session de demain sur l'habitat est ouverte. Douze places, deux experts, une heure."},
+ {a:'Moussa Diallo',t:'26 min',b:"Retour de Kindia : le dossier de financement est passé. Merci à celles et ceux qui ont relu."},
+ {a:'Coumba Diallo',t:'1 h',b:"Question aux juristes du réseau — un contrat signé à l'étranger, quelles pièces demander ?"},
+ {a:'Ibrahima Diallo',t:'2 h',b:"Le compte rendu du Live de mardi est en ligne, avec les chapitres."}];
+const ONGLETS=["Fil d'actu",'Reels','Lives','Tribus','Croissance'];
+const I={
+ globe:'<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/><path d="M12 3.4c2.4 2.5 3.7 5.4 3.7 8.6S14.4 18 12 20.6C9.6 18 8.3 15.2 8.3 12S9.6 5.9 12 3.4z"/>',
+ compass:'<circle cx="12" cy="12" r="9"/><path d="M15.6 8.4l-2.1 5.5-5.5 2.1 2.1-5.5z"/>',
+ search:'<circle cx="11" cy="11" r="6.4"/><path d="M20 20l-4.5-4.5"/>',
+ palette:'<path d="M12 3.4c-4.7 0-8.6 3.6-8.6 8.1 0 4.4 3.4 7.4 7.3 7.4 1.6 0 2.3-.9 2.3-1.9 0-.9-.6-1.4-.6-2.2 0-.8.7-1.4 1.6-1.4h1.6c2.7 0 4.4-1.9 4.4-4.5 0-3.2-3.4-5.5-8-5.5z"/><circle cx="7.6" cy="11" r="1.1"/><circle cx="11" cy="7.8" r="1.1"/><circle cx="15.4" cy="9.2" r="1.1"/>',
+ layers:'<path d="M12 3.6l8.4 4.5-8.4 4.4-8.4-4.4z"/><path d="M3.6 12.4L12 16.8l8.4-4.4"/><path d="M3.6 16.6L12 21l8.4-4.4"/>',
+ users:'<circle cx="9" cy="8" r="3.2"/><path d="M2.6 20c0-3.3 2.9-5.5 6.4-5.5s6.5 2.2 6.5 5.5"/><path d="M17 11.2a3 3 0 100-6"/><path d="M18.6 20c0-2.4-.9-4.2-2.4-5.3"/>',
+ spark:'<path d="M12 3.2l2.1 5.6 5.6 2.1-5.6 2.1L12 18.6l-2.1-5.6L4.3 11l5.6-2.1z"/><path d="M18.6 4.2l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/>',
+ chat:'<path d="M20.4 11.9c0 3.9-3.8 7-8.4 7-1.1 0-2.2-.2-3.2-.5L4 20.4l1.5-4A6.7 6.7 0 013.6 11.9c0-3.9 3.8-7 8.4-7s8.4 3.1 8.4 7z"/>',
+ grid:'<rect x="3.6" y="3.6" width="7" height="7" rx="2"/><rect x="13.4" y="3.6" width="7" height="7" rx="2"/><rect x="3.6" y="13.4" width="7" height="7" rx="2"/><rect x="13.4" y="13.4" width="7" height="7" rx="2"/>',
+ folder:'<path d="M3.6 7.4a2 2 0 012-2h3.2l1.8 2.2h7.8a2 2 0 012 2v7.2a2 2 0 01-2 2H5.6a2 2 0 01-2-2z"/><path d="M8.4 12.2v4"/><path d="M12 10.6v5.6"/><path d="M15.6 12.8v3.4"/>',
+ menu:'<path d="M4 7.2h16"/><path d="M4 12h16"/><path d="M4 16.8h11"/>',
+ plus:'<path d="M12 5.4v13.2"/><path d="M5.4 12h13.2"/>'};
+const svg=(k,w)=>`<svg viewBox="0 0 24 24" width="${w||24}" height="${w||24}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]||''}</svg>`;
+function portrait(name,i){
+ let h=0;for(const c of name)h=(h*31+c.charCodeAt(0))%360;
+ const b=(h+44)%360,ini=name.split(' ').map(w=>w[0]).slice(0,2).join(''),id='q'+h+i;
+ return `<svg viewBox="0 0 64 64" role="img" aria-label="${name}"><defs>
+  <radialGradient id="${id}" cx="34%" cy="26%"><stop offset="0" stop-color="hsl(${h} 82% 78%)"/>
+  <stop offset=".6" stop-color="hsl(${b} 62% 52%)"/><stop offset="1" stop-color="hsl(${b} 55% 32%)"/></radialGradient></defs>
+  <rect width="64" height="64" rx="14" fill="url(#${id})"/><circle cx="32" cy="25" r="10.5" fill="rgba(255,255,255,.3)"/>
+  <path d="M11 60c2-11.5 10.3-16.5 21-16.5S51 48.5 53 60z" fill="rgba(255,255,255,.24)"/>
+  <text x="32" y="37.5" font-size="16" font-weight="700" text-anchor="middle" fill="rgba(255,255,255,.72)" font-family="Poppins,sans-serif">${ini}</text></svg>`;}
+const now=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+
+function screen(){
+ return `<div class="sky"></div><canvas class="scene"></canvas>
+ <div class="scroll">
+  <div class="mode"></div>
+  <header class="hd">
+    <span class="logo">${svg('globe',22)}</span>
+    <span class="nm">Le Monde à Vous</span>
+    <button class="rnd glass arch-h" aria-label="Architecte" data-l="Architecte">${svg('compass',19)}</button>
+    <button class="rnd glass" aria-label="Rechercher">${svg('search',19)}</button>
+    <span class="pal">${svg('palette',16)}11</span>
+    <span class="cr"><b>1000000</b><i>©</i></span>
+    <span class="av">${portrait('Vision Smart',99)}</span>
+  </header>
+  <div class="sub">
+    <button class="sq glass" aria-label="Rechercher dans le réseau">${svg('search',19)}</button>
+    <button class="sq glass" aria-label="Filtres">${svg('layers',19)}</button>
+    <button class="exp" data-l="Équipe & Experts">${svg('users',19)}Équipe &amp; Experts</button>
+  </div>
+  <section class="mooc glass">
+    <div class="top">
+      <span class="ic">${svg('spark',27)}</span>
+      <h1>Réseau<br>Mooc</h1>
+      <span class="tag">Collaboratif &amp; Intelligent</span>
+    </div>
+    <p class="dsc">Le cœur social, multimodal et connecté de la communauté.</p>
+    <div class="tabs" role="tablist">${ONGLETS.map((o,i)=>
+      `<button role="tab" data-l="${o}" aria-current="${i===0}">${o}${o==='Lives'?'<span class="dotlive" aria-label="en direct"></span>':''}</button>`).join('')}</div>
+    <button class="mine" data-l="Mon Espace Personnel"><span class="b">VS</span><span>Mon Espace Personnel</span></button>
+  </section>
+  <section class="st glass">
+    <div class="row">
+      <div class="one me"><div class="ph">${portrait('Vision Smart',98)}<span class="plus">${svg('plus',17)}</span></div><b>Ma Story</b></div>
+      ${STORIES.map((s,i)=>`<div class="one${i===0?' live':''}"><div class="ph">${portrait(s.n,i)}${i===0?'<span class="ring-live"></span>':''}</div>
+        <b>${s.n.split(' ')[0]}</b>${i===0?'<span class="lbl">en direct</span>':''}</div>`).join('')}
+    </div>
+    <div class="prog" role="progressbar" aria-valuenow="38" aria-valuemin="0" aria-valuemax="100" aria-label="Stories vues"><i></i></div>
+  </section>
+  <section class="fd">
+    ${POSTS.map((p,i)=>`<article class="sheet">
+      <div class="h">${portrait(p.a,i+20)}<b>${p.a}</b><i>${p.t}</i></div>
+      <p>${p.b}</p><div class="acts"><span>Répondre</span><span>Soutenir</span><span>Partager</span></div>
+    </article>`).join('')}
+  </section>
+ </div>
+ <button class="drop glass" aria-label="Messagerie — 3 non lus"><span class="cup"><span class="lvl"></span></span>${svg('chat',23)}<span class="n">3</span></button>
+ <nav class="dock glass" aria-label="Navigation principale">
+   <button data-l="Accueil" aria-current="true">${svg('grid',22)}<em>Accueil</em></button>
+   <button data-l="Parcours">${svg('folder',22)}<em>Parcours</em></button>
+   <button class="arch" data-l="Architecte"><span class="orb"><span class="aura"></span>${svg('compass',27)}</span><em>Architecte</em></button>
+   <button data-l="Réseau">${svg('users',22)}<em>Réseau</em></button>
+   <button data-l="Plus">${svg('menu',22)}<em>Plus</em></button>
+ </nav>`;}
+
+/* ═══ la surface d'eau : rides, caustiques, chemin de lumière, étincelles — et une onde réelle au toucher ═══ */
+function waterScene(W,H){
+ const waterTop=H*.58;
+ let bumps=[];
+ function points(t){
+  const pts=[];
+  for(let x=0;x<=W;x+=4){
+   let y=waterTop+Math.sin(x*.012+t)*7+Math.sin(x*.031-t*1.4)*3.5;
+   for(const b of bumps){const dx=Math.abs(x-b.x);if(dx<150)y-=Math.cos(dx/46)*20*Math.exp(-dx/78)*Math.exp(-b.t/26);}
+   pts.push([x,y]);
+  }
+  return pts;
+ }
+ return {
+  ripple(xFrac){bumps.push({x:xFrac*W,t:0});},
+  back(cx,t){
+   cx.clearRect(0,0,W,H);
+   const sky=cx.createLinearGradient(0,0,0,waterTop);
+   sky.addColorStop(0,'#F5FCFF');sky.addColorStop(1,'#DCF3FA');cx.fillStyle=sky;cx.fillRect(0,0,W,waterTop);
+   const pts=points(t);
+   cx.beginPath();cx.moveTo(0,waterTop);pts.forEach(p=>cx.lineTo(p[0],p[1]));cx.lineTo(W,H);cx.lineTo(0,H);cx.closePath();
+   const wg=cx.createLinearGradient(0,waterTop,0,H);wg.addColorStop(0,'rgba(160,235,250,.35)');wg.addColorStop(1,'rgba(60,170,200,.55)');
+   cx.fillStyle=wg;cx.fill();
+   cx.save();cx.clip();
+   const lx=W*(.5+.36*Math.sin(t*.28)),ly=waterTop+(H-waterTop)*.3;
+   const rg=cx.createRadialGradient(lx,ly,0,lx,ly,(H-waterTop)*1.6);
+   rg.addColorStop(0,'rgba(255,255,255,.5)');rg.addColorStop(.5,'rgba(255,255,255,.16)');rg.addColorStop(1,'rgba(255,255,255,0)');
+   cx.fillStyle=rg;cx.fillRect(0,waterTop,W,H-waterTop);
+   cx.globalCompositeOperation='lighter';
+   for(let k=0;k<3;k++){const off=(k+1)*16;cx.beginPath();
+    pts.forEach((p,i)=>{const sw=Math.sin(p[0]/44+t*1.7+k*2.1)*(6-k);const y=p[1]+off+sw;i?cx.lineTo(p[0],y):cx.moveTo(p[0],y);});
+    cx.strokeStyle=`rgba(255,255,255,${.22-k*.06})`;cx.lineWidth=1.4;cx.stroke();}
+   for(let i=0;i<pts.length;i+=9){const p=pts[i],sp=Math.pow(Math.max(0,Math.sin(i*.73+t*2.2)),10);
+    if(sp>.35){cx.beginPath();cx.arc(p[0],p[1],.7+sp*1.6,0,6.3);cx.fillStyle=`rgba(255,255,255,${sp*.95})`;cx.fill();}}
+   cx.restore();cx.globalCompositeOperation='source-over';
+   cx.beginPath();pts.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));
+   cx.shadowColor='rgba(200,250,255,.9)';cx.shadowBlur=14;cx.strokeStyle='rgba(255,255,255,.85)';cx.lineWidth=2;cx.stroke();cx.shadowBlur=0;
+   const dockGlow=cx.createRadialGradient(W/2,H-26,0,W/2,H-26,W*.28);
+   dockGlow.addColorStop(0,`rgba(255,255,255,${.28+.1*Math.sin(t*1.3)})`);dockGlow.addColorStop(1,'rgba(255,255,255,0)');
+   cx.fillStyle=dockGlow;cx.fillRect(0,Math.max(waterTop,H-90),W,90);
+   bumps=bumps.filter(b=>(b.t+=1)<95);
+  }};
+}
+
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function wire(r){
+ const tabs=[...r.querySelectorAll('.tabs button')];
+ tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.setAttribute('aria-current','false'));t.setAttribute('aria-current','true');});
+ const back=r.querySelector('.scene');
+ const dpr=Math.min(devicePixelRatio||1,1.5);
+ const W=back.offsetWidth,H=back.offsetHeight;
+ back.width=W*dpr;back.height=H*dpr;
+ const bx=back.getContext('2d');bx.scale(dpr,dpr);
+ const sc=waterScene(W,H);
+ const dk=[...r.querySelectorAll('.dock>button')];
+ dk.forEach(b=>b.onclick=()=>{
+  dk.forEach(x=>x.setAttribute('aria-current','false'));b.setAttribute('aria-current','true');
+  const rb=b.getBoundingClientRect(),rc=back.getBoundingClientRect();
+  sc.ripple(((rb.left+rb.width/2)-rc.left)/rc.width);
+ });
+ let raf=0,t=0,last=performance.now();
+ const draw=(nowMs)=>{const dt=Math.min(.05,(nowMs-last)/1000);last=nowMs;if(!RM)t+=dt;
+  sc.back(bx,t);if(!RM)raf=requestAnimationFrame(draw);};
+ raf=requestAnimationFrame(draw);
+ if(!RM)setTimeout(()=>sc.ripple(.5),450);
+ return()=>cancelAnimationFrame(raf);
+}
+
+const app=document.getElementById('app'),frame=document.getElementById('frame');
+let device='mobile',clean=null;
+function render(){
+ if(clean){try{clean()}catch(e){}clean=null;}
+ app.dataset.device=device;frame.dataset.device=device;
+ app.innerHTML=screen();
+ clean=wire(app);
+}
+document.getElementById('bDesk').onclick=()=>{device='desktop';document.getElementById('bDesk').setAttribute('aria-pressed','true');document.getElementById('bMob').setAttribute('aria-pressed','false');render();};
+document.getElementById('bMob').onclick=()=>{device='mobile';document.getElementById('bMob').setAttribute('aria-pressed','true');document.getElementById('bDesk').setAttribute('aria-pressed','false');render();};
+render();
+</script>

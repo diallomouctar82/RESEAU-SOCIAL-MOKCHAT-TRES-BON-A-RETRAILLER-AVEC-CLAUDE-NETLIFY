@@ -647,57 +647,57 @@ export const BRAND_PALETTES: PaletteDefinition[] = [
   {
     id: 'palette-10',
     number: '10',
-    name: 'Global Blue (Signature LMAV)',
-    subtitle: 'Bleu propriétaire Le Monde à Vous + blanc arctique + micro-accent or & émeraude',
+    name: 'Global Aqua (Signature LMAV — Miroir d\'eau)',
+    subtitle: 'Aqua propriétaire « Miroir d\'eau » + blanc arctique + micro-accent or & émeraude',
     description: 'La création propriétaire ultime pour Le Monde à Vous : un bleu universel, magistral et non-générique, combinant autorité bancaire/ministérielle, vitesse technologique et chaleur humaine.',
     category: 'global',
     tags: ['Signature LMAV', 'Propriétaire', 'Universel', 'Statut Mondial'],
     wcagContrastRatio: '15.8:1',
     wcagRating: 'AAA',
     colors: {
-      primary: '#0B254E',        // LMAV Blue 900
-      primaryHover: '#073B7A',   // LMAV Blue 800
-      primaryActive: '#071633',  // LMAV Blue 950
-      primarySoft: '#F0F6FE',    // LMAV Blue 50
-      primaryLight: '#E0EDFD',   // LMAV Blue 100
-      secondary: '#0261C7',      // LMAV Blue 600
-      secondaryHover: '#034DA2', // LMAV Blue 700
-      accent: '#0261C7',         // Action signature
+      primary: '#0A404F',        // Aqua 900 — abysse calme
+      primaryHover: '#086077',   // Aqua 700
+      primaryActive: '#06262F',  // Aqua 950
+      primarySoft: '#ECFAFD',    // Aqua 50
+      primaryLight: '#CBF0FA',   // Aqua 100
+      secondary: '#0A7590',      // Aqua 600
+      secondaryHover: '#086077', // Aqua 700
+      accent: '#0A7590',         // Action signature (aqua 600)
       accentGold: '#D9A74A',     // Or solaire maîtrisé
-      background: '#F8FAFC',     // Blanc arctique
+      background: '#EAF7FB',     // Blanc arctique teinté d'eau (= --mir-bg)
       surface: '#FFFFFF',
       surfaceElevated: '#FFFFFF',
       border: '#E2E8F0',
       borderSubtle: '#F1F5F9',
-      sidebarBg: '#081836',      // LMAV Midnight Sovereign
-      sidebarSurface: '#0E2957',
-      sidebarText: '#E6EFFD',
-      sidebarTextMuted: '#8FA8CF',
-      sidebarActiveBg: '#0261C7', // LMAV Blue 600
+      sidebarBg: '#062733',      // Abysse Miroir d'eau
+      sidebarSurface: '#0B3A4A',
+      sidebarText: '#E4F6FB',
+      sidebarTextMuted: '#8FBFCF',
+      sidebarActiveBg: '#0A7590', // Aqua 600 — 5,35:1 avec du texte blanc
       sidebarActiveText: '#FFFFFF',
-      sidebarBorder: '#14366F',
+      sidebarBorder: '#0F4B5E',
       sidebarHighlight: '#D9A74A',
       headerBg: '#FFFFFF',
-      headerText: '#081836',
+      headerText: '#0B3A46',
       headerBorder: '#E2E8F0',
-      textPrimary: '#081836',
-      textSecondary: '#3F5374',
-      textMuted: '#687E9E',
+      textPrimary: '#0B3A46',
+      textSecondary: '#3C6270',
+      textMuted: '#5F8592',
       textInverted: '#FFFFFF',
       statusSuccess: { bg: '#F0FDF4', text: '#166534', border: '#BBF7D0', dot: '#059669' },
       statusWarning: { bg: '#FFFBEB', text: '#92400E', border: '#FDE68A', dot: '#F59E0B' },
       statusDanger: { bg: '#FEF2F2', text: '#991B1B', border: '#FECACA', dot: '#EF4444' },
-      statusInfo: { bg: '#F0F6FE', text: '#073B7A', border: '#BAE0FD', dot: '#0261C7' },
+      statusInfo: { bg: '#ECFAFD', text: '#086077', border: '#A5E4F5', dot: '#0A7590' },
       focusRing: 'ring-blue-600',
       darkVariant: {
-        background: '#040C1D',
-        surface: '#081838',
-        surfaceElevated: '#0E2757',
-        border: '#153A7E',
+        background: '#04161C',
+        surface: '#082A34',
+        surfaceElevated: '#0B3A4A',
+        border: '#12556A',
         textPrimary: '#F8FAFC',
-        textSecondary: '#8FA8CF',
-        sidebarBg: '#020710',
-        primary: '#389BF2',
+        textSecondary: '#8FBFCF',
+        sidebarBg: '#04161C',
+        primary: '#29B4D6',
         accentGold: '#D9A74A'
       }
     }
