@@ -392,3 +392,80 @@ ouvrir l'URL lui-même — le relais du proxy de sortie ferme le tunnel — donc
 chaque octet est téléchargé depuis l'URL publique par `curl` puis rendu dans
 un vrai navigateur. **La validation reste l'ouverture du lien public par la
 Direction.**
+
+---
+
+## 8. Mise en production, et la régression qu'elle a révélée (04/09/2026)
+
+### 8.1 La mise en production
+
+Feu vert explicite de la Direction. PR #60 fusionnée en squash sur `main`
+(`0ad30ee`) après synchronisation sur `main` et Green Gate vert sur le HEAD
+réellement fusionné. Mesuré sur les octets servis par `moknet.net` :
+`index.html` passe de **36 342 à 106 499 octets**, `data-miroir` de **0 à
+461 occurrences**, la nappe d'eau est montée. Part d'écran réellement
+changée, avant/après, depuis la production elle-même : **46,16 %**
+(ordinateur 1440×900) et **32,60 %** (téléphone 390×844).
+
+### 8.2 La régression, trouvée par relecture adversariale APRÈS la fusion
+
+Une relecture à six axes, chaque constat soumis à un relecteur chargé de le
+**réfuter**, a confirmé un défaut bloquant que ni le typage, ni les 848
+tests, ni le Green Gate n'avaient vu :
+
+```css
+/* AVANT — spécificité (0,2,0) */
+[data-miroir] > *:not(.mir-scene) { z-index: 1; }
+```
+
+Ce sélecteur l'emporte sur les classes utilitaires `.z-20` / `.z-30`
+(0,1,0) que portent les deux en-têtes de `Layout.tsx`. Les en-têtes
+retombent donc à `1`, **à égalité avec le conteneur principal, qui est écrit
+après eux** : l'ordre du document tranche, le conteneur peint par-dessus.
+Conséquence pour un membre réel sur ordinateur : les menus ancrés en
+`absolute top-full` sous l'en-tête — langue, Notifications, et le menu
+Compte **qui porte la déconnexion** — passent sous le contenu et deviennent
+inatteignables, y compris leur voile de fermeture `fixed inset-0 z-10`.
+
+**Mesuré, pas déduit** — navigateur réel, CSS servi par la production, DOM
+reproduisant la structure exacte de `Layout.tsx` :
+
+| | `z-index` de l'en-tête | `elementFromPoint` au centre de « Se déconnecter » |
+|---|---|---|
+| avant correctif | `1` | `div.bg-white` (une carte du fil) |
+| après correctif | `20` | `button#deconnexion` |
+
+`position: sticky` reste intacte des deux côtés.
+
+### 8.3 Le correctif
+
+```css
+/* APRÈS */
+[data-miroir] > *:not(.mir-scene):not(header) { z-index: 1; }
+```
+
+Une exclusion, aucun composant touché, aucun `!important` : le conteneur
+reste à `1` (donc au-dessus de la nappe à `0`) et les en-têtes retrouvent
+`20` / `30`, exactement l'ordre d'avant la mission.
+
+### 8.4 Le garde-fou
+
+`tests/miroirFeuilleAnalysee.test.ts` gagne deux tests qui **ne cherchent
+pas une chaîne de caractères** : ils construisent un vrai `<header>` avec les
+classes réelles de `Layout.tsx`, extraient par postcss tout sélecteur scopé
+sous `[data-miroir] >` qui déclare un `z-index`, et demandent au moteur de
+sélecteurs (`Element.matches`) s'il correspond. Contre-épreuve faite :
+le défaut réintroduit fait virer le test au rouge, et lui seul.
+
+### 8.5 La leçon, cinquième de la série
+
+C'est la cinquième occurrence dans ce dépôt de la même famille : **une
+déclaration qui change le rendu sans le dire** — `-webkit-box-reflect: none`
+ignoré par Chromium, teintes `brand-*` absentes de la config Tailwind,
+`hidden sm:flex` annulé par un `flex` nu, un commentaire CSS refermé une
+ligne trop tôt, et maintenant un sélecteur d'habillage qui vole leur plan
+aux en-têtes. Le commentaire du code avertissait déjà du piège de
+spécificité **pour `position`** ; il ne l'avait pas vu **pour `z-index`,
+dans la même règle**. Règle à retenir : quand un sélecteur d'habillage
+scopé impose une propriété à des enfants génériques, énumérer les classes
+utilitaires que ces enfants portent déjà sur cette même propriété.
