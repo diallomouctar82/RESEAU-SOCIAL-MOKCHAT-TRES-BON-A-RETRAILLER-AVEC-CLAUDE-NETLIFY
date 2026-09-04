@@ -1945,7 +1945,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         spokenAt: l.spokenAt,
       })),
       chat: messages.map((m) => ({ authorName: m.authorName, text: m.text })),
-      transcriptKept: !!liveData.isRecordingEnabled,
+      // Sans session réelle, rien n'est conservé nulle part — quelle que soit
+      // la valeur de démonstration portée par `liveData`. On ne peut donc pas
+      // affirmer que personne n'a rien dit : c'est le cas « non conservé ».
+      transcriptKept: !!realSessionId && !!liveData.isRecordingEnabled,
     });
   };
 
