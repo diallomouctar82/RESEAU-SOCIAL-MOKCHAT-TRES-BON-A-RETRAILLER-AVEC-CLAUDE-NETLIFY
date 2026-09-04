@@ -201,7 +201,6 @@ Le socle **v6.6.1** consacre également :
 
 ## 🟡 2. CE QUI EST PARTIEL OU EN COURS D'AMÉLIORATION CONTINUE
 - **Gamification Transversale Unifiée** : Les mécanismes de récompense (XP, niveaux, badges) sont actifs sur Campus et Carrière, mais attendent d'être unifiés dans un module dédié de motivation globale.
-- **Santé Globale (Super Admin)** : console de mesure de l'état de MokNet — 12 domaines, 52 lignes, réparations à catalogue fermé (DEC-2026-050). Migration et Edge Function déployées ; onglet livré en production, périmètre volontairement limité à son implantation. Deux réserves connues : `HEALTH_ALLOWED_ORIGINS` n'est pas définie (repli CORS sur `*`, journalisé), et aucun compte n'a le rôle `super_admin`, donc « Réparer » et « Restaurer » refuseront tant qu'un compte ne sera pas promu — le diagnostic, lui, fonctionne.
 - **Salles d'Atelier Pédagogique Collaboratif** : L'infrastructure de tableau blanc (`LiveWhiteboard.tsx`) est prête pour être branchée sur des cours collectifs en direct.
 
 ---
