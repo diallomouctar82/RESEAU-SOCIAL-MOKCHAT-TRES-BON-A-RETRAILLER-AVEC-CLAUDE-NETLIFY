@@ -416,6 +416,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           isScheduled: liveData.isScheduled,
           scheduledFor: liveData.scheduledFor,
           timezone: liveData.timezone,
+          // Le consentement de conservation vient de la modale de création
+          // (« Enregistrement & Replay Intelligent »). Sans cette ligne, il
+          // s'arrêtait ici : l'écran affichait l'enregistrement ACTIF et la
+          // base gardait `false`, donc la parole n'était conservée nulle part
+          // et le rattrapage répondait, à juste titre mais de façon
+          // incompréhensible, « ce direct n'enregistre pas la parole ».
+          isRecordingEnabled: liveData.isRecordingEnabled,
         });
         if (!cancelled) {
           setRealSessionId(created.id);
