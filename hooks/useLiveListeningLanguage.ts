@@ -10,6 +10,7 @@ import {
     type ProductionPlan,
 } from '../services/live/liveListeningLanguage';
 import { LiveInterpreterProducer, type LiveInterpreterStage } from '../services/live/liveInterpreterProducer';
+import { summarizeLiveLatency, type LiveLatencyReport } from '../services/live/liveLatency';
 
 /**
  * LIVE PLANÉTAIRE — le pont entre l'écran du direct et la traduction.
@@ -57,6 +58,12 @@ export interface UseLiveListeningLanguageResult {
     waitingForMyLanguage: boolean;
     /** Dernières étapes mesurées de ma propre production — pour le diagnostic de latence. */
     stages: LiveInterpreterStage[];
+    /**
+     * La latence, en chiffres SÉPARÉS (§18) : reconnaissance, traduction,
+     * et parole → voix traduite. « Le temps réel fonctionne » n'est pas une
+     * mesure ; ceci en est une.
+     */
+    latency: LiveLatencyReport;
     /** La chaîne de production a échoué chez moi (dit à l'écran, jamais avalé). */
     producerError: string | null;
 }
@@ -170,5 +177,7 @@ export function useLiveListeningLanguage(options: UseLiveListeningLanguageOption
         setChoice(listeningLanguageCode(next) ?? null);
     }, []);
 
-    return { choice, choose, plan, waitingForMyLanguage, stages, producerError };
+    const latency = useMemo(() => summarizeLiveLatency(stages), [stages]);
+
+    return { choice, choose, plan, waitingForMyLanguage, stages, latency, producerError };
 }

@@ -20,13 +20,33 @@ const captionerSpies = { started: 0, stopped: 0 };
 let emitCaption: CaptionHandler = () => {};
 let lastTargetLanguage: (() => string | undefined) | undefined;
 
+/**
+ * Double de la piste de voix.
+ *
+ * LP-5 : la vraie piste ne dit pas « c'est parlé » quand on lui confie une
+ * phrase — elle dit `started` quand du SON commence, et `failed` quand la
+ * synthèse a échoué. Le double suit ce contrat, sinon les tests
+ * mesureraient la vitesse d'une file d'attente et laisseraient passer une
+ * voix en panne pour un succès. `failNext` permet de provoquer la panne.
+ */
 class FakeVoiceTrack {
     static instances: FakeVoiceTrack[] = [];
+    /** Quand vrai, la prochaine phrase confiée échoue au lieu de sortir. */
+    static failNext = false;
     spoken: Array<{ id: string; text: string }> = [];
     disposed = false;
-    constructor(public readonly options: { lang: string }) { FakeVoiceTrack.instances.push(this); }
+    constructor(public readonly options: { lang: string; onPhrase?: (r: { id: string; status: string; reason?: string }) => void }) {
+        FakeVoiceTrack.instances.push(this);
+    }
     start() { return { kind: 'audio' } as unknown as MediaStreamTrack; }
-    speak(id: string, text: string) { this.spoken.push({ id, text }); }
+    speak(id: string, text: string) {
+        this.spoken.push({ id, text });
+        if (FakeVoiceTrack.failNext) {
+            this.options.onPhrase?.({ id, status: 'failed', reason: 'synthèse indisponible' });
+            return;
+        }
+        this.options.onPhrase?.({ id, status: 'started' });
+    }
     dispose() { this.disposed = true; }
 }
 
@@ -43,7 +63,9 @@ vi.mock('../services/calls/callInterpreter', () => ({
     InterpreterVoiceTrack: class {
         static isSupported() { return true; }
         private inner: FakeVoiceTrack;
-        constructor(options: { lang: string }) { this.inner = new FakeVoiceTrack(options); }
+        constructor(options: { lang: string; onPhrase?: (r: { id: string; status: string; reason?: string }) => void }) {
+            this.inner = new FakeVoiceTrack(options);
+        }
         start() { return this.inner.start(); }
         speak(id: string, text: string) { this.inner.speak(id, text); }
         dispose() { this.inner.dispose(); }
@@ -68,10 +90,11 @@ import { LiveInterpreterProducer } from '../services/live/liveInterpreterProduce
 
 // ── Harnais ───────────────────────────────────────────────────────────────
 
-function harness(options?: { requested?: Map<string, number>; myLanguageHint?: string; max?: number }) {
+function harness(options?: { requested?: Map<string, number>; myLanguageHint?: string; max?: number; withCaptions?: boolean }) {
     const published: string[] = [];
     const unpublished: string[] = [];
     const stages: Array<{ id: string; stage: string; language?: string }> = [];
+    const captions: Array<{ id: string; language: string; text: string }> = [];
     let requested = options?.requested ?? new Map<string, number>();
     const producer = new LiveInterpreterProducer({
         getLocalAudioTrack: () => ({ readyState: 'live' } as unknown as MediaStreamTrack),
@@ -80,10 +103,13 @@ function harness(options?: { requested?: Map<string, number>; myLanguageHint?: s
         publishTrack: async (_t, name) => { published.push(name); },
         unpublishTrack: async (name) => { unpublished.push(name); },
         onStage: (s) => stages.push({ id: s.id, stage: s.stage, language: s.language }),
+        // Repli §17 : présent seulement quand le test veut prouver que le
+        // texte part quand la voix échoue.
+        publishCaption: options?.withCaptions ? (c) => { captions.push(c); } : undefined,
         maxLanguages: options?.max,
     });
     return {
-        producer, published, unpublished, stages,
+        producer, published, unpublished, stages, captions,
         setRequested: (next: Map<string, number>) => { requested = next; },
     };
 }
@@ -101,6 +127,7 @@ beforeEach(() => {
     captionerSpies.started = 0;
     captionerSpies.stopped = 0;
     FakeVoiceTrack.instances = [];
+    FakeVoiceTrack.failNext = false;
     translateSpy.mockClear();
 });
 
@@ -269,5 +296,51 @@ describe('mesures de latence', () => {
         expect(etapes, 'transcription, traduction, voix — toutes mesurées').toEqual(
             expect.arrayContaining(['transcribed', 'translated', 'voiced']),
         );
+    });
+});
+
+
+// ── LP-5 : ce qui se passe quand la voix, elle, ne sort pas ───────────────
+
+describe('LP-5 — la voix n\u2019est annoncée que lorsqu\u2019elle sort vraiment', () => {
+    it('« voiced » attend le SON, jamais la simple mise en file', async () => {
+        // Avant LP-5, `voiced` était émis juste après `speak()`. La latence
+        // mesurée ne comptait donc pas la synthèse, et une voix en panne
+        // passait pour un succès. Ici la piste rapporte `started` : c'est ce
+        // rapport, et lui seul, qui produit l'étape.
+        const h = harness({ requested: new Map([['en', 3]]), myLanguageHint: 'fr' });
+        h.producer.start();
+        await h.producer.refresh();
+        emitCaption(caption('Bonjour.', 'fr'));
+        await flush();
+
+        expect(h.stages.filter((s) => s.stage === 'voiced')).toHaveLength(1);
+    });
+
+    it('voix en panne + traduction réussie = l\u2019auditeur LIT au lieu d\u2019entendre (§17)', async () => {
+        const h = harness({ requested: new Map([['en', 3]]), myLanguageHint: 'fr', withCaptions: true });
+        h.producer.start();
+        await h.producer.refresh();
+        FakeVoiceTrack.failNext = true;
+        emitCaption(caption('Bonjour.', 'fr'));
+        await flush();
+
+        expect(h.captions, 'le texte traduit part vers les auditeurs anglophones').toHaveLength(1);
+        expect(h.captions[0].language).toBe('en');
+        expect(h.captions[0].text).toContain('[en]');
+        expect(h.stages.some((s) => s.stage === 'subtitled'), 'un demi-succès est nommé comme tel').toBe(true);
+        expect(h.stages.some((s) => s.stage === 'voiced'), 'aucune voix n’est revendiquée').toBe(false);
+    });
+
+    it('sans chemin de sous-titre, la panne reste une panne — jamais un succès silencieux', async () => {
+        const h = harness({ requested: new Map([['en', 3]]), myLanguageHint: 'fr' }); // withCaptions absent
+        h.producer.start();
+        await h.producer.refresh();
+        FakeVoiceTrack.failNext = true;
+        emitCaption(caption('Bonjour.', 'fr'));
+        await flush();
+
+        expect(h.stages.some((s) => s.stage === 'failed' && s.language === 'en')).toBe(true);
+        expect(h.stages.some((s) => s.stage === 'voiced')).toBe(false);
     });
 });

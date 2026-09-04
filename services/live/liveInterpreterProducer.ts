@@ -37,11 +37,24 @@ import {
  * noms de pistes : rien ne changera côté auditeur.
  */
 
-/** Étape mesurée de la chaîne — pour chiffrer la latence, jamais pour transporter la parole des gens. */
+/**
+ * Étape mesurée de la chaîne — pour chiffrer la latence, jamais pour
+ * transporter la parole des gens.
+ *
+ * `voiced` signifie **du son est réellement sorti**, pas « la phrase est
+ * partie en file ». La distinction n'est pas cosmétique : mesurer la latence
+ * sur une mise en file donnerait des chiffres flatteurs et faux, et une
+ * synthèse en panne passerait pour un succès.
+ *
+ * `subtitled` est le repli explicite de §17 : la traduction TEXTE a réussi
+ * mais la voix n'est pas sortie — l'auditeur lit au lieu d'entendre, et
+ * l'audio d'origine continue. C'est un demi-succès, et il est nommé comme
+ * tel.
+ */
 export interface LiveInterpreterStage {
     /** Identifiant de la phrase, commun à toutes ses étapes. */
     id: string;
-    stage: 'transcribed' | 'translated' | 'voiced' | 'failed';
+    stage: 'transcribed' | 'translated' | 'voiced' | 'subtitled' | 'failed';
     /** Langue concernée (absente pour la transcription, qui est commune). */
     language?: string;
     /** Durée de CETTE étape, en millisecondes. */
@@ -65,6 +78,14 @@ export interface LiveInterpreterProducerOptions {
     /** Vrai quand une voix d'interprète sort de MON haut-parleur : ce que mon micro capte alors n'est pas ma voix. */
     isPaused?: () => boolean;
     onStage?: (stage: LiveInterpreterStage) => void;
+    /**
+     * Repli §17 — la traduction TEXTE a réussi mais la voix n'est pas sortie.
+     * Le texte part alors vers les auditeurs de cette langue : ils LISENT au
+     * lieu d'entendre, et la voix d'origine continue. Sans ce chemin, une
+     * panne de synthèse produirait un silence inexpliqué chez des gens qui
+     * ont pourtant une traduction parfaitement disponible.
+     */
+    publishCaption?: (caption: { id: string; language: string; text: string }) => void;
     /** Le plan a changé (quelqu'un a choisi ou quitté une langue). */
     onPlanChanged?: (plan: ProductionPlan) => void;
     /** La chaîne ne peut pas démarrer du tout (micro absent, navigateur trop ancien). */
@@ -103,6 +124,16 @@ export class LiveInterpreterProducer {
      * alignements en attente convergent tous vers le dernier plan connu.
      */
     private syncQueue: Promise<void> = Promise.resolve();
+    /**
+     * Phrases confiées à une voix et dont on attend encore le SORT réel.
+     *
+     * On garde le texte traduit et l'heure de capture le temps que la piste
+     * dise si le son est sorti. Si la voix échoue, ce texte devient le
+     * sous-titre de repli (§17) : l'auditeur lit plutôt que d'entendre un
+     * silence. L'entrée est retirée dans tous les cas — succès, repli ou
+     * abandon — pour qu'un direct long ne laisse rien s'accumuler.
+     */
+    private pending = new Map<string, { language: string; text: string; capturedAt: number }>();
 
     constructor(private readonly options: LiveInterpreterProducerOptions) {
         this.spokenLanguage = listeningLanguageCode(options.myLanguageHint);
@@ -184,6 +215,10 @@ export class LiveInterpreterProducer {
             .catch(() => { /* déjà retirées */ });
         await this.syncQueue;
         this.plan = { produce: [], unserved: [], alreadySpoken: [] };
+        // Les phrases dont on attendait encore le sort ne le connaîtront
+        // jamais : la piste est partie. Les garder ferait grossir la mémoire
+        // d'un direct long sans que rien ne les solde.
+        this.pending.clear();
     }
 
     // ── Pistes : une par langue, créée à l'entrée dans le plan, retirée à sa sortie ──
@@ -207,7 +242,13 @@ export class LiveInterpreterProducer {
     private async addVoice(language: string): Promise<void> {
         let voice: InterpreterVoiceTrack | null = null;
         try {
-            voice = new InterpreterVoiceTrack({ lang: speechTag(language) });
+            voice = new InterpreterVoiceTrack({
+                lang: speechTag(language),
+                // C'est ICI, et nulle part ailleurs, qu'on apprend le sort réel
+                // d'une phrase : la piste dit quand le son commence vraiment,
+                // et quand la génération a échoué.
+                onPhrase: (report) => this.onPhraseOutcome(report),
+            });
             const track = voice.start();
             await this.options.publishTrack(track, interpreterTrackNameForLanguage(language));
             this.voices.set(language, voice);
@@ -294,7 +335,52 @@ export class LiveInterpreterProducer {
             this.options.onStage?.({ id, stage: 'translated', language, ms: 0, sinceCaptureMs: Date.now() - capturedAt, chars: text.length });
         }
         if (!text.trim()) return;
+        // On NOTE la phrase avant de la confier à la voix : c'est la piste
+        // qui dira si du son est réellement sorti, et c'est ce texte-là qui
+        // deviendra le sous-titre si la voix échoue.
+        this.pending.set(id, { language, text, capturedAt });
         voice.speak(id, text);
-        this.options.onStage?.({ id, stage: 'voiced', language, ms: 0, sinceCaptureMs: Date.now() - capturedAt, chars: text.length });
+    }
+
+    /**
+     * Le sort RÉEL d'une phrase, tel que la piste le rapporte.
+     *
+     * Avant, `voiced` était émis juste après `voice.speak()` — c'est-à-dire
+     * après une simple mise en file. La latence mesurée était donc flatteuse
+     * et fausse (elle ne comptait pas la synthèse), et une voix en panne
+     * passait pour un succès. On attend maintenant que le son commence.
+     *
+     * Et quand la voix échoue alors que la traduction, elle, a réussi :
+     * l'auditeur reçoit le TEXTE (§17). Il lit au lieu d'entendre, la voix
+     * d'origine continue, et l'écran ne laisse jamais un silence inexpliqué.
+     */
+    private onPhraseOutcome(report: { id: string; status: string; reason?: string }): void {
+        const entry = this.pending.get(report.id);
+        if (!entry) return; // phrase d'une session précédente, ou déjà soldée
+        if (report.status === 'started') {
+            this.pending.delete(report.id);
+            this.options.onStage?.({
+                id: report.id, stage: 'voiced', language: entry.language,
+                ms: Date.now() - entry.capturedAt, sinceCaptureMs: Date.now() - entry.capturedAt,
+                chars: entry.text.length,
+            });
+            return;
+        }
+        if (report.status !== 'failed') return; // 'generated' / 'ended' : rien de neuf à dire
+        this.pending.delete(report.id);
+        if (this.options.publishCaption) {
+            this.options.publishCaption({ id: report.id, language: entry.language, text: entry.text });
+            this.options.onStage?.({
+                id: report.id, stage: 'subtitled', language: entry.language,
+                ms: Date.now() - entry.capturedAt, sinceCaptureMs: Date.now() - entry.capturedAt,
+                chars: entry.text.length, reason: report.reason,
+            });
+            return;
+        }
+        this.options.onStage?.({
+            id: report.id, stage: 'failed', language: entry.language,
+            ms: Date.now() - entry.capturedAt, sinceCaptureMs: Date.now() - entry.capturedAt,
+            reason: report.reason ?? 'voix indisponible',
+        });
     }
 }
