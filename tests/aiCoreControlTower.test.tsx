@@ -28,7 +28,6 @@ const entreesToutOuvert = (): EntreesTourDeControle => ({
     manifeste: {
         genereLe: '2026-09-04T06:00:00.000Z',
         commit: 'abc1234',
-        commitDate: '2026-09-04T05:00:00.000Z',
         branche: 'main',
         verrou1_executeur: { present: true, enregistre: true, fichier: 'x.ts' },
         verrou5_identiteAgent: { appelsLlmTotal: 10, appelsAvecAgentId: 10, fichiers: [] },

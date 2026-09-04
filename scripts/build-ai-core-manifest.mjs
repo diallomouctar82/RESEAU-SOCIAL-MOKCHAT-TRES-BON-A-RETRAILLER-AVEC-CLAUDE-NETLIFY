@@ -60,7 +60,6 @@ const branche = process.env.AI_CORE_BUILD_BRANCH
     || git('rev-parse --abbrev-ref HEAD')
     || process.env.BRANCH
     || null;
-const commitDate = git('log -1 --format=%cI') || null;
 
 /** Liste récursive des fichiers d'un dossier, extensions filtrées. */
 function fichiers(dossier, extensions, accumulateur = []) {
@@ -167,7 +166,6 @@ const mesuresHorsLigne = {
 const manifeste = {
     genereLe: new Date().toISOString(),
     commit,
-    commitDate,
     branche,
     verrou1_executeur: {
         present: executeurPresent,

@@ -53,7 +53,6 @@ export interface AgentTour {
 export interface ManifesteDepot {
     genereLe: string;
     commit: string | null;
-    commitDate: string | null;
     branche: string | null;
     verrou1_executeur: { present: boolean; enregistre: boolean; fichier: string };
     verrou5_identiteAgent: { appelsLlmTotal: number; appelsAvecAgentId: number; fichiers: string[] };
