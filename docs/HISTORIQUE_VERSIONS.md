@@ -32,12 +32,38 @@
 | **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Stable** — remplacée en production par v6.15.0 le 4 septembre 2026 |
 | **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 fusionnée → `8902cef` / DEC-2026-050 | **Stable** — remplacée comme version courante par v6.16.0 le 4 septembre 2026, mais son plan d'activation reste en cours. Code client en production sur `moknet.net` depuis le 4 septembre 2026 (bundle `index-DEDPIJvb.js`, étape 1 du plan d'activation). **Étape 2 faite le 4 septembre à 22h37 UTC : la fonction Edge `livekit-token` est passée en version 7** (fenêtre calme vérifiée, retour arrière octet-exact préparé, sonde avant/après sur 4 chemins → codes, jetons et message de refus identiques ; garde vérifié 7× par cas sur la fonction en ligne). **Mais SAT reste INERTE, et c'est prouvé et non déduit** : la même room sondée 8 fois voit son temps DESCENDRE (1 986 → 1 023 ms) au lieu de monter, donc aucune room n'est créée et aucun plafond n'est posé ; `prometheus_port` n'est toujours pas sur le VPS (`/metrics` = 404), `LIVE_NODE_METRICS_URL` n'existe pas, la porte ne refuse personne, zéro 409 émis. L'écran « Ce direct est complet » est dans le bundle et ne peut pas s'afficher. Étapes 3 à 5 en attente (`deploy/livekit/README.md` § SAT-1b). Reste à la charge de la Direction : un appel réel entre deux téléphones |
 | **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Courante (Active) — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), déploiement automatique Netlify sur moknet.net** |
+| **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | Branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-052 | **Développée et testée — EN ATTENTE DE VALIDATION DE LA DIRECTION** (PR en brouillon, aucune fusion, aucune production) |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.17.0] — 4 Septembre 2026 (Nettoyage de la barre latérale — « un menu propre, simple, non répétitif »)
+
+* **La demande** : capture de la barre latérale, consigne de retirer du menu
+  visible le bouton « L’Architecte », le bloc « Mes Favoris » et son contenu,
+  et « Récents » — sans toucher au Live, à la sécurité, à l’authentification
+  ni aux fonctions qui marchent.
+* **Ce qui disparaît de l’écran** : les trois blocs en tête de barre
+  latérale. Les étoiles de favori restent sur les entrées épinglées,
+  conformément au visuel cible envoyé par la Direction.
+* **Ce qui ne disparaît pas** : l’Architecte (pastille flottante bas-droite
+  sur ordinateur et téléphone, goutte centrale du dock mobile), toutes les
+  entrées des piliers de vie — désormais une seule fois chacune —, le pied
+  de barre latérale (messagerie, compte), le tiroir mobile (inchangé).
+* **Généré, pas écrit à la main** : `scripts/genMiroirAquaLayer.cjs
+  --ecrire` a retiré de `index.html` les 4 règles de dégradé qui ne
+  servaient qu’au bouton retiré ; le garde-fou `tests/miroirAquaLayer.test.ts`
+  l’exigeait.
+* **Preuves** : `tsc --noEmit` 0 · `vitest` 986/986 (71 fichiers, +8 :
+  `tests/sidebarCleanup.test.tsx`) · `npm run build` propre · captures
+  avant/après ordinateur (1600×900) et téléphone (390×844) jointes à la PR.
+* **Statut** : en attente du contrôle de la Direction sur l’aperçu de
+  déploiement — aucune fusion, aucune production (DEC-2026-052).
+
+---
 
 ### [Version 6.16.0] — 4 Septembre 2026 (Nettoyage de l’accueil — « l’interface est trop chargée »)
 

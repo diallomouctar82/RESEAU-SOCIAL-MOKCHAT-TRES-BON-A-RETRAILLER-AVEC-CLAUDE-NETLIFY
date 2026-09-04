@@ -1122,6 +1122,75 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-052] — 4 Septembre 2026
+
+* **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Couche CSS « Miroir d'eau » (générée)`
+* **Problème / Besoin initial** : seconde loupe du nettoyage visuel demandé
+  par la Direction, sur capture de la barre latérale : « un menu propre,
+  simple, non répétitif ». Retirer du menu visible le bouton
+  « L'Architecte », le bloc « Mes Favoris » et son contenu, et le bloc
+  « Récents ». Ne toucher ni au Live, ni à la sécurité, ni à
+  l'authentification, ni aux fonctions qui marchent.
+* **Audit de l'existant, avant d'y toucher** : le bouton « L'Architecte »
+  de la barre latérale était le **troisième** déclencheur de l'Architecte —
+  la pastille flottante (`ArchitecteFloatingBar`, bas-droite, présente sur
+  ordinateur ET téléphone, `aria-label="Ouvrir l'Architecte"`) et la goutte
+  centrale du dock mobile restent. « Mes Favoris » listait quatre entrées
+  (Campus, Carrière, Habitat, Marché) **déjà présentes** dans les piliers
+  juste en dessous ; « Récents » en répétait quatre autres. L'épinglage
+  (étoile au survol de chaque entrée) et la mémoire des onglets récents
+  (`localStorage`) n'alimentaient **que** ces deux blocs — aucun autre
+  consommateur dans le dépôt (recherche ⌘K, tiroir mobile, tableau de bord :
+  aucun). Le tiroir mobile n'a jamais eu ni favoris ni récents.
+* **Idées envisagées** :
+  1. Retirer les deux blocs ET les étoiles d'épinglage (première lecture :
+     une étoile qui n'alimente plus de liste serait un « faux bouton ») —
+     **écarté par le visuel cible envoyé par la Direction**, qui garde les
+     étoiles sur Campus, Carrière, Habitat et Marché : l'étoile marque le
+     favori à même l'entrée, c'est son effet visible.
+  2. Garder l'état `recentTabs` « au cas où » — **rejeté** : référence morte
+     (`AGENTS.md` § 2.6), plus aucun lecteur.
+  3. **Retenu** : retirer les trois blocs de l'affichage ; garder les étoiles
+     et leur mémoire locale (`lmav_nav_favorites`) telles quelles ; retirer
+     l'état des récents devenu mort ; ne rien changer à la pastille
+     flottante ni au dock ; régénérer la couche CSS « Miroir d'eau » avec
+     l'outil du dépôt (jamais à la main).
+* **Décision** : dans `Layout.tsx`, la barre latérale d'ordinateur commence
+  désormais directement par les piliers de vie ; `recentTabs` et l'icône
+  `Clock` disparaissent ; l'épinglage (`favorites`, `toggleFavorite`, étoile
+  sur chaque entrée) est conservé à l'identique ; l'effet qui coupait la
+  voix à chaque changement d'onglet est conservé, amputé de la mémoire des
+  récents ; `architecteOpenSignal`
+  n'a plus d'émetteur et reste figé à 0 (le contrat de la pastille est
+  inchangé). Le générateur `scripts/genMiroirAquaLayer.cjs --ecrire` a
+  retiré de `index.html` les **4 règles** qui ne servaient qu'au bouton
+  retiré (dégradés cyan/indigo) — c'est le garde-fou
+  `tests/miroirAquaLayer.test.ts` qui l'a exigé, comme prévu par DS-EX.
+* **Justification** : chaque entrée du menu apparaît une seule fois (prouvé
+  par test), l'étoile de favori reste visible sur les entrées épinglées
+  (conforme au visuel cible), l'Architecte garde deux chemins réels sur
+  ordinateur et téléphone, aucune clé de mémoire locale n'est effacée chez
+  les utilisateurs (`lmav_nav_recents` n'est simplement plus lue).
+* **Éléments techniques** : `components/Layout.tsx` (−3 blocs, −1 état et
+  −1 icône devenus morts), `index.html` (couche aqua régénérée, −4 règles),
+  `tests/sidebarCleanup.test.tsx` (nouveau : 3 tests « retiré », 5 tests
+  « ce qui reste, une seule fois »).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **986/986 (71 fichiers, +8)** ·
+  `npm run build` propre · captures avant/après ordinateur 1600×900 et
+  téléphone 390×844 (harnais local non versionné, `origin/main` contre la
+  branche) versées dans `docs/captures/2026-09-04-nettoyage-barre-laterale/`.
+* **Statut** : `Développé`, `Testé` — **EN ATTENTE DE VALIDATION DE LA
+  DIRECTION** sur la branche `claude/cleanup-home-interface-szp8qv` (PR en
+  brouillon : aucune fusion, aucune production).
+* **Restes assumés** : le jugement visuel revient à la Direction ; la
+  pastille flottante reste le seul chemin ordinateur vers l'Architecte
+  (voulu : « un doublon de moins ») ; la clé `lmav_nav_recents` reste
+  inerte dans les navigateurs qui l'ont ; le libellé de pilier « Accueil &
+  Cap » est conservé (absent du visuel cible, mais hors de la liste des
+  retraits demandés — une ligne à retirer si la Direction le souhaite).
+
+---
+
 ### [DEC-2026-051] — 4 Septembre 2026
 
 * **Module(s)** : `Navigation globale (en-têtes ordinateur et téléphone, barre latérale)`, `Accueil / Tableau de bord`
