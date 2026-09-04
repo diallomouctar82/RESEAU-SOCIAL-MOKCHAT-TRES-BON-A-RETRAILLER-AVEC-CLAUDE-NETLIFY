@@ -1495,10 +1495,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     { id: 'act-2', title: 'Consulter l\'Expert Juridique pour le pacte d\'actionnaires', category: 'juridique', deadline: 'Vendredi', completed: false }
   ]);
 
-  // Private Participant Assistant
-  const [assistantMessages, setAssistantMessages] = useState<{ query: string; answer: string }[]>([
-    { query: 'Qu\'est-ce qu\'une lettre d\'intention ?', answer: 'Une lettre d\'intention (LOI) est un document précontractuel où un investisseur ou partenaire confirme son intérêt formel pour financer ou collaborer sur votre projet.' }
-  ]);
+  // Private Participant Assistant.
+  //
+  // LP-8b : la liste démarre VIDE. Elle était pré-remplie d'un échange
+  // fabriqué (« Qu'est-ce qu'une lettre d'intention ? » et sa définition),
+  // affiché à chacun comme s'il l'avait demandé — une réponse que personne
+  // n'a posée, sur un direct dont elle ne venait pas. C'est le même défaut
+  // que les deux replis inventés supprimés plus bas : mieux vaut un panneau
+  // vide et honnête qu'une conversation qui n'a pas eu lieu.
+  const [assistantMessages, setAssistantMessages] = useState<{ query: string; answer: string }[]>([]);
   const [assistantInput, setAssistantInput] = useState('');
   const [isAssistantThinking, setIsAssistantThinking] = useState(false);
 
@@ -2838,9 +2843,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </button>
             )}
 
+            {/* LP-8b — MESURÉ AVANT DE CORRIGER : ce bouton était le SEUL
+                chemin tactile vers « Ce que vous avez manqué », et il était en
+                `hidden 2xl:flex` — donc invisible sous 1536 px. La feuille
+                « Gérer la scène » s'arrête, elle, à `lg:hidden` (< 1024 px).
+                Entre les deux — tout portable de 1024 à 1535 px — il
+                n'existait AUCUN chemin : ni bouton, ni feuille. Le seuil est
+                désormais exactement celui de la feuille, si bien que les deux
+                domaines se rejoignent sans trou et sans se recouvrir. */}
             <button
               onClick={handleRequestCatchup}
-              className="px-3 py-1.5 bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden 2xl:flex items-center gap-1.5 transition-all"
+              data-testid="live-catchup-open"
+              className="px-3 py-1.5 min-h-[44px] bg-white/5 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 border border-white/10 hover:border-indigo-500/40 text-xs font-bold rounded-xl hidden lg:flex items-center gap-1.5 transition-all"
+              title="Ce que vous avez manqué — résumé dans votre langue d’écoute"
             >
               <Sparkles size={14} /> Résumé
             </button>
@@ -3732,6 +3747,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                     onClick={() => setShowMoreTabs(v => !v)}
                     aria-expanded={showMoreTabs}
                     aria-haspopup="menu"
+                    data-testid="live-side-tab-more"
                     className={`w-full h-full px-2 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors ${activeMore || showMoreTabs ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                   >
                     <MoreIcon size={13} />
@@ -3749,6 +3765,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                               key={t.id}
                               role="menuitem"
                               onClick={() => { setActiveSideTab(t.id as any); setShowMoreTabs(false); }}
+                              data-testid={`live-side-tab-${t.id}`}
                               className={`px-2 py-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition-colors ${activeSideTab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'}`}
                             >
                               <Icon size={14} />
@@ -4114,12 +4131,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 </div>
 
                 <div className="space-y-3">
+                  {assistantMessages.length === 0 && !isAssistantThinking && (
+                    <p className="text-[11px] text-slate-400 leading-relaxed" data-testid="live-assistant-empty">
+                      Rien ne vous a encore été répondu ici. Posez votre question : la réponse
+                      s’appuiera sur ce qui a réellement été dit dans ce direct — et si la
+                      réponse ne s’y trouve pas, elle vous le dira au lieu de l’inventer.
+                    </p>
+                  )}
+
                   {assistantMessages.map((item, idx) => (
-                    <div key={idx} className="space-y-1.5 text-xs">
-                      <div className="bg-slate-800 p-2.5 rounded-xl rounded-br-none text-slate-200">
+                    <div key={idx} className="space-y-1.5 text-xs" data-testid="live-assistant-exchange">
+                      <div className="bg-slate-800 p-2.5 rounded-xl rounded-br-none text-slate-200" data-testid="live-assistant-question">
                         {item.query}
                       </div>
-                      <div className="bg-indigo-900/40 border border-indigo-500/30 p-2.5 rounded-xl rounded-bl-none text-indigo-100 leading-relaxed">
+                      <div className="bg-indigo-900/40 border border-indigo-500/30 p-2.5 rounded-xl rounded-bl-none text-indigo-100 leading-relaxed" data-testid="live-assistant-answer">
                         {item.answer}
                       </div>
                     </div>
@@ -4326,6 +4351,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               <div className="flex gap-2">
                 <input
                   type="text"
+                  data-testid="live-assistant-input"
                   value={assistantInput}
                   onChange={(e) => setAssistantInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAskPrivateAssistant()}
@@ -4333,6 +4359,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   className="flex-1 bg-slate-900 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
                 />
                 <button
+                  data-testid="live-assistant-send"
                   onClick={handleAskPrivateAssistant}
                   disabled={isAssistantThinking}
                   className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors disabled:opacity-40"
@@ -4429,6 +4456,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   elles n'y tenaient pas (le cœur et son compteur sortaient de
                   l'écran) ET elles y étaient muettes — deux icônes sans mot.
                   Ici elles ont enfin leur nom et ce qu'elles font. */}
+              {/* LP-8b : « Ce que vous avez manqué » n'avait aucun chemin
+                  tactile sur téléphone. Ce qui ne tient pas dans la barre
+                  n'est jamais retiré du téléphone — il vient ici, et y gagne
+                  son nom (même règle que MB-1). */}
+              <button
+                data-testid="mobile-catchup"
+                onClick={() => { setShowMobileStageSheet(false); handleRequestCatchup(); }}
+                className="flex flex-col items-start gap-1 p-3 rounded-2xl bg-indigo-600/25 border border-indigo-400/40 text-left"
+              >
+                <Sparkles size={18} className="text-indigo-300" />
+                <span className="text-xs font-bold text-white">Ce que vous avez manqué</span>
+                <span className="text-[10px] text-indigo-200/80">Résumé dans votre langue d’écoute</span>
+              </button>
+
               <button
                 data-testid="mobile-transform-parcours"
                 onClick={() => { setShowMobileStageSheet(false); handleTransformToParcours(); }}
@@ -4588,7 +4629,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
 
       {/* 4. CATCHUP SUMMARY DIALOG ("Ce que vous avez manqué") */}
       {showCatchupSummary && (
-        <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[260] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4" data-testid="live-catchup-dialog">
           <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-scale-in">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
@@ -4599,7 +4640,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
               </button>
             </div>
 
-            <div className="p-4 bg-slate-950 rounded-2xl border border-white/5 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
+            <div data-testid="live-catchup-digest" className="p-4 bg-slate-950 rounded-2xl border border-white/5 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
               {catchupDigest}
             </div>
 
