@@ -10,6 +10,17 @@ export interface VoiceEngineListener {
     onStart?: () => void;
     onEnd?: () => void;
     onSpeechVolume?: (volume: number) => void;
+    /**
+     * Niveau (0..1) de la voix que l'Architecte est en train de PRONONCER —
+     * à ne pas confondre avec `onSpeechVolume`, qui mesure le micro de
+     * l'utilisateur et se coupe précisément pendant que l'on parle.
+     *
+     * Mesuré sur l'élément `<audio>` du moteur ElevenLabs, seul chemin où le
+     * navigateur donne accès au signal. Le moteur natif (`speechSynthesis`)
+     * n'expose aucun flux : il n'émet donc jamais sur cet écouteur, et la
+     * synchro labiale retombe honnêtement sur le rythme des mots.
+     */
+    onOutputVolume?: (volume: number) => void;
     onSpeakingStateChange?: (isSpeaking: boolean) => void;
     onConversationalTurnChange?: (turn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user') => void;
     onTtsEngineChange?: (engine: 'elevenlabs' | 'browser_native') => void;
@@ -177,6 +188,16 @@ export class VoiceEngine {
 
     // ElevenLabs state & cache
     private currentAudioElement: HTMLAudioElement | null = null;
+    /**
+     * Chaîne d'analyse de la voix de sortie (synchro labiale de l'avatar de
+     * l'Architecte). `MediaElementAudioSourceNode` ne peut être créé QU'UNE
+     * FOIS par élément `<audio>` : le nœud est donc mémorisé avec l'élément
+     * qui lui correspond, et le contexte est réutilisé d'un segment à l'autre.
+     */
+    private outputAudioContext: AudioContext | null = null;
+    private outputAnalyser: AnalyserNode | null = null;
+    private outputSourceElement: HTMLAudioElement | null = null;
+    private outputRafId: number | null = null;
     private currentAudioUrl: string | null = null;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
@@ -939,6 +960,79 @@ export class VoiceEngine {
         };
     }
 
+    /**
+     * Branche l'analyse d'amplitude sur la voix en cours de lecture, pour la
+     * synchro labiale de l'avatar de l'Architecte.
+     *
+     * Entièrement optionnel : si le navigateur refuse l'`AudioContext`, si le
+     * flux est d'une autre origine, ou si quoi que ce soit échoue, la lecture
+     * de la voix continue normalement et l'avatar retombe sur une bouche
+     * close. Jamais une fonctionnalité d'affichage ne doit pouvoir empêcher
+     * l'Architecte de parler.
+     */
+    private attachOutputAnalyser(audio: HTMLAudioElement): void {
+        // Personne n'écoute le niveau de sortie : ne pas ouvrir de contexte
+        // audio pour rien (coûteux, et bloqué tant qu'il n'y a pas eu de geste
+        // utilisateur sur certains navigateurs).
+        let wanted = false;
+        this.listeners.forEach(l => { if (l.onOutputVolume) wanted = true; });
+        if (!wanted) return;
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextClass) return;
+            if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+            const context = this.outputAudioContext;
+            if (context.state === 'suspended') void context.resume().catch(() => {});
+
+            // Un élément déjà relié garde son nœud : re-créer une source sur le
+            // même élément lève une exception et couperait le son.
+            if (this.outputSourceElement !== audio) {
+                const source = context.createMediaElementSource(audio);
+                const analyser = context.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                // Indispensable : sans reconnexion à la sortie, brancher la
+                // source sur l'analyseur REND LA VOIX MUETTE.
+                analyser.connect(context.destination);
+                this.outputAnalyser = analyser;
+                this.outputSourceElement = audio;
+            }
+            this.startOutputLevelLoop();
+        } catch (err) {
+            console.warn('Analyse du niveau de sortie indisponible (la voix continue):', err);
+        }
+    }
+
+    /** Boucle de mesure : une seule à la fois, arrêtée dès que la parole cesse. */
+    private startOutputLevelLoop(): void {
+        if (this.outputRafId !== null || !this.outputAnalyser) return;
+        const analyser = this.outputAnalyser;
+        const bins = new Uint8Array(analyser.frequencyBinCount);
+        const tick = () => {
+            if (!this.outputAnalyser || !this.isSpeaking) {
+                this.outputRafId = null;
+                this.listeners.forEach(l => l.onOutputVolume?.(0));
+                return;
+            }
+            this.outputAnalyser.getByteFrequencyData(bins);
+            let total = 0;
+            for (let i = 0; i < bins.length; i += 1) total += bins[i];
+            const level = total / bins.length / 255;
+            this.listeners.forEach(l => l.onOutputVolume?.(level));
+            this.outputRafId = requestAnimationFrame(tick);
+        };
+        this.outputRafId = requestAnimationFrame(tick);
+    }
+
+    /** Arrête la mesure et remet la bouche au repos — appelé avec l'arrêt de la parole. */
+    private stopOutputLevelLoop(): void {
+        if (this.outputRafId !== null) {
+            cancelAnimationFrame(this.outputRafId);
+            this.outputRafId = null;
+        }
+        this.listeners.forEach(l => l.onOutputVolume?.(0));
+    }
+
     /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */
     private playAudioUrl(audioUrl: string, epoch: number): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
@@ -946,6 +1040,7 @@ export class VoiceEngine {
                 const audio = new Audio(audioUrl);
                 this.currentAudioElement = audio;
                 this.currentAudioUrl = audioUrl;
+                this.attachOutputAnalyser(audio);
                 audio.onended = () => resolve(true);
                 // `stopSpeaking()` met l'audio en pause : l'événement pause
                 // avec une époque périmée signifie « coupé net » — on résout
@@ -1335,6 +1430,11 @@ export class VoiceEngine {
     }
 
     private notifySpeakingState(speaking: boolean) {
+        // Synchro labiale : un seul point de vérité. Quel que soit le chemin
+        // qui met fin à la parole — fin naturelle, `stopSpeaking()`, erreur —
+        // la mesure s'arrête ici et la bouche se referme. Sans cela, une
+        // boucle d'animation survivrait à la voix.
+        if (!speaking) this.stopOutputLevelLoop();
         this.listeners.forEach(l => l.onSpeakingStateChange?.(speaking));
     }
 

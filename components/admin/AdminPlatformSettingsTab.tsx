@@ -22,6 +22,7 @@ import { PlatformDetailedModuleSettings } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 import { AdminDefaultAvatarCard } from './AdminDefaultAvatarCard';
+import { AdminArchitecteAvatarCard } from './AdminArchitecteAvatarCard';
 
 interface AdminPlatformSettingsTabProps {
   detailedSettings: PlatformDetailedModuleSettings;
@@ -441,6 +442,15 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
               ...formData,
               studio: { ...formData.studio, defaultAvatar }
             })}
+          />
+        </div>
+
+        {/* 4ter. AVATAR VIVANT DE L'ARCHITECTE */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <AdminArchitecteAvatarCard
+            value={formData.architecteAvatar}
+            adminName="Admin-Général"
+            onChange={(architecteAvatar) => setFormData({ ...formData, architecteAvatar })}
           />
         </div>
 

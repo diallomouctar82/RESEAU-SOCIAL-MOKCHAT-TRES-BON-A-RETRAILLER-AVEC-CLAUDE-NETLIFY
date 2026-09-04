@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
 import { AiGatewayNetworkError, analyzeImage, generateText } from '../../services/aiGateway';
 import {
@@ -16,6 +16,14 @@ import { ELEVENLABS_CURATED_VOICES, LISTEN_NETWORK_MESSAGE, MIC_UNAVAILABLE_MESS
 // Identité vocale de l'Architecte (Équipe V) — constantes de module :
 // une référence STABLE (jamais un littéral re-créé à chaque rendu, qui
 // invaliderait le `useCallback` du hook vocal à chaque frappe).
+import { ArchitecteAvatar, ArchitecteIdentityBadge } from './ArchitecteAvatar';
+import {
+    mergeArchitecteAvatarConfig,
+    resolveArchitectePresence,
+    resolveArchitecteVoiceId,
+} from '../../services/architecte/architecteAvatar';
+import { adminConfigService } from '../../services/adminConfigService';
+
 const ARCHITECTE_VOICE_ID = ELEVENLABS_CURATED_VOICES.professor.id;
 const ARCHITECTE_VOICE_SETTINGS = { stability: 0.55, similarity_boost: 0.8, style: 0.15 } as const;
 import {
@@ -258,8 +266,20 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // 30/08/2026 : annoncée par la découverte, jamais exécutable).
     useEffect(() => registerSearchCapabilities(), []);
 
+    // Avatar vivant de l'Architecte : réglages tenus par le Super-Admin
+    // (visage, animations, synchro labiale, voix). Lecture locale-first, sans
+    // requête réseau, comme partout ailleurs dans l'application.
+    const avatarConfig = useMemo(
+        () => mergeArchitecteAvatarConfig(adminConfigService.getDetailedSettings().architecteAvatar),
+        []
+    );
+    const effectiveVoiceId = useMemo(
+        () => resolveArchitecteVoiceId(avatarConfig, ELEVENLABS_CURATED_VOICES, ARCHITECTE_VOICE_ID),
+        [avatarConfig]
+    );
+
     const {
-        isListening, isSpeaking, isSupported, volume, ttsEngine,
+        isListening, isSpeaking, isSupported, volume, outputVolume, ttsEngine,
         transcript, error: voiceError, startListening, stopListening, speak, stopSpeaking, setConversationalMode,
     } = useVoiceAssistant({
         lang: 'fr-FR',
@@ -271,7 +291,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // relevée (débit posé, moins de variations brusques), similarité
         // haute (timbre constant d'une phrase à l'autre), style léger
         // (de la vie, jamais de théâtre).
-        voiceId: ARCHITECTE_VOICE_ID,
+        voiceId: effectiveVoiceId,
         voiceSettings: ARCHITECTE_VOICE_SETTINGS,
         onFinalTranscript: (text) => { void handleCommand(text); },
     });
@@ -1068,6 +1088,17 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     /** Micro réellement en panne — pas simplement « pas encore démarré ». */
     const micFailed = status === MIC_TIMEOUT_MESSAGE;
 
+    // État de présence : traduit des signaux RÉELS (voix, micro, réseau) par
+    // la machine d'états normative d'AI Core — jamais d'émotion simulée.
+    const avatarPresence = resolveArchitectePresence({
+        isSpeaking,
+        isListening,
+        isThinking,
+        micFailed,
+        online: typeof navigator === 'undefined' ? true : navigator.onLine,
+        degraded: ttsEngine === 'browser_native',
+    });
+
     // ── Voix par défaut, texte quand il apporte une vraie valeur (§16-17) ──
     // Le panneau de transcription ne s'impose pas à chaque phrase : il
     // apparaît quand la personne écrit, quand le fil contient une image ou un
@@ -1222,26 +1253,22 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             aria-live="polite"
         >
             <div className="flex items-center gap-4 min-w-0">
-                <button
+                {/* AVATAR VIVANT — remplace le rond à icône (mission Direction
+                    du 04/09/2026). L'état n'est plus porté par une couleur de
+                    fond mais par le visage lui-même : halo de la grammaire
+                    d'états, bouche synchronisée sur la voix réellement
+                    prononcée. L'anneau rouge « micro en échec » reste tenu par
+                    l'état `error`, qui ne se déclenche que sur un échec RÉEL.
+                    L'action du bouton (fermer) est inchangée. */}
+                <ArchitecteAvatar
+                    config={avatarConfig}
+                    presence={avatarPresence}
+                    ttsEngine={ttsEngine}
+                    outputLevel={outputVolume}
+                    size={48}
                     onClick={close}
-                    // L'anneau rouge est réservé à un micro RÉELLEMENT en
-                    // échec. Auparavant il s'affichait dès l'ouverture, avant
-                    // même que l'écoute ait pu démarrer : la barre paraissait
-                    // en panne à chaque ouverture, ce que la référence ne
-                    // montre pas et ce qui n'était pas vrai.
-                    className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center transition-all ${
-                        isSpeaking
-                            ? 'bg-cyan-500 shadow-[0_0_20px_#06b6d4] animate-pulse'
-                            : micFailed
-                                ? 'bg-red-500/20 border border-red-500 animate-pulse'
-                                : 'bg-cyan-900/50 border border-cyan-500'
-                    }`}
-                    aria-label="Fermer L'Architecte"
-                >
-                    {isThinking
-                        ? <Loader2 size={18} className="animate-spin text-cyan-200" />
-                        : <UserRound size={18} className={isSpeaking ? 'text-white' : 'text-cyan-400'} />}
-                </button>
+                    actionLabel="Fermer L'Architecte"
+                />
 
                 <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">

@@ -5375,6 +5375,22 @@ export interface PlatformDetailedModuleSettings {
     xpMultiplier: number;
     peerReviewEnabled: boolean;
   };
+  /**
+   * Avatar vivant de l'Architecte (mission Direction 04/09/2026, playbook
+   * AI Core 15 « Présence conversationnelle vivante »). Type détaillé dans
+   * `services/architecte/architecteAvatar.ts` ; décrit ici pour éviter une
+   * dépendance circulaire types ↔ services.
+   */
+  architecteAvatar: {
+    photoUrl: string;
+    displayName: string;
+    mouthAnchor: { xPercent: number; yPercent: number; widthPercent: number };
+    animationsEnabled: boolean;
+    lipSyncEnabled: boolean;
+    voiceKey: string;
+    updatedAt: string;
+    updatedBy: string;
+  };
   aiCore: {
     activeDefaultProvider: 'gemini' | 'openai' | 'claude' | 'deepseek' | 'mistral';
     geminiModel: string;

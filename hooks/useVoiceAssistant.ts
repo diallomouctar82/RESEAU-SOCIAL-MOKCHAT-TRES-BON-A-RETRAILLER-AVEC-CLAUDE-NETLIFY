@@ -27,6 +27,13 @@ export interface UseVoiceAssistantResult {
     isSpeaking: boolean;
     isSupported: boolean;
     volume: number;
+    /**
+     * Niveau (0..1) de la voix que l'assistant PRONONCE — pour la synchro
+     * labiale de l'avatar. Distinct de `volume`, qui mesure le micro de
+     * l'utilisateur et se coupe précisément pendant que l'assistant parle.
+     * Reste à 0 avec le moteur natif du navigateur, qui n'expose aucun flux.
+     */
+    outputVolume: number;
     transcript: string;
     error: string | null;
     conversationalTurn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user' | null;
@@ -49,6 +56,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
+    const [outputVolume, setOutputVolume] = useState(0);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [conversationalTurn, setConversationalTurn] = useState<UseVoiceAssistantResult['conversationalTurn']>(null);
@@ -79,6 +87,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
             onEnd: () => setIsListening(false),
             onError: (err) => setError(err),
             onSpeechVolume: (v) => setVolume(v),
+            onOutputVolume: (v) => setOutputVolume(v),
             onSpeakingStateChange: (speaking) => setIsSpeaking(speaking),
             onConversationalTurnChange: (turn) => setConversationalTurn(turn),
             // Bascule de moteur vocal VISIBLE : l'interface peut dire quand la
@@ -143,6 +152,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
         isSpeaking,
         isSupported: voiceEngine.isSpeechRecognitionSupported(),
         volume,
+        outputVolume,
         transcript,
         error,
         conversationalTurn,
