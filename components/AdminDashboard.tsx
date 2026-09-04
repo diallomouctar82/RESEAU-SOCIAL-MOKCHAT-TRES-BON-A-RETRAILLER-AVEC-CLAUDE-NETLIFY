@@ -30,7 +30,6 @@ import { AdminLogsAndBroadcastTab } from './admin/AdminLogsAndBroadcastTab';
 import { AiOrchestrator } from './admin/AiOrchestrator';
 import { AdminHealthTab } from './admin/AdminHealthTab';
 import { initialSubTab } from '../services/navigation/deepLink';
-import { BUILD, buildLabel, isNonProduction } from '../services/build/buildInfo';
 
 export type AdminTab = 'overview' | 'health' | 'ai-connectors' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
 
@@ -92,25 +91,7 @@ export const AdminDashboard: React.FC = () => {
             <span className="px-2.5 py-0.5 bg-blue-600 text-white rounded-full text-[10px] font-black uppercase tracking-wider">
               Console Super-Admin Souveraine
             </span>
-            {/* Quelle version ai-je sous les yeux ? Cette question n'avait
-                aucune réponse à l'écran : le libellé était écrit en dur, donc
-                identique en production et dans un aperçu. Une version d'essai
-                se signale maintenant elle-même. */}
-            <span
-              className={`text-xs font-mono px-2 py-0.5 rounded-md border ${
-                isNonProduction()
-                  ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
-                  : 'text-slate-400 border-transparent'
-              }`}
-              title={
-                BUILD.commit
-                  ? `Commit ${BUILD.commit}\nConstruit le ${BUILD.construitLe}`
-                  : 'Version construite hors Netlify : aucune identité de commit disponible.'
-              }
-            >
-              {isNonProduction() && <span className="not-sr-only">⚠ </span>}
-              {buildLabel()}
-            </span>
+            <span className="text-xs text-slate-400 font-mono">Diallo OS v2.5 — Supabase Cloud</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5 mt-1">
             <Shield className="text-blue-600 shrink-0" size={26} />
