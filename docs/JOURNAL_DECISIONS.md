@@ -1190,10 +1190,13 @@ Chaque décision respecte le formalisme strict suivant :
   `npm run build` propre · captures avant/après ordinateur 1600×900 et
   téléphone 390×844 (harnais local non versionné, `origin/main` contre la
   branche) versées dans `docs/captures/2026-09-04-nettoyage-barre-laterale/`.
-* **Statut** : `Développé`, `Testé` — **EN ATTENTE DE VALIDATION DE LA
-  DIRECTION** sur la branche `claude/cleanup-home-interface-szp8qv` (PR en
-  brouillon : aucune fusion, aucune production).
-* **Restes assumés** : le jugement visuel revient à la Direction ; la
+* **Statut** : `Développé`, `Testé`, `Validé` par la Direction le 4 septembre
+  2026 sur sa capture de référence (« il faut te conformer strictement au menu
+  indiqué dans la capture… production contrôlée, zéro régression ») —
+  fusionné dans `main` via la PR #74 (fusion écrasée, convention du dépôt),
+  déploiement automatique Netlify sur moknet.net, contrôle post-déploiement
+  consigné dans la PR.
+* **Restes assumés** : la
   pastille flottante reste le seul chemin ordinateur vers l'Architecte
   (voulu : « un doublon de moins ») ; la clé `lmav_nav_recents` reste
   inerte dans les navigateurs qui l'ont ; l'entrée Super-Admin reste visible
