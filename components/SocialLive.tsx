@@ -46,6 +46,7 @@ import {
 } from '../services/live/liveListeningLanguage';
 import { decodeCallData } from '../services/messaging/speechLanguage';
 import { keepLiveTranscriptLine } from '../services/live/liveTranscriptService';
+import type { LiveTranscriptLine } from '../services/live/liveInterpreterProducer';
 import { useLiveListeningLanguage } from '../hooks/useLiveListeningLanguage';
 import { ListeningLanguagePicker } from './live/ListeningLanguagePicker';
 import { registerCapabilityHandlers } from '../services/architecte/capabilityBus';
@@ -521,6 +522,9 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // Par défaut : Original. Personne n'entend une traduction sans l'avoir
   // demandée, et rien n'est produit tant que personne n'en demande.
   const interpreterAudibleRef = useRef(false);
+  // Relais vers ma propre barre de sous-titres (voir plus bas) : ce que je
+  // produis ne me revient pas par le canal de données.
+  const onLocalTranscriptRef = useRef<(line: LiveTranscriptLine) => void>(() => { /* pas encore prêt */ });
   const listening = useLiveListeningLanguage({
     transport: liveTransport,
     canProduce: isUserOnStage && hasMediaConsent,
@@ -531,6 +535,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     // l'enregistrement : la base refuse l'écriture sinon, c'est elle qui fait
     // foi, pas cette condition côté écran.
     onTranscript: (line) => {
+      // D'abord ma propre barre — y compris pour les copies traduites, parce
+      // qu'un intervenant qui écoute en anglais doit lire l'anglais comme
+      // tout le monde. Le tri est fait par la même règle que pour les autres.
+      onLocalTranscriptRef.current(line);
       if (line.targetLanguage || !realSessionId) return;
       void keepLiveTranscriptLine({
         sessionId: realSessionId,
@@ -819,6 +827,13 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const subtitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current); }, []);
 
+  const afficherSousTitre = (mine: LiveSubtitle | null) => {
+    if (!mine) return; // ce sous-titre est celui d'une autre langue que la mienne
+    setCurrentSubtitle(mine);
+    if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+    subtitleTimerRef.current = setTimeout(() => setCurrentSubtitle(null), 8000);
+  };
+
   onLiveDataRef.current = (payload, from) => {
     const message = decodeCallData(payload);
     if (!message || message.t !== 'caption') return;
@@ -827,7 +842,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     const speaker = liveTransport.remoteParticipants
       .find((p) => p.participant.identity === from)?.participant.name;
     if (!speaker) return;
-    const mine = subtitleForListener({
+    afficherSousTitre(subtitleForListener({
       caption: {
         text: message.text,
         lang: message.lang,
@@ -836,11 +851,30 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
       },
       myChoice: listening.choice,
       speakerName: speaker,
-    });
-    if (!mine) return; // ce sous-titre est celui d'une autre langue que la mienne
-    setCurrentSubtitle(mine);
-    if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
-    subtitleTimerRef.current = setTimeout(() => setCurrentSubtitle(null), 8000);
+    }));
+  };
+
+  // LP-7 — MA PROPRE PAROLE. Le canal de données de LiveKit ne renvoie jamais
+  // un message à celui qui l'a émis : sans ce relais, l'intervenant serait le
+  // SEUL du direct à ne rien lire, sa barre répétant « Aucun sous-titre pour
+  // l'instant » pendant que tous les autres lisent ses mots. C'est aussi sa
+  // seule preuve à l'écran que la transcription tourne réellement — et, dès
+  // que l'enregistrement est activé, que quelque chose est bien capté.
+  //
+  // Même règle que pour les autres, pas une seconde : `subtitleForListener`
+  // décide. J'écoute en Original → je lis mes mots d'origine ; j'écoute en
+  // anglais → je lis la copie anglaise que je produis déjà pour les autres.
+  onLocalTranscriptRef.current = (line) => {
+    afficherSousTitre(subtitleForListener({
+      caption: {
+        text: line.text,
+        lang: line.language,
+        translated: line.translated,
+        targetLang: line.targetLanguage,
+      },
+      myChoice: listening.choice,
+      speakerName: userProfile.name,
+    }));
   };
   const [aiCopilotState, setAiCopilotState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
   // Grammaire d'états de l'avatar (LOOP 10/14) — piloté par les vrais signaux
@@ -3396,11 +3430,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                   {currentSubtitle ? (
                     <>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
-                        <p className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
+                        <span data-testid="subtitle-speaker" className="text-[10px] font-mono font-bold text-indigo-400">{currentSubtitle.speaker} :</span>
+                        <p data-testid="subtitle-text" className="text-xs font-bold text-white truncate">{currentSubtitle.text}</p>
                       </div>
                       {subtitlesMode === 'bilingual' && currentSubtitle.translated && (
-                        <p className="text-[11px] text-indigo-300 truncate font-sans">
+                        <p data-testid="subtitle-translated" className="text-[11px] text-indigo-300 truncate font-sans">
                           🌍 {currentSubtitle.translated}
                         </p>
                       )}

@@ -22,11 +22,18 @@ conséquences, toutes deux silencieuses :
 | Ce chemin ne se serait déclenché **qu'à l'échec** | Même branché, les ~88 % de phrases réussies n'auraient produit aucun sous-titre. La barre de l'écran serait restée sur « Aucun sous-titre pour l'instant » pendant tout le direct. |
 | Le LIVE n'utilisait **aucun canal de données** (`sendData`/`onDataReceived` : zéro occurrence dans `SocialLive.tsx`) | Aucun texte ne pouvait atteindre les autres, quelle que soit la correction faite côté producteur. |
 | `setCurrentSubtitle` n'était appelé nulle part (constat LP-0) | La barre de sous-titres était décorative depuis l'origine. |
+| **Trouvé par le banc, pas par la lecture du code** : le canal de données de LiveKit ne renvoie jamais un message à celui qui l'a émis | L'**intervenant** était le SEUL du direct à ne rien lire — sa barre répétait « Aucun sous-titre pour l'instant » pendant que ses trois auditeurs lisaient ses mots. C'est pourtant sa seule preuve à l'écran que la transcription tourne, et — une fois l'enregistrement activé — que quelque chose est bien capté. |
 
 **Correction LP-7** : la publication a lieu **au moment où le texte est
 connu**, pas à l'échec de la voix. Le repli § 17 devient alors une
 conséquence, pas un chemin séparé — le texte est déjà chez l'auditeur quand
 la synthèse échoue.
+
+**Correction LP-7 bis** : ce que je produis m'est repassé **localement**, par
+la même règle de tri que pour les autres (`subtitleForListener`), avec mon
+propre nom. J'écoute en Original → je relis mes mots ; j'écoute en anglais →
+je lis la copie anglaise que je fabrique déjà pour les autres. Jamais deux
+fois, jamais une seconde règle.
 
 ---
 
@@ -126,6 +133,36 @@ dire « pour toujours ».
 
 ## 4. Preuves
 
+### À l'écran — banc réel, trois comptes, trois langues (`04/09/2026`)
+
+`dist/` servi sur :4173, Realtime relayé par le courtier local, média par le
+binaire `livekit-server` **1.8.4 exact** du VPS, Supabase et passerelle IA
+**réels**. Awa anime avec une vraie voix française (WAV) ; Bilal et Chen sont
+**spectateurs sans micro** (§ 24).
+
+| | AVANT (correctif LP-7 bis absent) | APRÈS |
+|---|---|---|
+| Bilal (English) | les mots d'origine + « Hello Amina, this is a voice message… » | idem |
+| Chen (Русский) | les mots d'origine + « Привет, Амина, это голосовое сообщение… » | idem |
+| **Awa (Original)** | **« Aucun sous-titre pour l'instant. »** | **ses propres mots, sans traduction** |
+| Total du banc | **61 OK / 1 DÉFAUT** | **62 OK / 0 DÉFAUT** |
+
+Les deux spectateurs lisent des textes **différents** (chacun sa langue) sur
+des mots d'origine **identiques** (une seule transcription) ; le nom affiché
+(« Awa LP6 ») vient du roster, pas du message. Captures :
+`AVANT-05d-A-sous-titre-original.png` → `05d-A-sous-titre-original.png`.
+
+### En base — conservation (12 contrôles à l'écran, 12 OK)
+
+Enchaînés dans le même direct, via REST avec les **vrais jetons** des comptes :
+enregistrement désactivé à la création (défaut de la base) → 0 ligne gardée ;
+un **spectateur ne peut pas** activer l'enregistrement (0 ligne modifiée) ;
+l'animatrice, si → la parole se pose ; langue gardée `fr` **détectée** ;
+nom du locuteur porté ; **aucune traduction** en base ; un spectateur du
+direct relit bien la parole gardée.
+
+### Base réelle — règles RLS
+
 **Base réelle** (impersonation RLS, 3 comptes éphémères, direct **privé**,
 `04/09/2026`) — **10 contrôles, 10 OK** :
 
@@ -166,7 +203,8 @@ fonction de purge a été révoqué dès l'origine pour `public`, `anon` et
 | Publie la parole (côté intervenant) | `services/live/liveInterpreterProducer.ts` → `publishTranscript` |
 | Envoie sur le canal de données + expose pour la conservation | `hooks/useLiveListeningLanguage.ts` |
 | Trie à l'arrivée (règle pure, testée) | `services/live/liveListeningLanguage.ts` → `subtitleForListener` |
-| Affiche | `components/SocialLive.tsx` → `onLiveDataRef` → `setCurrentSubtitle` |
+| Affiche la parole des AUTRES | `components/SocialLive.tsx` → `onLiveDataRef` → `afficherSousTitre` |
+| Affiche MA propre parole (LP-7 bis) | `components/SocialLive.tsx` → `onLocalTranscriptRef` → même règle, même affichage |
 | Garde et relit | `services/live/liveTranscriptService.ts` |
 | Schéma, RLS, rétention | migration `live_lp7_transcript_lines` |
 
@@ -174,11 +212,21 @@ fonction de purge a été révoqué dès l'origine pour `public`, `anon` et
 
 ## 6. Ce que ce document ne prouve pas
 
-- **Aucun direct réel à trois langues n'a été rejoué depuis LP-7.** Les 10
-  contrôles ci-dessus portent sur la base et les règles ; le banc navigateur
-  complet (trois comptes, voix réelles) date de LP-6 et n'a pas été rejoué
-  avec les sous-titres. Le voir à l'écran pendant un vrai direct reste à
-  faire.
+- **Le banc tourne sur trois navigateurs, pas sur trois appareils.** Trois
+  contextes Chromium isolés, un serveur LiveKit local à la version exacte du
+  VPS, et une voix jouée depuis un fichier. La chaîne complète est réelle
+  (Supabase, passerelle IA, WebRTC), mais un vrai direct depuis trois
+  téléphones sur trois réseaux se constate sur les appareils.
+- **Le courtier local ne relaie pas les `postgres_changes` de Supabase.**
+  Tout ce qui passe par le canal de données LiveKit et par les métadonnées de
+  participant traverse donc réellement les trois écrans ici ; ce qui
+  dépendrait d'une poussée `postgres_changes` (le chat) n'est pas l'objet de
+  ce banc.
+- **Un chevauchement d'interface, constaté sur les captures, non corrigé** :
+  la pastille contextuelle « Diallo, Retiens ceci » se pose au-dessus de la
+  moitié droite de la barre de sous-titres. Le texte reste lisible sur les
+  captures, mais c'est un empilement à reprendre — il concerne la barre
+  flottante du Studio, pas les notes vivantes, et n'a pas été mesuré ici.
 - **Aucun bouton d'interface n'active encore l'enregistrement.**
   `is_recording_enabled` existe, la base l'exige, mais le geste de
   l'animateur qui le passe à `true` est l'objet de **LP-12**. En l'état, la

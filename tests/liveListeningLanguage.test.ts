@@ -270,4 +270,30 @@ describe('LP-7 — quel sous-titre est pour moi', () => {
         const recu = subtitleForListener({ caption: original, myChoice: null, speakerName: 'Awa Ndiaye' });
         expect(recu?.speaker).toBe('Awa Ndiaye');
     });
+
+    // LE CAS QUE LE BANC A TROUVÉ (61 OK / 1 DÉFAUT, 04/09). Le canal de
+    // données de LiveKit ne renvoie jamais un message à celui qui l'a émis :
+    // l'intervenant était le SEUL du direct à ne rien lire, sa barre répétant
+    // « Aucun sous-titre pour l'instant » pendant que tous les autres lisaient
+    // ses mots. Sa parole lui est désormais repassée localement — par CETTE
+    // règle, pas par une seconde.
+    //
+    // Ce que ce test verrouille : appliquée à MA propre production, la règle
+    // trie exactement comme pour n'importe qui d'autre. Le CÂBLAGE lui-même
+    // (le relais local dans `SocialLive`) n'est pas testable ici : c'est le
+    // banc navigateur qui le prouve, sur trois écrans réels.
+    it('un intervenant reçoit de sa PROPRE production exactement une version, celle de sa langue', () => {
+        const jeProduis = [original, versEn, versRu];
+        const pourMoi = (choix: string | null) => jeProduis
+            .map((c) => subtitleForListener({ caption: c, myChoice: choix, speakerName: 'Awa' }))
+            .filter(Boolean);
+
+        // J'anime en français et j'écoute en Original : je relis mes mots.
+        expect(pourMoi(null)).toEqual([{ speaker: 'Awa', text: 'Bonjour.' }]);
+        // J'anime en français mais j'écoute en anglais : je lis la copie
+        // anglaise que je fabrique déjà pour les autres — jamais deux fois.
+        expect(pourMoi('en')).toEqual([{ speaker: 'Awa', text: 'Bonjour.', translated: 'Hello.' }]);
+        // Une langue que je ne produis pas ne me met rien à l'écran.
+        expect(pourMoi('es')).toEqual([]);
+    });
 });
