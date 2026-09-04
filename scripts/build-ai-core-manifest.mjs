@@ -38,9 +38,14 @@ function git(commande) {
  * partir d'un commit précis. Les variables d'environnement du build font
  * autorité quand git n'a rien à dire.
  */
+// `AI_CORE_BUILD_COMMIT` d'abord : `COMMIT_REF` est une variable RÉSERVÉE par
+// Netlify — une valeur qu'on y définit soi-même est ignorée, et la page sortait
+// sans identité de build alors que la variable était bien enregistrée.
 const commit = git('rev-parse --short HEAD')
-    || (process.env.COMMIT_REF ? process.env.COMMIT_REF.slice(0, 7) : null);
-const branche = git('rev-parse --abbrev-ref HEAD') || process.env.BRANCH || null;
+    || (process.env.AI_CORE_BUILD_COMMIT || process.env.COMMIT_REF || '').slice(0, 7)
+    || null;
+const branche = git('rev-parse --abbrev-ref HEAD')
+    || process.env.AI_CORE_BUILD_BRANCH || process.env.BRANCH || null;
 const commitDate = git('log -1 --format=%cI') || null;
 
 /** Liste récursive des fichiers d'un dossier, extensions filtrées. */
