@@ -38,11 +38,12 @@ export interface PortraitRig {
 }
 
 export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
-    // Relevé sur le portrait DE FACE livré (`public/architecte/architecte.webp`) :
-    // yeux à 42 % de la hauteur, mâchoire à 64 %, menton à 80 %.
-    eyeLinePercent: 42,
-    eyeBandPercent: 8,
-    jawLinePercent: 64,
+    // Relevé sur le portrait DE FACE livré (`public/architecte/architecte.webp`),
+    // composé d'après la référence validée par la Direction le 04/09/2026 :
+    // yeux à 45,5 % de la hauteur, mâchoire à 61 %, lèvres à 67,5 % — lus sur une grille posée sur le rendu, menton à 80 %.
+    eyeLinePercent: 45.5,
+    eyeBandPercent: 6,
+    jawLinePercent: 61,
     jawTravelPercent: 5.2,
 };
 

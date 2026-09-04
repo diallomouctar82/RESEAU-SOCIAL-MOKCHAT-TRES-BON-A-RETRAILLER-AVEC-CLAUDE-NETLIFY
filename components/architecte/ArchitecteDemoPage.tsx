@@ -62,7 +62,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                 const t = maintenant - debut;
                 if (t >= DUREE_PHRASE) {
                     setNiveau(0);
-                    return enBoucle ? maintenant + 900 : null;
+                    return enBoucle ? maintenant + 4200 : null;
                 }
                 setNiveau(t < 0 ? 0 : amplitudeDeLaPhrase(t));
                 return debut;

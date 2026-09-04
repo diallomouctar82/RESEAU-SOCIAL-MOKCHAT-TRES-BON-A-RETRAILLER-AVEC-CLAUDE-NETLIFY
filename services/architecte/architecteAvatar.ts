@@ -42,7 +42,7 @@ export interface MouthAnchor {
     widthPercent: number;
 }
 
-export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 48, yPercent: 76, widthPercent: 18 };
+export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 50, yPercent: 67.5, widthPercent: 13.5 };
 
 export interface ArchitecteAvatarConfig {
     /**
