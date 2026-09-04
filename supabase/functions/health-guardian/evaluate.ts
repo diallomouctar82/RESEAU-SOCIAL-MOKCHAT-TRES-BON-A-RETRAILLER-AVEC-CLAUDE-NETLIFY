@@ -49,19 +49,34 @@ function ratio(part: number, total: number): number | null {
 }
 
 /**
+ * Les trois formes d'une même phrase de comptage. Les écrire explicitement
+ * plutôt que d'ajouter un « s » à la fin : le français accorde le NOM, pas la
+ * formule entière — un accord automatique produisait « 2 direct ouvert depuis
+ * plus de 24 hs », qui décrédibilise tout le tableau de bord.
+ */
+interface Formes {
+    /** Cas zéro, accordé en genre : « Aucune story conservée après expiration. » */
+    aucun: string;
+    /** Exactement un : « story conservée après expiration ». */
+    un: string;
+    /** Deux et plus : « stories conservées après expiration ». */
+    plusieurs: string;
+}
+
+/**
  * Verdict d'un compteur qui doit rester à zéro : au-delà, la gravité dépend
  * de l'ampleur, jamais du simple fait qu'il soit non nul.
  */
 function zeroIsGood(
     count: number,
-    unit: string,
+    formes: Formes,
     orangeUpTo: number,
     evidence?: Record<string, unknown>,
 ): Verdict {
-    if (count === 0) return { status: 'vert', measured: `Aucun ${unit}.`, evidence };
+    if (count === 0) return { status: 'vert', measured: `${formes.aucun}.`, evidence };
     return {
         status: count <= orangeUpTo ? 'orange' : 'rouge',
-        measured: `${count} ${unit}${count > 1 ? 's' : ''}.`,
+        measured: `${count} ${count > 1 ? formes.plusieurs : formes.un}.`,
         gap: `Attendu 0, mesuré ${count}.`,
         evidence,
     };
@@ -191,7 +206,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
                 gap: "Rétablir la contrainte : purger sans elle ne ferait que repousser le problème.",
             };
         }
-        return zeroIsGood(count, 'message orphelin', 10);
+        return zeroIsGood(count, { aucun: 'Aucun message orphelin', un: 'message orphelin', plusieurs: 'messages orphelins' }, 10);
     },
 
     'donnees.participants_fantomes': ({ data, catalogue }) => {
@@ -207,11 +222,11 @@ export const EVALUATORS: Record<string, Evaluator> = {
                 gap: "Rétablir la contrainte avant toute purge.",
             };
         }
-        return zeroIsGood(count, 'participant fantôme', 10);
+        return zeroIsGood(count, { aucun: 'Aucun participant fantôme', un: 'participant fantôme', plusieurs: 'participants fantômes' }, 10);
     },
 
     'donnees.conversations_vides': ({ data }) =>
-        zeroIsGood(n(data.emptyConversations), 'conversation sans participant', 5),
+        zeroIsGood(n(data.emptyConversations), { aucun: 'Aucune conversation sans participant', un: 'conversation sans participant', plusieurs: 'conversations sans participant' }, 5),
 
     'donnees.reactions_orphelines': ({ data, catalogue }) => {
         const fk = list(catalogue.foreignKeys).includes('post_reactions_post_id_fkey');
@@ -226,7 +241,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
                 gap: "Rétablir la contrainte avant toute purge.",
             };
         }
-        return zeroIsGood(count, 'réaction orpheline', 20);
+        return zeroIsGood(count, { aucun: 'Aucune réaction orpheline', un: 'réaction orpheline', plusieurs: 'réactions orphelines' }, 20);
     },
 
     'donnees.coherence_amities': ({ data }) => {
@@ -244,7 +259,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
     },
 
     'donnees.profils_sans_compte': ({ data }) =>
-        zeroIsGood(n(data.profilesWithoutAccount), 'profil sans compte', 3),
+        zeroIsGood(n(data.profilesWithoutAccount), { aucun: 'Aucun profil sans compte', un: 'profil sans compte', plusieurs: 'profils sans compte' }, 3),
 
     // ─────────────────────────── IA ───────────────────────────
 
@@ -264,7 +279,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
     },
 
     'ia.secrets_presents': ({ operations }) =>
-        zeroIsGood(n(operations.enabledWithoutSecret), 'fournisseur activé sans clé', 1),
+        zeroIsGood(n(operations.enabledWithoutSecret), { aucun: 'Aucun fournisseur activé sans clé', un: 'fournisseur activé sans clé', plusieurs: 'fournisseurs activés sans clé' }, 1),
 
     'ia.budget_arme': ({ operations }) => {
         const enforced = operations.budgetEnforced === true;
@@ -328,7 +343,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
         },
 
     'messagerie.appels_bloques': ({ operations }) =>
-        zeroIsGood(n(operations.stuckCalls), 'appel resté en cours depuis plus de 6 h', 5),
+        zeroIsGood(n(operations.stuckCalls), { aucun: 'Aucun appel resté en cours depuis plus de 6 h', un: 'appel resté en cours depuis plus de 6 h', plusieurs: 'appels restés en cours depuis plus de 6 h' }, 5),
 
     'messagerie.appels_en_echec': ({ operations }) => {
         const total = n(operations.calls24h);
@@ -355,7 +370,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
     // ─────────────────────────── LIVE ───────────────────────────
 
     'live.sessions_zombies': ({ operations }) =>
-        zeroIsGood(n(operations.zombieSessions), 'direct ouvert depuis plus de 24 h', 3),
+        zeroIsGood(n(operations.zombieSessions), { aucun: 'Aucun direct ouvert depuis plus de 24 h', un: 'direct ouvert depuis plus de 24 h', plusieurs: 'directs ouverts depuis plus de 24 h' }, 3),
 
     'live.transcriptions_a_purger': ({ operations }) => {
         const count = n(operations.expiredTranscripts);
@@ -383,7 +398,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
                 gap: "Rétablir la contrainte avant toute purge.",
             };
         }
-        return zeroIsGood(count, 'intervenant orphelin', 10);
+        return zeroIsGood(count, { aucun: 'Aucun intervenant orphelin', un: 'intervenant orphelin', plusieurs: 'intervenants orphelins' }, 10);
     },
 
     // ────────────────────── NOTIFICATIONS ──────────────────────
@@ -411,7 +426,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
     },
 
     'notifications.abonnements_morts': ({ operations }) =>
-        zeroIsGood(n(operations.deadSubscriptions), 'abonnement refusé définitivement', 5),
+        zeroIsGood(n(operations.deadSubscriptions), { aucun: 'Aucun abonnement refusé définitivement', un: 'abonnement refusé définitivement', plusieurs: 'abonnements refusés définitivement' }, 5),
 
     'notifications.journal_volume': ({ operations }) => {
         const rows = n(operations.pushDeliveryLogRows);
@@ -426,10 +441,10 @@ export const EVALUATORS: Record<string, Evaluator> = {
     // ──────────────────── CONTENU & VIE SOCIALE ────────────────────
 
     'contenu.publications_bloquees': ({ data }) =>
-        zeroIsGood(n(data.stuckScheduledPosts), 'publication programmée jamais parue', 3),
+        zeroIsGood(n(data.stuckScheduledPosts), { aucun: 'Aucune publication programmée en retard', un: 'publication programmée jamais parue', plusieurs: 'publications programmées jamais parues' }, 3),
 
     'contenu.stories_expirees': ({ data }) =>
-        zeroIsGood(n(data.expiredStories), 'story conservée après expiration', 10),
+        zeroIsGood(n(data.expiredStories), { aucun: 'Aucune story conservée après expiration', un: 'story conservée après expiration', plusieurs: 'stories conservées après expiration' }, 10),
 
     'contenu.notifications_obsoletes': ({ data }) => {
         const total = n(data.notificationsTotal);
@@ -470,7 +485,7 @@ export const EVALUATORS: Record<string, Evaluator> = {
                 gap: "Rétablir la contrainte avant toute purge.",
             };
         }
-        return zeroIsGood(count, 'référence de document orpheline', 10);
+        return zeroIsGood(count, { aucun: 'Aucune référence de document orpheline', un: 'référence de document orpheline', plusieurs: 'références de document orphelines' }, 10);
     },
 
     'stockage.bucket_public': ({ operations }) => operations.publicBucketPresent
