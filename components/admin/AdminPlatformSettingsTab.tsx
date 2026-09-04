@@ -21,6 +21,7 @@ import {
 import { PlatformDetailedModuleSettings } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { SmartConfirmModal } from '../ui/SmartConfirmModal';
+import { AdminDefaultAvatarCard } from './AdminDefaultAvatarCard';
 
 interface AdminPlatformSettingsTabProps {
   detailedSettings: PlatformDetailedModuleSettings;
@@ -429,6 +430,18 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
               </label>
             </div>
           </div>
+        </div>
+
+        {/* 4bis. STUDIO AVATAR — identité par défaut de tous les nouveaux comptes */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <AdminDefaultAvatarCard
+            value={formData.studio.defaultAvatar}
+            adminName="Admin-Général"
+            onChange={(defaultAvatar) => setFormData({
+              ...formData,
+              studio: { ...formData.studio, defaultAvatar }
+            })}
+          />
         </div>
 
         {/* 5. MODULE CAMPUS & ÉDUCATION */}

@@ -1409,7 +1409,17 @@ const INITIAL_DETAILED_SETTINGS: PlatformDetailedModuleSettings = {
     defaultVisionModel: 'gemini-2.5-flash',
     defaultImageSize: '1024x1024',
     watermarkEnabled: true,
-    allowVeoVideoGeneration: true
+    allowVeoVideoGeneration: true,
+    // Studio Avatar : AUCUN avatar imposé en sortie d'usine. Tant que
+    // l'Admin-Général n'a rien défini, un nouveau compte affiche ses
+    // initiales — jamais un visage inventé par le code, jamais le cliché de
+    // banque d'images que le reste de l'app traite comme « avatar absent ».
+    defaultAvatar: {
+      photoUrl: '',
+      label: 'Aucun avatar imposé (initiales du membre)',
+      updatedAt: '',
+      updatedBy: ''
+    }
   },
   campus: {
     examPassingScore: 70,
@@ -1443,6 +1453,35 @@ const INITIAL_SYSTEM_CONFIG: AdminSystemConfig = {
 };
 
 // ── 12. REGISTRE DES VERSIONS MAJEURES STABLES (MINIMUM 3 DERNIÈRES STABLES CONSERVÉES) ──
+/**
+ * Fusionne des réglages enregistrés avec les valeurs d'usine, section par
+ * section.
+ *
+ * Nécessaire dès qu'une section gagne une clé : le `localStorage` d'un
+ * administrateur ayant déjà enregistré ses réglages ne la contient pas, et un
+ * `JSON.parse` brut laisserait la clé `undefined` — l'écran qui la lit
+ * planterait, alors même que la valeur d'usine existe. Le réglage enregistré
+ * gagne toujours ; seules les clés absentes viennent des valeurs d'usine.
+ */
+export function mergeDetailedSettings(stored: unknown): PlatformDetailedModuleSettings {
+  const source = (stored && typeof stored === 'object' ? stored : {}) as Partial<PlatformDetailedModuleSettings>;
+  return {
+    live: { ...INITIAL_DETAILED_SETTINGS.live, ...(source.live || {}) },
+    commerce: { ...INITIAL_DETAILED_SETTINGS.commerce, ...(source.commerce || {}) },
+    mokTrust: { ...INITIAL_DETAILED_SETTINGS.mokTrust, ...(source.mokTrust || {}) },
+    studio: {
+      ...INITIAL_DETAILED_SETTINGS.studio,
+      ...(source.studio || {}),
+      defaultAvatar: {
+        ...INITIAL_DETAILED_SETTINGS.studio.defaultAvatar,
+        ...(source.studio?.defaultAvatar || {}),
+      },
+    },
+    campus: { ...INITIAL_DETAILED_SETTINGS.campus, ...(source.campus || {}) },
+    aiCore: { ...INITIAL_DETAILED_SETTINGS.aiCore, ...(source.aiCore || {}) },
+  };
+}
+
 export const STABLE_RELEASE_VERSIONS: PlatformReleaseVersion[] = [
   {
     version: 'v6.3.0',
@@ -1866,7 +1905,7 @@ export class AdminConfigService {
       if (storedMok) this.mokTrustAudits = JSON.parse(storedMok);
 
       const storedSettings = localStorage.getItem(ADMIN_SETTINGS_KEY);
-      if (storedSettings) this.detailedSettings = JSON.parse(storedSettings);
+      if (storedSettings) this.detailedSettings = mergeDetailedSettings(JSON.parse(storedSettings));
 
       const storedSnapshots = localStorage.getItem(ADMIN_SNAPSHOTS_KEY);
       if (storedSnapshots) {
@@ -2547,7 +2586,16 @@ export class AdminConfigService {
       live: { ...this.detailedSettings.live, ...(updates.live || {}) },
       commerce: { ...this.detailedSettings.commerce, ...(updates.commerce || {}) },
       mokTrust: { ...this.detailedSettings.mokTrust, ...(updates.mokTrust || {}) },
-      studio: { ...this.detailedSettings.studio, ...(updates.studio || {}) },
+      studio: {
+        ...this.detailedSettings.studio,
+        ...(updates.studio || {}),
+        // Sous-objet : la fusion superficielle ci-dessus l'écraserait en
+        // entier dès qu'un formulaire envoie `studio` sans lui.
+        defaultAvatar: {
+          ...this.detailedSettings.studio.defaultAvatar,
+          ...(updates.studio?.defaultAvatar || {}),
+        },
+      },
       campus: { ...this.detailedSettings.campus, ...(updates.campus || {}) },
       aiCore: { ...this.detailedSettings.aiCore, ...(updates.aiCore || {}) },
     };
