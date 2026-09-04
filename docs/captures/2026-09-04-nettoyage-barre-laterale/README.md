@@ -3,7 +3,7 @@
 Produites par le même harnais local **non versionné** que pour DEC-2026-051
 (Layout + Dashboard rendus authentifiés, favoris par défaut) sur `origin/main`
 (**avant**) et sur la branche `claude/cleanup-home-interface-szp8qv` (**après**),
-dans Chromium headless via Playwright.
+dans Chromium headless via Playwright. Mesuré dans le même navigateur : avant, 25 boutons de « L’Architecte » à « Tableau de Bord Super-Admin » ; après, 16 boutons d’« Accueil » à « Conseil des Sages ».
 
 Retirés de l’affichage : le bouton « L’Architecte », le bloc « Mes Favoris »,
 le bloc « Récents », le libellé « Accueil & Cap » et l’entrée Super-Admin de la
@@ -16,6 +16,7 @@ pastille flottante de l’Architecte, le tiroir mobile.
 | :--- | :--- | :--- |
 | Ordinateur 1600×900, page entière | `avant-ordinateur.png` | `apres-ordinateur.png` |
 | Ordinateur — barre latérale seule | `avant-ordinateur-barre-laterale.png` | `apres-ordinateur-barre-laterale.png` |
+| Ordinateur — barre latérale, liste défilée jusqu’en bas (dernier bouton) | `avant-ordinateur-barre-laterale-bas.png` | `apres-ordinateur-barre-laterale-bas.png` |
 | Ordinateur — en-tête (inchangé, témoin) | `avant-ordinateur-entete.png` | `apres-ordinateur-entete.png` |
 | Téléphone 390×844, page entière (inchangé, témoin) | `avant-telephone.png` | `apres-telephone.png` |
 
