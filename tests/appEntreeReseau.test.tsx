@@ -237,18 +237,25 @@ describe("Verrou d'entrée — accès public réservé aux sessions valides (Dir
         expect(h.verifierSession).toHaveBeenCalledTimes(1);
     });
 
-    it("SIGNED_IN rejoué PENDANT la vérification initiale (course à l'initialisation) : le verdict tombe, l'interface ne s'ouvre jamais", async () => {
+    it("SIGNED_IN rejoué PENDANT la vérification initiale (course à l'initialisation) : le verdict tombe, l'interface ne s'ouvre jamais — même quand un profil arrive après le refus", async () => {
         const session = sessionStockee();
         const verdict = differee<unknown>();
         h.getSession.mockResolvedValue(session);
         h.verifierSession.mockReturnValue(verdict.promesse);
+        // Avant la correction, le SIGNED_IN rejoué chargeait le profil SANS
+        // verdict : un profil résolu après le refus rouvrait l'interface.
+        const profil = differee<unknown>();
+        h.fetchUserProfile.mockReturnValue(profil.promesse as Promise<never>);
         render(<App />);
         await act(async () => { h.authCallback?.(session, 'SIGNED_IN'); });
         expect(screen.queryByTestId('app-layout')).toBeNull();
         await act(async () => { verdict.resoudre({ statut: 'invalide', raison: 'refus du serveur (401)' }); });
         expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        await act(async () => { profil.resoudre({ id: 'u-stockee', name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 }); });
         expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.getByTestId('ecran-connexion')).toBeInTheDocument();
         expect(h.verifierSession).toHaveBeenCalledTimes(1);
+        expect(h.fetchUserProfile).not.toHaveBeenCalled();
     });
 
     it("déconnexion PENDANT le chargement du profil d'une session vérifiée : l'interface ne s'ouvre pas après coup", async () => {

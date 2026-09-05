@@ -54,6 +54,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 
 - Le verdict est attaché au **jeton**, jamais à l'événement : `getSession()`, `INITIAL_SESSION`, `SIGNED_IN` (y compris rejoué par supabase-js au retour sur l'onglet ou depuis un autre onglet, sans appel serveur), `TOKEN_REFRESHED`, `USER_UPDATED` passent tous par le verdict de leur jeton, une seule fois par jeton (`App.tsx`, `verdictsRef`) ; un jeton refusé reste refusé. Une connexion coûte un `GET /auth/v1/user` avant l'entrée.
 - Garde de course : une déconnexion ou une autre session survenue pendant le chargement du profil rend le traitement en vol caduc — l'interface ne s'ouvre pas après coup (`sessionCouranteRef`).
+- L'effacement local d'une session refusée est borné par le même délai : le `POST /auth/v1/logout` qui traîne ne retient pas l'écran de connexion (la session locale est retirée quoi qu'il arrive) ; la `Map` des verdicts garde au plus quatre jetons ; une exception de `getSession()` mène à l'écran de connexion, jamais à un chargement sans fin.
 - Le jeton est passé explicitement à `getUser(jeton)` : pas de verrou multi-onglets, pas de relecture du stockage.
 - Tests : `tests/sessionValidee.test.ts` (verdicts sur les réponses réelles de supabase-js), `tests/appEntreeReseau.test.tsx` (écrans), `tests/netlifyRedirectsCanoniques.test.ts` (domaine).
 

@@ -138,6 +138,7 @@ const AppContent = () => {
   // 05/09). Une seule vérification par jeton : `getSession()`,
   // `INITIAL_SESSION`, un `SIGNED_IN` rejoué ou une connexion partagent le
   // verdict de leur jeton ; un jeton refusé reste refusé.
+  const VERDICTS_CONSERVES = 4;
   const verdictsRef = useRef(new Map<string, Promise<VerdictSession>>());
   // Clé de la dernière session annoncée (null après déconnexion) : un
   // traitement encore en vol pour une autre session ne doit plus rien décider.
@@ -150,6 +151,13 @@ const AppContent = () => {
       if (!verdict) {
           verdict = verifierSession(session);
           verdictsRef.current.set(cle, verdict);
+          // Plafond : seuls les derniers jetons comptent (connexion, puis un
+          // rafraîchissement par heure) — la Map ne grossit jamais sans fin.
+          while (verdictsRef.current.size > VERDICTS_CONSERVES) {
+              const plusAncien = verdictsRef.current.keys().next().value;
+              if (plusAncien === undefined) break;
+              verdictsRef.current.delete(plusAncien);
+          }
       }
       return verdict;
   };
@@ -212,7 +220,14 @@ const AppContent = () => {
           }
       };
 
-      getSession().then((session) => applySession(session, true));
+      // Une exception (et non une `error` renvoyée) de la relecture locale ne
+      // doit jamais laisser l'écran de chargement sans fin : sans session.
+      getSession()
+          .then((session) => applySession(session, true))
+          .catch((err) => {
+              console.warn('Relecture de la session impossible — écran de connexion :', err);
+              return applySession(null, true);
+          });
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion

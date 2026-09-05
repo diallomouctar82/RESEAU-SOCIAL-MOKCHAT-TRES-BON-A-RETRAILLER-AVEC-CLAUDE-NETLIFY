@@ -130,13 +130,24 @@ export const DELAI_VERIFICATION_SESSION_MS = 8000;
 /**
  * Efface la session de CET appareil sans dépendre de la réponse du serveur
  * (`scope: 'local'` : un 401/403/404 du serveur est ignoré par supabase-js,
- * la session locale part dans tous les cas). Ne lève jamais.
+ * la session locale part dans tous les cas). Ne lève jamais et n'attend
+ * jamais plus de `delaiMs` : le `POST /auth/v1/logout` qui accompagne
+ * l'effacement continue seul s'il traîne, la session locale est retirée
+ * quoi qu'il arrive — l'écran de connexion n'attend pas ce serveur.
  */
-const effacerSessionLocale = async (): Promise<void> => {
+const effacerSessionLocale = async (delaiMs: number): Promise<void> => {
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const borne = new Promise<void>((resolve) => {
+        minuteur = setTimeout(resolve, delaiMs);
+    });
     try {
-        await supabase.auth.signOut({ scope: 'local' });
+        const requete = supabase.auth.signOut({ scope: 'local' });
+        void requete.catch(() => undefined);
+        await Promise.race([requete.then(() => undefined), borne]);
     } catch (err) {
         console.warn('Effacement de la session locale : erreur ignorée', err);
+    } finally {
+        if (minuteur !== undefined) clearTimeout(minuteur);
     }
 };
 
@@ -147,7 +158,7 @@ export const verifierSession = async (
     const jeton = session?.access_token;
     const idAttendu = session?.user?.id;
     if (!jeton || !idAttendu) {
-        await effacerSessionLocale();
+        await effacerSessionLocale(delaiMs);
         return { statut: 'invalide', raison: 'session locale incomplète (jeton ou utilisateur absent)' };
     }
     let minuteur: ReturnType<typeof setTimeout> | undefined;
@@ -174,13 +185,13 @@ export const verifierSession = async (
             // qui échoue, 5xx, 429, réponse HTML d'un portail captif ou d'un
             // proxy, erreur inconnue — n'est pas un verdict.
             if (isAuthApiError(error) && (error.status === 401 || error.status === 403)) {
-                await effacerSessionLocale();
+                await effacerSessionLocale(delaiMs);
                 return { statut: 'invalide', raison: `refus du serveur d'authentification (${error.status}) : ${motif}` };
             }
             return { statut: 'non-verifiee', session, raison: `serveur d'authentification sans verdict : ${motif}` };
         }
         if (!data?.user?.id || data.user.id !== idAttendu) {
-            await effacerSessionLocale();
+            await effacerSessionLocale(delaiMs);
             return { statut: 'invalide', raison: 'le jeton ne correspond pas à l\'utilisateur de la session locale' };
         }
         return { statut: 'valide', session };

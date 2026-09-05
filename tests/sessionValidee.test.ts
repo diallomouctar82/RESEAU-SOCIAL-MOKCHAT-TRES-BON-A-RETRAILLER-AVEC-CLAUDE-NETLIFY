@@ -110,6 +110,16 @@ describe('verifierSession — verdict du serveur sur une session locale', () => 
         expect(h.signOut).toHaveBeenCalledWith({ scope: 'local' });
     });
 
+    it("l'effacement local qui ne répond pas (POST /logout pendant) ne retient pas le verdict au-delà du délai", async () => {
+        h.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('invalid JWT', 401, 'bad_jwt') });
+        h.signOut.mockImplementationOnce(() => new Promise(() => {}));
+        const debut = Date.now();
+        const verdict = await verifierSession(session, 40);
+        expect(verdict.statut).toBe('invalide');
+        expect(Date.now() - debut).toBeLessThan(1000);
+        expect(h.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    });
+
     it("l'effacement local qui échoue ne masque pas le refus du serveur", async () => {
         h.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('invalid JWT', 401, 'bad_jwt') });
         h.signOut.mockRejectedValueOnce(new Error('stockage indisponible'));
