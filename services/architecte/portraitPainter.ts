@@ -49,6 +49,17 @@ export const JAW_ROWS = { face: 14, neck: 10 } as const;
 export const JAW_COLUMN_PERCENT = 1;
 /** Part de la largeur de bouche qui s'ouvre réellement (les commissures restent attachées). */
 export const LIP_OPENING_SHARE = 0.97;
+/** La lèvre du HAUT se soulève d'une part du mouvement de mâchoire (une bouche qui s'ouvre n'ouvre pas que le bas). */
+export const UPPER_LIP_SHARE = 0.14;
+/** Hauteur de peau au-dessus des lèvres qui accompagne ce soulèvement, en fondu (% du cadre). */
+export const UPPER_LIP_BAND_PERCENT = 4.5;
+/** Rangées redessinées au-dessus des lèvres. */
+export const UPPER_LIP_ROWS = 6;
+/** Sourcils : hauteur maximale du haussement (% du cadre) et bande de peau entraînée. */
+export const BROW_RAISE_PERCENT = 0.7;
+export const BROW_BAND_ABOVE = 3.2;
+export const BROW_BAND_BELOW = 1.4;
+export const BROW_ROWS = 8;
 /** Épaisseur de la bande de peau de paupière étirée pour fermer l'œil (% du cadre). */
 export const LID_SOURCE_HEIGHT = 1.3;
 /** Découpe de la tête devant le fond fixe : ellipse et début du fondu (fraction du rayon). */
@@ -94,6 +105,17 @@ export function lipOpening(xPercent: number, mouth: MouthAnchor, mouthWidth = 1)
 export function jawProfile2D(
     xPercent: number, yPercent: number, rig: PortraitRig, lipLine: number, mouth: MouthAnchor, mouthWidth = 1,
 ): number {
+    if (yPercent < lipLine) {
+        // Au-dessus de la ligne : la lèvre du haut se SOULÈVE (valeur négative),
+        // pleinement à la ligne, plus du tout en haut de la bande — et seulement
+        // là où la fente s'ouvre.
+        const top = lipLine - UPPER_LIP_BAND_PERCENT;
+        if (yPercent <= top) return 0;
+        const k = (yPercent - top) / UPPER_LIP_BAND_PERCENT;
+        const lo = lipOpening(xPercent, mouth, mouthWidth);
+        if (lo <= 0) return 0;
+        return -UPPER_LIP_SHARE * lo * k;
+    }
     const base = jawProfile(yPercent, rig, lipLine);
     if (base <= 0) return 0;
     const chin = Math.max(rig.chinLinePercent, lipLine + 1);
@@ -275,6 +297,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
         const cx = mouth.xPercent;
         const half = (mouth.widthPercent / 2) * LIP_OPENING_SHARE * pose.mouthWidth;
         const lowerLip = jawOffset * LOWER_LIP_SHARE;
+        const upperLip = jawOffset * UPPER_LIP_SHARE;
         c.save();
         c.translate(cx * u, lip * u);
         c.rotate(((mouth.tiltDeg ?? 0) * Math.PI) / 180);
@@ -283,10 +306,17 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
         // bas là où la lèvre du bas (redessinée par-dessus) arrive, plus une
         // marge qu'elle recouvre. Les commissures restent fermées.
         const cavite = (marge: number) => {
+            // Bord haut : la lèvre du haut, soulevée là où la fente s'ouvre ;
+            // bord bas : la lèvre du bas déplacée. Chacun avec une marge que la
+            // lèvre redessinée par-dessus recouvre.
             c.beginPath();
-            c.moveTo((cx - half) * u, lip * u);
-            c.quadraticCurveTo(cx * u, (lip - 0.25) * u, (cx + half) * u, lip * u);
             const n = 24;
+            for (let i = 0; i <= n; i += 1) {
+                const x = cx - half + (2 * half * i) / n;
+                const y = lip - (upperLip + marge * 0.6) * lipOpening(x, mouth, pose.mouthWidth) - 0.1;
+                if (i === 0) c.moveTo(x * u, y * u);
+                else c.lineTo(x * u, y * u);
+            }
             for (let i = 0; i <= n; i += 1) {
                 const x = cx + half - (2 * half * i) / n;
                 const y = lip + (lowerLip + marge) * lipOpening(x, mouth, pose.mouthWidth);
@@ -295,7 +325,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             c.closePath();
         };
         cavite(0.9);
-        const g = c.createLinearGradient(0, lip * u, 0, (lip + lowerLip + 0.9) * u);
+        const g = c.createLinearGradient(0, (lip - upperLip) * u, 0, (lip + lowerLip + 0.9) * u);
         g.addColorStop(0, '#120608');
         g.addColorStop(0.55, '#2A0E12');
         g.addColorStop(1, '#4A1B22');
@@ -308,12 +338,13 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             c.save();
             cavite(0);
             c.clip();
+            const dentsY = lip - upperLip * 0.9 + 0.1;
             c.beginPath();
-            c.moveTo((cx - half * 0.55) * u, (lip + 0.1) * u);
-            c.lineTo((cx + half * 0.55) * u, (lip + 0.1) * u);
-            c.quadraticCurveTo(cx * u, (lip + 0.1 + teethHeight * 1.6) * u, (cx - half * 0.55) * u, (lip + 0.1) * u);
+            c.moveTo((cx - half * 0.55) * u, dentsY * u);
+            c.lineTo((cx + half * 0.55) * u, dentsY * u);
+            c.quadraticCurveTo(cx * u, (dentsY + teethHeight * 1.6) * u, (cx - half * 0.55) * u, dentsY * u);
             c.closePath();
-            const t = c.createLinearGradient(0, lip * u, 0, (lip + teethHeight) * u);
+            const t = c.createLinearGradient(0, dentsY * u, 0, (dentsY + teethHeight) * u);
             t.addColorStop(0, '#F4EFE7');
             t.addColorStop(1, '#BDB4A8');
             c.globalAlpha = teethOpacity;
@@ -326,38 +357,32 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
         c.save();
         cavite(0.9);
         c.clip();
-        const sg = c.createLinearGradient(0, lip * u, 0, (lip + shadowHeight) * u);
+        const sg = c.createLinearGradient(0, (lip - upperLip) * u, 0, (lip - upperLip + shadowHeight) * u);
         sg.addColorStop(0, 'rgba(0,0,0,0.65)');
         sg.addColorStop(1, 'rgba(0,0,0,0)');
         c.fillStyle = sg;
-        c.fillRect((cx - half) * u, (lip - 0.3) * u, 2 * half * u, (shadowHeight + 0.3) * u);
+        c.fillRect((cx - half) * u, (lip - upperLip - 0.5) * u, 2 * half * u, (shadowHeight + 0.5) * u);
         c.restore();
         c.restore();
     };
 
-    const drawJaw = (c: CanvasRenderingContext2D, pose: LivingPose, rig: PortraitRig, mouth: MouthAnchor) => {
-        const jawOffset = rig.jawTravelPercent * pose.jawOpen;
-        if (jawOffset < 0.02) return;
+    /**
+     * Déformation continue par rangées : chaque cellule est un parallélogramme
+     * cisaillé dont les bords coïncident avec ses voisines (décalage évalué aux
+     * BORDS de colonnes, haut et bas) — aucune marche, aucune strie. Sert à la
+     * mâchoire comme aux sourcils.
+     */
+    const warpRows = (
+        c: CanvasRenderingContext2D,
+        edges: readonly number[],
+        left: number,
+        right: number,
+        offsetAt: (xPercent: number, yPercent: number) => number,
+    ) => {
         const u = size / 100;
-        const lip = mouth.yPercent;
-        const chin = Math.max(rig.chinLinePercent, lip + 1);
-        const neck = Math.min(100, chin + NECK_BAND_PERCENT);
-        // Bords de rangées ALIGNÉS sur la ligne des lèvres et le menton : la
-        // fente reste une fente (recouverte par la cavité), tout le reste est
-        // continu — chaque rangée est étirée ou comprimée pour rejoindre
-        // exactement la suivante. Plus aucune strie possible.
-        const edges: number[] = [];
-        const ajouter = (a: number, b: number, n: number, skipFirst: boolean) => {
-            for (let i = skipFirst ? 1 : 0; i <= n; i += 1) edges.push(a + ((b - a) * i) / n);
-        };
-        ajouter(lip, chin, JAW_ROWS.face, false);
-        ajouter(chin, neck, JAW_ROWS.neck, true);
-        const { left, right } = jawSpan(mouth);
         const columns = Math.max(1, Math.round((right - left) / JAW_COLUMN_PERCENT));
         const colW = (right - left) / columns;
         const eps = 1e-4;
-        const offsetAt = (x: number, y: number) =>
-            jawOffset * jawProfile2D(x, y, rig, lip, mouth, pose.mouthWidth) * jawColumnTaper(x, mouth, y, rig);
         const near = (a: number, b: number) => Math.abs(a - b) < 0.004;
         const r = cover();
         const tops = new Float64Array(columns + 1);
@@ -366,9 +391,6 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             const y0 = edges[i];
             const y1 = edges[i + 1];
             const h = y1 - y0;
-            // Décalages évalués aux BORDS de colonnes : chaque cellule est un
-            // parallélogramme cisaillé dont les bords coïncident avec ses
-            // voisines — le décalage varie continûment en x, sans escalier.
             for (let k = 0; k <= columns; k += 1) {
                 const x = left + k * colW;
                 tops[k] = offsetAt(x, y0 + eps);
@@ -379,13 +401,12 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
                 const tL = tops[k];
                 const bL = bottoms[k];
                 let kEnd = k + 1;
-                // Cellules plates identiques fusionnées : une seule copie pour le centre du menton.
                 if (near(tops[kEnd], tL) && near(bottoms[kEnd], bL)) {
                     while (kEnd < columns && near(tops[kEnd + 1], tL) && near(bottoms[kEnd + 1], bL)) kEnd += 1;
                 }
                 const tR = tops[kEnd];
                 const bR = bottoms[kEnd];
-                if (tL > 0.004 || tR > 0.004 || bL > 0.004 || bR > 0.004) {
+                if (Math.abs(tL) > 0.004 || Math.abs(tR) > 0.004 || Math.abs(bL) > 0.004 || Math.abs(bR) > 0.004) {
                     const xPct = left + k * colW;
                     const wPct = (kEnd - k) * colW;
                     const shear = (tR - tL) / wPct;
@@ -403,6 +424,53 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
                 k = kEnd;
             }
         }
+    };
+
+    const drawJaw = (c: CanvasRenderingContext2D, pose: LivingPose, rig: PortraitRig, mouth: MouthAnchor) => {
+        const jawOffset = rig.jawTravelPercent * pose.jawOpen;
+        if (jawOffset < 0.02) return;
+        const lip = mouth.yPercent;
+        const chin = Math.max(rig.chinLinePercent, lip + 1);
+        const neck = Math.min(100, chin + NECK_BAND_PERCENT);
+        // Bords de rangées ALIGNÉS sur la ligne des lèvres et le menton : la
+        // fente reste une fente (recouverte par la cavité), tout le reste est
+        // continu. Au-dessus des lèvres, la peau accompagne le soulèvement de
+        // la lèvre du haut.
+        const edges: number[] = [];
+        const ajouter = (a: number, b: number, n: number, skipFirst: boolean) => {
+            for (let i = skipFirst ? 1 : 0; i <= n; i += 1) edges.push(a + ((b - a) * i) / n);
+        };
+        ajouter(Math.max(0, lip - UPPER_LIP_BAND_PERCENT), lip, UPPER_LIP_ROWS, false);
+        ajouter(lip, chin, JAW_ROWS.face, true);
+        ajouter(chin, neck, JAW_ROWS.neck, true);
+        const { left, right } = jawSpan(mouth);
+        warpRows(c, edges, left, right, (x, y) =>
+            jawOffset * jawProfile2D(x, y, rig, lip, mouth, pose.mouthWidth) * jawColumnTaper(x, mouth));
+    };
+
+    /**
+     * Sourcils : la bande de front au-dessus des sourcils descend jusqu'à eux
+     * en s'y accrochant, la bande juste dessous se détend vers l'œil qui,
+     * lui, ne bouge pas. Pleinement sur les yeux, atténué vers les tempes.
+     */
+    const drawBrows = (c: CanvasRenderingContext2D, pose: LivingPose, rig: PortraitRig) => {
+        const raise = BROW_RAISE_PERCENT * Math.min(1, Math.max(0, pose.browRaise));
+        if (raise < 0.02) return;
+        const brow = rig.browLinePercent;
+        const top = Math.max(0, brow - BROW_BAND_ABOVE);
+        const bottom = brow + BROW_BAND_BELOW;
+        const edges: number[] = [];
+        for (let i = 0; i <= BROW_ROWS; i += 1) edges.push(top + ((bottom - top) * i) / BROW_ROWS);
+        const left = Math.max(0, rig.eyeLeftXPercent - rig.eyeWidthPercent * 1.4);
+        const right = Math.min(100, rig.eyeRightXPercent + rig.eyeWidthPercent * 1.4);
+        const fade = rig.eyeWidthPercent * 0.6;
+        warpRows(c, edges, left, right, (x, y) => {
+            const vertical = y <= brow ? (y - top) / (brow - top) : 1 - (y - brow) / (bottom - brow);
+            const dl = (x - left) / fade;
+            const dr = (right - x) / fade;
+            const horizontal = smoothstep(Math.min(1, Math.max(0, Math.min(dl, dr))));
+            return -raise * Math.max(0, vertical) * horizontal;
+        });
     };
 
     const drawLids = (c: CanvasRenderingContext2D, pose: LivingPose, rig: PortraitRig) => {
@@ -486,6 +554,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             drawGaze(ctx, pose, rig);
             drawMouth(ctx, pose, rig, mouth);
             drawJaw(ctx, pose, rig, mouth);
+            drawBrows(ctx, pose, rig);
             drawLids(ctx, pose, rig);
             ctx.restore();
             ctx.restore();

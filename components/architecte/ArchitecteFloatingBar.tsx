@@ -279,7 +279,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     );
 
     const {
-        isListening, isSpeaking, isSupported, volume, outputVolume, ttsEngine,
+        isListening, isSpeaking, isSupported, volume, outputVolume, outputVolumeRef, wordPulseRef, ttsEngine,
         transcript, error: voiceError, startListening, stopListening, speak, stopSpeaking, setConversationalMode,
     } = useVoiceAssistant({
         lang: 'fr-FR',
@@ -1087,6 +1087,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 presence={avatarPresence}
                 ttsEngine={ttsEngine}
                 outputLevel={outputVolume}
+                outputLevelRef={outputVolumeRef}
+                wordPulseRef={wordPulseRef}
                 size={56}
                 onClick={() => { void open(); }}
                 actionLabel="Ouvrir l'Architecte"
@@ -1267,6 +1269,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     presence={avatarPresence}
                     ttsEngine={ttsEngine}
                     outputLevel={outputVolume}
+                    outputLevelRef={outputVolumeRef}
+                    wordPulseRef={wordPulseRef}
                     size={48}
                     onClick={close}
                     actionLabel="Fermer L'Architecte"

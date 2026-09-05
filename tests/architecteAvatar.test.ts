@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     ARCHITECTE_DISCLOSURE,
@@ -18,7 +19,12 @@ import {
 import {
     LIP_SYNC_LEVEL_LABEL,
     amplitudeToOpenness,
-    averageAmplitude,
+    createVoiceEnvelope,
+    rmsAmplitude,
+    voiceEnvelopeOpenness,
+    VOICE_PEAK_MIN,
+    VOICE_REFERENCE_RMS,
+    LIP_SYNC_LOOKAHEAD_MS,
     resolveLipSyncLevel,
     resolveMouthOpenness,
     smoothOpenness,
@@ -269,47 +275,113 @@ describe('Synchro labiale — niveau réellement atteint, jamais surévalué', (
     });
 });
 
-describe('Synchro labiale — de l’amplitude à l’ouverture', () => {
-    it('reste close sur le bruit de fond : pas de bouche qui tremble en silence', () => {
-        expect(amplitudeToOpenness(0)).toBe(0);
-        expect(amplitudeToOpenness(0.03)).toBe(0);
+describe('Synchro labiale — de la voix mesurée à l’ouverture', () => {
+    it('amplitude efficace : sinusoïde pleine échelle ≈ 0,707, silence = 0, tampon vide = 0', () => {
+        const sinus = Array.from({ length: 2048 }, (_, i) => Math.sin((i / 2048) * Math.PI * 2 * 16));
+        expect(rmsAmplitude(sinus)).toBeCloseTo(Math.SQRT1_2, 3);
+        expect(rmsAmplitude(new Float32Array(2048))).toBe(0);
+        expect(rmsAmplitude([])).toBe(0);
     });
 
-    it('s’ouvre progressivement puis sature', () => {
-        const faible = amplitudeToOpenness(0.15);
-        const fort = amplitudeToOpenness(0.45);
-        expect(faible).toBeGreaterThan(0);
-        expect(fort).toBeGreaterThan(faible);
-        expect(amplitudeToOpenness(0.9)).toBe(1);
+    it('reste close sur le silence et le souffle : jamais de bouche qui tremble entre deux phrases', () => {
+        const env = createVoiceEnvelope();
+        expect(voiceEnvelopeOpenness(env, 0, 16)).toBe(0);
+        expect(voiceEnvelopeOpenness(env, 0.004, 16)).toBe(0); // souffle d'un fichier de voix (≈ −50 dB)
+        expect(voiceEnvelopeOpenness(env, NaN, 16)).toBe(0);
     });
 
-    it('la courbe relève le bas de l’échelle, où une voix passe l’essentiel de son temps', () => {
-        // Sans correction, une amplitude au quart de la plage donnerait 0,25 :
-        // la bouche resterait presque fermée pendant toute la phrase.
-        const quart = amplitudeToOpenness(0.04 + (0.55 - 0.04) * 0.25);
-        expect(quart).toBeCloseTo(0.5, 2);
+    it('une syllabe à la crête ouvre en grand, une consonne au-dessous du seuil referme', () => {
+        const env = createVoiceEnvelope();
+        expect(voiceEnvelopeOpenness(env, 0.25, 16)).toBe(1);
+        expect(env.peak).toBeCloseTo(0.25, 6);
+        expect(voiceEnvelopeOpenness(env, 0.03, 16)).toBe(0); // 0,03 / 0,25 = 0,12 < seuil de fermeture
+        const mi = voiceEnvelopeOpenness(env, 0.12, 16);
+        expect(mi).toBeGreaterThan(0.3);
+        expect(mi).toBeLessThan(0.9);
     });
 
-    it('ignore une valeur non numérique au lieu de propager NaN jusqu’au style CSS', () => {
+    it('s’adapte à une voix plus douce : après ~3 s, ses propres crêtes ouvrent en grand', () => {
+        const env = createVoiceEnvelope();
+        expect(env.peak).toBe(VOICE_REFERENCE_RMS);
+        let derniere = 0;
+        for (let i = 0; i < 200; i += 1) derniere = voiceEnvelopeOpenness(env, 0.08, 16); // 3,2 s à 0,08
+        expect(env.peak).toBeCloseTo(0.08, 6);
+        expect(derniere).toBe(1);
+    });
+
+    it('n’amplifie jamais un souffle jusqu’à ouvrir la bouche : la crête ne descend pas sous le minimum', () => {
+        const env = createVoiceEnvelope();
+        for (let i = 0; i < 600; i += 1) voiceEnvelopeOpenness(env, 0, 16); // 10 s de silence
+        expect(env.peak).toBeCloseTo(VOICE_PEAK_MIN, 2);
+        expect(voiceEnvelopeOpenness(env, 0.005, 16)).toBe(0);
+    });
+
+    it('la phrase Vision Smart RÉELLEMENT mesurée : bouche corrélée au son, fermée sur les silences, ouverte sur les voyelles', () => {
+        // RMS relevé image par image dans la page réelle (voix HD, 04/09/2026).
+        const fixture = JSON.parse(readFileSync('tests/fixtures/vision-smart-rms.json', 'utf8')) as {
+            dt_ms: number;
+            rms: number[];
+        };
+        const env = createVoiceEnvelope();
+        let ouverture = 0;
+        const bouche = fixture.rms.map((rms) => {
+            const cible = voiceEnvelopeOpenness(env, rms, fixture.dt_ms);
+            ouverture = smoothOpenness(ouverture, cible, fixture.dt_ms);
+            return ouverture;
+        });
+        const moyenne = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
+        const ma = moyenne(fixture.rms);
+        const mb = moyenne(bouche);
+        let sab = 0;
+        let saa = 0;
+        let sbb = 0;
+        fixture.rms.forEach((a, i) => {
+            sab += (a - ma) * (bouche[i] - mb);
+            saa += (a - ma) ** 2;
+            sbb += (bouche[i] - mb) ** 2;
+        });
+        const correlation = sab / Math.sqrt(saa * sbb);
+        // Avant correction (spectre en octets) : 0,15 et bouche ouverte sur 98 % des images.
+        expect(correlation).toBeGreaterThan(0.75);
+        const fermees = bouche.filter((v) => v < 0.12).length / bouche.length;
+        const ouvertes = bouche.filter((v) => v > 0.6).length / bouche.length;
+        expect(fermees).toBeGreaterThan(0.15);
+        expect(ouvertes).toBeGreaterThan(0.2);
+        expect(ouvertes).toBeLessThan(0.7);
+    });
+
+    it('borne le niveau publié et ignore une valeur non numérique au lieu de propager NaN jusqu’au rendu', () => {
         expect(amplitudeToOpenness(NaN)).toBe(0);
+        expect(amplitudeToOpenness(-1)).toBe(0);
+        expect(amplitudeToOpenness(0.4)).toBeCloseTo(0.4, 6);
+        expect(amplitudeToOpenness(3)).toBe(1);
     });
 
-    it('moyenne un tampon d’analyse fréquentielle, tampon vide compris', () => {
-        expect(averageAmplitude([255, 255, 255, 255])).toBe(1);
-        expect(averageAmplitude([0, 0])).toBe(0);
-        expect(averageAmplitude([])).toBe(0);
+    it('avance de la bouche sur la voix entendue : courte, imperceptible, mais réelle', () => {
+        expect(LIP_SYNC_LOOKAHEAD_MS).toBeGreaterThanOrEqual(40);
+        expect(LIP_SYNC_LOOKAHEAD_MS).toBeLessThanOrEqual(90);
     });
 
     it('lisse : ouverture rapide à l’attaque, fermeture plus lente', () => {
         const montee = smoothOpenness(0, 1);
         const descente = smoothOpenness(1, 0);
-        // 0,35 : ~4 images à 60 i/s pour 80 % de l'ouverture (≈ 70 ms), comme une
-        // lèvre. La valeur initiale (0,55) ouvrait en deux images et claquait —
+        // ~4 images à 60 i/s pour 80 % de l'ouverture (≈ 70 ms), comme une
+        // lèvre. Un facteur de 0,55 ouvrait en deux images et claquait —
         // mesuré par simulation de la boucle réelle le 04/09.
-        expect(montee).toBeCloseTo(0.35, 5);
-        expect(1 - descente).toBeCloseTo(0.22, 5);
+        expect(montee).toBeCloseTo(0.35, 2);
+        expect(1 - descente).toBeCloseTo(0.22, 2);
         // La montée est plus franche que la descente : une bouche a de l'inertie.
         expect(montee).toBeGreaterThan(1 - descente);
+    });
+
+    it('lisse EN TEMPS : quatre images à 60 Hz = une image à 15 Hz, la bouche ne dépend pas de la cadence', () => {
+        let a = 0;
+        for (let i = 0; i < 4; i += 1) a = smoothOpenness(a, 1, 1000 / 60);
+        const b = smoothOpenness(0, 1, 4000 / 60);
+        expect(a).toBeCloseTo(b, 9);
+        // Une image interminable (onglet caché) n'est pas extrapolée à l'infini.
+        expect(smoothOpenness(0, 1, 5000)).toBeCloseTo(smoothOpenness(0, 1, 100), 9);
+        expect(smoothOpenness(0, 1, NaN)).toBeCloseTo(smoothOpenness(0, 1), 9);
     });
 });
 
@@ -350,3 +422,4 @@ describe('Point d’entrée unique du composant', () => {
         expect(resolveMouthOpenness('rythme_des_mots', {})).toBe(0);
     });
 });
+

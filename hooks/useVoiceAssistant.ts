@@ -34,6 +34,14 @@ export interface UseVoiceAssistantResult {
      * Reste à 0 avec le moteur natif du navigateur, qui n'expose aucun flux.
      */
     outputVolume: number;
+    /**
+     * Le même niveau de sortie, par référence mutable mise à jour à chaque
+     * image : pour l'avatar (lu dans sa boucle d'animation) — l'état
+     * `outputVolume` n'est rafraîchi qu'à ~12 Hz, pour les jauges.
+     */
+    outputVolumeRef: { readonly current: number };
+    /** Dernière frontière de mot de la voix intégrée du navigateur (repli) — par référence, pour l'avatar. */
+    wordPulseRef: { readonly current: { at: number; length: number } | null };
     transcript: string;
     error: string | null;
     conversationalTurn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user' | null;
@@ -57,6 +65,9 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
     const [outputVolume, setOutputVolume] = useState(0);
+    const outputVolumeRef = useRef(0);
+    const wordPulseRef = useRef<{ at: number; length: number } | null>(null);
+    const outputVolumeUiAtRef = useRef(0);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [conversationalTurn, setConversationalTurn] = useState<UseVoiceAssistantResult['conversationalTurn']>(null);
@@ -87,7 +98,17 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
             onEnd: () => setIsListening(false),
             onError: (err) => setError(err),
             onSpeechVolume: (v) => setVolume(v),
-            onOutputVolume: (v) => setOutputVolume(v),
+            onWordBoundary: (pulse) => { wordPulseRef.current = pulse; },
+            onOutputVolume: (v) => {
+                outputVolumeRef.current = v;
+                // L'état React ne suit qu'à ~12 Hz (et tout de suite au retour à 0) :
+                // à 60 Hz, il re-rendait toute la barre flottante à chaque image.
+                const now = performance.now();
+                if (v === 0 || now - outputVolumeUiAtRef.current > 80) {
+                    outputVolumeUiAtRef.current = now;
+                    setOutputVolume(v);
+                }
+            },
             onSpeakingStateChange: (speaking) => setIsSpeaking(speaking),
             onConversationalTurnChange: (turn) => setConversationalTurn(turn),
             // Bascule de moteur vocal VISIBLE : l'interface peut dire quand la
@@ -153,6 +174,8 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
         isSupported: voiceEngine.isSpeechRecognitionSupported(),
         volume,
         outputVolume,
+        outputVolumeRef,
+        wordPulseRef,
         transcript,
         error,
         conversationalTurn,

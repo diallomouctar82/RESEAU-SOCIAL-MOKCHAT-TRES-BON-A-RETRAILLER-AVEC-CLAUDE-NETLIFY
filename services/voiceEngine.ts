@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { generateSpeechDetailed } from './aiGateway';
+import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS, createVoiceEnvelope, rmsAmplitude, voiceEnvelopeOpenness } from './architecte/lipSync';
 
 export interface VoiceEngineListener {
     onTranscript?: (transcript: string, isFinal: boolean) => void;
@@ -21,6 +22,8 @@ export interface VoiceEngineListener {
      * synchro labiale retombe honnêtement sur le rythme des mots.
      */
     onOutputVolume?: (volume: number) => void;
+    /** Voix intégrée du navigateur : une frontière de mot vient d'être franchie (instant `performance.now()`, longueur du mot). */
+    onWordBoundary?: (pulse: { at: number; length: number }) => void;
     onSpeakingStateChange?: (isSpeaking: boolean) => void;
     onConversationalTurnChange?: (turn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user') => void;
     onTtsEngineChange?: (engine: 'elevenlabs' | 'browser_native') => void;
@@ -988,12 +991,20 @@ export class VoiceEngine {
             // même élément lève une exception et couperait le son.
             if (this.outputSourceElement !== audio) {
                 const source = context.createMediaElementSource(audio);
+                // Prise de mesure TEMPORELLE (RMS sur ~46 ms) : le spectre en
+                // octets tenait la bouche ouverte sur le souffle (voir lipSync).
                 const analyser = context.createAnalyser();
-                analyser.fftSize = 256;
+                analyser.fftSize = ANALYSER_FFT_SIZE;
                 source.connect(analyser);
-                // Indispensable : sans reconnexion à la sortie, brancher la
-                // source sur l'analyseur REND LA VOIX MUETTE.
-                analyser.connect(context.destination);
+                // La voix entendue passe par un court retard : la bouche, qui
+                // lit le signal non retardé, prend 60 ms d'avance et compense
+                // le retard de la chaîne (fenêtre, image, inertie de la lèvre).
+                // Indispensable : sans ce chemin jusqu'à la sortie, brancher
+                // la source sur l'analyseur REND LA VOIX MUETTE.
+                const delay = context.createDelay(1);
+                delay.delayTime.value = LIP_SYNC_LOOKAHEAD_MS / 1000;
+                source.connect(delay);
+                delay.connect(context.destination);
                 this.outputAnalyser = analyser;
                 this.outputSourceElement = audio;
             }
@@ -1007,17 +1018,21 @@ export class VoiceEngine {
     private startOutputLevelLoop(): void {
         if (this.outputRafId !== null || !this.outputAnalyser) return;
         const analyser = this.outputAnalyser;
-        const bins = new Uint8Array(analyser.frequencyBinCount);
+        const samples = new Float32Array(analyser.fftSize);
+        // Crête ré-étalonnée à chaque prise de parole : une voix plus douce
+        // ouvre la bouche autant qu'une voix forte.
+        const envelope = createVoiceEnvelope();
+        let lastAt = performance.now();
         const tick = () => {
             if (!this.outputAnalyser || !this.isSpeaking) {
                 this.outputRafId = null;
                 this.listeners.forEach(l => l.onOutputVolume?.(0));
                 return;
             }
-            this.outputAnalyser.getByteFrequencyData(bins);
-            let total = 0;
-            for (let i = 0; i < bins.length; i += 1) total += bins[i];
-            const level = total / bins.length / 255;
+            this.outputAnalyser.getFloatTimeDomainData(samples);
+            const now = performance.now();
+            const level = voiceEnvelopeOpenness(envelope, rmsAmplitude(samples), now - lastAt);
+            lastAt = now;
             this.listeners.forEach(l => l.onOutputVolume?.(level));
             this.outputRafId = requestAnimationFrame(tick);
         };
@@ -1242,6 +1257,17 @@ export class VoiceEngine {
         const utterance = new SpeechSynthesisUtterance(phrase);
         utterance.lang = 'fr-FR';
         utterance.rate = options?.rate || 1.02;
+        // Synchro labiale du repli : `speechSynthesis` n'expose aucun signal
+        // audio, mais il annonce chaque frontière de mot — la bouche suit ce
+        // rythme (niveau « rythme_des_mots », dit tel quel à l'écran).
+        utterance.onboundary = (e: SpeechSynthesisEvent) => {
+            if (e.name && e.name !== 'word') return;
+            const longueur = e.charLength && e.charLength > 0
+                ? e.charLength
+                : ((utterance.text || '').slice(e.charIndex).match(/^\S+/)?.[0].length ?? 5);
+            const pulse = { at: performance.now(), length: longueur };
+            this.listeners.forEach(l => l.onWordBoundary?.(pulse));
+        };
         utterance.pitch = options?.pitch || 1.0;
 
         const bestVoice = this.selectBestFrenchVoice(options?.voiceName);

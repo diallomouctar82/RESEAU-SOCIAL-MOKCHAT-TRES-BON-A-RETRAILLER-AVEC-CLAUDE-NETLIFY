@@ -26,6 +26,28 @@
  * ne peut pas deviner où sont les yeux et la mâchoire d'un visage qu'il n'a
  * jamais vu. C'est réglé une fois au Super-Admin, par photo.
  */
+/**
+ * Part du chemin parcourue vers une cible en `dtMs`, pour une constante de
+ * temps `tauMs` : le même geste quelle que soit la cadence d'images. Les
+ * constantes ci-dessous reproduisent exactement les facteurs par image
+ * réglés à 60 i/s (0,06 · 0,035 · 0,08 · 0,12) et les rendent valables à
+ * 30 ou 120 Hz.
+ */
+export function easeFactor(tauMs: number, dtMs: number): number {
+    const dt = Number.isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, 100) : 1000 / 60;
+    if (!Number.isFinite(tauMs) || tauMs <= 0) return 1;
+    return 1 - Math.exp(-dt / tauMs);
+}
+/** Emphase (hochements sur le phrasé) : monte en ~270 ms, retombe en ~470 ms. */
+export const EMPHASIS_RISE_MS = 269;
+export const EMPHASIS_FALL_MS = 468;
+/** Passage repos ↔ parole : ~200 ms. */
+export const SPEAKING_BLEND_MS = 200;
+/** Entrée/sortie d'une attitude d'écoute ou de réflexion : ~270 ms. */
+export const ATTENTION_BLEND_MS = 269;
+/** Largeur des lèvres d'une forme à la suivante : ~130 ms. */
+export const LIP_WIDTH_MS = 130;
+
 export interface PortraitRig {
     /** Ligne des yeux (0 = haut du cadre, 100 = bas). */
     eyeLinePercent: number;
@@ -42,6 +64,8 @@ export interface PortraitRig {
     eyeRightXPercent: number;
     /** Largeur d'un œil, en % de la largeur du cadre. */
     eyeWidthPercent: number;
+    /** Ligne des sourcils (0 = haut, 100 = bas) — pour le haussement sur l'emphase. */
+    browLinePercent: number;
 }
 
 export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
@@ -60,6 +84,7 @@ export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
     eyeLeftXPercent: 41.75,
     eyeRightXPercent: 63.25,
     eyeWidthPercent: 9,
+    browLinePercent: 43.6,
 };
 
 export function clampPortraitRig(rig: Partial<PortraitRig>): PortraitRig {
@@ -74,6 +99,7 @@ export function clampPortraitRig(rig: Partial<PortraitRig>): PortraitRig {
         eyeLeftXPercent: clamp(rig.eyeLeftXPercent!, 5, 95, DEFAULT_PORTRAIT_RIG.eyeLeftXPercent),
         eyeRightXPercent: clamp(rig.eyeRightXPercent!, 5, 95, DEFAULT_PORTRAIT_RIG.eyeRightXPercent),
         eyeWidthPercent: clamp(rig.eyeWidthPercent!, 2, 30, DEFAULT_PORTRAIT_RIG.eyeWidthPercent),
+        browLinePercent: clamp(rig.browLinePercent!, 5, 90, DEFAULT_PORTRAIT_RIG.browLinePercent),
     };
 }
 
@@ -132,6 +158,11 @@ const BLINK_CYCLE_MS = BLINK_INTERVALS_MS.reduce((total, ms) => total + ms, 0);
  * poupée.
  */
 export function blinkAmount(elapsedMs: number): number {
+    return Math.max(tableBlinkAmount(elapsedMs), saccadeBlinkAmount(elapsedMs));
+}
+
+/** Clignements de la table fixe seulement (sans ceux liés aux saccades). */
+export function tableBlinkAmount(elapsedMs: number): number {
     if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0;
     const position = elapsedMs % BLINK_CYCLE_MS;
     let curseur = 0;
@@ -255,6 +286,70 @@ const GAZE_CYCLE_MS = GAZE_INTERVALS_MS.reduce((a, b, i) => a + b + 2 * GAZE_MOV
 
 const smoothstep = (s: number) => s * s * (3 - 2 * s);
 
+/** Instants de départ des saccades dans un cycle, et leur cible. */
+export function gazeSaccadeStarts(): readonly { at: number; x: number; y: number }[] {
+    const starts: { at: number; x: number; y: number }[] = [];
+    let curseur = 0;
+    for (let i = 0; i < GAZE_INTERVALS_MS.length; i += 1) {
+        const depart = curseur + GAZE_INTERVALS_MS[i];
+        starts.push({ at: depart, x: GAZE_TARGETS[i][0], y: GAZE_TARGETS[i][1] });
+        curseur = depart + 2 * GAZE_MOVE_MS + GAZE_HOLDS_MS[i];
+    }
+    return starts;
+}
+
+/**
+ * On cligne souvent au moment où l'on déplace le regard : une saccade sur
+ * deux s'accompagne d'un clignement qui la précède de 40 ms. Sans ce
+ * couplage, regard et paupières vivent chacun leur vie — et ça se voit.
+ */
+export function saccadeBlinkAmount(elapsedMs: number): number {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0;
+    const position = elapsedMs % GAZE_CYCLE_MS;
+    const starts = gazeSaccadeStarts();
+    for (let i = 0; i < starts.length; i += 2) {
+        const debut = starts[i].at - 40;
+        if (position >= debut && position < debut + BLINK_DURATION_MS) {
+            const phase = (position - debut) / BLINK_DURATION_MS;
+            return phase < 0.35 ? phase / 0.35 : 1 - (phase - 0.35) / 0.65;
+        }
+    }
+    return 0;
+}
+
+/** Ce vers quoi l'attention est tournée — change la posture du regard et de la tête. */
+export type Attention = 'listening' | 'thinking' | null;
+
+/**
+ * Regard de réflexion : les yeux partent en haut, de côté, et y restent
+ * en dérivant lentement — le geste universel de « je réfléchis ».
+ */
+export function thinkingGaze(elapsedMs: number): { x: number; y: number } {
+    if (!Number.isFinite(elapsedMs)) return { x: 0, y: 0 };
+    const t = elapsedMs / 1000;
+    return { x: 0.75 + Math.sin(t / 1.9) * 0.15, y: -0.45 + Math.sin(t / 2.7) * 0.1 };
+}
+
+/**
+ * Hochement d'écoute : de petits « oui » brefs à intervalles réguliers mais
+ * espacés (~2,7 s), en % du cadre. Signale que l'on suit, sans agiter la tête.
+ */
+export function listeningNod(elapsedMs: number): number {
+    if (!Number.isFinite(elapsedMs)) return 0;
+    const s = Math.max(0, Math.sin((2 * Math.PI * elapsedMs) / 2700));
+    return 0.35 * s * s * s;
+}
+
+/**
+ * Haussement de sourcils au repos : de loin en loin, léger et lent (0..1).
+ * En parole, l'emphase s'y ajoute — un visage qui parle bouge des sourcils.
+ */
+export function idleBrowRaise(elapsedMs: number): number {
+    if (!Number.isFinite(elapsedMs)) return 0;
+    const s = Math.max(0, Math.sin((2 * Math.PI * elapsedMs) / 9100));
+    return 0.25 * s ** 6;
+}
+
 export function gazeOffset(elapsedMs: number): { x: number; y: number } {
     if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return { x: 0, y: 0 };
     const position = elapsedMs % GAZE_CYCLE_MS;
@@ -314,6 +409,8 @@ export interface LivingPose {
     /** Déplacement du regard, en % du cadre. */
     gazeX: number;
     gazeY: number;
+    /** Haussement des sourcils (0 = au repos, 1 = maximum). */
+    browRaise: number;
 }
 
 /** Pose strictement immobile — mouvement réduit, onglet caché, hors écran, réglage coupé. */
@@ -328,6 +425,7 @@ export const STILL_POSE: LivingPose = {
     mouthWidth: 1,
     gazeX: 0,
     gazeY: 0,
+    browRaise: 0,
 };
 
 export interface LivingPoseInputs {
@@ -354,6 +452,14 @@ export interface LivingPoseInputs {
      * `speaking` converti en 0/1.
      */
     speakingBlend?: number;
+    /**
+     * Largeur de bouche décidée par l'appelant (forme de lèvres de la syllabe
+     * en cours, déjà lissée). Absente = variation générique en parole.
+     */
+    mouthWidth?: number;
+    /** Vers quoi l'attention est tournée, et sa part lissée (0..1). */
+    attention?: Attention;
+    attentionBlend?: number;
 }
 
 /**
@@ -382,7 +488,18 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
     // L'emphase est déjà une enveloppe lente : le hochement s'éteint de
     // lui-même en fin de phrase, sans coupure.
     const nod = speechNod(emphasis);
-    const regard = gazeOffset(inputs.elapsedMs);
+    // Attention : réflexion → regard en haut de côté ; écoute → petits « oui »
+    // et saccades réduites. Toujours par part lissée : rien ne saute.
+    const att = Math.min(1, Math.max(0, Number.isFinite(inputs.attentionBlend!) ? inputs.attentionBlend! : inputs.attention ? 1 : 0));
+    const saccade = gazeOffset(inputs.elapsedMs);
+    const pensif = inputs.attention === 'thinking' ? thinkingGaze(inputs.elapsedMs) : { x: 0, y: 0 };
+    const reflexion = inputs.attention === 'thinking' ? att : 0;
+    const ecoute = inputs.attention === 'listening' ? att : 0;
+    const nodEcoute = listeningNod(inputs.elapsedMs) * ecoute;
+    const regard = {
+        x: saccade.x * (1 - 0.5 * ecoute) * (1 - reflexion) + pensif.x * reflexion,
+        y: saccade.y * (1 - 0.5 * ecoute) * (1 - reflexion) + pensif.y * reflexion,
+    };
     const sway = speechSway(inputs.elapsedMs) * blend;
     // L'inclinaison d'écoute continue pendant la parole : la couper à la
     // volée faisait basculer la tête d'un coup en fin de phrase.
@@ -395,14 +512,38 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
         breathY: -respiration * 1.0 * ampleur,
         headRotate: derive.rotate + tilt + nod.rotate,
         headX: derive.x + sway,
-        headY: derive.y + nod.y,
+        headY: derive.y + nod.y + nodEcoute,
         // On cligne AUSSI en parlant : un visage qui ne cligne plus dès qu'il
         // parle se fige — constaté sur la vidéo du 04/09, où deux clignements
         // en 29 s ne suffisaient pas à convaincre.
         eyelid: blinkAmount(inputs.elapsedMs),
         jawOpen,
-        mouthWidth: 1 + (mouthWidthFactor(inputs.elapsedMs, true) - 1) * blend,
+        mouthWidth: Number.isFinite(inputs.mouthWidth!)
+            ? inputs.mouthWidth!
+            : 1 + (mouthWidthFactor(inputs.elapsedMs, true) - 1) * blend,
         gazeX: regard.x,
         gazeY: regard.y,
+        browRaise: Math.min(1, idleBrowRaise(inputs.elapsedMs) + emphasis * 0.9),
     };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// 6. FORMES DE LÈVRES
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Largeurs de bouche successives, une par syllabe : une bouche qui parle
+ * s'arrondit (« o », « ou ») et s'étire (« é », « i »), elle ne fait pas que
+ * s'ouvrir. Sans phonèmes (l'amplitude seule est mesurée), la variété vient
+ * d'une suite FIXE — déterministe, donc testable — parcourue à chaque attaque
+ * de syllabe. Autour de 1 = largeur de la photo.
+ */
+export const LIP_SHAPES: readonly number[] = [1, 0.88, 1.1, 0.94, 1.06, 0.82, 1, 1.12];
+
+/** Une syllabe sur trois se termine lèvres jointes (« m », « b », « p »), brièvement. */
+export const LIP_CLOSURE_EVERY = 3;
+export const LIP_CLOSURE_MS = 90;
+
+/** Seuils de détection d'une attaque et d'une retombée de syllabe sur la cible d'ouverture. */
+export const SYLLABLE_ONSET = 0.3;
+export const SYLLABLE_RELEASE = 0.12;

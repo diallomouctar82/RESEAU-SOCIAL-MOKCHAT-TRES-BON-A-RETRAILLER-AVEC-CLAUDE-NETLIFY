@@ -15,7 +15,24 @@ import {
     smoothOpenness,
 } from '../../services/architecte/lipSync';
 import { realAvatarUrl } from '../../services/studio/avatarIdentity';
-import { resolveLivingPose, STILL_POSE, type LivingPose, LIPS_PARTED_WHILE_SPEAKING } from '../../services/architecte/livingAvatar';
+import {
+    resolveLivingPose,
+    STILL_POSE,
+    type LivingPose,
+    type Attention,
+    LIPS_PARTED_WHILE_SPEAKING,
+    LIP_SHAPES,
+    LIP_CLOSURE_EVERY,
+    LIP_CLOSURE_MS,
+    SYLLABLE_ONSET,
+    SYLLABLE_RELEASE,
+    easeFactor,
+    EMPHASIS_RISE_MS,
+    EMPHASIS_FALL_MS,
+    SPEAKING_BLEND_MS,
+    ATTENTION_BLEND_MS,
+    LIP_WIDTH_MS,
+} from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatarFace } from './ArchitecteAvatarFace';
 import { LivingPortrait, type LivingPortraitHandle } from './LivingPortrait';
 
@@ -52,8 +69,16 @@ export interface ArchitecteAvatarProps {
      * dont l'amplitude réelle est mesurée. `null` = pas de mot en cours.
      */
     wordPulse?: { at: number; length: number } | null;
+    /** Même chose par référence mutable (aucun rendu React par mot). Prioritaire sur `wordPulse`. */
+    wordPulseRef?: { readonly current: { at: number; length: number } | null } | null;
     /** Niveau (0..1) de la voix prononcée, publié par `voiceEngine.onOutputVolume`. */
     outputLevel: number;
+    /**
+     * Même niveau, mais par RÉFÉRENCE mutable lue à chaque image : évite un
+     * rendu React à 60 Hz de tout l'appelant pendant la parole. Prioritaire
+     * sur `outputLevel` quand il est fourni.
+     */
+    outputLevelRef?: { readonly current: number } | null;
     /** Diamètre en pixels. */
     size?: number;
     onClick?: () => void;
@@ -111,7 +136,9 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     presence,
     ttsEngine,
     outputLevel,
+    outputLevelRef = null,
     wordPulse = null,
+    wordPulseRef = null,
     size = 48,
     onClick,
     actionLabel,
@@ -156,24 +183,34 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     // des clignements et la dérive de tête recommenceraient leur cycle au
     // même point — et les premiers clignements n'arriveraient jamais.
     const origineRef = useRef<number | null>(null);
-    const wordPulseRef = useRef<{ at: number; length: number } | null>(null);
+    const wordPulseLocalRef = useRef<{ at: number; length: number } | null>(null);
     // Emphase : enveloppe LENTE de la voix, pour des hochements qui suivent
     // le phrasé et non chaque syllabe (retour Direction : « pas naturel »).
     const emphasisRef = useRef(0);
     // Part « parole » lissée (~200 ms) : les transitions parole ↔ repos ne
     // font sauter ni la respiration, ni le balancement, ni l'inclinaison.
     const speakingBlendRef = useRef(0);
+    // Formes de lèvres : une par syllabe (attaque détectée sur la cible), et
+    // une syllabe sur trois se termine lèvres jointes — c'est ce qui fait
+    // qu'une bouche PARLE au lieu de battre.
+    const syllableRef = useRef({ index: 0, wasOpen: false, closureUntil: 0, width: 1 });
+    // Attention (écoute / réflexion) et sa part lissée.
+    const attentionRef = useRef<Attention>(null);
+    const attentionBlendRef = useRef(0);
     // Le portrait se peint lui-même (Canvas) : pas de rendu React à 60 Hz.
     const portraitRef = useRef<LivingPortraitHandle>(null);
     levelRef.current = outputLevel;
-    wordPulseRef.current = wordPulse;
+    wordPulseLocalRef.current = wordPulse;
     speakingRef.current = presence === 'speaking';
+    attentionRef.current = presence === 'listening' ? 'listening' : presence === 'thinking' ? 'thinking' : null;
 
     useEffect(() => {
         if (!animated) {
             opennessRef.current = 0;
             emphasisRef.current = 0;
             speakingBlendRef.current = 0;
+            attentionBlendRef.current = 0;
+            syllableRef.current = { index: 0, wasOpen: false, closureUntil: 0, width: 1 };
             portraitRef.current?.draw(STILL_POSE);
             setPose(STILL_POSE);
             return;
@@ -181,20 +218,41 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         let frame = 0;
         if (origineRef.current === null) origineRef.current = performance.now();
         const debut = origineRef.current;
+        let imagePrecedente = performance.now();
         const boucle = (maintenant: number) => {
-            const pulse = wordPulseRef.current;
+            // Durée réelle de l'image : les lissages sont en temps, pas en images.
+            const dt = Math.min(100, Math.max(1, maintenant - imagePrecedente));
+            imagePrecedente = maintenant;
+            const pulse = wordPulseRef ? wordPulseRef.current : wordPulseLocalRef.current;
+            const niveau = outputLevelRef ? outputLevelRef.current : levelRef.current;
             let cible = resolveMouthOpenness(lipSyncLevel, {
-                amplitude: levelRef.current,
+                amplitude: niveau,
                 elapsedMs: pulse ? maintenant - pulse.at : undefined,
                 wordLength: pulse ? pulse.length : undefined,
             });
+            // Syllabes : attaque → forme de lèvres suivante ; retombée → parfois
+            // lèvres jointes un instant (« m », « b », « p »).
+            const syl = syllableRef.current;
+            if (cible >= SYLLABLE_ONSET && !syl.wasOpen) {
+                syl.wasOpen = true;
+                syl.index += 1;
+            } else if (cible <= SYLLABLE_RELEASE && syl.wasOpen) {
+                syl.wasOpen = false;
+                if (syl.index % LIP_CLOSURE_EVERY === LIP_CLOSURE_EVERY - 1) syl.closureUntil = maintenant + LIP_CLOSURE_MS;
+            }
+            const largeurVisee = speakingRef.current ? LIP_SHAPES[syl.index % LIP_SHAPES.length] : 1;
+            syl.width += (largeurVisee - syl.width) * easeFactor(LIP_WIDTH_MS, dt);
             // Lèvres entrouvertes tant qu'il parle : une bouche qui se referme
-            // complètement entre deux syllabes claque comme une marionnette.
-            if (speakingRef.current) cible = Math.max(cible, LIPS_PARTED_WHILE_SPEAKING);
-            opennessRef.current = smoothOpenness(opennessRef.current, cible);
+            // complètement entre deux syllabes claque comme une marionnette —
+            // sauf pendant une fermeture voulue.
+            if (maintenant < syl.closureUntil) cible = 0;
+            else if (speakingRef.current) cible = Math.max(cible, LIPS_PARTED_WHILE_SPEAKING);
+            opennessRef.current = smoothOpenness(opennessRef.current, cible, dt);
             const ouverture = opennessRef.current;
-            emphasisRef.current += (ouverture - emphasisRef.current) * (ouverture > emphasisRef.current ? 0.06 : 0.035);
-            speakingBlendRef.current += ((speakingRef.current ? 1 : 0) - speakingBlendRef.current) * 0.08;
+            emphasisRef.current += (ouverture - emphasisRef.current)
+                * easeFactor(ouverture > emphasisRef.current ? EMPHASIS_RISE_MS : EMPHASIS_FALL_MS, dt);
+            speakingBlendRef.current += ((speakingRef.current ? 1 : 0) - speakingBlendRef.current) * easeFactor(SPEAKING_BLEND_MS, dt);
+            attentionBlendRef.current += ((attentionRef.current ? 1 : 0) - attentionBlendRef.current) * easeFactor(ATTENTION_BLEND_MS, dt);
             const pose = resolveLivingPose({
                 elapsedMs: maintenant - debut,
                 mouthOpenness: ouverture,
@@ -202,6 +260,9 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                 animated: true,
                 speaking: speakingRef.current,
                 speakingBlend: speakingBlendRef.current,
+                mouthWidth: syl.width,
+                attention: attentionRef.current,
+                attentionBlend: attentionBlendRef.current,
             });
             // Photo : le portrait se peint directement. Repli vectoriel : état React.
             if (portraitRef.current) portraitRef.current.draw(pose);
@@ -210,7 +271,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         };
         frame = requestAnimationFrame(boucle);
         return () => cancelAnimationFrame(frame);
-    }, [animated, lipSyncLevel]);
+    }, [animated, lipSyncLevel, outputLevelRef, wordPulseRef]);
 
     const openness = pose.jawOpen;
 

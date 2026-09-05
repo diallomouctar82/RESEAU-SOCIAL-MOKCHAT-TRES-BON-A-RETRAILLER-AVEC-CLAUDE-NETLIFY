@@ -9,8 +9,15 @@ import {
     breathPhase,
     clampPortraitRig,
     gazeOffset,
+    gazeSaccadeStarts,
     headDrift,
+    idleBrowRaise,
+    listeningNod,
     mouthWidthFactor,
+    saccadeBlinkAmount,
+    tableBlinkAmount,
+    thinkingGaze,
+    LIP_SHAPES,
     resolveLivingPose,
     restTilt,
     TILT_INTERVALS_MS,
@@ -269,5 +276,61 @@ describe('Pose complète', () => {
         // Et assez franche pour être vue : la Direction n'a rien vu bouger à ±3°.
         expect(max).toBeGreaterThan(3.5);
         expect(restTilt(0)).toBe(0);
+    });
+});
+
+describe('Comportement — ce qui fait une présence et non une animation', () => {
+    const base = { elapsedMs: 2000, mouthOpenness: 0, animated: true, speaking: false };
+
+    it('une saccade sur deux s’accompagne d’un clignement qui la précède de 40 ms', () => {
+        const starts = gazeSaccadeStarts();
+        expect(starts.length).toBeGreaterThanOrEqual(6);
+        // Saccade paire : clignement présent juste avant ; saccade impaire : aucun.
+        expect(saccadeBlinkAmount(starts[0].at - 40 + 60)).toBeGreaterThan(0.5);
+        expect(saccadeBlinkAmount(starts[1].at - 40 + 60)).toBe(0);
+        // Le clignement composé ne perd rien de la table fixe.
+        for (let t = 0; t < 60_000; t += 25) expect(blinkAmount(t)).toBeGreaterThanOrEqual(tableBlinkAmount(t));
+    });
+
+    it('en réflexion, le regard part en haut de côté et y reste ; en écoute, il reste posé', () => {
+        const pensif = resolveLivingPose({ ...base, attention: 'thinking', attentionBlend: 1 });
+        expect(pensif.gazeX).toBeGreaterThan(0.5);
+        expect(pensif.gazeY).toBeLessThan(-0.3);
+        const g = thinkingGaze(5000);
+        expect(Math.abs(g.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(g.y)).toBeLessThanOrEqual(1);
+        // Part lissée à 0 : aucune influence, quelle que soit l'attention déclarée.
+        const neutre = resolveLivingPose({ ...base, attention: 'thinking', attentionBlend: 0 });
+        const repos = resolveLivingPose({ ...base });
+        expect(neutre.gazeX).toBeCloseTo(repos.gazeX, 9);
+    });
+
+    it('en écoute, la tête fait de petits « oui » brefs et espacés — jamais plus d’un demi pour cent', () => {
+        let max = 0, dessus = 0;
+        for (let t = 0; t < 30_000; t += 16) { const v = listeningNod(t); max = Math.max(max, v); if (v > 0.1) dessus += 1; }
+        expect(max).toBeGreaterThan(0.25);
+        expect(max).toBeLessThanOrEqual(0.5);
+        // Bref : moins d'un tiers du temps au-dessus du dixième.
+        expect(dessus / (30_000 / 16)).toBeLessThan(0.34);
+        const ecoute = resolveLivingPose({ ...base, elapsedMs: 675, attention: 'listening', attentionBlend: 1 });
+        const repos = resolveLivingPose({ ...base, elapsedMs: 675 });
+        expect(ecoute.headY).toBeGreaterThan(repos.headY);
+    });
+
+    it('les sourcils se haussent sur l’emphase et, au repos, de loin en loin seulement', () => {
+        const calme = resolveLivingPose({ ...base, speaking: true, emphasis: 0 });
+        const appuye = resolveLivingPose({ ...base, speaking: true, emphasis: 0.8 });
+        expect(appuye.browRaise).toBeGreaterThan(calme.browRaise + 0.5);
+        expect(appuye.browRaise).toBeLessThanOrEqual(1);
+        let dessus = 0;
+        for (let t = 0; t < 60_000; t += 20) if (idleBrowRaise(t) > 0.1) dessus += 1;
+        expect(dessus / 3000).toBeLessThan(0.2);
+    });
+
+    it('la largeur de bouche fournie par l’appelant est respectée ; les formes de lèvres varient', () => {
+        expect(resolveLivingPose({ ...base, speaking: true, mouthWidth: 0.86 }).mouthWidth).toBeCloseTo(0.86, 9);
+        expect(Math.min(...LIP_SHAPES)).toBeGreaterThan(0.75);
+        expect(Math.max(...LIP_SHAPES)).toBeLessThan(1.2);
+        expect(new Set(LIP_SHAPES).size).toBeGreaterThanOrEqual(5);
     });
 });

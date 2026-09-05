@@ -298,8 +298,9 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                             ))}
                         </select>
                         <p className="text-[11px] text-slate-400 mt-1.5">
-                            Voix de synthèse du catalogue. Sans clé ElevenLabs configurée, l’Architecte parle avec la voix
-                            du navigateur et la bouche suit le rythme des mots.
+                            Voix de synthèse du catalogue. La voix HD vient de la chaîne vocale de l’Espace IA (fournisseur
+                            classé en tête, relais automatique vers le suivant) ; si aucun fournisseur HD ne répond,
+                            l’Architecte parle avec la voix du navigateur et la bouche suit le rythme des mots.
                         </p>
                     </div>
 

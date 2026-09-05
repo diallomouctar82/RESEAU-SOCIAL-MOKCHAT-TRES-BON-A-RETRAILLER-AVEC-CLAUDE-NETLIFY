@@ -7,11 +7,38 @@ import {
     mergeArchitecteAvatarConfig,
     type ArchitectePresenceState,
 } from '../../services/architecte/architecteAvatar';
-import { LIP_SYNC_LEVEL_LABEL } from '../../services/architecte/lipSync';
+import {
+    ANALYSER_FFT_SIZE,
+    LIP_SYNC_LEVEL_LABEL,
+    LIP_SYNC_LOOKAHEAD_MS,
+    createVoiceEnvelope,
+    rmsAmplitude,
+    voiceEnvelopeOpenness,
+} from '../../services/architecte/lipSync';
 import { ArchitecteAvatar } from './ArchitecteAvatar';
 
 /** Ce que dit l'Architecte quand on lui demande de parler à voix haute. */
 export const PHRASE_DEMO = 'Bonjour. Je suis l’Architecte. Je vous accompagne dans MokNet.';
+
+/**
+ * Phrase du TEST AVEC SON demandé par la Direction : une vraie voix HD
+ * (ElevenLabs, voix « Claire »), enregistrée une fois et livrée avec la page. La bouche suit l'AMPLITUDE
+ * MESURÉE sur cet audio par le même analyseur qu'en production
+ * (`voiceEngine`) — c'est la synchro labiale réelle, pas une animation.
+ */
+export const PHRASE_VISION_SMART =
+    'Bonjour, je suis l’avatar de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle.';
+export const AUDIO_VISION_SMART_URL = '/architecte/vision-smart.wav';
+
+/** Ce que la page expose aux bancs de preuve (enregistrement audio + vidéo). */
+export interface DemoAudioHook {
+    audio: HTMLAudioElement;
+    context: AudioContext;
+    /** Signal brut, celui que lit l'analyseur. */
+    source: MediaElementAudioSourceNode;
+    /** Signal ENTENDU (après le court retard) : c'est lui qu'un enregistrement doit capter. */
+    output: AudioNode;
+}
 
 /**
  * Sans frontière de mot reçue depuis ce délai, on considère que le navigateur
@@ -21,7 +48,7 @@ const DELAI_SANS_FRONTIERE_MS = 1100;
 /** Sans démarrage de la voix dans ce délai, la voix est déclarée indisponible. */
 const DELAI_DEMARRAGE_VOIX_MS = 1800;
 
-type EtatVoix = 'inactive' | 'parle' | 'indisponible';
+type EtatVoix = 'inactive' | 'parle' | 'hd' | 'indisponible';
 
 /**
  * DÉMONSTRATION PUBLIQUE DE L'AVATAR VIVANT — route `/architecte`.
@@ -73,6 +100,15 @@ export const ArchitecteDemoPage: React.FC = () => {
     const debutRef = useRef<number | null>(null);
     const enBoucleRef = useRef(true);
     const [niveau, setNiveau] = useState(0);
+    // Niveau par RÉFÉRENCE pour l'avatar (lu à chaque image) ; l'état ne
+    // sert qu'à la jauge, rafraîchie une image sur quatre.
+    const niveauRef = useRef(0);
+    const imageRef = useRef(0);
+    const publierNiveau = (v: number) => {
+        niveauRef.current = v;
+        imageRef.current += 1;
+        if (v === 0 || imageRef.current % 4 === 0) setNiveau(v);
+    };
     const [enPhrase, setEnPhrase] = useState(false);
     const [enBoucle, setEnBoucle] = useState(true);
     useEffect(() => { enBoucleRef.current = enBoucle; }, [enBoucle]);
@@ -104,18 +140,18 @@ export const ArchitecteDemoPage: React.FC = () => {
                 setMot(m);
             }
             if (debut === null) {
-                setNiveau(0);
+                if (voixRef.current !== 'hd') publierNiveau(0);
                 setEnPhrase(false);
             } else {
                 const t = maintenant - debut;
                 setEnPhrase(t >= 0 && t < DUREE_PHRASE);
                 if (t >= DUREE_PHRASE) {
-                    setNiveau(0);
+                    publierNiveau(0);
                     // Pause de repos de 4,2 s entre deux phrases : assez pour
                     // VOIR la respiration, la dérive et un clignement.
                     debutRef.current = enBoucleRef.current ? maintenant + 4200 : null;
                 } else {
-                    setNiveau(t < 0 ? 0 : amplitudeDeLaPhrase(t));
+                    publierNiveau(t < 0 ? 0 : amplitudeDeLaPhrase(t));
                 }
             }
             frame = requestAnimationFrame(boucle);
@@ -133,6 +169,73 @@ export const ArchitecteDemoPage: React.FC = () => {
     const changerVoix = (etat: EtatVoix) => {
         voixRef.current = etat;
         setVoix(etat);
+    };
+
+    const hdRef = useRef<DemoAudioHook | null>(null);
+    const hdRafRef = useRef(0);
+
+    /**
+     * TEST AVEC SON : la phrase Vision Smart, vraie voix HD, bouche pilotée
+     * par l'amplitude MESURÉE — même élément `<audio>`, même `AnalyserNode`,
+     * même calcul que `voiceEngine` en production. Rien d'approché.
+     */
+    const ecouterVisionSmart = () => {
+        if (typeof window === 'undefined' || typeof AudioContext === 'undefined') {
+            changerVoix('indisponible');
+            return;
+        }
+        // Une lecture à la fois ; la boucle muette s'efface.
+        hdRef.current?.audio.pause();
+        cancelAnimationFrame(hdRafRef.current);
+        setEnBoucle(false);
+        enBoucleRef.current = false;
+        debutRef.current = null;
+        const audio = new Audio(AUDIO_VISION_SMART_URL);
+        audio.preload = 'auto';
+        const context = hdRef.current?.context ?? new AudioContext();
+        const source = context.createMediaElementSource(audio);
+        // MÊME chaîne que `voiceEngine.attachOutputAnalyser` : mesure RMS
+        // temporelle sur le signal brut, voix entendue retardée de 60 ms.
+        const analyser = context.createAnalyser();
+        analyser.fftSize = ANALYSER_FFT_SIZE;
+        source.connect(analyser);
+        // PIÈGE connu (DEC-2026-053) : sans chemin jusqu'à la destination, la voix est muette.
+        const output = context.createDelay(1);
+        output.delayTime.value = LIP_SYNC_LOOKAHEAD_MS / 1000;
+        source.connect(output);
+        output.connect(context.destination);
+        const echantillons = new Float32Array(analyser.fftSize);
+        const enveloppe = createVoiceEnvelope();
+        let derniereMesure = performance.now();
+        hdRef.current = { audio, context, source, output };
+        (window as unknown as { __moknetDemoAudio?: DemoAudioHook }).__moknetDemoAudio = hdRef.current;
+        const mesurer = () => {
+            if (audio.paused || audio.ended) return;
+            analyser.getFloatTimeDomainData(echantillons);
+            const maintenant = performance.now();
+            publierNiveau(voiceEnvelopeOpenness(enveloppe, rmsAmplitude(echantillons), maintenant - derniereMesure));
+            derniereMesure = maintenant;
+            hdRafRef.current = requestAnimationFrame(mesurer);
+        };
+        const fin = () => {
+            cancelAnimationFrame(hdRafRef.current);
+            publierNiveau(0);
+            changerVoix('inactive');
+        };
+        audio.onplaying = () => {
+            changerVoix('hd');
+            hdRafRef.current = requestAnimationFrame(mesurer);
+        };
+        audio.onended = fin;
+        audio.onerror = () => {
+            fin();
+            changerVoix('indisponible');
+        };
+        void context.resume();
+        audio.play().catch(() => {
+            fin();
+            changerVoix('indisponible');
+        });
     };
 
     /**
@@ -194,7 +297,8 @@ export const ArchitecteDemoPage: React.FC = () => {
     };
 
     const voixEnCours = voix === 'parle';
-    const parle = voixEnCours || enPhrase;
+    const voixHd = voix === 'hd';
+    const parle = voixEnCours || voixHd || enPhrase;
     const presence: ArchitectePresenceState = parle ? 'speaking' : 'rest';
     const niveauSynchro = voixEnCours ? 'rythme_des_mots' : 'amplitude_reelle';
 
@@ -216,6 +320,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                     presence={presence}
                     ttsEngine={voixEnCours ? 'browser_native' : 'elevenlabs'}
                     outputLevel={niveau}
+                    outputLevelRef={niveauRef}
                     wordPulse={mot}
                     size={400}
                     actionLabel="Avatar de démonstration"
@@ -230,9 +335,14 @@ export const ArchitecteDemoPage: React.FC = () => {
                 L’Architecte {ARCHITECTE_STATE_LABEL[presence]}
             </p>
 
-            <p className="text-sm text-slate-300 italic text-center mt-1 max-w-md min-h-[3rem]">
-                {parle ? `« ${PHRASE_DEMO} »` : ''}
+            <p className="text-sm text-slate-300 italic text-center mt-1 max-w-md min-h-[3rem]" aria-live="polite">
+                {voixHd ? `« ${PHRASE_VISION_SMART} »` : parle ? `« ${PHRASE_DEMO} »` : ''}
             </p>
+            {voixHd && (
+                <p data-testid="demo-voix" className="text-xs text-cyan-200/80 text-center max-w-md">
+                    {LIP_SYNC_LEVEL_LABEL.amplitude_reelle}
+                </p>
+            )}
             {voix === 'indisponible' && (
                 <p data-testid="demo-voix" className="text-xs text-amber-300/90 text-center max-w-md">
                     Voix intégrée du navigateur indisponible sur cet appareil : démonstration muette.
@@ -263,6 +373,14 @@ export const ArchitecteDemoPage: React.FC = () => {
                     className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 >
                     <Volume2 size={16} /> Le faire parler à voix haute
+                </button>
+                <button
+                    type="button"
+                    onClick={ecouterVisionSmart}
+                    data-testid="demo-vision-smart"
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                >
+                    <Volume2 size={16} /> Écouter la phrase Vision Smart (voix HD)
                 </button>
                 <button
                     type="button"

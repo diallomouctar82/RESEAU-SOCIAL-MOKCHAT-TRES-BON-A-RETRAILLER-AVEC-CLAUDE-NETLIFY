@@ -5,9 +5,10 @@
  * que le navigateur ne donne pas le même accès au son selon le moteur vocal
  * réellement en train de parler :
  *
- *  - `amplitude_reelle` — moteur ElevenLabs. La voix est lue par un élément
- *    `<audio>` (`voiceEngine.currentAudioElement`) : on peut y brancher un
- *    `AnalyserNode` et mesurer l'amplitude RÉELLE, échantillon par
+ *  - `amplitude_reelle` — voix HD lue par un élément `<audio>` (chaîne
+ *    multimodale du Super-Admin via `voiceEngine.currentAudioElement`, quel
+ *    que soit le fournisseur qui a produit le fichier) : on y branche un
+ *    `AnalyserNode` et on mesure l'amplitude RÉELLE, échantillon par
  *    échantillon. La bouche suit la voix. C'est de la vraie synchro labiale.
  *
  *  - `rythme_des_mots` — moteur natif du navigateur (`speechSynthesis`).
@@ -23,7 +24,8 @@
  *
  * Module PUR : il ne crée aucun `AudioContext` et n'écoute aucun événement.
  * Il transforme des nombres en ouverture de bouche. Le branchement audio
- * réel vit dans le composant ; la règle, elle, se teste ici.
+ * réel vit dans `voiceEngine` et la page de démonstration ; la règle, elle,
+ * se teste ici — y compris sur une phrase réellement mesurée (voir les tests).
  */
 
 export type LipSyncLevel = 'amplitude_reelle' | 'rythme_des_mots' | 'aucune';
@@ -52,36 +54,100 @@ export function resolveLipSyncLevel(inputs: LipSyncInputs): LipSyncLevel {
 
 /** Phrase affichable dans le Super-Admin — la Direction doit savoir ce qu'elle regarde. */
 export const LIP_SYNC_LEVEL_LABEL: Record<LipSyncLevel, string> = {
-    amplitude_reelle: 'Synchro réelle — la bouche suit l’amplitude mesurée de la voix (moteur ElevenLabs).',
+    amplitude_reelle: 'Synchro réelle — la bouche suit l’amplitude mesurée de la voix HD (chaîne vocale du Super-Admin).',
     rythme_des_mots:
         'Synchro au rythme des mots — le navigateur ne donne pas accès au signal audio de sa voix intégrée ; la bouche suit les frontières de mots, pas le volume.',
     aucune: 'Bouche immobile — l’Architecte ne parle pas, ou la synchro est désactivée.',
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Amplitude → ouverture
+// Mesure de la voix : enveloppe RMS temporelle, normalisée par adaptation
 // ─────────────────────────────────────────────────────────────────────────
-
-/** Sous ce niveau, c'est du bruit de fond : la bouche reste close plutôt que de trembler en silence. */
-export const SILENCE_FLOOR = 0.04;
-/** Au-dessus, on considère la bouche grande ouverte : au-delà le signal sature sans rien ajouter. */
-export const LOUD_CEILING = 0.55;
+//
+// POURQUOI PAS LE SPECTRE EN OCTETS. `getByteFrequencyData` rend des décibels
+// ramenés sur 0..255 entre −100 et −30 dB : le souffle d'un fichier de voix
+// (−65 dB) vaut déjà « la moitié du volume » sur cette échelle, et la bouche
+// restait ouverte à 0,9 pendant les silences (mesuré le 04/09 sur la phrase
+// Vision Smart : corrélation son ↔ bouche 0,15, bouche ouverte sur 98 % des
+// images). L'amplitude efficace (RMS) du signal TEMPOREL est linéaire : le
+// silence vaut 0, une syllabe vaut sa vraie énergie.
 
 /**
- * Amplitude normalisée (0..1) → ouverture de bouche (0..1).
- *
- * Deux corrections indispensables pour que ça ressemble à une bouche et non
- * à un vumètre :
- *  - plancher de silence, sinon la bouche vibre en permanence sur le bruit ;
- *  - courbe en racine, parce que l'amplitude d'une voix passe l'essentiel de
- *    son temps dans le bas de l'échelle : sans elle, la bouche resterait
- *    presque fermée pendant toute la phrase.
+ * Fenêtre d'analyse TEMPORELLE : 2 048 échantillons ≈ 46 ms à 44,1 kHz.
+ * C'est l'échelle d'une syllabe, pas d'une période de la voix (5 ms à
+ * 200 Hz) : assez long pour lisser la porteuse, assez court pour suivre
+ * chaque syllabe. IDENTIQUE dans `voiceEngine` et la page de démonstration.
  */
-export function amplitudeToOpenness(amplitude: number): number {
-    if (!Number.isFinite(amplitude) || amplitude <= SILENCE_FLOOR) return 0;
-    const span = LOUD_CEILING - SILENCE_FLOOR;
-    const normalised = Math.min(1, (amplitude - SILENCE_FLOOR) / span);
-    return Math.sqrt(normalised);
+export const ANALYSER_FFT_SIZE = 2048;
+
+/**
+ * Avance de la bouche sur la voix ENTENDUE : la voix passe par un retard de
+ * 60 ms avant la sortie audio, l'analyseur lit le signal NON retardé. Cette
+ * avance compense le retard de la chaîne (fenêtre de 46 ms centrée sur le
+ * passé, image suivante, inertie de la lèvre). Sans elle, la bouche suivait
+ * la voix avec ~160 ms de retard (mesuré le 04/09).
+ */
+export const LIP_SYNC_LOOKAHEAD_MS = 60;
+
+/** Amplitude efficace (RMS, 0..1) d'un tampon temporel flottant (−1..1), tampon vide compris. */
+export function rmsAmplitude(samples: ArrayLike<number>): number {
+    if (!samples || samples.length === 0) return 0;
+    let total = 0;
+    for (let i = 0; i < samples.length; i += 1) {
+        const v = samples[i];
+        total += v * v;
+    }
+    const rms = Math.sqrt(total / samples.length);
+    return Number.isFinite(rms) ? rms : 0;
+}
+
+/** Crête typique d'une voix de synthèse normalisée — point de départ avant adaptation. */
+export const VOICE_REFERENCE_RMS = 0.18;
+/** Sous cette crête, ce n'est pas une voix : on n'amplifie jamais un souffle jusqu'à ouvrir la bouche. */
+export const VOICE_PEAK_MIN = 0.04;
+/** Constante de temps de la retombée de la crête : la bouche se ré-étalonne sur ~2 s. */
+export const VOICE_PEAK_DECAY_MS = 1800;
+/** RMS / crête : en dessous, bouche close (consonnes, silences). */
+export const VOICE_CLOSED_RATIO = 0.16;
+/** RMS / crête : au-dessus, grande ouverte. */
+export const VOICE_OPEN_RATIO = 0.82;
+/** Courbe entre fermé et ouvert : légèrement relevée, une voix vit surtout à mi-hauteur. */
+export const VOICE_CURVE = 0.8;
+
+/** Crête récente de la voix : état mutable, un par voix jouée. */
+export interface VoiceEnvelope {
+    peak: number;
+}
+
+export function createVoiceEnvelope(): VoiceEnvelope {
+    return { peak: VOICE_REFERENCE_RMS };
+}
+
+/**
+ * Ouverture visée (0..1) pour une amplitude efficace mesurée, `dtMs` après la
+ * mesure précédente. Met à jour la crête : la bouche utilise toute sa course
+ * quel que soit le volume du fichier ou du fournisseur de voix, et se
+ * referme sur les consonnes et les silences de CETTE voix-là.
+ */
+export function voiceEnvelopeOpenness(envelope: VoiceEnvelope, rms: number, dtMs: number): number {
+    const level = Number.isFinite(rms) && rms > 0 ? rms : 0;
+    const dt = Number.isFinite(dtMs) && dtMs > 0 ? dtMs : 0;
+    const decayed = VOICE_PEAK_MIN + (envelope.peak - VOICE_PEAK_MIN) * Math.exp(-dt / VOICE_PEAK_DECAY_MS);
+    envelope.peak = Math.max(VOICE_PEAK_MIN, level, decayed);
+    const ratio = level / envelope.peak;
+    const normalised = (ratio - VOICE_CLOSED_RATIO) / (VOICE_OPEN_RATIO - VOICE_CLOSED_RATIO);
+    if (normalised <= 0) return 0;
+    return Math.min(1, normalised) ** VOICE_CURVE;
+}
+
+/**
+ * Niveau publié (0..1, déjà ramené en ouverture visée par le suiveur) →
+ * ouverture. Borne et ignore une valeur non numérique au lieu de propager
+ * NaN jusqu'au rendu.
+ */
+export function amplitudeToOpenness(level: number): number {
+    if (!Number.isFinite(level) || level <= 0) return 0;
+    return Math.min(1, level);
 }
 
 /**
@@ -89,24 +155,20 @@ export function amplitudeToOpenness(amplitude: number): number {
  * image à l'autre et donne un claquement de mâchoire, pas une parole.
  * L'ouverture monte vite (une syllabe attaque) et retombe plus lentement.
  */
-export function smoothOpenness(previous: number, target: number): number {
-    // Attaque en ~4 images à 60 i/s (≈ 70 ms pour 80 % de l'ouverture), comme
-    // une lèvre qui s'ouvre — 0,55 ouvrait en deux images et claquait (mesuré
-    // par simulation de la boucle réelle, 04/09). Retombée plus lente.
-    const factor = target > previous ? 0.35 : 0.22;
-    return previous + (target - previous) * factor;
-}
+export const MOUTH_ATTACK_MS = 39;
+export const MOUTH_RELEASE_MS = 67;
+export const DEFAULT_FRAME_MS = 1000 / 60;
 
 /**
- * Amplitude moyenne d'un tampon d'analyse fréquentielle (`getByteFrequencyData`,
- * octets 0..255), ramenée entre 0 et 1. Séparé de la lecture du tampon lui-même
- * pour que la règle se teste sans `AudioContext`.
+ * Lissage EN TEMPS, pas en images : la même bouche sur un écran à 30, 60 ou
+ * 120 Hz. Attaque ≈ 70 ms pour 80 % de l'ouverture, comme une lèvre qui
+ * s'ouvre (un facteur de 0,55 par image ouvrait en deux images et claquait —
+ * mesuré par simulation de la boucle réelle, 04/09) ; retombée plus lente.
  */
-export function averageAmplitude(bins: ArrayLike<number>): number {
-    if (!bins || bins.length === 0) return 0;
-    let total = 0;
-    for (let i = 0; i < bins.length; i += 1) total += bins[i];
-    return total / bins.length / 255;
+export function smoothOpenness(previous: number, target: number, dtMs: number = DEFAULT_FRAME_MS): number {
+    const dt = Number.isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, 100) : DEFAULT_FRAME_MS;
+    const tau = target > previous ? MOUTH_ATTACK_MS : MOUTH_RELEASE_MS;
+    return previous + (target - previous) * (1 - Math.exp(-dt / tau));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

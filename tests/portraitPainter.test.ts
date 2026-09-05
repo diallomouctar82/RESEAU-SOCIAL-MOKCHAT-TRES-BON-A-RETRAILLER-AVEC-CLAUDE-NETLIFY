@@ -8,6 +8,8 @@ import {
     jawProfile2D,
     jawSpan,
     lipOpening,
+    UPPER_LIP_BAND_PERCENT,
+    UPPER_LIP_SHARE,
 } from '../services/architecte/portraitPainter';
 import { DEFAULT_PORTRAIT_RIG } from '../services/architecte/livingAvatar';
 import { DEFAULT_MOUTH_ANCHOR } from '../services/architecte/architecteAvatar';
@@ -107,8 +109,22 @@ describe('Fente entre les lèvres et profil en deux dimensions', () => {
         expect(lipOpening(presqueAuCoin, mouth, 1.1)).toBeGreaterThan(lipOpening(presqueAuCoin, mouth, 1));
     });
 
-    it('rien ne bouge au-dessus de la ligne des lèvres, nulle part', () => {
-        for (let x = 0; x <= 100; x += 2) expect(jawProfile2D(x, lip - 0.01, rig, lip, mouth)).toBe(0);
+    it('au-dessus des lèvres, la lèvre du HAUT se soulève — au centre de la fente, jamais sur les joues', () => {
+        // Juste au-dessus de la ligne, au centre : soulèvement plein (négatif).
+        expect(jawProfile2D(mouth.xPercent, lip - 1e-6, rig, lip, mouth)).toBeCloseTo(-UPPER_LIP_SHARE, 3);
+        // Aux commissures et sur les joues : rien.
+        expect(jawProfile2D(mouth.xPercent + mouth.widthPercent / 2, lip - 1e-6, rig, lip, mouth)).toBeCloseTo(0, 3);
+        expect(jawProfile2D(mouth.xPercent + 20, lip - 1e-6, rig, lip, mouth)).toBe(0);
+        // En haut de la bande et au-dessus : rien, nulle part.
+        for (let x = 0; x <= 100; x += 2) expect(jawProfile2D(x, lip - UPPER_LIP_BAND_PERCENT - 0.01, rig, lip, mouth)).toBe(0);
+        // Continu en descendant vers la ligne.
+        let precedent = 0;
+        for (let y = lip - UPPER_LIP_BAND_PERCENT; y < lip; y += 0.1) {
+            const v = jawProfile2D(mouth.xPercent, y, rig, lip, mouth);
+            expect(v).toBeLessThanOrEqual(precedent + 1e-9);
+            expect(Math.abs(v - precedent)).toBeLessThan(0.01);
+            precedent = v;
+        }
     });
 
     it('juste sous la ligne : 80 % au centre de la bouche, 0 aux commissures et sur les joues', () => {

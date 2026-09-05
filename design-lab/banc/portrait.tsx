@@ -26,6 +26,7 @@ const pose: LivingPose = {
     breathScale: nombre('scale', 1),
     breathY: nombre('breathY', 0),
     mouthWidth: nombre('mouthWidth', 1),
+    browRaise: nombre('brow', 0),
 };
 
 function Banc() {
