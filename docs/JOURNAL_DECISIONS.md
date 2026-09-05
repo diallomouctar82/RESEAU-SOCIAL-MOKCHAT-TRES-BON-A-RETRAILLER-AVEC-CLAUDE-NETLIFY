@@ -65,7 +65,7 @@ Chaque décision respecte le formalisme strict suivant :
   que dans le voile étroit — constat C2 de la revue). Sur téléphone, le champ passe à
   16 px (interligne 1,4) ; sur les plus petits écrans et au zoom, l'en-tête
   se replie (titre 16 px) et « Annuler » passe au-dessus d'« Appliquer ».
-* **Contrôle** : typage 0 erreur, 1635/1635 tests (107 fichiers ; tests
+* **Contrôle** : typage 0 erreur, 1645/1645 tests (109 fichiers ; tests
   ajoutés : suivi de la zone visible, gardes CSS de la carte et du champ à
   16 px, classes de l'en-tête et du pied), build OK ; sonde sur neuf cas
   (320 × 568, 360 × 640, 375 × 667, 390 × 844, 412 × 915, 390 × 500
