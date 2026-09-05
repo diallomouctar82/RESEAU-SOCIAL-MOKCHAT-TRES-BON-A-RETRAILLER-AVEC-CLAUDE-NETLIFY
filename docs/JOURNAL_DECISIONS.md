@@ -1871,9 +1871,9 @@ Chaque décision respecte le formalisme strict suivant :
   second diagnostic → 409 `session_already_closed` ; le direct disparaît de
   la vue d'ensemble. Client : fusion de la PR #88 en squash sur `main` (ce
   commit) — bundle servi par `moknet.net` et contrôle du tableau de bord
-  réel consignés par la PR de mémoire vivante qui suit.
+  réel consignés dans le Statut ci-dessous (la présente PR de mémoire vivante).
 * **Statut** : 🟢 fonction Edge v4 DÉPLOYÉE ET VÉRIFIÉE EN PRODUCTION
-  (5/09/2026, 10:49 UTC) ; client EN FUSION (PR #88) — statut final tenu
+  (5/09/2026, 10:49 UTC) ; client fusionné (PR #88 → `main` `4486cc4`), en production contrôlée — le client SAT-6 est porté depuis `4486cc4` dans le bundle courant de `moknet.net` (empreintes SAT-6 présentes dans le bundle servi à ce jour, ancien `index-BKkSLQXf.js` de la fusion → 404) ; panneau « Secours du direct » prouvé visible et actif dans le tableau de bord réel (banc navigateur 11 OK / 0 DÉFAUT sur la source servie par la production : gestes « Relancer »/« Clore » actifs pour un `super_admin`, « Lecture seule » sans bouton pour un `admin`, panneau absent pour un `user`) — statut final tenu
   dans `docs/HISTORIQUE_VERSIONS.md` (v6.24.0).
 
 ---
