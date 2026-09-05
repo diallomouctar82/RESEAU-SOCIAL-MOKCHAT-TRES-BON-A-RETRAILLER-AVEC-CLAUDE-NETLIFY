@@ -46,6 +46,10 @@
 
 Chronologie « après » (ordinateur, ms depuis le chargement) : repos → appui 2 938 → présentation `speaking` 3 168 → accueil `speaking` 5 602 → `listening` 12 471 → question → réponse `speaking` 13 142 → `listening` 20 433 → question 2 → `speaking` 21 046 → appui 21 493 → `listening` 22 068 → ✕ → `rest` 22 979. Téléphone : même enchaînement à ±150 ms.
 
+## Delta après la revue indépendante
+
+Le même scénario rejoué sur l'arbre corrigé (`c396623` : `onEnd` jamais perdu, `onStart` unique, lecture directe iPhone/iPad, déverrouillage idempotent, horloge par lecture, `stopSpeaking` inconditionnel, flux micro conservé) donne les mêmes résultats — `apres-corrige-*-mesures.json` : 3 paroles HD, 1 liaison au graphe, bouche ouverte sur 69 % / 72 % des images pendant la parole et 0 hors parole, appui pendant la réponse → « Je vous écoute. » et écoute, ✕ ferme. Le chemin iPhone (voix en direct, jamais reliée) n'est pas exercé par Chromium : couvert par test.
+
 ## Ce que ces mesures prouvent — et ce qu'elles ne prouvent pas
 
 - **Prouvé** : après sa présentation, l'Architecte dit l'accueil, écoute, dit chaque réponse par la voix HD, la bouche bouge pendant qu'il parle et seulement à ce moment-là, l'écoute repart seule après chaque réponse ; toucher l'avatar pendant qu'il parle ne ferme plus rien (il se tait et écoute) ; fermer reste sur le ✕. Avant, l'appui fermait tout — c'est le geste naturel de quelqu'un qui veut lui parler, et le défaut vécu par la Direction.
