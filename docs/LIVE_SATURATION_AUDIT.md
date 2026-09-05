@@ -145,6 +145,36 @@ voit : rouge « refuse nos identifiants »), rouvrir les ports UDP
 de secours SAT-6 (tracé, confirmé, réservé à l'Administrateur Général) et aux
 étapes ACT-3/4/5 — un humain, jamais un automate.
 
+**Suite — SAT-6 (5 septembre 2026, DEC-2026-057) : le bouton de secours,
+sans SSH, réservé à l'Admin Général — livré sur branche, NON déployé.** Deux
+gestes, et deux seulement, tiennent sans accès au VPS, parce qu'ils passent
+par des chemins que le serveur détient déjà : **relancer la room** d'un
+direct (`DeleteRoom` par le `RoomService` dont `livekit-token` a les
+identifiants ; les lignes SAT-5 se rétablissent seules en ~1,5 s dans une
+room neuve) et **clore un direct** (`ended_at` écrit par l'identité de
+l'appelant sous la RLS, puis room supprimée ; chaque écran lit « Ce direct
+est terminé. » sans redemander un jeton). Ils sont greffés sur
+`health-guardian` (trois actions `live_emergency_*`) avec, à chaque étape,
+le rang **relu en base** — ce que le § 5 ci-dessous exigeait — un
+diagnostic qui compte les présents réels, une confirmation signée valable
+cinq minutes et liée au geste, au direct et à l'acteur, une **re-mesure**
+avant tout verdict, et une ligne dans `audit_logs`. Le panneau « Secours du
+direct » de la Santé Globale liste aussi, sans bouton, ce qu'aucun geste
+applicatif ne fera jamais : redémarrer le conteneur, refaire tourner la clé,
+rouvrir les ports UDP, monter 1.8.4 → 1.13.6. Banc réel (trois vrais
+comptes, base réelle, LiveKit vivant, flux Edge réel dans Node) : passe 1
+44 OK / 1 DÉFAUT (faux défaut de banc, mais deux vrais défauts vus sur les
+captures — boîte de confirmation hors de l'écran, panneau en retard d'une
+relecture après la relance — corrigés) ; passe 2 38 OK / 10 DÉFAUT, dix
+défauts à cause unique et hors du périmètre initial — un spectateur éjecté
+0,43 s après son arrivée par une course du roster de `SocialLive.tsx` (une
+lecture lancée avant la fin de son inscription était prise pour un retrait
+par l'hôte), corrigée ; passe 3 49 OK / 1 DÉFAUT (artefact de mesure du
+banc pendant l'animation d'entrée du tiroir, corrigé dans le banc) ;
+**passe 4 : 51 OK / 0 DÉFAUT**. **Pas en
+production** : ni la fonction Edge ni le client, validation de la Direction
+requise (fonction Edge à déployer AVANT la fusion du client).
+
 ---
 
 ## 5. Admin Général : la définition existe, mais côté client seulement
@@ -161,6 +191,18 @@ masquer un bouton ; elle ne convient pas pour autoriser une action de
 secours. SAT-6 devra vérifier le rôle **côté serveur** (fonction Edge ou
 fonction Postgres `SECURITY DEFINER`), sans jamais se fier à ce booléen —
 sinon n'importe qui peut déclencher le secours en modifiant son état local.
+
+*Fait par SAT-6 (5/09/2026)* : le rang vient du RPC `health_my_rank`
+(base), lu par la fonction Edge **avant** toute lecture de l'état des
+directs, puis **relu** au moment du geste — un compte rétrogradé entre le
+diagnostic et le clic est refusé (contre-épreuve rouge). Prouvé au banc avec
+trois vrais comptes : un membre (`user`) est refusé dès la lecture (403,
+« votre rang selon la base : user »), un administrateur simple (`admin`)
+lit l'état mais ne reçoit aucun jeton (403 au diagnostic), seul
+`super_admin` obtient le jeton — et la clôture passe par la RLS de
+`live_sessions` avec l'identité de l'appelant (un PATCH avec le jeton du
+spectateur = 0 ligne). Le booléen client ne sert plus qu'à afficher ou
+masquer les boutons.
 
 ---
 
@@ -197,7 +239,7 @@ appareils — jamais par une sonde depuis cet environnement.
 | SAT-3 — écran « complet » | **Oui** |
 | SAT-4 — détecter un blocage réel | **Livré et démontré en production le 05/09/2026 (DEC-2026-054)** — non pas une sonde HTTP sur `/`, mais `ListRooms` signé avec la clé du coffre : 401/403 = rouge (le cas que le ping déclarait vert), > 1 500 ms = orange (porte SAT-2 aveugle), délai/réseau = rouge, non sondé = blanc. Les compteurs média côté client restent hors de cette ligne : elle juge « un direct peut-il démarrer », pas « la voix passe-t-elle en ce moment » |
 | SAT-5 — récupération automatique | **Livré, démontré et EN PRODUCTION CONTRÔLÉE (5/09/2026, DEC-2026-055)** : la ligne d'un direct se relance seule, bornée et gardée par la base (`isLiveSessionStillOpen` — ouvert / fermé / injoignable, trois réponses distinctes), démontré au banc réel 39/39 contre un LiveKit vivant (rétablissement en 1,5 s, budget 3 puis « Réessayer », refus « complet » jamais martelé, direct clos = « Ce direct est terminé. · Quitter » sans un seul jeton) ; les zombies se ferment toutes les heures par `pg_cron` (migration jouée à vide en transaction annulée). Déployé le 5/09 : PR #81 fusionnée (`main` `880b5fa`, bundle SAT-5 servi par moknet.net), migration appliquée, première exécution réelle du cron à 02:15 UTC = 13 zombies fermés et tracés, 0 restant (détail `HISTORIQUE_VERSIONS` v6.20.0). Tout ce qui exige le VPS reste hors de portée : voir § 4 « Frontière VPS ». |
-| SAT-6 — bouton Admin Général | **Oui**, à condition de vérifier le rôle côté serveur |
+| SAT-6 — bouton Admin Général | **Livré sur branche, EN PR, NON DÉPLOYÉ (5/09/2026, DEC-2026-057)** : deux gestes sans SSH greffés sur `health-guardian` — relancer la room d'un direct (`DeleteRoom`, les lignes SAT-5 reviennent seules) et clore un direct (`ended_at` par l'identité de l'appelant sous la RLS, puis room supprimée) — rang relu en base à chaque étape, diagnostic qui compte les présents, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; les gestes SSH restent listés comme action humaine. Banc réel : passe 1 44/45 (deux vrais défauts vus sur les captures et corrigés), passe 2 38/48 (spectateur éjecté à son arrivée par une course du roster, trouvée et corrigée), passe 3 49/50 (artefact de mesure du banc), **passe 4 51/51**. Validation Direction requise avant tout déploiement (fonction Edge avant le client). |
 | SAT-1b — signal de marge (prédictif) | **Non** — demande `prometheus_port` et son routage sur le VPS |
 
 ---

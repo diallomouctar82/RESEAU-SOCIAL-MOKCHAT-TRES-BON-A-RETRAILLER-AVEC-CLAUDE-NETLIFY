@@ -1122,6 +1122,103 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-057] — 5 Septembre 2026
+
+* **Module(s)** : `Santé Globale (Super-Admin)`, fonction Edge
+  `health-guardian` (`liveEmergency.ts`, `index.ts`), `Live / Directs`
+* **Problème / Besoin initial** : SAT-6 — la frontière VPS posée par SAT-5
+  laissait deux gestes sans bouton : provoquer le rétablissement d'un direct
+  qui tourne mal (les lignes SAT-5 se relancent seules, mais aucun humain ne
+  pouvait déclencher ce rétablissement depuis l'administration) et clore un
+  direct. Et la définition d'« Admin Général » n'existait que côté client
+  (`isSuperAdmin` évalué dans le navigateur, § 5 de l'audit) : impossible
+  d'y adosser un geste de secours. Instruction de la Direction : « Lance
+  SAT-6 sur une branche dédiée avec preuves et tests verts … aucune mise en
+  prod sans validation complète ».
+* **Options considérées** :
+  1. Un bouton client qui appelle `RoomService` directement — rejeté : les
+     identifiants LiveKit sortiraient du coffre, et le rang serait celui du
+     navigateur.
+  2. Un geste serveur en un clic, sans diagnostic ni confirmation —
+     rejeté : un DeleteRoom sur un direct de deux cents personnes sans avoir
+     vu le nombre de présents, sans fenêtre de validité, sans journal.
+  3. **Retenu** : trois actions greffées sur `health-guardian`
+     (`live_emergency_overview` / `diagnose` / `apply`), écrites comme un
+     flux pur à ports injectés (`liveEmergency.ts`, testable sans réseau) :
+     rang relu **en base** (`health_my_rank`) avant toute lecture, et
+     **relu à nouveau** au moment du geste ; diagnostic qui mesure la room
+     réelle (`ListRooms` / `ListParticipants`) et signe un jeton HMAC de
+     cinq minutes lié au geste, au direct et à l'acteur — un jeton d'un
+     autre geste, d'un autre direct ou d'une autre personne vaut 403 ;
+     geste puis **re-mesure** avant tout verdict (room disparue ou renée =
+     vérifié ; même sid = échec ; LiveKit muet = non vérifié) ; clôture
+     écrite **par l'identité de l'appelant** (policy
+     `live_sessions_update_host`, jamais le rôle service — un refus de la
+     base vaut 403 sans DeleteRoom) ; journal `audit_logs`
+     (`health.emergency`, `live.secours.<geste>`) avec acteur, présents
+     avant, sid avant/après, verdict. Les gestes SSH (conteneur, clé
+     divergente, ports UDP, montée 1.8.4 → 1.13.6) restent listés dans le
+     panneau comme action humaine, jamais promis par un bouton.
+* **Décision finale** : option 3, livrée sur `claude/lives-directs-sat6`
+  (PR en brouillon), **non déployée** — ni la fonction Edge (la v2 en
+  production ne connaît pas ces actions) ni le client : validation de la
+  Direction requise. Ordre de mise en production si elle est validée :
+  fonction Edge d'abord (additive ; retour arrière = redéployer l'artefact
+  v2 régénéré par `build-bundle.sh`), fusion du client ensuite — dans
+  l'autre sens, le panneau afficherait « action inconnue » à l'Admin
+  Général.
+* **Ce que le banc a trouvé** (passe 1, 44 OK / 1 DÉFAUT) : un faux défaut
+  de banc (`innerText` rend l'en-tête en capitales, « NON RÉVERSIBLE ») ;
+  et, sur les captures, deux vrais défauts que Playwright masquait en
+  faisant défiler tout seul — la **boîte de confirmation hors de l'écran**
+  (seul le voile se voyait : le relevé du banc a nommé le piège — l'animation
+  d'entrée `animate-fade-up` laisse un `transform` identité sur trois
+  enveloppes de l'espace admin, et un ancêtre transformé devient le cadre de
+  tout `position:fixed` ; corrigé par un portail vers `<body>`, comme la
+  goutte de la messagerie — et le même portail a été donné au tiroir de
+  détail et à la modale de réparation de la Santé Globale, pris dans le même
+  piège depuis leur création) et, après la relance, un panneau qui disait
+  « Aucune room active » alors que les deux personnes étaient déjà revenues
+  (corrigé par une seconde relecture 5 s après le geste, le temps que les
+  lignes SAT-5 se rétablissent). **Passe 2 (38 OK / 10 DÉFAUT)** : les dix
+  défauts avaient une seule cause, hors du périmètre initial de SAT-6 mais
+  réelle pour tout spectateur — Bilal était **éjecté 0,43 s après avoir
+  rejoint** le direct (journal LiveKit : `leave CLIENT_INITIATED`, ligne
+  `live_speakers` avec `left_at` null) : la relecture périodique du roster
+  de `SocialLive.tsx`, lancée AVANT que `joinLiveSession` ait répondu, ne
+  trouvait pas encore la personne parmi les présents et concluait « l'hôte
+  m'a retiré » — course corrigée en photographiant « j'étais inscrit » avant
+  la lecture, seule une lecture lancée après l'inscription pouvant valoir un
+  retrait. Passe 3, sur le code corrigé : 49 OK / 1 DÉFAUT — le seul
+  défaut était un artefact de la nouvelle mesure du banc (le volet du tiroir
+  mesuré en plein `animate-fade-up` : y=19, hauteur 882 = échelle 0,98) ; le
+  banc mesure désormais le voile, jamais animé, et attend la fin des
+  animations. **Passe 4 : 51 OK / 0 DÉFAUT** (5/09/2026, 08h09 UTC).
+* **Impact** : `supabase/functions/health-guardian/liveEmergency.ts`
+  (nouveau), `index.ts` (+3 actions, `loadTransportConfig`),
+  `services/health/liveEmergency.ts` (nouveau),
+  `services/health/healthService.ts` (+3 appels),
+  `components/admin/LiveEmergencyPanel.tsx` (nouveau ; modale par portail,
+  seconde relecture différée), `components/admin/AdminHealthTab.tsx`
+  (panneau monté avant le journal, badges Secours / Automatique /
+  Restauration ; tiroir de détail et modale de réparation rendus par
+  portail), `components/SocialLive.tsx` (course du roster : un spectateur
+  n'est plus pris pour « retiré » pendant son inscription),
+  `tests/liveEmergency.test.ts` (26), `tests/liveEmergencyPanel.test.tsx`
+  (8). Aucune migration, aucune table nouvelle.
+* **Preuves** : tsc 0 · vitest 1101/1101 · build · 4 contre-épreuves rouges
+  (rang non relu au geste, même sid déclaré vérifié, jeton d'un autre geste
+  accepté, bouton actif sans case) ; banc réel détaillé dans
+  `docs/HISTORIQUE_VERSIONS.md` (v6.22.0). **Limites honnêtes** : la
+  fonction Edge n'est pas déployée ; au banc, le flux Edge réel tourne dans
+  Node avec ses ports réels (base réelle pour le rang et la RLS, LiveKit
+  vivant pour DeleteRoom), sauf le port journal, remplacé par un fichier
+  faute de clé de service dans le bac à sable — l'écriture réelle dans
+  `audit_logs` n'a pas encore été jouée (elle emprunte `journal()`, déjà en
+  production pour SAT-4/SAT-5). Comptes de preuve supprimés à zéro trace.
+
+---
+
 ### [DEC-2026-056] — 5 Septembre 2026
 
 * **Module(s)** : `Espace Experts` (`components/ExpertsCatalogue.tsx`,

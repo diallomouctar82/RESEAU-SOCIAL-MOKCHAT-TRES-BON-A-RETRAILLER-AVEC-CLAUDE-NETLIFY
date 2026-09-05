@@ -37,12 +37,82 @@
 | **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 fusionnée en squash → `cbdab0a` / DEC-2026-054 | **Stable — Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en production contrôlée depuis le 5/09 (Green Gate run 33933766630, moknet.net a servi `index-SB3nxKwK.js` avec les empreintes SAT-4) ; remplacée par v6.20.0 le même jour** |
 | **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026** : PR #81 fusionnée en squash → `main` `880b5fa` (Green Gate run 33936079398 vert), moknet.net sert `index-CjAVWgcX.js` avec les 7 empreintes SAT-5 (ancien bundle 404) ; migration `close_zombie_live_sessions` + job `close-zombie-live-sessions` appliquée à 01:28 UTC, **première exécution réelle à 02:15 UTC : 13 directs zombies fermés** (les 13 ids de la sauvegarde, `audit_logs` `health.auto_repair` actor NULL), exécutions suivantes 03:15/04:15/05:15 sans rien à faire, 06:15 : 1 direct de plus franchissant les 24 h fermé ; 0 zombie restant, directs récents intacts, aucune autre ligne touchée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées), défaut d'écran trouvé par le banc et corrigé, tsc 0 · vitest 1045/1045 |
 | **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | branche `claude/cleanup-home-interface-szp8qv`, PR #83 fusionnée en squash → `5b1c1ce` / DEC-2026-056 | **Courante (Active) — production contrôlée validée par la Direction ; Green Gate vert sur `af6a8d2` (run 33951780278) et sur `main` (run 33952228718) ; `moknet.net` sert `index-BUCPWfy5.js` depuis le 5/09 à 07h20 UTC, ancien bundle 404, vérifié en navigateur sur miroir** |
+| **v6.22.0** | 5 Septembre 2026 | **SAT-6 — le bouton de secours du direct, réservé à l'Admin Général : relancer la room d'un direct ou le clore depuis la Santé Globale, sans SSH — rang relu en base avant toute lecture et de nouveau au geste, diagnostic qui compte les présents réels, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; deux défauts pré-existants corrigés en chemin (modales de la Santé Globale cadrées sur l'onglet au lieu de la fenêtre, spectateur éjecté à son arrivée par une course du roster)** | Santé Globale (Super-Admin), Edge `health-guardian` v3, Live / Directs | branche `claude/lives-directs-sat6`, PR en brouillon / DEC-2026-057 | **Prête — EN PR, NON DÉPLOYÉE (validation Direction requise)** : ni la fonction Edge (la v2 en production ne connaît pas ces actions) ni le client ; ordre si validée : fonction Edge d'abord, client ensuite. Banc réel contre un LiveKit vivant, trois vrais comptes et la base réelle : **51 OK / 0 DÉFAUT** (passe 4, après trois passes correctives 44/45, 38/48, 49/50) ; tsc 0 · vitest 1101/1101 · build |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.22.0] — 5 Septembre 2026 (SAT-6 — le bouton de secours du direct, Admin Général)
+
+* **La demande** : « Lance SAT-6 sur une branche dédiée avec preuves et
+  tests verts … un sujet, une branche, des preuves, aucune mise en prod sans
+  validation complète. » SAT-5 avait posé la frontière VPS ; il manquait un
+  bouton humain pour les deux gestes qui tiennent sans SSH.
+* **Ce qui change** : dans la Santé Globale, un panneau « Secours du direct »
+  (monté avant le journal) liste les directs ouverts avec l'état réel de
+  leur room sur LiveKit (présents comptés, pas devinés) et deux gestes :
+  **Relancer la room** (réversible : `DeleteRoom`, les lignes SAT-5 se
+  rétablissent seules en ~1,5 s) et **Clore ce direct** (non réversible :
+  `ended_at` écrit par l'identité de l'appelant sous la RLS
+  `live_sessions_update_host`, puis room supprimée — chaque écran lit « Ce
+  direct est terminé. »). Chaque geste passe par diagnostic → boîte de
+  confirmation (présents réels, case à cocher, bouton inerte sans elle) →
+  geste → verdict re-mesuré (vérifié / échec / non vérifié) → ligne
+  `audit_logs` `health.emergency` avec acteur, présents avant, sid
+  avant/après. Le rang vient de la base (`health_my_rank`) : `user` = rien,
+  `admin` = lecture seule, `super_admin` = gestes ; il est relu au moment du
+  geste. La confirmation est un jeton HMAC de cinq minutes lié au geste, au
+  direct et à l'acteur. Les gestes SSH (conteneur, clé, ports UDP, montée
+  1.8.4 → 1.13.6) sont listés sans bouton, comme action humaine. Le journal
+  des actions distingue Secours / Automatique / Restauration.
+* **Trois actions Edge** (`live_emergency_overview` / `diagnose` / `apply`)
+  greffées sur `health-guardian` (v3, **non déployée**), écrites comme un
+  flux pur à ports injectés (`liveEmergency.ts`) — les mêmes règles sont
+  testées sans réseau puis jouées au banc avec des ports réels.
+* **Deux défauts pré-existants trouvés par le banc et corrigés** : (1) les
+  modales de l'espace admin étaient cadrées sur la boîte de l'onglet et non
+  sur la fenêtre — l'animation `animate-fade-up` laisse un `transform`
+  identité sur trois enveloppes, et un ancêtre transformé devient le cadre
+  de tout `position:fixed` ; la boîte de confirmation SAT-6, le tiroir de
+  détail et la modale de réparation de la Santé Globale sont désormais rendus
+  par portail dans `<body>` ; (2) un spectateur pouvait être **éjecté 0,43 s
+  après son arrivée** : la relecture périodique du roster de
+  `SocialLive.tsx`, lancée avant la fin de `joinLiveSession`, ne le trouvait
+  pas encore et concluait « l'hôte m'a retiré » — « j'étais inscrit » est
+  désormais photographié AVANT la lecture. Un troisième défaut, propre à
+  SAT-6 : après la relance, le panneau relisait trop tôt et disait « Aucune
+  room active » ; une seconde relecture 5 s après le geste montre la room
+  renée.
+* **Preuves** : tsc 0 · vitest 1101/1101 · build ; 26 tests de flux + 8 tests
+  DOM ; 4 contre-épreuves rouges (rang non relu au geste, même sid déclaré
+  vérifié, jeton d'un autre geste accepté, bouton actif sans case). **Banc
+  réel** (`scratchpad/sat6/preuve-sat6.cjs` : trois vrais comptes créés puis
+  supprimés — spectateur `user`, administrateur `admin`, Admin Général
+  `super_admin` —, base réelle pour le rang et la RLS, LiveKit vivant lancé
+  sous le contrôle du banc, flux Edge réel exécuté dans Node avec ses ports
+  réels, journal remplacé par un fichier faute de clé de service dans le bac
+  à sable) : passe 1 44 OK / 1 DÉFAUT, passe 2 38 OK / 10 DÉFAUT, passe 3
+  49 OK / 1 DÉFAUT (artefact de mesure : le volet du tiroir mesuré pendant
+  son animation d'entrée ; banc corrigé), **passe 4 : 51 OK / 0 DÉFAUT**
+  (5/09/2026, 08h09 UTC). Ce que la passe finale prouve : le rang de la base refuse le
+  membre (403 à la lecture) et l'administrateur simple (403 au diagnostic),
+  un jeton forgé vaut 400 sans aucune écriture ; contre-épreuve RLS : le
+  membre ne peut pas poser `ended_at` (0 ligne) ; la relance supprime la
+  vraie room, les deux personnes reviennent seules dans une room neuve (une
+  relance chacune, un nouveau jeton chacune), le panneau relit seul l'état
+  de la room renée ; la clôture pose `ended_at` par la RLS, les deux écrans
+  lisent « Ce direct est terminé. », zéro jeton redemandé, LiveKit ne voit
+  plus personne, deux entrées de journal ; les boîtes de confirmation et le
+  tiroir de détail sont cadrés sur la fenêtre ; zéro erreur de page.
+* **Non déployé, volontairement** : fonction Edge v3 et client attendent la
+  validation de la Direction ; ordre de mise en production : Edge d'abord
+  (additive, retour arrière = redéployer l'artefact v2 régénéré), client
+  ensuite. **Limite honnête** : l'écriture réelle dans `audit_logs` n'a pas
+  été jouée au banc (port journal = fichier) ; elle emprunte `journal()`,
+  déjà en production pour SAT-4/SAT-5.
 
 ### [Version 6.21.0] — 5 Septembre 2026 (Espace Experts « Plateaux de cristal »)
 
