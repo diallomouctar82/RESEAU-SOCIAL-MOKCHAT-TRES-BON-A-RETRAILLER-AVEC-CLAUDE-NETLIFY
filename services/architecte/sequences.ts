@@ -51,6 +51,12 @@ export interface SequenceAlignment {
 export const SCULPTURE_SLOT = 'sculpture';
 
 export interface ArchitecteSequence {
+    /**
+     * Le portrait dont ce modèle a été généré : la séquence ne se joue que si
+     * l'avatar affiche ENCORE ce portrait — sinon la vidéo montrerait un autre
+     * visage que la sculpture (photo remplacée depuis le Super-Admin).
+     */
+    portraitUrl?: string;
     key: string;
     title: string;
     /** Texte réellement prononcé — affiché en sous-titre et fourni en piste de légendes. */
@@ -98,6 +104,7 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
         { startMs: 6450, endMs: 8190, text: 'avec une voix claire, naturelle et professionnelle.' },
     ],
     posterUrl: '/architecte/vision-smart-heygen.webp',
+    portraitUrl: '/architecte/architecte.webp',
     captionsUrl: '/architecte/vision-smart-heygen.fr.vtt',
     durationMs: 8190,
     sources: [
@@ -454,4 +461,9 @@ export function rememberPresentationSeen(storage: StorageLike | null = defaultSt
  */
 export function shouldOfferPresentation(input: { enabled: boolean; seen: boolean; sequence: ArchitecteSequence | null }): boolean {
     return input.enabled && !input.seen && input.sequence !== null;
+}
+
+/** La séquence peut-elle se jouer sur l'avatar qui affiche `photoUrl` ? */
+export function sequenceFitsPhoto(sequence: Pick<ArchitecteSequence, 'portraitUrl'>, photoUrl: string): boolean {
+    return !sequence.portraitUrl || sequence.portraitUrl === photoUrl;
 }

@@ -25,6 +25,7 @@ import {
     hasSeenPresentation,
     rememberPresentationSeen,
     shouldOfferPresentation,
+    sequenceFitsPhoto,
 } from '../../services/architecte/sequences';
 import {
     mergeArchitecteAvatarConfig,
@@ -340,6 +341,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         () => resolveArchitecteVoiceId(avatarConfig, ELEVENLABS_CURATED_VOICES, ARCHITECTE_VOICE_ID),
         [avatarConfig]
     );
+    // Le modèle vidéo validé ne se joue que sur le portrait dont il vient :
+    // une photo remplacée depuis le Super-Admin parle par le portrait vivant.
+    const presentationAvailable = avatarConfig.videoSequencesEnabled !== false && sequenceFitsPhoto(ARCHITECTE_PRESENTATION, avatarConfig.photoUrl);
 
     const {
         isListening, isSpeaking, isSupported, volume, outputVolume, outputVolumeRef, wordPulseRef, mouthShapeRef, voiceTrackRef, voiceAligned, ttsEngine,
@@ -1152,12 +1156,12 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         if (!isOpen) return;
         setOffrirPresentation(
             shouldOfferPresentation({
-                enabled: avatarConfig.videoSequencesEnabled !== false,
+                enabled: presentationAvailable,
                 seen: hasSeenPresentation(),
                 sequence: ARCHITECTE_PRESENTATION,
             }),
         );
-    }, [isOpen, avatarConfig.videoSequencesEnabled]);
+    }, [isOpen, presentationAvailable]);
 
     // ── LA PRÉSENTATION PARLE DANS LA SCULPTURE ──────────────────────────
     // Pendant qu'elle joue : la voix de synthèse se tait et le micro se ferme
@@ -1227,7 +1231,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
      */
     const ouvrirParLaSculpture = () => {
         let presenting = false;
-        if (avatarConfig.videoSequencesEnabled !== false && !presentationPlayedRef.current) {
+        if (presentationAvailable && !presentationPlayedRef.current) {
             presentationPlayedRef.current = true;
             rememberPresentationSeen();
             setOffrirPresentation(false);
@@ -1275,7 +1279,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             mouthShapeRef={mouthShapeRef}
             voiceTrackRef={voiceTrackRef}
             voiceAligned={voiceAligned}
-            sequence={ARCHITECTE_PRESENTATION}
+            sequence={presentationAvailable ? ARCHITECTE_PRESENTATION : null}
             sequenceSlot={SCULPTURE_SLOT}
             size={isDesktop ? SCULPTURE_SIZE.desktop : SCULPTURE_SIZE.mobile}
             onClick={isOpen ? close : ouvrirParLaSculpture}
@@ -1526,7 +1530,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                         accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
                         onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
                     />
-                    {avatarConfig.videoSequencesEnabled !== false && (
+                    {presentationAvailable && (
                         <button
                             onClick={presenter}
                             className={bouton(presentationPlaying)}
