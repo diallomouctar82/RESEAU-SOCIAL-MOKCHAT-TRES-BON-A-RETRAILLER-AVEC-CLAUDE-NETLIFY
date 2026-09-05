@@ -67,6 +67,19 @@ export interface UseLiveTransportOptions {
      */
     conversationId?: string;
     /**
+     * SAT-5 (LIVE seulement) : garde de la RELANCE AUTOMATIQUE. Quand la ligne
+     * d'un direct tombe sans qu'on l'ait demandé, le hook demande à l'écran
+     * « ce direct est-il encore ouvert ? » (lecture en base) AVANT chaque
+     * nouvelle tentative — une room fermée par l'animateur n'est jamais
+     * rejointe en boucle, c'est la raison pour laquelle le LIVE n'avait aucune
+     * relance jusqu'ici. Sans cette option, comportement historique : bouton
+     * « Réessayer » seulement. Un refus NOMMÉ du serveur (« complet ») ne
+     * relance jamais, quel que soit le retour de cette garde. Si la garde
+     * lève (base injoignable), on retente : le budget de 3 borne le doute.
+     * Ignorée pour un appel (profil `call`), qui a sa propre règle.
+     */
+    autoRecover?: () => Promise<boolean>;
+    /**
      * HL-4 : messages du canal de données (sous-titres d'appel…). Lu via une
      * ref à chaque paquet — changer le callback ne reconnecte jamais la room.
      */
@@ -210,12 +223,28 @@ async function publishWanted(provider: LiveKitTransportProvider, wanted: WantedM
     return outcome;
 }
 
-/** Mission AU : tentatives automatiques (jeton + connexion) quand un appel VEUT du média et que la ligne tombe — puis « Réessayer » à la main. */
-const CALL_AUTO_RETRY_MAX = 3;
-const callRetryDelayMs = (attempt: number): number => Math.min(4000, 700 * 2 ** attempt);
+/**
+ * Tentatives automatiques (jeton + connexion) quand la ligne tombe — puis
+ * « Réessayer » à la main. Mission AU pour un appel qui VEUT du média ;
+ * SAT-5 pour un direct dont l'écran confirme qu'il est encore ouvert. Même
+ * budget, même délai croissant : 700 ms, 1,4 s, 2,8 s.
+ */
+const AUTO_RETRY_MAX = 3;
+const autoRetryDelayMs = (attempt: number): number => Math.min(4000, 700 * 2 ** attempt);
+/** SAT-5 : ce que l'écran affiche quand la garde répond que le direct n'est plus ouvert. */
+export const LIVE_ENDED_MESSAGE = 'Ce direct est terminé.';
+/**
+ * SAT-5 : vrai quand l'erreur du transport EST la clôture du direct constatée
+ * par la garde. Le banc réel l'a montré : sans cette distinction, l'écran
+ * affichait « Diffusion interrompue · Réessayer » sur un direct clos — une
+ * panne inventée et un bouton qui ne mène nulle part.
+ */
+export function isLiveEndedError(error: string | null | undefined): boolean {
+    return error === LIVE_ENDED_MESSAGE;
+}
 
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
-    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live', deviceId, conversationId } = options;
+    const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live', deviceId, conversationId, autoRecover } = options;
     const providerRef = useRef<LiveKitTransportProvider | null>(null);
     // HL-4 : le callback de données est lu via une ref — jamais dans les
     // dépendances de l'effet de connexion (un nouveau handler à chaque rendu
@@ -258,6 +287,13 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
     const camWishRef = useRef(true);
     const isCallRef = useRef(audioProfile === 'call');
     isCallRef.current = audioProfile === 'call';
+    // SAT-5 : garde de relance du LIVE, lue au moment de la chute de ligne —
+    // changer le callback ne reconnecte jamais la room (même patron que
+    // onDataReceived). `recoverCheckRef` : une seule lecture en base à la
+    // fois, jamais deux relances armées par deux chutes rapprochées.
+    const autoRecoverRef = useRef(autoRecover);
+    autoRecoverRef.current = autoRecover;
+    const recoverCheckRef = useRef(false);
     // Mission AU : relances automatiques d'un APPEL dont la ligne tombe alors
     // qu'il veut du média (pré-connexion en échec, déconnexion inattendue).
     const autoRetryRef = useRef(0);
@@ -318,22 +354,66 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
         // Mission AU : la ligne d'un appel tombe alors qu'il veut du média →
         // relance automatique (jeton + connexion), avec délai croissant et
         // plafond ; au-delà, l'erreur reste affichée et « Réessayer » existe.
-        // Réservé aux appels : le LIVE garde son bouton explicite (une room de
-        // LIVE fermée par l'animateur ne doit pas être rejointe en boucle).
-        const scheduleCallRetry = (reason: string) => {
-            if (!isCall || cancelled) return false;
-            const wanted = wantedMediaRef.current;
-            if (!wanted || !(wanted.audio || wanted.video)) return false;
-            if (autoRetryRef.current >= CALL_AUTO_RETRY_MAX) return false;
-            const n = autoRetryRef.current++;
-            console.warn(`[appel] média ligne perdue (${reason}) — nouvelle tentative ${n + 1}/${CALL_AUTO_RETRY_MAX} dans ${callRetryDelayMs(n)} ms`);
-            recordCallEvent('transport', `ligne perdue (${reason}) — relance ${n + 1}/${CALL_AUTO_RETRY_MAX} dans ${callRetryDelayMs(n)} ms`);
+        // SAT-5 : le LIVE relance aussi, mais seulement si l'écran fournit une
+        // garde `autoRecover` ET qu'elle confirme, en base, que le direct est
+        // encore ouvert — une room fermée par l'animateur n'est jamais
+        // rejointe en boucle. Sans garde : bouton explicite, comme avant.
+        const armRetry = (attempt: number) => {
             if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
             retryTimerRef.current = setTimeout(() => {
                 retryTimerRef.current = null;
                 if (cancelled) return;
                 setConnectAttempt((k) => k + 1);
-            }, callRetryDelayMs(n));
+            }, autoRetryDelayMs(attempt));
+        };
+        const scheduleAutoRetry = (reason: string, opts?: { refused?: boolean }): boolean => {
+            if (cancelled) return false;
+            // SAT-3 : un refus NOMMÉ du serveur (direct complet, transport non
+            // configuré) n'est pas une panne — relancer reviendrait à marteler
+            // une porte fermée, et à chaque coup consommer une place de lecture.
+            if (opts?.refused) return false;
+            if (isCall) {
+                const wanted = wantedMediaRef.current;
+                if (!wanted || !(wanted.audio || wanted.video)) return false;
+            } else if (!autoRecoverRef.current) {
+                return false;
+            }
+            if (autoRetryRef.current >= AUTO_RETRY_MAX) return false;
+            if (isCall) {
+                const n = autoRetryRef.current++;
+                console.warn(`[appel] média ligne perdue (${reason}) — nouvelle tentative ${n + 1}/${AUTO_RETRY_MAX} dans ${autoRetryDelayMs(n)} ms`);
+                recordCallEvent('transport', `ligne perdue (${reason}) — relance ${n + 1}/${AUTO_RETRY_MAX} dans ${autoRetryDelayMs(n)} ms`);
+                armRetry(n);
+                return true;
+            }
+            // LIVE : la garde d'abord, la relance ensuite. Une lecture en base à
+            // la fois ; le compteur n'est consommé que si l'on relance vraiment.
+            if (recoverCheckRef.current) return false;
+            recoverCheckRef.current = true;
+            const guard = autoRecoverRef.current;
+            void (async () => {
+                let stillOpen = true;
+                try {
+                    stillOpen = await guard();
+                } catch {
+                    // Base injoignable : le doute ne vaut pas un abandon — la
+                    // tentative suivante tranchera, et le budget la borne.
+                    stillOpen = true;
+                }
+                recoverCheckRef.current = false;
+                if (cancelled) return;
+                if (!stillOpen) {
+                    console.warn(`[direct] ligne perdue (${reason}) — le direct n'est plus ouvert, aucune relance`);
+                    setError(LIVE_ENDED_MESSAGE);
+                    return;
+                }
+                // Le budget a été vérifié AVANT la garde et une seule garde vole
+                // à la fois : le revérifier ici serait une ligne que rien ne
+                // peut faire rougir (contre-épreuve CE3), donc pas de ligne.
+                const n = autoRetryRef.current++;
+                console.warn(`[direct] ligne perdue (${reason}) — nouvelle tentative ${n + 1}/${AUTO_RETRY_MAX} dans ${autoRetryDelayMs(n)} ms`);
+                armRetry(n);
+            })();
             return true;
         };
         // Mission AU : appliquer le média voulu et le souhait de micro courant ;
@@ -530,7 +610,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                         }
                         // Mission AU : déconnexion INATTENDUE d'un appel établi (pas
                         // un démontage — `cancelled` l'aurait neutralisée) → relance.
-                        scheduleCallRetry(`déconnexion${reason ? ` ${reason} (${describeDisconnectReason(reason)})` : ''}`);
+                        scheduleAutoRetry(`déconnexion${reason ? ` ${reason} (${describeDisconnectReason(reason)})` : ''}`);
                     },
                 });
                 if (cancelled) return;
@@ -571,7 +651,7 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     // Mission AU : la pré-connexion d'un appel a échoué alors
                     // qu'une activation différée (décroché) l'attend, ou l'appelant
                     // n'a pas pu se connecter — on repart seul, jeton compris.
-                    scheduleCallRetry('connexion en échec');
+                    scheduleAutoRetry('connexion en échec', { refused: err instanceof LiveAccessError });
                 }
             }
         })();
@@ -941,8 +1021,11 @@ export interface LiveBadgeState {
  * transport) — plus jamais un « LIVE » rouge pulsant codé en dur pendant une
  * panne, une reconnexion ou un simple aperçu de démonstration.
  */
-export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean, isFull = false): LiveBadgeState {
+export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean, isFull = false, isEnded = false): LiveBadgeState {
     if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200', isOnAir: false };
+    // SAT-5 : « TERMINÉ » passe avant « INTERROMPU » — un direct clos par son
+    // animateur n'est pas une panne, et « Réessayer » n'y rendrait rien.
+    if (isEnded) return { label: 'TERMINÉ', className: 'bg-slate-600 text-white', isOnAir: false };
     // SAT-3 : « COMPLET » passe AVANT « INTERROMPU ». Un direct plein n'a pas
     // été interrompu — on n'y est jamais entré. Dire « interrompu » ferait
     // croire à une panne et enverrait la personne chercher un problème qui

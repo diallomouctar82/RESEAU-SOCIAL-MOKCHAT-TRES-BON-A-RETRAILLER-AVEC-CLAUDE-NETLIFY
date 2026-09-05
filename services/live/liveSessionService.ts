@@ -334,6 +334,25 @@ export async function fetchLiveSession(sessionId: string): Promise<LiveStream | 
 }
 
 /**
+ * SAT-5 — « ce direct est-il encore ouvert ? », posé avant chaque relance
+ * automatique de la ligne. Trois réponses, et elles ne se confondent pas :
+ *  - `true`  : la ligne existe et `ended_at` est vide → on peut rejoindre ;
+ *  - `false` : la ligne est absente ou clôturée → l'écran dit « terminé » ;
+ *  - LÈVE    : la base est injoignable → le doute n'est PAS une clôture, la
+ *              relance reste permise et bornée par son budget.
+ * `fetchLiveSession` ne fait pas l'affaire ici : elle répond `null` sur une
+ * erreur de lecture, ce qui aurait transformé une coupure réseau en faux
+ * « Ce direct est terminé. ».
+ */
+export async function isLiveSessionStillOpen(sessionId: string): Promise<boolean> {
+    if (!UUID_RE.test(sessionId)) return false;
+    const { data, error } = await supabase.from('live_sessions').select('id, ended_at').eq('id', sessionId).maybeSingle();
+    if (error) throw new Error(`isLiveSessionStillOpen: lecture impossible — ${error.message}`);
+    if (!data) return false;
+    return (data as { ended_at: string | null }).ended_at == null;
+}
+
+/**
  * Équipe F3 — LA pièce manquante de la découverte : le fil ne listait que
  * des cartes de démonstration à ids factices, donc un spectateur n'ouvrait
  * JAMAIS une session réelle (et n'entendait donc jamais personne). Liste les
