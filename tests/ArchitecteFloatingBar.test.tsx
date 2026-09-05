@@ -562,7 +562,11 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         const sculpture = screen.getByTestId('architecte-flottant');
         expect(sculpture).toHaveAttribute('data-variant', 'sculpture');
         expect(sculpture.className).not.toContain('rounded-full');
-        expect(sculpture.className).toContain('fixed');
+        // Ancrée en bas à droite par un conteneur qui ne capte aucun clic : l'application reste cliquable.
+        const ancrage = screen.getByTestId('architecte-ancrage');
+        expect(ancrage.className).toContain('fixed');
+        expect(ancrage.className).toContain('pointer-events-none');
+        expect(sculpture.className).toContain('pointer-events-auto');
         // Le rig 2D (repli technique) est dessous, masqué par la silhouette du portrait.
         const silhouette = screen.getByTestId('architecte-flottant-silhouette');
         expect(silhouette.style.maskImage || (silhouette.style as unknown as { webkitMaskImage?: string }).webkitMaskImage).toContain('architecte-silhouette.png');

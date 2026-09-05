@@ -152,8 +152,8 @@ type ArchitecteMediaView =
  */
 export const PRESENTATION_START_GRACE_MS = 3000;
 
-/** Sculpture flottante : 112 px sur ordinateur, 96 px sur téléphone — « taille raisonnable ». */
-export const SCULPTURE_SIZE = { desktop: 112, mobile: 96 } as const;
+/** Sculpture flottante : 96 px sur ordinateur, 84 px sur téléphone — « sobre et de taille raisonnable ». */
+export const SCULPTURE_SIZE = { desktop: 96, mobile: 84 } as const;
 
 function useIsDesktop(): boolean {
     const query = '(min-width: 768px)';
@@ -1240,10 +1240,15 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // C'EST ICI que l'avatar doit vivre : le bouton PERMANENT, celui que l'on
     // voit sans rien ouvrir. Depuis le 05/09/2026 : LA SCULPTURE VIVANTE — le
     // visage validé, détouré, sans cadre ni page autour, au même emplacement
-    // que l'ancien bouton. Ouvert, il reste à sa place (sur téléphone il monte
-    // au-dessus de la barre) et devient le bouton qui referme.
+    // que l'ancien bouton. Ouvert, il reste à sa place et devient le bouton
+    // qui referme ; la petite barre s'ouvre À CÔTÉ de lui, jamais par-dessus
+    // l'application.
     const sculpture = (
         <ArchitecteAvatar
+            // Clé STABLE : la sculpture reste le même élément quand la colonne
+            // (barre, panneau) apparaît devant elle — sinon React la remonterait,
+            // détacherait sa vidéo du lecteur et coupait la lecture demandée au clic.
+            key="sculpture"
             variant="sculpture"
             config={avatarConfig}
             presence={avatarPresence}
@@ -1260,13 +1265,27 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             onClick={isOpen ? close : ouvrirParLaSculpture}
             actionLabel={isOpen ? "Fermer l'Architecte" : "Ouvrir l'Architecte"}
             testId="architecte-flottant"
-            className={`fixed z-[62] right-3 sm:right-6 bottom-24 md:bottom-6 transition-transform duration-300 hover:scale-105 active:scale-95 ${
-                isOpen ? 'max-md:-translate-y-[4.5rem]' : ''
-            }`}
+            className="pointer-events-auto shrink-0 transition-transform duration-300 hover:scale-105 active:scale-95"
         />
     );
 
-    if (!isOpen) return sculpture;
+    // ── ANCRAGE UNIQUE, en bas à droite (Direction, 05/09/2026 : « zéro
+    // obstruction ») ── Fermé : la sculpture seule. Ouvert : une petite barre
+    // d'icônes À GAUCHE de la sculpture, une légende d'état au-dessus, et le
+    // panneau — étroit, à la demande — au-dessus encore. Rien n'est centré,
+    // rien ne prend la largeur, rien ne recouvre la navigation : le fond et
+    // les fonctions de MokNet restent visibles et cliquables (l'ancrage ne
+    // capte aucun clic, chaque élément rétablit les siens). `bottom-24` sur
+    // téléphone : au-dessus du dock (audit mobile du 31/08/2026).
+    const ancrage = 'fixed bottom-24 md:bottom-6 right-3 sm:right-6 z-[60] flex items-end gap-2 pointer-events-none';
+
+    if (!isOpen) {
+        return (
+            <div className={ancrage} data-testid="architecte-ancrage">
+                {sculpture}
+            </div>
+        );
+    }
 
     // Sous-titre : dernier retour réel, sinon transcription en cours, sinon
     // l'état de la session — exactement la cascade de l'original
@@ -1282,312 +1301,264 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const lastTurn = sessionTurns[sessionTurns.length - 1];
     const hasRichTurns = sessionTurns.some((t) => t.kind !== 'texte');
     const lastIsWrittenProduction = !!lastTurn && lastTurn.role === 'architecte' && lastTurn.text.length > 220;
-    // La surface visuelle adaptative ouvre le panneau quand la parole a
-    // demandé quelque chose À VOIR (vidéo, aperçu) — et lui seul.
     // La flèche de la barre (Direction, 05/09/2026) déplie ou replie le
     // panneau à la demande ; la saisie clavier, elle, montre toujours son champ.
     const showConversationPanel = isTypingOpen || (isPanelOpen ?? (hasRichTurns || lastIsWrittenProduction || mediaView !== null));
 
+    // Largeur de la colonne (panneau, légende, barre) : étroite, et jamais
+    // plus que ce que l'écran laisse à gauche de la sculpture.
+    const colonne = 'w-[min(22rem,calc(100vw-8.5rem))]';
+    const bouton = (actif: boolean) =>
+        `relative flex items-center justify-center rounded-full border p-2 transition-colors ${
+            actif ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100' : 'border-cyan-400/40 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
+        }`;
+    const niveau = isSpeaking || isListening;
+
     return (
-        <>
-        {sculpture}
-        {/* Fil de conversation — LA session unique de l'Architecte : voix,
-            clavier, photos et documents dans le même échange, sans jamais
-            basculer vers une autre interface. Masqué pendant que la caméra
-            occupe le même emplacement. Replié par défaut : la flèche de la
-            barre le déplie quand on en a besoin. */}
-        {!isCameraOpen && showConversationPanel && (
-            <div
-                data-testid="architecte-panneau"
-                className="fixed bottom-[17rem] md:bottom-[6rem] left-3 right-3 md:left-auto md:right-[8.75rem] md:w-[min(46rem,calc(100vw-11rem))] z-[61] rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]"
-            >
-                {/* Surface visuelle adaptative : le « petit écran » de
-                    l'Architecte — lecteur vidéo ou aperçu de document selon
-                    la tâche, jamais un second assistant. Une seule commande
-                    manuelle (fermer) : la voix reste le pilote. */}
-                {mediaView && (
-                    <div className="relative p-2 pb-0">
-                        {mediaView.kind === 'video' ? (
-                            <div className="relative w-full aspect-video overflow-hidden rounded-xl border border-cyan-400/40 bg-black">
-                                <iframe
-                                    title={`Vidéos pour : ${mediaView.query}`}
-                                    src={`https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(mediaView.query)}`}
-                                    className="absolute inset-0 h-full w-full"
-                                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                                    allowFullScreen
-                                />
-                            </div>
-                        ) : (
-                            <div className="max-h-52 overflow-y-auto rounded-xl border border-cyan-400/30 bg-slate-900/70 p-3">
-                                <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-cyan-300/70">{mediaView.name}</div>
-                                <div className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-200">{mediaView.excerpt}</div>
-                            </div>
-                        )}
-                        <button
-                            onClick={() => setMediaView(null)}
-                            className="absolute right-3 top-3 z-10 rounded-full border border-slate-500/60 bg-[#0f172a]/85 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-slate-600/40 transition-colors"
-                            aria-label="Fermer la fenêtre visuelle"
-                        >
-                            <X size={12} />
-                        </button>
-                    </div>
-                )}
-                {sessionTurns.length === 0 && !mediaView && !isTypingOpen && (
-                    <p className="p-3 text-[11px] text-slate-400">Aucun échange pour l'instant — parlez ou écrivez à l'Architecte.</p>
-                )}
-                {sessionTurns.length > 0 && (
-                    <div ref={conversationRef} className="max-h-60 overflow-y-auto p-3 space-y-2">
-                        {sessionTurns.slice(-8).map((t, i) => (
-                            <div key={`${t.at}-${i}`} className={`flex ${t.role === 'utilisateur' ? 'justify-end' : 'justify-start'}`}>
-                                {t.kind === 'image' && t.imageDataUrl ? (
-                                    <figure className="max-w-[70%]">
-                                        <img
-                                            src={t.imageDataUrl}
-                                            alt={t.text}
-                                            className="max-h-36 rounded-xl border border-cyan-400/40 shadow-[0_0_18px_rgba(34,211,238,0.15)]"
+        <div className={ancrage} data-testid="architecte-ancrage">
+            <div key="colonne" className="flex flex-col items-end gap-1.5 min-w-0 pointer-events-auto">
+                {/* Fil de conversation — LA session unique de l'Architecte : voix,
+                    clavier, photos et documents dans le même échange, sans jamais
+                    basculer vers une autre interface. Étroit, borné en hauteur,
+                    replié par défaut : la flèche le déplie quand on en a besoin.
+                    Masqué pendant que la caméra occupe le même emplacement. */}
+                {!isCameraOpen && showConversationPanel && (
+                    <div
+                        data-testid="architecte-panneau"
+                        className={`${colonne} max-h-[40vh] overflow-y-auto rounded-2xl bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/30 shadow-[0_0_24px_rgba(34,211,238,0.14),0_14px_36px_rgba(0,0,0,0.55)]`}
+                    >
+                        {/* Surface visuelle adaptative : le « petit écran » de
+                            l'Architecte — lecteur vidéo ou aperçu de document selon
+                            la tâche, jamais un second assistant. Une seule commande
+                            manuelle (fermer) : la voix reste le pilote. */}
+                        {mediaView && (
+                            <div className="relative p-2 pb-0">
+                                {mediaView.kind === 'video' ? (
+                                    <div className="relative w-full aspect-video overflow-hidden rounded-xl border border-cyan-400/40 bg-black">
+                                        <iframe
+                                            title={`Vidéos pour : ${mediaView.query}`}
+                                            src={`https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(mediaView.query)}`}
+                                            className="absolute inset-0 h-full w-full"
+                                            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                                            allowFullScreen
                                         />
-                                        <figcaption className="mt-1 text-[10px] font-mono text-cyan-300/70">{t.text}</figcaption>
-                                    </figure>
+                                    </div>
                                 ) : (
-                                    <span
-                                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-[12px] leading-relaxed ${
-                                            t.role === 'utilisateur'
-                                                ? 'bg-cyan-400/15 border border-cyan-400/30 text-cyan-100'
-                                                : 'bg-slate-800/80 border border-white/10 text-slate-200'
-                                        }`}
-                                    >
-                                        {/* Les sources citées par la recherche web deviennent
-                                            cliquables : la surface montre, l'utilisateur agit. */}
-                                        {renderTextWithLinks(t.text)}
-                                    </span>
+                                    <div className="max-h-40 overflow-y-auto rounded-xl border border-cyan-400/30 bg-slate-900/70 p-3">
+                                        <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-cyan-300/70">{mediaView.name}</div>
+                                        <div className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-200">{mediaView.excerpt}</div>
+                                    </div>
                                 )}
+                                <button
+                                    onClick={() => setMediaView(null)}
+                                    className="absolute right-3 top-3 z-10 rounded-full border border-slate-500/60 bg-[#0f172a]/85 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-slate-600/40 transition-colors"
+                                    aria-label="Fermer la fenêtre visuelle"
+                                >
+                                    <X size={12} />
+                                </button>
                             </div>
-                        ))}
-                    </div>
-                )}
-                {isTypingOpen && (
-                    <form
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            const t = typedText.trim();
-                            if (!t) return;
-                            setTypedText('');
-                            void handleCommand(t);
-                        }}
-                        className={`flex items-center gap-2 p-2 ${sessionTurns.length > 0 ? 'border-t border-cyan-500/20' : ''}`}
-                    >
-                        <input
-                            ref={typedInputRef}
-                            value={typedText}
-                            onChange={(e) => setTypedText(e.target.value)}
-                            placeholder="Écrivez à l'Architecte — même conversation que la voix"
-                            className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none px-2"
-                            aria-label="Saisie clavier de l'Architecte"
-                        />
-                        <button
-                            type="submit"
-                            className="flex items-center gap-1.5 rounded-full border border-cyan-300 bg-cyan-400/25 px-3 py-1.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/35 transition-colors"
-                            aria-label="Envoyer le message écrit"
-                        >
-                            <Send size={13} />
-                        </button>
-                    </form>
-                )}
-            </div>
-        )}
-        {/* Panneau caméra — AU-DESSUS de la barre, jamais à sa place : on voit
-            ce que l'Architecte va regarder avant de le lui envoyer. */}
-        {isCameraOpen && (
-            <div className="fixed bottom-[17rem] md:bottom-[6rem] left-3 right-3 md:left-auto md:right-[8.75rem] md:w-[min(32rem,calc(100vw-11rem))] z-[61] rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.25),0_18px_45px_rgba(0,0,0,0.6)]">
-                <video ref={videoRef} playsInline muted className="w-full h-56 object-cover bg-black" />
-                <div className="flex items-center justify-between gap-3 p-3">
-                    <span className="text-[11px] font-mono text-cyan-300/80 truncate">
-                        Cadrez ce que vous voulez me montrer.
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <button
-                            onClick={closeCamera}
-                            className="rounded-full border border-slate-500/50 px-3 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-slate-500/20 transition-colors"
-                        >
-                            Annuler
-                        </button>
-                        <button
-                            onClick={captureFrame}
-                            className="flex items-center gap-1.5 rounded-full border border-cyan-300 bg-cyan-400/25 px-3.5 py-1.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/35 transition-colors"
-                        >
-                            <ScanLine size={13} />
-                            Analyser
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
-        <div
-            // Halo cyan d'après la capture en contexte fournie ; largeur
-            // portée à `max-w-2xl` parce que la barre porte désormais TROIS
-            // boutons d'action : à 512px l'égaliseur se retrouvait écrasé
-            // entre le titre et les boutons, ce qui n'est ni la référence ni
-            // lisible.
-            // `bottom-24` sur mobile : la barre à `bottom-8` recouvrait le
-            // dock (z-50) — plus AUCUN accès au menu, donc aux Experts, tant
-            // que l'Architecte était ouvert (défaut mesuré par l'audit mobile
-            // du 31/08/2026). Desktop inchangé.
-            // Depuis le 05/09/2026 la barre est CELLE DE LA SCULPTURE : ancrée
-            // à droite, elle finit sous la silhouette qui se tient à son bout
-            // (réserve `md:pr-[7.5rem]`) ; sur téléphone elle prend la largeur
-            // et la sculpture monte au-dessus de son bout droit.
-            className="fixed bottom-24 md:bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-[min(48rem,calc(100vw-3rem))] z-[60] bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-3 md:pr-[7.5rem] ring-1 ring-cyan-500/50"
-            role="status"
-            aria-live="polite"
-        >
-            <div className="flex items-center gap-3 min-w-0 shrink overflow-hidden">
-                {/* Le visage n'est plus DANS la barre : c'est la sculpture
-                    flottante, au bout de la barre, qui parle, écoute et
-                    referme. Ici : l'identité et l'état, en clair. */}
-                <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                        L'Architecte
-                        {isListening && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />}
-                        {/* Bascule de moteur vocal VISIBLE (§20 — jamais une
-                            bascule silencieuse) : quand la voix HD est
-                            indisponible, l'utilisateur sait qu'il entend la
-                            voix de secours du navigateur. */}
-                        {ttsEngine === 'browser_native' && (
-                            <span className="text-[8px] font-mono normal-case tracking-normal text-amber-300/90 border border-amber-400/40 rounded-full px-1.5 py-px" title="La voix haute-définition est indisponible — voix de secours du navigateur">
-                                voix de secours
-                            </span>
                         )}
-                    </span>
-                    <span className={`text-[10px] font-mono truncate max-w-[180px] ${statusTone}`}>
-                        {subtitle}
-                    </span>
-                </div>
-            </div>
-
-            {/* Égaliseur — même langage visuel que l'original, mais piloté par
-                le VRAI niveau sonore du micro plutôt que par Math.random(). */}
-            <div className="flex items-center gap-1 h-6 shrink-0" aria-hidden="true">
-                {[0, 1, 2, 3, 4].map((i) => {
-                    const active = isSpeaking || isListening;
-                    // Les barres centrales réagissent plus fort que les
-                    // extrêmes : une forme d'onde, pas cinq barres identiques.
-                    const weight = [0.45, 0.75, 1, 0.75, 0.45][i];
-                    const height = active ? Math.max(4, Math.min(20, 4 + volume * 40 * weight)) : 4;
-                    return (
-                        <div
-                            key={i}
-                            className={`w-1 bg-cyan-400 rounded-full transition-[height] duration-75 ${active ? '' : 'opacity-30'}`}
-                            style={{ height: `${height}px` }}
-                        />
-                    );
-                })}
-            </div>
-
-            {/* Trois boutons d'action alignés, à l'emplacement et dans la forme
-                du « Module ZIP » de la référence — pilules bordées cyan.
-                L'Architecte n'est pas seulement une oreille : on peut lui
-                donner un fichier à lire, lui écrire, ou lui montrer quelque
-                chose avec la caméra. Chacun exécute une action réelle. */}
-            <div className="ml-3 flex items-center gap-2 shrink-0">
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
-                    onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
-                />
-                {avatarConfig.videoSequencesEnabled !== false && (
-                    <button
-                        onClick={presenter}
-                        className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                            presentationPlaying
-                                ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
-                                : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
-                        }`}
-                        title="Voir la présentation vidéo de l'Architecte (modèle validé par la Direction)"
-                        aria-label="Voir la présentation vidéo de l'Architecte"
-                        data-testid="architecte-presentation-bouton"
-                    >
-                        <Film size={13} />
-                        <span className="hidden lg:inline">Présentation</span>
-                        {/* INVITATION discrète, une fois par appareil : dans la barre
-                            elle-même, sans ouvrir le panneau (§16-17 : la voix reste
-                            le mode par défaut). Rien ne démarre sans le clic. */}
-                        {offrirPresentation && !presentationPlaying && (
-                            <span
-                                data-testid="architecte-presentation-invitation"
-                                className="ml-0.5 rounded-full bg-cyan-300 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-[#0f172a] animate-pulse"
+                        {sessionTurns.length === 0 && !mediaView && !isTypingOpen && (
+                            <p className="p-3 text-[11px] text-slate-400">Aucun échange pour l'instant — parlez ou écrivez à l'Architecte.</p>
+                        )}
+                        {sessionTurns.length > 0 && (
+                            <div ref={conversationRef} className="max-h-44 overflow-y-auto p-2.5 space-y-2">
+                                {sessionTurns.slice(-8).map((t, i) => (
+                                    <div key={`${t.at}-${i}`} className={`flex ${t.role === 'utilisateur' ? 'justify-end' : 'justify-start'}`}>
+                                        {t.kind === 'image' && t.imageDataUrl ? (
+                                            <figure className="max-w-[70%]">
+                                                <img
+                                                    src={t.imageDataUrl}
+                                                    alt={t.text}
+                                                    className="max-h-32 rounded-xl border border-cyan-400/40 shadow-[0_0_18px_rgba(34,211,238,0.15)]"
+                                                />
+                                                <figcaption className="mt-1 text-[10px] font-mono text-cyan-300/70">{t.text}</figcaption>
+                                            </figure>
+                                        ) : (
+                                            <span
+                                                className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-[12px] leading-relaxed ${
+                                                    t.role === 'utilisateur'
+                                                        ? 'bg-cyan-400/15 border border-cyan-400/30 text-cyan-100'
+                                                        : 'bg-slate-800/80 border border-white/10 text-slate-200'
+                                                }`}
+                                            >
+                                                {/* Les sources citées par la recherche web deviennent
+                                                    cliquables : la surface montre, l'utilisateur agit. */}
+                                                {renderTextWithLinks(t.text)}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {isTypingOpen && (
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const t = typedText.trim();
+                                    if (!t) return;
+                                    setTypedText('');
+                                    void handleCommand(t);
+                                }}
+                                className={`flex items-center gap-2 p-2 ${sessionTurns.length > 0 ? 'border-t border-cyan-500/20' : ''}`}
                             >
-                                Nouveau
-                            </span>
+                                <input
+                                    ref={typedInputRef}
+                                    value={typedText}
+                                    onChange={(e) => setTypedText(e.target.value)}
+                                    placeholder="Écrivez à l'Architecte"
+                                    className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-slate-500 outline-none px-2"
+                                    aria-label="Saisie clavier de l'Architecte"
+                                />
+                                <button
+                                    type="submit"
+                                    className="flex items-center rounded-full border border-cyan-300 bg-cyan-400/25 p-2 text-cyan-100 hover:bg-cyan-400/35 transition-colors"
+                                    aria-label="Envoyer le message écrit"
+                                >
+                                    <Send size={13} />
+                                </button>
+                            </form>
                         )}
-                    </button>
+                    </div>
                 )}
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors"
-                    title="Joindre un fichier à montrer à l'Architecte"
-                    aria-label="Joindre un fichier"
-                >
-                    <Paperclip size={13} />
-                    <span className="hidden lg:inline">Fichier</span>
-                </button>
+                {/* Panneau caméra — au même emplacement que le fil : on voit ce
+                    que l'Architecte va regarder avant de le lui envoyer. */}
+                {isCameraOpen && (
+                    <div className={`${colonne} rounded-2xl overflow-hidden bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/30 shadow-[0_0_24px_rgba(34,211,238,0.18),0_14px_36px_rgba(0,0,0,0.55)]`}>
+                        <video ref={videoRef} playsInline muted className="w-full h-40 object-cover bg-black" />
+                        <div className="flex items-center justify-between gap-2 p-2">
+                            <span className="text-[11px] font-mono text-cyan-300/80 truncate">Cadrez ce que vous voulez me montrer.</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                    onClick={closeCamera}
+                                    className="rounded-full border border-slate-500/50 px-3 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-slate-500/20 transition-colors"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    onClick={captureFrame}
+                                    className="flex items-center gap-1.5 rounded-full border border-cyan-300 bg-cyan-400/25 px-3 py-1.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/35 transition-colors"
+                                >
+                                    <ScanLine size={13} />
+                                    Analyser
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-                <button
-                    // FINALISATION : ce bouton ouvrait auparavant DialloOS —
-                    // une SECONDE expérience conversationnelle, avec sa propre
-                    // identité visuelle et sans historique commun. Désormais la
-                    // saisie s'ouvre ICI, dans la même barre, la même session,
-                    // le même Architecte. (Exigence explicite : « il ne doit
-                    // jamais arriver qu'un bouton ouvre un autre assistant ».)
-                    onClick={() => setIsTypingOpen((v) => !v)}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                        isTypingOpen
-                            ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
-                            : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
-                    }`}
-                    title="Écrire à l'Architecte — même conversation que la voix"
-                    aria-label="Écrire à l'Architecte"
+                {/* Légende : l'identité et l'état, en clair et en petit — le
+                    mouvement n'est jamais la seule information. */}
+                <div
+                    // Bornée comme la colonne : un long message se tronque au lieu
+                    // de déborder de l'écran (mesuré au banc : −183 px sur téléphone).
+                    className={`flex items-center gap-2 max-w-[min(22rem,calc(100vw-8.5rem))] rounded-full bg-[#0f172a]/85 backdrop-blur px-2.5 py-1 border border-cyan-500/20`}
+                    role="status"
+                    aria-live="polite"
                 >
-                    <Keyboard size={13} />
-                    <span className="hidden lg:inline">Écrire</span>
-                </button>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white shrink-0">L'Architecte</span>
+                    {isListening && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" aria-hidden="true" />}
+                    {/* Égaliseur minimal, piloté par le VRAI niveau sonore. */}
+                    <span className="flex items-end gap-px h-3 shrink-0" aria-hidden="true">
+                        {[0.6, 1, 0.6].map((weight, i) => (
+                            <span
+                                key={i}
+                                className={`w-0.5 bg-cyan-400 rounded-full transition-[height] duration-75 ${niveau ? '' : 'opacity-30'}`}
+                                style={{ height: `${niveau ? Math.max(3, Math.min(12, 3 + volume * 24 * weight)) : 3}px` }}
+                            />
+                        ))}
+                    </span>
+                    {/* Bascule de moteur vocal VISIBLE (§20 — jamais une bascule
+                        silencieuse) : quand la voix HD est indisponible, l'utilisateur
+                        sait qu'il entend la voix de secours du navigateur. */}
+                    {ttsEngine === 'browser_native' && (
+                        <span className="text-[8px] font-mono text-amber-300/90 border border-amber-400/40 rounded-full px-1.5 py-px shrink-0" title="La voix haute-définition est indisponible — voix de secours du navigateur">
+                            voix de secours
+                        </span>
+                    )}
+                    <span className={`text-[10px] font-mono truncate min-w-0 ${statusTone}`}>{subtitle}</span>
+                </div>
 
-                <button
-                    onClick={() => (isCameraOpen ? closeCamera() : void openCamera())}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                        isCameraOpen
-                            ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
-                            : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
-                    }`}
-                    title="Montrer quelque chose à l'Architecte avec la caméra"
-                    aria-label="Activer la caméra"
-                >
-                    <Camera size={13} />
-                    <span className="hidden lg:inline">Caméra</span>
-                </button>
+                {/* LA PETITE BARRE : icônes seulement (libellés en info-bulle et
+                    pour les lecteurs d'écran). L'Architecte n'est pas seulement
+                    une oreille : on peut lui donner un fichier à lire, lui
+                    écrire, ou lui montrer quelque chose avec la caméra. Chacun
+                    exécute une action réelle. */}
+                <div className="flex items-center gap-1 rounded-full bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_24px_rgba(34,211,238,0.18),0_12px_30px_rgba(0,0,0,0.5)] p-1">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
+                        onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
+                    />
+                    {avatarConfig.videoSequencesEnabled !== false && (
+                        <button
+                            onClick={presenter}
+                            className={bouton(presentationPlaying)}
+                            title="Voir la présentation vidéo de l'Architecte (modèle validé par la Direction)"
+                            aria-label="Voir la présentation vidéo de l'Architecte"
+                            data-testid="architecte-presentation-bouton"
+                        >
+                            <Film size={15} />
+                            {/* INVITATION discrète, une fois par appareil, sans ouvrir
+                                le panneau (§16-17). Rien ne démarre sans le clic. */}
+                            {offrirPresentation && !presentationPlaying && (
+                                <span
+                                    data-testid="architecte-presentation-invitation"
+                                    className="absolute -top-1.5 -right-1 rounded-full bg-cyan-300 px-1 text-[8px] font-black uppercase tracking-wide text-[#0f172a] animate-pulse"
+                                >
+                                    Nouveau
+                                </span>
+                            )}
+                        </button>
+                    )}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className={bouton(false)}
+                        title="Joindre un fichier à montrer à l'Architecte"
+                        aria-label="Joindre un fichier"
+                    >
+                        <Paperclip size={15} />
+                    </button>
+                    <button
+                        // FINALISATION : ce bouton ouvrait auparavant DialloOS —
+                        // une SECONDE expérience conversationnelle. Désormais la
+                        // saisie s'ouvre ICI, dans la même barre, la même session,
+                        // le même Architecte.
+                        onClick={() => setIsTypingOpen((v) => !v)}
+                        className={bouton(isTypingOpen)}
+                        title="Écrire à l'Architecte — même conversation que la voix"
+                        aria-label="Écrire à l'Architecte"
+                    >
+                        <Keyboard size={15} />
+                    </button>
+                    <button
+                        onClick={() => (isCameraOpen ? closeCamera() : void openCamera())}
+                        className={bouton(isCameraOpen)}
+                        title="Montrer quelque chose à l'Architecte avec la caméra"
+                        aria-label="Activer la caméra"
+                    >
+                        <Camera size={15} />
+                    </button>
+                    {/* La flèche : déplie ou replie la conversation écrite — « ne
+                        s'affiche pas en grand par défaut » (Direction, 05/09/2026). */}
+                    <button
+                        onClick={() => setIsPanelOpen(!showConversationPanel)}
+                        className={bouton(showConversationPanel)}
+                        title={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
+                        aria-label={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
+                        aria-expanded={showConversationPanel}
+                        data-testid="architecte-panneau-bascule"
+                    >
+                        {showConversationPanel ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                    </button>
+                    <button onClick={close} className="ml-0.5 mr-1 text-gray-400 hover:text-white transition-colors" aria-label="Fermer">
+                        <X size={16} />
+                    </button>
+                </div>
             </div>
-
-            {/* La flèche : déplie ou replie la conversation écrite — « ne
-                s'affiche pas en grand par défaut » (Direction, 05/09/2026). */}
-            <button
-                onClick={() => setIsPanelOpen(!showConversationPanel)}
-                className={`ml-2 flex items-center rounded-full border p-1.5 transition-colors shrink-0 ${
-                    showConversationPanel
-                        ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
-                        : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
-                }`}
-                title={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
-                aria-label={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
-                aria-expanded={showConversationPanel}
-                data-testid="architecte-panneau-bascule"
-            >
-                {showConversationPanel ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
-            <button onClick={close} className="ml-2 text-gray-400 hover:text-white transition-colors shrink-0" aria-label="Fermer">
-                <X size={18} />
-            </button>
+            {sculpture}
         </div>
-        </>
     );
 };

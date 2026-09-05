@@ -1,209 +1,348 @@
 [
  {
   "nom": "ordinateur",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "dockClicAtteint": null,
   "repos": {
+   "boites": {
+    "sculpture": {
+     "x": 1160,
+     "y": 680,
+     "w": 96,
+     "h": 96
+    }
+   },
+   "couvertPourcent": 0.9,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": null,
+   "barre": false,
+   "panneau": false,
    "variant": "sculpture",
    "presence": "rest",
    "sequence": "idle",
-   "rect": {
-    "x": 1144,
-    "y": 664,
-    "width": 112,
-    "height": 112,
-    "top": 664,
-    "right": 1256,
-    "bottom": 776,
-    "left": 1144
-   },
-   "mask": "url(\"/architecte/architecte-silhouette.png\")",
-   "barre": false
+   "mask": "url(\"/architecte/architecte-silhouette.png\")"
   },
   "pendant": {
-   "status": "playing",
-   "currentTime": 2.559493,
-   "paused": false,
-   "muted": false,
-   "videoWidth": 720,
-   "videoHeight": 1440,
-   "source": "vision-smart-heygen.cutout.webm",
-   "canvas": {
-    "w": 107,
-    "h": 107,
-    "opacity": "1"
+   "boites": {
+    "sculpture": {
+     "x": 1158,
+     "y": 678,
+     "w": 101,
+     "h": 101
+    },
+    "legende": {
+     "x": 883,
+     "y": 702,
+     "w": 269,
+     "h": 25
+    },
+    "barre": {
+     "x": 935,
+     "y": 733,
+     "w": 217,
+     "h": 43
+    }
    },
-   "presence": "speaking",
-   "statut": "L'ArchitectePrésentation en cours…PrésentationFichierÉcrireCaméra",
+   "couvertPourcent": 2.4,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": "L'ArchitectePrésentation en cours…",
    "barre": true,
    "panneau": false,
-   "rect": {
-    "x": 1141.199951171875,
-    "y": 661.2000122070312,
-    "width": 117.5999755859375,
-    "height": 117.5999755859375,
-    "top": 661.2000122070312,
-    "right": 1258.7999267578125,
-    "bottom": 778.7999877929688,
-    "left": 1141.199951171875
-   }
+   "status": "playing",
+   "currentTime": 2.57,
+   "paused": false,
+   "source": "vision-smart-heygen.cutout.webm",
+   "videoWidth": 720,
+   "videoHeight": 1440,
+   "canvasOpacity": "1",
+   "presence": "speaking"
   },
   "alpha": {
-   "pixels": 11449,
-   "transparents": 5254,
-   "opaques": 5702
+   "pixels": 8281,
+   "transparents": 3796,
+   "opaques": 4135
   },
-  "dureeMs": 8589,
+  "dureeMs": 8595,
   "apres": {
+   "boites": {
+    "sculpture": {
+     "x": 1158,
+     "y": 678,
+     "w": 101,
+     "h": 101
+    },
+    "legende": {
+     "x": 800,
+     "y": 701,
+     "w": 352,
+     "h": 26
+    },
+    "barre": {
+     "x": 935,
+     "y": 733,
+     "w": 217,
+     "h": 43
+    }
+   },
+   "couvertPourcent": 2.6,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": false,
    "status": "idle",
    "ended": true,
-   "currentTime": 8.168,
-   "presence": "error",
-   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.PrésentationFichierÉcrireCaméra"
+   "currentTime": 8.17,
+   "presence": "error"
   },
   "panneau": {
-   "panneau": {
-    "x": 404,
-    "y": 605.5,
-    "width": 736,
-    "height": 98.5,
-    "top": 605.5,
-    "right": 1140,
-    "bottom": 704,
-    "left": 404
+   "boites": {
+    "sculpture": {
+     "x": 1160,
+     "y": 680,
+     "w": 96,
+     "h": 96
+    },
+    "panneau": {
+     "x": 800,
+     "y": 542,
+     "w": 352,
+     "h": 153
+    },
+    "legende": {
+     "x": 800,
+     "y": 701,
+     "w": 352,
+     "h": 26
+    },
+    "barre": {
+     "x": 935,
+     "y": 733,
+     "w": 217,
+     "h": 43
+    }
    },
-   "sculpture": {
-    "x": 1144,
-    "y": 664,
-    "width": 112,
-    "height": 112,
-    "top": 664,
-    "right": 1256,
-    "bottom": 776,
-    "left": 1144
-   },
-   "barre": {
-    "x": 488,
-    "y": 707,
-    "width": 768,
-    "height": 69,
-    "top": 707,
-    "right": 1256,
-    "bottom": 776,
-    "left": 488
-   },
-   "texte": "Bonjour, et bienvenue ! Je suis L'Architecte, votre guide ici. Dites-moi simplement ce que vous aimeriez faire — je m'oc"
+   "couvertPourcent": 7.8,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": true
   },
   "ferme": {
+   "boites": {
+    "sculpture": {
+     "x": 1158,
+     "y": 678,
+     "w": 101,
+     "h": 101
+    }
+   },
+   "couvertPourcent": 1,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": null,
    "barre": false,
-   "panneau": false,
-   "sculpture": true
+   "panneau": false
   },
-  "erreurs": [
-   "console: Failed to load resource: the server responded with a status of 404 (Not Found)",
-   "console: Failed to load resource: net::ERR_FAILED",
-   "console: Failed to load resource: net::ERR_FAILED"
-  ]
+  "erreurs": []
  },
  {
   "nom": "mobile",
+  "viewport": {
+   "width": 390,
+   "height": 844
+  },
+  "dockClicAtteint": true,
   "repos": {
+   "boites": {
+    "sculpture": {
+     "x": 294,
+     "y": 664,
+     "w": 84,
+     "h": 84
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 2.1,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": null,
+   "barre": false,
+   "panneau": false,
    "variant": "sculpture",
    "presence": "rest",
    "sequence": "idle",
-   "rect": {
-    "x": 282,
-    "y": 652,
-    "width": 96,
-    "height": 96,
-    "top": 652,
-    "right": 378,
-    "bottom": 748,
-    "left": 282
-   },
-   "mask": "url(\"/architecte/architecte-silhouette.png\")",
-   "barre": false
+   "mask": "url(\"/architecte/architecte-silhouette.png\")"
   },
   "pendant": {
-   "status": "playing",
-   "currentTime": 2.550769,
-   "paused": false,
-   "muted": false,
-   "videoWidth": 720,
-   "videoHeight": 1440,
-   "source": "vision-smart-heygen.cutout.webm",
-   "canvas": {
-    "w": 183,
-    "h": 183,
-    "opacity": "1"
+   "boites": {
+    "sculpture": {
+     "x": 292,
+     "y": 662,
+     "w": 88,
+     "h": 88
+    },
+    "legende": {
+     "x": 32,
+     "y": 674,
+     "w": 254,
+     "h": 25
+    },
+    "barre": {
+     "x": 69,
+     "y": 705,
+     "w": 217,
+     "h": 43
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
    },
-   "presence": "speaking",
-   "statut": "L'ArchitectePrésentation en cours…PrésentationFichierÉcrireCaméra",
+   "couvertPourcent": 6.8,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": "L'ArchitectePrésentation en cours…",
    "barre": true,
    "panneau": false,
-   "rect": {
-    "x": 279.6000061035156,
-    "y": 577.5999755859375,
-    "width": 100.79998779296875,
-    "height": 100.79998779296875,
-    "top": 577.5999755859375,
-    "right": 380.3999938964844,
-    "bottom": 678.3999633789062,
-    "left": 279.6000061035156
-   }
+   "status": "playing",
+   "currentTime": 2.56,
+   "paused": false,
+   "source": "vision-smart-heygen.cutout.webm",
+   "videoWidth": 720,
+   "videoHeight": 1440,
+   "canvasOpacity": "1",
+   "presence": "speaking"
   },
   "alpha": {
-   "pixels": 33489,
-   "transparents": 15526,
-   "opaques": 16826
+   "pixels": 25600,
+   "transparents": 11733,
+   "opaques": 12751
   },
-  "dureeMs": 8611,
+  "dureeMs": 8605,
   "apres": {
+   "boites": {
+    "sculpture": {
+     "x": 292,
+     "y": 662,
+     "w": 88,
+     "h": 88
+    },
+    "legende": {
+     "x": 32,
+     "y": 673,
+     "w": 254,
+     "h": 26
+    },
+    "barre": {
+     "x": 69,
+     "y": 705,
+     "w": 217,
+     "h": 43
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 6.8,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": false,
    "status": "idle",
    "ended": true,
-   "currentTime": 8.168,
-   "presence": "error",
-   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.PrésentationFichierÉcrireCaméra"
+   "currentTime": 8.17,
+   "presence": "error"
   },
   "panneau": {
-   "panneau": {
-    "x": 12,
-    "y": 415,
-    "width": 366,
-    "height": 157,
-    "top": 415,
-    "right": 378,
-    "bottom": 572,
-    "left": 12
+   "boites": {
+    "sculpture": {
+     "x": 294,
+     "y": 664,
+     "w": 84,
+     "h": 84
+    },
+    "panneau": {
+     "x": 32,
+     "y": 489,
+     "w": 254,
+     "h": 178
+    },
+    "legende": {
+     "x": 32,
+     "y": 673,
+     "w": 254,
+     "h": 26
+    },
+    "barre": {
+     "x": 69,
+     "y": 705,
+     "w": 217,
+     "h": 43
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
    },
-   "sculpture": {
-    "x": 282,
-    "y": 580,
-    "width": 96,
-    "height": 96,
-    "top": 580,
-    "right": 378,
-    "bottom": 676,
-    "left": 282
-   },
-   "barre": {
-    "x": 12,
-    "y": 679,
-    "width": 366,
-    "height": 69,
-    "top": 679,
-    "right": 378,
-    "bottom": 748,
-    "left": 12
-   },
-   "texte": "Bonjour, et bienvenue ! Je suis L'Architecte, votre guide ici. Dites-moi simplement ce que vous aimeriez faire — je m'oc"
+   "couvertPourcent": 20.2,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 4,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": true
   },
   "ferme": {
+   "boites": {
+    "sculpture": {
+     "x": 292,
+     "y": 662,
+     "w": 88,
+     "h": 88
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 2.3,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": null,
    "barre": false,
-   "panneau": false,
-   "sculpture": true
+   "panneau": false
   },
-  "erreurs": [
-   "console: Failed to load resource: net::ERR_FAILED",
-   "console: Failed to load resource: net::ERR_FAILED"
-  ]
+  "erreurs": []
  }
 ]

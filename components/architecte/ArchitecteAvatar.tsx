@@ -453,7 +453,8 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                   transform: `translate(${sequence.alignment.dxPercent}%, ${sequence.alignment.dyPercent}%) scale(${sequence.alignment.scale})`,
               }
             : undefined;
-    const glow = presence === 'rest' ? 10 : 18;
+    // Lueur SOBRE : presque rien au repos, un peu plus quand l'Architecte écoute ou parle.
+    const glow = presence === 'rest' ? 4 : 12;
     // Un appelant qui positionne lui-même l'avatar (`fixed …`) ne doit pas se
     // faire contredire par `relative` (défini APRÈS `fixed` dans la feuille
     // Tailwind, il l'emporterait : l'avatar flottant se retrouvait en haut à
