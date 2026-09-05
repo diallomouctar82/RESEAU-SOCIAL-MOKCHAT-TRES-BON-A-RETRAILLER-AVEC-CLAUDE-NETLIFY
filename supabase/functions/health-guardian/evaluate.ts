@@ -1,14 +1,23 @@
 // Traduction des mesures brutes en verdicts, ligne par ligne.
 //
 // Fichier volontairement PUR : aucun accès à `Deno`, au réseau ni à la base.
-// Il ne fait que transformer trois objets de chiffres en verdicts. C'est ce
-// qui le rend rejouable dans un test unitaire sans base, et donc vérifiable
-// autrement que par la confiance.
+// Il ne fait que transformer des mesures déjà prises en verdicts — trois blocs
+// de chiffres venus de la base, plus (SAT-4) une observation réseau faite par
+// `index.ts` et passée telle quelle. C'est ce qui le rend rejouable dans un
+// test unitaire sans base ni serveur, et donc vérifiable autrement que par la
+// confiance.
 //
 // Chaque évaluateur écrit son OBTENU en français : c'est ce texte que
 // l'administrateur lit dans le tableau de bord. Un verdict sans phrase
 // lisible oblige à retourner au code pour comprendre, ce qui n'est pas une
 // console d'exploitation.
+
+import {
+    type RawLiveTransportProbe,
+    describeLiveTransport,
+    judgeLiveTransport,
+    liveTransportVerdict,
+} from './liveTransportProbe.ts';
 
 export type HealthStatus = 'vert' | 'jaune' | 'orange' | 'rouge' | 'blanc';
 export type ProofLevel = 'banc' | 'reel' | 'production' | 'non_eprouve';
@@ -29,6 +38,20 @@ export interface RawMetrics {
     catalogue: Record<string, any>;
     data: Record<string, any>;
     operations: Record<string, any>;
+    /**
+     * SAT-4 — l'observation brute du transport du direct, la seule mesure de
+     * ce fichier qui ne vienne pas de la base : elle vient d'un appel réel à
+     * l'API serveur de LiveKit, fait par `index.ts` (le seul endroit qui a le
+     * droit de toucher au réseau).
+     *
+     * `undefined` = la sonde n'a pas tourné. La ligne devient BLANCHE, jamais
+     * verte : ne pas avoir regardé n'est pas un constat.
+     */
+    liveTransport?: {
+        /** `false` quand aucune configuration de transport n'est active. */
+        configured: boolean;
+        probe: RawLiveTransportProbe | null;
+    };
 }
 
 interface Verdict {
@@ -368,6 +391,27 @@ export const EVALUATORS: Record<string, Evaluator> = {
         },
 
     // ─────────────────────────── LIVE ───────────────────────────
+
+    // SAT-4 — la seule ligne du tableau de bord qui juge un service EXTÉRIEUR
+    // à la base. Elle ne conclut jamais sur `GET /` : elle conclut sur
+    // `ListRooms`, l'appel dont dépend réellement l'ouverture d'un direct.
+    // Voir l'encadré de `liveTransportProbe.ts`.
+    'live.transport_utilisable': ({ liveTransport }) => {
+        if (!liveTransport) {
+            // La sonde n'a pas tourné. On ne sait rien — et ne pas savoir
+            // n'est pas un constat : `evaluateAll` transforme cette exception
+            // en ligne BLANCHE, jamais en vert par défaut.
+            throw new Error("La sonde du transport LIVE n'a pas été exécutée.");
+        }
+        const health = judgeLiveTransport(liveTransport.probe, { configured: liveTransport.configured });
+        if (health.status === 'unconfigured') {
+            // Rien n'est branché : il n'y a pas de panne à annoncer, et la
+            // ligne « Transport temps réel configuré » dit déjà cela — le
+            // compter rouge ici pénaliserait deux fois le même défaut.
+            throw new Error(describeLiveTransport(health));
+        }
+        return liveTransportVerdict(health);
+    },
 
     'live.sessions_zombies': ({ operations }) =>
         zeroIsGood(n(operations.zombieSessions), { aucun: 'Aucun direct ouvert depuis plus de 24 h', un: 'direct ouvert depuis plus de 24 h', plusieurs: 'directs ouverts depuis plus de 24 h' }, 3),

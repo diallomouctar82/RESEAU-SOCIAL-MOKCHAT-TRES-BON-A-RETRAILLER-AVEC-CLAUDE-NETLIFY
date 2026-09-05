@@ -154,9 +154,15 @@ describe('barre latérale — ce qui reste, et une seule fois', () => {
         const nav = within(sidebar).getAllByRole('button').filter((b) => b.textContent && !/favoris|Réduire le menu|Déployer le menu/.test(b.getAttribute('title') || '') && b.className.includes('rounded-xl'));
         const labels = nav.map((b) => b.textContent?.trim() || '').filter((t) => t && t !== 'Mon Cap');
         expect(labels[0]).toBe('Accueil');
+        // DEC-2026-053 : « Réseau MOC » vient juste sous « Accueil », une seule fois.
+        expect(labels[1]).toBe('Réseau MOC');
+        expect(labels.filter((t) => t === 'Réseau MOC').length).toBe(1);
         expect(labels[labels.length - 1]).toBe('Conseil des Sages');
-        // Le tiroir mobile n'est pas touché : il garde son entrée Super-Admin.
+        // Le tiroir mobile n'est pas touché : il garde son entrée Super-Admin et
+        // « Réseau MOC » y reste sous « Communauté & Conseil ».
         expect(within(drawer).getAllByText('Tableau de Bord Super-Admin', { ignore: false }).length).toBeGreaterThan(0);
+        const drawerLabels = Array.from(drawer.querySelectorAll('button')).map((b) => (b.textContent || '').trim());
+        expect(drawerLabels.indexOf('Réseau MOC')).toBeGreaterThan(drawerLabels.indexOf('Marché MondialB2B') > -1 ? drawerLabels.indexOf('Marché MondialB2B') : 0);
     });
 
     it('l’Architecte reste montée par sa pastille flottante', () => {

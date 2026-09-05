@@ -32,8 +32,10 @@
 | **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Stable** — remplacée en production par v6.15.0 le 4 septembre 2026 |
 | **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 fusionnée → `8902cef` / DEC-2026-050 | **Stable** — remplacée comme version courante par v6.16.0 le 4 septembre 2026, mais son plan d'activation reste en cours. Code client en production sur `moknet.net` depuis le 4 septembre 2026 (bundle `index-DEDPIJvb.js`, étape 1 du plan d'activation). **Étape 2 faite le 4 septembre à 22h37 UTC : la fonction Edge `livekit-token` est passée en version 7** (fenêtre calme vérifiée, retour arrière octet-exact préparé, sonde avant/après sur 4 chemins → codes, jetons et message de refus identiques ; garde vérifié 7× par cas sur la fonction en ligne). **Mais SAT reste INERTE, et c'est prouvé et non déduit** : la même room sondée 8 fois voit son temps DESCENDRE (1 986 → 1 023 ms) au lieu de monter, donc aucune room n'est créée et aucun plafond n'est posé ; `prometheus_port` n'est toujours pas sur le VPS (`/metrics` = 404), `LIVE_NODE_METRICS_URL` n'existe pas, la porte ne refuse personne, zéro 409 émis. L'écran « Ce direct est complet » est dans le bundle et ne peut pas s'afficher. Étapes 3 à 5 en attente (`deploy/livekit/README.md` § SAT-1b). Reste à la charge de la Direction : un appel réel entre deux téléphones |
 | **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Stable — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), vérifiée sur moknet.net** |
-| **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée), libellé « Accueil & Cap » et entrée Super-Admin retirés de la liste (« Accueil » → « Conseil des Sages », capture de la Direction) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | PR #74 / DEC-2026-052 | **Courante (Active) — validée par la Direction le 4 septembre 2026 sur capture de référence, fusionnée dans `main` (PR #74), production contrôlée sur moknet.net** |
-| **v6.18.0** | 4 Septembre 2026 | **Tour de contrôle Vision Smart AI Core — l'état réel d'AI Core devient constatable depuis la console : statut global, les cinq verrous un par un, agents et droits, Architecte, journalisation, tests, cohérence dépôt/base** | Console d'administration (Orchestrateur IA), Gouvernance AI Core, Observabilité | PR #63 (brouillon) / DEC-2026-053 | **NON DÉPLOYÉE — PR en brouillon, en attente de validation explicite de l'utilisateur. Rien n'est parti sur `moknet.net`.** |
+| **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée), libellé « Accueil & Cap » et entrée Super-Admin retirés de la liste (« Accueil » → « Conseil des Sages », capture de la Direction) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | PR #74 / DEC-2026-052 | **Stable — validée par la Direction le 4 septembre 2026 sur capture de référence, fusionnée dans `main` (PR #74), vérifiée sur moknet.net** |
+| **v6.18.0** | 5 Septembre 2026 | **« Réseau MOC » juste sous « Accueil » dans la barre latérale ; contours de toutes les zones de saisie renforcés par une règle globale (2 px, couleur dérivée du texte à 55 %, accent aqua au focus) ; nouvelle invite du composeur « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. »** | Navigation globale (barre latérale), Réseau MOC, index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-053 | **Courante (Active) — production contrôlée demandée par la Direction, fusionnée dans `main`, vérifiée sur moknet.net** |
+| **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 / DEC-2026-054 | **Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en PR — pas encore la version servie par moknet.net** |
+| **v6.20.0** | 4 Septembre 2026 | **Tour de contrôle Vision Smart AI Core — l'état réel d'AI Core devient constatable depuis la console : statut global, les cinq verrous un par un, agents et droits, Architecte, journalisation, tests, cohérence dépôt/base** | Console d'administration (Orchestrateur IA), Gouvernance AI Core, Observabilité | PR #63 (brouillon) / DEC-2026-055 | **NON DÉPLOYÉE — PR en brouillon, en attente de validation explicite de l'utilisateur. Rien n'est parti sur `moknet.net`.** |
 
 ---
 
@@ -41,17 +43,73 @@
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
 
-### [Version 6.18.0] — 4 Septembre 2026 (Tour de contrôle Vision Smart AI Core — mission « rendre AI Core contrôlable »)
+### [Version 6.20.0] — 4 Septembre 2026 (Tour de contrôle Vision Smart AI Core — mission « rendre AI Core contrôlable »)
 - **Objectif** : AI Core était une boîte noire pour l'Administrateur Général. L'inspection du 4 septembre a établi qu'il **n'oriente aucun agent** — non par défaut technique, mais parce que rien ne permettait de le constater. Cet écran ne corrige pas AI Core : il le rend constatable.
 - **Réalisations** :
   - Tableau de bord en tête de *Super Admin → Connecteurs & Modèles IA* : statut global (vert / orange / rouge / inconnu), les **cinq verrous** d'AI Core un par un, les agents et leurs droits, la présence de l'Architecte, l'usage détecté, la journalisation, l'état des tests, la cohérence dépôt/base.
   - **Lecture seule stricte** : la vue ne contient ni `button`, ni `input`, ni `select` (verrouillé par test) ; « Actualiser » relit, rien de plus. Aucune RPC, aucune migration, aucune colonne ajoutée.
   - **Provenance affichée pour chaque case** (`lu en base`, `mesuré au build`, `non lisible ici`) et une section « Ce que cette console ne voit pas » qui nomme les trois angles morts : le jeton de service (secret serveur, invisible par conception), l'usage réel d'AI Core (non traçable tant que `ai_call_log` ne journalise pas les outils), le nombre de migrations en base (schéma non exposé à l'API REST — relevé hors ligne et daté).
   - Manifeste `public/ai-core-manifest.json` **mesuré au build** pour les faits que le navigateur ne peut pas lire, et **chargé à l'exécution** par la page : ses chiffres se régénèrent au lieu de se figer.
-- **Preuves** : `tsc` 0 · **vitest 1002/1002 (72 fichiers)** après trois remises à niveau sur `main` (PR #69, #73, puis #74/#75) · build propre · **Green Gate vert** sur `9b4170f`, relancé sur le HEAD courant · séquence du Green Gate rejouée en local sur un dépôt **sans manifeste** · lien public de prévisualisation `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify **distinct**, `noindex` · **parité binaire capture ↔ lien public** (JS et CSS identiques octet pour octet) · bundle sans client de base · aucune source du dépôt servie sur l'URL publique · aucune écriture en base.
+- **Preuves** : `tsc` 0 · **vitest 1048/1048 (75 fichiers)** après quatre remises à niveau sur `main` (PR #69, #73, #74/#75, puis #76/#77/#78/#80) · build propre · **Green Gate vert** sur `8f30b2d`, relancé sur le HEAD courant · séquence du Green Gate rejouée en local sur un dépôt **sans manifeste** · lien public de prévisualisation `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify **distinct**, `noindex` · **parité binaire capture ↔ lien public** (JS et CSS identiques octet pour octet) · bundle sans client de base · aucune source du dépôt servie sur l'URL publique · aucune écriture en base.
 - **État relevé et affiché par l'écran** : 🔴 **rouge** — 3 verrous fermés sur 4 obligatoires, verrou 4 non éprouvé, 14 identifiants d'agents dont **0 avec AI Core**, l'Architecte détenant des droits sans exister dans la table `agents`.
 - **Statut** : **NON DÉPLOYÉE.** PR #63 maintenue **en brouillon** à la demande de l'utilisateur ; rien n'est parti sur `moknet.net`, aucun outil n'a été activé, aucun droit n'a été accordé.
-- **Restes assumés, nommés** : les suites (Loop 1 — validation de l'`agentId`, journalisation, mode `test` AI Core, rapatriement des 101 migrations, `deno check` au Green Gate) sont **proposées et non validées** — voir DEC-2026-053, § « Décision en attente d'arbitrage utilisateur ». Le verrou 4 reste `non éprouvé` tant que le mode `test` n'existe pas côté passerelle.
+- **Restes assumés, nommés** : les suites (Loop 1 — validation de l'`agentId`, journalisation, mode `test` AI Core, rapatriement des 101 migrations, `deno check` au Green Gate) sont **proposées et non validées** — voir DEC-2026-055, § « Décision en attente d'arbitrage utilisateur ». Le verrou 4 reste `non éprouvé` tant que le mode `test` n'existe pas côté passerelle.
+
+---
+
+### [Version 6.19.0] — 5 Septembre 2026 (SAT-4 — savoir si un direct peut démarrer, pas si le serveur répond)
+
+* **La demande** : ne pas présenter SAT-4 comme terminé tant que le
+  branchement réel n'est pas livré ; preuves, tests, zéro régression ; à
+  chaque étape, ce qui est en production, ce qui ne l'est pas, ce qui reste
+  partiel.
+* **Ce qui change** : la ligne `live.transport_utilisable` du tableau de bord
+  de santé n'interroge plus `GET /` (qui répond 200 même quand rien ne passe)
+  mais `POST /twirp/livekit.RoomService/ListRooms`, signé avec la clé du
+  coffre — l'appel dont dépend réellement l'ouverture d'un direct. Vert si
+  200 + liste exploitable en ≤ 1 500 ms ; orange au-delà (la porte SAT-2 ne
+  compte plus) ; rouge sur 401/403 (le serveur vit et refuse nos
+  identifiants), 5xx, corps illisible, délai ou réseau ; blanc si rien n'est
+  configuré ou si la sonde n'a pas tourné.
+* **Où c'est** : règle pure `supabase/functions/health-guardian/liveTransportProbe.ts`
+  (zéro réseau), évaluateur dans `evaluate.ts`, sonde confinée à `index.ts`
+  (`observeLiveTransport`, ne lève jamais), ligne de registre
+  `services/health/healthRegistry.ts` (poids LIVE 34/28/22/16 = 100).
+  Artefact déployé désormais **généré** par `build-bundle.sh`.
+* **En production** : fonction Edge `health-guardian` **v2** (déployée,
+  amorçage prouvé, puis **démontrée** avec une vraie session administrateur :
+  HTTP 200 en 2,17 s, 41 lignes, `live.transport_utilisable` vert / réel /
+  400 ms / 0 direct, `seuilDegradeMs 1500`).
+* **Pas en production** : le code client (ligne de registre) est sur
+  `claude/lives-directs`, PR #77 ouverte, Green Gate à passer, fusion et
+  déploiement Netlify à venir.
+* **Partiel** : pas de contre-épreuve en production (les contre-épreuves sont
+  dans les tests, au niveau de la règle) ; SAT-5/6/7 non commencés ;
+  ACT-3/4/5 toujours bloqués sur l'accès SSH au VPS.
+* **Preuves** : tsc 0 · vitest 1006/1006 (71 fichiers) · build · 28 tests SAT-4
+  dont 2 contre-épreuves · source de production relue = 10/10 empreintes ·
+  zéro trace du compte éphémère (balayage = 0). DEC-2026-054.
+
+---
+
+### [Version 6.18.0] — 5 Septembre 2026 (« Réseau MOC » sous « Accueil », contours des zones de saisie, invite du composeur)
+
+* **La demande** : trois consignes de la Direction, en production contrôlée,
+  zéro régression, preuve visuelle à la fin.
+* **Ce qui change** : dans la barre latérale d'ordinateur, « Réseau MOC »
+  vient juste sous « Accueil » (l'onglet par défaut reste le réseau social,
+  le tiroir mobile et ⌘K ne bougent pas) ; toutes les zones de texte ont un
+  contour de 2 px dont la couleur dérive de celle du texte (55 %), et un accent
+  aqua au focus — une règle globale d'`index.html`, hors couche aqua
+  générée, avec deux classes de sortie ; le composeur invite avec « Quoi de
+  neuf ? Partage une réflexion, une opportunité, un tutoriel ou un
+  document. » au lieu d'un prénom codé en dur.
+* **Preuves** : `tsc --noEmit` 0 · `vitest` 993/993 (72 fichiers, +6 :
+  `tests/saisieContours.test.ts`) · `npm run build` propre · captures
+  avant/après avec bordure mesurée en navigateur réel (barre latérale,
+  composeur, connexion) jointes à la PR.
+* **Statut** : production contrôlée demandée par la Direction — fusion,
+  déploiement Netlify, contrôle post-déploiement (DEC-2026-053).
 
 ---
 

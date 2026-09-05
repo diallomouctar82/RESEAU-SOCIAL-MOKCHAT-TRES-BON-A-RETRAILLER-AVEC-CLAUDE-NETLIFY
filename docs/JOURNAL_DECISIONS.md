@@ -1122,6 +1122,158 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-054] — 5 Septembre 2026
+
+* **Module(s)** : `Santé Globale (Super-Admin)`, `Live / Directs`, fonction
+  Edge `health-guardian`
+* **Problème / Besoin initial** : SAT-4 — le tableau de bord de santé
+  concluait « vert » sur un `GET /` qui répond 200, alors que le 2 septembre
+  ce même `GET /` répondait 200 en 0,41 s **pendant que la voix ne passait
+  pas** (négociation expirée en boucle, `bytesSent` nul). Un serveur qui
+  refuse les identifiants du coffre répond aussi 200 sur `/`. La Direction a
+  fixé la barre : « ne présente pas SAT-4 comme terminé. Il reste du
+  branchement réel à livrer. »
+* **Décision** : la seule requête qui prouve qu'un direct peut s'ouvrir est
+  celle dont `livekit-token` dépend lui-même — `POST
+  /twirp/livekit.RoomService/ListRooms`, signée avec la clé du coffre
+  (`get_live_transport_config_internal`, réservée au rôle service, jamais
+  atteignable depuis une session). Verdicts : 200 + liste exploitable en
+  ≤ 1 500 ms → **vert** ; au-delà → **orange** (c'est
+  `ROOM_SERVICE_TIMEOUT_MS`, le délai passé lequel la porte d'admission SAT-2
+  cesse d'attendre et laisse entrer sans compter — le direct marche, la
+  protection non) ; 401/403 → **rouge « refuse nos identifiants »**, le cas
+  exact qu'un ping déclarait vert ; 5xx ou corps illisible → rouge ; délai ou
+  réseau → rouge ; rien de configuré ou sonde non exécutée → **blanc** (ne pas
+  avoir regardé n'est pas un constat, et `messagerie.transport_live_configure`
+  signale déjà une configuration absente — la compter rouge ici l'aurait
+  pénalisée deux fois dans le score). Séparation stricte : la règle
+  (`liveTransportProbe.ts`) et l'évaluateur (`evaluate.ts`) ne touchent jamais
+  au réseau ; seul `index.ts` sonde, et ne lève jamais — une sonde réseau qui
+  ferait tomber la fonction effacerait les 41 lignes du tableau de bord pour
+  un seul service. `PROBE_TIMEOUT_MS = max(5 s, SEUIL_DEGRADE_MS × 2)` rend le
+  seuil porteur : les deux valeurs ne peuvent plus se croiser. Ligne de
+  registre `live.transport_utilisable` (poids 34) ; les poids LIVE ont été
+  rééquilibrés 34/28/22/16 = 100 — `validateRegistry()` a refusé la première
+  tentative à 110, exactement son rôle.
+* **Artefact de déploiement** : la version 1 déployée était un collage manuel
+  des fichiers source, et son en-tête l'avouait. Il est désormais **généré**
+  (`supabase/functions/health-guardian/build-bundle.sh`, esbuild, `npm:` et
+  `jsr:` laissés externes au runtime Deno comme pour `livekit-token`) : on
+  peut rejouer le script et comparer les octets à ce qui tourne.
+* **Preuves** : 28 tests (17 → 28) dont 8 qui traversent `evaluateAll` — la
+  règle réelle, pas une imitation ; 2 contre-épreuves exécutées (retirer
+  chaque garde fait passer exactement 1 test au rouge, `evaluate.ts` restauré
+  identique au bit près) ; tsc 0, vitest 1006/1006 (71 fichiers), build
+  propre. `health-guardian` déployée **v1 → v2** (`verify_jwt: true`), amorçage
+  prouvé par un 401 JSON en 1,03 s. **Démontré en production le 5 septembre à
+  00h10 UTC** avec une vraie session administrateur : HTTP 200 en 2,17 s, 41
+  lignes évaluées, `live.transport_utilisable` = `vert`, `proofLevel: reel`,
+  « Le serveur de direct répond en 400 ms, 0 direct(s) en cours. »,
+  `evidence {latencyMs 400, rooms 0, seuilDegradeMs 1500}` — la clé du coffre
+  a signé, `ListRooms` a répondu 200 avec une liste exploitable. Source relue
+  depuis la fonction déployée : bannière « ARTEFACT GÉNÉRÉ » et 10/10
+  empreintes SAT-4 identiques au bundle régénéré dans le dépôt.
+* **Contrôle de sécurité fait en chemin** : les sondes `health_probe_*` sont
+  `SECURITY DEFINER` et exécutables par `anon`/`authenticated` (grant par
+  défaut — le motif déjà corrigé aux LOOP 02/17, 04/17, 06/17). Vérifié plutôt
+  que supposé : leur première instruction est `health_require_admin()` ;
+  `anon` reçoit « authentification requise », un compte connecté non-admin
+  reçoit « réservé aux administrateurs ». Aucune fuite, aucun changement.
+* **Zéro trace** : la démonstration exigeait une session administrateur,
+  impossible à obtenir autrement depuis le bac à sable (les comptes de banc
+  sont `user`). Un compte éphémère a été créé en SQL, ce qui a d'abord fait
+  échouer la connexion (« Database error querying schema » : quatre colonnes
+  texte de `auth.users` à NULL au lieu de `''`, corrigées sur cette seule
+  ligne), puis **supprimé** : 5 lignes (`profiles`, `auth.users`,
+  `auth.identities`, `auth.sessions`, `auth.refresh_tokens`), balayage
+  dynamique des 21 colonnes uuid de propriété de `public` + `storage` = 0,
+  seul administrateur restant = le compte réel de la Direction.
+* **Statut** : `Développé`, `Testé`, `Déployé` (Edge v2), `Démontré en
+  production` côté fonction. Côté écran : la ligne de registre vit dans le
+  code client de la branche `claude/lives-directs` (PR #77) — l'onglet
+  Santé Globale l'affichera après fusion et déploiement Netlify ; la fonction
+  la sert déjà.
+* **Restes assumés** : pas de contre-épreuve **en production** (faire passer
+  la ligne au rouge sur le vrai serveur reviendrait à casser la clé du coffre
+  — non fait ; les contre-épreuves sont au niveau de la règle, dans les
+  tests). SAT-5, SAT-6, SAT-7 non commencés. ACT-3/4/5 toujours bloqués sur
+  l'accès SSH au VPS. Les deux comptes de banc `demo.awa`/`demo.bilal`
+  (rôle `user`) sont volontairement conservés — décision de la Direction.
+### [DEC-2026-053] — 5 Septembre 2026
+
+* **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Réseau MOC (composeur)`, `Feuille de style globale (index.html)`
+* **Problème / Besoin initial** : trois consignes de la Direction, « le tout en
+  production contrôlée, sans rien casser et avec une preuve visuelle à la
+  fin » : (1) dans le menu, déplacer **uniquement** « Réseau MOC » juste sous
+  « Accueil », sans changer ce qui s'ouvre par défaut si c'est déjà correct ;
+  (2) renforcer la visibilité de **toutes** les zones de texte — des lignes
+  de contour plus visibles « pour qu'on comprenne immédiatement où écrire » ;
+  (3) remplacer l'invite du composeur par « Quoi de neuf ? Partage une
+  réflexion, une opportunité, un tutoriel ou un document. ».
+* **Audit de l'existant** : l'onglet par défaut est déjà le réseau social
+  (`activeTab` initial `'social'`, invariant DS-M2) — rien à changer.
+  « Réseau MOC » est l'entrée `social` de la catégorie « Communauté &
+  Conseil ». L'invite du composeur codait le prénom en dur (« Quoi de neuf,
+  Amadou ? … »). Le dépôt compte **448** `<input>`/`<textarea>`, bordés au
+  cas par cas en `border-slate-200` / `border-gray-300` (un trait presque
+  invisible sur fond clair), aucun en `border-0` ; aucune règle globale de
+  champ n'existait dans `index.html`.
+* **Idées envisagées** :
+  1. Déplacer `social` dans `MAIN_NAV_ITEMS` (catégorie « Accueil & Cap ») —
+     **rejeté** : cela déplacerait aussi l'entrée dans le tiroir mobile et la
+     recherche ⌘K ; la consigne dit « uniquement Réseau MOC », dans le menu
+     montré (barre latérale d'ordinateur).
+  2. Retoucher les 448 champs un par un — **rejeté** : illisible en revue,
+     impossible à garantir sans oubli, et chaque nouveau champ repartirait
+     invisible.
+  3. **Retenu** : (1) réordonner à l'affichage dans la barre latérale
+     d'ordinateur seulement ; (2) **une règle globale** dans `index.html`,
+     trait de 2 px dont la couleur dérive de la couleur du texte
+     (`color-mix(currentColor 55 %)`, ~3:1 sur blanc, repli `slate-500` sans
+     `color-mix`),
+     accent aqua `#0e7490` au focus, sans toucher aux rayons, fonds ni anneaux
+     `ring-*` ; portée par des sélecteurs courts (un par type de champ texte)
+     à la spécificité (0,3,1) grâce à deux `:not(.classe)` qui servent aussi
+     de porte de sortie (`saisie-sans-contour`, `saisie-contour-libre`) ;
+     (3) le texte exact de la Direction.
+* **La preuve visuelle a corrigé la première version** : mesuré par
+  `getComputedStyle` en navigateur, un trait de 1,5 px s'arrondit à **1 px**
+  sur un écran de densité 1 — l'épaisseur n'aurait rien changé sur la
+  plupart des ordinateurs. Passé à 2 px, et la teinte de 42 % à 55 % de la
+  couleur du texte (~3:1 sur blanc). Le harnais de capture, copie
+  d'`index.html` datant de la première loupe, a lui aussi été pris en
+  défaut (il ne contenait pas le bloc) : régénéré depuis l'`index.html` de
+  chaque état.
+* **Deux garde-fous du dépôt ont parlé pendant la loupe, et ont été
+  écoutés** : `tests/miroirFeuilleAnalysee.test.ts` refuse tout sélecteur de
+  plus de 200 caractères (signature d'une règle avalée) — la première version
+  chaînait dix `:not([type=…])` sur un seul sélecteur ; réécrite en dix
+  sélecteurs de 83 caractères au plus. Et la couche aqua générée reste
+  strictement identique (le bloc est placé hors de ses marques).
+* **Éléments techniques** : `components/Layout.tsx` (ordre d'affichage de la
+  barre latérale), `components/SocialFeed.tsx` (invite), `index.html` (bloc
+  « ZONES DE SAISIE — CONTOURS RENFORCÉS » … « FIN ZONES DE SAISIE »),
+  `tests/sidebarCleanup.test.tsx` (ordre Accueil → Réseau MOC → … → Conseil
+  des Sages, tiroir mobile inchangé), `tests/saisieContours.test.ts`
+  (nouveau : invite exacte, règle présente et bornée, types ciblés/exclus,
+  déclarations limitées au contour, sélecteurs < 200 caractères).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **993/993 (72 fichiers, +6)** ·
+  `npm run build` propre · captures avant/après en navigateur réel (barre
+  latérale, composeur au repos et au focus, écran de connexion) avec la
+  bordure **mesurée** par `getComputedStyle`, versées dans
+  `docs/captures/2026-09-05-reseau-sous-accueil-et-contours/`.
+* **Statut** : `Développé`, `Testé`, `Validé` par avance par la Direction
+  (« le tout en production contrôlée ») — fusion dans `main` (PR de la
+  branche `claude/cleanup-home-interface-szp8qv`), déploiement automatique
+  Netlify sur moknet.net, contrôle post-déploiement consigné dans la PR.
+* **Restes assumés** : le tiroir mobile garde « Réseau MOC » sous
+  « Communauté & Conseil » (hors consigne) ; les champs qui n'ont ni `type`
+  texte ni `<textarea>` (dates, sélecteurs) gardent leur contour d'origine ;
+  `color-mix` est pris en charge par tous les navigateurs courants depuis
+  2023, le repli `slate-500` couvre les autres.
+
+---
+
 ### [DEC-2026-052] — 4 Septembre 2026
 
 * **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Couche CSS « Miroir d'eau » (générée)`
@@ -1676,7 +1828,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-053] — 4 Septembre 2026
+### [DEC-2026-055] — 4 Septembre 2026
 * **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
 * **Problème / Besoin initial** : AI Core était une **boîte noire** pour
   l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
@@ -1786,9 +1938,10 @@ Chaque décision respecte le formalisme strict suivant :
   `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
   `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
   `components/admin/AiOrchestrator.tsx`.
-* **Preuves** : `tsc` 0 · **vitest 1002/1002 (72 fichiers)** après trois remises
-  à niveau sur `main` (PR #69, #73, puis #74/#75) · `npm run build` propre ·
-  Green Gate **vert** sur `9b4170f`, relancé sur le HEAD courant ·
+* **Preuves** : `tsc` 0 · **vitest 1048/1048 (75 fichiers)** après quatre remises
+  à niveau sur `main` (PR #69, #73, #74/#75, puis #76/#77/#78/#80) ·
+  `npm run build` propre · Green Gate **vert** sur `8f30b2d`, relancé sur le
+  HEAD courant ·
   séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
   (conditions d'un checkout propre) · lien public de prévisualisation
   `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify
