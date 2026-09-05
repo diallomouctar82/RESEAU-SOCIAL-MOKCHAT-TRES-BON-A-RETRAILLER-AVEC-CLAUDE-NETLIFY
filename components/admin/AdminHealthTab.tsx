@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Activity, AlertTriangle, ArrowUpDown, CircleHelp, ClipboardList, Filter,
     Loader2, Lock, RefreshCw, Search, ShieldCheck, Stethoscope, Undo2, Wrench, X, XCircle,
@@ -11,6 +12,8 @@ import { HEALTH_LINES } from '../../services/health/healthRegistry';
 import {
     HealthRank, HealthSnapshot, diagnose, loadJournal, repair, restore, runHealthCheck,
 } from '../../services/health/healthService';
+import { emergencyJournalLabel } from '../../services/health/liveEmergency';
+import { LiveEmergencyPanel } from './LiveEmergencyPanel';
 
 /**
  * Santé Globale — console d'exploitation de MokNet.
@@ -209,9 +212,14 @@ const PanneauDetail: React.FC<{
         return () => window.removeEventListener('keydown', onKey);
     }, [onFermer]);
 
-    return (
+    // Rendu dans document.body : les enveloppes de l'espace admin gardent un
+    // `transform` identité après leur animation d'entrée (animate-fade-up), et
+    // un ancêtre transformé devient le cadre de tout `position: fixed` — le
+    // panneau se cadrait alors sur la boîte de l'onglet, pas sur la fenêtre
+    // (relevé du banc SAT-6, passe 1). Le portail rend la fenêtre au cadre.
+    return createPortal(
         <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true"
-             aria-labelledby="titre-detail">
+             aria-labelledby="titre-detail" data-testid="health-detail-drawer">
             <button className="absolute inset-0 bg-slate-900/40" onClick={onFermer} aria-label="Fermer le détail" />
             <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-xl animate-fade-up">
                 <div className={`px-5 py-4 border-b border-slate-200 ${s.fond}`}>
@@ -370,7 +378,8 @@ const PanneauDetail: React.FC<{
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
 
@@ -396,9 +405,12 @@ const ModaleConfirmation: React.FC<{
         return () => window.removeEventListener('keydown', onKey);
     }, [onAnnuler, occupe]);
 
-    return (
+    // Même portail que le panneau de détail : hors de l'arbre transformé de
+    // l'espace admin, la modale se centre sur la fenêtre et non sur l'onglet.
+    return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
-             role="dialog" aria-modal="true" aria-labelledby="titre-confirmation">
+             role="dialog" aria-modal="true" aria-labelledby="titre-confirmation"
+             data-testid="health-confirm-modal">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-full overflow-y-auto">
                 <div className={`px-5 py-4 border-b border-slate-200 ${sansJeton ? 'bg-amber-50' : 'bg-orange-50'}`}>
                     <div className={`flex items-center gap-2 ${sansJeton ? 'text-amber-800' : 'text-orange-700'}`}>
@@ -500,7 +512,8 @@ const ModaleConfirmation: React.FC<{
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
 
@@ -952,6 +965,9 @@ export const AdminHealthTab: React.FC = () => {
                 )}
             </div>
 
+            {/* ── SECOURS DU DIRECT (SAT-6) ─────────────────────────────── */}
+            <LiveEmergencyPanel rank={rank} onJournalChanged={() => void rafraichirJournal()} />
+
             {/* ── JOURNAL ───────────────────────────────────────────────── */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
@@ -969,13 +985,23 @@ export const AdminHealthTab: React.FC = () => {
                     <div className="divide-y divide-slate-100">
                         {journal.map((entry) => (
                             <div key={entry.id} className="px-4 py-2.5 flex flex-wrap items-center gap-3 text-xs">
+                                {/* Quatre natures d'entrée, quatre mots : une réparation, une
+                                    restauration, une réparation automatique (cron) et un geste de
+                                    SECOURS (SAT-6) ne se lisent pas de la même façon. */}
                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                                    entry.action === 'health.restore'
-                                        ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-700'
+                                    entry.action === 'health.restore' ? 'bg-slate-100 text-slate-600'
+                                        : entry.action === 'health.emergency' ? 'bg-red-50 text-red-700'
+                                        : entry.action === 'health.auto_repair' ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-blue-50 text-blue-700'
                                 }`}>
-                                    {entry.action === 'health.restore' ? 'Restauration' : 'Réparation'}
+                                    {entry.action === 'health.restore' ? 'Restauration'
+                                        : entry.action === 'health.emergency' ? 'Secours'
+                                        : entry.action === 'health.auto_repair' ? 'Automatique'
+                                        : 'Réparation'}
                                 </span>
-                                <span className="font-mono text-slate-500 truncate max-w-[16rem]">{entry.lineId}</span>
+                                <span className="font-mono text-slate-500 truncate max-w-[16rem]">
+                                    {entry.action === 'health.emergency' ? emergencyJournalLabel(entry.remediationId) : entry.lineId}
+                                </span>
                                 <span className="text-slate-600 tabular-nums">{entry.changedCount ?? 0} élément(s)</span>
                                 {entry.actorName && <span className="text-slate-500">{entry.actorName}</span>}
                                 <span className="text-[10px] text-slate-400 font-mono">{depuis(entry.createdAt)}</span>
@@ -993,7 +1019,9 @@ export const AdminHealthTab: React.FC = () => {
                                     </button>
                                 ) : (
                                     <span className="text-[10px] text-slate-400">
-                                        {entry.restorable ? 'restauration réservée à l\'Admin Général' : 'sauvegarde déjà restaurée ou purgée'}
+                                        {entry.action === 'health.emergency' || entry.action === 'health.auto_repair'
+                                            ? 'sans sauvegarde : geste non restaurable'
+                                            : entry.restorable ? 'restauration réservée à l\'Admin Général' : 'sauvegarde déjà restaurée ou purgée'}
                                     </span>
                                 )}
                             </div>

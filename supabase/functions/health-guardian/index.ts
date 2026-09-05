@@ -18,10 +18,22 @@
 //   • lire / diagnostiquer → administrateur
 //   • réparer / restaurer  → Admin Général (super_admin) uniquement
 
-import { AccessToken } from 'npm:livekit-server-sdk@2.18.0';
+import { AccessToken, RoomServiceClient } from 'npm:livekit-server-sdk@2.18.0';
 import { createServiceRoleClient, createUserScopedClient } from './supabase.ts';
 import { evaluateAll, ProbeOutcome, RawMetrics } from './evaluate.ts';
 import { SEUIL_DEGRADE_MS, type RawLiveTransportProbe, toLiveKitApiUrl } from './liveTransportProbe.ts';
+import {
+    apply as applyLiveEmergency,
+    diagnose as diagnoseLiveEmergency,
+    overview as liveEmergencyOverview,
+    type EmergencyClaims,
+    LIVE_EMERGENCY_JOURNAL_ACTION,
+    LIVE_EMERGENCY_LINE_ID,
+    type LiveEmergencyPorts,
+    type LiveEmergencyRank,
+    type LiveEmergencySession,
+    type RoomObservation,
+} from './liveEmergency.ts';
 
 // ─────────────────────────── CORS ───────────────────────────
 //
@@ -161,6 +173,21 @@ interface LiveTransportConfigRow {
 }
 
 /**
+ * La configuration de transport active, lue au coffre par le rôle service.
+ * Partagée par la sonde SAT-4 et le secours SAT-6 : les deux parlent au MÊME
+ * serveur avec la MÊME clé que `livekit-token`.
+ */
+async function loadTransportConfig(): Promise<LiveTransportConfigRow | null> {
+    const service = createServiceRoleClient();
+    const environment = Deno.env.get('LIVE_TRANSPORT_ENVIRONMENT') ?? 'development';
+    const { data: config } = await service
+        .rpc('get_live_transport_config_internal', { p_environment: environment })
+        .maybeSingle<LiveTransportConfigRow>();
+    if (!config?.server_url || !config?.api_key || !config?.api_secret) return null;
+    return config;
+}
+
+/**
  * Observe le transport du direct. Ne juge pas, ne lève jamais.
  *
  * L'appel émis est exactement celui que `livekit-token` fait pour laisser
@@ -169,14 +196,8 @@ interface LiveTransportConfigRow {
  * dont dépend un direct — pas une approximation.
  */
 async function observeLiveTransport(): Promise<{ configured: boolean; probe: RawLiveTransportProbe | null }> {
-    const service = createServiceRoleClient();
-    const environment = Deno.env.get('LIVE_TRANSPORT_ENVIRONMENT') ?? 'development';
-
-    const { data: config } = await service
-        .rpc('get_live_transport_config_internal', { p_environment: environment })
-        .maybeSingle<LiveTransportConfigRow>();
-
-    if (!config?.server_url || !config?.api_key || !config?.api_secret) {
+    const config = await loadTransportConfig();
+    if (!config) {
         return { configured: false, probe: null };
     }
 
@@ -303,13 +324,167 @@ async function journal(
     return (data as { id?: string } | null)?.id ?? null;
 }
 
+// ───────────────────── SAT-6 : PORTS DU SECOURS ─────────────────────
+//
+// Le flux vit dans `liveEmergency.ts` (pur, testé). Ici, seulement les
+// accès au monde, chacun borné en temps et incapable de lever.
+
+/** Même plafond que la porte d'admission (`livekit-token`) : au-delà, on ne sait pas. */
+const EMERGENCY_ROOM_SERVICE_TIMEOUT_MS = 1500;
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
+    return Promise.race([
+        work.catch((error) => {
+            console.error('health-guardian: API serveur LiveKit en échec', error);
+            return null;
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+}
+
+function emergencyCanonical(claims: EmergencyClaims): string {
+    // Préfixe distinct de celui des réparations : un jeton de réparation ne
+    // peut pas être rejoué comme un jeton de secours, et réciproquement.
+    return ['secours', claims.action, claims.sessionId, claims.actorId, claims.exp].join('|');
+}
+
+async function signEmergency(claims: EmergencyClaims): Promise<string> {
+    const key = await hmacKey();
+    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(emergencyCanonical(claims)));
+    return `${btoa(JSON.stringify(claims))}.${btoa(String.fromCharCode(...new Uint8Array(sig)))}`;
+}
+
+async function verifyEmergency(token: string): Promise<EmergencyClaims | null> {
+    try {
+        const [payload, sig] = token.split('.');
+        if (!payload || !sig) return null;
+        const claims = JSON.parse(atob(payload)) as EmergencyClaims;
+        const key = await hmacKey();
+        const expected = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(emergencyCanonical(claims))));
+        const got = Uint8Array.from(atob(sig), (c) => c.charCodeAt(0));
+        if (got.length !== expected.length) return null;
+        let diff = 0;
+        for (let i = 0; i < expected.length; i++) diff |= got[i] ^ expected[i];
+        return diff === 0 ? claims : null;
+    } catch {
+        return null;
+    }
+}
+
+interface LiveSessionRow {
+    id: string;
+    title: string | null;
+    host_id: string | null;
+    host_name: string | null;
+    started_at: string | null;
+    ended_at: string | null;
+}
+
+function toEmergencySession(row: LiveSessionRow): LiveEmergencySession {
+    return {
+        id: row.id,
+        title: row.title,
+        hostId: row.host_id,
+        hostName: row.host_name,
+        startedAt: row.started_at,
+        endedAt: row.ended_at,
+    };
+}
+
+function buildEmergencyPorts(userClient: UserClient, config: LiveTransportConfigRow | null): LiveEmergencyPorts {
+    const service = createServiceRoleClient();
+    const rooms = config
+        ? new RoomServiceClient(toLiveKitApiUrl(config.server_url), config.api_key, config.api_secret)
+        : null;
+    const SESSION_COLUMNS = 'id,title,host_id,host_name,started_at,ended_at';
+
+    return {
+        async rank() {
+            const { data } = await userClient.rpc('health_my_rank');
+            const r = (data ?? {}) as Partial<LiveEmergencyRank>;
+            return { role: r.role ?? null, canRead: r.canRead === true, canRepair: r.canRepair === true };
+        },
+        async listOpenSessions() {
+            // Lecture par le rôle service : le flux a DÉJÀ vérifié le rang, et
+            // un direct privé doit rester visible de l'Admin Général qui le secourt.
+            const { data } = await service
+                .from('live_sessions')
+                .select(SESSION_COLUMNS)
+                .is('ended_at', null)
+                .not('started_at', 'is', null)
+                .order('started_at', { ascending: false })
+                .limit(50);
+            return ((data ?? []) as LiveSessionRow[]).map(toEmergencySession);
+        },
+        async readSession(sessionId) {
+            const { data } = await service
+                .from('live_sessions')
+                .select(SESSION_COLUMNS)
+                .eq('id', sessionId)
+                .maybeSingle<LiveSessionRow>();
+            return data ? toEmergencySession(data) : null;
+        },
+        async observeRoom(sessionId): Promise<RoomObservation> {
+            if (!rooms) return 'unavailable';
+            const listed = await withTimeout(rooms.listRooms([sessionId]), EMERGENCY_ROOM_SERVICE_TIMEOUT_MS);
+            if (!Array.isArray(listed)) return 'unavailable';
+            const room = listed[0];
+            if (!room) return null;
+            return { sid: String(room.sid ?? ''), creationTime: room.creationTime == null ? null : Number(room.creationTime) };
+        },
+        async listParticipants(sessionId) {
+            if (!rooms) return null;
+            const listed = await withTimeout(rooms.listParticipants(sessionId), EMERGENCY_ROOM_SERVICE_TIMEOUT_MS);
+            if (!Array.isArray(listed)) return null;
+            return listed.map((p) => String(p.identity));
+        },
+        async deleteRoom(sessionId) {
+            if (!rooms) return false;
+            const done = await withTimeout(rooms.deleteRoom(sessionId).then(() => true), 4_000);
+            return done === true;
+        },
+        async closeSession(sessionId) {
+            // Avec l'IDENTITÉ de l'appelant : la RLS de live_sessions n'accepte
+            // que l'animateur ou un administrateur (is_live_host). Un non-admin
+            // obtient zéro ligne — c'est la base qui refuse, pas cet écran.
+            const { data, error } = await userClient
+                .from('live_sessions')
+                .update({ ended_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                .eq('id', sessionId)
+                .is('ended_at', null)
+                .select('ended_at');
+            if (error) {
+                console.error('health-guardian: clôture refusée', error.message);
+                return { closed: false, endedAt: null };
+            }
+            const row = (data ?? [])[0] as { ended_at?: string } | undefined;
+            return { closed: Boolean(row?.ended_at), endedAt: row?.ended_at ?? null };
+        },
+        async journal(entry) {
+            return journal({
+                actorId: entry.actorId,
+                action: LIVE_EMERGENCY_JOURNAL_ACTION,
+                lineId: LIVE_EMERGENCY_LINE_ID,
+                metadata: entry.metadata,
+            });
+        },
+        sign: signEmergency,
+        verify: verifyEmergency,
+        now: () => Date.now(),
+    };
+}
+
 interface RequestBody {
-    action?: 'probe' | 'diagnose' | 'repair' | 'restore' | 'journal';
+    action?: 'probe' | 'diagnose' | 'repair' | 'restore' | 'journal'
+        | 'live_emergency_overview' | 'live_emergency_diagnose' | 'live_emergency_apply';
     remediationId?: string;
     lineId?: string;
     confirmationToken?: string;
     snapshotId?: string;
     limit?: number;
+    /** SAT-6 : geste de secours (`relaunch_room` | `close_session`) et direct visé. */
+    emergencyAction?: string;
+    sessionId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -499,7 +674,41 @@ Deno.serve(async (req: Request) => {
             }, 200, origin);
         }
 
+        // ── SAT-6 : SECOURS DU DIRECT (Admin Général) ───────────────────
+        //
+        // Le rang est contrôlé DANS le flux, à chaque étape, à partir de la
+        // base — pas ici, et jamais à partir du corps de la requête.
+        case 'live_emergency_overview': {
+            const ports = buildEmergencyPorts(userClient, await loadTransportConfig());
+            const r = await liveEmergencyOverview(ports);
+            return json(r.body, r.status, origin);
+        }
+
+        case 'live_emergency_diagnose': {
+            const ports = buildEmergencyPorts(userClient, await loadTransportConfig());
+            const r = await diagnoseLiveEmergency(ports, {
+                action: body.emergencyAction,
+                sessionId: body.sessionId,
+                actorId,
+            });
+            return json(r.body, r.status, origin);
+        }
+
+        case 'live_emergency_apply': {
+            const ports = buildEmergencyPorts(userClient, await loadTransportConfig());
+            const r = await applyLiveEmergency(ports, {
+                action: body.emergencyAction,
+                sessionId: body.sessionId,
+                confirmationToken: body.confirmationToken,
+                actorId,
+            });
+            return json(r.body, r.status, origin);
+        }
+
         default:
-            return json({ error: "Action inconnue. Attendu : probe, diagnose, repair, restore, journal." }, 400, origin);
+            return json({
+                error: 'Action inconnue. Attendu : probe, diagnose, repair, restore, journal, '
+                    + 'live_emergency_overview, live_emergency_diagnose, live_emergency_apply.',
+            }, 400, origin);
     }
 });
