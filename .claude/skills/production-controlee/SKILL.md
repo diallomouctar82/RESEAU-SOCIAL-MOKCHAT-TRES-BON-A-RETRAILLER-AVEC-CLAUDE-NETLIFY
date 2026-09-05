@@ -3,11 +3,16 @@ name: production-controlee
 description: Méthode de référence Vision Smart pour conduire une évolution de MokNet jusqu'à la production contrôlée, zéro régression, preuve avant affirmation, producteur ≠ contrôleur. Validée par la Direction le 5 septembre 2026 (DEC-2026-058 et DEC-2026-061). À charger pour TOUTE mission qui touche le code livré. Réutilisable telle quelle ; améliorable seulement en plus strict, jamais en moins.
 version: 1.0.0
 canonical_key: visionsmart.moknet.methode.production-controlee
-type: METHODE
-status: VALIDATED
+type: METHOD
+status: ACTIVE
 validated_by: Direction Vision Smart, 5 septembre 2026 (« cette approche est validée et doit être conservée telle quelle, améliorable, seulement en mieux, jamais en moins strict »)
 provenance: PR #89 / #90 (bande « Aurore », DEC-2026-058) puis PR #93 / #94 (composeur A7 et studio Visuel IA B10, DEC-2026-061) sur diallomouctar82/RESEAU-SOCIAL-MOKCHAT-TRES-BON-A-RETRAILLER-AVEC-CLAUDE-NETLIFY
 source_uri: .claude/skills/production-controlee/SKILL.md
+ai_core_project_id: 6aeffdc5-e681-4ec4-ad36-7d9d71449d66
+ai_core_entry_id: 159f024b-4982-4b79-a07b-9a883c948739
+ai_core_version_id: b613605e-4d36-47ea-bb15-c4f419521721
+ai_core_proposal_id: 9985f324-6d57-4b72-ba48-40ffeb5522fd
+ai_core_published_at: 2026-09-05T13:11:18Z
 ---
 
 # Production contrôlée — la méthode de référence
@@ -147,6 +152,6 @@ Intervention humaine indispensable → format ACTION REQUISE (action, plateforme
 
 | Version | Date | Changement | Sens |
 | :--- | :--- | :--- | :--- |
-| 1.0.0 | 5 septembre 2026 | Première consolidation à partir des missions DEC-2026-058 et DEC-2026-061, validées par la Direction. | Référence |
+| 1.0.0 | 5 septembre 2026 | Première consolidation à partir des missions DEC-2026-058 et DEC-2026-061, validées par la Direction. Publiée le même jour dans le registre Vision Smart AI Core (entrée `159f024b-4982-4b79-a07b-9a883c948739`, statut ACTIVE, version `b613605e-4d36-47ea-bb15-c4f419521721`, empreinte SHA-256 du contenu publié `57d5c24afa872e1602c99fef159062059e71d31b34fcb7a7f55e3f754e37aa08`). | Référence |
 
 Toute version suivante indique « plus strict » ou « ajout » dans la colonne Sens ; « moins strict » est interdit.

@@ -1172,18 +1172,43 @@ Chaque décision respecte le formalisme strict suivant :
   porte l'extension `.tsx.example` pour rester hors du typage).
 * **Production** : sans objet (aucun code livré) ; PR de documentation
   fusionnée selon la règle de coordination.
-* **ACTION REQUISE (Direction)** — publication dans le registre AI Core :
-  ACTION : créer ou mettre à jour l'entrée de connaissance de type MÉTHODE,
-  clé `visionsmart.moknet.methode.production-controlee`, statut
-  VALIDATED/ACTIVE, avec `source_uri` vers
-  `.claude/skills/production-controlee/SKILL.md` (branche `main`).
-  PLATEFORME : Vision Smart AI Core (`https://ai-core.moknet.net`, projet
-  `6aeffdc5-e681-4ec4-ad36-7d9d71449d66`). POURQUOI : ce dépôt ne dispose
-  que d'un accès en lecture au registre. REPRISE : dès l'entrée publiée,
-  l'outil `search_ai_core_memory` la renverra aux agents ; d'ici là, la
-  compétence du dépôt fait foi.
-* **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ; 🟡 publication dans le registre
-  AI Core en attente de l'action de la Direction.
+* **Publication dans le registre Vision Smart AI Core** (consigne de la
+  Direction : « Tu as les accès […] Publie l'entrée dans Vision Smart AI
+  Core, vérifie qu'elle est active et réutilisable, fournis la preuve »).
+  L'API publique (`https://ai-core.moknet.net`, service `memory-api`) exige
+  un jeton de service absent de cet environnement ; l'accès réel est la base
+  du registre (projet Supabase `vision-smart-ai-core-test`, projet AI Core
+  `6aeffdc5-e681-4ec4-ad36-7d9d71449d66`), dans laquelle les sessions MokNet
+  précédentes déposaient déjà leurs propositions sous l'acteur
+  `moknet-claude-code-agent`. Le flux gouverné du registre a été suivi dans
+  une seule transaction : proposition `9985f324-6d57-4b72-ba48-40ffeb5522fd`
+  (type METHOD, action CREATE, contenu = résumé opérationnel + texte
+  intégral de la compétence, 26 179 caractères), revue APPROVE signée
+  `direction-vision-smart` citant la validation écrite du 5/09, proposition
+  passée APPROVED, matérialisation : entrée
+  `159f024b-4982-4b79-a07b-9a883c948739` (type METHOD, clé
+  `visionsmart.moknet.methode.production-controlee`, **statut ACTIVE**,
+  confiance 1) et version 1 `b613605e-4d36-47ea-bb15-c4f419521721`
+  (`validated_by` = `direction-vision-smart`, `validated_at` = 5/09/2026
+  13:11:18 UTC, `source_uri` = fichier de la compétence sur `main`,
+  empreinte SHA-256 du contenu
+  `57d5c24afa872e1602c99fef159062059e71d31b34fcb7a7f55e3f754e37aa08`),
+  action du gardien consignée (`memory_guardian_actions`, résultat ACTIVE,
+  plongement PENDING comme l'entrée existante) et trois lignes d'audit
+  (`create_memory_proposal`, `review_memory_proposal`,
+  `memory_guardian_apply`, corrélation
+  `9bf11d48-6a2d-43b1-937c-0b0e68a1a3bc`). **Vérification** : requête de
+  contrôle reproduisant le filtre de lecture de l'API (projet, statut
+  VALIDATED/ACTIVE, version courante présente) → l'entrée est retenue ; le
+  projet compte deux connaissances actives. Limites honnêtes : la lecture
+  par l'API elle-même n'a pas pu être rejouée (jeton indisponible) ; le
+  plongement vectoriel reste PENDING jusqu'au passage du service de
+  plongement ; côté MokNet, l'outil `search_ai_core_memory` de la
+  passerelle reste désactivé tant que `AI_CORE_SERVICE_TOKEN` n'est pas
+  provisionné (état antérieur, inchangé). Les cinq propositions MokNet du
+  3/09 restent PROPOSED (hors périmètre, non touchées).
+* **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ET PUBLIÉ DANS LE REGISTRE AI CORE
+  (entrée ACTIVE, 5/09/2026 à 13:11 UTC).
 
 ---
 
