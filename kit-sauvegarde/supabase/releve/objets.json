@@ -1,0 +1,3950 @@
+[
+ {
+  "kind": "constraint",
+  "tbl": "admin_api_rate_limits",
+  "name": "admin_api_rate_limits_actor_id_fkey",
+  "def": "FOREIGN KEY (actor_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "admin_api_rate_limits",
+  "name": "admin_api_rate_limits_pkey",
+  "def": "PRIMARY KEY (actor_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "admin_api_rate_limits",
+  "name": "admin_api_rate_limits_request_count_check",
+  "def": "CHECK ((request_count >= 0))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_messages",
+  "name": "agent_chat_messages_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_messages",
+  "name": "agent_chat_messages_role_check",
+  "def": "CHECK ((role = ANY (ARRAY['user'::text, 'model'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_messages",
+  "name": "agent_chat_messages_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES agent_chat_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_sessions",
+  "name": "agent_chat_sessions_agent_id_fkey",
+  "def": "FOREIGN KEY (agent_id) REFERENCES agents(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_sessions",
+  "name": "agent_chat_sessions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_sessions",
+  "name": "agent_chat_sessions_user_id_agent_id_key",
+  "def": "UNIQUE (user_id, agent_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_chat_sessions",
+  "name": "agent_chat_sessions_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_tool_grants",
+  "name": "agent_tool_grants_pkey",
+  "def": "PRIMARY KEY (agent_id, tool_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agent_tool_grants",
+  "name": "agent_tool_grants_tool_id_fkey",
+  "def": "FOREIGN KEY (tool_id) REFERENCES ai_tools(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "agents",
+  "name": "agents_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_budget",
+  "name": "ai_budget_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_provider_id_fkey",
+  "def": "FOREIGN KEY (provider_id) REFERENCES ai_providers(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_requested_by_fkey",
+  "def": "FOREIGN KEY (requested_by) REFERENCES profiles(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['success'::text, 'error'::text, 'skipped'::text, 'blocked'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_models",
+  "name": "ai_models_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_models",
+  "name": "ai_models_provider_id_fkey",
+  "def": "FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_models",
+  "name": "ai_models_provider_id_model_id_key",
+  "def": "UNIQUE (provider_id, model_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_created_by_fkey",
+  "def": "FOREIGN KEY (created_by) REFERENCES profiles(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_last_test_status_check",
+  "def": "CHECK ((last_test_status = ANY (ARRAY['success'::text, 'failure'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_provider_id_fkey",
+  "def": "FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_provider_id_key",
+  "def": "UNIQUE (provider_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_providers",
+  "name": "ai_providers_auth_method_check",
+  "def": "CHECK ((auth_method = ANY (ARRAY['api_key'::text, 'oauth2'::text, 'webhook'::text, 'mcp'::text, 'unknown'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_providers",
+  "name": "ai_providers_category_check",
+  "def": "CHECK ((category = ANY (ARRAY['llm'::text, 'voice'::text, 'image_video'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_providers",
+  "name": "ai_providers_cost_tier_check",
+  "def": "CHECK ((cost_tier = ANY (ARRAY['free'::text, 'paid'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_providers",
+  "name": "ai_providers_discovery_status_check",
+  "def": "CHECK ((discovery_status = ANY (ARRAY['manual'::text, 'pending'::text, 'analyzing'::text, 'ready'::text, 'needs_info'::text, 'failed'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_providers",
+  "name": "ai_providers_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_providers",
+  "name": "ai_providers_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['not_implemented'::text, 'active'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_tools",
+  "name": "ai_tools_category_check",
+  "def": "CHECK ((category = ANY (ARRAY['search'::text, 'read'::text, 'action'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "ai_tools",
+  "name": "ai_tools_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "audit_logs",
+  "name": "audit_logs_actor_id_fkey",
+  "def": "FOREIGN KEY (actor_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "audit_logs",
+  "name": "audit_logs_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_events_size",
+  "def": "CHECK ((pg_column_size(events) <= 200000))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_role_check",
+  "def": "CHECK ((role = ANY (ARRAY['appelant'::text, 'appelé'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_unique_per_device",
+  "def": "UNIQUE (user_id, call_id, device_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_goals",
+  "name": "career_goals_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_goals",
+  "name": "career_goals_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_opportunities",
+  "name": "career_opportunities_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_opportunities",
+  "name": "career_opportunities_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_opportunity_feedback",
+  "name": "career_opportunity_feedback_opportunity_id_fkey",
+  "def": "FOREIGN KEY (opportunity_id) REFERENCES career_opportunities(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_opportunity_feedback",
+  "name": "career_opportunity_feedback_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_opportunity_feedback",
+  "name": "career_opportunity_feedback_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_search_missions",
+  "name": "career_search_missions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_search_missions",
+  "name": "career_search_missions_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_snapshots",
+  "name": "career_snapshots_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "career_snapshots",
+  "name": "career_snapshots_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "certificates",
+  "name": "certificates_course_id_fkey",
+  "def": "FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "certificates",
+  "name": "certificates_enrollment_id_fkey",
+  "def": "FOREIGN KEY (enrollment_id) REFERENCES enrollments(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "certificates",
+  "name": "certificates_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "certificates",
+  "name": "certificates_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "comments",
+  "name": "comments_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "comments",
+  "name": "comments_parent_comment_id_fkey",
+  "def": "FOREIGN KEY (parent_comment_id) REFERENCES comments(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "comments",
+  "name": "comments_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "comments",
+  "name": "comments_post_id_fkey",
+  "def": "FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "conversation_participants",
+  "name": "conversation_participants_conversation_id_fkey",
+  "def": "FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "conversation_participants",
+  "name": "conversation_participants_conversation_id_user_id_key",
+  "def": "UNIQUE (conversation_id, user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "conversation_participants",
+  "name": "conversation_participants_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "conversation_participants",
+  "name": "conversation_participants_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "conversations",
+  "name": "conversations_created_by_fkey",
+  "def": "FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "conversations",
+  "name": "conversations_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "courses",
+  "name": "courses_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "document_shares",
+  "name": "document_shares_document_id_fkey",
+  "def": "FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "document_shares",
+  "name": "document_shares_document_id_shared_with_user_id_key",
+  "def": "UNIQUE (document_id, shared_with_user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "document_shares",
+  "name": "document_shares_permission_check",
+  "def": "CHECK ((permission = ANY (ARRAY['read'::text, 'write'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "document_shares",
+  "name": "document_shares_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "document_shares",
+  "name": "document_shares_shared_with_user_id_fkey",
+  "def": "FOREIGN KEY (shared_with_user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "documents",
+  "name": "documents_owner_id_fkey",
+  "def": "FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "documents",
+  "name": "documents_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "documents",
+  "name": "documents_visibility_check",
+  "def": "CHECK ((visibility = ANY (ARRAY['private'::text, 'shared'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_appointments",
+  "name": "dossier_appointments_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_appointments",
+  "name": "dossier_appointments_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_deliverables",
+  "name": "dossier_deliverables_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_deliverables",
+  "name": "dossier_deliverables_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_documents",
+  "name": "dossier_documents_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_documents",
+  "name": "dossier_documents_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_dossier_id_shared_with_user_id_key",
+  "def": "UNIQUE (dossier_id, shared_with_user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_permission_check",
+  "def": "CHECK ((permission = ANY (ARRAY['read'::text, 'write'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_shared_with_user_id_fkey",
+  "def": "FOREIGN KEY (shared_with_user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_steps",
+  "name": "dossier_steps_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_steps",
+  "name": "dossier_steps_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_tasks",
+  "name": "dossier_tasks_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_tasks",
+  "name": "dossier_tasks_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossier_tasks",
+  "name": "dossier_tasks_step_id_fkey",
+  "def": "FOREIGN KEY (step_id) REFERENCES dossier_steps(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossiers",
+  "name": "dossiers_lead_agent_id_fkey",
+  "def": "FOREIGN KEY (lead_agent_id) REFERENCES agents(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossiers",
+  "name": "dossiers_owner_id_fkey",
+  "def": "FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "dossiers",
+  "name": "dossiers_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "enrollments",
+  "name": "enrollments_course_id_fkey",
+  "def": "FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "enrollments",
+  "name": "enrollments_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "enrollments",
+  "name": "enrollments_progress_percent_check",
+  "def": "CHECK (((progress_percent >= 0) AND (progress_percent <= 100)))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "enrollments",
+  "name": "enrollments_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'abandoned'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "enrollments",
+  "name": "enrollments_user_id_course_id_key",
+  "def": "UNIQUE (user_id, course_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "enrollments",
+  "name": "enrollments_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "exam_sessions",
+  "name": "exam_sessions_enrollment_id_fkey",
+  "def": "FOREIGN KEY (enrollment_id) REFERENCES enrollments(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "exam_sessions",
+  "name": "exam_sessions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "follows",
+  "name": "follows_followee_id_fkey",
+  "def": "FOREIGN KEY (followee_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "follows",
+  "name": "follows_follower_id_fkey",
+  "def": "FOREIGN KEY (follower_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "follows",
+  "name": "follows_no_self",
+  "def": "CHECK ((follower_id <> followee_id))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "follows",
+  "name": "follows_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "follows",
+  "name": "follows_unique",
+  "def": "UNIQUE (follower_id, followee_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "friendships",
+  "name": "friendships_addressee_id_fkey",
+  "def": "FOREIGN KEY (addressee_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "friendships",
+  "name": "friendships_no_self",
+  "def": "CHECK ((requester_id <> addressee_id))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "friendships",
+  "name": "friendships_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "friendships",
+  "name": "friendships_requester_id_fkey",
+  "def": "FOREIGN KEY (requester_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "friendships",
+  "name": "friendships_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "gift_catalog",
+  "name": "gift_catalog_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_actor_id_fkey",
+  "def": "FOREIGN KEY (actor_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_kind_check",
+  "def": "CHECK ((kind = ANY (ARRAY['delete'::text, 'update'::text, 'revoke_execute'::text, 'revoke_select_anon'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_payload_size",
+  "def": "CHECK ((pg_column_size(payload) <= 8000000))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_restored_by_fkey",
+  "def": "FOREIGN KEY (restored_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invitations",
+  "name": "invitations_invited_user_id_fkey",
+  "def": "FOREIGN KEY (invited_user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invitations",
+  "name": "invitations_invited_user_id_key",
+  "def": "UNIQUE (invited_user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invitations",
+  "name": "invitations_inviter_id_fkey",
+  "def": "FOREIGN KEY (inviter_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invitations",
+  "name": "invitations_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invite_codes",
+  "name": "invite_codes_code_key",
+  "def": "UNIQUE (code)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invite_codes",
+  "name": "invite_codes_pkey",
+  "def": "PRIMARY KEY (user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "invite_codes",
+  "name": "invite_codes_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_action_items",
+  "name": "live_action_items_category_check",
+  "def": "CHECK ((category = ANY (ARRAY['projet'::text, 'juridique'::text, 'finance'::text, 'formation'::text, 'action'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_action_items",
+  "name": "live_action_items_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_action_items",
+  "name": "live_action_items_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_agenda_items",
+  "name": "live_agenda_items_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_agenda_items",
+  "name": "live_agenda_items_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_attendance",
+  "name": "live_attendance_participant_id_fkey",
+  "def": "FOREIGN KEY (participant_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_attendance",
+  "name": "live_attendance_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_attendance",
+  "name": "live_attendance_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_attendance",
+  "name": "live_attendance_session_id_participant_id_key",
+  "def": "UNIQUE (session_id, participant_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_decisions",
+  "name": "live_decisions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_decisions",
+  "name": "live_decisions_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_documents",
+  "name": "live_documents_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_documents",
+  "name": "live_documents_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_documents",
+  "name": "live_documents_type_check",
+  "def": "CHECK ((type = ANY (ARRAY['pdf'::text, 'doc'::text, 'image'::text, 'slide'::text, 'sheet'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_gifts_sent",
+  "name": "live_gifts_sent_gift_id_fkey",
+  "def": "FOREIGN KEY (gift_id) REFERENCES gift_catalog(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_gifts_sent",
+  "name": "live_gifts_sent_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_gifts_sent",
+  "name": "live_gifts_sent_sender_id_fkey",
+  "def": "FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_gifts_sent",
+  "name": "live_gifts_sent_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_messages",
+  "name": "live_messages_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_messages",
+  "name": "live_messages_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_messages",
+  "name": "live_messages_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_personal_notes",
+  "name": "live_personal_notes_category_check",
+  "def": "CHECK ((category = ANY (ARRAY['reminder'::text, 'task'::text, 'project'::text, 'learning'::text, 'general'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_personal_notes",
+  "name": "live_personal_notes_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_personal_notes",
+  "name": "live_personal_notes_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_personal_notes",
+  "name": "live_personal_notes_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_poll_options",
+  "name": "live_poll_options_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_poll_options",
+  "name": "live_poll_options_poll_id_fkey",
+  "def": "FOREIGN KEY (poll_id) REFERENCES live_polls(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_poll_votes",
+  "name": "live_poll_votes_option_id_fkey",
+  "def": "FOREIGN KEY (option_id) REFERENCES live_poll_options(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_poll_votes",
+  "name": "live_poll_votes_pkey",
+  "def": "PRIMARY KEY (poll_id, user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_poll_votes",
+  "name": "live_poll_votes_poll_id_fkey",
+  "def": "FOREIGN KEY (poll_id) REFERENCES live_polls(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_poll_votes",
+  "name": "live_poll_votes_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_polls",
+  "name": "live_polls_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_polls",
+  "name": "live_polls_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_products",
+  "name": "live_products_availability_check",
+  "def": "CHECK ((availability = ANY (ARRAY['in_stock'::text, 'preorder'::text, 'limited'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_products",
+  "name": "live_products_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_products",
+  "name": "live_products_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_question_upvotes",
+  "name": "live_question_upvotes_pkey",
+  "def": "PRIMARY KEY (question_id, user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_question_upvotes",
+  "name": "live_question_upvotes_question_id_fkey",
+  "def": "FOREIGN KEY (question_id) REFERENCES live_questions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_question_upvotes",
+  "name": "live_question_upvotes_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_questions",
+  "name": "live_questions_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_questions",
+  "name": "live_questions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_questions",
+  "name": "live_questions_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_questions",
+  "name": "live_questions_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['open'::text, 'answering'::text, 'answered'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_reactions",
+  "name": "live_reactions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_reactions",
+  "name": "live_reactions_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_reactions",
+  "name": "live_reactions_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_replays",
+  "name": "live_replays_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_replays",
+  "name": "live_replays_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_ai_assistant_id_fkey",
+  "def": "FOREIGN KEY (ai_assistant_id) REFERENCES agents(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_dossier_id_fkey",
+  "def": "FOREIGN KEY (dossier_id) REFERENCES dossiers(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_expert_id_fkey",
+  "def": "FOREIGN KEY (expert_id) REFERENCES agents(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_featured_agent_id_fkey",
+  "def": "FOREIGN KEY (featured_agent_id) REFERENCES agents(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_host_id_fkey",
+  "def": "FOREIGN KEY (host_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_quality_mode_check",
+  "def": "CHECK ((quality_mode = ANY (ARRAY['auto'::text, 'hd'::text, 'sd'::text, 'eco_audio'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_sessions",
+  "name": "live_sessions_visual_universe_check",
+  "def": "CHECK ((visual_universe = ANY (ARRAY['crystal'::text, 'futuristic_blue'::text, 'natural_fresh'::text, 'solaire_chaud'::text, 'violet_luxe'::text, 'deep_ocean'::text, 'rose_doux'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_beneficiary_type_check",
+  "def": "CHECK ((beneficiary_type = ANY (ARRAY['person'::text, 'community'::text, 'project'::text, 'medical'::text, 'complex'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_live_session_id_fkey",
+  "def": "FOREIGN KEY (live_session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_organizer_fee_percent_check",
+  "def": "CHECK (((organizer_fee_percent >= (0)::numeric) AND (organizer_fee_percent <= (100)::numeric)))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_organizer_id_fkey",
+  "def": "FOREIGN KEY (organizer_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['active'::text, 'completed'::text, 'cancelled'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_visibility_check",
+  "def": "CHECK ((visibility = ANY (ARRAY['organizer_only'::text, 'live_participants'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_donors",
+  "name": "live_solidarity_donors_amount_check",
+  "def": "CHECK ((amount > (0)::numeric))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_donors",
+  "name": "live_solidarity_donors_cause_id_fkey",
+  "def": "FOREIGN KEY (cause_id) REFERENCES live_solidarity_causes(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_donors",
+  "name": "live_solidarity_donors_donor_id_fkey",
+  "def": "FOREIGN KEY (donor_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_donors",
+  "name": "live_solidarity_donors_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_proofs",
+  "name": "live_solidarity_proofs_cause_id_fkey",
+  "def": "FOREIGN KEY (cause_id) REFERENCES live_solidarity_causes(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_proofs",
+  "name": "live_solidarity_proofs_created_by_fkey",
+  "def": "FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_proofs",
+  "name": "live_solidarity_proofs_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_proofs",
+  "name": "live_solidarity_proofs_proof_type_check",
+  "def": "CHECK ((proof_type = ANY (ARRAY['photo'::text, 'video'::text, 'invoice'::text, 'receipt'::text, 'document'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_updates",
+  "name": "live_solidarity_updates_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_updates",
+  "name": "live_solidarity_updates_cause_id_fkey",
+  "def": "FOREIGN KEY (cause_id) REFERENCES live_solidarity_causes(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_updates",
+  "name": "live_solidarity_updates_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "live_solidarity_wallet_ledger_amount_check",
+  "def": "CHECK ((amount > (0)::numeric))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "live_solidarity_wallet_ledger_cause_id_fkey",
+  "def": "FOREIGN KEY (cause_id) REFERENCES live_solidarity_causes(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "live_solidarity_wallet_ledger_created_by_fkey",
+  "def": "FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "live_solidarity_wallet_ledger_entry_type_check",
+  "def": "CHECK ((entry_type = ANY (ARRAY['collected'::text, 'used'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "live_solidarity_wallet_ledger_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_source_cards",
+  "name": "live_source_cards_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_source_cards",
+  "name": "live_source_cards_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_source_cards",
+  "name": "live_source_cards_verified_status_check",
+  "def": "CHECK ((verified_status = ANY (ARRAY['confirmed'::text, 'uncertain'::text, 'contradictory'::text, 'insufficient'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_speakers",
+  "name": "live_speakers_agent_id_fkey",
+  "def": "FOREIGN KEY (agent_id) REFERENCES agents(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_speakers",
+  "name": "live_speakers_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_speakers",
+  "name": "live_speakers_role_check",
+  "def": "CHECK ((role = ANY (ARRAY['host'::text, 'cohost'::text, 'guest'::text, 'viewer'::text, 'moderator'::text, 'expert_ai'::text, 'expert_human'::text, 'speaker'::text, 'secretary_ai'::text, 'moderator_ai'::text, 'director_ai'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_speakers",
+  "name": "live_speakers_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_speakers",
+  "name": "live_speakers_session_user_key",
+  "def": "UNIQUE (session_id, user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_speakers",
+  "name": "live_speakers_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transcript_lines",
+  "name": "live_transcript_lines_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transcript_lines",
+  "name": "live_transcript_lines_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transcript_lines",
+  "name": "live_transcript_lines_speaker_id_fkey",
+  "def": "FOREIGN KEY (speaker_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transport_config",
+  "name": "live_transport_config_created_by_fkey",
+  "def": "FOREIGN KEY (created_by) REFERENCES auth.users(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transport_config",
+  "name": "live_transport_config_environment_check",
+  "def": "CHECK ((environment = ANY (ARRAY['development'::text, 'production'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transport_config",
+  "name": "live_transport_config_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transport_config",
+  "name": "live_transport_config_provider_check",
+  "def": "CHECK ((provider = 'livekit'::text))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_transport_config",
+  "name": "live_transport_config_vault_secret_id_fkey",
+  "def": "FOREIGN KEY (vault_secret_id) REFERENCES vault.secrets(id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_whiteboard_strokes",
+  "name": "live_whiteboard_strokes_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_whiteboard_strokes",
+  "name": "live_whiteboard_strokes_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_whiteboard_strokes",
+  "name": "live_whiteboard_strokes_session_id_fkey",
+  "def": "FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "live_whiteboard_strokes",
+  "name": "live_whiteboard_strokes_tool_check",
+  "def": "CHECK ((tool = ANY (ARRAY['pen'::text, 'rect'::text, 'circle'::text, 'text'::text, 'note'::text, 'arrow'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "master_resumes",
+  "name": "master_resumes_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "master_resumes",
+  "name": "master_resumes_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "master_resumes",
+  "name": "master_resumes_user_id_key",
+  "def": "UNIQUE (user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "messages",
+  "name": "messages_conversation_id_fkey",
+  "def": "FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "messages",
+  "name": "messages_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "messages",
+  "name": "messages_reply_to_id_fkey",
+  "def": "FOREIGN KEY (reply_to_id) REFERENCES messages(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "messages",
+  "name": "messages_sender_id_fkey",
+  "def": "FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "notifications",
+  "name": "notifications_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "notifications",
+  "name": "notifications_type_check",
+  "def": "CHECK ((type = ANY (ARRAY['success'::text, 'info'::text, 'warning'::text, 'alert'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "notifications",
+  "name": "notifications_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "order_items",
+  "name": "order_items_order_id_fkey",
+  "def": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "order_items",
+  "name": "order_items_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "order_items",
+  "name": "order_items_product_id_fkey",
+  "def": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "orders",
+  "name": "orders_buyer_id_fkey",
+  "def": "FOREIGN KEY (buyer_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "orders",
+  "name": "orders_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "orders",
+  "name": "orders_seller_id_fkey",
+  "def": "FOREIGN KEY (seller_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "orders",
+  "name": "orders_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'completed'::text, 'cancelled'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "post_documents",
+  "name": "post_documents_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "post_documents",
+  "name": "post_documents_post_id_fkey",
+  "def": "FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "post_reactions",
+  "name": "post_reactions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "post_reactions",
+  "name": "post_reactions_post_id_fkey",
+  "def": "FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "post_reactions",
+  "name": "post_reactions_post_id_user_id_key",
+  "def": "UNIQUE (post_id, user_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "post_reactions",
+  "name": "post_reactions_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "posts",
+  "name": "posts_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "posts",
+  "name": "posts_format_check",
+  "def": "CHECK ((format = ANY (ARRAY['text'::text, 'image'::text, 'video'::text, 'audio'::text, 'document'::text, 'live_extract'::text, 'composite'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "posts",
+  "name": "posts_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "posts",
+  "name": "posts_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'scheduled'::text, 'archived'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "posts",
+  "name": "posts_visibility_check",
+  "def": "CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text, 'network'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "products",
+  "name": "products_category_check",
+  "def": "CHECK ((category = ANY (ARRAY['Digital'::text, 'Service'::text, 'Physique'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "products",
+  "name": "products_dimension_type_check",
+  "def": "CHECK ((dimension_type = ANY (ARRAY['B2C'::text, 'B2B'::text, 'C2C'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "products",
+  "name": "products_linked_live_id_fkey",
+  "def": "FOREIGN KEY (linked_live_id) REFERENCES live_sessions(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "products",
+  "name": "products_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "products",
+  "name": "products_seller_id_fkey",
+  "def": "FOREIGN KEY (seller_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "products",
+  "name": "products_shop_id_fkey",
+  "def": "FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_badges",
+  "name": "profile_badges_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_badges",
+  "name": "profile_badges_profile_id_badge_key_key",
+  "def": "UNIQUE (profile_id, badge_key)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_badges",
+  "name": "profile_badges_profile_id_fkey",
+  "def": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_badges",
+  "name": "profile_badges_source_type_check",
+  "def": "CHECK ((source_type = ANY (ARRAY['manual'::text, 'course_completion'::text, 'certificate'::text, 'project'::text, 'recommendation'::text, 'activity'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_skills",
+  "name": "profile_skills_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_skills",
+  "name": "profile_skills_profile_id_fkey",
+  "def": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_skills",
+  "name": "profile_skills_profile_id_name_key",
+  "def": "UNIQUE (profile_id, name)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_skills",
+  "name": "profile_skills_progress_check",
+  "def": "CHECK (((progress >= 0) AND (progress <= 100)))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profile_skills",
+  "name": "profile_skills_source_type_check",
+  "def": "CHECK ((source_type = ANY (ARRAY['manual'::text, 'course_completion'::text, 'certificate'::text, 'project'::text, 'recommendation'::text, 'activity'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profiles",
+  "name": "profiles_id_fkey",
+  "def": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profiles",
+  "name": "profiles_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profiles",
+  "name": "profiles_role_check",
+  "def": "CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text, 'expert'::text, 'mentor'::text, 'moderator'::text, 'organization'::text, 'super_admin'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "profiles",
+  "name": "profiles_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['active'::text, 'pending'::text, 'suspended'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_delivery_log",
+  "name": "push_delivery_log_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_delivery_log",
+  "name": "push_delivery_log_sender_id_fkey",
+  "def": "FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_delivery_log",
+  "name": "push_delivery_log_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_endpoint_key",
+  "def": "UNIQUE (endpoint)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "push_vapid_config",
+  "name": "push_vapid_config_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "reminders",
+  "name": "reminders_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "reminders",
+  "name": "reminders_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'fired'::text, 'cancelled'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "reminders",
+  "name": "reminders_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "shops",
+  "name": "shops_owner_id_fkey",
+  "def": "FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "shops",
+  "name": "shops_owner_id_key",
+  "def": "UNIQUE (owner_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "shops",
+  "name": "shops_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "stories",
+  "name": "stories_author_id_fkey",
+  "def": "FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "stories",
+  "name": "stories_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_depends_on_task_id_fkey",
+  "def": "FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_priority_check",
+  "def": "CHECK ((priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_recurrence_parent_id_fkey",
+  "def": "FOREIGN KEY (recurrence_parent_id) REFERENCES tasks(id) ON DELETE SET NULL"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_recurrence_rule_check",
+  "def": "CHECK ((recurrence_rule = ANY (ARRAY['daily'::text, 'weekly'::text, 'monthly'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'in_progress'::text, 'completed'::text, 'cancelled'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "tasks",
+  "name": "tasks_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_blocks",
+  "name": "user_blocks_blocked_id_fkey",
+  "def": "FOREIGN KEY (blocked_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_blocks",
+  "name": "user_blocks_blocker_id_fkey",
+  "def": "FOREIGN KEY (blocker_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_blocks",
+  "name": "user_blocks_no_self",
+  "def": "CHECK ((blocker_id <> blocked_id))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_blocks",
+  "name": "user_blocks_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_blocks",
+  "name": "user_blocks_unique",
+  "def": "UNIQUE (blocker_id, blocked_id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_confidence_check",
+  "def": "CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_layer_check",
+  "def": "CHECK ((layer = ANY (ARRAY['personal'::text, 'parcours'::text, 'learning'::text, 'documentary'::text, 'conversational'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_scope_check",
+  "def": "CHECK ((scope = ANY (ARRAY['recent_activity'::text, 'project'::text, 'durable_preference'::text, 'explicit'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_source_check",
+  "def": "CHECK ((source = ANY (ARRAY['explicit'::text, 'inferred'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_status_check",
+  "def": "CHECK ((status = ANY (ARRAY['active'::text, 'superseded'::text, 'expired'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "user_memory",
+  "name": "user_memory_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "wallet_transactions",
+  "name": "wallet_transactions_pkey",
+  "def": "PRIMARY KEY (id)"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "wallet_transactions",
+  "name": "wallet_transactions_type_check",
+  "def": "CHECK ((type = ANY (ARRAY['credit'::text, 'debit'::text, 'escrow_hold'::text, 'escrow_release'::text])))"
+ },
+ {
+  "kind": "constraint",
+  "tbl": "wallet_transactions",
+  "name": "wallet_transactions_user_id_fkey",
+  "def": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+ },
+ {
+  "kind": "index",
+  "tbl": "admin_api_rate_limits",
+  "name": "admin_api_rate_limits_pkey",
+  "def": "CREATE UNIQUE INDEX admin_api_rate_limits_pkey ON public.admin_api_rate_limits USING btree (actor_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_chat_messages",
+  "name": "agent_chat_messages_pkey",
+  "def": "CREATE UNIQUE INDEX agent_chat_messages_pkey ON public.agent_chat_messages USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_chat_messages",
+  "name": "idx_agent_chat_messages_session",
+  "def": "CREATE INDEX idx_agent_chat_messages_session ON public.agent_chat_messages USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_chat_sessions",
+  "name": "agent_chat_sessions_pkey",
+  "def": "CREATE UNIQUE INDEX agent_chat_sessions_pkey ON public.agent_chat_sessions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_chat_sessions",
+  "name": "agent_chat_sessions_user_id_agent_id_key",
+  "def": "CREATE UNIQUE INDEX agent_chat_sessions_user_id_agent_id_key ON public.agent_chat_sessions USING btree (user_id, agent_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_chat_sessions",
+  "name": "idx_agent_chat_sessions_agent",
+  "def": "CREATE INDEX idx_agent_chat_sessions_agent ON public.agent_chat_sessions USING btree (agent_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_chat_sessions",
+  "name": "idx_agent_chat_sessions_user",
+  "def": "CREATE INDEX idx_agent_chat_sessions_user ON public.agent_chat_sessions USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_tool_grants",
+  "name": "agent_tool_grants_pkey",
+  "def": "CREATE UNIQUE INDEX agent_tool_grants_pkey ON public.agent_tool_grants USING btree (agent_id, tool_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agent_tool_grants",
+  "name": "agent_tool_grants_tool_idx",
+  "def": "CREATE INDEX agent_tool_grants_tool_idx ON public.agent_tool_grants USING btree (tool_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "agents",
+  "name": "agents_pkey",
+  "def": "CREATE UNIQUE INDEX agents_pkey ON public.agents USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_budget",
+  "name": "ai_budget_pkey",
+  "def": "CREATE UNIQUE INDEX ai_budget_pkey ON public.ai_budget USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_created_at_idx",
+  "def": "CREATE INDEX ai_call_log_created_at_idx ON public.ai_call_log USING btree (created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_created_idx",
+  "def": "CREATE INDEX ai_call_log_created_idx ON public.ai_call_log USING btree (created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_pkey",
+  "def": "CREATE UNIQUE INDEX ai_call_log_pkey ON public.ai_call_log USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_provider_id_idx",
+  "def": "CREATE INDEX ai_call_log_provider_id_idx ON public.ai_call_log USING btree (provider_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_request_idx",
+  "def": "CREATE INDEX ai_call_log_request_idx ON public.ai_call_log USING btree (request_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_call_log",
+  "name": "ai_call_log_requested_by_idx",
+  "def": "CREATE INDEX ai_call_log_requested_by_idx ON public.ai_call_log USING btree (requested_by)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_models",
+  "name": "ai_models_one_default_per_provider",
+  "def": "CREATE UNIQUE INDEX ai_models_one_default_per_provider ON public.ai_models USING btree (provider_id) WHERE is_default"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_models",
+  "name": "ai_models_pkey",
+  "def": "CREATE UNIQUE INDEX ai_models_pkey ON public.ai_models USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_models",
+  "name": "ai_models_provider_id_idx",
+  "def": "CREATE INDEX ai_models_provider_id_idx ON public.ai_models USING btree (provider_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_models",
+  "name": "ai_models_provider_id_model_id_key",
+  "def": "CREATE UNIQUE INDEX ai_models_provider_id_model_id_key ON public.ai_models USING btree (provider_id, model_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_pkey",
+  "def": "CREATE UNIQUE INDEX ai_provider_credentials_pkey ON public.ai_provider_credentials USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_provider_credentials",
+  "name": "ai_provider_credentials_provider_id_key",
+  "def": "CREATE UNIQUE INDEX ai_provider_credentials_provider_id_key ON public.ai_provider_credentials USING btree (provider_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_providers",
+  "name": "ai_providers_pkey",
+  "def": "CREATE UNIQUE INDEX ai_providers_pkey ON public.ai_providers USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "ai_tools",
+  "name": "ai_tools_pkey",
+  "def": "CREATE UNIQUE INDEX ai_tools_pkey ON public.ai_tools USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "audit_logs",
+  "name": "audit_logs_pkey",
+  "def": "CREATE UNIQUE INDEX audit_logs_pkey ON public.audit_logs USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "audit_logs",
+  "name": "idx_audit_logs_entity",
+  "def": "CREATE INDEX idx_audit_logs_entity ON public.audit_logs USING btree (entity_type, entity_id, created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_call_idx",
+  "def": "CREATE INDEX call_diagnostics_call_idx ON public.call_diagnostics USING btree (call_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_pkey",
+  "def": "CREATE UNIQUE INDEX call_diagnostics_pkey ON public.call_diagnostics USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_unique_per_device",
+  "def": "CREATE UNIQUE INDEX call_diagnostics_unique_per_device ON public.call_diagnostics USING btree (user_id, call_id, device_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "call_diagnostics",
+  "name": "call_diagnostics_user_created_idx",
+  "def": "CREATE INDEX call_diagnostics_user_created_idx ON public.call_diagnostics USING btree (user_id, created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_goals",
+  "name": "career_goals_pkey",
+  "def": "CREATE UNIQUE INDEX career_goals_pkey ON public.career_goals USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_goals",
+  "name": "idx_career_goals_user",
+  "def": "CREATE INDEX idx_career_goals_user ON public.career_goals USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_opportunities",
+  "name": "career_opportunities_pkey",
+  "def": "CREATE UNIQUE INDEX career_opportunities_pkey ON public.career_opportunities USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_opportunities",
+  "name": "idx_career_opportunities_user",
+  "def": "CREATE INDEX idx_career_opportunities_user ON public.career_opportunities USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_opportunity_feedback",
+  "name": "career_opportunity_feedback_pkey",
+  "def": "CREATE UNIQUE INDEX career_opportunity_feedback_pkey ON public.career_opportunity_feedback USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_opportunity_feedback",
+  "name": "idx_career_opportunity_feedback_opportunity",
+  "def": "CREATE INDEX idx_career_opportunity_feedback_opportunity ON public.career_opportunity_feedback USING btree (opportunity_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_opportunity_feedback",
+  "name": "idx_career_opportunity_feedback_user",
+  "def": "CREATE INDEX idx_career_opportunity_feedback_user ON public.career_opportunity_feedback USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_search_missions",
+  "name": "career_search_missions_pkey",
+  "def": "CREATE UNIQUE INDEX career_search_missions_pkey ON public.career_search_missions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_search_missions",
+  "name": "idx_career_search_missions_user",
+  "def": "CREATE INDEX idx_career_search_missions_user ON public.career_search_missions USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_snapshots",
+  "name": "career_snapshots_pkey",
+  "def": "CREATE UNIQUE INDEX career_snapshots_pkey ON public.career_snapshots USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "career_snapshots",
+  "name": "idx_career_snapshots_user_kind",
+  "def": "CREATE INDEX idx_career_snapshots_user_kind ON public.career_snapshots USING btree (user_id, kind)"
+ },
+ {
+  "kind": "index",
+  "tbl": "certificates",
+  "name": "certificates_pkey",
+  "def": "CREATE UNIQUE INDEX certificates_pkey ON public.certificates USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "certificates",
+  "name": "idx_certificates_course",
+  "def": "CREATE INDEX idx_certificates_course ON public.certificates USING btree (course_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "certificates",
+  "name": "idx_certificates_enrollment",
+  "def": "CREATE INDEX idx_certificates_enrollment ON public.certificates USING btree (enrollment_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "certificates",
+  "name": "idx_certificates_user",
+  "def": "CREATE INDEX idx_certificates_user ON public.certificates USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "comments",
+  "name": "comments_pkey",
+  "def": "CREATE UNIQUE INDEX comments_pkey ON public.comments USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "comments",
+  "name": "idx_comments_author",
+  "def": "CREATE INDEX idx_comments_author ON public.comments USING btree (author_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "comments",
+  "name": "idx_comments_parent_id",
+  "def": "CREATE INDEX idx_comments_parent_id ON public.comments USING btree (parent_comment_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "comments",
+  "name": "idx_comments_post_id",
+  "def": "CREATE INDEX idx_comments_post_id ON public.comments USING btree (post_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversation_participants",
+  "name": "conversation_participants_conversation_id_user_id_key",
+  "def": "CREATE UNIQUE INDEX conversation_participants_conversation_id_user_id_key ON public.conversation_participants USING btree (conversation_id, user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversation_participants",
+  "name": "conversation_participants_pkey",
+  "def": "CREATE UNIQUE INDEX conversation_participants_pkey ON public.conversation_participants USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversation_participants",
+  "name": "idx_conversation_participants_conversation",
+  "def": "CREATE INDEX idx_conversation_participants_conversation ON public.conversation_participants USING btree (conversation_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversation_participants",
+  "name": "idx_conversation_participants_user",
+  "def": "CREATE INDEX idx_conversation_participants_user ON public.conversation_participants USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversation_participants",
+  "name": "idx_conversation_participants_user_conversation",
+  "def": "CREATE INDEX idx_conversation_participants_user_conversation ON public.conversation_participants USING btree (user_id, conversation_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversations",
+  "name": "conversations_pkey",
+  "def": "CREATE UNIQUE INDEX conversations_pkey ON public.conversations USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversations",
+  "name": "idx_conversations_created_by",
+  "def": "CREATE INDEX idx_conversations_created_by ON public.conversations USING btree (created_by)"
+ },
+ {
+  "kind": "index",
+  "tbl": "conversations",
+  "name": "uq_direct_conversation_key",
+  "def": "CREATE UNIQUE INDEX uq_direct_conversation_key ON public.conversations USING btree (direct_key) WHERE ((is_group = false) AND (direct_key IS NOT NULL))"
+ },
+ {
+  "kind": "index",
+  "tbl": "courses",
+  "name": "courses_pkey",
+  "def": "CREATE UNIQUE INDEX courses_pkey ON public.courses USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "document_shares",
+  "name": "document_shares_document_id_shared_with_user_id_key",
+  "def": "CREATE UNIQUE INDEX document_shares_document_id_shared_with_user_id_key ON public.document_shares USING btree (document_id, shared_with_user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "document_shares",
+  "name": "document_shares_pkey",
+  "def": "CREATE UNIQUE INDEX document_shares_pkey ON public.document_shares USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "document_shares",
+  "name": "idx_document_shares_document",
+  "def": "CREATE INDEX idx_document_shares_document ON public.document_shares USING btree (document_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "document_shares",
+  "name": "idx_document_shares_user",
+  "def": "CREATE INDEX idx_document_shares_user ON public.document_shares USING btree (shared_with_user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "documents",
+  "name": "documents_pkey",
+  "def": "CREATE UNIQUE INDEX documents_pkey ON public.documents USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "documents",
+  "name": "idx_documents_owner",
+  "def": "CREATE INDEX idx_documents_owner ON public.documents USING btree (owner_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_appointments",
+  "name": "dossier_appointments_pkey",
+  "def": "CREATE UNIQUE INDEX dossier_appointments_pkey ON public.dossier_appointments USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_appointments",
+  "name": "idx_dossier_appointments_dossier",
+  "def": "CREATE INDEX idx_dossier_appointments_dossier ON public.dossier_appointments USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_deliverables",
+  "name": "dossier_deliverables_pkey",
+  "def": "CREATE UNIQUE INDEX dossier_deliverables_pkey ON public.dossier_deliverables USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_deliverables",
+  "name": "idx_dossier_deliverables_dossier",
+  "def": "CREATE INDEX idx_dossier_deliverables_dossier ON public.dossier_deliverables USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_documents",
+  "name": "dossier_documents_pkey",
+  "def": "CREATE UNIQUE INDEX dossier_documents_pkey ON public.dossier_documents USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_documents",
+  "name": "idx_dossier_documents_dossier",
+  "def": "CREATE INDEX idx_dossier_documents_dossier ON public.dossier_documents USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_dossier_id_shared_with_user_id_key",
+  "def": "CREATE UNIQUE INDEX dossier_shares_dossier_id_shared_with_user_id_key ON public.dossier_shares USING btree (dossier_id, shared_with_user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_shares",
+  "name": "dossier_shares_pkey",
+  "def": "CREATE UNIQUE INDEX dossier_shares_pkey ON public.dossier_shares USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_shares",
+  "name": "idx_dossier_shares_dossier",
+  "def": "CREATE INDEX idx_dossier_shares_dossier ON public.dossier_shares USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_shares",
+  "name": "idx_dossier_shares_user",
+  "def": "CREATE INDEX idx_dossier_shares_user ON public.dossier_shares USING btree (shared_with_user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_steps",
+  "name": "dossier_steps_pkey",
+  "def": "CREATE UNIQUE INDEX dossier_steps_pkey ON public.dossier_steps USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_steps",
+  "name": "idx_dossier_steps_dossier",
+  "def": "CREATE INDEX idx_dossier_steps_dossier ON public.dossier_steps USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_tasks",
+  "name": "dossier_tasks_pkey",
+  "def": "CREATE UNIQUE INDEX dossier_tasks_pkey ON public.dossier_tasks USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_tasks",
+  "name": "idx_dossier_tasks_dossier",
+  "def": "CREATE INDEX idx_dossier_tasks_dossier ON public.dossier_tasks USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossier_tasks",
+  "name": "idx_dossier_tasks_step",
+  "def": "CREATE INDEX idx_dossier_tasks_step ON public.dossier_tasks USING btree (step_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossiers",
+  "name": "dossiers_pkey",
+  "def": "CREATE UNIQUE INDEX dossiers_pkey ON public.dossiers USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossiers",
+  "name": "idx_dossiers_lead_agent",
+  "def": "CREATE INDEX idx_dossiers_lead_agent ON public.dossiers USING btree (lead_agent_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "dossiers",
+  "name": "idx_dossiers_owner",
+  "def": "CREATE INDEX idx_dossiers_owner ON public.dossiers USING btree (owner_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "enrollments",
+  "name": "enrollments_pkey",
+  "def": "CREATE UNIQUE INDEX enrollments_pkey ON public.enrollments USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "enrollments",
+  "name": "enrollments_user_id_course_id_key",
+  "def": "CREATE UNIQUE INDEX enrollments_user_id_course_id_key ON public.enrollments USING btree (user_id, course_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "enrollments",
+  "name": "idx_enrollments_course",
+  "def": "CREATE INDEX idx_enrollments_course ON public.enrollments USING btree (course_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "enrollments",
+  "name": "idx_enrollments_user",
+  "def": "CREATE INDEX idx_enrollments_user ON public.enrollments USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "exam_sessions",
+  "name": "exam_sessions_pkey",
+  "def": "CREATE UNIQUE INDEX exam_sessions_pkey ON public.exam_sessions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "exam_sessions",
+  "name": "idx_exam_sessions_enrollment",
+  "def": "CREATE INDEX idx_exam_sessions_enrollment ON public.exam_sessions USING btree (enrollment_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "follows",
+  "name": "follows_pkey",
+  "def": "CREATE UNIQUE INDEX follows_pkey ON public.follows USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "follows",
+  "name": "follows_unique",
+  "def": "CREATE UNIQUE INDEX follows_unique ON public.follows USING btree (follower_id, followee_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "friendships",
+  "name": "friendships_addressee_idx",
+  "def": "CREATE INDEX friendships_addressee_idx ON public.friendships USING btree (addressee_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "friendships",
+  "name": "friendships_pkey",
+  "def": "CREATE UNIQUE INDEX friendships_pkey ON public.friendships USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "friendships",
+  "name": "friendships_requester_idx",
+  "def": "CREATE INDEX friendships_requester_idx ON public.friendships USING btree (requester_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "friendships",
+  "name": "friendships_unique_pair",
+  "def": "CREATE UNIQUE INDEX friendships_unique_pair ON public.friendships USING btree (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id))"
+ },
+ {
+  "kind": "index",
+  "tbl": "friendships",
+  "name": "friendships_unique_pair_idx",
+  "def": "CREATE UNIQUE INDEX friendships_unique_pair_idx ON public.friendships USING btree (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id))"
+ },
+ {
+  "kind": "index",
+  "tbl": "gift_catalog",
+  "name": "gift_catalog_pkey",
+  "def": "CREATE UNIQUE INDEX gift_catalog_pkey ON public.gift_catalog USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_created_idx",
+  "def": "CREATE INDEX health_snapshots_created_idx ON public.health_snapshots USING btree (created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_line_idx",
+  "def": "CREATE INDEX health_snapshots_line_idx ON public.health_snapshots USING btree (line_id, created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "health_snapshots",
+  "name": "health_snapshots_pkey",
+  "def": "CREATE UNIQUE INDEX health_snapshots_pkey ON public.health_snapshots USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "invitations",
+  "name": "invitations_invited_user_id_key",
+  "def": "CREATE UNIQUE INDEX invitations_invited_user_id_key ON public.invitations USING btree (invited_user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "invitations",
+  "name": "invitations_pkey",
+  "def": "CREATE UNIQUE INDEX invitations_pkey ON public.invitations USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "invite_codes",
+  "name": "invite_codes_code_key",
+  "def": "CREATE UNIQUE INDEX invite_codes_code_key ON public.invite_codes USING btree (code)"
+ },
+ {
+  "kind": "index",
+  "tbl": "invite_codes",
+  "name": "invite_codes_pkey",
+  "def": "CREATE UNIQUE INDEX invite_codes_pkey ON public.invite_codes USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_action_items",
+  "name": "idx_live_action_items_session",
+  "def": "CREATE INDEX idx_live_action_items_session ON public.live_action_items USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_action_items",
+  "name": "live_action_items_pkey",
+  "def": "CREATE UNIQUE INDEX live_action_items_pkey ON public.live_action_items USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_agenda_items",
+  "name": "idx_live_agenda_session",
+  "def": "CREATE INDEX idx_live_agenda_session ON public.live_agenda_items USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_agenda_items",
+  "name": "live_agenda_items_pkey",
+  "def": "CREATE UNIQUE INDEX live_agenda_items_pkey ON public.live_agenda_items USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_attendance",
+  "name": "idx_live_attendance_participant",
+  "def": "CREATE INDEX idx_live_attendance_participant ON public.live_attendance USING btree (participant_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_attendance",
+  "name": "idx_live_attendance_session",
+  "def": "CREATE INDEX idx_live_attendance_session ON public.live_attendance USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_attendance",
+  "name": "live_attendance_pkey",
+  "def": "CREATE UNIQUE INDEX live_attendance_pkey ON public.live_attendance USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_attendance",
+  "name": "live_attendance_session_id_participant_id_key",
+  "def": "CREATE UNIQUE INDEX live_attendance_session_id_participant_id_key ON public.live_attendance USING btree (session_id, participant_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_decisions",
+  "name": "idx_live_decisions_session",
+  "def": "CREATE INDEX idx_live_decisions_session ON public.live_decisions USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_decisions",
+  "name": "live_decisions_pkey",
+  "def": "CREATE UNIQUE INDEX live_decisions_pkey ON public.live_decisions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_documents",
+  "name": "idx_live_documents_session",
+  "def": "CREATE INDEX idx_live_documents_session ON public.live_documents USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_documents",
+  "name": "live_documents_pkey",
+  "def": "CREATE UNIQUE INDEX live_documents_pkey ON public.live_documents USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_gifts_sent",
+  "name": "idx_live_gifts_sent_gift",
+  "def": "CREATE INDEX idx_live_gifts_sent_gift ON public.live_gifts_sent USING btree (gift_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_gifts_sent",
+  "name": "idx_live_gifts_sent_sender",
+  "def": "CREATE INDEX idx_live_gifts_sent_sender ON public.live_gifts_sent USING btree (sender_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_gifts_sent",
+  "name": "idx_live_gifts_sent_session",
+  "def": "CREATE INDEX idx_live_gifts_sent_session ON public.live_gifts_sent USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_gifts_sent",
+  "name": "live_gifts_sent_pkey",
+  "def": "CREATE UNIQUE INDEX live_gifts_sent_pkey ON public.live_gifts_sent USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_messages",
+  "name": "live_messages_pkey",
+  "def": "CREATE UNIQUE INDEX live_messages_pkey ON public.live_messages USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_messages",
+  "name": "live_messages_session_id_idx",
+  "def": "CREATE INDEX live_messages_session_id_idx ON public.live_messages USING btree (session_id, created_at)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_personal_notes",
+  "name": "idx_live_personal_notes_session",
+  "def": "CREATE INDEX idx_live_personal_notes_session ON public.live_personal_notes USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_personal_notes",
+  "name": "idx_live_personal_notes_user",
+  "def": "CREATE INDEX idx_live_personal_notes_user ON public.live_personal_notes USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_personal_notes",
+  "name": "live_personal_notes_pkey",
+  "def": "CREATE UNIQUE INDEX live_personal_notes_pkey ON public.live_personal_notes USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_poll_options",
+  "name": "idx_live_poll_options_poll",
+  "def": "CREATE INDEX idx_live_poll_options_poll ON public.live_poll_options USING btree (poll_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_poll_options",
+  "name": "live_poll_options_pkey",
+  "def": "CREATE UNIQUE INDEX live_poll_options_pkey ON public.live_poll_options USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_poll_votes",
+  "name": "idx_live_poll_votes_option",
+  "def": "CREATE INDEX idx_live_poll_votes_option ON public.live_poll_votes USING btree (option_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_poll_votes",
+  "name": "idx_live_poll_votes_user",
+  "def": "CREATE INDEX idx_live_poll_votes_user ON public.live_poll_votes USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_poll_votes",
+  "name": "live_poll_votes_pkey",
+  "def": "CREATE UNIQUE INDEX live_poll_votes_pkey ON public.live_poll_votes USING btree (poll_id, user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_polls",
+  "name": "idx_live_polls_session",
+  "def": "CREATE INDEX idx_live_polls_session ON public.live_polls USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_polls",
+  "name": "live_polls_pkey",
+  "def": "CREATE UNIQUE INDEX live_polls_pkey ON public.live_polls USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_products",
+  "name": "idx_live_products_session",
+  "def": "CREATE INDEX idx_live_products_session ON public.live_products USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_products",
+  "name": "live_products_pkey",
+  "def": "CREATE UNIQUE INDEX live_products_pkey ON public.live_products USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_question_upvotes",
+  "name": "idx_live_question_upvotes_user",
+  "def": "CREATE INDEX idx_live_question_upvotes_user ON public.live_question_upvotes USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_question_upvotes",
+  "name": "live_question_upvotes_pkey",
+  "def": "CREATE UNIQUE INDEX live_question_upvotes_pkey ON public.live_question_upvotes USING btree (question_id, user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_questions",
+  "name": "idx_live_questions_author",
+  "def": "CREATE INDEX idx_live_questions_author ON public.live_questions USING btree (author_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_questions",
+  "name": "idx_live_questions_session",
+  "def": "CREATE INDEX idx_live_questions_session ON public.live_questions USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_questions",
+  "name": "live_questions_pkey",
+  "def": "CREATE UNIQUE INDEX live_questions_pkey ON public.live_questions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_reactions",
+  "name": "live_reactions_pkey",
+  "def": "CREATE UNIQUE INDEX live_reactions_pkey ON public.live_reactions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_reactions",
+  "name": "live_reactions_session_id_idx",
+  "def": "CREATE INDEX live_reactions_session_id_idx ON public.live_reactions USING btree (session_id, created_at)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_replays",
+  "name": "idx_live_replays_session",
+  "def": "CREATE INDEX idx_live_replays_session ON public.live_replays USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_replays",
+  "name": "live_replays_pkey",
+  "def": "CREATE UNIQUE INDEX live_replays_pkey ON public.live_replays USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_sessions",
+  "name": "idx_live_sessions_ai_assistant",
+  "def": "CREATE INDEX idx_live_sessions_ai_assistant ON public.live_sessions USING btree (ai_assistant_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_sessions",
+  "name": "idx_live_sessions_dossier",
+  "def": "CREATE INDEX idx_live_sessions_dossier ON public.live_sessions USING btree (dossier_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_sessions",
+  "name": "idx_live_sessions_expert",
+  "def": "CREATE INDEX idx_live_sessions_expert ON public.live_sessions USING btree (expert_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_sessions",
+  "name": "idx_live_sessions_host",
+  "def": "CREATE INDEX idx_live_sessions_host ON public.live_sessions USING btree (host_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_sessions",
+  "name": "live_sessions_pkey",
+  "def": "CREATE UNIQUE INDEX live_sessions_pkey ON public.live_sessions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_solidarity_causes",
+  "name": "live_solidarity_causes_pkey",
+  "def": "CREATE UNIQUE INDEX live_solidarity_causes_pkey ON public.live_solidarity_causes USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_solidarity_donors",
+  "name": "live_solidarity_donors_pkey",
+  "def": "CREATE UNIQUE INDEX live_solidarity_donors_pkey ON public.live_solidarity_donors USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_solidarity_proofs",
+  "name": "live_solidarity_proofs_pkey",
+  "def": "CREATE UNIQUE INDEX live_solidarity_proofs_pkey ON public.live_solidarity_proofs USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_solidarity_updates",
+  "name": "live_solidarity_updates_pkey",
+  "def": "CREATE UNIQUE INDEX live_solidarity_updates_pkey ON public.live_solidarity_updates USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "live_solidarity_wallet_ledger_pkey",
+  "def": "CREATE UNIQUE INDEX live_solidarity_wallet_ledger_pkey ON public.live_solidarity_wallet_ledger USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_source_cards",
+  "name": "idx_live_source_cards_session",
+  "def": "CREATE INDEX idx_live_source_cards_session ON public.live_source_cards USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_source_cards",
+  "name": "live_source_cards_pkey",
+  "def": "CREATE UNIQUE INDEX live_source_cards_pkey ON public.live_source_cards USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_speakers",
+  "name": "idx_live_speakers_agent",
+  "def": "CREATE INDEX idx_live_speakers_agent ON public.live_speakers USING btree (agent_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_speakers",
+  "name": "idx_live_speakers_session",
+  "def": "CREATE INDEX idx_live_speakers_session ON public.live_speakers USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_speakers",
+  "name": "idx_live_speakers_user",
+  "def": "CREATE INDEX idx_live_speakers_user ON public.live_speakers USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_speakers",
+  "name": "live_speakers_pkey",
+  "def": "CREATE UNIQUE INDEX live_speakers_pkey ON public.live_speakers USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_speakers",
+  "name": "live_speakers_session_agent_active_idx",
+  "def": "CREATE UNIQUE INDEX live_speakers_session_agent_active_idx ON public.live_speakers USING btree (session_id, agent_id) WHERE ((agent_id IS NOT NULL) AND (left_at IS NULL))"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_speakers",
+  "name": "live_speakers_session_user_key",
+  "def": "CREATE UNIQUE INDEX live_speakers_session_user_key ON public.live_speakers USING btree (session_id, user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_transcript_lines",
+  "name": "live_transcript_lines_pkey",
+  "def": "CREATE UNIQUE INDEX live_transcript_lines_pkey ON public.live_transcript_lines USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_transcript_lines",
+  "name": "live_transcript_lines_session_idx",
+  "def": "CREATE INDEX live_transcript_lines_session_idx ON public.live_transcript_lines USING btree (session_id, spoken_at)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_transport_config",
+  "name": "live_transport_config_pkey",
+  "def": "CREATE UNIQUE INDEX live_transport_config_pkey ON public.live_transport_config USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_whiteboard_strokes",
+  "name": "idx_live_whiteboard_author",
+  "def": "CREATE INDEX idx_live_whiteboard_author ON public.live_whiteboard_strokes USING btree (author_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_whiteboard_strokes",
+  "name": "idx_live_whiteboard_session",
+  "def": "CREATE INDEX idx_live_whiteboard_session ON public.live_whiteboard_strokes USING btree (session_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "live_whiteboard_strokes",
+  "name": "live_whiteboard_strokes_pkey",
+  "def": "CREATE UNIQUE INDEX live_whiteboard_strokes_pkey ON public.live_whiteboard_strokes USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "master_resumes",
+  "name": "master_resumes_pkey",
+  "def": "CREATE UNIQUE INDEX master_resumes_pkey ON public.master_resumes USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "master_resumes",
+  "name": "master_resumes_user_id_key",
+  "def": "CREATE UNIQUE INDEX master_resumes_user_id_key ON public.master_resumes USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "messages",
+  "name": "idx_messages_conversation_created",
+  "def": "CREATE INDEX idx_messages_conversation_created ON public.messages USING btree (conversation_id, created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "messages",
+  "name": "idx_messages_conversation_id",
+  "def": "CREATE INDEX idx_messages_conversation_id ON public.messages USING btree (conversation_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "messages",
+  "name": "idx_messages_created_at",
+  "def": "CREATE INDEX idx_messages_created_at ON public.messages USING btree (created_at)"
+ },
+ {
+  "kind": "index",
+  "tbl": "messages",
+  "name": "idx_messages_sender",
+  "def": "CREATE INDEX idx_messages_sender ON public.messages USING btree (sender_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "messages",
+  "name": "messages_pkey",
+  "def": "CREATE UNIQUE INDEX messages_pkey ON public.messages USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "messages",
+  "name": "uq_message_client_id",
+  "def": "CREATE UNIQUE INDEX uq_message_client_id ON public.messages USING btree (sender_id, client_message_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "notifications",
+  "name": "idx_notifications_user_unread",
+  "def": "CREATE INDEX idx_notifications_user_unread ON public.notifications USING btree (user_id, read)"
+ },
+ {
+  "kind": "index",
+  "tbl": "notifications",
+  "name": "notifications_pkey",
+  "def": "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "order_items",
+  "name": "idx_order_items_order",
+  "def": "CREATE INDEX idx_order_items_order ON public.order_items USING btree (order_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "order_items",
+  "name": "idx_order_items_product",
+  "def": "CREATE INDEX idx_order_items_product ON public.order_items USING btree (product_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "order_items",
+  "name": "order_items_pkey",
+  "def": "CREATE UNIQUE INDEX order_items_pkey ON public.order_items USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "orders",
+  "name": "idx_orders_buyer",
+  "def": "CREATE INDEX idx_orders_buyer ON public.orders USING btree (buyer_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "orders",
+  "name": "idx_orders_seller",
+  "def": "CREATE INDEX idx_orders_seller ON public.orders USING btree (seller_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "orders",
+  "name": "orders_pkey",
+  "def": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "post_documents",
+  "name": "idx_post_documents_post_id",
+  "def": "CREATE INDEX idx_post_documents_post_id ON public.post_documents USING btree (post_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "post_documents",
+  "name": "post_documents_pkey",
+  "def": "CREATE UNIQUE INDEX post_documents_pkey ON public.post_documents USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "post_reactions",
+  "name": "idx_post_reactions_post_id",
+  "def": "CREATE INDEX idx_post_reactions_post_id ON public.post_reactions USING btree (post_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "post_reactions",
+  "name": "idx_post_reactions_user",
+  "def": "CREATE INDEX idx_post_reactions_user ON public.post_reactions USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "post_reactions",
+  "name": "post_reactions_pkey",
+  "def": "CREATE UNIQUE INDEX post_reactions_pkey ON public.post_reactions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "post_reactions",
+  "name": "post_reactions_post_id_user_id_key",
+  "def": "CREATE UNIQUE INDEX post_reactions_post_id_user_id_key ON public.post_reactions USING btree (post_id, user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "posts",
+  "name": "idx_posts_author_id",
+  "def": "CREATE INDEX idx_posts_author_id ON public.posts USING btree (author_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "posts",
+  "name": "idx_posts_created_at",
+  "def": "CREATE INDEX idx_posts_created_at ON public.posts USING btree (created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "posts",
+  "name": "posts_pkey",
+  "def": "CREATE UNIQUE INDEX posts_pkey ON public.posts USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "posts",
+  "name": "uq_post_client_id",
+  "def": "CREATE UNIQUE INDEX uq_post_client_id ON public.posts USING btree (author_id, client_post_id) WHERE (client_post_id IS NOT NULL)"
+ },
+ {
+  "kind": "index",
+  "tbl": "products",
+  "name": "idx_products_linked_live",
+  "def": "CREATE INDEX idx_products_linked_live ON public.products USING btree (linked_live_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "products",
+  "name": "idx_products_seller",
+  "def": "CREATE INDEX idx_products_seller ON public.products USING btree (seller_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "products",
+  "name": "idx_products_shop",
+  "def": "CREATE INDEX idx_products_shop ON public.products USING btree (shop_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "products",
+  "name": "products_pkey",
+  "def": "CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profile_badges",
+  "name": "idx_profile_badges_profile_id",
+  "def": "CREATE INDEX idx_profile_badges_profile_id ON public.profile_badges USING btree (profile_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profile_badges",
+  "name": "profile_badges_pkey",
+  "def": "CREATE UNIQUE INDEX profile_badges_pkey ON public.profile_badges USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profile_badges",
+  "name": "profile_badges_profile_id_badge_key_key",
+  "def": "CREATE UNIQUE INDEX profile_badges_profile_id_badge_key_key ON public.profile_badges USING btree (profile_id, badge_key)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profile_skills",
+  "name": "idx_profile_skills_profile_id",
+  "def": "CREATE INDEX idx_profile_skills_profile_id ON public.profile_skills USING btree (profile_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profile_skills",
+  "name": "profile_skills_pkey",
+  "def": "CREATE UNIQUE INDEX profile_skills_pkey ON public.profile_skills USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profile_skills",
+  "name": "profile_skills_profile_id_name_key",
+  "def": "CREATE UNIQUE INDEX profile_skills_profile_id_name_key ON public.profile_skills USING btree (profile_id, name)"
+ },
+ {
+  "kind": "index",
+  "tbl": "profiles",
+  "name": "profiles_pkey",
+  "def": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "push_delivery_log",
+  "name": "push_delivery_log_pkey",
+  "def": "CREATE UNIQUE INDEX push_delivery_log_pkey ON public.push_delivery_log USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "push_delivery_log",
+  "name": "push_delivery_log_user_created_idx",
+  "def": "CREATE INDEX push_delivery_log_user_created_idx ON public.push_delivery_log USING btree (user_id, created_at DESC)"
+ },
+ {
+  "kind": "index",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_endpoint_key",
+  "def": "CREATE UNIQUE INDEX push_subscriptions_endpoint_key ON public.push_subscriptions USING btree (endpoint)"
+ },
+ {
+  "kind": "index",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_pkey",
+  "def": "CREATE UNIQUE INDEX push_subscriptions_pkey ON public.push_subscriptions USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_user_id_idx",
+  "def": "CREATE INDEX push_subscriptions_user_id_idx ON public.push_subscriptions USING btree (user_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "push_vapid_config",
+  "name": "push_vapid_config_pkey",
+  "def": "CREATE UNIQUE INDEX push_vapid_config_pkey ON public.push_vapid_config USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "reminders",
+  "name": "reminders_due_idx",
+  "def": "CREATE INDEX reminders_due_idx ON public.reminders USING btree (remind_at) WHERE (status = 'pending'::text)"
+ },
+ {
+  "kind": "index",
+  "tbl": "reminders",
+  "name": "reminders_pkey",
+  "def": "CREATE UNIQUE INDEX reminders_pkey ON public.reminders USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "shops",
+  "name": "shops_owner_id_key",
+  "def": "CREATE UNIQUE INDEX shops_owner_id_key ON public.shops USING btree (owner_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "shops",
+  "name": "shops_pkey",
+  "def": "CREATE UNIQUE INDEX shops_pkey ON public.shops USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "stories",
+  "name": "idx_stories_author_id",
+  "def": "CREATE INDEX idx_stories_author_id ON public.stories USING btree (author_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "stories",
+  "name": "idx_stories_expires_at",
+  "def": "CREATE INDEX idx_stories_expires_at ON public.stories USING btree (expires_at)"
+ },
+ {
+  "kind": "index",
+  "tbl": "stories",
+  "name": "stories_pkey",
+  "def": "CREATE UNIQUE INDEX stories_pkey ON public.stories USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "tasks",
+  "name": "tasks_depends_on_idx",
+  "def": "CREATE INDEX tasks_depends_on_idx ON public.tasks USING btree (depends_on_task_id) WHERE (depends_on_task_id IS NOT NULL)"
+ },
+ {
+  "kind": "index",
+  "tbl": "tasks",
+  "name": "tasks_pkey",
+  "def": "CREATE UNIQUE INDEX tasks_pkey ON public.tasks USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "tasks",
+  "name": "tasks_recurrence_parent_idx",
+  "def": "CREATE INDEX tasks_recurrence_parent_idx ON public.tasks USING btree (recurrence_parent_id) WHERE (recurrence_parent_id IS NOT NULL)"
+ },
+ {
+  "kind": "index",
+  "tbl": "tasks",
+  "name": "tasks_user_status_idx",
+  "def": "CREATE INDEX tasks_user_status_idx ON public.tasks USING btree (user_id, status)"
+ },
+ {
+  "kind": "index",
+  "tbl": "user_blocks",
+  "name": "user_blocks_pkey",
+  "def": "CREATE UNIQUE INDEX user_blocks_pkey ON public.user_blocks USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "user_blocks",
+  "name": "user_blocks_unique",
+  "def": "CREATE UNIQUE INDEX user_blocks_unique ON public.user_blocks USING btree (blocker_id, blocked_id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "user_memory",
+  "name": "user_memory_pkey",
+  "def": "CREATE UNIQUE INDEX user_memory_pkey ON public.user_memory USING btree (id)"
+ },
+ {
+  "kind": "index",
+  "tbl": "user_memory",
+  "name": "user_memory_preference_key_idx",
+  "def": "CREATE UNIQUE INDEX user_memory_preference_key_idx ON public.user_memory USING btree (user_id, scope, category, key) WHERE ((scope = ANY (ARRAY['durable_preference'::text, 'explicit'::text])) AND (status = 'active'::text))"
+ },
+ {
+  "kind": "index",
+  "tbl": "user_memory",
+  "name": "user_memory_user_scope_idx",
+  "def": "CREATE INDEX user_memory_user_scope_idx ON public.user_memory USING btree (user_id, scope) WHERE (status = 'active'::text)"
+ },
+ {
+  "kind": "index",
+  "tbl": "wallet_transactions",
+  "name": "idx_wallet_transactions_user",
+  "def": "CREATE INDEX idx_wallet_transactions_user ON public.wallet_transactions USING btree (user_id, currency)"
+ },
+ {
+  "kind": "index",
+  "tbl": "wallet_transactions",
+  "name": "wallet_transactions_pkey",
+  "def": "CREATE UNIQUE INDEX wallet_transactions_pkey ON public.wallet_transactions USING btree (id)"
+ },
+ {
+  "kind": "rls",
+  "tbl": "admin_api_rate_limits",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "agent_chat_messages",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "agent_chat_sessions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "agent_tool_grants",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "agents",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "ai_budget",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "ai_call_log",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "ai_models",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "ai_provider_credentials",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "ai_providers",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "ai_tools",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "audit_logs",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "call_diagnostics",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "career_goals",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "career_opportunities",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "career_opportunity_feedback",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "career_search_missions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "career_snapshots",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "certificates",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "comments",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "conversation_participants",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "conversations",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "courses",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "document_shares",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "documents",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossier_appointments",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossier_deliverables",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossier_documents",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossier_shares",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossier_steps",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossier_tasks",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "dossiers",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "enrollments",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "exam_sessions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "follows",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "friendships",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "gift_catalog",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "health_snapshots",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "invitations",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "invite_codes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_action_items",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_agenda_items",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_attendance",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_decisions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_documents",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_gifts_sent",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_messages",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_personal_notes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_poll_options",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_poll_votes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_polls",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_products",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_question_upvotes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_questions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_reactions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_replays",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_sessions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_solidarity_causes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_solidarity_donors",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_solidarity_proofs",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_solidarity_updates",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_solidarity_wallet_ledger",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_source_cards",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_speakers",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_transcript_lines",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_transport_config",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "live_whiteboard_strokes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "master_resumes",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "messages",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "notifications",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "order_items",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "orders",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "post_documents",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "post_reactions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "posts",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "products",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "profile_badges",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "profile_skills",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "profiles",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "push_delivery_log",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "push_subscriptions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "push_vapid_config",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "reminders",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "shops",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "stories",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "tasks",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "user_blocks",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "user_memory",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "rls",
+  "tbl": "wallet_transactions",
+  "name": "enabled",
+  "def": ""
+ },
+ {
+  "kind": "trigger",
+  "tbl": "agent_chat_sessions",
+  "name": "trg_agent_chat_sessions_updated_at",
+  "def": "CREATE TRIGGER trg_agent_chat_sessions_updated_at BEFORE UPDATE ON public.agent_chat_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "agent_tool_grants",
+  "name": "set_updated_at_agent_tool_grants",
+  "def": "CREATE TRIGGER set_updated_at_agent_tool_grants BEFORE UPDATE ON public.agent_tool_grants FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "ai_models",
+  "name": "set_updated_at",
+  "def": "CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.ai_models FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "ai_provider_credentials",
+  "name": "set_updated_at",
+  "def": "CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.ai_provider_credentials FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "ai_providers",
+  "name": "set_updated_at",
+  "def": "CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.ai_providers FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "ai_tools",
+  "name": "set_updated_at_ai_tools",
+  "def": "CREATE TRIGGER set_updated_at_ai_tools BEFORE UPDATE ON public.ai_tools FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "career_goals",
+  "name": "trg_career_goals_updated_at",
+  "def": "CREATE TRIGGER trg_career_goals_updated_at BEFORE UPDATE ON public.career_goals FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "career_opportunities",
+  "name": "trg_career_opportunities_updated_at",
+  "def": "CREATE TRIGGER trg_career_opportunities_updated_at BEFORE UPDATE ON public.career_opportunities FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "career_search_missions",
+  "name": "trg_career_search_missions_updated_at",
+  "def": "CREATE TRIGGER trg_career_search_missions_updated_at BEFORE UPDATE ON public.career_search_missions FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "comments",
+  "name": "trg_comment_notify",
+  "def": "CREATE TRIGGER trg_comment_notify AFTER INSERT ON public.comments FOR EACH ROW EXECUTE FUNCTION notify_comment_event()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "conversations",
+  "name": "trg_conversations_enroll_creator",
+  "def": "CREATE TRIGGER trg_conversations_enroll_creator AFTER INSERT ON public.conversations FOR EACH ROW EXECUTE FUNCTION enroll_creator_as_participant()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "dossiers",
+  "name": "trg_dossiers_updated_at",
+  "def": "CREATE TRIGGER trg_dossiers_updated_at BEFORE UPDATE ON public.dossiers FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "follows",
+  "name": "trg_follow_notify",
+  "def": "CREATE TRIGGER trg_follow_notify AFTER INSERT ON public.follows FOR EACH ROW EXECUTE FUNCTION notify_follow_event()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "follows",
+  "name": "trg_follows_counts",
+  "def": "CREATE TRIGGER trg_follows_counts AFTER INSERT OR DELETE ON public.follows FOR EACH ROW EXECUTE FUNCTION handle_follow_change()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "friendships",
+  "name": "trg_friendship_notify",
+  "def": "CREATE TRIGGER trg_friendship_notify AFTER INSERT OR UPDATE ON public.friendships FOR EACH ROW EXECUTE FUNCTION notify_friendship_event()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "friendships",
+  "name": "trg_friendships_updated_at",
+  "def": "CREATE TRIGGER trg_friendships_updated_at BEFORE UPDATE ON public.friendships FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "live_sessions",
+  "name": "trg_live_sessions_updated_at",
+  "def": "CREATE TRIGGER trg_live_sessions_updated_at BEFORE UPDATE ON public.live_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "live_sessions",
+  "name": "trg_notify_live_started",
+  "def": "CREATE TRIGGER trg_notify_live_started AFTER INSERT ON public.live_sessions FOR EACH ROW EXECUTE FUNCTION notify_live_started()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "master_resumes",
+  "name": "trg_master_resumes_updated_at",
+  "def": "CREATE TRIGGER trg_master_resumes_updated_at BEFORE UPDATE ON public.master_resumes FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "messages",
+  "name": "trg_message_notify",
+  "def": "CREATE TRIGGER trg_message_notify AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION notify_message_event()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "messages",
+  "name": "trg_messages_touch_conversation",
+  "def": "CREATE TRIGGER trg_messages_touch_conversation AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION private.touch_conversation_from_message()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "orders",
+  "name": "trg_orders_updated_at",
+  "def": "CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "posts",
+  "name": "trg_posts_updated_at",
+  "def": "CREATE TRIGGER trg_posts_updated_at BEFORE UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "products",
+  "name": "trg_products_updated_at",
+  "def": "CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "profiles",
+  "name": "trg_profiles_protect_sensitive",
+  "def": "CREATE TRIGGER trg_profiles_protect_sensitive BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION protect_profile_sensitive_columns()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "profiles",
+  "name": "trg_profiles_updated_at",
+  "def": "CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "push_subscriptions",
+  "name": "push_subscriptions_set_updated_at",
+  "def": "CREATE TRIGGER push_subscriptions_set_updated_at BEFORE UPDATE ON public.push_subscriptions FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "shops",
+  "name": "trg_shops_updated_at",
+  "def": "CREATE TRIGGER trg_shops_updated_at BEFORE UPDATE ON public.shops FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "tasks",
+  "name": "trg_tasks_updated_at",
+  "def": "CREATE TRIGGER trg_tasks_updated_at BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "tasks",
+  "name": "trg_validate_task_dependency",
+  "def": "CREATE TRIGGER trg_validate_task_dependency BEFORE INSERT OR UPDATE OF depends_on_task_id ON public.tasks FOR EACH ROW EXECUTE FUNCTION validate_task_dependency()"
+ },
+ {
+  "kind": "trigger",
+  "tbl": "user_memory",
+  "name": "trg_user_memory_updated_at",
+  "def": "CREATE TRIGGER trg_user_memory_updated_at BEFORE UPDATE ON public.user_memory FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+ },
+ {
+  "kind": "view",
+  "tbl": "public.ai_spend_by_provider",
+  "name": "ai_spend_by_provider",
+  "def": " SELECT (date_trunc('day'::text, created_at))::date AS jour,\n    provider_id,\n    count(*) FILTER (WHERE (status = 'success'::text)) AS appels_reussis,\n    count(*) FILTER (WHERE (status = 'error'::text)) AS appels_en_echec,\n    count(*) FILTER (WHERE (status = 'skipped'::text)) AS fournisseurs_ecartes,\n    count(*) FILTER (WHERE (status = 'blocked'::text)) AS appels_bloques,\n    COALESCE(sum(input_tokens), (0)::bigint) AS jetons_entree,\n    COALESCE(sum(output_tokens), (0)::bigint) AS jetons_sortie,\n    COALESCE(sum(cost_usd), (0)::numeric) AS cout_usd\n   FROM ai_call_log\n  GROUP BY ((date_trunc('day'::text, created_at))::date), provider_id;"
+ }
+]

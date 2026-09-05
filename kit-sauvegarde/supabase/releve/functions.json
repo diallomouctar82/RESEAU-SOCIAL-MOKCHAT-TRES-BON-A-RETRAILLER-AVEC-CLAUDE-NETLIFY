@@ -1,0 +1,590 @@
+[
+ {
+  "schema": "public",
+  "name": "accept_invitation",
+  "prokind": "f",
+  "args": "p_code text",
+  "def": "CREATE OR REPLACE FUNCTION public.accept_invitation(p_code text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_uid uuid := auth.uid();\n  v_inviter uuid;\n  v_invited_name text;\nbegin\n  if v_uid is null then raise exception 'authentification requise'; end if;\n  select user_id into v_inviter from public.invite_codes where code = upper(trim(p_code));\n  if v_inviter is null then\n    return jsonb_build_object('accepted', false, 'reason', 'code_inconnu');\n  end if;\n  if v_inviter = v_uid then\n    return jsonb_build_object('accepted', false, 'reason', 'auto_parrainage');\n  end if;\n  begin\n    insert into public.invitations (inviter_id, invited_user_id, code_used)\n    values (v_inviter, v_uid, upper(trim(p_code)));\n  exception when unique_violation then\n    return jsonb_build_object('accepted', false, 'reason', 'deja_parraine');\n  end;\n  select name into v_invited_name from public.profiles where id = v_uid;\n  insert into public.notifications (user_id, type, title, message, priority, target_action)\n  values (v_inviter, 'success', 'Invitation acceptée',\n          coalesce(v_invited_name, 'Un nouveau membre') || ' a rejoint MokNet grâce à votre invitation.',\n          'normal', 'growth');\n  return jsonb_build_object('accepted', true);\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "admin_consume_rate_limit",
+  "prokind": "f",
+  "args": "p_actor_id uuid, p_limit integer",
+  "def": "CREATE OR REPLACE FUNCTION public.admin_consume_rate_limit(p_actor_id uuid, p_limit integer DEFAULT 30)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare accepted_actor uuid;\nbegin\n  if p_actor_id is null or p_limit < 1 or p_limit > 300 then return false; end if;\n  insert into public.admin_api_rate_limits as limits(actor_id, window_started_at, request_count, updated_at)\n  values (p_actor_id, now(), 1, now())\n  on conflict (actor_id) do update set\n    window_started_at = case when limits.window_started_at <= now() - interval '1 minute' then now() else limits.window_started_at end,\n    request_count = case when limits.window_started_at <= now() - interval '1 minute' then 1 else limits.request_count + 1 end,\n    updated_at = now()\n  where limits.window_started_at <= now() - interval '1 minute' or limits.request_count < p_limit\n  returning actor_id into accepted_actor;\n  return accepted_actor is not null;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "are_users_blocked",
+  "prokind": "f",
+  "args": "p_user_a uuid, p_user_b uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.are_users_blocked(p_user_a uuid, p_user_b uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.user_blocks\n    where (blocker_id = p_user_a and blocked_id = p_user_b)\n       or (blocker_id = p_user_b and blocked_id = p_user_a)\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "award_xp_and_credits",
+  "prokind": "f",
+  "args": "p_user_id uuid, p_xp_delta integer, p_credits_delta numeric",
+  "def": "CREATE OR REPLACE FUNCTION public.award_xp_and_credits(p_user_id uuid, p_xp_delta integer, p_credits_delta numeric)\n RETURNS profiles\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_row public.profiles;\n  v_new_xp integer;\nbegin\n  -- `auth.uid() is null` est testé EN PREMIER et séparément : sans cela,\n  -- l'expression entière vaut NULL pour un appelant anonyme et le garde\n  -- ne se déclenche pas (logique ternaire SQL).\n  if auth.uid() is null then\n    raise exception 'Non autorisé : authentification requise';\n  end if;\n  if not (auth.uid() = p_user_id or public.is_admin()) then\n    raise exception 'Non autorisé';\n  end if;\n\n  perform set_config('app.bypass_profile_guard', 'on', true);\n\n  select xp into v_new_xp from public.profiles where id = p_user_id;\n  if v_new_xp is null then\n    raise exception 'Profil introuvable';\n  end if;\n  v_new_xp := greatest(0, v_new_xp + p_xp_delta);\n\n  update public.profiles\n  set xp = v_new_xp,\n      credits = greatest(0, credits + p_credits_delta),\n      level = case when v_new_xp >= 1000 then 3 when v_new_xp >= 300 then 2 else 1 end,\n      updated_at = now()\n  where id = p_user_id\n  returning * into v_row;\n\n  return v_row;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "can_access_dossier",
+  "prokind": "f",
+  "args": "p_dossier_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.can_access_dossier(p_dossier_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.dossiers d\n    where d.id = p_dossier_id\n    and (\n      d.owner_id = auth.uid()\n      or public.is_admin()\n      or exists (select 1 from public.dossier_shares s where s.dossier_id = d.id and s.shared_with_user_id = auth.uid())\n    )\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "can_message_user",
+  "prokind": "f",
+  "args": "p_sender uuid, p_recipient uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.can_message_user(p_sender uuid, p_recipient uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_pref text;\nbegin\n  if p_sender = p_recipient then\n    return true;\n  end if;\n  if public.are_users_blocked(p_sender, p_recipient) then\n    return false;\n  end if;\n\n  select coalesce(privacy_settings->>'allowMessagesFrom', 'all') into v_pref\n  from public.profiles where id = p_recipient;\n\n  if v_pref = 'none' then\n    return false;\n  elsif v_pref = 'network' then\n    return exists (\n      select 1 from public.friendships f\n      where f.status = 'accepted'\n        and ((f.requester_id = p_sender and f.addressee_id = p_recipient)\n          or (f.requester_id = p_recipient and f.addressee_id = p_sender))\n    ) or exists (\n      select 1 from public.follows fo\n      where fo.follower_id = p_sender and fo.followee_id = p_recipient\n    );\n  else\n    return true; -- 'all' (défaut)\n  end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "can_send_friend_request",
+  "prokind": "f",
+  "args": "p_requester uuid, p_addressee uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.can_send_friend_request(p_requester uuid, p_addressee uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_pref text;\nbegin\n  if public.are_users_blocked(p_requester, p_addressee) then\n    return false;\n  end if;\n  select coalesce(privacy_settings->>'allowFriendRequestsFrom', 'all') into v_pref\n    from public.profiles where id = p_addressee;\n  if v_pref = 'none' then\n    return false;\n  end if;\n  return true;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "can_view_live_session",
+  "prokind": "f",
+  "args": "p_session_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.can_view_live_session(p_session_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.live_sessions s\n    where s.id = p_session_id\n    and (\n      s.is_private = false\n      or s.host_id = auth.uid()\n      or public.is_admin()\n      or auth.uid() = any(s.allowed_member_ids)\n      or exists (select 1 from public.live_speakers sp where sp.session_id = s.id and sp.user_id = auth.uid())\n      or exists (select 1 from public.live_attendance a where a.session_id = s.id and a.participant_id = auth.uid())\n    )\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "can_view_network_post",
+  "prokind": "f",
+  "args": "p_author uuid, p_viewer uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.can_view_network_post(p_author uuid, p_viewer uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.friendships f\n    where f.status = 'accepted'\n      and ((f.requester_id = p_viewer and f.addressee_id = p_author)\n        or (f.requester_id = p_author and f.addressee_id = p_viewer))\n  )\n  or exists (\n    select 1 from public.follows fo\n    where fo.follower_id = p_viewer and fo.followee_id = p_author\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "can_write_dossier",
+  "prokind": "f",
+  "args": "p_dossier_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.can_write_dossier(p_dossier_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.dossiers d\n    where d.id = p_dossier_id\n    and (\n      d.owner_id = auth.uid()\n      or public.is_admin()\n      or exists (select 1 from public.dossier_shares s where s.dossier_id = d.id and s.shared_with_user_id = auth.uid() and s.permission = 'write')\n    )\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "close_zombie_live_sessions",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.close_zombie_live_sessions()\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    v_changed integer := 0;\n    v_ids uuid[];\nbegin\n    with fermes as (\n        update public.live_sessions\n           set ended_at = now(), updated_at = now()\n         where ended_at is null\n           and started_at is not null\n           and started_at < now() - interval '24 hours'\n        returning id\n    )\n    select coalesce(array_agg(id), '{}'), count(*) into v_ids, v_changed from fermes;\n\n    -- Journal : une ligne par exécution qui a réellement changé quelque chose,\n    -- lisible par health_probe_history (entity_type = 'health'). Jamais de\n    -- ligne « rien à faire » : un journal qui bavarde ne se lit plus.\n    if v_changed > 0 then\n        insert into public.audit_logs (actor_id, action, entity_type, entity_id, metadata)\n        values (null, 'health.auto_repair', 'health', 'live.sessions_zombies',\n                jsonb_build_object(\n                    'remediationId', 'live.close_zombie_sessions',\n                    'source', 'pg_cron:close-zombie-live-sessions',\n                    'changedCount', v_changed,\n                    'sessionIds', to_jsonb(v_ids)));\n    end if;\n\n    return v_changed;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "create_conversation",
+  "prokind": "f",
+  "args": "p_member_ids uuid[], p_title text, p_is_group boolean",
+  "def": "CREATE OR REPLACE FUNCTION public.create_conversation(p_member_ids uuid[], p_title text DEFAULT NULL::text, p_is_group boolean DEFAULT false)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  current_user_id uuid := auth.uid(); members uuid[]; other_user_id uuid;\n  conversation_key text; new_conversation_id uuid;\nbegin\n  if current_user_id is null then raise exception 'Authentication required' using errcode='28000'; end if;\n  select coalesce(array_agg(distinct member_id), '{}'::uuid[]) into members\n  from unnest(coalesce(p_member_ids, '{}'::uuid[])) member_id\n  where member_id is not null and member_id <> current_user_id;\n  if cardinality(members) = 0 then raise exception 'At least one other member is required' using errcode='22023'; end if;\n  if cardinality(members) > 49 then raise exception 'Conversation member limit exceeded' using errcode='54000'; end if;\n  if exists (select 1 from unnest(members) m where not exists (select 1 from public.profiles p where p.id=m))\n    then raise exception 'Unknown conversation member' using errcode='23503'; end if;\n  if not p_is_group then\n    if cardinality(members) <> 1 then raise exception 'A direct conversation has exactly two members' using errcode='22023'; end if;\n    other_user_id := members[1];\n    conversation_key := least(current_user_id::text, other_user_id::text) || ':' || greatest(current_user_id::text, other_user_id::text);\n    insert into public.conversations(is_group,title,created_by,direct_key)\n    values(false,null,current_user_id,conversation_key)\n    on conflict (direct_key) where is_group=false and direct_key is not null\n    do update set updated_at=now() returning id into new_conversation_id;\n  else\n    if nullif(trim(p_title),'') is null then raise exception 'A group title is required' using errcode='22023'; end if;\n    insert into public.conversations(is_group,title,created_by)\n    values(true,left(trim(p_title),160),current_user_id) returning id into new_conversation_id;\n  end if;\n  insert into public.conversation_participants(conversation_id,user_id,member_role)\n  values(new_conversation_id,current_user_id,'owner') on conflict(conversation_id,user_id) do nothing;\n  insert into public.conversation_participants(conversation_id,user_id,member_role)\n  select new_conversation_id,m,'member' from unnest(members) m on conflict(conversation_id,user_id) do nothing;\n  return new_conversation_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "discover_profiles",
+  "prokind": "f",
+  "args": "term text",
+  "def": "CREATE OR REPLACE FUNCTION public.discover_profiles(term text DEFAULT NULL::text)\n RETURNS TABLE(id uuid, name text, title text, avatar_url text, bio text, city text, country text, role text, is_verified boolean, followers_count integer, following_count integer, created_at timestamp with time zone, privacy_settings jsonb)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public', 'extensions'\nAS $function$\n  select p.id, p.name, p.title, p.avatar_url, p.bio,\n         p.city, p.country, p.role, p.is_verified,\n         p.followers_count, p.following_count,\n         p.created_at, p.privacy_settings\n  from public.profiles p\n  where\n    -- Jamais un profil explicitement privé (sauf le sien).\n    (p.id = auth.uid()\n     or coalesce(p.privacy_settings ->> 'profileVisibility', 'public') <> 'private')\n    -- Jamais quelqu'un impliqué dans un blocage avec le demandeur.\n    and not public.are_users_blocked(p.id, auth.uid())\n    -- Terme optionnel : absent = parcours libre de l'annuaire.\n    and (\n      term is null or term = ''\n      or extensions.unaccent(lower(p.name)) ilike extensions.unaccent(lower('%' || term || '%'))\n      or extensions.unaccent(lower(coalesce(p.title, ''))) ilike extensions.unaccent(lower('%' || term || '%'))\n    )\n  order by p.created_at desc\n  limit 50;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "enroll_creator_as_participant",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.enroll_creator_as_participant()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  insert into public.conversation_participants (conversation_id, user_id, member_role)\n  values (new.id, new.created_by, 'owner')\n  on conflict (conversation_id, user_id) do nothing;\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "fire_due_reminders",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.fire_due_reminders()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    with due as (\n        update public.reminders\n        set status = 'fired'\n        where status = 'pending' and remind_at <= now()\n        returning id, user_id, message\n    )\n    insert into public.notifications (user_id, type, title, message, priority, target_action)\n    select user_id, 'info', 'Rappel', message, 'normal', 'reminder'\n    from due;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "generate_recurring_task_instances",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.generate_recurring_task_instances()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  r record;\n  next_due timestamptz;\nbegin\n  for r in\n    select * from public.tasks\n    where status = 'completed'\n      and recurrence_rule is not null\n      and recurrence_advanced = false\n    for update skip locked\n  loop\n    next_due := case r.recurrence_rule\n      when 'daily' then coalesce(r.due_at, now()) + interval '1 day'\n      when 'weekly' then coalesce(r.due_at, now()) + interval '7 days'\n      when 'monthly' then coalesce(r.due_at, now()) + interval '1 month'\n    end;\n\n    insert into public.tasks (\n      user_id, title, description, priority, due_at,\n      related_type, related_id, recurrence_rule, recurrence_parent_id\n    ) values (\n      r.user_id, r.title, r.description, r.priority, next_due,\n      r.related_type, r.related_id, r.recurrence_rule,\n      coalesce(r.recurrence_parent_id, r.id)\n    );\n\n    update public.tasks set recurrence_advanced = true where id = r.id;\n  end loop;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_agent_tools",
+  "prokind": "f",
+  "args": "p_agent_id text",
+  "def": "CREATE OR REPLACE FUNCTION public.get_agent_tools(p_agent_id text)\n RETURNS TABLE(id text, display_name text, description text, category text, parameters_schema jsonb, requires_confirmation boolean, requires_auth boolean)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n    select t.id, t.display_name, t.description, t.category,\n           t.parameters_schema, t.requires_confirmation, t.requires_auth\n    from public.ai_tools t\n    join public.agent_tool_grants g\n      on g.tool_id = t.id and g.agent_id = p_agent_id\n    where t.is_enabled = true\n      and g.is_enabled = true\n    order by t.sort_order, t.id;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_ai_provider_secret_internal",
+  "prokind": "f",
+  "args": "p_provider_id text",
+  "def": "CREATE OR REPLACE FUNCTION public.get_ai_provider_secret_internal(p_provider_id text)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'vault'\nAS $function$\ndeclare\n    v_secret text;\nbegin\n    select decrypted_secret into v_secret\n    from vault.decrypted_secrets ds\n    join public.ai_provider_credentials c on c.vault_secret_id = ds.id\n    where c.provider_id = p_provider_id;\n    return v_secret;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_ai_provider_status",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_ai_provider_status()\n RETURNS TABLE(provider_id text, is_enabled boolean, key_hint text, last_tested_at timestamp with time zone, last_test_status text, last_test_message text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès refusé : réservé aux administrateurs.';\n    end if;\n    return query\n        select c.provider_id, c.is_enabled, c.key_hint, c.last_tested_at, c.last_test_status, c.last_test_message\n        from public.ai_provider_credentials c;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_ai_spend",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_ai_spend()\n RETURNS TABLE(spent_today numeric, spent_month numeric)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n    select\n        coalesce(sum(cost_usd) filter (where created_at >= date_trunc('day', now())), 0),\n        coalesce(sum(cost_usd) filter (where created_at >= date_trunc('month', now())), 0)\n    from public.ai_call_log;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_content_author_profiles",
+  "prokind": "f",
+  "args": "p_author_ids uuid[]",
+  "def": "CREATE OR REPLACE FUNCTION public.get_content_author_profiles(p_author_ids uuid[])\n RETURNS TABLE(id uuid, name text, avatar_url text, title text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select p.id, p.name, p.avatar_url, p.title\n  from public.profiles p\n  where p.id = any(p_author_ids)\n    and (\n      -- Auteur d'un post visible par l'appelant (= posts_select_visible).\n      exists (\n        select 1 from public.posts po\n        where po.author_id = p.id\n          and (\n            (po.status = 'published' and po.visibility = 'public')\n            or (po.status = 'published' and po.visibility = 'network'\n                and public.can_view_network_post(po.author_id, (select auth.uid())))\n            or po.author_id = (select auth.uid())\n            or public.is_admin()\n          )\n      )\n      -- Auteur d'un commentaire visible (= comments_select_if_post_visible).\n      or exists (\n        select 1\n        from public.comments c\n        join public.posts cp on cp.id = c.post_id\n        where c.author_id = p.id\n          and (\n            cp.visibility = 'public'\n            or cp.author_id = (select auth.uid())\n            or public.is_admin()\n          )\n      )\n      -- Auteur d'une story active (stories_select_authenticated = true pour\n      -- tout authentifié ; seules les stories non expirées sont affichées).\n      or exists (\n        select 1 from public.stories s\n        where s.author_id = p.id\n          and s.expires_at > now()\n      )\n    );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_live_transport_config_internal",
+  "prokind": "f",
+  "args": "p_environment text",
+  "def": "CREATE OR REPLACE FUNCTION public.get_live_transport_config_internal(p_environment text DEFAULT 'development'::text)\n RETURNS TABLE(server_url text, api_key text, api_secret text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'vault'\nAS $function$\nbegin\n    return query\n    select c.server_url, c.api_key, ds.decrypted_secret\n    from public.live_transport_config c\n    join vault.decrypted_secrets ds on ds.id = c.vault_secret_id\n    where c.environment = p_environment and c.is_active = true\n    order by c.created_at desc\n    limit 1;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_mutual_friends_count",
+  "prokind": "f",
+  "args": "p_user_a uuid, p_user_b uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.get_mutual_friends_count(p_user_a uuid, p_user_b uuid)\n RETURNS integer\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select count(*)::integer from (\n    select case when requester_id = p_user_a then addressee_id else requester_id end as friend_id\n    from public.friendships\n    where status = 'accepted' and (requester_id = p_user_a or addressee_id = p_user_a)\n  ) a_friends\n  where a_friends.friend_id in (\n    select case when requester_id = p_user_b then addressee_id else requester_id end\n    from public.friendships\n    where status = 'accepted' and (requester_id = p_user_b or addressee_id = p_user_b)\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_my_conversation_participant_profiles",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_my_conversation_participant_profiles()\n RETURNS TABLE(conversation_id uuid, id uuid, name text, avatar_url text, title text, role text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select cp.conversation_id, p.id, p.name, p.avatar_url, p.title, p.role\n  from public.conversation_participants cp\n  join public.profiles p on p.id = cp.user_id\n  where cp.conversation_id in (\n    select conversation_id from public.conversation_participants where user_id = auth.uid()\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_my_growth_stats",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_my_growth_stats()\n RETURNS jsonb\n LANGUAGE sql\n SET search_path TO 'public'\nAS $function$\nselect jsonb_build_object(\n  'posts_publies', (select count(*) from public.posts where author_id = auth.uid() and status = 'published'),\n  'reactions_recues', (select count(*) from public.post_reactions pr join public.posts p on p.id = pr.post_id where p.author_id = auth.uid()),\n  'commentaires_recus', (select count(*) from public.comments c join public.posts p on p.id = c.post_id where p.author_id = auth.uid() and c.author_id <> auth.uid()),\n  'partages_recus', (select coalesce(sum(shares_count), 0) from public.posts where author_id = auth.uid()),\n  'amis', (select count(*) from public.friendships where status = 'accepted' and (requester_id = auth.uid() or addressee_id = auth.uid())),\n  'abonnes', (select count(*) from public.follows where followee_id = auth.uid()),\n  'invitations_acceptees', (select count(*) from public.invitations where inviter_id = auth.uid()),\n  'meilleure_heure', (\n    select extract(hour from p.created_at)::int\n    from public.posts p join public.post_reactions pr on pr.post_id = p.id\n    where p.author_id = auth.uid()\n    group by 1 order by count(*) desc limit 1\n  )\n);\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_my_invitations",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_my_invitations()\n RETURNS TABLE(invited_name text, accepted_at timestamp with time zone)\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select coalesce(p.name, 'Membre'), i.accepted_at\n  from public.invitations i\n  left join public.profiles p on p.id = i.invited_user_id\n  where i.inviter_id = auth.uid()\n  order by i.accepted_at desc;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_or_create_invite_code",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_or_create_invite_code()\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_uid uuid := auth.uid();\n  v_code text;\nbegin\n  if v_uid is null then raise exception 'authentification requise'; end if;\n  select code into v_code from public.invite_codes where user_id = v_uid;\n  if v_code is not null then return v_code; end if;\n  loop\n    v_code := upper(substr(md5(gen_random_uuid()::text), 1, 8));\n    begin\n      insert into public.invite_codes (user_id, code) values (v_uid, v_code);\n      return v_code;\n    exception when unique_violation then\n      -- collision de code (improbable) : on retente ; user_id déjà pris = course avec soi-même : relire.\n      select code into v_code from public.invite_codes where user_id = v_uid;\n      if v_code is not null then return v_code; end if;\n    end;\n  end loop;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_public_profiles",
+  "prokind": "f",
+  "args": "p_user_ids uuid[]",
+  "def": "CREATE OR REPLACE FUNCTION public.get_public_profiles(p_user_ids uuid[])\n RETURNS TABLE(id uuid, name text, title text, avatar_url text, country text, city text, is_verified boolean, followers_count integer, following_count integer, created_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  with requested as (\n    select distinct value as id from unnest(coalesce(p_user_ids, '{}'::uuid[])) value\n    where value is not null limit 100\n  )\n  select p.id, p.name, p.title, p.avatar_url, p.country, p.city,\n         p.is_verified, p.followers_count, p.following_count, p.created_at\n  from requested r join public.profiles p on p.id = r.id\n  where auth.uid() is not null and (\n    p.id = auth.uid() or exists (\n      select 1\n      from public.conversation_participants mine\n      join public.conversation_participants theirs on theirs.conversation_id = mine.conversation_id\n      where mine.user_id = auth.uid() and theirs.user_id = p.id\n    )\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_push_public_key",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_push_public_key()\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select public_key from public.push_vapid_config where id = 'default';\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_push_vapid_internal",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_push_vapid_internal()\n RETURNS TABLE(public_key text, private_jwk text, subject text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'vault'\nAS $function$\nbegin\n  return query\n  select c.public_key, ds.decrypted_secret, c.subject\n  from public.push_vapid_config c\n  join vault.decrypted_secrets ds on ds.id = c.vault_secret_id\n  where c.id = 'default';\nend $function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_ranked_ai_candidates",
+  "prokind": "f",
+  "args": "p_category text",
+  "def": "CREATE OR REPLACE FUNCTION public.get_ranked_ai_candidates(p_category text)\n RETURNS TABLE(provider_id text, model_id text, adapter_kind text, base_url text, adapter_config jsonb, cost_tier text, sante text, cout_estime numeric, latence_ms numeric, motif text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n    with fenetre as (\n        select c.provider_id,\n               greatest(now() - interval '7 days', coalesce(c.updated_at, now() - interval '7 days')) as depuis\n        from public.ai_provider_credentials c\n    ),\n    stats as (\n        select l.provider_id,\n               count(*) filter (where l.status in ('success','error')) as tentatives,\n               count(*) filter (where l.status = 'success')            as succes,\n               avg(l.latency_ms) filter (where l.status = 'success')   as latence\n        from public.ai_call_log l\n        join fenetre f on f.provider_id = l.provider_id\n        where l.created_at >= f.depuis\n          and l.provider_id is not null\n        group by l.provider_id\n    ),\n    candidats as (\n        select p.id, m.model_id, p.adapter_kind, p.base_url, p.adapter_config,\n               p.cost_tier, p.priority,\n               (m.input_cost_per_million * 1000 / 1000000.0)\n             + (m.output_cost_per_million * 500 / 1000000.0)\n             + m.cost_per_call as cout,\n               s.tentatives, s.succes, s.latence\n        from public.ai_providers p\n        join public.ai_provider_credentials c\n          on c.provider_id = p.id and c.is_enabled = true\n        join public.ai_models m\n          on m.provider_id = p.id and m.is_default = true\n        left join stats s on s.provider_id = p.id\n        where p.category = p_category\n          and p.status = 'active'\n    )\n    select id, model_id, adapter_kind, base_url, adapter_config, cost_tier,\n           case\n               when tentatives is null or tentatives < 3 then 'inconnu'\n               when succes::numeric / tentatives >= 0.8  then 'sain'\n               else 'defaillant'\n           end,\n           round(cout::numeric, 6),\n           round(coalesce(latence, 0)::numeric, 0),\n           case\n               when tentatives is null or tentatives < 3\n                   then 'Historique insuffisant depuis la dernière modification de la clé — essayé après les fournisseurs éprouvés.'\n               when succes::numeric / tentatives >= 0.8\n                   then 'Sain : ' || succes || '/' || tentatives || ' succès depuis la dernière modification de la clé.'\n               else 'Défaillant : ' || succes || '/' || tentatives || ' succès depuis la dernière modification de la clé — relégué.'\n           end\n    from candidats\n    order by\n        (cost_tier = 'free') desc,\n        case\n            when tentatives is null or tentatives < 3 then 1\n            when succes::numeric / tentatives >= 0.8  then 2\n            else 0\n        end desc,\n        cout asc nulls last,\n        coalesce(latence, 999999) asc,\n        priority asc,\n        id asc;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_tool_matrix",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.get_tool_matrix()\n RETURNS TABLE(tool_id text, display_name text, description text, category text, requires_confirmation boolean, requires_auth boolean, tool_enabled boolean, sort_order integer, grants jsonb)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n    select t.id, t.display_name, t.description, t.category,\n           t.requires_confirmation, t.requires_auth, t.is_enabled, t.sort_order,\n           coalesce(\n               (select jsonb_object_agg(g.agent_id, g.is_enabled)\n                from public.agent_tool_grants g where g.tool_id = t.id),\n               '{}'::jsonb\n           )\n    from public.ai_tools t\n    where public.is_admin()\n    order by t.sort_order, t.id;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "get_wallet_balance",
+  "prokind": "f",
+  "args": "p_user_id uuid, p_currency text",
+  "def": "CREATE OR REPLACE FUNCTION public.get_wallet_balance(p_user_id uuid, p_currency text DEFAULT 'Credits'::text)\n RETURNS numeric\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select case\n    when p_user_id = auth.uid() or public.is_admin() then\n      coalesce((\n        select sum(case when type in ('credit','escrow_release') then amount\n                         when type in ('debit','escrow_hold') then -amount\n                         else 0 end)\n        from public.wallet_transactions\n        where user_id = p_user_id and currency = p_currency\n      ), 0)\n    else null\n  end;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "handle_follow_change",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.handle_follow_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  if tg_op = 'INSERT' then\n    update public.profiles set following_count = coalesce(following_count, 0) + 1 where id = new.follower_id;\n    update public.profiles set followers_count = coalesce(followers_count, 0) + 1 where id = new.followee_id;\n  elsif tg_op = 'DELETE' then\n    update public.profiles set following_count = greatest(0, coalesce(following_count, 0) - 1) where id = old.follower_id;\n    update public.profiles set followers_count = greatest(0, coalesce(followers_count, 0) - 1) where id = old.followee_id;\n  end if;\n  return null;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "handle_new_user",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_name text;\n  v_avatar text;\nbegin\n  v_name := coalesce(\n    nullif(new.raw_user_meta_data ->> 'full_name', ''),\n    nullif(new.raw_user_meta_data ->> 'name', ''),\n    split_part(coalesce(new.email, 'utilisateur'), '@', 1)\n  );\n  v_avatar := coalesce(\n    nullif(new.raw_user_meta_data ->> 'avatar_url', ''),\n    nullif(new.raw_user_meta_data ->> 'picture', '')\n  );\n\n  -- Compatible avec le garde de colonnes sensibles installé par les\n  -- environnements déjà réconciliés.\n  perform set_config('app.bypass_profile_guard', 'on', true);\n\n  insert into public.profiles (\n    id, email, name, role, status, avatar_url, citizenship_id,\n    credits, level, xp, next_level_xp\n  ) values (\n    new.id,\n    coalesce(new.email, ''),\n    left(v_name, 120),\n    'user',\n    'active',\n    v_avatar,\n    'LMAV-' || upper(substr(replace(new.id::text, '-', ''), 1, 12)),\n    0, 1, 0, 1000\n  )\n  on conflict (id) do update\n    set email = excluded.email,\n        name = case when public.profiles.name = '' then excluded.name else public.profiles.name end,\n        avatar_url = coalesce(public.profiles.avatar_url, excluded.avatar_url),\n        updated_at = now();\n\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_apply_remediation",
+  "prokind": "f",
+  "args": "p_remediation_id text, p_line_id text",
+  "def": "CREATE OR REPLACE FUNCTION public.health_apply_remediation(p_remediation_id text, p_line_id text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    v_spec jsonb; v_kind text; v_step jsonb; v_rows jsonb;\n    v_payload jsonb := '{}'::jsonb; v_order text[] := '{}';\n    v_total integer := 0; v_changed integer := 0;\n    v_snapshot_id uuid; v_first jsonb;\n    v_fn text; v_sig text; v_sigs text[] := '{}';\n    v_tbl text; v_tbls text[] := '{}';\nbegin\n    perform public.health_require_general_admin();\n    v_spec := public.health_remediation_spec(p_remediation_id);\n    if v_spec is null then\n        raise exception 'Réparation inconnue : %', p_remediation_id using errcode = '22023';\n    end if;\n    v_kind := v_spec ->> 'kind';\n\n    if v_kind in ('delete', 'update') then\n        for v_step in select * from jsonb_array_elements(v_spec -> 'steps') loop\n            execute format(\n                'select coalesce(jsonb_agg(to_jsonb(t)), ''[]''::jsonb) from public.%I t where %s',\n                v_step ->> 'table', v_step ->> 'where') into v_rows;\n            v_payload := v_payload || jsonb_build_object(v_step ->> 'table', v_rows);\n            v_order := v_order || (v_step ->> 'table');\n            v_total := v_total + jsonb_array_length(v_rows);\n        end loop;\n\n        insert into public.health_snapshots (remediation_id, line_id, actor_id, kind, payload, restore_order, row_count)\n        values (p_remediation_id, p_line_id, auth.uid(), v_kind, v_payload, v_order, v_total)\n        returning id into v_snapshot_id;\n\n        v_first := (v_spec -> 'steps') -> 0;\n        if v_kind = 'delete' then\n            execute format('delete from public.%I where %s', v_first ->> 'table', v_first ->> 'where');\n        else\n            execute format('update public.%I set %s where %s',\n                           v_first ->> 'table', v_first ->> 'set', v_first ->> 'where');\n        end if;\n        get diagnostics v_changed = row_count;\n\n    elsif v_kind = 'revoke_execute' then\n        for v_fn in select jsonb_array_elements_text(v_spec -> 'functions') loop\n            for v_sig in\n                select p.oid::regprocedure::text\n                  from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                 where n.nspname = 'public' and p.proname = v_fn and p.prokind = 'f'\n                   and has_function_privilege('authenticated', p.oid, 'EXECUTE')\n            loop\n                v_sigs := v_sigs || v_sig;\n            end loop;\n        end loop;\n\n        insert into public.health_snapshots (remediation_id, line_id, actor_id, kind, payload, restore_order, row_count)\n        values (p_remediation_id, p_line_id, auth.uid(), v_kind,\n                jsonb_build_object('signatures', to_jsonb(v_sigs)), '{}', coalesce(array_length(v_sigs, 1), 0))\n        returning id into v_snapshot_id;\n\n        foreach v_sig in array v_sigs loop\n            execute format('revoke execute on function %s from authenticated', v_sig);\n            v_changed := v_changed + 1;\n        end loop;\n\n    elsif v_kind = 'revoke_select_anon' then\n        for v_tbl in\n            select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace\n             where n.nspname = 'public' and c.relkind = 'r'\n               and has_table_privilege('anon', c.oid, 'SELECT')\n               and not (c.relname = any (select jsonb_array_elements_text(v_spec -> 'keep')))\n        loop\n            v_tbls := v_tbls || v_tbl;\n        end loop;\n\n        insert into public.health_snapshots (remediation_id, line_id, actor_id, kind, payload, restore_order, row_count)\n        values (p_remediation_id, p_line_id, auth.uid(), v_kind,\n                jsonb_build_object('tables', to_jsonb(v_tbls)), '{}', coalesce(array_length(v_tbls, 1), 0))\n        returning id into v_snapshot_id;\n\n        foreach v_tbl in array v_tbls loop\n            execute format('revoke select on public.%I from anon', v_tbl);\n            v_changed := v_changed + 1;\n        end loop;\n    end if;\n\n    return jsonb_build_object(\n        'snapshotId', v_snapshot_id, 'changedCount', v_changed, 'snapshotRowCount', v_total);\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_diagnose_remediation",
+  "prokind": "f",
+  "args": "p_remediation_id text",
+  "def": "CREATE OR REPLACE FUNCTION public.health_diagnose_remediation(p_remediation_id text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    v_spec jsonb; v_kind text; v_step jsonb;\n    v_count integer := 0; v_total integer := 0;\n    v_tables text[] := '{}'; v_sample jsonb := '[]'::jsonb;\n    v_fn text; v_sigs text[] := '{}';\nbegin\n    perform public.health_require_admin();\n    v_spec := public.health_remediation_spec(p_remediation_id);\n    if v_spec is null then\n        raise exception 'Réparation inconnue : %', p_remediation_id using errcode = '22023';\n    end if;\n    v_kind := v_spec ->> 'kind';\n\n    if v_kind in ('delete', 'update') then\n        for v_step in select * from jsonb_array_elements(v_spec -> 'steps') loop\n            execute format('select count(*) from public.%I where %s',\n                           v_step ->> 'table', v_step ->> 'where') into v_count;\n            v_total := v_total + v_count;\n            v_tables := v_tables || (v_step ->> 'table');\n            if v_sample = '[]'::jsonb and v_count > 0 then\n                execute format(\n                    'select coalesce(jsonb_agg(t), ''[]''::jsonb) from (select * from public.%I where %s limit 5) t',\n                    v_step ->> 'table', v_step ->> 'where') into v_sample;\n            end if;\n        end loop;\n\n    elsif v_kind = 'revoke_execute' then\n        v_tables := array['pg_proc'];\n        for v_fn in select jsonb_array_elements_text(v_spec -> 'functions') loop\n            select array_agg(p.oid::regprocedure::text) into v_sigs\n              from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n             where n.nspname = 'public' and p.proname = v_fn and p.prokind = 'f'\n               and has_function_privilege('authenticated', p.oid, 'EXECUTE');\n            if v_sigs is not null then\n                v_total := v_total + array_length(v_sigs, 1);\n                v_sample := v_sample || to_jsonb(v_sigs);\n            end if;\n        end loop;\n\n    elsif v_kind = 'revoke_select_anon' then\n        v_tables := array['information_schema.role_table_grants'];\n        select count(*), coalesce(jsonb_agg(to_jsonb(x.table_name)), '[]'::jsonb)\n          into v_total, v_sample\n          from (\n              select c.relname as table_name\n                from pg_class c join pg_namespace n on n.oid = c.relnamespace\n               where n.nspname = 'public' and c.relkind = 'r'\n                 and has_table_privilege('anon', c.oid, 'SELECT')\n                 and not (c.relname = any (select jsonb_array_elements_text(v_spec -> 'keep')))\n               order by c.relname\n          ) x;\n    end if;\n\n    return jsonb_build_object(\n        'remediationId', p_remediation_id,\n        'kind', v_kind,\n        'affectedCount', v_total,\n        'affectedTables', to_jsonb(v_tables),\n        'sample', case when jsonb_array_length(v_sample) > 5\n                       then (select jsonb_agg(e) from (select e from jsonb_array_elements(v_sample) e limit 5) s)\n                       else v_sample end,\n        'reversible', true);\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_journal",
+  "prokind": "f",
+  "args": "p_limit integer",
+  "def": "CREATE OR REPLACE FUNCTION public.health_journal(p_limit integer DEFAULT 50)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_result jsonb;\nbegin\n    perform public.health_require_admin();\n    select coalesce(jsonb_agg(row_to_json(j) order by j.created_at desc), '[]'::jsonb)\n      into v_result\n      from (\n          select l.id, l.action, l.entity_id as line_id, l.actor_id, l.metadata, l.created_at,\n                 p.name as actor_name,\n                 (l.metadata ->> 'snapshotId')::uuid as snapshot_id,\n                 (s.id is not null and s.restored_at is null) as restorable\n            from public.audit_logs l\n            left join public.profiles p on p.id = l.actor_id\n            left join public.health_snapshots s on s.id = (l.metadata ->> 'snapshotId')::uuid\n           where l.entity_type = 'health'\n           order by l.created_at desc\n           limit greatest(least(p_limit, 200), 1)\n      ) j;\n    return v_result;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_my_rank",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_my_rank()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_role text;\nbegin\n    if auth.uid() is null then\n        return jsonb_build_object('role', null, 'canRead', false, 'canRepair', false);\n    end if;\n    select role into v_role from public.profiles where id = auth.uid();\n    return jsonb_build_object(\n        'role', v_role,\n        'canRead', v_role in ('admin', 'super_admin'),\n        'canRepair', v_role = 'super_admin');\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_probe_catalogue",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_probe_catalogue()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_result jsonb;\nbegin\n    perform public.health_require_admin();\n\n    select jsonb_build_object(\n        'tablesTotal', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace\n                         where n.nspname = 'public' and c.relkind = 'r'),\n        'tablesWithRls', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace\n                           where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity),\n        'tablesWithoutRls', (select coalesce(jsonb_agg(c.relname order by c.relname), '[]'::jsonb)\n                              from pg_class c join pg_namespace n on n.oid = c.relnamespace\n                             where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity),\n        'creditForgeryOpen', (select count(*) > 0 from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                               where n.nspname = 'public' and p.proname = 'award_xp_and_credits'\n                                 and has_function_privilege('authenticated', p.oid, 'EXECUTE')),\n        'walletWriteOpen', (select count(*) > 0 from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                             where n.nspname = 'public' and p.proname = 'insert_wallet_transaction'\n                               and has_function_privilege('authenticated', p.oid, 'EXECUTE')),\n        'aiSpendOpen', (select count(*) > 0 from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                         where n.nspname = 'public' and p.proname = 'get_ai_spend'\n                           and has_function_privilege('authenticated', p.oid, 'EXECUTE')),\n        'vaultLeaks', (select coalesce(jsonb_agg(p.proname order by p.proname), '[]'::jsonb)\n                        from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                       where n.nspname = 'public' and p.proname like '%\\_internal'\n                         and has_function_privilege('authenticated', p.oid, 'EXECUTE')),\n        'mutableSearchPath', (select coalesce(jsonb_agg(p.proname order by p.proname), '[]'::jsonb)\n                               from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                              where n.nspname = 'public' and p.prosecdef and p.prokind = 'f'\n                                and p.proconfig is null),\n        'roleGuardEnabled', (select count(*) > 0 from pg_trigger t join pg_class c on c.oid = t.tgrelid\n                              where c.relname = 'profiles' and t.tgname = 'trg_profiles_protect_sensitive'\n                                and t.tgenabled = 'O'),\n        'anonReadableTables', (select coalesce(jsonb_agg(c.relname order by c.relname), '[]'::jsonb)\n                                from pg_class c join pg_namespace n on n.oid = c.relnamespace\n                               where n.nspname = 'public' and c.relkind = 'r'\n                                 and has_table_privilege('anon', c.oid, 'SELECT')),\n        'foreignKeys', (select coalesce(jsonb_agg(con.conname order by con.conname), '[]'::jsonb)\n                         from pg_constraint con join pg_namespace n on n.oid = con.connamespace\n                        where n.nspname = 'public' and con.contype = 'f'),\n        'rlsNoPolicy', (select coalesce(jsonb_agg(c.relname order by c.relname), '[]'::jsonb)\n                         from pg_class c join pg_namespace n on n.oid = c.relnamespace\n                        where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity\n                          and not exists (select 1 from pg_policy p where p.polrelid = c.oid)),\n        'auditLogPresent', (select count(*) > 0 from pg_class c join pg_namespace n on n.oid = c.relnamespace\n                             where n.nspname = 'public' and c.relname = 'audit_logs'),\n        'superAdminCount', (select count(*) from public.profiles where role = 'super_admin'),\n        'adminCount', (select count(*) from public.profiles where role = 'admin')\n    ) into v_result;\n\n    return v_result;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_probe_data",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_probe_data()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_result jsonb;\nbegin\n    perform public.health_require_admin();\n    select jsonb_build_object(\n        'orphanMessages', (select count(*) from public.messages m\n                            where not exists (select 1 from public.conversations c where c.id = m.conversation_id)),\n        'orphanParticipants', (select count(*) from public.conversation_participants p\n                                where not exists (select 1 from public.conversations c where c.id = p.conversation_id)\n                                   or not exists (select 1 from public.profiles pr where pr.id = p.user_id)),\n        'emptyConversations', (select count(*) from public.conversations c\n                                where not exists (select 1 from public.conversation_participants p\n                                                   where p.conversation_id = c.id)),\n        'orphanReactions', (select (select count(*) from public.post_reactions r\n                                     where not exists (select 1 from public.posts p where p.id = r.post_id))\n                                 + (select count(*) from public.comments cm\n                                     where not exists (select 1 from public.posts p where p.id = cm.post_id))),\n        'selfFriendships', (select count(*) from public.friendships where requester_id = addressee_id),\n        'duplicateFriendships', (select count(*) from (\n                                    select least(requester_id, addressee_id) a, greatest(requester_id, addressee_id) b\n                                      from public.friendships group by 1, 2 having count(*) > 1) d),\n        'profilesWithoutAccount', (select count(*) from public.profiles p\n                                    where not exists (select 1 from auth.users u where u.id = p.id)),\n        'orphanSpeakers', (select count(*) from public.live_speakers s\n                            where not exists (select 1 from public.live_sessions ls where ls.id = s.session_id)),\n        'orphanDocuments', (select count(*) from public.post_documents d\n                             where not exists (select 1 from public.posts p where p.id = d.post_id)),\n        'stuckScheduledPosts', (select count(*) from public.posts\n                                 where scheduled_at is not null and scheduled_at <= now() and status = 'draft'),\n        'expiredStories', (select count(*) from public.stories\n                            where expires_at is not null and expires_at < now()),\n        'notificationsTotal', (select count(*) from public.notifications),\n        'staleNotifications', (select count(*) from public.notifications\n                                where read is true and created_at < now() - interval '90 days'),\n        'activeAgents', (select count(*) from public.agents where is_active)\n    ) into v_result;\n    return v_result;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_probe_operations",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_probe_operations()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_result jsonb;\nbegin\n    perform public.health_require_admin();\n    select jsonb_build_object(\n        'activeProviderCategories', (select coalesce(jsonb_agg(distinct p.category), '[]'::jsonb)\n                                      from public.ai_providers p\n                                      join public.ai_provider_credentials c on c.provider_id = p.id\n                                     where p.status = 'active' and c.is_enabled),\n        'enabledWithoutSecret', (select count(*) from public.ai_providers p\n                                  join public.ai_provider_credentials c on c.provider_id = p.id\n                                 where p.status = 'active' and c.is_enabled and c.vault_secret_id is null),\n        'budgetEnforced', (select enforced from public.ai_budget where id = 'global'),\n        'budgetHasCap', (select (daily_cap_usd is not null or monthly_cap_usd is not null)\n                           from public.ai_budget where id = 'global'),\n        'aiCalls24h', (select count(*) from public.ai_call_log where created_at > now() - interval '24 hours'),\n        'aiFailures24h', (select count(*) from public.ai_call_log\n                           where created_at > now() - interval '24 hours' and status <> 'success'),\n        'aiCallLogRows', (select count(*) from public.ai_call_log),\n        'liveTransportConfigured', (select count(*) > 0 from public.live_transport_config),\n        'stuckCalls', (select count(*) from public.call_diagnostics\n                        where outcome = 'en cours' and updated_at < now() - interval '6 hours'),\n        'calls24h', (select count(*) from public.call_diagnostics where created_at > now() - interval '24 hours'),\n        'callFailures24h', (select count(*) from public.call_diagnostics\n                             where created_at > now() - interval '24 hours'\n                               and outcome in ('correspondant perdu', 'échec')),\n        'blockFunctionPresent', (select count(*) > 0 from pg_proc p join pg_namespace n on n.oid = p.pronamespace\n                                  where n.nspname = 'public' and p.proname = 'are_users_blocked'),\n        'zombieSessions', (select count(*) from public.live_sessions\n                            where ended_at is null and started_at is not null\n                              and started_at < now() - interval '24 hours'),\n        'expiredTranscripts', (select count(*) from public.live_transcript_lines t\n                                where exists (select 1 from public.live_sessions s\n                                               where s.id = t.session_id and s.ended_at is not null\n                                                 and s.ended_at < now() - interval '30 days')),\n        'vapidConfigured', (select count(*) > 0 from public.push_vapid_config),\n        'pushSends24h', (select count(*) from public.push_delivery_log where created_at > now() - interval '24 hours'),\n        'pushFailures24h', (select count(*) from public.push_delivery_log\n                             where created_at > now() - interval '24 hours' and ok is not true),\n        'pushDeliveryLogRows', (select count(*) from public.push_delivery_log),\n        'deadSubscriptions', (select count(*) from public.push_subscriptions s\n                               where exists (\n                                   select 1 from public.push_delivery_log l\n                                    where l.user_id = s.user_id\n                                      and l.endpoint_host = split_part(split_part(s.endpoint, '://', 2), '/', 1)\n                                      and l.status_code in (404, 410)\n                                      and l.created_at = (select max(l2.created_at) from public.push_delivery_log l2\n                                                           where l2.user_id = l.user_id and l2.endpoint_host = l.endpoint_host))),\n        'publicBucketPresent', (select count(*) > 0 from storage.buckets where id = 'public'),\n        'healthActionsLogged', (select count(*) from public.audit_logs where entity_type = 'health')\n    ) into v_result;\n    return v_result;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_purge_snapshots",
+  "prokind": "f",
+  "args": "p_older_than_days integer",
+  "def": "CREATE OR REPLACE FUNCTION public.health_purge_snapshots(p_older_than_days integer DEFAULT 30)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_n integer;\nbegin\n    perform public.health_require_general_admin();\n    delete from public.health_snapshots\n     where created_at < now() - make_interval(days => greatest(p_older_than_days, 1));\n    get diagnostics v_n = row_count;\n    return jsonb_build_object('deleted', v_n);\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_remediation_catalogue",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_remediation_catalogue()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    v_ids text[] := array[\n        'securite.revoke_credit_forgery', 'securite.revoke_wallet_self_credit',\n        'securite.restrict_ai_spend', 'securite.revoke_anon_selects',\n        'ia.enforce_budget', 'ia.purge_old_call_log',\n        'notifications.purge_delivery_log', 'notifications.prune_dead_subscriptions',\n        'live.close_zombie_sessions', 'live.purge_expired_transcripts',\n        'messagerie.close_stuck_calls', 'donnees.purge_empty_conversations',\n        'contenu.release_scheduled_posts', 'contenu.purge_expired_stories',\n        'contenu.purge_old_notifications'\n    ];\nbegin\n    perform public.health_require_admin();\n    return jsonb_build_object('ids', to_jsonb(v_ids));\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_remediation_spec",
+  "prokind": "f",
+  "args": "p_remediation_id text",
+  "def": "CREATE OR REPLACE FUNCTION public.health_remediation_spec(p_remediation_id text)\n RETURNS jsonb\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\n    select case p_remediation_id\n        when 'securite.revoke_credit_forgery' then jsonb_build_object(\n            'kind', 'revoke_execute',\n            'functions', jsonb_build_array('award_xp_and_credits'))\n        when 'securite.revoke_wallet_self_credit' then jsonb_build_object(\n            'kind', 'revoke_execute',\n            'functions', jsonb_build_array('insert_wallet_transaction'))\n        when 'securite.restrict_ai_spend' then jsonb_build_object(\n            'kind', 'revoke_execute',\n            'functions', jsonb_build_array('get_ai_spend'))\n        when 'securite.revoke_anon_selects' then jsonb_build_object(\n            'kind', 'revoke_select_anon',\n            'keep', jsonb_build_array('posts', 'profiles', 'comments', 'post_reactions', 'follows'))\n\n        when 'ia.enforce_budget' then jsonb_build_object(\n            'kind', 'update',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'ai_budget',\n                'where', 'id = ''global'' and enforced is not true',\n                'set',   'enforced = true, updated_at = now()')))\n        when 'ia.purge_old_call_log' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'ai_call_log',\n                'where', 'created_at < now() - interval ''90 days''')))\n        when 'notifications.purge_delivery_log' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'push_delivery_log',\n                'where', 'created_at < now() - interval ''30 days''')))\n        when 'notifications.prune_dead_subscriptions' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'push_subscriptions',\n                'where', $w$exists (\n                    select 1 from public.push_delivery_log l\n                    where l.user_id = push_subscriptions.user_id\n                      and l.endpoint_host = split_part(split_part(push_subscriptions.endpoint, '://', 2), '/', 1)\n                      and l.status_code in (404, 410)\n                      and l.created_at = (\n                          select max(l2.created_at) from public.push_delivery_log l2\n                          where l2.user_id = l.user_id and l2.endpoint_host = l.endpoint_host))$w$)))\n        when 'live.close_zombie_sessions' then jsonb_build_object(\n            'kind', 'update',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'live_sessions',\n                'where', 'ended_at is null and started_at is not null and started_at < now() - interval ''24 hours''',\n                'set',   'ended_at = now(), updated_at = now()')))\n        when 'live.purge_expired_transcripts' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'live_transcript_lines',\n                'where', $w$exists (\n                    select 1 from public.live_sessions s\n                    where s.id = live_transcript_lines.session_id\n                      and s.ended_at is not null\n                      and s.ended_at < now() - interval '30 days')$w$)))\n        when 'messagerie.close_stuck_calls' then jsonb_build_object(\n            'kind', 'update',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'call_diagnostics',\n                'where', 'outcome = ''en cours'' and updated_at < now() - interval ''6 hours''',\n                'set',   'outcome = ''correspondant perdu'', updated_at = now()')))\n\n        when 'contenu.release_scheduled_posts' then jsonb_build_object(\n            'kind', 'update',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'posts',\n                'where', 'scheduled_at is not null and scheduled_at <= now() and status = ''draft''',\n                'set',   'status = ''published'', updated_at = now()')))\n        when 'contenu.purge_expired_stories' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'stories',\n                'where', 'expires_at is not null and expires_at < now()')))\n        when 'contenu.purge_old_notifications' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(jsonb_build_object(\n                'table', 'notifications',\n                'where', 'read is true and created_at < now() - interval ''90 days''')))\n\n        when 'donnees.purge_empty_conversations' then jsonb_build_object(\n            'kind', 'delete',\n            'steps', jsonb_build_array(\n                jsonb_build_object(\n                    'table', 'conversations',\n                    'where', $w$not exists (\n                        select 1 from public.conversation_participants p\n                        where p.conversation_id = conversations.id)$w$),\n                jsonb_build_object(\n                    'table', 'messages',\n                    'where', $w$exists (\n                        select 1 from public.conversations c\n                        where c.id = messages.conversation_id\n                          and not exists (\n                              select 1 from public.conversation_participants p\n                              where p.conversation_id = c.id))$w$)))\n        else null\n    end;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_require_admin",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_require_admin()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if auth.uid() is null then\n        raise exception 'Non autorisé : authentification requise.' using errcode = '42501';\n    end if;\n    if not public.is_admin() then\n        raise exception 'Non autorisé : réservé aux administrateurs.' using errcode = '42501';\n    end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_require_general_admin",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.health_require_general_admin()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if auth.uid() is null then\n        raise exception 'Non autorisé : authentification requise.' using errcode = '42501';\n    end if;\n    if not exists (\n        select 1 from public.profiles\n         where id = auth.uid() and role = 'super_admin'\n    ) then\n        raise exception\n            'Non autorisé : cette action est réservée à l''Admin Général (rôle super_admin).'\n            using errcode = '42501';\n    end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "health_restore_snapshot",
+  "prokind": "f",
+  "args": "p_snapshot_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.health_restore_snapshot(p_snapshot_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    v_snap public.health_snapshots; v_tbl text; v_rows jsonb;\n    v_restored integer := 0; v_n integer; v_sig text;\nbegin\n    perform public.health_require_general_admin();\n    select * into v_snap from public.health_snapshots where id = p_snapshot_id;\n    if v_snap.id is null then\n        raise exception 'Sauvegarde introuvable : %', p_snapshot_id using errcode = '22023';\n    end if;\n    if v_snap.restored_at is not null then\n        raise exception 'Cette sauvegarde a déjà été restaurée le %.', v_snap.restored_at using errcode = '22023';\n    end if;\n\n    if v_snap.kind in ('delete', 'update') then\n        foreach v_tbl in array v_snap.restore_order loop\n            v_rows := v_snap.payload -> v_tbl;\n            if v_rows is null or jsonb_array_length(v_rows) = 0 then continue; end if;\n            execute format(\n                'delete from public.%I where id in (select (e ->> ''id'') from jsonb_array_elements($1) e)',\n                v_tbl) using v_rows;\n            execute format(\n                'insert into public.%I select * from jsonb_populate_recordset(null::public.%I, $1)',\n                v_tbl, v_tbl) using v_rows;\n            get diagnostics v_n = row_count;\n            v_restored := v_restored + v_n;\n        end loop;\n\n    elsif v_snap.kind = 'revoke_execute' then\n        for v_sig in select jsonb_array_elements_text(v_snap.payload -> 'signatures') loop\n            execute format('grant execute on function %s to authenticated', v_sig);\n            v_restored := v_restored + 1;\n        end loop;\n\n    elsif v_snap.kind = 'revoke_select_anon' then\n        for v_sig in select jsonb_array_elements_text(v_snap.payload -> 'tables') loop\n            execute format('grant select on public.%I to anon', v_sig);\n            v_restored := v_restored + 1;\n        end loop;\n    end if;\n\n    update public.health_snapshots\n       set restored_at = now(), restored_by = auth.uid()\n     where id = p_snapshot_id;\n\n    return jsonb_build_object('restoredCount', v_restored, 'snapshotId', p_snapshot_id);\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "increment_post_shares",
+  "prokind": "f",
+  "args": "p_post_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.increment_post_shares(p_post_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_ok boolean;\nbegin\n  select (status = 'published' and visibility = 'public') into v_ok\n  from public.posts\n  where id = p_post_id;\n\n  if v_ok is not true then\n    raise exception 'Ce contenu n''est pas partageable (introuvable, non publié, ou non public).';\n  end if;\n\n  update public.posts\n  set shares_count = coalesce(shares_count, 0) + 1\n  where id = p_post_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "insert_wallet_transaction",
+  "prokind": "f",
+  "args": "p_type text, p_amount numeric, p_currency text, p_reference text",
+  "def": "CREATE OR REPLACE FUNCTION public.insert_wallet_transaction(p_type text, p_amount numeric, p_currency text, p_reference text)\n RETURNS wallet_transactions\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_balance numeric;\n  v_row public.wallet_transactions;\nbegin\n  if p_type in ('debit','escrow_hold') then\n    v_balance := public.get_wallet_balance(auth.uid(), p_currency);\n    if v_balance < p_amount then\n      raise exception 'Solde insuffisant';\n    end if;\n  end if;\n\n  insert into public.wallet_transactions (user_id, type, amount, currency, reference)\n  values (auth.uid(), p_type, p_amount, p_currency, p_reference)\n  returning * into v_row;\n\n  return v_row;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "invite_to_live_session",
+  "prokind": "f",
+  "args": "p_session_id uuid, p_invitee_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.invite_to_live_session(p_session_id uuid, p_invitee_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_caller uuid := (select auth.uid());\n  v_title text;\n  v_host_name text;\nbegin\n  if v_caller is null then\n    raise exception 'Authentification requise.' using errcode = '42501';\n  end if;\n\n  if not is_live_moderator_or_host(p_session_id) then\n    raise exception 'Seul l''animateur de ce direct peut inviter quelqu''un.' using errcode = '42501';\n  end if;\n\n  if p_invitee_id = v_caller then\n    return;\n  end if;\n\n  if are_users_blocked(v_caller, p_invitee_id) then\n    raise exception 'Invitation impossible.' using errcode = '42501';\n  end if;\n\n  select title, coalesce(host_name, '') into v_title, v_host_name\n  from live_sessions where id = p_session_id;\n\n  if v_title is null then\n    raise exception 'Direct introuvable.' using errcode = 'P0002';\n  end if;\n\n  -- L5 — donner l'accès réel (même pour un direct privé), idempotent.\n  update live_sessions\n  set allowed_member_ids = coalesce(allowed_member_ids, '{}') || p_invitee_id\n  where id = p_session_id\n    and not (p_invitee_id = any(coalesce(allowed_member_ids, '{}')));\n\n  if exists (\n    select 1 from notifications\n    where user_id = p_invitee_id\n      and type = 'live_invite'\n      and target_action = 'live:' || p_session_id::text\n      and read = false\n  ) then\n    return;\n  end if;\n\n  insert into notifications (user_id, type, title, message, priority, target_action)\n  values (\n    p_invitee_id,\n    'live_invite',\n    'Invitation à un direct',\n    coalesce(nullif(v_host_name, ''), 'Un membre') || ' vous invite au direct « ' || v_title || ' »',\n    'high',\n    'live:' || p_session_id::text\n  );\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "is_admin",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.is_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role in ('admin','super_admin')\n  );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "is_live_host",
+  "prokind": "f",
+  "args": "p_session_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.is_live_host(p_session_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (select 1 from public.live_sessions s where s.id = p_session_id and (s.host_id = auth.uid() or public.is_admin()));\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "is_live_moderator_or_host",
+  "prokind": "f",
+  "args": "p_session_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.is_live_moderator_or_host(p_session_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select public.is_live_host(p_session_id)\n    or exists (\n      select 1 from public.live_speakers sp\n      where sp.session_id = p_session_id\n        and sp.user_id = auth.uid()\n        and sp.role = 'moderator'\n        and sp.left_at is null\n    );\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "mark_conversation_read",
+  "prokind": "f",
+  "args": "p_conversation_id uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.mark_conversation_read(p_conversation_id uuid)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare read_at timestamptz := now();\nbegin\n  update public.conversation_participants set last_read_at=read_at\n  where conversation_id=p_conversation_id and user_id=auth.uid();\n  if not found then raise exception 'Conversation membership required' using errcode='42501'; end if;\n  return read_at;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "notify_comment_event",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.notify_comment_event()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  commenter_name text;\n  v_post_author uuid;\nbegin\n  select author_id into v_post_author from public.posts where id = new.post_id;\n  if v_post_author is null or v_post_author = new.author_id then\n    return new;\n  end if;\n  select name into commenter_name from public.profiles where id = new.author_id;\n  insert into public.notifications (user_id, type, title, message, priority, target_action)\n  values (v_post_author, 'info', 'Nouveau commentaire', coalesce(commenter_name, 'Un membre') || ' a commenté votre publication.', 'normal', 'social');\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "notify_follow_event",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.notify_follow_event()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  follower_name text;\nbegin\n  if new.follower_id = new.followee_id then\n    return new;\n  end if;\n  select name into follower_name from public.profiles where id = new.follower_id;\n  insert into public.notifications (user_id, type, title, message, priority, target_action)\n  values (new.followee_id, 'info', 'Nouvel abonné', coalesce(follower_name, 'Un membre') || ' vous suit désormais.', 'low', 'social');\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "notify_friendship_event",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.notify_friendship_event()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  requester_name text;\n  addressee_name text;\nbegin\n  if TG_OP = 'INSERT' then\n    select name into requester_name from public.profiles where id = new.requester_id;\n    insert into public.notifications (user_id, type, title, message, target_action)\n    values (new.addressee_id, 'info', 'Nouvelle demande d''ami', coalesce(requester_name, 'Un membre') || ' souhaite vous ajouter en ami.', 'friend_requests');\n  elsif TG_OP = 'UPDATE' and old.status = 'pending' and new.status = 'accepted' then\n    select name into addressee_name from public.profiles where id = new.addressee_id;\n    insert into public.notifications (user_id, type, title, message, target_action)\n    values (new.requester_id, 'success', 'Demande d''ami acceptée', coalesce(addressee_name, 'Un membre') || ' a accepté votre demande d''ami.', 'friends');\n  end if;\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "notify_live_started",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.notify_live_started()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  -- Session programmée pour plus tard : ne JAMAIS annoncer « en direct »\n  -- (ce serait une information fausse). La bascule programmé→direct n'a pas\n  -- encore de flux d'écriture dans l'app — le jour où elle en aura un, un\n  -- trigger UPDATE dédié prendra le relais.\n  if new.is_scheduled is true then\n    return new;\n  end if;\n\n  if new.is_private is true then\n    -- Live privé : la cloche porte l'INVITATION des membres explicitement\n    -- autorisés — jamais une annonce aux amis non invités.\n    insert into public.notifications (user_id, type, title, message, priority, target_action)\n    select m, 'info', 'Invitation à un Live privé',\n           coalesce(new.host_name, 'Un membre') || ' vous invite : « ' || coalesce(new.title, 'Live') || ' »',\n           'high', 'live'\n    from unnest(coalesce(new.allowed_member_ids, '{}'::uuid[])) as m\n    where m <> new.host_id\n      and not public.are_users_blocked(new.host_id, m);\n  else\n    -- Live public : annoncé aux AMIS acceptés de l'hôte uniquement\n    -- (jamais un broadcast à toute la plateforme).\n    insert into public.notifications (user_id, type, title, message, priority, target_action)\n    select case when f.requester_id = new.host_id then f.addressee_id else f.requester_id end,\n           'info', 'Live en direct',\n           coalesce(new.host_name, 'Un membre') || ' est en direct : « ' || coalesce(new.title, 'Live') || ' »',\n           'normal', 'live'\n    from public.friendships f\n    where f.status = 'accepted'\n      and (f.requester_id = new.host_id or f.addressee_id = new.host_id)\n      and not public.are_users_blocked(new.host_id,\n            case when f.requester_id = new.host_id then f.addressee_id else f.requester_id end);\n  end if;\n\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "notify_message_event",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.notify_message_event()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  sender_name text;\n  recipient record;\nbegin\n  select name into sender_name from public.profiles where id = new.sender_id;\n  for recipient in\n    select user_id from public.conversation_participants\n    where conversation_id = new.conversation_id and user_id <> new.sender_id\n  loop\n    insert into public.notifications (user_id, type, title, message, priority, target_action)\n    values (recipient.user_id, 'info', 'Nouveau message', coalesce(sender_name, 'Un membre') || ' vous a envoyé un message.', 'normal', 'messages');\n  end loop;\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "notify_missed_call",
+  "prokind": "f",
+  "args": "p_callee uuid",
+  "def": "CREATE OR REPLACE FUNCTION public.notify_missed_call(p_callee uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_caller uuid := auth.uid();\n  v_caller_name text;\nbegin\n  if v_caller is null or p_callee is null or p_callee = v_caller then\n    return;\n  end if;\n\n  -- L'appelant doit partager une conversation avec l'appelé (c'est le seul\n  -- chemin par lequel un appel peut être lancé) — sinon refus silencieux.\n  if not exists (\n    select 1\n    from public.conversation_participants cp_caller\n    join public.conversation_participants cp_callee\n      on cp_callee.conversation_id = cp_caller.conversation_id\n    where cp_caller.user_id = v_caller\n      and cp_callee.user_id = p_callee\n  ) then\n    return;\n  end if;\n\n  if public.are_users_blocked(v_caller, p_callee) then\n    return;\n  end if;\n\n  select name into v_caller_name from public.profiles where id = v_caller;\n\n  insert into public.notifications (user_id, type, title, message, priority, target_action)\n  values (\n    p_callee,\n    'info',\n    'Appel manqué',\n    coalesce(v_caller_name, 'Un membre') || ' a essayé de vous appeler.',\n    'high',\n    'chat'\n  );\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "post_live_agent_message",
+  "prokind": "f",
+  "args": "p_session_id uuid, p_agent_id text, p_text text",
+  "def": "CREATE OR REPLACE FUNCTION public.post_live_agent_message(p_session_id uuid, p_agent_id text, p_text text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_name   text;\n  v_avatar text;\n  v_id     uuid;\n  v_texte  text := btrim(coalesce(p_text, ''));\nbegin\n  if not public.is_live_moderator_or_host(p_session_id) then\n    raise exception 'Seul l''animateur ou un modérateur de ce direct peut faire parler un expert.'\n      using errcode = '42501';\n  end if;\n\n  if v_texte = '' then\n    raise exception 'Un expert ne publie pas un message vide.' using errcode = 'P0001';\n  end if;\n\n  select sp.name, sp.avatar into v_name, v_avatar\n  from public.live_speakers sp\n  where sp.session_id = p_session_id\n    and sp.agent_id = p_agent_id\n    and sp.left_at is null\n  limit 1;\n\n  if v_name is null then\n    raise exception 'Cet expert n''est pas sur la scène de ce direct.' using errcode = 'P0001';\n  end if;\n\n  insert into public.live_messages (session_id, author_id, author_name, author_avatar, text)\n  values (p_session_id, null, v_name, v_avatar, left(v_texte, 4000))\n  returning id into v_id;\n\n  return v_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "protect_profile_sensitive_columns",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.protect_profile_sensitive_columns()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  if auth.role() <> 'service_role' and coalesce(current_setting('app.bypass_profile_guard', true), '') <> 'on' then\n    new.role := old.role;\n    new.credits := old.credits;\n    new.xp := old.xp;\n    new.level := old.level;\n    new.next_level_xp := old.next_level_xp;\n  end if;\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "publish_scheduled_posts",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.publish_scheduled_posts()\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  update public.posts\n  set status = 'published'\n  where status = 'scheduled' and scheduled_at is not null and scheduled_at <= now();\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "purge_expired_live_transcripts",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.purge_expired_live_transcripts()\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    supprimees integer;\nbegin\n    delete from public.live_transcript_lines l\n    using public.live_sessions s\n    where l.session_id = s.id\n      and s.ended_at is not null\n      and s.ended_at < now() - interval '30 days';\n    get diagnostics supprimees = row_count;\n    return supprimees;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "save_push_subscription",
+  "prokind": "f",
+  "args": "p_endpoint text, p_p256dh text, p_auth text, p_user_agent text",
+  "def": "CREATE OR REPLACE FUNCTION public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare v_id uuid;\nbegin\n  if auth.uid() is null then raise exception 'Authentification requise.'; end if;\n  if p_endpoint is null or length(p_endpoint) < 20 or length(p_endpoint) > 2048 then raise exception 'endpoint invalide'; end if;\n  if p_p256dh is null or length(p_p256dh) < 80 or p_auth is null or length(p_auth) < 16 then raise exception 'clés d''abonnement invalides'; end if;\n  -- Un endpoint est lié à UN navigateur : s'il appartenait à un autre compte\n  -- (précédente session sur le même appareil), il change de propriétaire —\n  -- jamais un appel poussé vers la personne déconnectée.\n  delete from public.push_subscriptions where endpoint = p_endpoint and user_id <> auth.uid();\n  insert into public.push_subscriptions (user_id, endpoint, p256dh, auth, user_agent)\n  values (auth.uid(), p_endpoint, p_p256dh, p_auth, left(p_user_agent, 300))\n  on conflict (endpoint) do update\n    set p256dh = excluded.p256dh, auth = excluded.auth, user_agent = excluded.user_agent, last_seen_at = now()\n  returning id into v_id;\n  return v_id;\nend $function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "search_profiles_minimal",
+  "prokind": "f",
+  "args": "term text",
+  "def": "CREATE OR REPLACE FUNCTION public.search_profiles_minimal(term text)\n RETURNS TABLE(id uuid, name text, title text, avatar_url text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public', 'extensions'\nAS $function$\n  select p.id, p.name, p.title, p.avatar_url\n  from public.profiles p\n  where (\n    p.id = auth.uid()\n    or coalesce(p.privacy_settings ->> 'profileVisibility', 'public') <> 'private'\n  )\n  and (\n    extensions.unaccent(lower(p.name)) ilike extensions.unaccent(lower('%' || term || '%'))\n    or extensions.unaccent(lower(coalesce(p.title, ''))) ilike extensions.unaccent(lower('%' || term || '%'))\n  )\n  limit 8;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "search_universal",
+  "prokind": "f",
+  "args": "term text",
+  "def": "CREATE OR REPLACE FUNCTION public.search_universal(term text)\n RETURNS TABLE(id uuid, result_type text, title text, subtitle text, avatar_url text)\n LANGUAGE sql\n STABLE\n SET search_path TO 'public', 'extensions'\nAS $function$\n  (select sp.id, 'profile'::text, sp.name, sp.title, sp.avatar_url\n   from public.search_profiles_minimal(term) sp)\n\n  union all\n\n  (select po.id, 'post'::text, left(po.content, 100),\n          case when a.id is not null then 'Par ' || a.name else null end,\n          a.avatar_url\n   from public.posts po\n   left join public.profiles a on a.id = po.author_id\n   where extensions.unaccent(lower(po.content)) ilike extensions.unaccent(lower('%' || term || '%'))\n   order by po.created_at desc\n   limit 8)\n\n  union all\n\n  (select c.id, 'course'::text, c.title, c.category, null::text\n   from public.courses c\n   where extensions.unaccent(lower(c.title)) ilike extensions.unaccent(lower('%' || term || '%'))\n      or extensions.unaccent(lower(coalesce(c.description, ''))) ilike extensions.unaccent(lower('%' || term || '%'))\n   limit 8)\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "send_daily_digest",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.send_daily_digest()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    insert into public.notifications (user_id, type, title, message, priority, target_action)\n    select\n        n.user_id,\n        'info',\n        'Votre résumé du jour',\n        'Vous avez ' || count(*) || ' notification(s) non lue(s) depuis votre dernier résumé.',\n        'low',\n        'digest'\n    from public.notifications n\n    where n.read = false\n      and n.target_action is distinct from 'digest'\n      and n.created_at > coalesce(\n          (select max(d.created_at) from public.notifications d\n           where d.user_id = n.user_id and d.target_action = 'digest'),\n          now() - interval '1 day'\n      )\n    group by n.user_id\n    having count(*) > 0;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_agent_tool_enabled",
+  "prokind": "f",
+  "args": "p_agent_id text, p_tool_id text, p_enabled boolean",
+  "def": "CREATE OR REPLACE FUNCTION public.set_agent_tool_enabled(p_agent_id text, p_tool_id text, p_enabled boolean)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès réservé aux administrateurs.';\n    end if;\n\n    insert into public.agent_tool_grants (agent_id, tool_id, is_enabled)\n    values (p_agent_id, p_tool_id, p_enabled)\n    on conflict (agent_id, tool_id) do update set\n        is_enabled = excluded.is_enabled,\n        updated_at = now();\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_ai_budget",
+  "prokind": "f",
+  "args": "p_daily_cap numeric, p_monthly_cap numeric, p_enforced boolean",
+  "def": "CREATE OR REPLACE FUNCTION public.set_ai_budget(p_daily_cap numeric, p_monthly_cap numeric, p_enforced boolean)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès réservé aux administrateurs.';\n    end if;\n    update public.ai_budget\n       set daily_cap_usd = p_daily_cap,\n           monthly_cap_usd = p_monthly_cap,\n           enforced = p_enforced,\n           updated_at = now()\n     where id = 'global';\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_ai_provider_enabled",
+  "prokind": "f",
+  "args": "p_provider_id text, p_enabled boolean",
+  "def": "CREATE OR REPLACE FUNCTION public.set_ai_provider_enabled(p_provider_id text, p_enabled boolean)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès refusé : réservé aux administrateurs.';\n    end if;\n    update public.ai_provider_credentials set is_enabled = p_enabled where provider_id = p_provider_id;\n    if not found then\n        raise exception 'Aucune clé configurée pour ce fournisseur : %', p_provider_id;\n    end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_ai_provider_priority",
+  "prokind": "f",
+  "args": "p_provider_id text, p_priority integer",
+  "def": "CREATE OR REPLACE FUNCTION public.set_ai_provider_priority(p_provider_id text, p_priority integer)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès refusé : réservé aux administrateurs.';\n    end if;\n    update public.ai_providers set priority = p_priority where id = p_provider_id;\n    if not found then\n        raise exception 'Fournisseur inconnu : %', p_provider_id;\n    end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_ai_provider_secret",
+  "prokind": "f",
+  "args": "p_provider_id text, p_secret text",
+  "def": "CREATE OR REPLACE FUNCTION public.set_ai_provider_secret(p_provider_id text, p_secret text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'vault'\nAS $function$\ndeclare\n    v_existing_secret_id uuid;\n    v_new_secret_id uuid;\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès refusé : réservé aux administrateurs.';\n    end if;\n    if p_secret is null or length(trim(p_secret)) = 0 then\n        raise exception 'Clé API vide.';\n    end if;\n    if not exists (select 1 from public.ai_providers where id = p_provider_id) then\n        raise exception 'Fournisseur inconnu : %', p_provider_id;\n    end if;\n\n    select vault_secret_id into v_existing_secret_id\n    from public.ai_provider_credentials where provider_id = p_provider_id;\n\n    if v_existing_secret_id is not null then\n        perform vault.update_secret(v_existing_secret_id, p_secret);\n        update public.ai_provider_credentials\n            set key_hint = right(p_secret, 4),\n                last_tested_at = null,\n                last_test_status = null,\n                last_test_message = null,\n                created_by = auth.uid()\n            where provider_id = p_provider_id;\n    else\n        v_new_secret_id := vault.create_secret(p_secret, 'ai_provider:' || p_provider_id, 'Clé API orchestrateur IA');\n        insert into public.ai_provider_credentials (provider_id, vault_secret_id, key_hint, created_by)\n        values (p_provider_id, v_new_secret_id, right(p_secret, 4), auth.uid());\n    end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_model_costs",
+  "prokind": "f",
+  "args": "p_provider_id text, p_model_id text, p_input numeric, p_output numeric",
+  "def": "CREATE OR REPLACE FUNCTION public.set_model_costs(p_provider_id text, p_model_id text, p_input numeric, p_output numeric)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès réservé aux administrateurs.';\n    end if;\n    update public.ai_models\n       set input_cost_per_million = p_input,\n           output_cost_per_million = p_output,\n           updated_at = now()\n     where provider_id = p_provider_id and model_id = p_model_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_provider_adapter_config",
+  "prokind": "f",
+  "args": "p_provider_id text, p_config jsonb",
+  "def": "CREATE OR REPLACE FUNCTION public.set_provider_adapter_config(p_provider_id text, p_config jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès réservé aux administrateurs.';\n    end if;\n    update public.ai_providers\n       set adapter_config = coalesce(p_config, '{}'::jsonb),\n           updated_at = now()\n     where id = p_provider_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_provider_cost_tier",
+  "prokind": "f",
+  "args": "p_provider_id text, p_tier text",
+  "def": "CREATE OR REPLACE FUNCTION public.set_provider_cost_tier(p_provider_id text, p_tier text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès réservé aux administrateurs.';\n    end if;\n    if p_tier not in ('free', 'paid') then\n        raise exception 'Palier invalide : attendu free ou paid.';\n    end if;\n    update public.ai_providers set cost_tier = p_tier, updated_at = now() where id = p_provider_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_tool_enabled",
+  "prokind": "f",
+  "args": "p_tool_id text, p_enabled boolean",
+  "def": "CREATE OR REPLACE FUNCTION public.set_tool_enabled(p_tool_id text, p_enabled boolean)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès réservé aux administrateurs.';\n    end if;\n    update public.ai_tools set is_enabled = p_enabled, updated_at = now() where id = p_tool_id;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "set_updated_at",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "store_push_vapid_internal",
+  "prokind": "f",
+  "args": "p_public_key text, p_private_jwk text, p_subject text",
+  "def": "CREATE OR REPLACE FUNCTION public.store_push_vapid_internal(p_public_key text, p_private_jwk text, p_subject text)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'vault'\nAS $function$\ndeclare\n  v_existing text;\n  v_secret_id uuid;\nbegin\n  -- Idempotent : une configuration existante n'est jamais écrasée.\n  select public_key into v_existing from public.push_vapid_config where id = 'default';\n  if v_existing is not null then\n    return v_existing;\n  end if;\n  if p_public_key is null or length(p_public_key) < 80\n     or p_private_jwk is null or p_private_jwk !~ '\"d\"' then\n    raise exception 'Clé VAPID invalide';\n  end if;\n  v_secret_id := vault.create_secret(\n    p_private_jwk,\n    'push_vapid_private_' || to_char(clock_timestamp(), 'YYYYMMDDHH24MISSMS'),\n    'Clé privée VAPID (Web Push) — générée par push-notify, jamais exposée'\n  );\n  insert into public.push_vapid_config (id, public_key, subject, vault_secret_id)\n  values ('default', p_public_key, coalesce(nullif(p_subject, ''), 'https://moknet.net'), v_secret_id);\n  return p_public_key;\nexception when unique_violation then\n  -- Deux premiers appels simultanés : le second renvoie la clé du premier.\n  select public_key into v_existing from public.push_vapid_config where id = 'default';\n  return v_existing;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "toggle_message_reaction",
+  "prokind": "f",
+  "args": "p_message_id uuid, p_emoji text",
+  "def": "CREATE OR REPLACE FUNCTION public.toggle_message_reaction(p_message_id uuid, p_emoji text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_conversation_id uuid;\n  v_reactions jsonb;\n  v_users jsonb;\n  v_uid_text text := auth.uid()::text;\n  v_new_users jsonb;\nbegin\n  select conversation_id, coalesce(metadata->'reactions', '{}'::jsonb)\n    into v_conversation_id, v_reactions\n    from public.messages where id = p_message_id\n    for update;\n\n  if v_conversation_id is null then\n    raise exception 'Message introuvable';\n  end if;\n  if not private.is_conversation_member(v_conversation_id) then\n    raise exception 'Non autorise';\n  end if;\n\n  v_users := coalesce(v_reactions->p_emoji, '[]'::jsonb);\n  if v_users @> to_jsonb(v_uid_text) then\n    select coalesce(jsonb_agg(u), '[]'::jsonb) into v_new_users\n      from jsonb_array_elements_text(v_users) u where u <> v_uid_text;\n  else\n    v_new_users := v_users || to_jsonb(v_uid_text);\n  end if;\n\n  if jsonb_array_length(v_new_users) = 0 then\n    v_reactions := v_reactions - p_emoji;\n  else\n    v_reactions := jsonb_set(v_reactions, array[p_emoji], v_new_users);\n  end if;\n\n  update public.messages set metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{reactions}', v_reactions)\n    where id = p_message_id;\n\n  return v_reactions;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "update_my_profile",
+  "prokind": "f",
+  "args": "p_changes jsonb",
+  "def": "CREATE OR REPLACE FUNCTION public.update_my_profile(p_changes jsonb)\n RETURNS profiles\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_profile public.profiles;\n  v_unknown_key text;\nbegin\n  if auth.uid() is null then\n    raise exception 'Authentication required' using errcode = '28000';\n  end if;\n  if jsonb_typeof(coalesce(p_changes, '{}'::jsonb)) <> 'object' then\n    raise exception 'Profile changes must be a JSON object' using errcode = '22023';\n  end if;\n  if p_changes ? 'interests' and jsonb_typeof(p_changes -> 'interests') <> 'array' then\n    raise exception 'interests must be an array' using errcode = '22023';\n  end if;\n  if p_changes ? 'privacy_settings' and jsonb_typeof(p_changes -> 'privacy_settings') <> 'object' then\n    raise exception 'privacy_settings must be an object' using errcode = '22023';\n  end if;\n\n  select key into v_unknown_key\n  from jsonb_object_keys(coalesce(p_changes, '{}'::jsonb)) as key\n  where key <> all(array[\n    'name','title','bio','country','city','phone','website','avatar_url',\n    'preferred_language','interests','privacy_settings'\n  ])\n  limit 1;\n  if v_unknown_key is not null then\n    raise exception 'Profile field is not client-editable: %', v_unknown_key using errcode = '42501';\n  end if;\n\n  update public.profiles p set\n    name = case when p_changes ? 'name' then coalesce(left(nullif(trim(p_changes->>'name'), ''), 120), p.name) else p.name end,\n    title = case when p_changes ? 'title' then left(nullif(trim(p_changes->>'title'), ''), 160) else p.title end,\n    bio = case when p_changes ? 'bio' then left(p_changes->>'bio', 2000) else p.bio end,\n    country = case when p_changes ? 'country' then left(p_changes->>'country', 120) else p.country end,\n    city = case when p_changes ? 'city' then left(p_changes->>'city', 160) else p.city end,\n    phone = case when p_changes ? 'phone' then left(p_changes->>'phone', 40) else p.phone end,\n    website = case when p_changes ? 'website' then left(p_changes->>'website', 500) else p.website end,\n    avatar_url = case when p_changes ? 'avatar_url' then left(p_changes->>'avatar_url', 2000) else p.avatar_url end,\n    preferred_language = case when p_changes ? 'preferred_language' then left(p_changes->>'preferred_language', 12) else p.preferred_language end,\n    interests = case when p_changes ? 'interests' then array(select jsonb_array_elements_text(p_changes->'interests')) else p.interests end,\n    privacy_settings = case when p_changes ? 'privacy_settings' then p_changes->'privacy_settings' else p.privacy_settings end\n  where p.id = auth.uid()\n  returning p.* into v_profile;\n\n  if v_profile.id is null then\n    raise exception 'Profile not found' using errcode = 'P0002';\n  end if;\n  return v_profile;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "upsert_discovered_provider",
+  "prokind": "f",
+  "args": "p_id text, p_category text, p_display_name text, p_source_url text, p_docs_url text, p_api_key_url text, p_billing_url text, p_base_url text, p_discovery_status text, p_discovery_confidence numeric, p_discovery_summary text, p_adapter_config jsonb, p_missing_fields jsonb, p_auth_method text, p_pricing_summary text, p_models jsonb",
+  "def": "CREATE OR REPLACE FUNCTION public.upsert_discovered_provider(p_id text, p_category text, p_display_name text, p_source_url text, p_docs_url text, p_api_key_url text, p_billing_url text, p_base_url text, p_discovery_status text, p_discovery_confidence numeric, p_discovery_summary text, p_adapter_config jsonb, p_missing_fields jsonb, p_auth_method text DEFAULT 'unknown'::text, p_pricing_summary text DEFAULT NULL::text, p_models jsonb DEFAULT '[]'::jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n    v_model jsonb;\nbegin\n    if not public.is_admin() then\n        raise exception 'Accès refusé : réservé aux administrateurs.';\n    end if;\n    if p_category not in ('llm','voice','image_video') then\n        raise exception 'Catégorie invalide : %', p_category;\n    end if;\n    if p_discovery_status not in ('pending','analyzing','ready','needs_info','failed') then\n        raise exception 'Statut de découverte invalide : %', p_discovery_status;\n    end if;\n    if p_auth_method not in ('api_key','oauth2','webhook','mcp','unknown') then\n        p_auth_method := 'unknown';\n    end if;\n\n    insert into public.ai_providers (\n        id, category, display_name, adapter_kind, base_url, docs_url,\n        api_key_url, billing_url, priority, status,\n        source_url, discovery_status, discovery_confidence, discovery_summary,\n        adapter_config, missing_fields, auth_method, pricing_summary, discovered_at\n    ) values (\n        p_id, p_category, p_display_name, 'generic_http', p_base_url, p_docs_url,\n        p_api_key_url, p_billing_url, 200,\n        case when p_discovery_status = 'ready' then 'active' else 'not_implemented' end,\n        p_source_url, p_discovery_status, p_discovery_confidence, p_discovery_summary,\n        p_adapter_config, p_missing_fields, p_auth_method, p_pricing_summary, now()\n    )\n    on conflict (id) do update set\n        category = excluded.category,\n        display_name = excluded.display_name,\n        base_url = excluded.base_url,\n        docs_url = excluded.docs_url,\n        api_key_url = excluded.api_key_url,\n        billing_url = excluded.billing_url,\n        status = excluded.status,\n        source_url = excluded.source_url,\n        discovery_status = excluded.discovery_status,\n        discovery_confidence = excluded.discovery_confidence,\n        discovery_summary = excluded.discovery_summary,\n        adapter_config = excluded.adapter_config,\n        missing_fields = excluded.missing_fields,\n        auth_method = excluded.auth_method,\n        pricing_summary = excluded.pricing_summary,\n        discovered_at = now(),\n        updated_at = now()\n    where public.ai_providers.adapter_kind = 'generic_http'; -- ne jamais écraser un fournisseur codé en dur\n\n    -- Modèles détectés : mêmes lignes ai_models qu'un fournisseur seedé manuellement,\n    -- pour que ce fournisseur soit sélectionnable/appelable exactement pareil.\n    for v_model in select * from jsonb_array_elements(coalesce(p_models, '[]'::jsonb))\n    loop\n        insert into public.ai_models (provider_id, model_id, label, is_default, capabilities)\n        values (\n            p_id,\n            v_model->>'model_id',\n            coalesce(v_model->>'label', v_model->>'model_id'),\n            coalesce((v_model->>'is_default')::boolean, false),\n            coalesce(v_model->'capabilities', '{}'::jsonb)\n        )\n        on conflict (provider_id, model_id) do update set\n            label = excluded.label,\n            capabilities = excluded.capabilities,\n            updated_at = now();\n    end loop;\n\n    -- Si aucun modèle n'est marqué par défaut mais qu'au moins un a été inséré,\n    -- le premier devient le défaut (nécessaire pour que l'appel automatique\n    -- puisse résoudre un modèle sans que l'admin n'ait à y toucher).\n    if not exists (select 1 from public.ai_models where provider_id = p_id and is_default = true)\n       and exists (select 1 from public.ai_models where provider_id = p_id) then\n        update public.ai_models set is_default = true\n        where id = (select id from public.ai_models where provider_id = p_id order by created_at limit 1);\n    end if;\nend;\n$function$\n"
+ },
+ {
+  "schema": "public",
+  "name": "validate_task_dependency",
+  "prokind": "f",
+  "args": "",
+  "def": "CREATE OR REPLACE FUNCTION public.validate_task_dependency()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin\n  if new.depends_on_task_id is not null then\n    if new.depends_on_task_id = new.id then\n      raise exception 'a task cannot depend on itself';\n    end if;\n    if not exists (\n      select 1 from public.tasks\n      where id = new.depends_on_task_id and user_id = new.user_id\n    ) then\n      raise exception 'dependency task not found or belongs to another user';\n    end if;\n  end if;\n  return new;\nend;\n$function$\n"
+ }
+]

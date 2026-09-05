@@ -1,0 +1,1862 @@
+[
+ {
+  "schemaname": "public",
+  "tablename": "agent_chat_messages",
+  "policyname": "agent_chat_messages_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(EXISTS ( SELECT 1\n   FROM agent_chat_sessions s\n  WHERE ((s.id = agent_chat_messages.session_id) AND (s.user_id = ( SELECT auth.uid() AS uid)))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM agent_chat_sessions s\n  WHERE ((s.id = agent_chat_messages.session_id) AND (s.user_id = ( SELECT auth.uid() AS uid)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "agent_chat_sessions",
+  "policyname": "agent_chat_sessions_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "agent_tool_grants",
+  "policyname": "agent_tool_grants_read",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "agents",
+  "policyname": "agents_select_authenticated",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "agents",
+  "policyname": "agents_write_admin_only",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_admin()",
+  "with_check": "is_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_budget",
+  "policyname": "ai_budget_read",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "is_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_call_log",
+  "policyname": "ai_call_log_admin_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "is_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_models",
+  "policyname": "ai_models_admin_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "is_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_providers",
+  "policyname": "ai_providers_admin_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "is_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_tools",
+  "policyname": "ai_tools_read",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "call_diagnostics",
+  "policyname": "call_diagnostics_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(( SELECT auth.uid() AS uid) = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "call_diagnostics",
+  "policyname": "call_diagnostics_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(( SELECT auth.uid() AS uid) = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "call_diagnostics",
+  "policyname": "call_diagnostics_select_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((( SELECT auth.uid() AS uid) = user_id) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "call_diagnostics",
+  "policyname": "call_diagnostics_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "(( SELECT auth.uid() AS uid) = user_id)",
+  "with_check": "(( SELECT auth.uid() AS uid) = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "career_goals",
+  "policyname": "career_goals_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "career_opportunities",
+  "policyname": "career_opportunities_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "career_opportunity_feedback",
+  "policyname": "career_opportunity_feedback_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "career_search_missions",
+  "policyname": "career_search_missions_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "career_snapshots",
+  "policyname": "career_snapshots_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificates",
+  "policyname": "certificates_insert_system",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificates",
+  "policyname": "certificates_select_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "comments",
+  "policyname": "comments_delete_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((author_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "comments",
+  "policyname": "comments_insert_if_post_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((author_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM posts p\n  WHERE ((p.id = comments.post_id) AND ((p.visibility = 'public'::text) OR (p.author_id = ( SELECT auth.uid() AS uid)) OR is_admin())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "comments",
+  "policyname": "comments_select_if_post_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM posts p\n  WHERE ((p.id = comments.post_id) AND ((p.visibility = 'public'::text) OR (p.author_id = ( SELECT auth.uid() AS uid)) OR is_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "comments",
+  "policyname": "comments_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "(author_id = ( SELECT auth.uid() AS uid))",
+  "with_check": "(author_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversation_participants",
+  "policyname": "conversation_participants_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversation_participants",
+  "policyname": "conversation_participants_insert_if_member_or_self",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(((user_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM conversation_participants cp2\n  WHERE ((cp2.conversation_id = conversation_participants.conversation_id) AND (cp2.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM conversations c\n  WHERE ((c.id = conversation_participants.conversation_id) AND (c.created_by = auth.uid()))))) AND ((user_id = auth.uid()) OR (NOT are_users_blocked(auth.uid(), user_id))) AND ((user_id = auth.uid()) OR can_message_user(auth.uid(), user_id)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversation_participants",
+  "policyname": "conversation_participants_select_if_participant",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "private.is_conversation_member(conversation_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversation_participants",
+  "policyname": "conversation_participants_update_own_read_marker",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "UPDATE",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversations",
+  "policyname": "conversations_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(created_by = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversations",
+  "policyname": "conversations_select_if_participant",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "private.is_conversation_member(id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_select_published_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(is_published OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_write_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_admin()",
+  "with_check": "is_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "document_shares",
+  "policyname": "document_shares_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((shared_with_user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1\n   FROM documents d\n  WHERE ((d.id = document_shares.document_id) AND (d.owner_id = ( SELECT auth.uid() AS uid))))) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "document_shares",
+  "policyname": "document_shares_write_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(EXISTS ( SELECT 1\n   FROM documents d\n  WHERE ((d.id = document_shares.document_id) AND (d.owner_id = ( SELECT auth.uid() AS uid)))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM documents d\n  WHERE ((d.id = document_shares.document_id) AND (d.owner_id = ( SELECT auth.uid() AS uid)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "documents",
+  "policyname": "documents_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((owner_id = ( SELECT auth.uid() AS uid)) OR is_admin() OR (EXISTS ( SELECT 1\n   FROM document_shares s\n  WHERE ((s.document_id = s.id) AND (s.shared_with_user_id = ( SELECT auth.uid() AS uid))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "documents",
+  "policyname": "documents_write_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((owner_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(owner_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_appointments",
+  "policyname": "dossier_appointments_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_access_dossier(dossier_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_appointments",
+  "policyname": "dossier_appointments_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "can_write_dossier(dossier_id)",
+  "with_check": "can_write_dossier(dossier_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_deliverables",
+  "policyname": "dossier_deliverables_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_access_dossier(dossier_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_deliverables",
+  "policyname": "dossier_deliverables_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "can_write_dossier(dossier_id)",
+  "with_check": "can_write_dossier(dossier_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_documents",
+  "policyname": "dossier_documents_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_access_dossier(dossier_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_documents",
+  "policyname": "dossier_documents_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "can_write_dossier(dossier_id)",
+  "with_check": "can_write_dossier(dossier_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_shares",
+  "policyname": "dossier_shares_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((shared_with_user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1\n   FROM dossiers d\n  WHERE ((d.id = dossier_shares.dossier_id) AND (d.owner_id = ( SELECT auth.uid() AS uid))))) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_shares",
+  "policyname": "dossier_shares_write_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(EXISTS ( SELECT 1\n   FROM dossiers d\n  WHERE ((d.id = dossier_shares.dossier_id) AND (d.owner_id = ( SELECT auth.uid() AS uid)))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM dossiers d\n  WHERE ((d.id = dossier_shares.dossier_id) AND (d.owner_id = ( SELECT auth.uid() AS uid)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_steps",
+  "policyname": "dossier_steps_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_access_dossier(dossier_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_steps",
+  "policyname": "dossier_steps_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "can_write_dossier(dossier_id)",
+  "with_check": "can_write_dossier(dossier_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_tasks",
+  "policyname": "dossier_tasks_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_access_dossier(dossier_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossier_tasks",
+  "policyname": "dossier_tasks_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "can_write_dossier(dossier_id)",
+  "with_check": "can_write_dossier(dossier_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossiers",
+  "policyname": "dossiers_delete_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((owner_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossiers",
+  "policyname": "dossiers_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(owner_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossiers",
+  "policyname": "dossiers_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((owner_id = ( SELECT auth.uid() AS uid)) OR can_access_dossier(id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "dossiers",
+  "policyname": "dossiers_update",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "can_write_dossier(id)",
+  "with_check": "can_write_dossier(id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "enrollments",
+  "policyname": "enrollments_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_sessions",
+  "policyname": "exam_sessions_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(EXISTS ( SELECT 1\n   FROM enrollments e\n  WHERE ((e.id = exam_sessions.enrollment_id) AND ((e.user_id = ( SELECT auth.uid() AS uid)) OR is_admin()))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM enrollments e\n  WHERE ((e.id = exam_sessions.enrollment_id) AND (e.user_id = ( SELECT auth.uid() AS uid)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "follows",
+  "policyname": "follows_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(follower_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "follows",
+  "policyname": "follows_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((follower_id = auth.uid()) AND (NOT are_users_blocked(follower_id, followee_id)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "follows",
+  "policyname": "follows_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((follower_id = auth.uid()) OR (followee_id = auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "friendships",
+  "policyname": "friendships_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((requester_id = ( SELECT auth.uid() AS uid)) OR (addressee_id = ( SELECT auth.uid() AS uid)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "friendships",
+  "policyname": "friendships_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((requester_id = auth.uid()) AND (status = 'pending'::text) AND can_send_friend_request(requester_id, addressee_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "friendships",
+  "policyname": "friendships_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((requester_id = ( SELECT auth.uid() AS uid)) OR (addressee_id = ( SELECT auth.uid() AS uid)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "friendships",
+  "policyname": "friendships_update_addressee_accept",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "(addressee_id = ( SELECT auth.uid() AS uid))",
+  "with_check": "((addressee_id = ( SELECT auth.uid() AS uid)) AND (status = 'accepted'::text))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "gift_catalog",
+  "policyname": "gift_catalog_select_authenticated",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "gift_catalog",
+  "policyname": "gift_catalog_write_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_admin()",
+  "with_check": "is_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "invitations",
+  "policyname": "invitations_select_involved",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "((inviter_id = ( SELECT auth.uid() AS uid)) OR (invited_user_id = ( SELECT auth.uid() AS uid)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "invite_codes",
+  "policyname": "invite_codes_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_action_items",
+  "policyname": "live_action_items_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_action_items",
+  "policyname": "live_action_items_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_agenda_items",
+  "policyname": "live_agenda_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_agenda_items",
+  "policyname": "live_agenda_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_attendance",
+  "policyname": "live_attendance_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_attendance",
+  "policyname": "live_attendance_update_own_or_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "((participant_id = ( SELECT auth.uid() AS uid)) OR is_live_host(session_id))",
+  "with_check": "((participant_id = ( SELECT auth.uid() AS uid)) OR is_live_host(session_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_attendance",
+  "policyname": "live_attendance_upsert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(participant_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_decisions",
+  "policyname": "live_decisions_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_decisions",
+  "policyname": "live_decisions_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_documents",
+  "policyname": "live_documents_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_documents",
+  "policyname": "live_documents_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_gifts_sent",
+  "policyname": "live_gifts_sent_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(sender_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_gifts_sent",
+  "policyname": "live_gifts_sent_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_messages",
+  "policyname": "live_messages_delete_own_or_moderator",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "DELETE",
+  "qual": "((author_id = ( SELECT auth.uid() AS uid)) OR is_live_moderator_or_host(session_id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_messages",
+  "policyname": "live_messages_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((author_id = ( SELECT auth.uid() AS uid)) AND can_view_live_session(session_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_messages",
+  "policyname": "live_messages_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_personal_notes",
+  "policyname": "live_personal_notes_owner_only",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_poll_options",
+  "policyname": "live_poll_options_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_polls p\n  WHERE ((p.id = live_poll_options.poll_id) AND can_view_live_session(p.session_id))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_poll_options",
+  "policyname": "live_poll_options_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_polls p\n  WHERE ((p.id = live_poll_options.poll_id) AND is_live_host(p.session_id))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM live_polls p\n  WHERE ((p.id = live_poll_options.poll_id) AND is_live_host(p.session_id))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_poll_votes",
+  "policyname": "live_poll_votes_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_poll_votes",
+  "policyname": "live_poll_votes_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_polls p\n  WHERE ((p.id = live_poll_votes.poll_id) AND can_view_live_session(p.session_id))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_polls",
+  "policyname": "live_polls_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_polls",
+  "policyname": "live_polls_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_products",
+  "policyname": "live_products_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_products",
+  "policyname": "live_products_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_question_upvotes",
+  "policyname": "live_question_upvotes_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_question_upvotes",
+  "policyname": "live_question_upvotes_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_question_upvotes",
+  "policyname": "live_question_upvotes_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_questions q\n  WHERE ((q.id = live_question_upvotes.question_id) AND can_view_live_session(q.session_id))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_questions",
+  "policyname": "live_questions_insert",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((author_id = ( SELECT auth.uid() AS uid)) AND can_view_live_session(session_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_questions",
+  "policyname": "live_questions_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_questions",
+  "policyname": "live_questions_update_own_or_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "((author_id = ( SELECT auth.uid() AS uid)) OR is_live_host(session_id))",
+  "with_check": "((author_id = ( SELECT auth.uid() AS uid)) OR is_live_host(session_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_reactions",
+  "policyname": "live_reactions_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND can_view_live_session(session_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_reactions",
+  "policyname": "live_reactions_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_replays",
+  "policyname": "live_replays_select_authenticated",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_replays",
+  "policyname": "live_replays_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_sessions",
+  "policyname": "live_sessions_delete_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "is_live_host(id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_sessions",
+  "policyname": "live_sessions_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(host_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_sessions",
+  "policyname": "live_sessions_select_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "((host_id = auth.uid()) OR can_view_live_session(id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_sessions",
+  "policyname": "live_sessions_update_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "is_live_host(id)",
+  "with_check": "is_live_host(id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_causes",
+  "policyname": "live_solidarity_causes_delete",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "DELETE",
+  "qual": "((organizer_id = auth.uid()) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_causes",
+  "policyname": "live_solidarity_causes_insert",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(organizer_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_causes",
+  "policyname": "live_solidarity_causes_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "((organizer_id = auth.uid()) OR is_admin() OR ((visibility = 'live_participants'::text) AND can_view_live_session(live_session_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_causes",
+  "policyname": "live_solidarity_causes_update",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "UPDATE",
+  "qual": "((organizer_id = auth.uid()) OR is_admin())",
+  "with_check": "((organizer_id = auth.uid()) OR is_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_donors",
+  "policyname": "live_solidarity_donors_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "((EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_donors.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin() OR ((c.visibility = 'live_participants'::text) AND can_view_live_session(c.live_session_id)))))) OR (donor_id = auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_donors",
+  "policyname": "live_solidarity_donors_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((donor_id = auth.uid()) OR (donor_id IS NULL) OR is_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_proofs",
+  "policyname": "live_solidarity_proofs_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_proofs.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin() OR ((c.visibility = 'live_participants'::text) AND can_view_live_session(c.live_session_id))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_proofs",
+  "policyname": "live_solidarity_proofs_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_proofs.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin()))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_updates",
+  "policyname": "live_solidarity_updates_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_updates.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin() OR ((c.visibility = 'live_participants'::text) AND can_view_live_session(c.live_session_id))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_updates",
+  "policyname": "live_solidarity_updates_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_updates.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin()))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_wallet_ledger",
+  "policyname": "live_solidarity_ledger_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_wallet_ledger.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin() OR ((c.visibility = 'live_participants'::text) AND can_view_live_session(c.live_session_id))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_solidarity_wallet_ledger",
+  "policyname": "live_solidarity_ledger_write",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM live_solidarity_causes c\n  WHERE ((c.id = live_solidarity_wallet_ledger.cause_id) AND ((c.organizer_id = auth.uid()) OR is_admin()))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_source_cards",
+  "policyname": "live_source_cards_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_source_cards",
+  "policyname": "live_source_cards_write_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "is_live_host(session_id)",
+  "with_check": "is_live_host(session_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_speakers",
+  "policyname": "live_speakers_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_speakers",
+  "policyname": "live_speakers_write_host_or_moderator",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "ALL",
+  "qual": "(is_live_moderator_or_host(session_id) OR (user_id = ( SELECT auth.uid() AS uid)))",
+  "with_check": "(is_live_moderator_or_host(session_id) OR ((user_id = ( SELECT auth.uid() AS uid)) AND can_view_live_session(session_id)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_transcript_lines",
+  "policyname": "live_transcript_lines_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((speaker_id = ( SELECT auth.uid() AS uid)) AND can_view_live_session(session_id) AND (EXISTS ( SELECT 1\n   FROM live_sessions s\n  WHERE ((s.id = live_transcript_lines.session_id) AND s.is_recording_enabled))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_transcript_lines",
+  "policyname": "live_transcript_lines_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_whiteboard_strokes",
+  "policyname": "live_whiteboard_delete_host",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "is_live_host(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_whiteboard_strokes",
+  "policyname": "live_whiteboard_insert",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((author_id = ( SELECT auth.uid() AS uid)) AND can_view_live_session(session_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "live_whiteboard_strokes",
+  "policyname": "live_whiteboard_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "can_view_live_session(session_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "master_resumes",
+  "policyname": "master_resumes_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((sender_id = auth.uid()) AND private.is_conversation_member(conversation_id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages_insert_if_participant",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((sender_id = auth.uid()) AND private.is_conversation_member(conversation_id) AND (NOT (EXISTS ( SELECT 1\n   FROM (conversations c\n     JOIN conversation_participants cp ON ((cp.conversation_id = c.id)))\n  WHERE ((c.id = messages.conversation_id) AND (c.is_group = false) AND (cp.user_id <> auth.uid()) AND are_users_blocked(auth.uid(), cp.user_id))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages_select_if_participant",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "private.is_conversation_member(conversation_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "((sender_id = auth.uid()) AND private.is_conversation_member(conversation_id))",
+  "with_check": "((sender_id = auth.uid()) AND private.is_conversation_member(conversation_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "notifications",
+  "policyname": "notifications_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "order_items",
+  "policyname": "order_items_insert_buyer",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM orders o\n  WHERE ((o.id = order_items.order_id) AND (o.buyer_id = ( SELECT auth.uid() AS uid)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "order_items",
+  "policyname": "order_items_select",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM orders o\n  WHERE ((o.id = order_items.order_id) AND ((o.buyer_id = ( SELECT auth.uid() AS uid)) OR (o.seller_id = ( SELECT auth.uid() AS uid)) OR is_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "orders",
+  "policyname": "orders_insert_buyer",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(buyer_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "orders",
+  "policyname": "orders_select_buyer_or_seller",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((buyer_id = ( SELECT auth.uid() AS uid)) OR (seller_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "orders",
+  "policyname": "orders_update_buyer_or_seller",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "((buyer_id = ( SELECT auth.uid() AS uid)) OR (seller_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "((buyer_id = ( SELECT auth.uid() AS uid)) OR (seller_id = ( SELECT auth.uid() AS uid)) OR is_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "post_documents",
+  "policyname": "post_documents_select_if_post_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM posts p\n  WHERE ((p.id = post_documents.post_id) AND ((p.visibility = 'public'::text) OR (p.author_id = ( SELECT auth.uid() AS uid)) OR is_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "post_documents",
+  "policyname": "post_documents_write_if_post_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "(EXISTS ( SELECT 1\n   FROM posts p\n  WHERE ((p.id = post_documents.post_id) AND (p.author_id = ( SELECT auth.uid() AS uid)))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM posts p\n  WHERE ((p.id = post_documents.post_id) AND (p.author_id = ( SELECT auth.uid() AS uid)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "post_reactions",
+  "policyname": "post_reactions_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "post_reactions",
+  "policyname": "post_reactions_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "post_reactions",
+  "policyname": "post_reactions_select_if_post_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(EXISTS ( SELECT 1\n   FROM posts p\n  WHERE ((p.id = post_reactions.post_id) AND ((p.visibility = 'public'::text) OR (p.author_id = ( SELECT auth.uid() AS uid)) OR is_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "posts",
+  "policyname": "posts_delete_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((author_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "posts",
+  "policyname": "posts_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(author_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "posts",
+  "policyname": "posts_select_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(((status = 'published'::text) AND (visibility = 'public'::text)) OR ((status = 'published'::text) AND (visibility = 'network'::text) AND can_view_network_post(author_id, ( SELECT auth.uid() AS uid))) OR (author_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "posts",
+  "policyname": "posts_update_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "((author_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "((author_id = ( SELECT auth.uid() AS uid)) OR is_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "products",
+  "policyname": "products_select_active_or_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(is_active OR (seller_id = ( SELECT auth.uid() AS uid)) OR is_admin() OR (EXISTS ( SELECT 1\n   FROM shops s\n  WHERE ((s.id = products.shop_id) AND (s.owner_id = ( SELECT auth.uid() AS uid))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "products",
+  "policyname": "products_write_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((seller_id = ( SELECT auth.uid() AS uid)) OR is_admin() OR (EXISTS ( SELECT 1\n   FROM shops s\n  WHERE ((s.id = products.shop_id) AND (s.owner_id = ( SELECT auth.uid() AS uid))))))",
+  "with_check": "((seller_id = ( SELECT auth.uid() AS uid)) OR is_admin() OR (EXISTS ( SELECT 1\n   FROM shops s\n  WHERE ((s.id = products.shop_id) AND (s.owner_id = ( SELECT auth.uid() AS uid))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_badges",
+  "policyname": "profile_badges_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(( SELECT auth.uid() AS uid) = profile_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_badges",
+  "policyname": "profile_badges_select_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((( SELECT auth.uid() AS uid) = profile_id) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_badges",
+  "policyname": "profile_badges_write_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(( SELECT auth.uid() AS uid) = profile_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_skills",
+  "policyname": "profile_skills_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(( SELECT auth.uid() AS uid) = profile_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_skills",
+  "policyname": "profile_skills_select_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((( SELECT auth.uid() AS uid) = profile_id) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_skills",
+  "policyname": "profile_skills_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "(( SELECT auth.uid() AS uid) = profile_id)",
+  "with_check": "(( SELECT auth.uid() AS uid) = profile_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profile_skills",
+  "policyname": "profile_skills_write_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(( SELECT auth.uid() AS uid) = profile_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profiles",
+  "policyname": "profiles_select_visible",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((id = auth.uid()) OR is_admin() OR (COALESCE((privacy_settings ->> 'profileVisibility'::text), 'public'::text) = 'public'::text) OR ((COALESCE((privacy_settings ->> 'profileVisibility'::text), 'public'::text) = 'network'::text) AND (EXISTS ( SELECT 1\n   FROM friendships f\n  WHERE ((f.status = 'accepted'::text) AND (((f.requester_id = auth.uid()) AND (f.addressee_id = profiles.id)) OR ((f.addressee_id = auth.uid()) AND (f.requester_id = profiles.id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profiles",
+  "policyname": "profiles_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "UPDATE",
+  "qual": "((auth.uid() = id) OR is_admin())",
+  "with_check": "((auth.uid() = id) OR is_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "push_subscriptions",
+  "policyname": "push_subscriptions_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "push_subscriptions",
+  "policyname": "push_subscriptions_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "reminders",
+  "policyname": "reminders_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "DELETE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "reminders",
+  "policyname": "reminders_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "reminders",
+  "policyname": "reminders_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "reminders",
+  "policyname": "reminders_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "UPDATE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "shops",
+  "policyname": "shops_select_authenticated",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "shops",
+  "policyname": "shops_write_owner",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((owner_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": "(owner_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "stories",
+  "policyname": "stories_delete_own_or_admin",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((author_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "stories",
+  "policyname": "stories_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(author_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "stories",
+  "policyname": "stories_select_authenticated",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "stories",
+  "policyname": "stories_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "(author_id = ( SELECT auth.uid() AS uid))",
+  "with_check": "(author_id = ( SELECT auth.uid() AS uid))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tasks",
+  "policyname": "tasks_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "DELETE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tasks",
+  "policyname": "tasks_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tasks",
+  "policyname": "tasks_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tasks",
+  "policyname": "tasks_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "UPDATE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_blocks",
+  "policyname": "user_blocks_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "(blocker_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_blocks",
+  "policyname": "user_blocks_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(blocker_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_blocks",
+  "policyname": "user_blocks_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "(blocker_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_memory",
+  "policyname": "user_memory_delete_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "DELETE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_memory",
+  "policyname": "user_memory_insert_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_memory",
+  "policyname": "user_memory_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_memory",
+  "policyname": "user_memory_update_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "UPDATE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "wallet_transactions",
+  "policyname": "wallet_transactions_select_own",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR is_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "private_bucket_owner_only",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "ALL",
+  "qual": "((bucket_id = 'private'::text) AND (((storage.foldername(name))[2] = (auth.uid())::text) OR is_admin()))",
+  "with_check": "((bucket_id = 'private'::text) AND (((storage.foldername(name))[2] = (auth.uid())::text) OR is_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "public_bucket_delete_own_folder",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "DELETE",
+  "qual": "((bucket_id = 'public'::text) AND (((storage.foldername(name))[2] = (auth.uid())::text) OR is_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "public_bucket_read_anyone",
+  "permissive": "PERMISSIVE",
+  "roles": "{public}",
+  "cmd": "SELECT",
+  "qual": "(bucket_id = 'public'::text)",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "public_bucket_update_own_folder",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "UPDATE",
+  "qual": "((bucket_id = 'public'::text) AND (((storage.foldername(name))[2] = (auth.uid())::text) OR is_admin()))",
+  "with_check": "((bucket_id = 'public'::text) AND (((storage.foldername(name))[2] = (auth.uid())::text) OR is_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "public_bucket_write_own_folder",
+  "permissive": "PERMISSIVE",
+  "roles": "{authenticated}",
+  "cmd": "INSERT",
+  "qual": null,
+  "with_check": "((bucket_id = 'public'::text) AND ((storage.foldername(name))[2] = (auth.uid())::text))"
+ }
+]

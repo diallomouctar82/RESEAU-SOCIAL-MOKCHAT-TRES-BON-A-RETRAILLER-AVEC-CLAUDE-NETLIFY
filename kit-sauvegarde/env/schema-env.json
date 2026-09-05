@@ -1,0 +1,126 @@
+{
+  "version": "1.0.0",
+  "releve": "2026-09-05",
+  "regle": "Aucune valeur ici, jamais. Chaque variable dit où elle est demandée, où l'assistant l'installe et par quoi elle est lue. Une variable absente de ce schéma et présente dans le code est signalée par l'assistant comme « fournisseur non répertorié ».",
+  "cibles": {
+    "memoire": "conservée en mémoire pendant l'assistant, jamais écrite sur le disque",
+    "env_local": "fichier .env à la racine du dépôt restauré (ignoré par git), droits 0600",
+    "netlify_env": "variables d'environnement du site Netlify (contexte production, portée build)",
+    "supabase_secrets_fonctions": "secrets des fonctions Edge du projet Supabase (Edge Functions → Secrets)",
+    "supabase_auth": "configuration d'authentification du projet Supabase (Authentication → Providers / URL configuration)",
+    "supabase_vault": "coffre vault.secrets du projet Supabase, alimenté par SQL ou par l'application",
+    "google_cloud": "console Google Cloud (action humaine : URI de redirection OAuth)"
+  },
+  "fournisseurs": [
+    {
+      "id": "supabase",
+      "nom": "Supabase (base de données, authentification, stockage, fonctions Edge)",
+      "obligatoire": true,
+      "etape": "4 — Supabase : projet cible",
+      "variables": [
+        { "nom": "SUPABASE_ACCESS_TOKEN", "secret": true, "obligatoire": true, "cibles": ["memoire"], "ou_obtenir": "https://supabase.com/dashboard/account/tokens — jeton personnel d'accès (préfixe sbp_)", "sert_a": "API de gestion : migrations, secrets des fonctions, clés API, authentification, déploiement des fonctions Edge" },
+        { "nom": "SUPABASE_PROJECT_REF", "secret": false, "obligatoire": true, "cibles": ["memoire"], "format": "^[a-z]{20}$", "ou_obtenir": "Tableau de bord → projet → Settings → General → Reference ID", "sert_a": "désigne le projet cible ; déduit VITE_SUPABASE_URL" },
+        { "nom": "SUPABASE_DB_PASSWORD", "secret": true, "obligatoire": false, "cibles": ["memoire"], "ou_obtenir": "Settings → Database (mot de passe choisi à la création du projet)", "sert_a": "seulement en mode CLI (`supabase link` puis `db push`) ; inutile en mode API (défaut)" },
+        { "nom": "VITE_SUPABASE_URL", "secret": false, "obligatoire": true, "cibles": ["env_local", "netlify_env"], "deduite_de": "SUPABASE_PROJECT_REF → https://<ref>.supabase.co", "lue_par": ["services/supabaseClient.ts", "components/admin/AdminHealthTab.tsx", "components/admin/HealthAssistant.tsx"] },
+        { "nom": "VITE_SUPABASE_ANON_KEY", "secret": false, "obligatoire": true, "cibles": ["env_local", "netlify_env"], "deduite_de": "API de gestion (clé anon : publique par nature, l'accès aux données reste protégé par RLS)", "lue_par": ["services/supabaseClient.ts"] }
+      ]
+    },
+    {
+      "id": "google_oauth",
+      "nom": "Google OAuth (connexion Google et lien Google Workspace)",
+      "obligatoire": false,
+      "etape": "7 — Supabase : authentification",
+      "variables": [
+        { "nom": "GOOGLE_OAUTH_CLIENT_ID", "secret": false, "obligatoire": false, "cibles": ["supabase_auth", "env_local", "netlify_env"], "nom_installe": "VITE_GOOGLE_OAUTH_CLIENT_ID", "ou_obtenir": "https://console.cloud.google.com/apis/credentials — identifiant client OAuth 2.0 (type Web)", "lue_par": ["services/googleWorkspaceLink.ts"], "sert_a": "connexion Google (côté Supabase Auth) et lien Google Workspace (côté navigateur)" },
+        { "nom": "GOOGLE_OAUTH_CLIENT_SECRET", "secret": true, "obligatoire": false, "cibles": ["supabase_auth"], "ou_obtenir": "même écran que l'identifiant client", "sert_a": "fournisseur Google de Supabase Auth" }
+      ],
+      "action_humaine": "Ajouter https://<ref>.supabase.co/auth/v1/callback dans « Authorized redirect URIs » du client OAuth (console Google Cloud). L'assistant affiche l'URL exacte au bon moment."
+    },
+    {
+      "id": "google_maps",
+      "nom": "Google Maps (explorateur cartographique)",
+      "obligatoire": false,
+      "etape": "9 — Variables locales",
+      "variables": [
+        { "nom": "VITE_GOOGLE_MAPS_API_KEY", "secret": false, "obligatoire": false, "cibles": ["env_local", "netlify_env"], "ou_obtenir": "https://console.cloud.google.com/google/maps-apis/credentials (clé restreinte au domaine)", "lue_par": ["components/GoogleMapsExplorer.tsx"], "sans_valeur": "l'explorateur affiche un mode dégradé, l'application démarre" }
+      ]
+    },
+    {
+      "id": "ai_core",
+      "nom": "Vision Smart AI Core (mémoire et outils de la passerelle IA)",
+      "obligatoire": false,
+      "etape": "6 — Supabase : fonctions Edge et leurs secrets",
+      "variables": [
+        { "nom": "AI_CORE_BASE_URL", "secret": false, "obligatoire": false, "cibles": ["supabase_secrets_fonctions"], "defaut": "https://ai-core.moknet.net", "lue_par": ["supabase/functions/ai-gateway"] },
+        { "nom": "AI_CORE_PROJECT_ID", "secret": false, "obligatoire": false, "cibles": ["supabase_secrets_fonctions"], "defaut": "6aeffdc5-e681-4ec4-ad36-7d9d71449d66", "lue_par": ["supabase/functions/ai-gateway"] },
+        { "nom": "AI_CORE_SERVICE_TOKEN", "secret": true, "obligatoire": false, "cibles": ["supabase_secrets_fonctions"], "ou_obtenir": "registre Vision Smart AI Core (jeton de service du projet MokNet)", "lue_par": ["supabase/functions/ai-gateway"], "sans_valeur": "l'outil mémoire AI Core est indisponible, le reste de la passerelle fonctionne" }
+      ]
+    },
+    {
+      "id": "live",
+      "nom": "Direct (LiveKit) — jeton de salle et transport",
+      "obligatoire": false,
+      "etape": "6 et 8 — Supabase : secrets des fonctions, puis coffre LiveKit",
+      "variables": [
+        { "nom": "LIVE_TRANSPORT_ENVIRONMENT", "secret": false, "obligatoire": false, "cibles": ["supabase_secrets_fonctions"], "defaut": "development", "choix": ["development", "production"], "lue_par": ["supabase/functions/livekit-token", "supabase/functions/health-guardian"], "sert_a": "choisit la ligne de public.live_transport_config utilisée pour signer les jetons" },
+        { "nom": "LIVE_NODE_METRICS_URL", "secret": false, "obligatoire": false, "cibles": ["supabase_secrets_fonctions"], "lue_par": ["supabase/functions/livekit-token"], "sert_a": "garde de capacité du nœud LiveKit (optionnelle)" },
+        { "nom": "LIVEKIT_SERVER_URL", "secret": false, "obligatoire": false, "cibles": ["supabase_vault"], "exemple": "wss://live.moknet.net", "sert_a": "colonne server_url de public.live_transport_config" },
+        { "nom": "LIVEKIT_API_KEY", "secret": false, "obligatoire": false, "cibles": ["supabase_vault"], "sert_a": "colonne api_key de public.live_transport_config" },
+        { "nom": "LIVEKIT_API_SECRET", "secret": true, "obligatoire": false, "cibles": ["supabase_vault"], "sert_a": "vault.create_secret(…, 'livekit-<environnement>-secret') référencé par vault_secret_id" }
+      ],
+      "note": "Le serveur LiveKit lui-même (VPS, deploy/livekit/) n'est pas redéployé par l'assistant : voir deploy/livekit/README.md."
+    },
+    {
+      "id": "health",
+      "nom": "Santé Globale (fonction Edge health-guardian)",
+      "obligatoire": false,
+      "etape": "6 — Supabase : fonctions Edge et leurs secrets",
+      "variables": [
+        { "nom": "HEALTH_ALLOWED_ORIGINS", "secret": false, "obligatoire": false, "cibles": ["supabase_secrets_fonctions"], "defaut": "https://moknet.net,https://www.moknet.net", "lue_par": ["supabase/functions/health-guardian"], "sert_a": "origines autorisées (CORS) — à adapter au nouveau domaine" }
+      ]
+    },
+    {
+      "id": "netlify",
+      "nom": "Netlify (hébergement du site)",
+      "obligatoire": true,
+      "etape": "11 — Netlify",
+      "variables": [
+        { "nom": "NETLIFY_AUTH_TOKEN", "secret": true, "obligatoire": true, "cibles": ["memoire"], "ou_obtenir": "https://app.netlify.com/user/applications#personal-access-tokens", "sert_a": "API et CLI Netlify : site, variables, déploiement" },
+        { "nom": "NETLIFY_SITE_ID", "secret": false, "obligatoire": false, "cibles": ["memoire"], "ou_obtenir": "Site → Site configuration → Site details (Site ID) ; vide = création d'un site", "sert_a": "site cible" },
+        { "nom": "NETLIFY_ACCOUNT_SLUG", "secret": false, "obligatoire": false, "cibles": ["memoire"], "sert_a": "équipe dans laquelle créer le site quand le compte en a plusieurs" },
+        { "nom": "NODE_VERSION", "secret": false, "obligatoire": true, "cibles": ["netlify_env"], "defaut": "22", "sert_a": "même majeure que la CI (Green Gate) et le poste de développement" }
+      ]
+    },
+    {
+      "id": "github",
+      "nom": "GitHub (dépôt distant, facultatif)",
+      "obligatoire": false,
+      "etape": "3 — Dépôt distant",
+      "variables": [
+        { "nom": "GITHUB_REMOTE_URL", "secret": false, "obligatoire": false, "cibles": ["memoire"], "exemple": "https://github.com/<organisation>/<depot>.git ou git@github.com:<organisation>/<depot>.git", "sert_a": "git remote add origin puis git push --all ; l'authentification reste celle du poste (gh auth login, SSH ou gestionnaire d'identifiants), aucun jeton n'est écrit dans .git/config" }
+      ]
+    },
+    {
+      "id": "ai_providers",
+      "nom": "Fournisseurs IA (clés dans le coffre, saisies dans l'application)",
+      "obligatoire": false,
+      "etape": "12 — Après la première connexion : Super Admin → Connecteurs & Modèles IA",
+      "variables": [],
+      "coffre_noms_releves": ["ai_provider:anthropic", "ai_provider:deepgram", "ai_provider:deepseek", "ai_provider:elevenlabs", "ai_provider:gemini", "ai_provider:heygen", "ai_provider:ideogram", "ai_provider:kimi", "ai_provider:kling", "ai_provider:openai", "ai_provider:openrouter", "ai_provider:runway", "ai_provider:veo"],
+      "note": "Chaque clé est posée par la RPC set_ai_provider_secret (réservée aux administrateurs, vault.create_secret côté serveur). Aucune clé IA n'est jamais dans le bundle ni dans un fichier : c'est la source de vérité unique voulue par vite.config.ts."
+    },
+    {
+      "id": "push",
+      "nom": "Notifications push (VAPID)",
+      "obligatoire": false,
+      "etape": "automatique",
+      "variables": [],
+      "note": "La paire VAPID est générée par la fonction Edge push-notify au premier envoi (store_push_vapid_internal) : clé privée dans le coffre (push_vapid_private_<horodatage>), clé publique dans public.push_vapid_config. Rien à saisir."
+    }
+  ],
+  "injectees_par_supabase": ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_URL"],
+  "heritees_non_lues": {
+    "variables": ["GEMINI_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "ELEVENLABS_API_KEY", "QWEN_API_KEY", "KIMI_API_KEY", "KLING_API_KEY", "RUNWAY_API_KEY", "HEYGEN_API_KEY", "OPENROUTER_API_KEY", "N8N_WEBHOOK_URL"],
+    "note": ".env.example les liste encore. Le build Vite ne les lit pas (aucun import.meta.env correspondant), aucune fonction Edge ne les lit ; seul services/adminConfigService.ts les cite comme noms de catalogue. Les clés IA réelles vivent dans le coffre via Super Admin (fournisseur ai_providers)."
+  }
+}
