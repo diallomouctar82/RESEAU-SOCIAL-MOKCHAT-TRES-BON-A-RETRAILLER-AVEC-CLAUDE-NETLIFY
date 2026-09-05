@@ -20,3 +20,15 @@ declare global {
 }
 
 export {};
+
+/**
+ * Carte d'identité du build injectée par `vite.config.ts` (`define`) : la
+ * version que le code déclare, le commit et le déploiement construits. Absente
+ * en développement, au banc de test et dans tout outil qui n'est pas le build
+ * Vite — d'où le `| undefined` : toujours lire derrière un `typeof`.
+ * Type : `VersionJson` (services/versions/stableVersions.ts).
+ */
+declare global {
+    // eslint-disable-next-line no-var
+    var __MOKNET_BUILD__: import('./services/versions/stableVersions').VersionJson | undefined;
+}

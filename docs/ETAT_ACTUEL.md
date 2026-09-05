@@ -61,6 +61,8 @@
 
 ---
 
+> **5 septembre 2026 — Versions stables & restauration contrôlée (DEC-2026-086, v6.45.0) : EN PRÉPARATION.** Onglet Super-Admin « Versions stables » : les dernières versions livrées (nom, date UTC, commit, PR, module, statut de production, preuves — registre relevé dans la mémoire vivante et vérifié par test), ce que `moknet.net` sert réellement (`/version.json` écrit au build, puis le bundle), et un ordre de restauration contrôlée, jamais à l'aveugle (pré-contrôles, saisie exacte, motif, journal nominatif partagé, procédure Netlify ou Git, vérification après coup). Rien retiré : le sous-onglet « Versions » de « Workflows & Sauvegarde » (configuration locale v6.3) reste, avec une note de portée et un renvoi. Production contrôlée seulement sur feu vert écrit ; le couronnement « Version Courante » ne change pas avant.
+
 ## 🎯 SYNTHÈSE EXÉCUTIVE
 **Hotfix v6.6.2** : l'ouverture d'une conversation locale (`chat-u5` ou `local-…`) ne transmet plus cet identifiant factice à `messages.conversation_id` ni aux abonnements Supabase Realtime. Les conversations locales restent affichables en dégradation gracieuse; seules les conversations portant un UUID réel accèdent au backend. La correction est couverte par deux tests d'intégration (frontière locale et conservation du chemin UUID), par la suite complète de 256 tests et par un build Vite de production réussi. Aucun schéma, aucune donnée et aucun module hors messagerie n'est modifié.
 

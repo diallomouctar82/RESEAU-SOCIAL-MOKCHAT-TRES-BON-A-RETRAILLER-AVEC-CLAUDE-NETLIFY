@@ -1,0 +1,588 @@
+{
+  "etat": "apres",
+  "port": "3000",
+  "vues": {
+    "ordinateur-1440x900": {
+      "erreurs": [],
+      "barre": {
+        "ongletsVisibles": [
+          "Vue Générale",
+          "Avatar de l’ArchitecteAvatar",
+          "Santé Globale",
+          "Versions stablesVersions",
+          "Connecteurs & Modèles IA17",
+          "Utilisateurs & RBAC",
+          "Modération & MokTrust",
+          "Modules Plateforme",
+          "Paramètres Plateforme",
+          "Modèles & Sceaux",
+          "Workflows & Sync",
+          "Journaux & Alertes"
+        ],
+        "ongletVersions": {
+          "present": true,
+          "texte": "Versions stablesVersions",
+          "largeur": 158,
+          "hauteur": 38,
+          "dansEcran": true
+        },
+        "debordeX": false
+      },
+      "onglet": {
+        "verdictProduction": {
+          "etat": "identifiee",
+          "texte": "Version servie : v6.42.1 — Architecte : plus de bande sombre au sommet du cadre rond de /architecte — prolongement adouci du fond, portrait, affiche et vidéo ré"
+        },
+        "cartes": [
+          {
+            "version": "v6.45.0",
+            "statut": "En préparation — cette livraison",
+            "commit": null,
+            "aPR": false,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": true
+            }
+          },
+          {
+            "version": "v6.42.1",
+            "statut": "Servie par moknet.net",
+            "commit": "f6d9a16",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": true
+            }
+          },
+          {
+            "version": "v6.43.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "f6948b0",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.42.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "daa6575",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.41.1",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "81c66c8",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.41.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "86b521b",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.40.1",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "d3415b4",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.40.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "a615593",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          }
+        ],
+        "nbBoutons": 9,
+        "boutonsSous44px": [],
+        "horsEcran": [],
+        "debordeX": false,
+        "ongletCourant": "Votre onglet exécute v6.45.0 · commit b393726"
+      },
+      "precontroles": [
+        {
+          "id": "cible-consignee",
+          "verdict": "vert"
+        },
+        {
+          "id": "cible-eprouvee",
+          "verdict": "vert"
+        },
+        {
+          "id": "production-lisible",
+          "verdict": "vert"
+        },
+        {
+          "id": "cible-differente",
+          "verdict": "vert"
+        },
+        {
+          "id": "schema-base",
+          "verdict": "vert"
+        },
+        {
+          "id": "donnees",
+          "verdict": "vert"
+        },
+        {
+          "id": "configuration-servie",
+          "verdict": "vert"
+        }
+      ],
+      "boutonEnregistrerAvantSaisie": true,
+      "boutonEnregistrerApresSaisie": false,
+      "ordre": {
+        "statut": "Ordre RST-20260905-2017-eo6r enregistré le 05/09/2026 à 20:17 UTC par Admin-Général — cible v6.42.0, servie avant : v6.42.1. Journal partagé indisponible : copie locale et journal d’audit seulement — le dire dans la mémoire vivante.",
+        "commandes": [
+          "git fetch origin main",
+          "git checkout -b restauration/v6.42.0 origin/main",
+          "git log --oneline daa6575..origin/main   # tout ce que la restauration doit annuler",
+          "git revert --no-edit f6d9a16   # retire v6.42.1 (PR #111)",
+          "git revert --no-edit f6948b0   # retire v6.43.0 (PR #112)",
+          "npx tsc --noEmit && npx vitest run && npm run build",
+          "git push -u origin restauration/v6.42.0   # puis PR brouillon, Green Gate, revue, fusion sur feu vert"
+        ],
+        "lienNetlify": "https://app.netlify.com/projects/lovely-maamoul-478226/deploys?filter=main",
+        "journal": "Ordres de restauration (1)journal partagé indisponible — copie localeRST-20260905-2017-eo6r · 05/09/2026 à 20:17 UTC · Admin-GénéralCible v6.42.0 (commit daa6575, PR #105) · servie avant : v6.42.1Moti"
+      },
+      "verdictApres": {
+        "verdict": "rouge",
+        "texte": "https://moknet.net sert encore v6.42.1 (commit f6d9a16), pas v6.42.0. (vérifié à 20:17:09)"
+      }
+    },
+    "tablette-820x1180": {
+      "erreurs": [],
+      "barre": {
+        "ongletsVisibles": [
+          "Vue Générale",
+          "Avatar de l’ArchitecteAvatar",
+          "Santé Globale",
+          "Versions stablesVersions",
+          "Connecteurs & Modèles IA17",
+          "Utilisateurs & RBAC",
+          "Modération & MokTrust",
+          "Modules Plateforme",
+          "Paramètres Plateforme",
+          "Modèles & Sceaux",
+          "Workflows & Sync",
+          "Journaux & Alertes"
+        ],
+        "ongletVersions": {
+          "present": true,
+          "texte": "Versions stablesVersions",
+          "largeur": 158,
+          "hauteur": 38,
+          "dansEcran": true
+        },
+        "debordeX": false
+      },
+      "onglet": {
+        "verdictProduction": {
+          "etat": "identifiee",
+          "texte": "Version servie : v6.42.1 — Architecte : plus de bande sombre au sommet du cadre rond de /architecte — prolongement adouci du fond, portrait, affiche et vidéo ré"
+        },
+        "cartes": [
+          {
+            "version": "v6.45.0",
+            "statut": "En préparation — cette livraison",
+            "commit": null,
+            "aPR": false,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": true
+            }
+          },
+          {
+            "version": "v6.42.1",
+            "statut": "Servie par moknet.net",
+            "commit": "f6d9a16",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": true
+            }
+          },
+          {
+            "version": "v6.43.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "f6948b0",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.42.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "daa6575",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.41.1",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "81c66c8",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.41.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "86b521b",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.40.1",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "d3415b4",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.40.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "a615593",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          }
+        ],
+        "nbBoutons": 9,
+        "boutonsSous44px": [],
+        "horsEcran": [],
+        "debordeX": false,
+        "ongletCourant": "Votre onglet exécute v6.45.0 · commit b393726"
+      },
+      "precontroles": [
+        {
+          "id": "cible-consignee",
+          "verdict": "vert"
+        },
+        {
+          "id": "cible-eprouvee",
+          "verdict": "vert"
+        },
+        {
+          "id": "production-lisible",
+          "verdict": "vert"
+        },
+        {
+          "id": "cible-differente",
+          "verdict": "vert"
+        },
+        {
+          "id": "schema-base",
+          "verdict": "vert"
+        },
+        {
+          "id": "donnees",
+          "verdict": "vert"
+        },
+        {
+          "id": "configuration-servie",
+          "verdict": "vert"
+        }
+      ],
+      "boutonEnregistrerAvantSaisie": true,
+      "boutonEnregistrerApresSaisie": false,
+      "ordre": {
+        "statut": "Ordre RST-20260905-2017-sqma enregistré le 05/09/2026 à 20:17 UTC par Admin-Général — cible v6.42.0, servie avant : v6.42.1. Journal partagé indisponible : copie locale et journal d’audit seulement — le dire dans la mémoire vivante.",
+        "commandes": [
+          "git fetch origin main",
+          "git checkout -b restauration/v6.42.0 origin/main",
+          "git log --oneline daa6575..origin/main   # tout ce que la restauration doit annuler",
+          "git revert --no-edit f6d9a16   # retire v6.42.1 (PR #111)",
+          "git revert --no-edit f6948b0   # retire v6.43.0 (PR #112)",
+          "npx tsc --noEmit && npx vitest run && npm run build",
+          "git push -u origin restauration/v6.42.0   # puis PR brouillon, Green Gate, revue, fusion sur feu vert"
+        ],
+        "lienNetlify": "https://app.netlify.com/projects/lovely-maamoul-478226/deploys?filter=main",
+        "journal": "Ordres de restauration (1)journal partagé indisponible — copie localeRST-20260905-2017-sqma · 05/09/2026 à 20:17 UTC · Admin-GénéralCible v6.42.0 (commit daa6575, PR #105) · servie avant : v6.42.1Moti"
+      },
+      "verdictApres": {
+        "verdict": "rouge",
+        "texte": "https://moknet.net sert encore v6.42.1 (commit f6d9a16), pas v6.42.0. (vérifié à 20:17:28)"
+      }
+    },
+    "telephone-390x844": {
+      "erreurs": [],
+      "barre": {
+        "ongletsVisibles": [
+          "Vue Générale",
+          "Avatar de l’ArchitecteAvatar",
+          "Santé Globale",
+          "Versions stablesVersions",
+          "Connecteurs & Modèles IA17",
+          "Utilisateurs & RBAC",
+          "Modération & MokTrust",
+          "Modules Plateforme",
+          "Paramètres Plateforme",
+          "Modèles & Sceaux",
+          "Workflows & Sync",
+          "Journaux & Alertes"
+        ],
+        "ongletVersions": {
+          "present": true,
+          "texte": "Versions stablesVersions",
+          "largeur": 105,
+          "hauteur": 38,
+          "dansEcran": false
+        },
+        "debordeX": false
+      },
+      "onglet": {
+        "verdictProduction": {
+          "etat": "identifiee",
+          "texte": "Version servie : v6.42.1 — Architecte : plus de bande sombre au sommet du cadre rond de /architecte — prolongement adouci du fond, portrait, affiche et vidéo ré"
+        },
+        "cartes": [
+          {
+            "version": "v6.45.0",
+            "statut": "En préparation — cette livraison",
+            "commit": null,
+            "aPR": false,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": true
+            }
+          },
+          {
+            "version": "v6.42.1",
+            "statut": "Servie par moknet.net",
+            "commit": "f6d9a16",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": true
+            }
+          },
+          {
+            "version": "v6.43.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "f6948b0",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.42.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "daa6575",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.41.1",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "81c66c8",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.41.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "86b521b",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.40.1",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "d3415b4",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          },
+          {
+            "version": "v6.40.0",
+            "statut": "Remplacée — ses changements sont inclus dans la version servie",
+            "commit": "a615593",
+            "aPR": true,
+            "aDate": true,
+            "aPreuves": true,
+            "aModule": true,
+            "boutonRestaurer": {
+              "present": true,
+              "desactive": false
+            }
+          }
+        ],
+        "nbBoutons": 9,
+        "boutonsSous44px": [],
+        "horsEcran": [],
+        "debordeX": false,
+        "ongletCourant": "Votre onglet exécute v6.45.0 · commit b393726"
+      },
+      "precontroles": [
+        {
+          "id": "cible-consignee",
+          "verdict": "vert"
+        },
+        {
+          "id": "cible-eprouvee",
+          "verdict": "vert"
+        },
+        {
+          "id": "production-lisible",
+          "verdict": "vert"
+        },
+        {
+          "id": "cible-differente",
+          "verdict": "vert"
+        },
+        {
+          "id": "schema-base",
+          "verdict": "vert"
+        },
+        {
+          "id": "donnees",
+          "verdict": "vert"
+        },
+        {
+          "id": "configuration-servie",
+          "verdict": "vert"
+        }
+      ],
+      "boutonEnregistrerAvantSaisie": true,
+      "boutonEnregistrerApresSaisie": false,
+      "ordre": {
+        "statut": "Ordre RST-20260905-2017-hsv2 enregistré le 05/09/2026 à 20:17 UTC par Admin-Général — cible v6.42.0, servie avant : v6.42.1. Journal partagé indisponible : copie locale et journal d’audit seulement — le dire dans la mémoire vivante.",
+        "commandes": [
+          "git fetch origin main",
+          "git checkout -b restauration/v6.42.0 origin/main",
+          "git log --oneline daa6575..origin/main   # tout ce que la restauration doit annuler",
+          "git revert --no-edit f6d9a16   # retire v6.42.1 (PR #111)",
+          "git revert --no-edit f6948b0   # retire v6.43.0 (PR #112)",
+          "npx tsc --noEmit && npx vitest run && npm run build",
+          "git push -u origin restauration/v6.42.0   # puis PR brouillon, Green Gate, revue, fusion sur feu vert"
+        ],
+        "lienNetlify": "https://app.netlify.com/projects/lovely-maamoul-478226/deploys?filter=main",
+        "journal": "Ordres de restauration (1)journal partagé indisponible — copie localeRST-20260905-2017-hsv2 · 05/09/2026 à 20:17 UTC · Admin-GénéralCible v6.42.0 (commit daa6575, PR #105) · servie avant : v6.42.1Moti"
+      },
+      "verdictApres": {
+        "verdict": "rouge",
+        "texte": "https://moknet.net sert encore v6.42.1 (commit f6d9a16), pas v6.42.0. (vérifié à 20:17:46)"
+      }
+    }
+  }
+}
