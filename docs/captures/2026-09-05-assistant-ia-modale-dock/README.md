@@ -7,7 +7,7 @@ Constat de la Direction (capture iPhone du 5 septembre 2026) : sur téléphone, 
 - `avant` = `origin/main` `1c2daf6` (v6.41.0 servie, base de la PR #109) ;
 - `apres` = tête fusionnée `1d4ffb8` de la branche `claude/cleanup-home-interface-szp8qv` (le commit qui ajoute ces captures ne touche ni code ni feuille).
 
-Le SHA, l'état, l'heure et le texte publié sont inscrits dans `_meta` de chaque JSON de parcours. Les deux serveurs Vite servent `preview-harness.html`, copie de l'`index.html` de l'état mesuré qui charge le harnais de prévisualisation (même code que l'application, données de démonstration).
+Le SHA (déclaré par l'appelant), l'état, l'heure et le texte publié sont inscrits dans `_meta` de chaque JSON de parcours ; les JSON de sonde n'ont pas de `_meta`. Les deux serveurs Vite servent `preview-harness.html`, copie de l'`index.html` de l'état mesuré qui charge le harnais de prévisualisation (même code que l'application, données de démonstration).
 
 ## Parcours rejoué (`parcours.cjs`, Playwright + Chromium, harnais `?tab=social`)
 
@@ -34,7 +34,7 @@ Zéro erreur JavaScript relevée sur les six parcours. Les JSON comptent deux `r
 
 ## Sonde de la modale (`sonde-modale.cjs` → `avant-sonde.json`, `apres-sonde.json` ; `comparer-sondes.cjs` → `sonde-comparaison.txt`)
 
-Même sonde sur les deux serveurs, ordinateur 1440 × 900 et téléphone 390 × 844 : voile (position, hauteur, couleur, z-index, portail, `data-miroir`, ancêtres créant un bloc conteneur), carte (position, hauteur, `max-height`, police, fond, matière, ombre, bordure), enfants, titre (police), en-tête (dégradé), pied (paddings), bouton (police, dégradé), et la couleur et le fond calculés de chacun des 31 textes de la modale.
+Même sonde sur les deux serveurs, ordinateur 1440 × 900 et téléphone 390 × 844 : voile (position, hauteur, couleur, z-index, portail, `data-miroir`, ancêtres créant un bloc conteneur), carte (position, hauteur, `max-height`, police, fond, matière, ombre, bordure), enfants, titre (police), en-tête (dégradé), enveloppe des boutons du pied (position ; la zone sûre du pied `.ia-pied` est gardée par le test postcss, pas par la sonde), bouton (police, dégradé), et la couleur et le fond calculés de chacun des 31 textes de la modale.
 
 | | Avant (`1c2daf6`) | Après (`1d4ffb8`) |
 | :--- | :--- | :--- |
