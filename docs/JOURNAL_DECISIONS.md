@@ -1201,11 +1201,23 @@ Chaque décision respecte le formalisme strict suivant :
   (`docs/captures/2026-09-05-reseau-bande-aurore/`).
 * **Production** : la mission de la Direction vaut feu vert écrit («
   implémenter et amener en production, de façon contrôlée […] Livrable :
-  production en place, lien de prod ») ; fusion en squash après Green Gate
-  vert et contrôle indépendant, puis contrôle post-déploiement sur
-  `moknet.net` — statut tenu à jour ci-dessous.
-* **Statut** : 🟡 PRÊT POUR PRODUCTION — PR #89 ouverte, en attente du
-  Green Gate et de la fusion.
+  production en place, lien de prod »). PR #89 fusionnée en squash →
+  `main` `6f9d062` le 5/09/2026 à 09:57 UTC, après Green Gate vert sur la
+  tête finale `2bbe45f` (run 33959258373) et contre-vérification
+  indépendante « PRÊT » ; Green Gate vert sur `main` (run 33959347666).
+  **Contrôle post-déploiement** : `moknet.net` sert `index-CgZyiRwk.js`
+  depuis 09:57:56 UTC (même bundle que le preview contrôlé de la PR), la
+  page servie porte le bloc « BANDE AURORE (DEC-2026-058) », `@keyframes
+  aurore-halo` et les deux `@container aurore`, le bundle contient
+  `aurore-orbe`, `aurore-retour`, les seize libellés, `admin-procedures`
+  et « Fil d'actu », l'ancienne grille RO-1 en est absente, l'ancien
+  bundle `index-6F5PzUd7.js` répond 404 ; miroir local de la production
+  ouvert dans Chromium (ordinateur et téléphone) : racine React montée,
+  règles `.aurore-bulle` et orbe courante, keyframes et conteneurs
+  analysés par le navigateur, aucune erreur JS applicative.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  09:58 UTC). Le contrôle visuel final dans l'application appartient à la
+  Direction.
 
 ---
 
