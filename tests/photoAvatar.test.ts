@@ -184,3 +184,34 @@ describe('Validation, sauvegarde et retour arrière', () => {
         expect(sculptureMaskFor({ ...(ancienne as typeof DEFAULT_ARCHITECTE_AVATAR) })).toBe(DEFAULT_ARCHITECTE_AVATAR.silhouetteMaskUrl);
     });
 });
+
+// ── Moteur (parties pures) ──
+import { orientPersonMask, PhotoAvatarError, MEDIAPIPE_WASM_BASE, FACE_LANDMARKER_MODEL_URL, SELFIE_SEGMENTER_MODEL_URL } from '../services/architecte/photoAvatarEngine';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+describe('Moteur — parties sans navigateur', () => {
+    it('lit la confiance « personne » dans le bon sens : centre du visage haut, bords bas — sinon elle est inversée', () => {
+        const w = 64, h = 64;
+        const personne = new Float32Array(w * h);
+        for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) personne[y * w + x] = Math.hypot(x - 32, y - 29) < 18 ? 0.95 : 0.05;
+        expect(orientPersonMask(personne, w, h)).toBe(personne);
+        const fond = Float32Array.from(personne, (v) => 1 - v);
+        const corrige = orientPersonMask(fond, w, h);
+        expect(corrige).not.toBe(fond);
+        expect(corrige[29 * w + 32]).toBeCloseTo(0.95, 5);
+        expect(corrige[0]).toBeCloseTo(0.05, 5);
+    });
+
+    it('les modèles sont servis avec l’application, intacts (empreintes), et le wasm vient d’un CDN épinglé', () => {
+        const racine = resolve(__dirname, '..', 'public');
+        const empreinte = (p: string) => createHash('sha256').update(readFileSync(resolve(racine, p.replace(/^\//, '')))).digest('hex');
+        expect(empreinte(FACE_LANDMARKER_MODEL_URL)).toMatch(/^64184e229b263107/);
+        expect(empreinte(SELFIE_SEGMENTER_MODEL_URL)).toMatch(/^191ac9529ae506ee/);
+        expect(MEDIAPIPE_WASM_BASE).toBe('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm');
+        const erreur = new PhotoAvatarError('aucun_visage', 'x');
+        expect(erreur.code).toBe('aucun_visage');
+        expect(erreur.name).toBe('PhotoAvatarError');
+    });
+});
