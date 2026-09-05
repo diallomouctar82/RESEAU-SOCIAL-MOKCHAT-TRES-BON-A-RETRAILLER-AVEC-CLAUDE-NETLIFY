@@ -1,7 +1,7 @@
 // Parcours complet de publication sur téléphone (DEC-2026-080) : composer → « Améliorer le style »
 // → modale de l'assistant → « Appliquer à ma publication » (visible ? cliquable au point réel ?)
 // → texte appliqué → « Publier » → publication visible dans le fil.
-// usage : ETAT=avant|apres PORT=<port du serveur Vite> node parcours.cjs <dossier-sortie>
+// usage : SHA=<sha du code servi> ETAT=avant|apres PORT=<port du serveur Vite> node parcours.cjs <dossier-sortie>
 // (Playwright + Chromium /opt/pw-browsers/chromium ; harnais preview-harness.html?tab=social, meme code que l application)
 const { chromium } = require('playwright');
 const path = require('path');
@@ -10,6 +10,7 @@ const OUT = process.argv[2]; fs.mkdirSync(OUT, { recursive: true });
 const ETAT = process.env.ETAT || 'apres';
 const PORT = process.env.PORT || '3000';
 const TEXTE = 'Bonjour, soyez les bienvenus';
+const SHA = process.env.SHA || null; // SHA du code servi par le serveur Vite (a renseigner par l'appelant)
 const VUES = [
   { name: 'telephone', viewport: { width: 390, height: 844 } },
   { name: 'android360', viewport: { width: 360, height: 800 } },
@@ -19,7 +20,7 @@ const BRUITS = [/unsplash/i, /favicon/i, /net::ERR/i, /Failed to load resource/i
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', proxy: { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } });
-  const mesures = {};
+  const mesures = { _meta: { etat: ETAT, sha: SHA, date: new Date().toISOString(), texte: TEXTE } };
   for (const vue of VUES) {
     const ctx = await browser.newContext({ viewport: vue.viewport, isMobile: !vue.bureau, hasTouch: !vue.bureau, deviceScaleFactor: vue.bureau ? 1 : 2, ignoreHTTPSErrors: true, locale: 'fr-FR' });
     await ctx.route('**/images.unsplash.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.alloc(0) }));
@@ -69,7 +70,7 @@ const BRUITS = [/unsplash/i, /favicon/i, /net::ERR/i, /Failed to load resource/i
         modaleDansBody: !!dialogue && dialogue.parentElement === document.body,
         racineInerte: !!racine && racine.hasAttribute('inert'),
         zIndexModale: dialogue ? getComputedStyle(dialogue).zIndex : null,
-        roleModale: dialogue ? dialogue.getAttribute('role') : null, nbDialogues: dialogues.length, classesModale: dialogue ? String(dialogue.className).slice(0, 40) : null,
+        roleModale: dialogue ? dialogue.getAttribute('role') : null, nbDialogues: dialogues.length, autresDialogues: dialogues.filter((d) => d !== dialogue).map((d) => (d.getAttribute('aria-label') || d.tagName).slice(0, 40)), classesModale: dialogue ? String(dialogue.className).slice(0, 40) : null,
         versionOptimisee: !!Array.from(document.querySelectorAll('*')).find((n) => /Version Optimisée par l'IA/.test(n.textContent || '') && n.children.length < 3),
       };
     }, [boite]);
@@ -99,6 +100,10 @@ const BRUITS = [/unsplash/i, /favicon/i, /net::ERR/i, /Failed to load resource/i
       }, TEXTE);
       m.etapes.publication = { publierActif: actif, ...apresPublication };
       await page.screenshot({ path: path.join(OUT, `${ETAT}-${vue.name}-4-publie.png`), fullPage: false });
+      // 5. La publication dans le fil, rendue visible (defilement jusqu'au texte publie, hors du composeur)
+      const poignee = await page.evaluateHandle((texte) => { const comp = document.querySelector('[data-testid="composeur-a7"]'); return Array.from(document.querySelectorAll('p, div, span')).find((n) => !comp.contains(n) && n.children.length === 0 && (n.textContent || '').includes(texte.slice(0, 20))) || null; }, TEXTE);
+      const noeud = poignee.asElement();
+      if (noeud) { await noeud.evaluate((el) => el.scrollIntoView({ block: 'center' })); await page.waitForTimeout(500); await page.screenshot({ path: path.join(OUT, `${ETAT}-${vue.name}-5-fil.png`), fullPage: false }); m.etapes.publication.captureDuFil = `${ETAT}-${vue.name}-5-fil.png`; }
     } else {
       m.etapes.publication = { bloque: 'la modale est restée ouverte : le clic au point du bouton n’a pas atteint « Appliquer »' };
     }

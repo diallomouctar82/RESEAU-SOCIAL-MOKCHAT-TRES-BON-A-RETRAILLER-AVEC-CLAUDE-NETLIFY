@@ -32,7 +32,7 @@ Chaque décision respecte le formalisme strict suivant :
   Appliquer à ma publication est masqué par la barre du bas où il y a menu et
   messages. Il faut que ce bouton reste visible et cliquable sur mobile. […]
   Je veux une correction prouvée sur téléphone, avec un parcours complet
-  jusqu'à la publication. » Constat reproduit sur `origin/main` (`ba1ba7d`,
+  jusqu'à la publication. » Constat reproduit sur `origin/main` (`1c2daf6`,
   harnais 390 × 844 et 360 × 800) : au centre du bouton « Appliquer à ma
   publication », `document.elementFromPoint` renvoie le dock mobile
   (`.mir-dock`) ; un clic réel à ce point ne ferme pas la modale ; le parcours
@@ -55,8 +55,9 @@ Chaque décision respecte le formalisme strict suivant :
   modale pour que la couche aqua la suive hors de `Layout` — retenu.
 * **Décision** : option (c). Rien n'est retiré ni déplacé dans la modale :
   mêmes onglets, mêmes tons, mêmes zones de texte, mêmes boutons « Annuler »
-  et « Appliquer à ma publication », même matière et mêmes dégradés (29
-  propriétés mesurées identiques avant / après) ; la logique IA et les
+  et « Appliquer à ma publication », même matière et mêmes dégradés (sonde
+  versionnée : 34 propriétés identiques, 11 différences toutes attendues,
+  31 textes aux couleurs identiques avant / après) ; la logique IA et les
   gestionnaires ne changent pas. La modale devient un vrai dialogue :
   `role="dialog"`, `aria-modal`, titre lié, focus pris à l'ouverture et rendu
   au déclencheur à la fermeture, Échap ferme quand le focus est dans la
@@ -67,8 +68,9 @@ Chaque décision respecte le formalisme strict suivant :
 * **Contrôle** : typage 0 erreur, 1602/1602 tests (105 fichiers ; 7 tests
   nouveaux : portail hors `#root`, racine inerte, focus, Échap, pied,
   gardes CSS analysées par postcss), build OK ; parcours rejoué avant /
-  après sur 390 × 844, 360 × 800 et 1440 × 900 (script versionné, JSON,
-  captures) : après, l'élément sous le doigt est le bouton, la modale se
+  après sur 390 × 844, 360 × 800 et 1440 × 900 (avant = `main` `1c2daf6`, après =
+  tête fusionnée `1d4ffb8` ; script versionné, JSON avec SHA, captures,
+  sonde) : après, l'élément sous le doigt est le bouton, la modale se
   ferme, le texte est appliqué, « Publier » publie et le texte apparaît dans
   le fil, zéro erreur JS ; avant, parcours bloqué sur les deux téléphones.
   Limite honnête : harnais sur le même code (pas l'écran authentifié),
