@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { ARCHITECTE_PRESENTATION, ARCHITECTE_PRESENTATION_TEXT } from '../services/architecte/sequences';
 import {
     ACOUSTIC_MODELS,
     buildVoiceTrack,
@@ -16,7 +17,7 @@ import { MOUTH_AT_REST } from '../services/architecte/lipSync';
 
 /**
  * ALIGNEMENT TEXTE ↔ SON sur le VRAI fichier de voix HD de la Direction
- * (`public/architecte/vision-smart.wav`, 8,19 s), pas un signal de synthèse.
+ * (`tests/fixtures/vision-smart-claire-2026-09-04.wav`, 8,19 s — la voix « Claire » du 04/09, conservée comme banc de mesure ; le produit livre désormais la voix de l’Architecte sur la phrase officielle), pas un signal de synthèse.
  *
  * Preuve au format du playbook 15 (« Mesures et preuves attendues ») :
  * BASELINE = bouche déduite du spectre seul (v6.27) ; TEST_SET = la phrase
@@ -27,8 +28,8 @@ import { MOUTH_AT_REST } from '../services/architecte/lipSync';
  */
 const PHRASE = 'Bonjour, je suis l’avatar de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle.';
 
-function readWav(): { samples: Float32Array; sampleRate: number } {
-    const wav = fs.readFileSync(path.resolve(process.cwd(), 'public/architecte/vision-smart.wav'));
+function readWavFile(relPath: string): { samples: Float32Array; sampleRate: number } {
+    const wav = fs.readFileSync(path.resolve(process.cwd(), relPath));
     let p = 12;
     let channels = 1;
     let sampleRate = 44100;
@@ -57,7 +58,7 @@ function readWav(): { samples: Float32Array; sampleRate: number } {
     return { samples, sampleRate };
 }
 
-const audio = readWav();
+const audio = readWavFile('tests/fixtures/vision-smart-claire-2026-09-04.wav');
 const track = buildVoiceTrack(audio.samples, audio.sampleRate, PHRASE) as VoiceTrack;
 const features = extractFeatures(audio.samples, audio.sampleRate);
 
@@ -229,5 +230,41 @@ describe('Coarticulation : les consonnes de langue ne referment pas la bouche en
         const pour = phonesOf('pour');
         const p = pour[0];
         expect(trackShapeAt(track, (p.start + p.end) / 2).width).toBeLessThan(0.95);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+describe('Le fichier LIVRÉ (voix de l’Architecte, phrase officielle) est aligné sur son texte', () => {
+    // Voix attitrée de l'Architecte (George, ElevenLabs multilingual v2) enregistrée le
+    // 05/09/2026 sur la phrase officielle ; pauses mesurées hors moteur (énergie < −32 dB
+    // de la crête pendant ≥ 120 ms) : « Smart. » 2,41–2,82 s ; l'aligneur du produit place la
+    // fin de « Smart » à 2 320 ms et le début de « Je » à 2 470 ms (repères des légendes).
+    const livre = readWavFile('public/architecte/vision-smart.wav');
+    const piste = buildVoiceTrack(livre.samples, livre.sampleRate, ARCHITECTE_PRESENTATION_TEXT) as VoiceTrack;
+
+    it('dit « l’Architecte de Vision Smart », jamais « l’avatar », et couvre ses 24 mots', () => {
+        expect(ARCHITECTE_PRESENTATION_TEXT).toContain('je suis l’Architecte de Vision Smart');
+        expect(ARCHITECTE_PRESENTATION_TEXT.toLowerCase()).not.toContain('avatar');
+        expect(piste).not.toBeNull();
+        expect(piste.words).toHaveLength(24);
+        expect(piste.words[3].text).toBe('l’Architecte');
+        expect(piste.durationMs).toBeGreaterThan(9000);
+        expect(piste.words[0].start).toBeLessThan(200);
+        expect(piste.words[23].end).toBeGreaterThan(8300);
+        for (let i = 1; i < piste.words.length; i += 1) expect(piste.words[i].start).toBeGreaterThanOrEqual(piste.words[i - 1].end);
+    });
+
+    it('les pauses de la phrase officielle tombent sur la ponctuation, comme les légendes livrées', () => {
+        const smart = piste.words.find((w) => w.text === 'Smart')!;
+        const utilisateurs = piste.words.find((w) => w.text === 'utilisateurs')!;
+        const cues = ARCHITECTE_PRESENTATION.cues;
+        // Les légendes livrées sont découpées sur les repères de CET aligneur.
+        expect(cues.map((c) => c.text).join(' ')).toBe(ARCHITECTE_PRESENTATION_TEXT);
+        expect(Math.abs(smart.end - cues[0].endMs)).toBeLessThanOrEqual(100);
+        expect(Math.abs(piste.words[7].start - cues[1].startMs)).toBeLessThanOrEqual(100); // « Je »
+        expect(Math.abs(utilisateurs.end - cues[1].endMs)).toBeLessThanOrEqual(100);
+        expect(Math.abs(piste.words[17].start - cues[2].startMs)).toBeLessThanOrEqual(100); // « avec »
+        expect(piste.words[7].start).toBeGreaterThan(smart.end + 100); // vraie pause après « Smart. »
+        expect(piste.words[23].end).toBeLessThanOrEqual(cues[2].endMs);
     });
 });

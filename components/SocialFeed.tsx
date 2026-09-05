@@ -1706,10 +1706,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               bande Aurore) et deux conforts s'ajoutent : le compteur de
               caractères (simple compte, aucune limite imposée) et le studio
               « Visuel IA » intégré (components/VisuelIAStudio.tsx). Les
-              quatre médias sont rendus deux fois — rail à gauche sur
-              ordinateur, ligne sous le champ sur téléphone — depuis la même
-              fonction `outilsMedias` ; la requête de conteneur `a7` n'en
-              affiche jamais qu'un seul (index.html, bloc COMPOSEUR A7). */}
+              quatre médias sont rendus deux fois — rail à gauche, avec ses
+              libellés, sur ordinateur comme sur téléphone (DEC-2026-078 :
+              sur téléphone le rail descend sous l'avatar, dans la même
+              colonne), ligne d'icônes sous le champ seulement pour les
+              cartes très étroites — depuis la même fonction `outilsMedias` ;
+              la requête de conteneur `a7` n'en affiche jamais qu'un seul
+              (index.html, bloc COMPOSEUR A7). */}
 
           {/* La carte (`.a7-comp`) est le conteneur nommé `a7` ; la grille
               est son enfant `.a7-grille` : une requête de conteneur ne peut
@@ -1940,9 +1943,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           seize orbes restent seize, le damier et les phases ne bougent pas.
 
           Ordinateur : deux rangées de huit en damier. Tablette : mêmes
-          rangées, orbes et libellés réduits. Téléphone : rail horizontal
-          aimanté, libellés courts. Le bloc CSS lit la largeur réelle de la
-          carte (container query), pas celle de l'écran. */}
+          rangées, orbes et libellés réduits. Téléphone : même disposition
+          ramenée à quatre colonnes (quatre rangées de quatre, damier
+          conservé, libellés courts), sans défilement horizontal
+          (DEC-2026-078 ; le rail aimanté a été retiré à la demande de la
+          Direction). Le bloc CSS lit la largeur réelle de la carte
+          (container query), pas celle de l'écran. */}
       <nav className="mir-glass rounded-3xl aurore-bande" data-testid="acces-rapide" aria-label="Accès rapide">
         {activeTab !== 'feed' && (
           <button type="button" className="aurore-retour" data-testid="acces-rapide-feed" onClick={() => setActiveTab('feed')}>

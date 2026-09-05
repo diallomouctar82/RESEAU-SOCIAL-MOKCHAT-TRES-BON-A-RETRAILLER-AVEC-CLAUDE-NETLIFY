@@ -2,7 +2,7 @@
 > **Noyau d'Intelligence Humanisée, Hub Multi-Agents et Orchestration Transversale**
 
 
-## 🧑‍🚀 AVATAR VIVANT DE L'ARCHITECTE (DEC-2026-063 → DEC-2026-077, 04–05/09/2026)
+## 🧑‍🚀 AVATAR VIVANT DE L'ARCHITECTE (DEC-2026-063 → DEC-2026-079, 04–05/09/2026)
 Construit d'après la compétence **Vision Smart AI Core — playbook 15 « Avatar vivant personnalisable, présence conversationnelle vivante » (v1.0.0)** et le Future UI/UX Gate.
 
 - **Niveau de présence livré : P1 + P2** (`ARCHITECTE_PRESENCE_LEVEL`) — présence légère en SVG/CSS et bouche animée pendant la parole. **P3** (avatar vidéo temps réel) et **P4** (avatar génératif personnel) ne sont ni livrés ni simulés.
@@ -28,6 +28,12 @@ Construit d'après la compétence **Vision Smart AI Core — playbook 15 « Avat
 - **Test avec son** : `public/architecte/vision-smart.wav` (phrase demandée par la Direction, voix HD) et le bouton « Écouter la phrase Vision Smart (voix HD) » sur `/architecte`, même chaîne audio que le moteur ; le RMS réellement mesuré est rejoué en test (`tests/fixtures/vision-smart-rms.json`) et la chaîne audio est gardée par `tests/voiceLipSyncChain.test.ts`.
 - **Réglages Super-Admin** (`AdminArchitecteAvatarCard`) : changer l'avatar, remettre l'avatar par défaut, activer/désactiver les animations et la synchro labiale, régler la voix (catalogue `ELEVENLABS_CURATED_VOICES`), positionner la bouche sur une photo.
 - **Garde-fous** : identité officielle visible (« Présence officielle MokNet »), pastille « média synthétique » sur une photo, animation coupée hors écran / onglet caché / mouvement réduit, état toujours écrit et porté par `aria-label`.
+- **Le portrait d'usine est la photo validée par la Direction** (DEC-2026-079, 05/09/2026) : cadrée et mesurée par le moteur de l'option Super-Admin (MediaPipe, 478 repères), masque de silhouette relevé sur elle, `DEFAULT_PORTRAIT_RIG` / `DEFAULT_MOUTH_ANCHOR` d'usine ; `FACTORY_PORTRAIT_ID` écarte les calages hérités d'un ancien portrait d'usine (une photo déposée garde le sien).
+- **Une seule voix, une seule identité** : la phrase officielle (« je suis l'Architecte de Vision Smart », jamais « avatar ») est servie par la voix attitrée de l'Architecte (George, ElevenLabs multilingual v2) — barre flottante et modèle vidéo ; l'ancienne voix « Claire » n'est plus qu'un banc de mesure (`tests/fixtures/vision-smart-claire-2026-09-04.wav`).
+- **Modèle vidéo du portrait validé** (HeyGen, 9,08 s, 4 crédits) détouré image par image, légendes découpées sur l'aligneur du produit, calage vidéo ↔ portrait mesuré par le moteur de production ; registre et empreintes dans `services/architecte/sequences.ts`.
+- **Super-Admin : onglet « Avatar de l'Architecte »** (`AdminArchitecteAvatarTab`, 2ᵉ onglet du tableau de bord) — créer ou remplacer l'avatar depuis une photo, aperçu actuel / nouveau, **enregistrement immédiat** horodaté, retour arrière ; la carte n'est plus dans « Paramètres Plateforme » (note de renvoi).
+- **Réglage partagé par la plateforme** : `platform_settings` (clé `architecte_avatar`) lu au démarrage et écrit à chaque enregistrement, la version la plus récente gagne, dégradation silencieuse sans table ; la barre suit le réglage sans rechargement ; migration `20260905160000_platform_settings.sql` (lecture authentifiés, écriture `public.is_admin()`) **à appliquer sur feu vert explicite**.
+- **Retrait pendant la saisie** (`SCULPTURE_YIELD_RETURN_MS` 400 ms, échelle 0,34) : quand une zone de saisie de MokNet a le focus, la sculpture se réduit à une pastille cliquable dans son coin et revient après la sortie du champ — mesuré sur le fil réel : « Publier » 0 px² couvert pendant la saisie (2 301 / 2 419 px² au repos à 390 × 844 / 360 × 800).
 
 ---
 

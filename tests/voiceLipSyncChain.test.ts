@@ -6,7 +6,7 @@ import type { VoiceTrackRef } from '../services/voiceEngine';
 
 /** Le vrai fichier de voix HD, décodé en mono — pour la piste phonétique. */
 function readWav(): { samples: Float32Array; sampleRate: number } {
-    const wav = fs.readFileSync(path.resolve(process.cwd(), 'public/architecte/vision-smart.wav'));
+    const wav = fs.readFileSync(path.resolve(process.cwd(), 'tests/fixtures/vision-smart-claire-2026-09-04.wav'));
     let p = 12;
     let channels = 1;
     let sampleRate = 44100;

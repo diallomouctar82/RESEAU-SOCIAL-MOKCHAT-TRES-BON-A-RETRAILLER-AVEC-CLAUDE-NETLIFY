@@ -335,7 +335,7 @@ describe('Séquence vidéo validée dans le cadre de l’avatar', () => {
         render(<AdminArchitecteAvatarCard value={DEFAULT_ARCHITECTE_AVATAR} adminName="Admin-Général" onChange={onChange} />);
         const bascule = screen.getByLabelText('Séquence vidéo validée (présentation)') as HTMLInputElement;
         expect(bascule.checked).toBe(true);
-        expect(screen.getByText(/8,2 s · HeyGen, expressivité moyenne/)).toBeInTheDocument();
+        expect(screen.getByText(/9,1 s · HeyGen, expressivité moyenne/)).toBeInTheDocument();
         expect(screen.getByTestId('architecte-sequences')).toHaveTextContent('validée le 5 septembre 2026 par Direction Vision Smart');
         fireEvent.click(screen.getByRole('button', { name: /Prévisualiser : Présentation/ }));
         expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();

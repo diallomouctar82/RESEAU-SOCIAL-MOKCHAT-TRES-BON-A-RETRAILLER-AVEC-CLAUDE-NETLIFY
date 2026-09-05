@@ -218,6 +218,35 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     racine.walkAtRules('supports', (a) => { replis.push(a.params); });
     expect(replis).toEqual(['not (container-type: inline-size)']);
   });
+
+  it('sur téléphone (conteneur ≤ 480 px) la bande garde la disposition de l’ordinateur en quatre colonnes : grille, damier conservé, aucun défilement horizontal (DEC-2026-078)', () => {
+    let tel: postcss.AtRule | undefined;
+    racine.walkAtRules('container', (a) => { if (/480px/.test(a.params)) tel = a; });
+    expect(tel).toBeTruthy();
+    const dans = (sel: string) => { let r: postcss.Rule | undefined; tel?.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
+    const val = (sel: string, prop: string) => { let v: string | undefined; dans(sel)?.walkDecls(prop, (d) => { v = d.value; }); return v; };
+    // La grille de la racine (huit colonnes) reste la grille : seul le nombre
+    // de colonnes change ; ni flex, ni défilement, ni aimantation, ni fondu.
+    expect(regleRacine(racine, '.aurore-rangee')).toMatch(/display: grid/);
+    expect(regleRacine(racine, '.aurore-rangee')).toMatch(/grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
+    expect(val('.aurore-rangee', 'grid-template-columns')).toBe('repeat(4, minmax(0, 1fr))');
+    expect(val('.aurore-rangee', 'display')).toBeUndefined();
+    expect(tel?.toString()).not.toMatch(/overflow-x|scroll-snap|scroll-padding|mask-image|scrollbar|flex: none/);
+    // Le damier n'est plus annulé sur téléphone : les orbes paires restent
+    // abaissées de 10 px, comme sur ordinateur (règle de la racine seule).
+    expect(dans('.aurore-item:nth-child(2n) .aurore-orbe')).toBeUndefined();
+    expect(dans('.aurore-item')).toBeUndefined();
+    // Orbes de 46 px (cible ≥ 44 px), libellés courts sur toute la cellule.
+    expect(val('.aurore-bulle', 'width')).toBe('46px');
+    expect(val('.aurore-court', 'max-width')).toBe('100%');
+    // Repli sans requêtes de conteneur : la même grille, par l'écran.
+    let repli: postcss.AtRule | undefined;
+    racine.walkAtRules('supports', (a) => { repli = a; });
+    let media: postcss.AtRule | undefined;
+    repli?.walkAtRules('media', (a) => { if (/639px/.test(a.params)) media = a; });
+    expect(media?.toString()).toMatch(/grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+    expect(media?.toString()).not.toMatch(/overflow-x|scroll-snap|flex: none/);
+  });
 });
 
 function regleRacine(racine: postcss.Root, selecteur: string): string {

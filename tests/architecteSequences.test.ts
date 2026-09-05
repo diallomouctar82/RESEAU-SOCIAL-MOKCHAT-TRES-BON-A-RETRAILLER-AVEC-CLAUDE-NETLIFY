@@ -78,7 +78,7 @@ describe('Registre des séquences validées', () => {
         const vtt = readFileSync(path.join(publicDir, ARCHITECTE_PRESENTATION.captionsUrl), 'utf8');
         expect(vtt).toBe(toWebVtt(ARCHITECTE_PRESENTATION.cues));
         expect(vtt.startsWith('WEBVTT')).toBe(true);
-        expect(vtt).toContain('00:00:06.450 --> 00:00:08.190');
+        expect(vtt).toContain('00:00:06.380 --> 00:00:09.060');
     });
 
     it('les légendes couvrent la phrase entière, dans l’ordre, sans dépasser la durée', () => {
@@ -90,7 +90,7 @@ describe('Registre des séquences validées', () => {
         });
         expect(cues[cues.length - 1].endMs).toBeLessThanOrEqual(ARCHITECTE_PRESENTATION.durationMs);
         expect(cueAt(ARCHITECTE_PRESENTATION, 1000)?.text).toMatch(/^Bonjour/);
-        expect(cueAt(ARCHITECTE_PRESENTATION, 1950)).toBeNull();
+        expect(cueAt(ARCHITECTE_PRESENTATION, 2400)).toBeNull();
         expect(cueAt(ARCHITECTE_PRESENTATION, 7000)?.text).toMatch(/professionnelle/);
     });
 

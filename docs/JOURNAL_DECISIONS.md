@@ -20,6 +20,103 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-079] — 5 Septembre 2026
+
+* **Module(s)** : Diallo OS & Architecte (module 01) — portrait d'usine, registre des séquences, barre flottante ; Super-Admin (tableau de bord : onglet « Avatar de l'Architecte ») ; réglages partagés de la plateforme (`platform_settings`, migration versionnée **non appliquée**) ; bancs `design-lab/banc/super-admin.html` et `reperes.html`.
+* **Problème / Besoin initial** : Direction (05/09, 14:50 UTC) : « je viens de recharger la photo validée dans ton espace de travail. Tu l'utilises maintenant pour remplacer l'avatar d'essai » ; puis : « Ce qui n'est pas visible pour moi, c'est dans Super-Admin : l'option de gestion, création ou remplacement de l'avatar depuis une photo. Tant que cette partie n'est pas visible et contrôlable dans Super-Admin, je ne valide pas ce point. » **Constats mesurés** : (1) la carte de DEC-2026-077 était en 6ᵉ position de l'onglet « Paramètres Plateforme » (onglet par défaut : « Connecteurs & Modèles IA »), derrière un bouton « Enregistrer » global — introuvable pour la Direction, et son libellé « Nouvel avatar enregistré » était trompeur sans ce bouton ; (2) `supabaseService.savePlatformSettings` est un stub et la table `platform_settings` n'existe pas dans le projet Supabase (vérifié le 05/09) : les réglages Super-Admin, donc l'avatar depuis une photo, ne vivaient que dans le navigateur de l'administrateur ; (3) la voix validée du 04/09 (« Claire », féminine) disait « je suis l'avatar de Vision Smart », contraire à l'identité officielle (DEC-2026-076) et au visage validé ; (4) la revue de la PR #100 avait relevé, hors de son périmètre, que la sculpture flottante recouvrait « Publier » sur téléphone — confirmé sur le fil réel : 2 301 px² du bouton à 390 × 844, 2 419 px² à 360 × 800, centre inatteignable.
+* **Idées / Options envisagées** : (a) garder la carte dans « Paramètres Plateforme » avec une ancre — refusée (un clic de plus et toujours le bouton global) ; (b) **onglet dédié, enregistrement immédiat** — retenue ; (c) appliquer la photo par l'option Super-Admin seulement — insuffisant tant que le réglage reste local : **portrait d'usine = la photo validée** (tous les membres, sans base) **plus réglage partagé** dès que la table existe ; (d) voix : passerelle vocale du produit (jeton de session requis, hors de portée), ElevenLabs Flows (403 : connecteur non autorisé), **Arcads avec l'identifiant de la voix attitrée George** — retenue (même fournisseur, même voix, `eleven_multilingual_v2`) ; (e) obstruction du composeur : réduire la sculpture sur téléphone — insuffisant par la géométrie (mesuré : 64 px ne libèrent pas « Publier » à 360 × 800) ; **retrait en pastille pendant la saisie** — retenu.
+* **Décision retenue** :
+  - **Portrait d'usine** : `public/architecte/architecte.webp` = la photo validée, cadrée au portrait d'usine par le **même moteur** que l'option Super-Admin (MediaPipe : 478 repères, aucun avertissement, 768 px, 20 380 o) ; masque de silhouette relevé sur elle (512², 55,9 % transparent / 43,4 % opaque) ; `DEFAULT_PORTRAIT_RIG` et `DEFAULT_MOUTH_ANCHOR` mesurés (yeux 46,3 %, lèvres 64,9 %, menton 78,7 %, pupilles 39,3 / 60,7 %, bouche 50,9 / 64,9 %, largeur 27,3 %, inclinaison −2,6°) ; `FACTORY_PORTRAIT_ID` = `direction-2026-09-05` et règle de fusion : un calage enregistré sous un **ancien** portrait d'usine est écarté (rig, ancre, masque), une photo déposée garde intégralement le sien, l'avatar précédent d'usine est réparé ; la console délègue sa fusion au domaine (`mergeArchitecteAvatarConfig`).
+  - **Voix unique** : phrase officielle « Bonjour, je suis l'Architecte de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle. » enregistrée avec la voix attitrée de l'Architecte (George `JBFqnCBsd6RMkjVDRZzb`, ElevenLabs multilingual v2 via Arcads, 9,08 s, 8 crédits Arcads) → `public/architecte/vision-smart.wav` ; l'ancienne voix devient `tests/fixtures/vision-smart-claire-2026-09-04.wav` (banc de mesure de l'aligneur, plus jamais servie) ; test ajouté : le fichier livré s'aligne sur la phrase officielle (24 mots, « l'Architecte », jamais « avatar », pauses sur la ponctuation).
+  - **Modèle vidéo depuis la photo validée** : HeyGen `create_video_from_image` (portrait PNG 768 + WAV, 1:1, 720p, expressivité moyenne, `contain`), prêt en 39 s, **4 crédits (563 → 559)**, 9,08 s, 228 images ; détourage image par image (rembg `isnet-general-use`), vidéos plein cadre (`vision-smart-heygen.mp4` 1 558 047 o, `.webm` 445 523 o) et empilées (`.cutout.mp4` 1 810 971 o, `.cutout.webm` 599 002 o), poster 5 778 o, légendes découpées sur l'aligneur du produit (« Smart. » 2 320 / « Je » 2 470 / « utilisateurs » 6 380 / fin 9 060 ms), calage vidéo ↔ portrait mesuré par le moteur de production (Face Landmarker : échelle 1,0248, origine 48,86 / 47,28 %, décalage +1,26 / −1,08 %) ; empreintes SHA-256 et tailles dans `services/architecte/sequences.ts`, vérifiées par les tests ; `portraitUrl` = le portrait validé (le modèle se joue sur son portrait).
+  - **Super-Admin** : onglet **« Avatar de l'Architecte »** (`AdminArchitecteAvatarTab`, 2ᵉ onglet, « Avatar » sur téléphone, contenu amené en vue à l'ouverture sur écran étroit) ; **chaque validation ou retour arrière est enregistré immédiatement** (`updateDetailedSettings`) avec bandeau horodaté ; la carte quitte « Paramètres Plateforme » (note de renvoi) ; sur téléphone, l'option « depuis une photo » passe avant l'aperçu.
+  - **Réglage partagé** : `supabaseService.loadPlatformSetting` / `savePlatformSetting` (table `platform_settings`, clé `architecte_avatar`, dégradation silencieuse sans table ni droit) ; la console lit au démarrage (la version la plus récente gagne) et écrit à chaque enregistrement ; la barre flottante suit le réglage sans rechargement ; migration `supabase/migrations/20260905160000_platform_settings.sql` (lecture : authentifiés ; écriture : `public.is_admin()`, le rang réel de la Direction en base est `admin`) + retour arrière — **NON appliquée en production : feu vert explicite requis**.
+  - **Retrait pendant la saisie** (`SCULPTURE_YIELD_RETURN_MS` = 400 ms, échelle 0,34) : quand une zone de saisie de MokNet a le focus (hors interface de l'Architecte), la sculpture au repos se réduit à une pastille cliquable serrée dans son coin (`bottom-20 right-1` sur téléphone) et revient 400 ms après la sortie du champ.
+* **Justification & Valeur ajoutée** : l'avatar est **le** visage validé par la Direction, pour tous, sans dépendre d'une base ni d'un navigateur ; une seule identité et une seule voix (barre et vidéo) ; l'option Super-Admin est visible à un clic et **contrôlable** (enregistrement immédiat, rechargement prouvé, retour arrière) ; le réglage partagé rend l'option effective pour tous les membres dès que la table existe ; « Publier » redevient entièrement atteignable pendant l'usage réel ; rien supprimé (ancienne voix conservée en banc de mesure, ancien modèle vidéo remplacé par celui du portrait validé).
+* **Conséquences & Impacts transversaux** : fichiers publics remplacés (portrait, masque, quatre vidéos, poster, voix, légendes) ; `types.ts` (rig `browLinePercent?`, `silhouetteMaskForPhotoUrl?`, `previousAvatar?`, `factoryPortraitId?`) ; `VERSIONED_TABLE_COUNT` 2 → 3 (garde de la Santé Globale) ; tests de cadrage sur l'écart réel des pupilles (21,4 %) ; couche « Miroir d'eau » régénérée (`index.html`) ; l'ancien modèle vidéo du portrait d'essai n'est plus servi ; coût : 4 crédits HeyGen + 8 crédits Arcads (existants).
+* **Éléments techniques concernés** : `public/architecte/{architecte.webp, architecte-silhouette.png, vision-smart.wav, vision-smart-heygen.{mp4,webm,cutout.mp4,cutout.webm,webp,fr.vtt}}`, `services/architecte/{architecteAvatar.ts, livingAvatar.ts, sequences.ts}`, `services/{adminConfigService.ts, supabaseClient.ts}`, `components/AdminDashboard.tsx`, `components/admin/{AdminArchitecteAvatarTab.tsx, AdminArchitecteAvatarCard.tsx, AdminPlatformSettingsTab.tsx}`, `components/architecte/ArchitecteFloatingBar.tsx`, `types.ts`, `supabase/migrations/20260905160000_platform_settings.sql`, `supabase/rollback/20260905160000_platform_settings_rollback.sql`, `supabase/functions/health-guardian/evaluate.ts`, `design-lab/banc/{super-admin.html, super-admin.tsx, reperes.html, reperes.tsx}`, tests (`architecteAvatar`, `photoAvatar`, `alignment`, `architecteSequences`, `architecteAvatarScreen`, `ArchitecteFloatingBar`, `voiceLipSyncChain`, `healthGuardian`), `tests/fixtures/vision-smart-claire-2026-09-04.wav`, `docs/captures/2026-09-05-architecte-photo-validee/`.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026 : Green Gate vert sur `f586342` (run 33975758223), `main` vérifié inchangé (`ba1ba7d`) à 15:49 UTC, PR #107 fusionnée en squash → `main` `86b521b` à 15:50 UTC, `moknet.net` sert `index-Bvy0oNZ6.js` depuis 15:51 UTC avec les marqueurs de l'onglet, du réglage partagé, de la phrase officielle et du retrait, portrait / masque / voix / vidéos / poster / légendes servis aux tailles exactes, ancien bundle `index-CMCLckXy.js` → 404, Green Gate sur `main` run 33975984731) — typage 0 erreur, **1 595 / 1 595 tests (104 fichiers)**, build ✓, bancs navigateur réel (Super-Admin ordinateur + téléphone, application ordinateur + téléphone avec la vidéo du portrait validé, fil réel 390 × 844 et 360 × 800) ; migration `platform_settings` **en attente d'un feu vert explicite** (sans elle, le réglage Super-Admin reste local au navigateur) ; rendu du modèle vidéo à confirmer par la Direction sur le site.
+
+---
+
+### [DEC-2026-078] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — composeur « A7, rail latéral » et bande
+  « Aurore » (`index.html`, blocs « COMPOSEUR A7 » et « BANDE AURORE »),
+  commentaires de `components/SocialFeed.tsx`, gardes CSS de
+  `tests/composeurRail.test.tsx` et `tests/accesRapideAurore.test.tsx`,
+  captures `docs/captures/2026-09-05-reseau-meme-disposition-telephone/`.
+* **Problème / Besoin initial** : consigne de la Direction : « Harmonise la
+  disposition des boutons entre ordinateur et téléphone. Les actions de
+  publication comme photo, vidéo, audio, expert, live et autres doivent être
+  visibles et accessibles sans défilement horizontal gênant sur téléphone.
+  Garde une présentation propre, raisonnable, facile à utiliser, sans rien
+  casser. Fournis des captures ordinateur et téléphone, zéro régression.
+  Périmètre strict : interface publication et options de Réseau Moknet ; la
+  disposition des boutons sur ordinateur fait la même chose sur téléphone,
+  comme sur la photo. » Constat mesuré sur `origin/main` (harnais 390 × 844) :
+  rail des médias masqué et remplacé par quatre icônes sans libellé sous le
+  champ, actions IA en 2 × 2 sans intitulé, bande Aurore en rail horizontal
+  aimanté avec **12 orbes sur 16 hors écran** (défilement obligatoire).
+* **Options considérées** : (a) rail des médias à côté de l'avatar sur une
+  troisième colonne — champ réduit à ~190 px, rejeté ; (b) rail **sous
+  l'avatar dans la première colonne**, corps sur la colonne de droite —
+  champ de 249 px (219 px à 360, 234 px à 375), avatar à la même place : retenu ; (c) bande en 8 colonnes
+  sur téléphone — orbes de 34 px, illisible, rejeté ; (d) bande en **grille
+  4 × 4** avec damier et libellés courts : retenu ; (e) supprimer la ligne
+  d'icônes sous le champ — rejeté (rien ne disparaît) : elle reste le repli
+  des cartes très étroites (≤ 270 px de largeur intérieure, écran de 344 px au plus).
+* **Décision** : CSS seulement, aucun balisage ni gestionnaire modifié.
+  Requête de conteneur `a7 (max-width: 560px)` : grille
+  `minmax(44px, auto) minmax(0, 1fr)` / `auto 1fr`, rail en colonne 1 rangée
+  2 (libellés conservés, 10 px), corps en colonne 2 sur les deux rangées,
+  intitulé « Assistant IA » affiché et quatre actions sur une ligne
+  (libellés autorisés à passer à la ligne, orbes alignées en haut) ; nouvelle
+  requête `a7 (max-width: 270px)` — écran de 344 px au plus, soit 320 px, tandis que 360 et 375 px gardent la disposition de l'ordinateur (revue indépendante) — qui rétablit l'ancienne ligne d'icônes ;
+  replis `@supports not` à 639 px et 344 px ; Brouillon | Publier resserré de 216 à 208 px pour tenir dans la colonne de droite d'un écran de 360 px. Requête `aurore (max-width:
+  480px)` : la grille de la racine passe à quatre colonnes (damier conservé,
+  bulles de 46 px, libellés courts), plus aucune règle de défilement,
+  d'aimantation ni de fondu ; repli à 639 px identique. Ordinateur et
+  tablette large : aucun changement (mesures identiques). L'avatar n'a
+  aucune règle : il est placé par la grille dans la première cellule libre,
+  même boîte et mêmes coordonnées sur les six écrans.
+* **Contrôle** : typage 0 erreur, 1589/1589 tests (104 fichiers) après
+  écriture des gardes CSS (rail non masqué à 560 px, rangées `auto 1fr`,
+  quatre colonnes IA, repli 270 px (aucun seuil 300 px), replis 639/344, resserrement du groupe ; bande : grille 4
+  colonnes, aucun `overflow-x` / `scroll-snap` / `mask-image`, damier non
+  annulé), build OK ; captures et mesures avant/après sur six écrans
+  (1440 × 900, 820 × 1180, 390 × 844, 360 × 800, 375 × 667, 320 × 568 ; script `mesurer.cjs` versionné avec les captures) : téléphone — rail visible
+  avec 4 libellés, actions IA sur 1 rangée, champ 249 px (219 px à 360, 234 px à 375), avatar 37,82 44 × 44
+  identique, bande 16/16 orbes visibles, 0 hors écran, aucun défilement ;
+  ordinateur — toutes mesures identiques ; 320 px — repli actif (intitulé « Assistant IA » désormais visible, champ 120 px : rien ne disparaît). Revue
+  indépendante « À CORRIGER » (6 constats, tous corrigés) puis contre-vérification « PRÊT ».
+* **Production contrôlée** : feu vert écrit de la Direction le 5/09/2026 vers
+  15:11 UTC (« je donne mon feu vert écrit pour une production assistée de la
+  PR cent. Tu peux fusionner et vérifier immédiatement sur moknet point net.
+  Si tu rencontres un problème pendant ou juste après, tu le corriges dans ce
+  même cadre ; si c'est incontrôlable, tu arrêtes et tu reviens à l'état
+  stable précédent »). `main` `1466525` inchangé depuis le dernier Green Gate,
+  aucune autre fusion en cours ; PR #100 fusionnée en squash sur la tête
+  exacte `a921a2f` → `main` `a615593` à **15:12:30 UTC**. Vérification
+  immédiate : `moknet.net` sert la nouvelle feuille depuis **15:13:19 UTC**
+  (20 s après la fusion ; bundle `index-Bm6woHcd.js` inchangé, aucun
+  JavaScript modifié ; etag `061af64e…`, `cache-control: max-age=0,
+  must-revalidate`) — marqueurs présents (`a7 (max-width: 270px)`,
+  `(max-width: 344px)`, `grid-template-rows: auto 1fr`, resserrement du
+  groupe), aucun seuil 300/360 px, aucune règle `scroll-snap` / `mask-image` /
+  `overflow-x` dans la bande, ancien bundle `index-DnzvQMzK.js` → 404,
+  vérificateur « conforme » ; Green Gate vert sur `main` (run 33974090869) ;
+  miroir local ouvert dans Chromium : racine montée, requêtes de conteneur
+  `a7` 560/270 et `aurore` 800/480 analysées, deux replis `@supports`.
+  Limite honnête : l'écran authentifié (composeur) n'est pas capturable sans
+  compte ; les captures ordinateur et téléphone du composeur proviennent du
+  harnais sur ce même code
+  (`docs/captures/2026-09-05-reseau-meme-disposition-telephone/`).
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  fusion 15:12:30 UTC, page servie 15:13:19 UTC, v6.40.0).
+
+---
+
 ### [DEC-2026-077] — 5 Septembre 2026
 * **Module(s)** : Super-Admin (Paramètres plateforme, carte « Avatar vivant de l'Architecte ») ; Diallo OS & Architecte (module 01) ; banc `design-lab/banc/super-admin-avatar.html`.
 * **Problème / Besoin initial** : Direction (05/09) : « Tu ajoutes dans Super Admin une option… Créer ou remplacer l'avatar vivant depuis une photo. Avec aperçu, validation, sauvegarde et retour arrière, sans couvrir les boutons ni gêner l'usage. […] Je t'ai fourni une photo validée : base-toi strictement sur cette photo pour remplacer l'avatar actuel, et ajoute dans Super Admin une option permettant à l'Administrateur général de fournir une photo afin que l'avatar vivant de l'Architecte prenne automatiquement la forme de cette photo, sans masquer MokNet », puis « reprends la même technique et la même technologie déjà validées pour l'avatar vivant […] Fournis les preuves mobile, ordinateur et Super Admin ». **Constat** : la carte Super-Admin acceptait une adresse de photo mais exigeait un calage manuel de huit valeurs ; le masque de silhouette ne valait que pour le portrait d'usine (toute autre photo retombait sur le cadre rond) ; aucun retour arrière. **Blocage réel, dit** : la photo validée est arrivée dans la conversation, pas sous forme de fichier — aucun octet sur le disque, ni dans Google Drive, ni dans les actifs HeyGen, ni dans les profils MokNet (deux photos de profil du compte de la Direction existent, mais ce ne sont pas celle validée) ; l'option Super-Admin est précisément le canal qui permet à la Direction de la fournir elle-même.
@@ -1789,6 +1886,18 @@ Chaque décision respecte le formalisme strict suivant :
   du bundle servi par `moknet.net`, captures avec le chemin exact. La
   promotion du profil de la Direction au rang `super_admin` reste une
   décision de la Direction (mot écrit).
+* **Ajustement du 5/09 (v6.40.1, PR #104)** : la Direction a demandé où se
+  fait le dialogue et comment l'activer. Le champ de saisie, jusque-là sous
+  les boutons de commande et la progression, est placé juste sous la
+  conversation (touche Entrée ou bouton Envoyer), avec le placeholder
+  « Écrivez ici : … ». Rien n'est à activer : le dialogue (analyser,
+  expliquer, diagnostiquer, questions libres, voix, micro) est ouvert à tout
+  administrateur ; seul l'acte d'appliquer une réparation exige le rang
+  Admin Général. Le README des captures dit désormais où se fait le dialogue.
+  Vérifié en production le 5/09/2026 à 15:27 UTC : PR #104 fusionnée en
+  squash → `main` `d3415b4` (Green Gate run 33974730535 vert sur
+  `eb8fea5`), `moknet.net` sert `index-CMCLckXy.js` (placeholder « Écrivez
+  ici : » présent), ancien bundle `index-Bm6woHcd.js` → 404.
 * **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
   11:14 UTC) — PR #91 fusionnée en squash → `main` `b36318b` (Green
   Gate run 33962624632 vert sur `5b265dd`) ; `moknet.net` sert
@@ -3035,7 +3144,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-078] — 4 Septembre 2026
+### [DEC-2026-080] — 4 Septembre 2026
 * **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
 * **Problème / Besoin initial** : AI Core était une **boîte noire** pour
   l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
@@ -3061,6 +3170,11 @@ Chaque décision respecte le formalisme strict suivant :
      sans identité — le dénominateur grandit plus vite que le numérateur.)*
   6. Le dépôt contient **2 migrations** contre **103** appliquées en base ;
      `supabase/functions` est exclu de `tsc` et **aucun test** ne couvre AI Core.
+     *(Chiffre du 4 septembre, au commit `e9380bc`. Le manifeste, remesuré à
+     chaque build, compte **6 migrations dans le dépôt** au 5 septembre : les
+     PR #70, #86, #96 et #107 en ont versionné quatre depuis — dont
+     `platform_settings`, qui n'est pas appliquée. Le compte en base, 103,
+     reste celui du relevé du 4 septembre : il n'a pas été remesuré.)*
 
   Le défaut n'était donc pas technique : il était **invisible**. Rien, dans
   MokNet, ne permettait de le constater.
@@ -3085,7 +3199,8 @@ Chaque décision respecte le formalisme strict suivant :
   engagés :
   1. **Exécution du Loop 1** (fondations) : validation de l'`agentId` côté
      passerelle, journalisation `agent_id` + `tools_used`, mode `test` AI Core,
-     rapatriement des 101 migrations manquantes, extension du Green Gate par
+     rapatriement des migrations manquantes (**6** dans le dépôt contre **103**
+     relevées en base le 4 septembre), extension du Green Gate par
      `deno check` / `deno test`.
   2. **Voie de preuve du Loop 1** : les deux règles en vigueur — « seule une
      preuve venue du lien public compte » et « aucune fusion, aucune
@@ -3148,8 +3263,8 @@ Chaque décision respecte le formalisme strict suivant :
   `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
   `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
   `components/admin/AiOrchestrator.tsx`.
-* **Preuves** : `tsc` 0 · **vitest 1603/1603 (105 fichiers)** après treize remises
-  à niveau sur `main` (jusqu'à la PR #102) · `npm run build` propre · Green Gate
+* **Preuves** : `tsc` 0 · **vitest 1610/1610 (105 fichiers)** après quatorze remises
+  à niveau sur `main` (jusqu'à la PR #107) · `npm run build` propre · Green Gate
   **vert** sur `b47a06a`, relancé sur le HEAD courant ·
   séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
   (conditions d'un checkout propre) · lien public de prévisualisation

@@ -1,0 +1,926 @@
+{
+  "ordinateur": {
+    "ecran": {
+      "largeur": 1440,
+      "hauteur": 900
+    },
+    "debordementHorizontalPage": false,
+    "composeur": {
+      "boite": {
+        "x": 304,
+        "y": 111,
+        "l": 1120,
+        "h": 390
+      },
+      "conteneurLargeur": 1078,
+      "avatar": {
+        "x": 325,
+        "y": 132,
+        "l": 44,
+        "h": 44,
+        "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+      },
+      "champ": {
+        "x": 476,
+        "y": 132,
+        "l": 927,
+        "h": 150,
+        "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document.",
+        "minHeight": "150px"
+      },
+      "railVisible": true,
+      "railLibelles": [
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix"
+      ],
+      "railBoite": {
+        "x": 383,
+        "y": 132,
+        "l": 79,
+        "h": 296
+      },
+      "ligneBasVisible": false,
+      "ligneBasLibelles": [],
+      "intituleAssistantVisible": true,
+      "actionsIA": [
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA"
+      ],
+      "actionsIALibellesVisibles": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "actionsIARangees": 1,
+      "groupe": {
+        "l": 216,
+        "h": 41,
+        "deborde": false
+      },
+      "boutonsVisibles": [
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix",
+        "Assistant IA Pré-Publication",
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA",
+        "Brouillon",
+        "Publier"
+      ],
+      "nbBoutonsVisibles": 11,
+      "horsEcran": [],
+      "ciblesSous44": [
+        "Assistant IA Pré-Publication 42×42",
+        "Brouillon 101×41",
+        "Publier 115×41"
+      ],
+      "compteurVisible": true,
+      "selects": 2,
+      "gabaritColonnes": "44px 79.0625px 926.938px"
+    },
+    "bande": {
+      "boite": {
+        "x": 304,
+        "y": 525,
+        "l": 1120,
+        "h": 253
+      },
+      "nbOrbes": 16,
+      "nbOrbesVisibles": 16,
+      "noms": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "rangees": 4,
+      "colonnes": 14,
+      "defilementHorizontal": false,
+      "overflowX": "visible",
+      "affichage": "grid",
+      "horsEcran": [],
+      "ciblesSous44": [],
+      "bulle": {
+        "l": 54,
+        "h": 54
+      },
+      "libellesVisibles": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "derniereOrbeDansLaCarte": true
+    },
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "tablette": {
+    "ecran": {
+      "largeur": 820,
+      "hauteur": 1180
+    },
+    "debordementHorizontalPage": false,
+    "composeur": {
+      "boite": {
+        "x": 304,
+        "y": 143,
+        "l": 500,
+        "h": 510
+      },
+      "conteneurLargeur": 458,
+      "avatar": {
+        "x": 325,
+        "y": 164,
+        "l": 44,
+        "h": 44,
+        "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+      },
+      "champ": {
+        "x": 379,
+        "y": 164,
+        "l": 404,
+        "h": 96,
+        "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document.",
+        "minHeight": "96px"
+      },
+      "railVisible": false,
+      "railLibelles": [],
+      "railBoite": null,
+      "ligneBasVisible": true,
+      "ligneBasLibelles": [],
+      "intituleAssistantVisible": false,
+      "actionsIA": [
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA"
+      ],
+      "actionsIALibellesVisibles": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "actionsIARangees": 2,
+      "groupe": {
+        "l": 216,
+        "h": 41,
+        "deborde": false
+      },
+      "boutonsVisibles": [
+        "Assistant IA Pré-Publication",
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA",
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix",
+        "Brouillon",
+        "Publier"
+      ],
+      "nbBoutonsVisibles": 11,
+      "horsEcran": [],
+      "ciblesSous44": [
+        "Assistant IA Pré-Publication 42×42",
+        "Brouillon 101×41",
+        "Publier 115×41"
+      ],
+      "compteurVisible": true,
+      "selects": 2,
+      "gabaritColonnes": "44px 404px"
+    },
+    "bande": {
+      "boite": {
+        "x": 304,
+        "y": 677,
+        "l": 500,
+        "h": 115
+      },
+      "nbOrbes": 16,
+      "nbOrbesVisibles": 16,
+      "noms": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "rangees": 1,
+      "colonnes": 16,
+      "defilementHorizontal": true,
+      "overflowX": "auto",
+      "affichage": "flex",
+      "horsEcran": [
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "ciblesSous44": [],
+      "bulle": {
+        "l": 46,
+        "h": 46
+      },
+      "libellesVisibles": [
+        "Live",
+        "Experts",
+        "Campus",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues",
+        "Carrière",
+        "Santé",
+        "Habitat",
+        "Finance",
+        "Démarches",
+        "Mobilité",
+        "Studio",
+        "Marché"
+      ],
+      "derniereOrbeDansLaCarte": true
+    },
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "telephone": {
+    "ecran": {
+      "largeur": 390,
+      "hauteur": 844
+    },
+    "debordementHorizontalPage": false,
+    "composeur": {
+      "boite": {
+        "x": 16,
+        "y": 61,
+        "l": 358,
+        "h": 555
+      },
+      "conteneurLargeur": 316,
+      "avatar": {
+        "x": 37,
+        "y": 82,
+        "l": 44,
+        "h": 44,
+        "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+      },
+      "champ": {
+        "x": 91,
+        "y": 82,
+        "l": 262,
+        "h": 96,
+        "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document.",
+        "minHeight": "96px"
+      },
+      "railVisible": false,
+      "railLibelles": [],
+      "railBoite": null,
+      "ligneBasVisible": true,
+      "ligneBasLibelles": [],
+      "intituleAssistantVisible": false,
+      "actionsIA": [
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA"
+      ],
+      "actionsIALibellesVisibles": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "actionsIARangees": 2,
+      "groupe": {
+        "l": 216,
+        "h": 41,
+        "deborde": false
+      },
+      "boutonsVisibles": [
+        "Assistant IA Pré-Publication",
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA",
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix",
+        "Brouillon",
+        "Publier"
+      ],
+      "nbBoutonsVisibles": 11,
+      "horsEcran": [],
+      "ciblesSous44": [
+        "Assistant IA Pré-Publication 42×42",
+        "Brouillon 101×41",
+        "Publier 115×41"
+      ],
+      "compteurVisible": true,
+      "selects": 2,
+      "gabaritColonnes": "44px 262px"
+    },
+    "bande": {
+      "boite": {
+        "x": 16,
+        "y": 640,
+        "l": 358,
+        "h": 115
+      },
+      "nbOrbes": 16,
+      "nbOrbesVisibles": 16,
+      "noms": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "rangees": 1,
+      "colonnes": 16,
+      "defilementHorizontal": true,
+      "overflowX": "auto",
+      "affichage": "flex",
+      "horsEcran": [
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "ciblesSous44": [],
+      "bulle": {
+        "l": 46,
+        "h": 46
+      },
+      "libellesVisibles": [
+        "Live",
+        "Experts",
+        "Campus",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues",
+        "Carrière",
+        "Santé",
+        "Habitat",
+        "Finance",
+        "Démarches",
+        "Mobilité",
+        "Studio",
+        "Marché"
+      ],
+      "derniereOrbeDansLaCarte": true
+    },
+    "saisie": {
+      "compteur": "76 caractères",
+      "publierActif": true
+    },
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "android360": {
+    "ecran": {
+      "largeur": 360,
+      "hauteur": 800
+    },
+    "debordementHorizontalPage": false,
+    "composeur": {
+      "boite": {
+        "x": 16,
+        "y": 61,
+        "l": 328,
+        "h": 555
+      },
+      "conteneurLargeur": 286,
+      "avatar": {
+        "x": 37,
+        "y": 82,
+        "l": 44,
+        "h": 44,
+        "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+      },
+      "champ": {
+        "x": 91,
+        "y": 82,
+        "l": 232,
+        "h": 96,
+        "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document.",
+        "minHeight": "96px"
+      },
+      "railVisible": false,
+      "railLibelles": [],
+      "railBoite": null,
+      "ligneBasVisible": true,
+      "ligneBasLibelles": [],
+      "intituleAssistantVisible": false,
+      "actionsIA": [
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA"
+      ],
+      "actionsIALibellesVisibles": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "actionsIARangees": 2,
+      "groupe": {
+        "l": 216,
+        "h": 41,
+        "deborde": false
+      },
+      "boutonsVisibles": [
+        "Assistant IA Pré-Publication",
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA",
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix",
+        "Brouillon",
+        "Publier"
+      ],
+      "nbBoutonsVisibles": 11,
+      "horsEcran": [],
+      "ciblesSous44": [
+        "Assistant IA Pré-Publication 42×42",
+        "Brouillon 101×41",
+        "Publier 115×41"
+      ],
+      "compteurVisible": true,
+      "selects": 2,
+      "gabaritColonnes": "44px 232px"
+    },
+    "bande": {
+      "boite": {
+        "x": 16,
+        "y": 640,
+        "l": 328,
+        "h": 115
+      },
+      "nbOrbes": 16,
+      "nbOrbesVisibles": 16,
+      "noms": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "rangees": 1,
+      "colonnes": 16,
+      "defilementHorizontal": true,
+      "overflowX": "auto",
+      "affichage": "flex",
+      "horsEcran": [
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "ciblesSous44": [],
+      "bulle": {
+        "l": 46,
+        "h": 46
+      },
+      "libellesVisibles": [
+        "Live",
+        "Experts",
+        "Campus",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues",
+        "Carrière",
+        "Santé",
+        "Habitat",
+        "Finance",
+        "Démarches",
+        "Mobilité",
+        "Studio",
+        "Marché"
+      ],
+      "derniereOrbeDansLaCarte": true
+    },
+    "saisie": {
+      "compteur": "76 caractères",
+      "publierActif": true
+    },
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "iphone375": {
+    "ecran": {
+      "largeur": 375,
+      "hauteur": 667
+    },
+    "debordementHorizontalPage": false,
+    "composeur": {
+      "boite": {
+        "x": 16,
+        "y": 61,
+        "l": 343,
+        "h": 555
+      },
+      "conteneurLargeur": 301,
+      "avatar": {
+        "x": 37,
+        "y": 82,
+        "l": 44,
+        "h": 44,
+        "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+      },
+      "champ": {
+        "x": 91,
+        "y": 82,
+        "l": 247,
+        "h": 96,
+        "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document.",
+        "minHeight": "96px"
+      },
+      "railVisible": false,
+      "railLibelles": [],
+      "railBoite": null,
+      "ligneBasVisible": true,
+      "ligneBasLibelles": [],
+      "intituleAssistantVisible": false,
+      "actionsIA": [
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA"
+      ],
+      "actionsIALibellesVisibles": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "actionsIARangees": 2,
+      "groupe": {
+        "l": 216,
+        "h": 41,
+        "deborde": false
+      },
+      "boutonsVisibles": [
+        "Assistant IA Pré-Publication",
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA",
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix",
+        "Brouillon",
+        "Publier"
+      ],
+      "nbBoutonsVisibles": 11,
+      "horsEcran": [],
+      "ciblesSous44": [
+        "Assistant IA Pré-Publication 42×42",
+        "Brouillon 101×41",
+        "Publier 115×41"
+      ],
+      "compteurVisible": true,
+      "selects": 2,
+      "gabaritColonnes": "44px 247px"
+    },
+    "bande": {
+      "boite": {
+        "x": 16,
+        "y": 640,
+        "l": 343,
+        "h": 115
+      },
+      "nbOrbes": 16,
+      "nbOrbesVisibles": 16,
+      "noms": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "rangees": 1,
+      "colonnes": 16,
+      "defilementHorizontal": true,
+      "overflowX": "auto",
+      "affichage": "flex",
+      "horsEcran": [
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "ciblesSous44": [],
+      "bulle": {
+        "l": 46,
+        "h": 46
+      },
+      "libellesVisibles": [
+        "Live",
+        "Experts",
+        "Campus",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues",
+        "Carrière",
+        "Santé",
+        "Habitat",
+        "Finance",
+        "Démarches",
+        "Mobilité",
+        "Studio",
+        "Marché"
+      ],
+      "derniereOrbeDansLaCarte": true
+    },
+    "saisie": {
+      "compteur": "76 caractères",
+      "publierActif": true
+    },
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "etroit": {
+    "ecran": {
+      "largeur": 320,
+      "hauteur": 568
+    },
+    "debordementHorizontalPage": false,
+    "composeur": {
+      "boite": {
+        "x": 16,
+        "y": 61,
+        "l": 288,
+        "h": 555
+      },
+      "conteneurLargeur": 246,
+      "avatar": {
+        "x": 37,
+        "y": 82,
+        "l": 44,
+        "h": 44,
+        "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+      },
+      "champ": {
+        "x": 91,
+        "y": 82,
+        "l": 192,
+        "h": 96,
+        "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document.",
+        "minHeight": "96px"
+      },
+      "railVisible": false,
+      "railLibelles": [],
+      "railBoite": null,
+      "ligneBasVisible": true,
+      "ligneBasLibelles": [],
+      "intituleAssistantVisible": false,
+      "actionsIA": [
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA"
+      ],
+      "actionsIALibellesVisibles": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "actionsIARangees": 2,
+      "groupe": {
+        "l": 192,
+        "h": 41,
+        "deborde": false
+      },
+      "boutonsVisibles": [
+        "Assistant IA Pré-Publication",
+        "Améliorer le style",
+        "Traduire",
+        "Hashtags",
+        "Visuel IA",
+        "Photo",
+        "Vidéo",
+        "Document",
+        "Voix",
+        "Brouillon",
+        "Publier"
+      ],
+      "nbBoutonsVisibles": 11,
+      "horsEcran": [],
+      "ciblesSous44": [
+        "Assistant IA Pré-Publication 42×42",
+        "Brouillon 101×41",
+        "Publier 115×41"
+      ],
+      "compteurVisible": true,
+      "selects": 2,
+      "gabaritColonnes": "44px 192px"
+    },
+    "bande": {
+      "boite": {
+        "x": 16,
+        "y": 640,
+        "l": 288,
+        "h": 115
+      },
+      "nbOrbes": 16,
+      "nbOrbesVisibles": 16,
+      "noms": [
+        "Live",
+        "Équipe & Experts",
+        "Campus & Éducation",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "rangees": 1,
+      "colonnes": 16,
+      "defilementHorizontal": true,
+      "overflowX": "auto",
+      "affichage": "flex",
+      "horsEcran": [
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues & Immersion",
+        "Carrière & Accomplissement",
+        "Santé & Bien-être",
+        "Habitat & Installation",
+        "Finance & Wallet",
+        "Mes Démarches",
+        "Mobilité & Expatriation",
+        "Studio Créatif",
+        "Marché Mondial"
+      ],
+      "ciblesSous44": [],
+      "bulle": {
+        "l": 46,
+        "h": 46
+      },
+      "libellesVisibles": [
+        "Live",
+        "Experts",
+        "Campus",
+        "Reels",
+        "Tribus",
+        "Croissance",
+        "Ma Story",
+        "Langues",
+        "Carrière",
+        "Santé",
+        "Habitat",
+        "Finance",
+        "Démarches",
+        "Mobilité",
+        "Studio",
+        "Marché"
+      ],
+      "derniereOrbeDansLaCarte": true
+    },
+    "saisie": {
+      "compteur": "76 caractères",
+      "publierActif": true
+    },
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  }
+}

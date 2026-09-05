@@ -155,6 +155,17 @@ export const PRESENTATION_START_GRACE_MS = 3000;
 
 /** Sculpture flottante : 96 px sur ordinateur, 84 px sur téléphone — « sobre et de taille raisonnable ». */
 export const SCULPTURE_SIZE = { desktop: 96, mobile: 84 } as const;
+/**
+ * RETRAIT PENDANT LA SAISIE (zéro obstruction, 05/09/2026). Quand une zone de
+ * saisie de MokNet a le focus (composeur, recherche, formulaire), la sculpture
+ * se réduit à une pastille dans son coin : la personne écrit, puis clique
+ * « Publier » sans rien sous la sculpture — mesuré sur le fil réel, où la
+ * sculpture au repos couvrait la moitié droite de « Publier » à 390 × 844.
+ * Elle revient `SCULPTURE_YIELD_RETURN_MS` après la sortie du champ, pour
+ * laisser le clic qui suit la saisie atteindre sa cible.
+ */
+export const SCULPTURE_YIELD_RETURN_MS = 400;
+export const SCULPTURE_YIELD_SCALE = 0.34;
 
 function useIsDesktop(): boolean {
     const query = '(min-width: 768px)';
@@ -232,6 +243,33 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     openSignal,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    // La sculpture se retire pendant qu'on écrit dans MokNet (voir SCULPTURE_YIELD_RETURN_MS).
+    const [isYielding, setIsYielding] = useState(false);
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined;
+        let timer: number | null = null;
+        const isField = (el: EventTarget | null): el is Element =>
+            el instanceof Element &&
+            el.matches('textarea, [contenteditable=""], [contenteditable="true"], input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"])');
+        const insideArchitecte = (el: Element) => !!el.closest('[data-testid="architecte-ancrage"]');
+        const onFocusIn = (e: FocusEvent) => {
+            if (!isField(e.target) || insideArchitecte(e.target)) return;
+            if (timer !== null) { window.clearTimeout(timer); timer = null; }
+            setIsYielding(true);
+        };
+        const onFocusOut = (e: FocusEvent) => {
+            if (!isField(e.target) || insideArchitecte(e.target)) return;
+            if (timer !== null) window.clearTimeout(timer);
+            timer = window.setTimeout(() => { timer = null; setIsYielding(false); }, SCULPTURE_YIELD_RETURN_MS);
+        };
+        document.addEventListener('focusin', onFocusIn);
+        document.addEventListener('focusout', onFocusOut);
+        return () => {
+            document.removeEventListener('focusin', onFocusIn);
+            document.removeEventListener('focusout', onFocusOut);
+            if (timer !== null) window.clearTimeout(timer);
+        };
+    }, []);
     const [isThinking, setIsThinking] = useState(false);
     const [status, setStatus] = useState<string>('');
     const [statusTone, setStatusTone] = useState<string>('text-cyan-300/80');
@@ -332,9 +370,17 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
 
     // Avatar vivant de l'Architecte : réglages tenus par le Super-Admin
     // (visage, animations, synchro labiale, voix). Lecture locale-first, sans
-    // requête réseau, comme partout ailleurs dans l'application.
-    const avatarConfig = useMemo(
-        () => mergeArchitecteAvatarConfig(adminConfigService.getDetailedSettings().architecteAvatar),
+    // requête réseau ; puis suit le réglage PARTAGÉ de la plateforme quand la
+    // console le reçoit (photo validée par la Direction, remplacée depuis
+    // Super-Admin) — sans rechargement.
+    const [avatarConfig, setAvatarConfig] = useState(
+        () => mergeArchitecteAvatarConfig(adminConfigService.getDetailedSettings().architecteAvatar)
+    );
+    useEffect(
+        () => adminConfigService.subscribe(() => {
+            const next = mergeArchitecteAvatarConfig(adminConfigService.getDetailedSettings().architecteAvatar);
+            setAvatarConfig((prev) => (prev.updatedAt === next.updatedAt && prev.photoUrl === next.photoUrl ? prev : next));
+        }),
         []
     );
     const effectiveVoiceId = useMemo(
@@ -1285,7 +1331,11 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             onClick={isOpen ? close : ouvrirParLaSculpture}
             actionLabel={isOpen ? "Fermer l'Architecte" : "Ouvrir l'Architecte"}
             testId="architecte-flottant"
-            className="pointer-events-auto shrink-0 transition-transform duration-300 hover:scale-105 active:scale-95"
+            className={
+                !isOpen && isYielding
+                    ? 'pointer-events-auto shrink-0 transition-transform duration-300 origin-bottom-right scale-[.34] opacity-90'
+                    : 'pointer-events-auto shrink-0 transition-transform duration-300 hover:scale-105 active:scale-95'
+            }
         />
     );
 
@@ -1297,11 +1347,16 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // les fonctions de MokNet restent visibles et cliquables (l'ancrage ne
     // capte aucun clic, chaque élément rétablit les siens). `bottom-24` sur
     // téléphone : au-dessus du dock (audit mobile du 31/08/2026).
-    const ancrage = 'fixed bottom-24 md:bottom-6 right-3 sm:right-6 z-[60] flex items-end gap-2 pointer-events-none';
+    // Retirée pendant la saisie (fermée seulement) : la pastille se serre dans le
+    // coin, sous la ligne « Publier » du composeur et au-dessus du dock (mesuré
+    // sur le fil réel à 360 × 800 et 390 × 844).
+    const ancrage = !isOpen && isYielding
+        ? 'fixed bottom-20 md:bottom-6 right-1 sm:right-6 z-[60] flex items-end gap-2 pointer-events-none'
+        : 'fixed bottom-24 md:bottom-6 right-3 sm:right-6 z-[60] flex items-end gap-2 pointer-events-none';
 
     if (!isOpen) {
         return (
-            <div className={ancrage} data-testid="architecte-ancrage">
+            <div className={ancrage} data-testid="architecte-ancrage" data-retrait={isYielding ? 'true' : 'false'}>
                 {sculpture}
             </div>
         );

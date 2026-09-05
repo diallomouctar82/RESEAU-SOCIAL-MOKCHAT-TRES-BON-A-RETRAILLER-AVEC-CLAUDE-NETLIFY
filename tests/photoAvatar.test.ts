@@ -43,9 +43,9 @@ function visageSynthetique(overrides: Partial<Record<number, Point>> = {}): Poin
 }
 
 describe('Cadrage au portrait d’usine', () => {
-    it('la cible est celle du portrait livré : pupilles à 46,3 % de la hauteur, écart de 21,5 % de la largeur', () => {
+    it('la cible est celle du portrait livré : pupilles à 46,3 % de la hauteur, écart de 21,4 % de la largeur', () => {
         expect(FRAMING_TARGET.eyeLinePercent).toBe(DEFAULT_PORTRAIT_RIG.eyeLinePercent);
-        expect(FRAMING_TARGET.interPupilPercent).toBeCloseTo(21.5, 5);
+        expect(FRAMING_TARGET.interPupilPercent).toBeCloseTo(21.4, 5);
         expect(ANALYSIS_LIMITS.outputSide).toBe(768);
     });
 
@@ -64,14 +64,14 @@ describe('Cadrage au portrait d’usine', () => {
     it('le carré place les pupilles sur la ligne cible et à l’écart cible, et dit s’il déborde', () => {
         const { left, right } = pupilsFrom(visageSynthetique());
         const f = framingFromPupils(left, right, 1000, 1000);
-        expect(f.side).toBeCloseTo(200 / 0.215, 1);
+        expect(f.side).toBeCloseTo(200 / 0.214, 1);
         expect(f.x).toBeCloseTo(500 - f.side / 2, 1);
         expect(f.y).toBeCloseTo(450 - f.side * 0.463, 1);
         expect(f.coverage).toBe(1);
         const gauche = toFramed(left, f, 1000, 1000);
         const droite = toFramed(right, f, 1000, 1000);
         expect(gauche.y * 100).toBeCloseTo(46.3, 1);
-        expect((droite.x - gauche.x) * 100).toBeCloseTo(21.5, 1);
+        expect((droite.x - gauche.x) * 100).toBeCloseTo(21.4, 1);
         // Photo trop serrée : le carré déborde, la couverture le dit.
         const serre = framingFromPupils({ x: 0.3, y: 0.3 }, { x: 0.7, y: 0.3 }, 400, 400);
         expect(serre.coverage).toBeLessThan(0.8);

@@ -1986,10 +1986,12 @@
          entree (--h, en degres, posee par le composant), en damier sur deux
          rangees de huit ; l'orbe de la section courante se remplit de sa
          teinte. Halo qui respire, soulevement et lueur au survol (vrais
-         pointeurs seulement), rail aimante sur telephone. Le bloc lit la
-         largeur reelle de la carte (container query), pas celle de l'ecran.
-         Tout s'arrete sous prefers-reduced-motion. Selecteurs courts et
-         sans accent (garde-fou tests/miroirFeuilleAnalysee).
+         pointeurs seulement). Sur telephone, meme disposition que sur
+         ordinateur ramenee a quatre colonnes, sans defilement horizontal
+         (DEC-2026-078 ; remplace le rail aimante juge genant). Le bloc lit
+         la largeur reelle de la carte (container query), pas celle de
+         l'ecran. Tout s'arrete sous prefers-reduced-motion. Selecteurs
+         courts et sans accent (garde-fou tests/miroirFeuilleAnalysee).
          =================================================================== */
       .aurore-bande {
         --au-encre: var(--mir-ink, #0B3A46);
@@ -2196,28 +2198,18 @@
         .aurore-court { display: block; font-size: 10px; }
       }
       /* Telephone : largeur interieure de 480 px ou moins (carte de 506 px
-         au plus), rail horizontal aimante. Les marges internes du rail
-         valent exactement le fondu des bords : en butee, la premiere et la
-         derniere orbe sont entierement nettes. */
+         au plus) — meme disposition que sur ordinateur, ramenee a quatre
+         colonnes : les seize orbes en quatre rangees, damier conserve,
+         libelles courts, aucun defilement horizontal (DEC-2026-078 ; le
+         rail aimante de DEC-2026-058 obligeait a faire defiler). La grille
+         reste celle de la racine ; seul le nombre de colonnes change. */
       @container aurore (max-width: 480px) {
-        .aurore-rangee {
-          display: flex;
-          overflow-x: auto;
-          scroll-snap-type: x mandatory;
-          scroll-padding-inline: 16px;
-          gap: 6px;
-          padding: 6px 16px 8px;
-          scrollbar-width: none;
-          -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
-        }
-        .aurore-rangee::-webkit-scrollbar { display: none; }
-        .aurore-item { flex: none; width: 72px; scroll-snap-align: start; }
-        .aurore-item:nth-child(2n) .aurore-orbe { transform: none; }
+        .aurore-rangee { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 4px; padding: 6px 0 14px; }
         .aurore-orbe { width: 100%; padding-left: 0; padding-right: 0; }
         .aurore-orbe::before { left: calc(50% - 30px); width: 60px; height: 60px; }
         .aurore-bulle { width: 46px; height: 46px; }
         .aurore-reflet { top: 54px; }
+        .aurore-court { max-width: 100%; }
       }
       /* Navigateurs sans container query : la meme chose, par l'ecran. */
       @supports not (container-type: inline-size) {
@@ -2229,13 +2221,12 @@
           .aurore-court { display: block; font-size: 10px; }
         }
         @media (max-width: 639px) {
-          .aurore-rangee { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; gap: 6px; padding: 6px 16px 8px; scrollbar-width: none; }
-          .aurore-item { flex: none; width: 72px; scroll-snap-align: start; }
-          .aurore-item:nth-child(2n) .aurore-orbe { transform: none; }
+          .aurore-rangee { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 4px; padding: 6px 0 14px; }
           .aurore-orbe { width: 100%; padding-left: 0; padding-right: 0; }
           .aurore-orbe::before { left: calc(50% - 30px); width: 60px; height: 60px; }
           .aurore-bulle { width: 46px; height: 46px; }
           .aurore-reflet { top: 54px; }
+          .aurore-court { max-width: 100%; }
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -2251,10 +2242,12 @@
          RESEAU MOC — COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-061)
 
          Variante A7 choisie par la Direction : les quatre medias (Photo,
-         Video, Document, Voix) en colonne d'orbes a gauche du champ sur
-         ordinateur, en ligne sous le champ sur telephone ; l'etincelle
-         (Assistant IA) en orbe d'or dans le champ ; les quatre actions IA en
-         orbes nommees sous le champ ; visibilite et categorie en texte ;
+         Video, Document, Voix) en colonne d'orbes a gauche du champ, avec
+         leurs libelles, sur ordinateur COMME sur telephone (DEC-2026-078 :
+         sur telephone le rail descend sous l'avatar, dans la meme colonne,
+         et le champ garde la colonne de droite) ; l'etincelle (Assistant IA)
+         en orbe d'or dans le champ ; les quatre actions IA en orbes nommees
+         sur une ligne sous le champ ; visibilite et categorie en texte ;
          Brouillon | Publier en groupe. Tout ce qui existait reste, seul
          l'habillage change. Meme orbe de cristal que la bande Aurore.
          =================================================================== */
@@ -2361,30 +2354,73 @@
       }
       .a7-groupe button:disabled { opacity: .55; cursor: default; }
       .a7-groupe button:focus-visible { outline: 3px solid var(--mir-acc, #0F9EC2); outline-offset: -3px; }
-      /* Telephone : le rail devient une ligne sous le champ, libelles des orbes masques */
-      /* Telephone : le rail devient une ligne d'icones sous le champ ; les
-         quatre actions IA gardent leur nom (elles passent sur deux lignes),
-         le compteur reste visible. La colonne de l'avatar reste a 44 px :
-         plus etroite, elle ecraserait l'image (max-width: 100% du preflight). */
+      /* Telephone (DEC-2026-078) : meme disposition que sur ordinateur.
+         L'avatar garde sa place et sa boite (44 px, premiere colonne,
+         premiere rangee ; la colonne ne peut pas etre plus etroite, elle
+         ecraserait l'image). Le rail des medias, AVEC ses libelles, descend
+         sous l'avatar dans la meme colonne ; le corps (champ, quatre actions
+         IA nommees sur une seule ligne sous leur intitule, visibilite,
+         categorie, compteur, Brouillon | Publier) occupe la colonne de
+         droite sur les deux rangees. L'avatar n'a aucune regle : place par
+         la grille dans la premiere cellule libre, comme avant. */
       @container a7 (max-width: 560px) {
-        .a7-grille { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
+        /* rangee 1 = la hauteur de l'avatar (un element qui enjambe une piste
+           flexible ne la dimensionne pas) : le rail commence juste dessous. */
+        .a7-grille { grid-template-columns: minmax(44px, auto) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 10px; }
+        .a7-rail { grid-column: 1; grid-row: 2; align-self: start; padding: 6px 0; }
+        .a7-rail .a7-ob { padding: 4px 0; font-size: 10px; }
+        .a7-corps { grid-column: 2; grid-row: 1 / span 2; }
+        .a7-comp .a7-champ { min-height: 120px; padding-right: 54px; }
+        .a7-rangee { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2px; padding: 4px 0; }
+        .a7-rangee .a7-lab { grid-column: 1 / -1; margin: 0 0 2px; }
+        .a7-rangee .a7-ob { padding: 6px 2px; min-width: 0; font-size: 10px; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.15; }
+        /* Brouillon | Publier un peu resserre (216 -> 208 px) : sur un ecran
+           de 360 px la colonne de droite fait ~219 px avec les polices reelles. */
+        .a7-groupe .a7-brouillon { padding: 10px 12px; }
+        .a7-groupe .a7-publier { padding: 10px 14px; }
+      }
+      /* Carte tres etroite : largeur interieure de 270 px ou moins. Le
+         conteneur vaut l'ecran moins 74 px (marges 32, remplissage 40,
+         bordure 2) : 270 px = ecran de 344 px au plus. Les 320 px (iPhone SE
+         1re generation) sont ici ; les 360 px (Android courant) et 375 px
+         gardent la disposition de l'ordinateur ci-dessus. Le rail ne tient
+         plus a cote du champ : la ligne d'icones sous le champ (DEC-2026-061)
+         reprend le relais et les quatre actions IA repassent sur deux lignes
+         (la grille `display: grid` de .a7-rangee vient de la requete 560 px,
+         qui englobe celle-ci). */
+      @container a7 (max-width: 270px) {
+        .a7-grille { grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto; }
         .a7-rail { display: none; }
+        .a7-corps { grid-row: auto; }
         .a7-medias-bas { display: flex; flex: 1 0 100%; }
-        .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
         .a7-medias-bas .a7-lb { display: none; }
         .a7-medias-bas .a7-ob { padding: 4px 3px; }
-        .a7-rangee .a7-lab { display: none; }
-        .a7-rangee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px 0; }
-        .a7-rangee .a7-ob { padding: 6px 4px; }
+        .a7-rangee { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
+      /* Navigateurs sans requetes de conteneur : la meme chose, par l'ecran
+         (ecran = largeur interieure + 74 px : 560 -> 634, arrondi a 639 comme
+         les autres blocs ; 270 -> 344, exact). */
       @supports not (container-type: inline-size) {
         @media (max-width: 639px) {
-          .a7-grille { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
+          .a7-grille { grid-template-columns: minmax(44px, auto) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 10px; }
+          .a7-rail { grid-column: 1; grid-row: 2; align-self: start; padding: 6px 0; }
+          .a7-rail .a7-ob { padding: 4px 0; font-size: 10px; }
+          .a7-corps { grid-column: 2; grid-row: 1 / span 2; }
+          .a7-comp .a7-champ { min-height: 120px; padding-right: 54px; }
+          .a7-rangee { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2px; padding: 4px 0; }
+          .a7-rangee .a7-lab { grid-column: 1 / -1; margin: 0 0 2px; }
+          .a7-rangee .a7-ob { padding: 6px 2px; min-width: 0; font-size: 10px; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.15; }
+          .a7-groupe .a7-brouillon { padding: 10px 12px; }
+          .a7-groupe .a7-publier { padding: 10px 14px; }
+        }
+        @media (max-width: 344px) {
+          .a7-grille { grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto; }
           .a7-rail { display: none; }
+          .a7-corps { grid-row: auto; }
           .a7-medias-bas { display: flex; flex: 1 0 100%; }
-          .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
-          .a7-medias-bas .a7-lb, .a7-rangee .a7-lab { display: none; }
-          .a7-rangee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+          .a7-medias-bas .a7-lb { display: none; }
+          .a7-medias-bas .a7-ob { padding: 4px 3px; }
+          .a7-rangee { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -2717,6 +2753,7 @@
       [data-miroir] .bg-cyan-400\/10{background-color:rgba(41,180,214,0.1);}
       [data-miroir] .bg-cyan-400\/15{background-color:rgba(41,180,214,0.15);}
       [data-miroir] .bg-cyan-400\/25{background-color:rgba(41,180,214,0.25);}
+      [data-miroir] .bg-cyan-50{background-color:#ECFAFD;}
       [data-miroir] .bg-cyan-50\/40{background-color:rgba(236,250,253,0.4);}
       [data-miroir] .bg-cyan-500{background-color:#0C90B2;}
       [data-miroir] .bg-cyan-500\/10{background-color:rgba(12,144,178,0.1);}
@@ -2896,6 +2933,7 @@
       [data-miroir] .hover\:bg-blue-600\/30:hover{background-color:rgba(10,117,144,0.3);}
       [data-miroir] .hover\:bg-blue-600\/50:hover{background-color:rgba(10,117,144,0.5);}
       [data-miroir] .hover\:bg-blue-700:hover{background-color:#086077;}
+      [data-miroir] .hover\:bg-cyan-100:hover{background-color:#CBF0FA;}
       [data-miroir] .hover\:bg-cyan-400\/20:hover{background-color:rgba(41,180,214,0.2);}
       [data-miroir] .hover\:bg-cyan-400\/35:hover{background-color:rgba(41,180,214,0.35);}
       [data-miroir] .hover\:bg-cyan-50:hover{background-color:#ECFAFD;}
@@ -2954,6 +2992,7 @@
       [data-miroir] .hover\:text-cyan-200:hover{color:#A5E4F5;}
       [data-miroir] .hover\:text-cyan-300:hover{color:#5ECBE7;}
       [data-miroir] .hover\:text-cyan-400:hover{color:#29B4D6;}
+      [data-miroir] .hover\:text-cyan-900:hover{color:#0A404F;}
       [data-miroir] .hover\:text-indigo-200:hover{color:#A5E4F5;}
       [data-miroir] .hover\:text-indigo-300:hover{color:#5ECBE7;}
       [data-miroir] .hover\:text-indigo-400:hover{color:#29B4D6;}
@@ -3035,7 +3074,9 @@
       [data-miroir] .text-cyan-300\/90{color:rgba(94,203,231,0.9);}
       [data-miroir] .text-cyan-400{color:#29B4D6;}
       [data-miroir] .text-cyan-600{color:#0A7590;}
+      [data-miroir] .text-cyan-700{color:#086077;}
       [data-miroir] .text-cyan-800{color:#094E60;}
+      [data-miroir] .text-cyan-900{color:#0A404F;}
       [data-miroir] .text-indigo-100{color:#CBF0FA;}
       [data-miroir] .text-indigo-200{color:#A5E4F5;}
       [data-miroir] .text-indigo-200\/80{color:rgba(165,228,245,0.8);}
