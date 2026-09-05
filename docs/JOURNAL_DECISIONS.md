@@ -1346,7 +1346,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-062] — 5 Septembre 2026
+### [DEC-2026-074] — 5 Septembre 2026
 
 * **Module(s)** : `Gouvernance & Continuité` (`.claude/skills/production-controlee/SKILL.md`,
   `scripts/production-controlee/`, `docs/GUIDE_CONTINUITE.md`,
@@ -1431,6 +1431,14 @@ Chaque décision respecte le formalisme strict suivant :
   passerelle reste désactivé tant que `AI_CORE_SERVICE_TOKEN` n'est pas
   provisionné (état antérieur, inchangé). Les cinq propositions MokNet du
   3/09 restent PROPOSED (hors périmètre, non touchées).
+* **Renumérotation** : cette décision a été consignée sous DEC-2026-062 (PR
+  #95, `main` `c589471`) ; la PR #71 (Studio Avatar, fusionnée ensuite en
+  `d9c2c2c`) portait déjà DEC-2026-062 à 073, attribuées en parallèle. Pour
+  ne laisser qu'un seul identifiant par décision sans toucher aux entrées de
+  l'avatar, celle-ci devient **DEC-2026-074** ; le titre et la métadonnée de
+  décision de l'entrée du registre AI Core ont été alignés (contenu de la
+  version inchangé, ligne d'audit `update_knowledge_entry_metadata`). Les
+  titres de commit et de PR déjà fusionnés (#95) gardent l'ancien numéro.
 * **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ET PUBLIÉ DANS LE REGISTRE AI CORE
   (entrée ACTIVE, 5/09/2026 à 13:11 UTC).
 
