@@ -1,0 +1,548 @@
+{
+ "ordinateur": {
+  "fondRect": {
+   "y": 0,
+   "h": 900,
+   "l": 1440,
+   "fenetre": 900,
+   "bas": 900
+  },
+  "blocConteneur": [],
+  "fond": {
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "fontSize": "16px",
+   "lineHeight": "24px",
+   "color": "rgb(11, 58, 70)",
+   "zIndex": "2147482000",
+   "dansBody": true,
+   "miroir": true,
+   "racineMiroir": true
+  },
+  "carte": {
+   "y": 139,
+   "h": 623,
+   "l": 768,
+   "maxHeight": "810px",
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "background": "rgba(255, 255, 255, 0.94) none repeat scroll 0% 0% / auto padding-box border-box",
+   "backgroundColor": "rgba(255, 255, 255, 0.94)",
+   "backdropFilter": "none",
+   "borderColor": "rgba(255, 255, 255, 0.9)",
+   "boxShadow": "rgba(10, 70, 90, 0.32) 0px 10px 22px -10px"
+  },
+  "enfants": [
+   {
+    "cls": "p-5 bg-gradient-to-r from-blue",
+    "y": 140,
+    "h": 84,
+    "l": 766
+   },
+   {
+    "cls": "flex border-b border-slate-100",
+    "y": 224,
+    "h": 49,
+    "l": 766
+   },
+   {
+    "cls": "p-6 overflow-y-auto flex-1 spa",
+    "y": 273,
+    "h": 419,
+    "l": 766
+   },
+   {
+    "cls": "ia-pied p-4 bg-slate-50 border",
+    "y": 692,
+    "h": 69,
+    "l": 766
+   }
+  ],
+  "h3": {
+   "y": 160,
+   "h": 28,
+   "l": 343,
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "fontSize": "18px",
+   "lineHeight": "28px",
+   "fontWeight": "700"
+  },
+  "entete": {
+   "backgroundImage": "linear-gradient(to right, rgb(10, 117, 144), rgb(10, 117, 144), rgba(255, 255, 255, 0))"
+  },
+  "pied": {
+   "y": 709,
+   "h": 36,
+   "l": 255,
+   "paddingBottom": "0px",
+   "paddingTop": "0px"
+  },
+  "bouton": {
+   "y": 709,
+   "h": 36,
+   "l": 255,
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "fontSize": "12px",
+   "backgroundImage": "linear-gradient(to right, rgb(10, 117, 144), rgb(10, 117, 144), rgba(255, 255, 255, 0))"
+  },
+  "textes": [
+   {
+    "t": "Assistant IA Pré-Publica",
+    "tag": "H3",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Multimodal",
+    "tag": "SPAN",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgba(255, 255, 255, 0.2)"
+   },
+   {
+    "t": "Améliorez, traduisez, en",
+    "tag": "P",
+    "color": "rgb(203, 240, 250)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Style & Clarté",
+    "tag": "BUTTON",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgb(10, 117, 144)"
+   },
+   {
+    "t": "Traduire (10+ Langues)",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Hashtags & Clés",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Accroche Forte",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Visuel & Bannière IA",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Sélectionnez le ton souh",
+    "tag": "LABEL",
+    "color": "rgb(51, 65, 85)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "👔",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Professionnel & Clair",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Ton rigoureux, soigné et",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "🔥",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Percutant & Engageant",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Accroche forte, émojis c",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "🎓",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Académique & Pédagogique",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Structure détaillée, dém",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "🤝",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Chaleureux & Communautai",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Bienveillant, authentiqu",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "⚡",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Synthétique & Bullet-poi",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "3 points clés essentiels",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Texte initial :",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "28 caractères",
+    "tag": "SPAN",
+    "color": "rgb(148, 163, 184)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Bonjour, soyez les bienv",
+    "tag": "DIV",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgb(248, 250, 252)"
+   },
+   {
+    "t": "Version Optimisée par l'",
+    "tag": "SPAN",
+    "color": "rgb(10, 117, 144)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Bonjour, soyez les bienv",
+    "tag": "DIV",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Annuler",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Appliquer à ma publicati",
+    "tag": "BUTTON",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ]
+ },
+ "telephone": {
+  "fondRect": {
+   "y": 0,
+   "h": 844,
+   "l": 390,
+   "fenetre": 844,
+   "bas": 844
+  },
+  "blocConteneur": [],
+  "fond": {
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "fontSize": "16px",
+   "lineHeight": "24px",
+   "color": "rgb(11, 58, 70)",
+   "zIndex": "2147482000",
+   "dansBody": true,
+   "miroir": true,
+   "racineMiroir": true
+  },
+  "carte": {
+   "y": 42,
+   "h": 760,
+   "l": 358,
+   "maxHeight": "759.6px",
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "background": "rgba(255, 255, 255, 0.94) none repeat scroll 0% 0% / auto padding-box border-box",
+   "backgroundColor": "rgba(255, 255, 255, 0.94)",
+   "backdropFilter": "none",
+   "borderColor": "rgba(255, 255, 255, 0.9)",
+   "boxShadow": "rgba(10, 70, 90, 0.32) 0px 10px 22px -10px"
+  },
+  "enfants": [
+   {
+    "cls": "p-5 bg-gradient-to-r from-blue",
+    "y": 43,
+    "h": 200,
+    "l": 356
+   },
+   {
+    "cls": "flex border-b border-slate-100",
+    "y": 243,
+    "h": 36,
+    "l": 356
+   },
+   {
+    "cls": "p-6 overflow-y-auto flex-1 spa",
+    "y": 279,
+    "h": 436,
+    "l": 356
+   },
+   {
+    "cls": "ia-pied p-4 bg-slate-50 border",
+    "y": 716,
+    "h": 85,
+    "l": 356
+   }
+  ],
+  "h3": {
+   "y": 63,
+   "h": 112,
+   "l": 123,
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "fontSize": "18px",
+   "lineHeight": "28px",
+   "fontWeight": "700"
+  },
+  "entete": {
+   "backgroundImage": "linear-gradient(to right, rgb(10, 117, 144), rgb(10, 117, 144), rgba(255, 255, 255, 0))"
+  },
+  "pied": {
+   "y": 733,
+   "h": 52,
+   "l": 239,
+   "paddingBottom": "0px",
+   "paddingTop": "0px"
+  },
+  "bouton": {
+   "y": 733,
+   "h": 52,
+   "l": 239,
+   "fontFamily": "\"Plus Jakarta Sans\", Inter, system-ui, sans-serif",
+   "fontSize": "12px",
+   "backgroundImage": "linear-gradient(to right, rgb(10, 117, 144), rgb(10, 117, 144), rgba(255, 255, 255, 0))"
+  },
+  "textes": [
+   {
+    "t": "Assistant IA Pré-Publica",
+    "tag": "H3",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Multimodal",
+    "tag": "SPAN",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgba(255, 255, 255, 0.2)"
+   },
+   {
+    "t": "Améliorez, traduisez, en",
+    "tag": "P",
+    "color": "rgb(203, 240, 250)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Style & Clarté",
+    "tag": "BUTTON",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgb(10, 117, 144)"
+   },
+   {
+    "t": "Traduire (10+ Langues)",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Hashtags & Clés",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Accroche Forte",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Visuel & Bannière IA",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Sélectionnez le ton souh",
+    "tag": "LABEL",
+    "color": "rgb(51, 65, 85)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "👔",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Professionnel & Clair",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Ton rigoureux, soigné et",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "🔥",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Percutant & Engageant",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Accroche forte, émojis c",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "🎓",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Académique & Pédagogique",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Structure détaillée, dém",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "🤝",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Chaleureux & Communautai",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Bienveillant, authentiqu",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "⚡",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Synthétique & Bullet-poi",
+    "tag": "SPAN",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "3 points clés essentiels",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Texte initial :",
+    "tag": "SPAN",
+    "color": "rgb(100, 116, 139)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "28 caractères",
+    "tag": "SPAN",
+    "color": "rgb(148, 163, 184)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Bonjour, soyez les bienv",
+    "tag": "DIV",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgb(248, 250, 252)"
+   },
+   {
+    "t": "Version Optimisée par l'",
+    "tag": "SPAN",
+    "color": "rgb(10, 117, 144)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Bonjour, soyez les bienv",
+    "tag": "DIV",
+    "color": "rgb(30, 41, 59)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Annuler",
+    "tag": "BUTTON",
+    "color": "rgb(71, 85, 105)",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "t": "Appliquer à ma publicati",
+    "tag": "BUTTON",
+    "color": "rgb(255, 255, 255)",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ]
+ }
+}

@@ -20,6 +20,69 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-080] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
+  (`components/AIPostAssistantModal.tsx`), feuille `index.html` (nouveau bloc
+  « ASSISTANT IA — MODALE AU-DESSUS DU DOCK », couche aqua régénérée),
+  tests `tests/aiPostAssistantModal.test.tsx`, captures et script de parcours
+  `docs/captures/2026-09-05-assistant-ia-modale-dock/`.
+* **Problème / Besoin initial** : consigne de la Direction, capture iPhone à
+  l'appui : « sur téléphone, dans le parcours de publication, le bouton
+  Appliquer à ma publication est masqué par la barre du bas où il y a menu et
+  messages. Il faut que ce bouton reste visible et cliquable sur mobile. […]
+  Je veux une correction prouvée sur téléphone, avec un parcours complet
+  jusqu'à la publication. » Constat reproduit sur `origin/main` (`1c2daf6`,
+  harnais 390 × 844 et 360 × 800) : au centre du bouton « Appliquer à ma
+  publication », `document.elementFromPoint` renvoie le dock mobile
+  (`.mir-dock`) ; un clic réel à ce point ne ferme pas la modale ; le parcours
+  est bloqué. Cause : la modale était rendue dans `#root` en `position: fixed`
+  avec `z-index: 50`, avant le dock dans le DOM (`z-50`, donc dessiné
+  par-dessus elle) et sous la barre flottante de l'Architecte (`z-[60]`) ;
+  son voile ne couvrait pas toute la fenêtre (il commençait 24 px sous le
+  haut de l'écran ; mécanisme non identifié après sonde des ancêtres, sans
+  objet une fois la modale sortie de `#root`). Sur ordinateur le parcours
+  passait déjà (pas de dock).
+* **Options considérées** : (a) remonter le `z-index` de la modale en la
+  laissant dans `#root` — reste exposée à tout futur élément fixe et n'isole
+  pas le reste de la page ; (b) réserver une marge basse de la hauteur du
+  dock — bancal, dépend de la hauteur du dock et de la zone sûre ; (c)
+  **portail sur `<body>`**, comme le studio Visuel IA (DEC-2026-071) :
+  hors de `#root`, qui devient `inert` pendant l'ouverture ; `z-index`
+  2147482000 (au-dessus du dock et de la barre flottante, sous le studio à
+  2147483000) ; hauteur bornée à `90dvh` avec repli `90vh` ; pied avec
+  `max(1rem, env(safe-area-inset-bottom))` ; `data-miroir` posé sur la
+  modale pour que la couche aqua la suive hors de `Layout` — retenu.
+* **Décision** : option (c). Rien n'est retiré ni déplacé dans la modale :
+  mêmes onglets, mêmes tons, mêmes zones de texte, mêmes boutons « Annuler »
+  et « Appliquer à ma publication », même matière et mêmes dégradés (sonde
+  versionnée : 34 propriétés identiques, 11 différences toutes attendues,
+  31 textes aux couleurs identiques avant / après) ; la logique IA et les
+  gestionnaires ne changent pas. La modale devient un vrai dialogue :
+  `role="dialog"`, `aria-modal`, titre lié, focus pris à l'ouverture et rendu
+  au déclencheur à la fermeture, Échap ferme quand le focus est dans la
+  modale. Pendant l'ouverture, tout `#root` est inerte et sous le voile
+  (dock, barre flottante, sculpture de l'Architecte) : comportement attendu
+  d'une modale, identique au studio Visuel IA ; tout redevient actif et
+  visible à la fermeture.
+* **Contrôle** : typage 0 erreur, 1602/1602 tests (105 fichiers ; 7 tests
+  nouveaux : portail hors `#root`, racine inerte, focus, Échap, pied,
+  gardes CSS analysées par postcss), build OK ; parcours rejoué avant /
+  après sur 390 × 844, 360 × 800 et 1440 × 900 (avant = `main` `1c2daf6`, après =
+  tête fusionnée `1d4ffb8` ; script versionné, JSON avec SHA, captures,
+  sonde) : après, l'élément sous le doigt est le bouton, la modale se
+  ferme, le texte est appliqué, « Publier » publie et le texte apparaît dans
+  le fil, zéro erreur JS ; avant, parcours bloqué sur les deux téléphones.
+  Limite honnête : harnais sur le même code (pas l'écran authentifié),
+  Chromium émulé (zone sûre et `dvh` non mesurés sur iPhone réel).
+* **Statut** : 🟠 PRÊTE, NON DÉPLOYÉE — PR #109 (brouillon) depuis la branche
+  `claude/cleanup-home-interface-szp8qv`, Green Gate et revue indépendante
+  en cours ; production seulement sur feu vert écrit de la Direction, après
+  vérification que `main` n'a pas bougé et qu'aucune autre fusion n'est en
+  cours.
+
+---
+
 ### [DEC-2026-079] — 5 Septembre 2026
 
 * **Module(s)** : Diallo OS & Architecte (module 01) — portrait d'usine, registre des séquences, barre flottante ; Super-Admin (tableau de bord : onglet « Avatar de l'Architecte ») ; réglages partagés de la plateforme (`platform_settings`, migration versionnée **non appliquée**) ; bancs `design-lab/banc/super-admin.html` et `reperes.html`.
