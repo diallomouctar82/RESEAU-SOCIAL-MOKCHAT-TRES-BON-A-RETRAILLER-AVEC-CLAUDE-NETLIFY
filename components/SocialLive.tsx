@@ -264,7 +264,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // et peut refuser (repli : spectateur, jamais de caméra/micro publiés
   // sans ce choix explicite).
   const [hasMediaConsent, setHasMediaConsent] = useState(false);
-  const [showMediaConsentModal, setShowMediaConsentModal] = useState(isHost);
+  // L1 (assainissement) : JAMAIS de modale de consentement au LANCEMENT.
+  // L'hôte qui vient de lancer son direct auto-consent (le prompt navigateur
+  // natif via LiveKit reste la seule et unique autorisation, pas dupliquée) ;
+  // seul un spectateur promu par surprise voit encore la modale (applyMyRole
+  // → décision 'promote', plus bas). Init à false pour tout le monde.
+  const [showMediaConsentModal, setShowMediaConsentModal] = useState(false);
   // Équipe 10 (L1) : le choix (accord OU refus) est mémorisé pour ne jamais
   // rouvrir la modale en boucle — isHost se résout en ASYNCHRONE (effet de
   // resynchronisation plus bas) et le roster répète role='speaker' à chaque
@@ -317,7 +322,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     if (!isHost) return;
     isUserOnStageRef.current = true;
     setIsUserOnStage(true);
-    if (!hasMediaConsentRef.current && !mediaConsentAnsweredRef.current) setShowMediaConsentModal(true);
+    // L1 (assainissement) : l'hôte a lancé son direct — on ne redemande pas
+    // une autorisation applicative en plus du prompt navigateur natif
+    // (getUserMedia via LiveKit). On mémorise le consentement UNE fois, sans
+    // jamais ouvrir la modale ; la publication réelle reste gardée par le
+    // prompt du navigateur, seule et unique demande caméra/micro.
+    if (!mediaConsentAnsweredRef.current) {
+      mediaConsentAnsweredRef.current = true;
+      hasMediaConsentRef.current = true;
+      setHasMediaConsent(true);
+    }
   }, [isHost]);
 
   // Provisionnement de la session réelle (LOOP 05/14) — la plupart des points
@@ -3643,7 +3657,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 onToggleMute={handleToggleParticipantMute}
                 onRemove={handleRemoveParticipant}
                 onInvite={() => setShowInviteModal(true)}
-                onRemoveAgent={(agentId) => setAgentsRetires(prev => prev.includes(agentId) ? prev : [...prev, agentId])}
+                onRemoveAgent={handleRetirerAgentDeLaScene}
               />
             )}
 
@@ -4506,7 +4520,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         isOpen={showWaitingRoomModal}
         onClose={() => setShowWaitingRoomModal(false)}
         liveStream={liveData}
-        onJoinLive={() => {
+        onEnterLive={() => {
           setShowWaitingRoomModal(false);
           addNotification("En Direct 🔴", "Vous avez rejoint la scène du Live.", "success");
         }}
