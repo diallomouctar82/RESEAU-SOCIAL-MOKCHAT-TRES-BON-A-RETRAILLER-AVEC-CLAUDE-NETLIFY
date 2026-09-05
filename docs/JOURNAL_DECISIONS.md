@@ -1875,6 +1875,10 @@ Chaque décision respecte le formalisme strict suivant :
   expliquer, diagnostiquer, questions libres, voix, micro) est ouvert à tout
   administrateur ; seul l'acte d'appliquer une réparation exige le rang
   Admin Général. Le README des captures dit désormais où se fait le dialogue.
+  Vérifié en production le 5/09/2026 à 15:27 UTC : PR #104 fusionnée en
+  squash → `main` `d3415b4` (Green Gate run 33974730535 vert sur
+  `eb8fea5`), `moknet.net` sert `index-CMCLckXy.js` (placeholder « Écrivez
+  ici : » présent), ancien bundle `index-Bm6woHcd.js` → 404.
 * **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
   11:14 UTC) — PR #91 fusionnée en squash → `main` `b36318b` (Green
   Gate run 33962624632 vert sur `5b265dd`) ; `moknet.net` sert
