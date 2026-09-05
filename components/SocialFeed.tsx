@@ -53,7 +53,7 @@ interface SocialFeedProps {
 // pas dans la table `posts` réelle (clé uuid), donc commenter/réagir dessus ne
 // doit jamais tenter d'écrire en base — seuls les vrais posts (id uuid généré
 // par Postgres) ont des commentaires/réactions synchronisés avec Supabase.
-// DEC-2026-059 — les quatre actions IA du composeur A7, dans l'ordre imposé
+// DEC-2026-061 — les quatre actions IA du composeur A7, dans l'ordre imposé
 // (améliorer le style, traduire, hashtags, Visuel IA). `teinte` est la
 // couleur de l'orbe (--h, en degrés) ; `cle` est l'onglet de la modale
 // AIPostAssistantModal, sauf `visual` qui ouvre le studio intégré.
@@ -147,7 +147,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
   // Modals State
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  // DEC-2026-059 — onglet demandé à la modale IA par l'orbe cliquée, et
+  // DEC-2026-061 — onglet demandé à la modale IA par l'orbe cliquée, et
   // ouverture du studio « Visuel IA » intégré (variante B10).
   const [aiInitialTool, setAiInitialTool] = useState<AIPostAssistantTool>('style');
   const [isStudioOpen, setIsStudioOpen] = useState(false);
@@ -1581,13 +1581,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const startContentVoiceCommand = () => { voiceIntentScopeRef.current = 'content'; voiceAssistant.startListening(); };
   const startSocialVoiceCommand = () => { voiceIntentScopeRef.current = 'social'; voiceAssistant.startListening(); };
 
-  // DEC-2026-059 — ouvrir la modale IA existante directement sur l'onglet voulu.
+  // DEC-2026-061 — ouvrir la modale IA existante directement sur l'onglet voulu.
   const ouvrirAssistant = (outil: AIPostAssistantTool) => {
     setAiInitialTool(outil);
     setIsAIModalOpen(true);
   };
 
-  // DEC-2026-059 — ce que le studio « Visuel IA » renvoie remplace le média
+  // DEC-2026-061 — ce que le studio « Visuel IA » renvoie remplace le média
   // en attente : même chemin que handleImageSelect / handleVideoSelect (URL
   // d'aperçu + fichier téléversé à la publication par uploadContentMedia).
   const insererVisuel = (resultat: ResultatVisuel) => {
@@ -1601,7 +1601,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     }
   };
 
-  // DEC-2026-059 — les quatre médias du composeur A7 (Photo, Vidéo,
+  // DEC-2026-061 — les quatre médias du composeur A7 (Photo, Vidéo,
   // Document, Voix), rendus deux fois (rail à gauche sur ordinateur, ligne
   // sous le champ sur téléphone) depuis cette seule fonction ; la feuille
   // n'en affiche jamais qu'un exemplaire. Mêmes gestes qu'avant : clic sur
@@ -1690,7 +1690,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       {activeTab === 'feed' && (
         <div className="mir-sheet rounded-3xl p-5 a7-comp" data-testid="composeur-a7">
 
-          {/* DEC-2026-059 — COMPOSEUR « A7, RAIL LATÉRAL » (choix de la Direction
+          {/* DEC-2026-061 — COMPOSEUR « A7, RAIL LATÉRAL » (choix de la Direction
               parmi dix variantes de la série A). Rien ne disparaît : avatar
               (logo VS, classes strictement identiques), champ, Assistant IA,
               améliorer le style, traduire, hashtags, Visuel IA, Public,
@@ -3104,7 +3104,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         initialTool={aiInitialTool}
       />
 
-      {/* DEC-2026-059 — studio « Visuel IA » intégré à la publication
+      {/* DEC-2026-061 — studio « Visuel IA » intégré à la publication
           (variante B10) : retouche guidée (prompt) + réglages manuels, photo
           et vidéo, sans ouvrir le grand Studio Créatif — qui reste accessible
           par le lien « Besoin de plus ? » quand la navigation existe. */}

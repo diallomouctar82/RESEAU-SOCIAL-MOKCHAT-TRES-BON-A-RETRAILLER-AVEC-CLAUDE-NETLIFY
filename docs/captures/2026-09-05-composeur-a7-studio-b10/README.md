@@ -1,4 +1,4 @@
-# Captures avant / après — Composeur « A7, rail latéral » et studio « Visuel IA » (B10) du Réseau MOC (5 septembre 2026, DEC-2026-059)
+# Captures avant / après — Composeur « A7, rail latéral » et studio « Visuel IA » (B10) du Réseau MOC (5 septembre 2026, DEC-2026-061)
 
 Choix de la Direction : **A7** pour la zone de publication (parmi dix
 variantes de la série A) et **B10 « Plein écran sombre »** pour le studio

@@ -1,6 +1,6 @@
 /**
  * Visuel IA — le moteur de retouche du studio intégré à la publication
- * (DEC-2026-059, variante B10 choisie par la Direction).
+ * (DEC-2026-061, variante B10 choisie par la Direction).
  *
  * Tout ce qui est ici est PUR (aucun DOM, aucun réseau) et donc testable :
  * le modèle des réglages, leur normalisation (y compris ce que l'IA renvoie),

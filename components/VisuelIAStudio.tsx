@@ -11,7 +11,7 @@ import {
 } from '../services/visuelIA';
 
 /**
- * Visuel IA — le studio de retouche intégré à la publication (DEC-2026-059,
+ * Visuel IA — le studio de retouche intégré à la publication (DEC-2026-061,
  * variante B10 « Plein écran sombre » choisie par la Direction).
  *
  * Ce qu'il fait réellement :

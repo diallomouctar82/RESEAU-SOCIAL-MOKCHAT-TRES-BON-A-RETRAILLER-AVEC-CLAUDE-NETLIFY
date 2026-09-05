@@ -5,7 +5,7 @@ import {
 } from '../services/visuelIA';
 
 /**
- * DEC-2026-059 — le service pur du studio « Visuel IA » (variante B10).
+ * DEC-2026-061 — le service pur du studio « Visuel IA » (variante B10).
  *
  * Tout ce que l'écran affiche passe par ces fonctions : bornage des
  * réglages (venant de l'écran ou de l'IA), lecture de la réponse de l'IA,

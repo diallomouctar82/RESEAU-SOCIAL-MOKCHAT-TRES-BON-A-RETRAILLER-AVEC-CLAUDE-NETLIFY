@@ -9,7 +9,7 @@ interface AIPostAssistantModalProps {
   onClose: () => void;
   originalText: string;
   onApply: (enhancedText: string, tags?: string[], generatedImageUrl?: string) => void;
-  // DEC-2026-059 — les orbes « Améliorer le style », « Traduire » et
+  // DEC-2026-061 — les orbes « Améliorer le style », « Traduire » et
   // « Hashtags » du composeur ouvrent la modale directement sur leur onglet.
   // Sans cette prop, l'ouverture reste celle d'avant (onglet « style »).
   initialTool?: AIPostAssistantTool;

@@ -6,7 +6,7 @@ import postcss from 'postcss';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * DEC-2026-059 — composeur « A7, rail latéral » du Réseau MOC (choix de la
+ * DEC-2026-061 — composeur « A7, rail latéral » du Réseau MOC (choix de la
  * Direction parmi dix variantes de la série A).
  *
  * Ce que la Direction a imposé et que ces tests gardent :
@@ -81,7 +81,7 @@ function monter(onNavigate = vi.fn()) {
 }
 const teinte = (b: HTMLElement) => Number((b.querySelector('.a7-orbe') as HTMLElement).style.getPropertyValue('--h'));
 
-describe('composeur « A7, rail latéral » (DEC-2026-059)', () => {
+describe('composeur « A7, rail latéral » (DEC-2026-061)', () => {
   it('garde tout ce qui existait, dans l’ordre : avatar intouché, champ, étincelle, quatre actions IA, visibilité, catégorie, médias, Brouillon | Publier', () => {
     const { comp, rail, bas, champ } = monter();
     expect(comp.className).toContain('a7-comp');
@@ -257,7 +257,7 @@ describe('composeur « A7, rail latéral » (DEC-2026-059)', () => {
 
 describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', () => {
   const HTML = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
-  const debut = HTML.indexOf('COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-059)');
+  const debut = HTML.indexOf('COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-061)');
   const fin = HTML.indexOf('/* ===== FIN COMPOSEUR A7 ===== */');
   const bloc = HTML.slice(debut, fin);
   const racine = postcss.parse(bloc.slice(bloc.indexOf('*/') + 2));

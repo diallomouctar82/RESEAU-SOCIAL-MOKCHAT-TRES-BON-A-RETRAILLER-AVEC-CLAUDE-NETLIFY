@@ -6,7 +6,7 @@ import postcss from 'postcss';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * DEC-2026-059 — le studio « Visuel IA » intégré à la publication (variante
+ * DEC-2026-061 — le studio « Visuel IA » intégré à la publication (variante
  * B10 « Plein écran sombre » choisie par la Direction).
  *
  * Ce que ces tests gardent :
@@ -96,7 +96,7 @@ const attendreCanvas = () => waitFor(() => expect(document.querySelector('canvas
 const curseur = (nom: string) => screen.getByRole('slider', { name: nom }) as HTMLInputElement;
 const bouton = (nom: string | RegExp) => screen.getByRole('button', { name: nom });
 
-describe('studio « Visuel IA » (DEC-2026-059, B10)', () => {
+describe('studio « Visuel IA » (DEC-2026-061, B10)', () => {
   it('n’existe pas fermé ; ouvert, il vit dans un portail au-dessus de tout, rend la racine inerte et prend le focus', async () => {
     const { rerender, props } = monter({ ouvert: false });
     expect(screen.queryByTestId('visuel-ia-studio')).toBeNull();
@@ -306,7 +306,7 @@ describe('studio « Visuel IA » (DEC-2026-059, B10)', () => {
 
 describe('feuille de style du studio « Visuel IA » (index.html, telle qu’analysée)', () => {
   const HTML = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
-  const debut = HTML.indexOf('VISUEL IA — STUDIO PLEIN ECRAN SOMBRE (DEC-2026-059');
+  const debut = HTML.indexOf('VISUEL IA — STUDIO PLEIN ECRAN SOMBRE (DEC-2026-061');
   const fin = HTML.indexOf('/* ===== FIN VISUEL IA ===== */');
   const bloc = HTML.slice(debut, fin);
   const racine = postcss.parse(bloc.slice(bloc.indexOf('*/') + 2));
