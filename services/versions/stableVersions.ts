@@ -109,7 +109,7 @@ export const REGISTRE_VERSIONS_STABLES: readonly VersionStable[] = [
         nom: 'Super-Admin : onglet « Versions stables » — les dernières versions livrées avec leurs preuves, la version réellement servie par moknet.net, et un ordre de restauration contrôlée (pré-contrôles, confirmation saisie, motif, journal, procédure, vérification)',
         dec: 'DEC-2026-086',
         modules: ['Super-Admin — Sécurité & infrastructure (module 14)'],
-        pr: null,
+        pr: 121,
         commit: null,
         fusionUtc: null,
         bundle: null,
