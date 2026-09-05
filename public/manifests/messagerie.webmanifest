@@ -6,6 +6,7 @@
   "start_url": "/messagerie",
   "scope": "/",
   "display": "standalone",
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
   "lang": "fr",
   "dir": "ltr",
   "theme_color": "#2563eb",

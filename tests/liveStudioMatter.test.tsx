@@ -5,7 +5,7 @@ import { render, cleanup } from '@testing-library/react';
 import { describe, it, expect, afterEach } from 'vitest';
 import { LiveBubbles, LiveVoiceWave } from '../components/live/LiveMatter';
 import { LIVE_VISUAL_UNIVERSES } from '../services/live/liveMaterialSystem';
-import { liveBadge } from '../hooks/useLiveTransport';
+import { liveBadge, isLiveEndedError, LIVE_ENDED_MESSAGE } from '../hooks/useLiveTransport';
 
 /**
  * DS-L1 — matière du Studio Live, d'après l'image de référence du 03/09/2026.
@@ -138,6 +138,40 @@ describe('DS-L1 — « ● EN DIRECT » ne s’affiche que quand le direct passe
         expect(liveBadge(true, 'connected', true).isOnAir).toBe(false);
         expect(liveBadge(true, 'reconnecting', false).isOnAir).toBe(false);
         expect(liveBadge(true, 'connecting', false).isOnAir).toBe(false);
+    });
+});
+
+/**
+ * SAT-5 — un direct CLOS n'est pas une panne. Le banc réel (room supprimée
+ * après `ended_at` posé en base) a montré l'écran « Diffusion interrompue ·
+ * Réessayer » alors que le hook disait « Ce direct est terminé. » : le
+ * message n'était jamais rendu. Ces tests fixent la distinction.
+ */
+describe('SAT-5 — « TERMINÉ » n’est ni « INTERROMPU » ni « COMPLET »', () => {
+    it('isLiveEndedError ne reconnaît QUE le message de la garde', () => {
+        expect(isLiveEndedError(LIVE_ENDED_MESSAGE)).toBe(true);
+        expect(isLiveEndedError('Diffusion interrompue')).toBe(false);
+        expect(isLiveEndedError(null)).toBe(false);
+        expect(isLiveEndedError(undefined)).toBe(false);
+    });
+
+    it('le badge dit TERMINÉ, jamais INTERROMPU, quand la garde a clos le direct', () => {
+        const ended = liveBadge(true, 'disconnected', true, false, true);
+        expect(ended.label).toBe('TERMINÉ');
+        expect(ended.isOnAir).toBe(false);
+        // Contre-épreuve : la même erreur sans le drapeau reste une interruption.
+        expect(liveBadge(true, 'disconnected', true, false, false).label).toBe('INTERROMPU');
+        // Et un aperçu reste un aperçu, clos ou non.
+        expect(liveBadge(false, 'disconnected', true, false, true).label).toBe('APERÇU');
+    });
+
+    it('le Studio rend le message de clôture avec « Quitter », et retire « Réessayer » de ce cas', () => {
+        expect(STUDIO).toContain('data-testid="live-ended-notice"');
+        expect(STUDIO).toContain('{realSessionId && liveEnded && (');
+        expect(STUDIO).toContain('<span>{LIVE_ENDED_MESSAGE}</span>');
+        // La bannière « Diffusion interrompue » exclut explicitement le cas clos.
+        expect(STUDIO).toContain('{realSessionId && liveTransport.error && !liveIsFull && !liveEnded && (');
+        expect(STUDIO).toContain('liveBadge(!!realSessionId, liveTransport.connectionState, !!liveTransport.error, liveIsFull, liveEnded)');
     });
 });
 

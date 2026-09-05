@@ -7,6 +7,7 @@ import {
     DiagnosisPlan, HealthDomainId, HealthJournalEntry, HealthLineState, HealthStatus,
 } from '../../services/health/healthTypes';
 import { isCertifiable, verdictSentence } from '../../services/health/healthScore';
+import { HEALTH_LINES } from '../../services/health/healthRegistry';
 import {
     HealthRank, HealthSnapshot, diagnose, loadJournal, repair, restore, runHealthCheck,
 } from '../../services/health/healthService';
@@ -55,14 +56,16 @@ interface StatutStyle {
     /** Teinte de rangée, pour que la gravité se voie sans lire. */
     rangee: string;
     rang: number;
+    /** Le mot affiché sur chaque ligne et dans le badge global : lisible sans légende. */
+    mot: string;
 }
 
 const STATUT: Record<HealthStatus, StatutStyle> = {
-    rouge:  { label: 'Non conforme', court: 'Rouge',  aplat: 'bg-red-600',     texte: 'text-red-700',     fond: 'bg-red-50',     bord: 'border-red-200',     rangee: 'bg-red-50/40',     rang: 0 },
-    orange: { label: 'À corriger',   court: 'Orange', aplat: 'bg-orange-500',  texte: 'text-orange-700',  fond: 'bg-orange-50',  bord: 'border-orange-200',  rangee: 'bg-orange-50/40',  rang: 1 },
-    blanc:  { label: 'Non éprouvé',  court: 'Blanc',  aplat: 'bg-slate-300',   texte: 'text-slate-600',   fond: 'bg-slate-100',  bord: 'border-slate-200',   rangee: '',                 rang: 2 },
-    jaune:  { label: 'En attente',   court: 'Jaune',  aplat: 'bg-amber-400',   texte: 'text-amber-700',   fond: 'bg-amber-50',   bord: 'border-amber-200',   rangee: '',                 rang: 3 },
-    vert:   { label: 'Conforme',     court: 'Vert',   aplat: 'bg-emerald-500', texte: 'text-emerald-700', fond: 'bg-emerald-50', bord: 'border-emerald-200', rangee: '',                 rang: 4 },
+    rouge:  { label: 'Non conforme', court: 'Rouge',  aplat: 'bg-red-600',     texte: 'text-red-700',     fond: 'bg-red-50',     bord: 'border-red-200',     rangee: 'bg-red-50/40',     rang: 0, mot: 'ROUGE' },
+    orange: { label: 'À corriger',   court: 'Orange', aplat: 'bg-orange-500',  texte: 'text-orange-700',  fond: 'bg-orange-50',  bord: 'border-orange-200',  rangee: 'bg-orange-50/40',  rang: 1, mot: 'ORANGE' },
+    blanc:  { label: 'Non éprouvé',  court: 'Blanc',  aplat: 'bg-slate-300',   texte: 'text-slate-600',   fond: 'bg-slate-100',  bord: 'border-slate-200',   rangee: '',                 rang: 2, mot: 'NON MESURÉ' },
+    jaune:  { label: 'En attente',   court: 'Jaune',  aplat: 'bg-amber-400',   texte: 'text-amber-700',   fond: 'bg-amber-50',   bord: 'border-amber-200',   rangee: '',                 rang: 3, mot: 'JAUNE' },
+    vert:   { label: 'Conforme',     court: 'Vert',   aplat: 'bg-emerald-500', texte: 'text-emerald-700', fond: 'bg-emerald-50', bord: 'border-emerald-200', rangee: '',                 rang: 4, mot: 'VERT' },
 };
 
 const ORDRE_STATUTS: HealthStatus[] = ['rouge', 'orange', 'blanc', 'jaune', 'vert'];
@@ -109,8 +112,8 @@ const AnneauScore: React.FC<{ score: number | null; coverage: number; status: He
     return (
         <svg viewBox="0 0 140 140" className="w-[132px] h-[132px] shrink-0" role="img"
              aria-label={score === null
-                 ? 'Score indisponible, aucune ligne mesurée'
-                 : `Score ${Math.round(score)} sur 100, sur ${Math.round(coverage * 100)} % du périmètre mesuré`}>
+                 ? 'Santé indisponible, aucune ligne mesurée'
+                 : `Santé ${Math.round(score)} %, sur ${Math.round(coverage * 100)} % du périmètre mesuré`}>
             <circle cx="70" cy="70" r={R_NOTE} fill="none" stroke="#1e293b" strokeWidth="9" opacity="0.35" />
             <circle cx="70" cy="70" r={R_NOTE} fill="none" stroke={couleur} strokeWidth="9"
                     strokeDasharray={`${partNote} ${cNote - partNote}`}
@@ -120,12 +123,12 @@ const AnneauScore: React.FC<{ score: number | null; coverage: number; status: He
                     strokeDasharray={`${partCouv} ${cCouv - partCouv}`}
                     transform="rotate(-90 70 70)" strokeLinecap="round" />
             <text x="70" y="68" textAnchor="middle" fill="#f8fafc"
-                  style={{ fontSize: 34, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                {score === null ? '—' : Math.round(score)}
+                  style={{ fontSize: 30, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                {score === null ? '—' : `${Math.round(score)} %`}
             </text>
             <text x="70" y="86" textAnchor="middle" fill="#94a3b8"
-                  style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em' }}>
-                {score === null ? 'NON MESURÉ' : 'SUR 100'}
+                  style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em' }}>
+                {score === null ? 'NON MESURÉ' : 'SANTÉ MESURÉE'}
             </text>
         </svg>
     );
@@ -164,10 +167,10 @@ const TuileDomaine: React.FC<{
 
             <div className="flex items-baseline gap-1.5 mt-2">
                 <span className="text-2xl font-black text-slate-900 tabular-nums leading-none">
-                    {score === null ? '—' : Math.round(score)}
+                    {score === null ? '—' : `${Math.round(score)} %`}
                 </span>
-                <span className="text-[10px] text-slate-400 font-semibold">/ 100</span>
-                <span className="ml-auto text-[10px] text-slate-400 font-mono">{poids} %</span>
+                {score === null && <span className="text-[10px] text-slate-400 font-semibold">non mesuré</span>}
+                <span className="ml-auto text-[10px] text-slate-400 font-mono" title="Poids du domaine dans la santé globale">poids {poids}</span>
             </div>
 
             {/* Répartition des lignes par gravité : la forme se lit sans chiffre. */}
@@ -295,37 +298,74 @@ const PanneauDetail: React.FC<{
                         </div>
                     )}
 
-                    {line.remediation && (
+                    {/* Ce que cette ligne PEUT faire, dit en toutes lettres. Un bouton
+                        grisé laisse croire qu'une réparation existe pour vous : il n'en
+                        est rien tant que le rang ne le permet pas. On l'écrit. */}
+                    {line.remediation && aBesoinAction && !rank.canRepair && (
+                        <div className="border border-amber-200 bg-amber-50 rounded-lg p-3.5">
+                            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1.5">
+                                <Lock size={11} /> Diagnostic seulement
+                            </div>
+                            <p className="text-sm font-bold text-slate-800">{line.remediation.label}</p>
+                            <p className="text-xs text-slate-700 mt-1.5 leading-relaxed">
+                                Le diagnostic montre exactement ce que cette réparation ferait — nombre d'éléments,
+                                tables, extrait réel — <strong>sans rien modifier</strong>. L'application est
+                                réservée à l'Admin Général ; votre rang ({rank.role ?? 'inconnu'}) ne le permet pas.
+                            </p>
+                            <button
+                                onClick={() => onDiagnostiquer(state)}
+                                disabled={occupe}
+                                className="mt-3 w-full px-4 py-2.5 rounded-lg text-sm font-black inline-flex items-center justify-center gap-2 bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+                            >
+                                {occupe ? <Loader2 size={15} className="animate-spin" /> : <Stethoscope size={15} />}
+                                Lancer le diagnostic (lecture seule)
+                            </button>
+                        </div>
+                    )}
+
+                    {line.remediation && aBesoinAction && rank.canRepair && (
+                        <div className="border border-blue-200 bg-blue-50 rounded-lg p-3.5">
+                            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-800 mb-1.5">
+                                <Wrench size={11} /> Réparation disponible
+                            </div>
+                            <p className="text-sm font-bold text-slate-800">{line.remediation.label}</p>
+                            <p className="text-xs text-slate-700 mt-1.5 leading-relaxed">
+                                {line.remediation.consequence}
+                            </p>
+                            <button
+                                onClick={() => onDiagnostiquer(state)}
+                                disabled={occupe}
+                                className="mt-3 w-full px-4 py-2.5 rounded-lg text-sm font-black inline-flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+                            >
+                                {occupe ? <Loader2 size={15} className="animate-spin" /> : <Stethoscope size={15} />}
+                                Diagnostiquer, puis réparer
+                            </button>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-2">
+                                Le diagnostic précède toujours l'action : vous verrez le périmètre exact avant de confirmer.
+                            </p>
+                        </div>
+                    )}
+
+                    {line.remediation && !aBesoinAction && (
                         <div className="border border-slate-200 rounded-lg p-3.5">
                             <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
                                 Réparation disponible
                             </div>
                             <p className="text-sm font-bold text-slate-800">{line.remediation.label}</p>
-                            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                                {line.remediation.consequence}
-                            </p>
+                            <p className="text-xs text-slate-400 mt-2">Cette ligne est conforme : il n'y a rien à réparer.</p>
+                        </div>
+                    )}
 
-                            {aBesoinAction ? (
-                                <>
-                                    <button
-                                        onClick={() => onDiagnostiquer(state)}
-                                        disabled={occupe}
-                                        className="mt-3 w-full px-4 py-2.5 rounded-lg text-sm font-black inline-flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-                                    >
-                                        {occupe ? <Loader2 size={15} className="animate-spin" /> : <Stethoscope size={15} />}
-                                        Diagnostiquer avant d'agir
-                                    </button>
-                                    {!rank.canRepair && (
-                                        <p className="text-[10px] text-slate-400 font-semibold mt-2 inline-flex items-center gap-1">
-                                            <Lock size={10} /> L'application de la réparation est réservée à l'Admin Général.
-                                        </p>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="text-xs text-slate-400 mt-2">
-                                    Cette ligne est conforme : il n'y a rien à réparer.
-                                </p>
-                            )}
+                    {!line.remediation && aBesoinAction && (
+                        <div className="border border-slate-200 bg-slate-50 rounded-lg p-3.5">
+                            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                                <Stethoscope size={11} /> Diagnostic seulement
+                            </div>
+                            <p className="text-xs text-slate-700 leading-relaxed">
+                                Aucune réparation automatique n'existe pour ce contrôle : ce tableau le mesure et
+                                l'explique, la correction se fait à la main.
+                                {line.humanAction ? ' La marche à suivre est indiquée ci-dessus.' : ''}
+                            </p>
                         </div>
                     )}
                 </div>
@@ -360,10 +400,12 @@ const ModaleConfirmation: React.FC<{
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
              role="dialog" aria-modal="true" aria-labelledby="titre-confirmation">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-full overflow-y-auto">
-                <div className="px-5 py-4 border-b border-slate-200 bg-orange-50">
-                    <div className="flex items-center gap-2 text-orange-700">
-                        <AlertTriangle size={16} />
-                        <span className="text-[10px] font-black uppercase tracking-wider">Confirmation requise</span>
+                <div className={`px-5 py-4 border-b border-slate-200 ${sansJeton ? 'bg-amber-50' : 'bg-orange-50'}`}>
+                    <div className={`flex items-center gap-2 ${sansJeton ? 'text-amber-800' : 'text-orange-700'}`}>
+                        {sansJeton ? <Lock size={16} /> : <AlertTriangle size={16} />}
+                        <span className="text-[10px] font-black uppercase tracking-wider">
+                            {sansJeton ? 'Diagnostic seulement — lecture seule' : 'Confirmation requise'}
+                        </span>
                     </div>
                     <h3 id="titre-confirmation" className="text-lg font-black text-slate-900 mt-1">
                         {remediation.label}
@@ -426,8 +468,9 @@ const ModaleConfirmation: React.FC<{
                     )}
 
                     {sansJeton && !rienAFaire && (
-                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
-                            Votre rang ne permet pas d'appliquer cette réparation. Seul l'Admin Général peut agir.
+                        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3 leading-relaxed">
+                            <strong>Diagnostic seulement.</strong> Ce plan est exact et n'a rien modifié. Votre rang
+                            ne permet pas de l'appliquer : la réparation est réservée à l'Admin Général.
                         </p>
                     )}
 
@@ -448,11 +491,13 @@ const ModaleConfirmation: React.FC<{
                             className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 disabled:opacity-50">
                         Annuler
                     </button>
-                    <button onClick={onConfirmer} disabled={occupe || !accepte || rienAFaire || sansJeton}
-                            className="px-4 py-2 rounded-xl text-sm font-black text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2">
-                        {occupe ? <Loader2 size={15} className="animate-spin" /> : <Wrench size={15} />}
-                        Appliquer la réparation
-                    </button>
+                    {!sansJeton && (
+                        <button onClick={onConfirmer} disabled={occupe || !accepte || rienAFaire}
+                                className="px-4 py-2 rounded-xl text-sm font-black text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2">
+                            {occupe ? <Loader2 size={15} className="animate-spin" /> : <Wrench size={15} />}
+                            Appliquer la réparation
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -595,7 +640,7 @@ export const AdminHealthTab: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-24 text-slate-400">
                 <Loader2 size={30} className="animate-spin mb-3" />
                 <p className="text-sm font-semibold">Mesure de la santé de MokNet…</p>
-                <p className="text-xs text-slate-400 mt-1">52 contrôles sur 12 domaines</p>
+                <p className="text-xs text-slate-400 mt-1">{HEALTH_LINES.length} contrôles sur 12 domaines</p>
             </div>
         );
     }
@@ -620,6 +665,16 @@ export const AdminHealthTab: React.FC = () => {
                             </span>
                         </div>
 
+                        {/* Le statut global, en MOT et en COULEUR pleine — lisible sans légende. */}
+                        {report && (
+                            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-black uppercase tracking-wider ${STATUT[report.status].aplat} ${report.status === 'blanc' ? 'text-slate-900' : 'text-white'}`}>
+                                    <span className={`w-2.5 h-2.5 rounded-full ${report.status === 'blanc' ? 'bg-slate-600' : 'bg-white/90'}`} aria-hidden="true" />
+                                    {STATUT[report.status].mot}
+                                </span>
+                                <span className="text-sm font-bold text-slate-200">{STATUT[report.status].label}</span>
+                            </div>
+                        )}
                         <h2 className="text-2xl font-black mt-1.5 flex items-center gap-2">
                             <Activity size={22} className="text-blue-400 shrink-0" />
                             {report && isCertifiable(report) ? 'État certifiable' : 'État non certifiable'}
@@ -632,15 +687,17 @@ export const AdminHealthTab: React.FC = () => {
                         {report && (
                             <div className="flex flex-wrap gap-x-8 gap-y-2 mt-4">
                                 <div>
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Note</div>
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Santé globale</div>
                                     <div className="text-lg font-black tabular-nums">
-                                        {report.score === null ? '—' : report.score} <span className="text-xs text-slate-400 font-semibold">/ 100</span>
+                                        {report.score === null ? '—' : `${Math.round(report.score)} %`}
+                                        <span className="text-xs text-slate-400 font-semibold"> sur ce qui est mesuré</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Couverture</div>
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Périmètre mesuré</div>
                                     <div className="text-lg font-black tabular-nums text-blue-300">
-                                        {Math.round(report.coverage * 100)} <span className="text-xs text-slate-400 font-semibold">%</span>
+                                        {Math.round(report.coverage * 100)} %
+                                        <span className="text-xs text-slate-400 font-semibold"> des {toutesLignes.length} contrôles, en poids</span>
                                     </div>
                                 </div>
                                 <div>
@@ -659,13 +716,21 @@ export const AdminHealthTab: React.FC = () => {
                             {chargement ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                             Relancer la mesure
                         </button>
-                        <span className={`text-[10px] font-bold text-center px-2 py-1 rounded ${
-                            rank.canRepair ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700 text-slate-400'
+                        {/* Le MODE, dit sans détour : soit on répare, soit on ne fait que diagnostiquer. */}
+                        <span className={`text-[11px] font-black text-center px-2.5 py-1.5 rounded-lg inline-flex items-center justify-center gap-1.5 ${
+                            rank.canRepair ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300 border border-amber-400/30'
                         }`}>
+                            {rank.canRepair ? <Wrench size={12} /> : <Lock size={12} />}
                             {rank.canRepair
-                                ? 'Admin Général — réparation ouverte'
-                                : `Rang ${rank.role ?? 'inconnu'} — lecture seule`}
+                                ? 'Mode : Réparation activée'
+                                : 'Mode : Diagnostic seulement'}
                         </span>
+                        {!rank.canRepair && (
+                            <span className="text-[10px] text-slate-400 text-center leading-tight max-w-[15rem]">
+                                Votre rang ({rank.role ?? 'inconnu'}) permet de mesurer et de diagnostiquer.
+                                Réparer et restaurer exigent le rang Admin Général.
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -828,8 +893,14 @@ export const AdminHealthTab: React.FC = () => {
                     <div className="divide-y divide-slate-100">
                         {lignesFiltrees.map(({ state, poidsReel, domaineTitre }) => {
                             const s = STATUT[state.outcome.status];
-                            const agissable = Boolean(state.line.remediation)
-                                && (state.outcome.status === 'rouge' || state.outcome.status === 'orange');
+                            const aCorriger = state.outcome.status === 'rouge' || state.outcome.status === 'orange';
+                            const agissable = Boolean(state.line.remediation) && aCorriger;
+                            // Ce que CETTE ligne peut faire pour CETTE personne — jamais un bouton qui ment.
+                            const mention = !aCorriger ? null
+                                : agissable && rank.canRepair ? { texte: 'Réparer', classe: 'text-blue-600', Icone: Wrench }
+                                : agissable ? { texte: 'Diagnostic seulement', classe: 'text-amber-700', Icone: Stethoscope }
+                                : state.line.humanAction ? { texte: 'Action humaine', classe: 'text-slate-600', Icone: CircleHelp }
+                                : { texte: 'Diagnostic seulement', classe: 'text-slate-500', Icone: Stethoscope };
                             return (
                                 <button
                                     key={state.line.id}
@@ -843,8 +914,8 @@ export const AdminHealthTab: React.FC = () => {
                                         <span className="min-w-0 sm:flex-1">
                                             <span className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-bold text-sm text-slate-900">{state.line.title}</span>
-                                                <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${s.fond} ${s.texte}`}>
-                                                    {s.court}
+                                                <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${s.aplat} ${state.outcome.status === 'blanc' ? 'text-slate-800' : 'text-white'}`}>
+                                                    {s.mot}
                                                 </span>
                                             </span>
                                             <span className={`block text-xs mt-0.5 truncate ${
@@ -865,9 +936,9 @@ export const AdminHealthTab: React.FC = () => {
                                                   title="Poids réel dans la note globale">
                                                 {poidsReel.toFixed(1)}
                                             </span>
-                                            {agissable ? (
-                                                <span className="inline-flex items-center gap-1 text-blue-600 font-black">
-                                                    <Wrench size={11} /> Action
+                                            {mention ? (
+                                                <span className={`inline-flex items-center gap-1 font-black whitespace-nowrap ${mention.classe}`}>
+                                                    <mention.Icone size={11} /> {mention.texte}
                                                 </span>
                                             ) : (
                                                 <span className="w-14" />

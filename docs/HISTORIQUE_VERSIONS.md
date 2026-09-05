@@ -32,20 +32,157 @@
 | **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Stable** — remplacée en production par v6.15.0 le 4 septembre 2026 |
 | **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 fusionnée → `8902cef` / DEC-2026-050 | **Stable** — remplacée comme version courante par v6.16.0 le 4 septembre 2026, mais son plan d'activation reste en cours. Code client en production sur `moknet.net` depuis le 4 septembre 2026 (bundle `index-DEDPIJvb.js`, étape 1 du plan d'activation). **Étape 2 faite le 4 septembre à 22h37 UTC : la fonction Edge `livekit-token` est passée en version 7** (fenêtre calme vérifiée, retour arrière octet-exact préparé, sonde avant/après sur 4 chemins → codes, jetons et message de refus identiques ; garde vérifié 7× par cas sur la fonction en ligne). **Mais SAT reste INERTE, et c'est prouvé et non déduit** : la même room sondée 8 fois voit son temps DESCENDRE (1 986 → 1 023 ms) au lieu de monter, donc aucune room n'est créée et aucun plafond n'est posé ; `prometheus_port` n'est toujours pas sur le VPS (`/metrics` = 404), `LIVE_NODE_METRICS_URL` n'existe pas, la porte ne refuse personne, zéro 409 émis. L'écran « Ce direct est complet » est dans le bundle et ne peut pas s'afficher. Étapes 3 à 5 en attente (`deploy/livekit/README.md` § SAT-1b). Reste à la charge de la Direction : un appel réel entre deux téléphones |
 | **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Stable — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), vérifiée sur moknet.net** |
-| **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée), libellé « Accueil & Cap » et entrée Super-Admin retirés de la liste (« Accueil » → « Conseil des Sages », capture de la Direction) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | PR #74 / DEC-2026-052 | **Courante (Active) — validée par la Direction le 4 septembre 2026 sur capture de référence, fusionnée dans `main` (PR #74), production contrôlée sur moknet.net** |
-| **v6.18.0** | 4 Septembre 2026 | **Studio Avatar : avatar par défaut défini par l'Admin-Général pour tous les nouveaux comptes ; avatar personnel des membres Pro (accès → photo → consentement → nom → génération → aperçu), révocable ; console admin protégée contre un `localStorage` antérieur au réglage** | Studio & Création, Espace Super-Admin, Profil & identité | DEC-2026-053 | **Développée & testée — NON déployée (autorisation de production requise)** |
-| **v6.19.0** | 4 Septembre 2026 | **Avatar vivant de l'Architecte : visage à la place du bouton, 8 états animés (dont mode allégé et hors ligne), synchro labiale sur la voix réellement prononcée ; Super-Admin — changer l'avatar, remettre par défaut, animations, voix** | Diallo OS & Architecte, Espace Super-Admin, Moteur vocal | AI Core playbook 15 / DEC-2026-054 | **Développée & testée — NON déployée (validation visuelle Direction requise)** |
-| **v6.20.0** | 4 Septembre 2026 | **Portrait vivant de l'Architecte : vraie photo qui respire, cligne (paupières de peau), parle (lèvre du haut fixe, cavité et dents), bouge la tête ; calage relevé sur grille ; page publique `/architecte` qui parle à voix haute avec la voix du navigateur** | Diallo OS & Architecte, Espace Super-Admin | AI Core playbook 15 / DEC-2026-055 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation visuelle Direction requise)** |
-| **v6.21.0** | 4 Septembre 2026 | **Portrait vivant fluide et naturel : rendu Canvas, fond fixe, mâchoire déformée en continu (cou immobile), paupières par œil, regard qui bouge, hochements sur le phrasé, lèvres entrouvertes en parlant ; banc à pose fixée** | Diallo OS & Architecte, Espace Super-Admin | AI Core playbook 15 / DEC-2026-056 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation visuelle Direction requise)** |
-| **v6.22.0** | 5 Septembre 2026 | **Synchro bouche-voix réelle, mesurée avec le son : amplitude efficace temporelle normalisée par adaptation (fin de la bouche ouverte sur le souffle), avance de 60 ms (décalage mesuré 0 ms, corrélation 0,80 contre 0,15), lissages en temps valables à toute cadence ; avatar branché tel quel sur la chaîne vocale du Super-Admin (relais automatique entre fournisseurs, dernier relais voix du navigateur, aucune clé exposée) ; test avec son livré sur `/architecte`** | Diallo OS & Architecte, Espace IA (chaîne vocale) | AI Core playbook 15 / DEC-2026-057 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation Direction requise)** |
-| **v6.23.0** | 5 Septembre 2026 | **Visèmes acoustiques et gestes portés par la parole : la forme de la bouche vient du spectre de la voix (« a » ouvert, « i » étiré, « ou » arrondi, « m »/« p » jointes, dents sur « s »), ouverture de parole ramenée à 60 % de la course ; hochements sur les temps forts, sourcils et relèvement en début de phrase, clignement et regard dans les pauses, inclinaison en fin de phrase — tous par ressorts, déclenchés par la voix ; avance temps réel 90 ms avec latence d'appareil déduite ; film image par image VP9/Opus vérifié indépendamment (corrélation 0,81 à 0 ms)** | Diallo OS & Architecte, Espace IA (chaîne vocale) | AI Core playbook 15 / DEC-2026-058 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation Direction requise)** |
-| **v6.24.0** | 5 Septembre 2026 | **Harmonisation voix / lèvres / gestes / yeux d'après les compétences AI Core (playbook 15 § 3-5-7, playbook 09) : les lèvres précèdent le son de 60 ms (coarticulation sans retard de phase, retard d'affichage mesuré 80 ms déduit, retard du son 200 ms) ; pendant la parole, les mouvements sans lien avec la voix s'effacent et les gestes déclenchés par la voix deviennent visibles ; clignements aux pauses de la voix seulement ; vidéo avant/après côte à côte sur la même phrase, contrôle indépendant dans les pixels (−67 ms, 0,78) et en temps réel (−69 ms)** | Diallo OS & Architecte, Espace IA (chaîne vocale) | AI Core playbooks 15, 09, 06 / DEC-2026-059 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation Direction requise)** |
+| **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée), libellé « Accueil & Cap » et entrée Super-Admin retirés de la liste (« Accueil » → « Conseil des Sages », capture de la Direction) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | PR #74 / DEC-2026-052 | **Stable — validée par la Direction le 4 septembre 2026 sur capture de référence, fusionnée dans `main` (PR #74), vérifiée sur moknet.net** |
+| **v6.18.0** | 5 Septembre 2026 | **« Réseau MOC » juste sous « Accueil » dans la barre latérale ; contours de toutes les zones de saisie renforcés par une règle globale (2 px, couleur dérivée du texte à 55 %, accent aqua au focus) ; nouvelle invite du composeur « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. »** | Navigation globale (barre latérale), Réseau MOC, index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-053 | **Stable — production contrôlée demandée par la Direction, fusionnée dans `main`, vérifiée sur moknet.net** |
+| **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 fusionnée en squash → `cbdab0a` / DEC-2026-054 | **Courante (Active) — Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en production contrôlée depuis le 5/09 (Green Gate run 33933766630, moknet.net sert `index-SB3nxKwK.js` avec les empreintes SAT-4, ancien bundle 404)** |
+| **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **PRÊT pour la production contrôlée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées) ; un défaut d'écran trouvé par le banc et corrigé ; tsc 0 · vitest 1045/1045 ; fusion de la PR #81 et application de la migration cron = le déploiement, à consigner ici une fois vérifié sur moknet.net** |
+| **v6.21.0** | 4 Septembre 2026 | **Studio Avatar : avatar par défaut défini par l'Admin-Général pour tous les nouveaux comptes ; avatar personnel des membres Pro (accès → photo → consentement → nom → génération → aperçu), révocable ; console admin protégée contre un `localStorage` antérieur au réglage** | Studio & Création, Espace Super-Admin, Profil & identité | DEC-2026-056 | **Développée & testée — NON déployée (autorisation de production requise)** |
+| **v6.22.0** | 4 Septembre 2026 | **Avatar vivant de l'Architecte : visage à la place du bouton, 8 états animés (dont mode allégé et hors ligne), synchro labiale sur la voix réellement prononcée ; Super-Admin — changer l'avatar, remettre par défaut, animations, voix** | Diallo OS & Architecte, Espace Super-Admin, Moteur vocal | AI Core playbook 15 / DEC-2026-057 | **Développée & testée — NON déployée (validation visuelle Direction requise)** |
+| **v6.23.0** | 4 Septembre 2026 | **Portrait vivant de l'Architecte : vraie photo qui respire, cligne (paupières de peau), parle (lèvre du haut fixe, cavité et dents), bouge la tête ; calage relevé sur grille ; page publique `/architecte` qui parle à voix haute avec la voix du navigateur** | Diallo OS & Architecte, Espace Super-Admin | AI Core playbook 15 / DEC-2026-058 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation visuelle Direction requise)** |
+| **v6.24.0** | 4 Septembre 2026 | **Portrait vivant fluide et naturel : rendu Canvas, fond fixe, mâchoire déformée en continu (cou immobile), paupières par œil, regard qui bouge, hochements sur le phrasé, lèvres entrouvertes en parlant ; banc à pose fixée** | Diallo OS & Architecte, Espace Super-Admin | AI Core playbook 15 / DEC-2026-059 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation visuelle Direction requise)** |
+| **v6.25.0** | 5 Septembre 2026 | **Synchro bouche-voix réelle, mesurée avec le son : amplitude efficace temporelle normalisée par adaptation (fin de la bouche ouverte sur le souffle), avance de 60 ms (décalage mesuré 0 ms, corrélation 0,80 contre 0,15), lissages en temps valables à toute cadence ; avatar branché tel quel sur la chaîne vocale du Super-Admin (relais automatique entre fournisseurs, dernier relais voix du navigateur, aucune clé exposée) ; test avec son livré sur `/architecte`** | Diallo OS & Architecte, Espace IA (chaîne vocale) | AI Core playbook 15 / DEC-2026-060 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation Direction requise)** |
+| **v6.26.0** | 5 Septembre 2026 | **Visèmes acoustiques et gestes portés par la parole : la forme de la bouche vient du spectre de la voix (« a » ouvert, « i » étiré, « ou » arrondi, « m »/« p » jointes, dents sur « s »), ouverture de parole ramenée à 60 % de la course ; hochements sur les temps forts, sourcils et relèvement en début de phrase, clignement et regard dans les pauses, inclinaison en fin de phrase — tous par ressorts, déclenchés par la voix ; avance temps réel 90 ms avec latence d'appareil déduite ; film image par image VP9/Opus vérifié indépendamment (corrélation 0,81 à 0 ms)** | Diallo OS & Architecte, Espace IA (chaîne vocale) | AI Core playbook 15 / DEC-2026-061 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation Direction requise)** |
+| **v6.27.0** | 5 Septembre 2026 | **Harmonisation voix / lèvres / gestes / yeux d'après les compétences AI Core (playbook 15 § 3-5-7, playbook 09) : les lèvres précèdent le son de 60 ms (coarticulation sans retard de phase, retard d'affichage mesuré 80 ms déduit, retard du son 200 ms) ; pendant la parole, les mouvements sans lien avec la voix s'effacent et les gestes déclenchés par la voix deviennent visibles ; clignements aux pauses de la voix seulement ; vidéo avant/après côte à côte sur la même phrase, contrôle indépendant dans les pixels (−67 ms, 0,78) et en temps réel (−69 ms)** | Diallo OS & Architecte, Espace IA (chaîne vocale) | AI Core playbooks 15, 09, 06 / DEC-2026-062 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation Direction requise)** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.20.0] — 5 Septembre 2026 (SAT-5 — ce que l'application peut réparer seule, et ce qui exige le VPS)
+
+* **La demande** : après SAT-4 (savoir qu'un direct est bloqué), SAT-5 —
+  « récupération automatique : ce que l'application peut faire seule, et ce
+  qui exige le VPS ». Tri de la Direction du 5 septembre : seuls les
+  éléments finis partent en production ; SAT-5 continue séparément.
+* **Ce que l'application fait seule, désormais (code)** :
+  1. **La ligne d'un direct qui tombe se rétablit seule**, comme celle d'un
+     appel depuis AU-1 (700 ms · 1,4 s · 2,8 s, trois relances au plus) —
+     mais uniquement si l'écran fournit une garde `autoRecover` ET que cette
+     garde relit **en base** que le direct est encore ouvert. Un direct
+     clôturé par l'animateur répond « non » et l'écran dit « Ce direct est
+     terminé. » ; un refus nommé du serveur (direct complet, SAT-3) ne
+     relance jamais ; une éviction par identité dupliquée non plus ; une
+     seule lecture en base à la fois ; la garde d'une tentative annulée ne
+     parle plus. **Une base injoignable LÈVE** : le doute n'est pas une
+     clôture. C'est pour cela que `SocialLive` appelle la nouvelle
+     `isLiveSessionStillOpen()` et non `fetchLiveSession()`, qui répond
+     `null` sur une erreur de lecture et aurait transformé une coupure réseau
+     en faux « terminé ».
+  2. **Les directs zombies se ferment seuls** (migration
+     `20260905010000_live_sat5_close_zombie_sessions_cron.sql`) : la règle
+     exacte de `health_remediation_spec('live.close_zombie_sessions')`
+     (`ended_at` vide, démarré depuis plus de 24 h), jouée toutes les heures
+     par `pg_cron` (`close-zombie-live-sessions`, minute 15) et tracée dans
+     `audit_logs` (`health.auto_repair`, acteur vide, ids fermés) — seulement
+     quand elle a changé quelque chose. Fonction réservée à `postgres` et
+     `service_role`.
+* **Ce que l'application ne peut PAS faire seule (frontière VPS, documentée
+  dans `docs/LIVE_SATURATION_AUDIT.md` § 4)** : redémarrer le conteneur
+  LiveKit, refaire tourner une clé du coffre qui a divergé, rouvrir un port
+  UDP, monter le serveur de 1.8.4 à 1.13.6. SAT-4 les DÉTECTE (rouge), rien
+  ne les répare sans SSH : c'est le périmètre du bouton de secours SAT-6 et
+  des étapes ACT du plan d'activation, jamais d'une boucle client.
+* **Preuves** : tsc 0 · vitest 1042/1042 (74 fichiers, +9 tests du hook sur
+  un double de transport rejouant les événements réels du SDK) · build ·
+  **7 contre-épreuves** (refus nommé, garde → false, LIVE sans garde, garde
+  en vol unique, garde qui lève, tentative annulée, éviction) : chacune fait
+  rougir exactement un test ; la seule ligne qu'aucune ne pouvait faire
+  rougir (revérifier le budget après la garde) a été retirée. Migration
+  jouée **à vide dans une transaction annulée** sur la base réelle : 13
+  directs fermés, 0 au second passage (idempotence), 4 directs récents
+  intacts, 1 ligne d'audit (`changedCount` 13), droits `postgres`/
+  `service_role` seuls — puis rollback vérifié (13 toujours ouverts, audit
+  vide, ni fonction ni job).
+* **Banc réel contre un LiveKit vivant (5 septembre, second passage) —
+  39 OK / 0 DÉFAUT** (`scratchpad/sat5/preuve-sat5.cjs`, deux comptes
+  éphémères, direct réel en base, Supabase réel, `livekit-server` local sous
+  le contrôle du banc) : cinq pannes injectées par l'API serveur ou par le
+  système, jamais par un double. **C1** room supprimée, direct ouvert → les
+  deux lignes se rétablissent seules en 1,5 s (le serveur revoit les deux
+  identités, journal « nouvelle tentative 1/3 », un nouveau jeton chacun).
+  **C2** seconde suppression → « 1/3 » à nouveau : le budget est remis à zéro
+  par un succès. **C3** jeton refusé `live_full` (409) sur la relance → un
+  seul jeton demandé puis plus rien, écran « Ce direct est complet »,
+  « Réessayer » rend la place ; l'autre ligne revient normalement. **C5**
+  serveur TUÉ (vraie coupure de socket) → le SDK abandonne après ~47 s, puis
+  3 relances gardées par la base tombent (1/3 · 2/3 · 3/3), aucune 4e,
+  bannière « Diffusion interrompue » + « Réessayer », **jamais « terminé »** ;
+  serveur relancé → « Réessayer » rétablit les deux. **C4** `ended_at` posé
+  en base puis room supprimée → « Ce direct est terminé. » en 0,65 s chez
+  les deux, ZÉRO jeton demandé, room vide côté serveur.
+* **Défaut trouvé par le banc, corrigé avant toute production** : au premier
+  passage (35/37), l'écran affichait « Diffusion interrompue · Réessayer »
+  sur un direct clos — le hook disait « Ce direct est terminé. » mais
+  `SocialLive` ne rendait jamais le texte de l'erreur, seulement une bannière
+  de panne. Corrigé : `isLiveEndedError()`, badge « TERMINÉ » (avant
+  « INTERROMPU »), bloc `live-ended-notice` avec « Quitter » et sans
+  « Réessayer » ; 3 tests (`tests/liveStudioMatter.test.tsx`), 1045/1045.
+* **Déploiement = deux gestes distincts** : fusion de la PR #81 (client) et
+  application de la migration cron (base). Tant que cette ligne ne dit pas
+  « en production contrôlée, vérifié sur moknet.net », rien ne l'est.
+
+---
+
+### [Version 6.19.0] — 5 Septembre 2026 (SAT-4 — savoir si un direct peut démarrer, pas si le serveur répond)
+
+* **La demande** : ne pas présenter SAT-4 comme terminé tant que le
+  branchement réel n'est pas livré ; preuves, tests, zéro régression ; à
+  chaque étape, ce qui est en production, ce qui ne l'est pas, ce qui reste
+  partiel.
+* **Ce qui change** : la ligne `live.transport_utilisable` du tableau de bord
+  de santé n'interroge plus `GET /` (qui répond 200 même quand rien ne passe)
+  mais `POST /twirp/livekit.RoomService/ListRooms`, signé avec la clé du
+  coffre — l'appel dont dépend réellement l'ouverture d'un direct. Vert si
+  200 + liste exploitable en ≤ 1 500 ms ; orange au-delà (la porte SAT-2 ne
+  compte plus) ; rouge sur 401/403 (le serveur vit et refuse nos
+  identifiants), 5xx, corps illisible, délai ou réseau ; blanc si rien n'est
+  configuré ou si la sonde n'a pas tourné.
+* **Où c'est** : règle pure `supabase/functions/health-guardian/liveTransportProbe.ts`
+  (zéro réseau), évaluateur dans `evaluate.ts`, sonde confinée à `index.ts`
+  (`observeLiveTransport`, ne lève jamais), ligne de registre
+  `services/health/healthRegistry.ts` (poids LIVE 34/28/22/16 = 100).
+  Artefact déployé désormais **généré** par `build-bundle.sh`.
+* **En production** : fonction Edge `health-guardian` **v2** (déployée,
+  amorçage prouvé, puis **démontrée** avec une vraie session administrateur :
+  HTTP 200 en 2,17 s, 41 lignes, `live.transport_utilisable` vert / réel /
+  400 ms / 0 direct, `seuilDegradeMs 1500`).
+* **En production aussi, depuis le 5 septembre 2026** : le code client
+  (ligne de registre) — PR #77 fusionnée en squash (`cbdab0a`) après un
+  Green Gate vert sur l'arbre fusionné avec `main` (run 33933766630) ;
+  moknet.net sert `index-SB3nxKwK.js`, où les empreintes « Un direct peut
+  réellement démarrer », `live.transport_utilisable` et « refuse nos
+  identifiants » sont présentes, l'ancien bundle répondant 404.
+* **Partiel** : pas de contre-épreuve en production (les contre-épreuves sont
+  dans les tests, au niveau de la règle) ; SAT-5/6/7 non commencés ;
+  ACT-3/4/5 toujours bloqués sur l'accès SSH au VPS.
+* **Preuves** : tsc 0 · vitest 1006/1006 (71 fichiers) · build · 28 tests SAT-4
+  dont 2 contre-épreuves · source de production relue = 10/10 empreintes ·
+  zéro trace du compte éphémère (balayage = 0). DEC-2026-054.
+
+---
+
+### [Version 6.18.0] — 5 Septembre 2026 (« Réseau MOC » sous « Accueil », contours des zones de saisie, invite du composeur)
+
+* **La demande** : trois consignes de la Direction, en production contrôlée,
+  zéro régression, preuve visuelle à la fin.
+* **Ce qui change** : dans la barre latérale d'ordinateur, « Réseau MOC »
+  vient juste sous « Accueil » (l'onglet par défaut reste le réseau social,
+  le tiroir mobile et ⌘K ne bougent pas) ; toutes les zones de texte ont un
+  contour de 2 px dont la couleur dérive de celle du texte (55 %), et un accent
+  aqua au focus — une règle globale d'`index.html`, hors couche aqua
+  générée, avec deux classes de sortie ; le composeur invite avec « Quoi de
+  neuf ? Partage une réflexion, une opportunité, un tutoriel ou un
+  document. » au lieu d'un prénom codé en dur.
+* **Preuves** : `tsc --noEmit` 0 · `vitest` 993/993 (72 fichiers, +6 :
+  `tests/saisieContours.test.ts`) · `npm run build` propre · captures
+  avant/après avec bordure mesurée en navigateur réel (barre latérale,
+  composeur, connexion) jointes à la PR.
+* **Statut** : production contrôlée demandée par la Direction — fusion,
+  déploiement Netlify, contrôle post-déploiement (DEC-2026-053).
+
+---
 
 ### [Version 6.17.0] — 4 Septembre 2026 (Nettoyage de la barre latérale — « un menu propre, simple, non répétitif »)
 

@@ -9,12 +9,12 @@ import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS, RENDER_LATENCY_MS, VISUAL_LEA
  *
  * Pièges réels, tous rencontrés :
  *  - la source branchée sur l'analyseur sans chemin vers la sortie REND LA
- *    VOIX MUETTE (DEC-2026-054) ;
+ *    VOIX MUETTE (DEC-2026-057) ;
  *  - le spectre en OCTETS (`getByteFrequencyData`) tient la bouche ouverte
  *    sur le souffle : mesuré le 04/09, bouche ouverte sur 98 % des images ;
  *  - sans avance, la bouche suit la voix avec ~160 ms de retard ;
  *  - le volume seul ouvre la bouche sur un « s » et la ferme sur une voyelle
- *    douce : la FORME vient du spectre (visèmes acoustiques, DEC-2026-057).
+ *    douce : la FORME vient du spectre (visèmes acoustiques, DEC-2026-060).
  */
 
 const gateway = vi.hoisted(() => ({

@@ -500,11 +500,33 @@ export const HEALTH_LINES: HealthLine[] = [
     // ───────────────────────────── LIVE ─────────────────────────────
 
     {
+        id: 'live.transport_utilisable',
+        domain: 'live',
+        title: "Un direct peut réellement démarrer",
+        why:
+            "Le serveur de direct peut répondre « je suis vivant » tout en refusant nos identifiants : " +
+            "plus aucun direct ne démarrerait, et une surveillance fondée sur le ping afficherait vert " +
+            "pendant la panne. Cette ligne interroge l'appel dont dépend réellement l'ouverture d'un direct.",
+        // La plus lourde du domaine : sans elle, aucune des trois autres n'a
+        // d'objet — il n'y a plus de direct du tout à tenir propre.
+        weight: 34,
+        location: 'serveur',
+        expected:
+            "`POST /twirp/livekit.RoomService/ListRooms`, signé avec la clé du coffre, répond 200 avec " +
+            "une liste de directs exploitable, dans le délai que la porte d'admission peut attendre " +
+            "(le verdict rappelle le seuil exact en millisecondes).",
+        humanAction:
+            "Rouge « refuse nos identifiants » : la clé API du VPS et celle du coffre ont divergé — " +
+            "les réaligner (voir deploy/livekit/README.md). Rouge « injoignable » : vérifier le conteneur " +
+            "LiveKit et le reverse-proxy sur le VPS. Orange : le serveur répond trop lentement pour que " +
+            "la porte d'admission tienne — regarder la charge de la machine.",
+    },
+    {
         id: 'live.sessions_zombies',
         domain: 'live',
         title: "Aucun direct resté ouvert",
         why: "Un direct jamais clôturé continue d'apparaître « en cours » à tout le monde et garde une salle de transport réservée.",
-        weight: 40,
+        weight: 28,
         location: 'serveur',
         expected: "Aucune session LIVE au statut « en cours » depuis plus de 24 heures.",
         remediation: {
@@ -522,7 +544,7 @@ export const HEALTH_LINES: HealthLine[] = [
         domain: 'live',
         title: "Rétention des transcriptions respectée",
         why: "La règle annoncée aux utilisateurs est une purge 30 jours après la fin du direct : la tenir est un engagement, pas une option.",
-        weight: 34,
+        weight: 22,
         location: 'serveur',
         expected: "Aucune ligne de transcription au-delà de 30 jours après la fin de son direct.",
         remediation: {
@@ -540,7 +562,7 @@ export const HEALTH_LINES: HealthLine[] = [
         domain: 'live',
         title: "Intervenants rattachés à un direct existant",
         why: "Des intervenants orphelins faussent la composition de scène et les comptages de participation.",
-        weight: 26,
+        weight: 16,
         location: 'serveur',
         expected:
             "Aucun intervenant orphelin, ET la contrainte `live_speakers_session_id_fkey` " +

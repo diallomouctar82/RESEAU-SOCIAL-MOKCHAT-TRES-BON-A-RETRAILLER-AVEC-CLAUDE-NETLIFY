@@ -20,24 +20,24 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
-### [DEC-2026-059] — 5 Septembre 2026
+### [DEC-2026-062] — 5 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, chaîne vocale (`services/voiceEngine.ts`), page publique `/architecte`.
 * **Problème / Besoin initial** : la Direction (05/09) : « la synchronisation n'est pas harmonisée. La voix part d'un côté, les lèvres de l'autre, les gestes et les yeux ne suivent pas naturellement » ; quatre corrections exigées avant validation, avec une vidéo courte avant/après sur le même texte, et l'obligation de **s'appuyer explicitement sur les compétences Vision Smart AI Core** en indiquant, pour chaque correction, la compétence, ce qui a été corrigé et une vraie preuve. Le format de preuve est celui du playbook 15 (« Mesures et preuves attendues ») : `BASELINE + TEST_SET + METRIC + THRESHOLD + RESULT = EVIDENCE`.
 * **Compétences de référence (Vision Smart AI Core, dépôt `vision-smart-ai-corp` à `fc03ce4`)** : playbook 15 `avatar-presence-conversationnelle-vivante` § 3 (animation vivante légère : « clignement discret avec variation naturelle », « micro-mouvements de tête ou de regard », « la fréquence d'images et la consommation sont mesurées avant toute déclaration de qualité »), § 4 (état SPEAKING = « visèmes ou animation de voix synchronisée »), § 5 (voix et synchronisation labiale : « visèmes fournis par le moteur, ou fallback d'animation simple liée à l'activité audio » ; « une synchro approximative ne doit pas être présentée comme une synchronisation phonétique exacte »), § 7 (orchestration temps réel : state machine → orchestrateur → TTS → gateway), § 8 (avatar personnel : même moteur, calage par photo) ; playbook 09 `ui-motion-choreography` (« définir intention, trajectoire, easing, durée » ; « mouvement utile » ; « éviter l'animation décorative omniprésente ») et `ui-microinteractions-feedback` (« feedback < délai perceptible ») ; playbook 06 (« horodatage par segment », « buffers adaptatifs ») ; Future UI/UX Gate (« mouvement utile », « absence de décor gratuit »). Note d'honnêteté : le catalogue AI Core ne contient pas de compétence « composants 3D » ; le playbook 15 § 3 impose au contraire pour P1 « CSS, SVG, Lottie optimisé ou Canvas léger, jamais une vidéo en boucle » — c'est ce que fait le portrait Canvas ; « effets visuels » relève du principe 6 (« l'effet visuel sert à expliquer un état ») et du Gate.
 * **Décision retenue — quatre corrections, chacune avec sa compétence et sa preuve** :
-  1. **Synchroniser la voix et les lèvres** (playbook 15 § 5, playbook 09 micro-interactions, playbook 06 horodatage). Correction : sur un visage réel, les articulateurs précèdent le son ; la bouche est donc affichée **60 ms avant** le son entendu (`VISUAL_LEAD_MS`) et les formes sont **coarticulées** par une fenêtre triangulaire centrée de ±40 ms (`MouthShapeBuffer`, lissage sans retard de phase, possible parce que le son est retardé de 200 ms — `LIP_SYNC_LOOKAHEAD_MS` — ou connu d'avance au montage). Le retard d'affichage de la chaîne est **mesuré** (94 → 80 ms retenus, `RENDER_LATENCY_MS`) et déduit (`mouthReadTime`). Preuve — BASELINE : film v6.23.0, bouche mesurée dans les pixels vs son décodé, décalage optimal 0 ms (la bouche ne précédait jamais le son), et page réelle : bouche 34 ms **derrière** le son entendu. TEST_SET : phrase Vision Smart (8,19 s), film image par image + page réelle enregistrée. METRIC : décalage optimal de la corrélation croisée son ↔ bouche. THRESHOLD : bouche en avance de 40 à 100 ms. RESULT : film **−67 ms** (corrélation 0,78), page réelle **−69 ms** (0,74) → EVIDENCE : les lèvres précèdent la voix, dans la zone naturelle.
-  2. **Harmoniser les gestes avec les moments de parole** (playbook 15 § 3 ; playbook 09 chorégraphie du mouvement). Correction : pendant la parole, la dérive lente s'efface à 35 % et l'inclinaison de repos à 0 (part de parole lissée, jamais coupée) ; les gestes déclenchés par la voix deviennent **visibles** (hochement ~1 % du cadre et 0,8° sur les temps forts, relèvement 0,55 %, sourcils 0,45–0,75 en début de phrase, inclinaison 1,2–2,2° en fin de phrase) ; le regard **se détourne au début d'une phrase sur deux et revient** sur l'interlocuteur (comportement d'orateur), s'échappe rarement dans une pause. Preuve — BASELINE : v6.23.0, hochement 0,45 % × 0,6 ≈ 2 px (invisible), inclinaison sans lien avec la voix de 0 à 5,7° pendant la phrase. TEST_SET : mêmes films. METRIC : mouvement de tête non lié à la voix pendant la parole (amplitude d'inclinaison) ; gestes liés (tests). THRESHOLD : inclinaison hors voix ≤ 2° en parole ; chaque geste déclenché par un événement de voix. RESULT : inclinaison en parole **−0,9° à +1,6°** (journal du film) ; `tests/gestures.test.ts` : hochements seulement sur temps forts espacés ≥ 350 ms, sourcils/relèvement au début de phrase, continuité sans saut → EVIDENCE.
-  3. **Clignement naturel** (playbook 15 § 3 « clignement discret avec variation naturelle »). Correction : en parole, la table de clignements et les clignements de saccade se taisent ; on cligne **aux pauses de la voix** (≥ 240 ms), au plus une fois par 1,2 s, et à la fin d'une syllabe si 4,5 s se sont écoulées sans cligner — jamais en pleine voyelle, jamais deux fois de suite. Preuve — BASELINE : v6.23.0, 5 clignements en 10 s dont deux à 0,47 s d'écart (2,63 et 3,10 s), hors des pauses. TEST_SET : film image par image. METRIC : instants des clignements, écart minimal, cadence. THRESHOLD : cadence 12–30/min en parole, écart ≥ 1,2 s, chaque clignement à une frontière (pause, virgule, point). RESULT : **3 clignements** en 8,2 s de parole (≈ 22/min) à 2,60 s, 4,33 s, 6,93 s du film = instants de son 2,0 s (« Smart. »), 3,73 s (« accompagner, »), 6,33 s (« claire, ») ; écart minimal **1,73 s** → EVIDENCE.
-  4. **Vidéo courte avant/après, même texte parlé** (playbook 15 « Mesures et preuves attendues » ; Gate « test de compréhension »). Correction : montage côte à côte, à gauche le film v6.23.0 (celui que la Direction a vu), à droite v6.24.0, **une seule piste son** partagée (décalage de 15 ms du premier film compensé), 10 s, VP9 + Opus par WebCodecs ; conversion MP4 (H.264/AAC) par service externe parce que ce Chromium n'encode ni H.264 ni AAC. Preuve : le fichier lui-même, et le contrôle indépendant de la moitié « après » (point 1).
+  1. **Synchroniser la voix et les lèvres** (playbook 15 § 5, playbook 09 micro-interactions, playbook 06 horodatage). Correction : sur un visage réel, les articulateurs précèdent le son ; la bouche est donc affichée **60 ms avant** le son entendu (`VISUAL_LEAD_MS`) et les formes sont **coarticulées** par une fenêtre triangulaire centrée de ±40 ms (`MouthShapeBuffer`, lissage sans retard de phase, possible parce que le son est retardé de 200 ms — `LIP_SYNC_LOOKAHEAD_MS` — ou connu d'avance au montage). Le retard d'affichage de la chaîne est **mesuré** (94 → 80 ms retenus, `RENDER_LATENCY_MS`) et déduit (`mouthReadTime`). Preuve — BASELINE : film v6.26.0, bouche mesurée dans les pixels vs son décodé, décalage optimal 0 ms (la bouche ne précédait jamais le son), et page réelle : bouche 34 ms **derrière** le son entendu. TEST_SET : phrase Vision Smart (8,19 s), film image par image + page réelle enregistrée. METRIC : décalage optimal de la corrélation croisée son ↔ bouche. THRESHOLD : bouche en avance de 40 à 100 ms. RESULT : film **−67 ms** (corrélation 0,78), page réelle **−69 ms** (0,74) → EVIDENCE : les lèvres précèdent la voix, dans la zone naturelle.
+  2. **Harmoniser les gestes avec les moments de parole** (playbook 15 § 3 ; playbook 09 chorégraphie du mouvement). Correction : pendant la parole, la dérive lente s'efface à 35 % et l'inclinaison de repos à 0 (part de parole lissée, jamais coupée) ; les gestes déclenchés par la voix deviennent **visibles** (hochement ~1 % du cadre et 0,8° sur les temps forts, relèvement 0,55 %, sourcils 0,45–0,75 en début de phrase, inclinaison 1,2–2,2° en fin de phrase) ; le regard **se détourne au début d'une phrase sur deux et revient** sur l'interlocuteur (comportement d'orateur), s'échappe rarement dans une pause. Preuve — BASELINE : v6.26.0, hochement 0,45 % × 0,6 ≈ 2 px (invisible), inclinaison sans lien avec la voix de 0 à 5,7° pendant la phrase. TEST_SET : mêmes films. METRIC : mouvement de tête non lié à la voix pendant la parole (amplitude d'inclinaison) ; gestes liés (tests). THRESHOLD : inclinaison hors voix ≤ 2° en parole ; chaque geste déclenché par un événement de voix. RESULT : inclinaison en parole **−0,9° à +1,6°** (journal du film) ; `tests/gestures.test.ts` : hochements seulement sur temps forts espacés ≥ 350 ms, sourcils/relèvement au début de phrase, continuité sans saut → EVIDENCE.
+  3. **Clignement naturel** (playbook 15 § 3 « clignement discret avec variation naturelle »). Correction : en parole, la table de clignements et les clignements de saccade se taisent ; on cligne **aux pauses de la voix** (≥ 240 ms), au plus une fois par 1,2 s, et à la fin d'une syllabe si 4,5 s se sont écoulées sans cligner — jamais en pleine voyelle, jamais deux fois de suite. Preuve — BASELINE : v6.26.0, 5 clignements en 10 s dont deux à 0,47 s d'écart (2,63 et 3,10 s), hors des pauses. TEST_SET : film image par image. METRIC : instants des clignements, écart minimal, cadence. THRESHOLD : cadence 12–30/min en parole, écart ≥ 1,2 s, chaque clignement à une frontière (pause, virgule, point). RESULT : **3 clignements** en 8,2 s de parole (≈ 22/min) à 2,60 s, 4,33 s, 6,93 s du film = instants de son 2,0 s (« Smart. »), 3,73 s (« accompagner, »), 6,33 s (« claire, ») ; écart minimal **1,73 s** → EVIDENCE.
+  4. **Vidéo courte avant/après, même texte parlé** (playbook 15 « Mesures et preuves attendues » ; Gate « test de compréhension »). Correction : montage côte à côte, à gauche le film v6.26.0 (celui que la Direction a vu), à droite v6.27.0, **une seule piste son** partagée (décalage de 15 ms du premier film compensé), 10 s, VP9 + Opus par WebCodecs ; conversion MP4 (H.264/AAC) par service externe parce que ce Chromium n'encode ni H.264 ni AAC. Preuve : le fichier lui-même, et le contrôle indépendant de la moitié « après » (point 1).
 * **Justification & Valeur ajoutée** : chaque reproche de la Direction correspond à une règle d'une compétence AI Core et à une mesure avant/après ; plus rien n'est « au jugé ».
 * **Conséquences & Impacts transversaux** : `LIP_SYNC_LOOKAHEAD_MS` passe à 200 ms (le son d'une réponse HD arrive un cinquième de seconde plus tard ; latence de sortie de l'appareil déduite) ; `resolveLivingPose` n'utilise plus la table de clignements pendant la parole ; `ProsodyInput.elapsedMs` évite les doublons avec la table à la frontière repos/parole ; la page de preuve expose `MouthShapeBuffer` et l'avance dans `__moknetDemoDrive.outils`.
 * **Limites dites** : le retard d'affichage (80 ms) est une mesure sur le navigateur de preuve, résolution ±34 ms — sur un appareil lent, la bouche peut précéder le son de 100 ms au lieu de 60 ; les gestes restent des ressorts sur des événements acoustiques, pas une compréhension du sens ; visèmes acoustiques (pas de reconnaissance phonétique, conformément à la garde du § 5 qui interdit de présenter la synchro comme phonétiquement exacte) ; chaîne de production non exercée depuis le bac à sable.
 * **Éléments techniques concernés** : `services/architecte/lipSync.ts` (`VISUAL_LEAD_MS`, `COARTICULATION_WINDOW_MS`, `MouthShapeBuffer`, `RENDER_LATENCY_MS`, `mouthReadTime`, `LIP_SYNC_LOOKAHEAD_MS`), `services/architecte/gestures.ts`, `services/architecte/livingAvatar.ts`, `services/voiceEngine.ts`, `components/architecte/ArchitecteDemoPage.tsx`, tests `voiceLipSyncChain`, `gestures`, `architecteAvatar`, `livingAvatar`.
 * **Statut** : `Développé` & `Testé` — **NON déployé en production** (prévisualisation de branche ; validation de la Direction attendue sur la vidéo avant/après).
 
-### [DEC-2026-058] — 5 Septembre 2026
+### [DEC-2026-061] — 5 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, chaîne vocale de l'Espace IA (`services/voiceEngine.ts`), page publique `/architecte`.
-* **Problème / Besoin initial** : après la vidéo de DEC-2026-057, la Direction : « la bouche s'ouvre beaucoup trop, ce n'est pas suffisamment synchronisé avec la voix, il manque de gestes naturels ; harmoniser la parole et les mouvements, plus fluide, plus humain, sans effet mécanique » — demande de perfectionnement, pas un rejet. Diagnostic : (1) la bouche suivait le VOLUME : elle s'ouvrait sur un « s » ou un « f » autant que sur un « a », se refermait sur une voyelle douce, et ne se joignait jamais sur « m », « b », « p » — on voit que « ça ne colle pas » sans savoir pourquoi ; (2) une voyelle franche ouvrait la mâchoire à 100 % de la course du calage, qui est un cri ; (3) aucun geste n'était lié à la parole : les hochements venaient de l'emphase et les sourcils montaient à chaque syllabe forte (0,9 × emphase), effet mécanique ; (4) la bouche entendue restait 34 ms derrière le son en temps réel (mesure dans la page, avance de 60 ms).
+* **Problème / Besoin initial** : après la vidéo de DEC-2026-060, la Direction : « la bouche s'ouvre beaucoup trop, ce n'est pas suffisamment synchronisé avec la voix, il manque de gestes naturels ; harmoniser la parole et les mouvements, plus fluide, plus humain, sans effet mécanique » — demande de perfectionnement, pas un rejet. Diagnostic : (1) la bouche suivait le VOLUME : elle s'ouvrait sur un « s » ou un « f » autant que sur un « a », se refermait sur une voyelle douce, et ne se joignait jamais sur « m », « b », « p » — on voit que « ça ne colle pas » sans savoir pourquoi ; (2) une voyelle franche ouvrait la mâchoire à 100 % de la course du calage, qui est un cri ; (3) aucun geste n'était lié à la parole : les hochements venaient de l'emphase et les sourcils montaient à chaque syllabe forte (0,9 × emphase), effet mécanique ; (4) la bouche entendue restait 34 ms derrière le son en temps réel (mesure dans la page, avance de 60 ms).
 * **Compétence de référence** : AI Core playbook 15 § 3 (micro-mouvements, « non mécanique ») et § 5 (synchro honnête) ; règle Vision Smart XIV (attendu → obtenu → écart → verdict, ici phonème par phonème).
 * **Idées / Options envisagées** : (1) visèmes d'après le TEXTE (phonèmes + alignement temporel) — écartée pour la chaîne : tous les fournisseurs de voix ne rendent pas d'alignement, et le navigateur n'en a aucun ; (2) apprentissage automatique audio → visèmes — écartée, dépendance et poids inutiles ; (3) retenue : **visèmes ACOUSTIQUES** lus dans le spectre de la voix, image par image, avec l'analyseur déjà en place — valables pour toute voix, tout fournisseur, sans clé.
 * **Décision retenue** :
@@ -53,7 +53,7 @@ Chaque décision respecte le formalisme strict suivant :
 * **Éléments techniques concernés** : `services/architecte/lipSync.ts` (`SPEECH_BANDS_HZ`, `spectralBands`, `MouthShape`, `mouthShapeFromBands`, `smoothMouthShape`, `MAX_SPEECH_OPENNESS`), `services/architecte/gestures.ts`, `services/architecte/livingAvatar.ts` (`blinkCurve`, `mouthTeeth`, `gesture`), `services/architecte/portraitPainter.ts` (dents), `services/voiceEngine.ts` (`onMouthShape`, `mouthQueue`), `hooks/useVoiceAssistant.ts`, `components/architecte/ArchitecteAvatar.tsx`, `ArchitecteFloatingBar.tsx`, `ArchitecteDemoPage.tsx` (`DemoDriveHook`), `design-lab/banc/portrait.tsx` (`teeth`), tests et fixture.
 * **Statut** : `Développé` & `Testé` — **NON déployé en production** (prévisualisation de branche ; validation de la Direction attendue sur la vidéo avec son).
 
-### [DEC-2026-057] — 5 Septembre 2026
+### [DEC-2026-060] — 5 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, chaîne vocale de l'Espace IA (`supabase/functions/ai-gateway`, `services/voiceEngine.ts`), page publique `/architecte`.
 * **Problème / Besoin initial** : la Direction exige un **test avec son** — « fais dire à l'avatar une phrase complète… vérifier la concordance labiale réelle, avec le son. Tant qu'on n'a pas vu ça, rien n'est validé » — et que l'avatar **ne dépende pas d'ElevenLabs** : « connecte l'avatar à la chaîne multimodale déjà en place dans Super-Admin, relais propre avec les autres services, sans redemander de clé, sans en exposer ». Le test avec son a été construit d'abord (la page réelle joue la phrase Vision Smart en voix HD, s'enregistre elle-même — canvas + piste audio, VP9/Opus — et tient un journal par image : énergie de la voix mesurée ET ouverture de bouche calculée au même instant). Première mesure : **corrélation son ↔ bouche 0,15, bouche en retard de 160 à 240 ms, ouverte sur 98 % des images** — elle ne se refermait pas sur les silences. Cause racine, lue dans le code et confirmée par le journal : la bouche lisait le **spectre en octets** (`getByteFrequencyData`), c'est-à-dire des décibels ramenés sur 0..255 entre −100 et −30 dB ; le souffle d'un fichier de voix (−65 dB) y vaut déjà « la moitié du volume », donc une ouverture de 0,9 en plein silence. Second défaut trouvé au passage : tous les lissages étaient des **facteurs par image** (0,35 · 0,22 · 0,06 · 0,08…), donc une bouche et une tête différentes à 30, 60 ou 120 Hz.
 * **Compétence de référence** : AI Core playbook 15 § 5 (synchro labiale honnête : le niveau annoncé est le niveau mesuré) et § 10 (mesurer sur l'appareil de référence avant toute déclaration) ; règle Vision Smart XII (aucune preuve absente remplacée par une formulation confiante).
@@ -71,9 +71,9 @@ Chaque décision respecte le formalisme strict suivant :
 * **Éléments techniques concernés** : `services/architecte/lipSync.ts` (`ANALYSER_FFT_SIZE`, `LIP_SYNC_LOOKAHEAD_MS`, `rmsAmplitude`, `createVoiceEnvelope`, `voiceEnvelopeOpenness`, `smoothOpenness(dtMs)`), `services/architecte/livingAvatar.ts` (`easeFactor` et constantes de temps), `services/voiceEngine.ts` (`attachOutputAnalyser`, `startOutputLevelLoop`), `components/architecte/ArchitecteAvatar.tsx` (durée d'image réelle), `components/architecte/ArchitecteDemoPage.tsx` (`DemoAudioHook.output`), `components/admin/AdminArchitecteAvatarCard.tsx` (étiquette), `tests/architecteAvatar.test.ts`, `tests/voiceLipSyncChain.test.ts`, `tests/fixtures/vision-smart-rms.json`.
 * **Statut** : `Développé` & `Testé` — **NON déployé en production** (prévisualisation de branche ; aucune fusion sans validation de la Direction, qui a demandé à voir la synchro avec le son avant toute validation).
 
-### [DEC-2026-056] — 4 Septembre 2026
+### [DEC-2026-059] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, page publique `/architecte`, banc `design-lab/banc/portrait.html`.
-* **Problème / Besoin initial** : après la vidéo de DEC-2026-055, la Direction : « c'est un bon début, mais ce n'est pas assez fluide ni naturel ». Mesure faite avant d'agir : la page tourne à **60 i/s** dans le navigateur de preuve (301 images en 5 s, 16,7 ms médian) — la cadence n'est pas en cause. Ce qui l'est : le MOUVEMENT lui-même. En SVG, chaque partie mobile était une copie entière de la photo translatée d'un bloc sous un masque : la lèvre du bas, le menton, le cou et le col descendaient ensemble ; la tête et le fond de bureau pivotaient ensemble ; la tête hochait à CHAQUE syllabe (4-6 Hz, marionnette) ; la bouche se refermait complètement entre deux syllabes (claquement) ; le regard était parfaitement fixe.
+* **Problème / Besoin initial** : après la vidéo de DEC-2026-058, la Direction : « c'est un bon début, mais ce n'est pas assez fluide ni naturel ». Mesure faite avant d'agir : la page tourne à **60 i/s** dans le navigateur de preuve (301 images en 5 s, 16,7 ms médian) — la cadence n'est pas en cause. Ce qui l'est : le MOUVEMENT lui-même. En SVG, chaque partie mobile était une copie entière de la photo translatée d'un bloc sous un masque : la lèvre du bas, le menton, le cou et le col descendaient ensemble ; la tête et le fond de bureau pivotaient ensemble ; la tête hochait à CHAQUE syllabe (4-6 Hz, marionnette) ; la bouche se refermait complètement entre deux syllabes (claquement) ; le regard était parfaitement fixe.
 * **Compétence de référence** : AI Core playbook 15 § 3 (respiration non mécanique, clignement à variation naturelle, micro-mouvements « de tête ou de regard ») et § 10 (mesurer la cadence sur appareil de référence avant toute déclaration de qualité).
 * **Idées / Options envisagées** : (1) vidéo générée par un fournisseur — écartée (§ 3, et incapable de suivre la voix réelle) ; (2) rester en SVG avec plus de couches — écartée, une image translatée ne se DÉFORME pas ; (3) retenue : **rendu Canvas 2D image par image** (`services/architecte/portraitPainter.ts`), où le visage se déforme.
 * **Décision retenue** :
@@ -96,7 +96,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-055] — 4 Septembre 2026
+### [DEC-2026-058] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, `Espace Super-Admin (paramètres plateforme)`, page publique `/architecte`.
 * **Problème / Besoin initial** : la Direction a refusé trois versions successives de l'avatar — « ce n'est pas un avatar vivant, ce n'est pas humain » (dessin vectoriel), « tu as juste posé une image » (photo immobile), puis une bouche qui s'ouvrait **sous** les lèvres et des clignements qui ramenaient les **sourcils** sur les yeux (constaté image par image sur la vidéo de preuve). Exigence finale : « un vrai avatar vivant qui parle, visible dans MokNet et testé par moi » — ouverture/fermeture de la bouche, clignement, respiration, mouvements de tête et gestes menus, preuve vidéo, lien fonctionnel sans connexion.
 * **Compétence de référence** : Vision Smart AI Core, playbook 15 § 3 (« animation vivante légère : respiration lente NON mécanique, clignement à variation naturelle, micro-mouvements de tête, CSS/SVG et jamais vidéo bouclée »), § 5 (ne jamais surpromettre la synchro labiale), § 9 (média synthétique déclaré), § 10 (arrêt hors écran / mouvement réduit) ; playbook 09 (chorégraphie du mouvement).
@@ -117,7 +117,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-054] — 4 Septembre 2026
+### [DEC-2026-057] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, `Espace Super-Admin (paramètres plateforme)`, `Moteur vocal`.
 * **Problème / Besoin initial** : mission de la Direction — « livrer un avatar visible à la place du bouton Architecte, avec des états animés et une synchro labiale », plus quatre réglages Super-Admin. L'Architecte est « le guide permanent de toute la maison MokNet » (consigne RO-3) mais n'était qu'un rond de 48 px portant l'icône `UserRound` : aucun visage, et l'état n'était porté que par une couleur de fond.
 * **Compétence de référence** : la Direction a imposé de construire à partir des compétences capitalisées dans **Vision Smart AI Core**. Le dépôt VISION-SMART-AI-CORP a été rattaché à la session et son **playbook 15 « Avatar vivant personnalisable — Présence conversationnelle vivante » (v1.0.0)** a servi de guide, avec `skills/FUTURE_UI_UX_STANDARD.md`.
@@ -139,7 +139,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-053] — 4 Septembre 2026
+### [DEC-2026-056] — 4 Septembre 2026
 * **Module(s)** : `Studio & Création (module 11)`, `Espace Super-Admin (paramètres plateforme)`, `Profil & identité`.
 * **Problème / Besoin initial** : l'identité visuelle d'un membre n'avait aucun propriétaire. Un nouveau compte héritait d'un cliché Unsplash codé en dur (`photo-1534528741775-53994a69daeb`) que le reste de l'application traite déjà comme « avatar absent » (`isStockPlaceholderAvatar`) — donc un visage d'inconnu qui n'était même pas affiché. Aucun réglage ne permettait à l'Admin-Général de définir l'avatar institutionnel des nouveaux comptes, et aucune notion d'abonnement Pro n'existait pour ouvrir un avatar personnel.
 * **Idées / Options envisagées** : (1) nouvelle table `avatars` + migration Supabase ; (2) nouvelle colonne `profiles.personal_avatar` ; (3) réutiliser les chemins de persistance RÉELS déjà écrits par le client — `profiles.avatar_url` pour la photo et le JSON `profiles.privacy_settings` pour la persona, exactement comme la fiche de consentement de l'Architecte.
@@ -1255,6 +1255,216 @@ Chaque décision respecte le formalisme strict suivant :
 * **Restes assumés** : rien de la vision n'est codé par cette décision. Le
   prochain lot de code est **LV-6** — la preuve réelle à deux comptes —, verrou
   de tout ce qui suit.
+
+---
+
+### [DEC-2026-055] — 5 Septembre 2026
+
+* **Module(s)** : `Live / Directs`, hook `useLiveTransport`, base
+  (`close_zombie_live_sessions`, `pg_cron`)
+* **Problème / Besoin initial** : SAT-5 — la ligne d'un direct qui tombe
+  restait tombée (seul un appel se relançait, depuis AU-1) ; treize directs
+  « zombies » (jamais fermés, démarrés depuis plusieurs jours) tenaient la
+  ligne `live.sessions_zombies` de la Santé Globale au rouge, avec une
+  réparation qui n'existait qu'au clic de l'Administrateur Général. La
+  Direction a demandé de distinguer ce que l'application peut réparer seule
+  de ce qui exige le VPS — et, le même jour, de ne mettre en production que
+  ce qui est fini.
+* **Options considérées** :
+  1. Relancer un direct comme un appel, sans condition — rejeté : un direct
+     que l'animateur vient de fermer serait rejoint en boucle, et un direct
+     complet (SAT-3) martelé.
+  2. Relancer seulement si la base confirme que le direct est ouvert, en
+     traitant une base injoignable comme « fermé » — rejeté : une coupure
+     réseau afficherait « Ce direct est terminé. » à tort.
+  3. **Retenu** : relance bornée (3), gardée par une lecture en base
+     (`isLiveSessionStillOpen`) qui distingue trois réponses — ouvert,
+     fermé/absent, **injoignable (lève)** ; jamais sur un refus nommé, jamais
+     après une éviction ; une seule lecture en vol ; garde d'une tentative
+     annulée muette. Pour les zombies : la règle de réparation existante,
+     jouée toutes les heures par `pg_cron` et tracée dans `audit_logs`
+     (acteur vide), plutôt qu'une seconde règle.
+* **Décision finale** : option 3, livrée sur la branche isolée
+  `claude/lives-directs-sat5` et d'abord **tenue hors de la production** (tri
+  du 5 septembre : SAT-4 seul est parti, PR #77). Puis, sur instruction de la
+  Direction (« mets en production contrôlée seulement ce qui est 100 %
+  terminé, testé et sans régression »), SAT-5 a été amené à 100 % par un
+  **banc réel contre un LiveKit vivant** (39/39, cinq pannes injectées :
+  room supprimée ×2, refus `live_full`, serveur tué puis relancé, direct
+  clôturé en base) avant tout déploiement. Ce banc a trouvé un défaut
+  d'écran que les tests du hook ne pouvaient pas voir — « Diffusion
+  interrompue · Réessayer » affiché sur un direct clos, le message de la
+  garde jamais rendu — corrigé (`isLiveEndedError`, badge « TERMINÉ »,
+  bloc « Ce direct est terminé. · Quitter ») et couvert par 3 tests.
+* **Frontière VPS (ce qui n'est pas récupérable depuis l'application)** :
+  conteneur LiveKit à redémarrer, clé du coffre divergente, port UDP fermé,
+  montée de version 1.8.4 → 1.13.6. SAT-4 les signale ; SAT-6 (bouton de
+  secours tracé) et les étapes ACT les traiteront, toujours par un geste
+  humain.
+* **Impact** : `hooks/useLiveTransport.ts` (option `autoRecover`, relance
+  LIVE gardée), `services/live/liveSessionService.ts`
+  (`isLiveSessionStillOpen`), `components/SocialLive.tsx` (garde branchée),
+  `tests/useLiveTransportCall.test.tsx` (+9), migration
+  `20260905010000_live_sat5_close_zombie_sessions_cron.sql`.
+* **Preuves** : tsc 0 · vitest 1045/1045 · build · 7 contre-épreuves, une
+  ligne morte retirée ; banc réel 39 OK / 0 DÉFAUT (détail dans
+  `docs/HISTORIQUE_VERSIONS.md`, v6.20.0) ; répétition à vide de la
+  migration en transaction annulée sur la base réelle (13 → 0, idempotente,
+  4 récents intacts, audit 1, droits vérifiés, rollback vérifié). Sauvegarde
+  des 13 lignes zombies (ids, `started_at`, `updated_at`) prise avant tout
+  essai. Comptes de preuve du banc supprimés à zéro trace.
+
+---
+
+### [DEC-2026-054] — 5 Septembre 2026
+
+* **Module(s)** : `Santé Globale (Super-Admin)`, `Live / Directs`, fonction
+  Edge `health-guardian`
+* **Problème / Besoin initial** : SAT-4 — le tableau de bord de santé
+  concluait « vert » sur un `GET /` qui répond 200, alors que le 2 septembre
+  ce même `GET /` répondait 200 en 0,41 s **pendant que la voix ne passait
+  pas** (négociation expirée en boucle, `bytesSent` nul). Un serveur qui
+  refuse les identifiants du coffre répond aussi 200 sur `/`. La Direction a
+  fixé la barre : « ne présente pas SAT-4 comme terminé. Il reste du
+  branchement réel à livrer. »
+* **Décision** : la seule requête qui prouve qu'un direct peut s'ouvrir est
+  celle dont `livekit-token` dépend lui-même — `POST
+  /twirp/livekit.RoomService/ListRooms`, signée avec la clé du coffre
+  (`get_live_transport_config_internal`, réservée au rôle service, jamais
+  atteignable depuis une session). Verdicts : 200 + liste exploitable en
+  ≤ 1 500 ms → **vert** ; au-delà → **orange** (c'est
+  `ROOM_SERVICE_TIMEOUT_MS`, le délai passé lequel la porte d'admission SAT-2
+  cesse d'attendre et laisse entrer sans compter — le direct marche, la
+  protection non) ; 401/403 → **rouge « refuse nos identifiants »**, le cas
+  exact qu'un ping déclarait vert ; 5xx ou corps illisible → rouge ; délai ou
+  réseau → rouge ; rien de configuré ou sonde non exécutée → **blanc** (ne pas
+  avoir regardé n'est pas un constat, et `messagerie.transport_live_configure`
+  signale déjà une configuration absente — la compter rouge ici l'aurait
+  pénalisée deux fois dans le score). Séparation stricte : la règle
+  (`liveTransportProbe.ts`) et l'évaluateur (`evaluate.ts`) ne touchent jamais
+  au réseau ; seul `index.ts` sonde, et ne lève jamais — une sonde réseau qui
+  ferait tomber la fonction effacerait les 41 lignes du tableau de bord pour
+  un seul service. `PROBE_TIMEOUT_MS = max(5 s, SEUIL_DEGRADE_MS × 2)` rend le
+  seuil porteur : les deux valeurs ne peuvent plus se croiser. Ligne de
+  registre `live.transport_utilisable` (poids 34) ; les poids LIVE ont été
+  rééquilibrés 34/28/22/16 = 100 — `validateRegistry()` a refusé la première
+  tentative à 110, exactement son rôle.
+* **Artefact de déploiement** : la version 1 déployée était un collage manuel
+  des fichiers source, et son en-tête l'avouait. Il est désormais **généré**
+  (`supabase/functions/health-guardian/build-bundle.sh`, esbuild, `npm:` et
+  `jsr:` laissés externes au runtime Deno comme pour `livekit-token`) : on
+  peut rejouer le script et comparer les octets à ce qui tourne.
+* **Preuves** : 28 tests (17 → 28) dont 8 qui traversent `evaluateAll` — la
+  règle réelle, pas une imitation ; 2 contre-épreuves exécutées (retirer
+  chaque garde fait passer exactement 1 test au rouge, `evaluate.ts` restauré
+  identique au bit près) ; tsc 0, vitest 1006/1006 (71 fichiers), build
+  propre. `health-guardian` déployée **v1 → v2** (`verify_jwt: true`), amorçage
+  prouvé par un 401 JSON en 1,03 s. **Démontré en production le 5 septembre à
+  00h10 UTC** avec une vraie session administrateur : HTTP 200 en 2,17 s, 41
+  lignes évaluées, `live.transport_utilisable` = `vert`, `proofLevel: reel`,
+  « Le serveur de direct répond en 400 ms, 0 direct(s) en cours. »,
+  `evidence {latencyMs 400, rooms 0, seuilDegradeMs 1500}` — la clé du coffre
+  a signé, `ListRooms` a répondu 200 avec une liste exploitable. Source relue
+  depuis la fonction déployée : bannière « ARTEFACT GÉNÉRÉ » et 10/10
+  empreintes SAT-4 identiques au bundle régénéré dans le dépôt.
+* **Contrôle de sécurité fait en chemin** : les sondes `health_probe_*` sont
+  `SECURITY DEFINER` et exécutables par `anon`/`authenticated` (grant par
+  défaut — le motif déjà corrigé aux LOOP 02/17, 04/17, 06/17). Vérifié plutôt
+  que supposé : leur première instruction est `health_require_admin()` ;
+  `anon` reçoit « authentification requise », un compte connecté non-admin
+  reçoit « réservé aux administrateurs ». Aucune fuite, aucun changement.
+* **Zéro trace** : la démonstration exigeait une session administrateur,
+  impossible à obtenir autrement depuis le bac à sable (les comptes de banc
+  sont `user`). Un compte éphémère a été créé en SQL, ce qui a d'abord fait
+  échouer la connexion (« Database error querying schema » : quatre colonnes
+  texte de `auth.users` à NULL au lieu de `''`, corrigées sur cette seule
+  ligne), puis **supprimé** : 5 lignes (`profiles`, `auth.users`,
+  `auth.identities`, `auth.sessions`, `auth.refresh_tokens`), balayage
+  dynamique des 21 colonnes uuid de propriété de `public` + `storage` = 0,
+  seul administrateur restant = le compte réel de la Direction.
+* **Statut** : `Développé`, `Testé`, `Déployé` (Edge v2), `Démontré en
+  production` côté fonction. Côté écran : la ligne de registre vit dans le
+  code client de la branche `claude/lives-directs` (PR #77, fusionnée le 5/09 → `cbdab0a`, servie par moknet.net) — l'onglet
+  Santé Globale l'affichera après fusion et déploiement Netlify ; la fonction
+  la sert déjà.
+* **Restes assumés** : pas de contre-épreuve **en production** (faire passer
+  la ligne au rouge sur le vrai serveur reviendrait à casser la clé du coffre
+  — non fait ; les contre-épreuves sont au niveau de la règle, dans les
+  tests). SAT-5, SAT-6, SAT-7 non commencés. ACT-3/4/5 toujours bloqués sur
+  l'accès SSH au VPS. Les deux comptes de banc `demo.awa`/`demo.bilal`
+  (rôle `user`) sont volontairement conservés — décision de la Direction.
+### [DEC-2026-053] — 5 Septembre 2026
+
+* **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Réseau MOC (composeur)`, `Feuille de style globale (index.html)`
+* **Problème / Besoin initial** : trois consignes de la Direction, « le tout en
+  production contrôlée, sans rien casser et avec une preuve visuelle à la
+  fin » : (1) dans le menu, déplacer **uniquement** « Réseau MOC » juste sous
+  « Accueil », sans changer ce qui s'ouvre par défaut si c'est déjà correct ;
+  (2) renforcer la visibilité de **toutes** les zones de texte — des lignes
+  de contour plus visibles « pour qu'on comprenne immédiatement où écrire » ;
+  (3) remplacer l'invite du composeur par « Quoi de neuf ? Partage une
+  réflexion, une opportunité, un tutoriel ou un document. ».
+* **Audit de l'existant** : l'onglet par défaut est déjà le réseau social
+  (`activeTab` initial `'social'`, invariant DS-M2) — rien à changer.
+  « Réseau MOC » est l'entrée `social` de la catégorie « Communauté &
+  Conseil ». L'invite du composeur codait le prénom en dur (« Quoi de neuf,
+  Amadou ? … »). Le dépôt compte **448** `<input>`/`<textarea>`, bordés au
+  cas par cas en `border-slate-200` / `border-gray-300` (un trait presque
+  invisible sur fond clair), aucun en `border-0` ; aucune règle globale de
+  champ n'existait dans `index.html`.
+* **Idées envisagées** :
+  1. Déplacer `social` dans `MAIN_NAV_ITEMS` (catégorie « Accueil & Cap ») —
+     **rejeté** : cela déplacerait aussi l'entrée dans le tiroir mobile et la
+     recherche ⌘K ; la consigne dit « uniquement Réseau MOC », dans le menu
+     montré (barre latérale d'ordinateur).
+  2. Retoucher les 448 champs un par un — **rejeté** : illisible en revue,
+     impossible à garantir sans oubli, et chaque nouveau champ repartirait
+     invisible.
+  3. **Retenu** : (1) réordonner à l'affichage dans la barre latérale
+     d'ordinateur seulement ; (2) **une règle globale** dans `index.html`,
+     trait de 2 px dont la couleur dérive de la couleur du texte
+     (`color-mix(currentColor 55 %)`, ~3:1 sur blanc, repli `slate-500` sans
+     `color-mix`),
+     accent aqua `#0e7490` au focus, sans toucher aux rayons, fonds ni anneaux
+     `ring-*` ; portée par des sélecteurs courts (un par type de champ texte)
+     à la spécificité (0,3,1) grâce à deux `:not(.classe)` qui servent aussi
+     de porte de sortie (`saisie-sans-contour`, `saisie-contour-libre`) ;
+     (3) le texte exact de la Direction.
+* **La preuve visuelle a corrigé la première version** : mesuré par
+  `getComputedStyle` en navigateur, un trait de 1,5 px s'arrondit à **1 px**
+  sur un écran de densité 1 — l'épaisseur n'aurait rien changé sur la
+  plupart des ordinateurs. Passé à 2 px, et la teinte de 42 % à 55 % de la
+  couleur du texte (~3:1 sur blanc). Le harnais de capture, copie
+  d'`index.html` datant de la première loupe, a lui aussi été pris en
+  défaut (il ne contenait pas le bloc) : régénéré depuis l'`index.html` de
+  chaque état.
+* **Deux garde-fous du dépôt ont parlé pendant la loupe, et ont été
+  écoutés** : `tests/miroirFeuilleAnalysee.test.ts` refuse tout sélecteur de
+  plus de 200 caractères (signature d'une règle avalée) — la première version
+  chaînait dix `:not([type=…])` sur un seul sélecteur ; réécrite en dix
+  sélecteurs de 83 caractères au plus. Et la couche aqua générée reste
+  strictement identique (le bloc est placé hors de ses marques).
+* **Éléments techniques** : `components/Layout.tsx` (ordre d'affichage de la
+  barre latérale), `components/SocialFeed.tsx` (invite), `index.html` (bloc
+  « ZONES DE SAISIE — CONTOURS RENFORCÉS » … « FIN ZONES DE SAISIE »),
+  `tests/sidebarCleanup.test.tsx` (ordre Accueil → Réseau MOC → … → Conseil
+  des Sages, tiroir mobile inchangé), `tests/saisieContours.test.ts`
+  (nouveau : invite exacte, règle présente et bornée, types ciblés/exclus,
+  déclarations limitées au contour, sélecteurs < 200 caractères).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **993/993 (72 fichiers, +6)** ·
+  `npm run build` propre · captures avant/après en navigateur réel (barre
+  latérale, composeur au repos et au focus, écran de connexion) avec la
+  bordure **mesurée** par `getComputedStyle`, versées dans
+  `docs/captures/2026-09-05-reseau-sous-accueil-et-contours/`.
+* **Statut** : `Développé`, `Testé`, `Validé` par avance par la Direction
+  (« le tout en production contrôlée ») — fusion dans `main` (PR de la
+  branche `claude/cleanup-home-interface-szp8qv`), déploiement automatique
+  Netlify sur moknet.net, contrôle post-déploiement consigné dans la PR.
+* **Restes assumés** : le tiroir mobile garde « Réseau MOC » sous
+  « Communauté & Conseil » (hors consigne) ; les champs qui n'ont ni `type`
+  texte ni `<textarea>` (dates, sélecteurs) gardent leur contour d'origine ;
+  `color-mix` est pris en charge par tous les navigateurs courants depuis
+  2023, le repli `slate-500` couvre les autres.
 
 ---
 
