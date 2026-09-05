@@ -43,12 +43,21 @@ configuré). Le contrôle final dans l'application appartient à la Direction.
 | « Prendre RDV » ouvre le formulaire existant | — | oui |
 | Le focus entre dans la fiche à l’ouverture | — | oui |
 | prefers-reduced-motion : animation du flotteur / de la lumière | — | none / none |
-| Échap referme la fiche et rend le focus au plateau | — | oui (vérifié séparément : `.cristal-fiche` = 0 après Échap, focus sur `.cristal-plateau`) |
+| Échap referme la fiche et rend le focus au bouton de l'expert | — | oui (`.cristal-fiche` = 0 après Échap) |
 | Clic sur le voile referme la fiche | — | oui |
+| **Revue indépendante** — le voile de la fiche est rendu dans `<body>` et couvre toute la fenêtre | — | oui |
+| Ce qui se trouve sous le pointeur au-dessus de la barre latérale, fiche ouverte (`elementFromPoint`) | — | `cristal-voile` (la coquille n'est plus cliquable) |
+| Racine `#root` inerte pendant la fiche / libérée après Échap | — | oui / oui |
+| Pastille de disponibilité : dans le flotteur, hors du cercle, parent sans `overflow: hidden`, taille entière | — | oui / 3 coins hors du cercle sans rognage / `visible` / 14×14 px |
+| Pouls de disponibilité : sur l'élément / sur `::after` (compositeur) | — | `none` / `cristal-pouls` |
 
-Note : après fermeture, un `[role="dialog"]` reste compté dans la page — c'est
-le tiroir de navigation mobile de la coquille (`Layout`), toujours présent dans
-le DOM ; il ne fait pas partie de cet écran.
+Note : un autre `[role="dialog"]` existe toujours dans la page — c'est le
+tiroir de navigation mobile de la coquille (`Layout`), toujours présent dans le
+DOM ; il ne fait pas partie de cet écran.
+
+Les captures « après » ont été refaites après la revue indépendante (fiche par
+portail au-dessus de toute la coquille, pastille hors du cercle, survol réservé
+aux vrais pointeurs) ; les captures « avant » sont inchangées.
 
 ## Ce qui n'a pas été touché
 

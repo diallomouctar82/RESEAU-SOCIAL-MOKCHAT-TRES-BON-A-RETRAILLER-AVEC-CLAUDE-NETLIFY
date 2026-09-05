@@ -37,8 +37,20 @@ const bougerPointeur = (cible: Element, clientX: number, clientY: number, pointe
     cible.dispatchEvent(ev);
 };
 
+/** Le bouton d'un expert : son nom accessible EST le texte visible (nom + rôle). */
 const plateauDe = (nom: string) =>
-    screen.getByRole('button', { name: new RegExp(`^${nom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} — `) });
+    screen.getByRole('button', { name: new RegExp(`^${nom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} `) });
+
+/** La racine de l'application, telle que la coquille la rend (`<div id="root">`). */
+const avecRacine = () => {
+    let racine = document.getElementById('root');
+    if (!racine) {
+        racine = document.createElement('div');
+        racine.id = 'root';
+        document.body.appendChild(racine);
+    }
+    return racine;
+};
 
 describe('ExpertsCatalogue — les 13 spécialistes, tous présents', () => {
     it('le catalogue compte exactement 13 spécialistes (10 IA + 3 humains) — jamais « 14 »', () => {
@@ -51,11 +63,21 @@ describe('ExpertsCatalogue — les 13 spécialistes, tous présents', () => {
         const { container } = renderCatalogue();
         const noms = Array.from(container.querySelectorAll('.cristal-nom')).map((n) => n.textContent);
         expect(noms).toEqual(AGENTS.map((a) => a.name));
-        const plateaux = container.querySelectorAll('button.cristal-plateau');
+        const plateaux = container.querySelectorAll('button.cristal-expert-bouton');
         expect(plateaux).toHaveLength(13);
-        plateaux.forEach((p) => expect(p.getAttribute('aria-haspopup')).toBe('dialog'));
+        plateaux.forEach((p, i) => {
+            expect(p.getAttribute('aria-haspopup')).toBe('dialog');
+            // Le nom et le rôle sont DANS la cible : cliquer le nom ouvre la fiche,
+            // et le texte visible est le nom accessible (pas d'aria-label dupliqué).
+            expect(p.textContent).toContain(AGENTS[i].name);
+            expect(p.hasAttribute('aria-label')).toBe(false);
+            expect(p.querySelector('.cristal-plateau')).not.toBeNull();
+        });
         // Un portrait dans chaque bulle, jamais un portrait sans bulle.
         expect(container.querySelectorAll('.cristal-bulle img')).toHaveLength(13);
+        // La pastille vit dans le flotteur, HORS de la bulle (dont le cercle la rognait).
+        expect(container.querySelectorAll('.cristal-flotteur > .cristal-pastille')).toHaveLength(13);
+        expect(container.querySelectorAll('.cristal-bulle .cristal-pastille')).toHaveLength(0);
     });
 
     it('sous chaque bulle, le rôle court (sans le préfixe « Expert ») — pas de description, pas de compétences, pas de notes', () => {
@@ -165,8 +187,10 @@ describe('ExpertsCatalogue — la fiche au clic : toutes les actions conservées
         const agent = AGENTS[4];
 
         fireEvent.click(plateauDe(agent.name));
-        fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+        expect(screen.getByRole('dialog')).toBe(document.activeElement);
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
         expect(screen.queryByRole('dialog')).toBeNull();
+        expect(document.activeElement).toBe(plateauDe(agent.name));
 
         fireEvent.click(plateauDe(agent.name));
         fireEvent.click(screen.getByRole('button', { name: /Fermer la fiche/ }));
@@ -188,16 +212,87 @@ describe('ExpertsCatalogue — la fiche au clic : toutes les actions conservées
         expect(within(fiche).getByText('Dossier de contrôle')).toBeInTheDocument();
         expect(within(fiche).getByText('42%')).toBeInTheDocument();
         // Un autre expert ne l'affiche pas.
-        fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
         fireEvent.click(plateauDe(AGENTS[0].name));
         expect(within(screen.getByRole('dialog')).queryByText('Dossier de contrôle')).toBeNull();
+    });
+});
+
+describe('ExpertsCatalogue — la fiche est un vrai dialogue modal (revue indépendante)', () => {
+    it('la fiche est rendue par portail dans <body>, hors du panneau, et la racine de l\'application devient inerte', () => {
+        const racine = avecRacine();
+        const { container } = renderCatalogue();
+        expect(racine.hasAttribute('inert')).toBe(false);
+        fireEvent.click(plateauDe(AGENTS[3].name));
+        const fiche = screen.getByRole('dialog');
+        expect(container.contains(fiche)).toBe(false);
+        expect(fiche.parentElement!.parentElement).toBe(document.body);
+        expect(racine.hasAttribute('inert')).toBe(true);
+        fireEvent.click(screen.getByRole('button', { name: /Fermer la fiche/ }));
+        expect(racine.hasAttribute('inert')).toBe(false);
+        // Une action referme aussi et libère la racine.
+        fireEvent.click(plateauDe(AGENTS[3].name));
+        expect(racine.hasAttribute('inert')).toBe(true);
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Vocal$/ }));
+        expect(racine.hasAttribute('inert')).toBe(false);
+    });
+
+    it('le focus est piégé dans la fiche : Tab depuis la dernière action revient au bouton Fermer, Maj+Tab depuis Fermer va à la dernière action', () => {
+        renderCatalogue();
+        fireEvent.click(plateauDe(AGENTS[0].name));
+        const fiche = screen.getByRole('dialog');
+        const fermer = within(fiche).getByRole('button', { name: /Fermer la fiche/ });
+        const derniere = within(fiche).getByRole('button', { name: /Analyser un fichier/ });
+        derniere.focus();
+        fireEvent.keyDown(fiche, { key: 'Tab' });
+        expect(document.activeElement).toBe(fermer);
+        fireEvent.keyDown(fiche, { key: 'Tab', shiftKey: true });
+        expect(document.activeElement).toBe(derniere);
+        // Depuis le conteneur lui-même (focus initial), Maj+Tab va aussi à la dernière action.
+        fiche.focus();
+        fireEvent.keyDown(fiche, { key: 'Tab', shiftKey: true });
+        expect(document.activeElement).toBe(derniere);
+    });
+
+    it("Échap ne referme la fiche que si le focus y est : une palette ouverte par-dessus garde la main", () => {
+        renderCatalogue();
+        fireEvent.click(plateauDe(AGENTS[0].name));
+        const ailleurs = document.createElement('input');
+        document.body.appendChild(ailleurs);
+        ailleurs.focus();
+        fireEvent.keyDown(ailleurs, { key: 'Escape' });
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        screen.getByRole('dialog').focus();
+        fireEvent.keyDown(document.body, { key: 'Escape' });
+        expect(screen.queryByRole('dialog')).toBeNull();
+        ailleurs.remove();
+    });
+
+    it('cliquer le NOM sous la bulle ouvre la fiche (le nom fait partie de la cible)', () => {
+        const { container } = renderCatalogue();
+        const nom = Array.from(container.querySelectorAll('.cristal-nom')).find((n) => n.textContent === AGENTS[5].name)!;
+        fireEvent.click(nom);
+        expect(within(screen.getByRole('dialog')).getByRole('heading', { level: 2 }).textContent).toBe(AGENTS[5].name);
+    });
+
+    it("le formulaire de RDV part du jour même et refuse une date passée (min = aujourd'hui)", () => {
+        renderCatalogue();
+        const humain = AGENTS.find((a) => a.isHuman)!;
+        fireEvent.click(plateauDe(humain.name));
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Prendre RDV/ }));
+        const date = screen.getByLabelText(/Date Souhaitée/) as HTMLInputElement;
+        const d = new Date();
+        const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        expect(date.value).toBe(jour);
+        expect(date.getAttribute('min')).toBe(jour);
+        expect(date.value).not.toBe('2026-03-05');
     });
 });
 
 describe('ExpertsCatalogue — le mouvement des bulles', () => {
     it('chaque plateau reçoit ses propres phases de flottement et de halo (jamais toutes en chœur)', () => {
         const { container } = renderCatalogue();
-        const styles = Array.from(container.querySelectorAll('button.cristal-plateau')).map((p) => p.getAttribute('style') || '');
+        const styles = Array.from(container.querySelectorAll('button.cristal-expert-bouton')).map((p) => p.getAttribute('style') || '');
         styles.forEach((s) => {
             expect(s).toMatch(/--tf:\s*\d+(\.\d+)?s/);
             expect(s).toMatch(/--df:\s*-?\d+(\.\d+)?s/);
@@ -246,8 +341,9 @@ describe('index.html — le bloc « PLATEAUX DE CRISTAL »', () => {
     it('définit la scène, le plateau, la bulle, ses reflets, la pastille et la fiche', () => {
         for (const sel of [
             '.cristal-panneau {', '.cristal-phrase {', '.cristal-scene {', '.cristal-expert:nth-child(2n)',
+            '.cristal-expert-bouton {', '.cristal-plateau {',
             '.cristal-plateau::before', '.cristal-plateau::after', '.cristal-flotteur {', '.cristal-bulle {',
-            '.cristal-bulle::before', '.cristal-bulle::after', '.cristal-lumiere {', '.cristal-pastille {',
+            '.cristal-bulle::before', '.cristal-bulle::after', '.cristal-lumiere {', '.cristal-flotteur > .cristal-pastille {',
             '.cristal-nom {', '.cristal-role {', '.cristal-voile {', '.cristal-fiche {', '.cristal-action {'
         ]) {
             expect(bloc, sel).toContain(sel);
@@ -260,7 +356,28 @@ describe('index.html — le bloc « PLATEAUX DE CRISTAL »', () => {
     it('le flottement et le survol vivent sur deux couches distinctes (le flottement ne peut pas annuler le survol)', () => {
         expect(bloc).toMatch(/\.cristal-flotteur \{[^}]*animation: cristal-flotte/);
         expect(bloc).toMatch(/\.cristal-bulle \{[^}]*transform: translateY\(var\(--lift, 0px\)\) scale\(var\(--sc, 1\)\) rotateX\(var\(--rx, 0deg\)\) rotateY\(var\(--ry, 0deg\)\)/);
-        expect(bloc).toMatch(/\.cristal-plateau:hover \.cristal-flotteur \{ animation-play-state: paused; \}/);
+        expect(bloc).toMatch(/\.cristal-expert-bouton:hover \.cristal-flotteur \{ animation-play-state: paused; \}/);
+    });
+
+    it("le survol n'existe que pour un vrai pointeur (media hover/pointer) — au doigt, rien ne colle après un tap", () => {
+        const debutMedia = bloc.indexOf('@media (hover: hover) and (pointer: fine)');
+        expect(debutMedia).toBeGreaterThan(0);
+        const survol = bloc.slice(debutMedia);
+        const finMedia = survol.indexOf('\n      }\n');
+        const dansMedia = survol.slice(0, finMedia);
+        expect(dansMedia).toContain('.cristal-expert-bouton:hover .cristal-flotteur');
+        expect(dansMedia).toContain('.cristal-expert-bouton:hover .cristal-bulle');
+        expect(dansMedia).toContain('.cristal-expert-bouton:hover .cristal-plateau::before');
+        // Aucune règle :hover hors de ce media.
+        const horsMedia = bloc.slice(0, debutMedia) + survol.slice(finMedia);
+        expect(horsMedia.match(/\.cristal-(expert-bouton|plateau|bulle):hover/g)).toBeNull();
+    });
+
+    it('le pouls de disponibilité anime transform + opacity sur ::after, jamais box-shadow (compositeur seulement)', () => {
+        expect(bloc).toMatch(/@keyframes cristal-pouls \{[^}]*transform: scale/);
+        expect(bloc).not.toMatch(/@keyframes cristal-pouls \{[^}]*box-shadow/);
+        expect(bloc).toContain('.cristal-pastille[data-etat="available"]::after { animation: cristal-pouls');
+        expect(bloc).not.toContain('grid-column: span 1;');
     });
 
     it("s'adapte : 5 par rangée sur ordinateur, 3 sur tablette, 2 sur téléphone, décalage conservé", () => {
@@ -272,7 +389,7 @@ describe('index.html — le bloc « PLATEAUX DE CRISTAL »', () => {
 
     it("respecte prefers-reduced-motion : plus aucune animation ni transition", () => {
         const reduit = bloc.slice(bloc.indexOf('@media (prefers-reduced-motion: reduce)'));
-        expect(reduit).toMatch(/\.cristal-flotteur,[\s\S]*?\.cristal-lumiere,[\s\S]*?animation: none !important/);
+        expect(reduit).toMatch(/\.cristal-flotteur,[\s\S]*?\.cristal-pastille::after,[\s\S]*?\.cristal-lumiere,[\s\S]*?animation: none !important/);
         expect(reduit).toMatch(/\.cristal-bulle img,[\s\S]*?transition: none/);
     });
 

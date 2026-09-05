@@ -107,7 +107,7 @@
     ],
     "animFlotteur": "cristal-flotte",
     "animLumiere": "cristal-tourne",
-    "animPastille": "cristal-pouls",
+    "animPastille": "none",
     "parRangee": 5,
     "decalage": 22,
     "zone": {
@@ -128,9 +128,22 @@
         "Nouveau dossier",
         "Analyser un fichier"
       ],
-      "focusDedans": true
+      "focusDedans": true,
+      "voileDansBody": true,
+      "voileCouvreFenetre": true,
+      "elementSousLaBarreLaterale": "cristal-voile",
+      "racineInerte": true
     },
     "ficheFermee": true,
+    "racineLibereeApresEchap": true,
+    "pastille": {
+      "dansLeFlotteur": true,
+      "largeur": 14,
+      "hauteur": 14,
+      "coinsHorsDuCercle": 3,
+      "clipParOverflow": "visible",
+      "animPastilleApres": "cristal-pouls"
+    },
     "autresDialogs": 1,
     "ficheHumain": [
       "Discuter",
@@ -183,7 +196,7 @@
     ],
     "animFlotteur": "cristal-flotte",
     "animLumiere": "cristal-tourne",
-    "animPastille": "cristal-pouls",
+    "animPastille": "none",
     "parRangee": 2,
     "decalage": 18,
     "zone": {
@@ -200,9 +213,22 @@
         "Nouveau dossier",
         "Analyser un fichier"
       ],
-      "focusDedans": true
+      "focusDedans": true,
+      "voileDansBody": true,
+      "voileCouvreFenetre": true,
+      "elementSousLaBarreLaterale": "cristal-voile",
+      "racineInerte": true
     },
     "ficheFermee": true,
+    "racineLibereeApresEchap": true,
+    "pastille": {
+      "dansLeFlotteur": true,
+      "largeur": 14,
+      "hauteur": 14,
+      "coinsHorsDuCercle": 3,
+      "clipParOverflow": "visible",
+      "animPastilleApres": "cristal-pouls"
+    },
     "autresDialogs": 1,
     "ficheHumain": [
       "Discuter",

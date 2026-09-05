@@ -1190,6 +1190,30 @@ Chaque décision respecte le formalisme strict suivant :
   animations calculées `cristal-flotte` / `cristal-tourne` / `cristal-pouls`,
   matrice 3D au survol, fiche avec les cinq actions, formulaire de RDV
   ouvert.
+* **Contrôle indépendant (producteur ≠ contrôleur)** : avant toute demande
+  de feu vert, une revue de code indépendante de la PR #83 (dix angles, sans
+  concession) a remonté dix constats ; tous corrigés et verrouillés par des
+  tests, aucun contesté. Les trois défauts réels, prouvés par les propres
+  captures de la PR : (1) `isolation: isolate` sur le panneau enfermait le
+  voile de la fiche et le formulaire de RDV sous la coquille — barre latérale,
+  en-têtes, onglets et dock restaient nets **et cliquables** derrière un
+  dialogue « modal » ; les deux sont désormais rendus par **portail dans
+  `document.body`** (même motif que `MoocChatFloating`), la racine `#root`
+  devient **`inert`** pendant l'ouverture et le focus est **piégé** dans la
+  fiche (Tab / Maj+Tab bouclent) ; (2) la pastille de disponibilité vivait
+  dans le cercle de la bulle (`overflow: hidden`) qui en rognait ~40 % — elle
+  vit maintenant dans le flotteur, hors du cercle, avec un pouls composité
+  (`transform` + `opacity` sur `::after`, plus de `box-shadow` animé sur dix
+  éléments) ; (3) Échap fermait la fiche même quand une palette globale
+  (Ctrl/Cmd+K) était ouverte par-dessus — il n'agit plus que si le focus est
+  dans la fiche. Et aussi : survol réservé aux vrais pointeurs
+  (`@media (hover: hover) and (pointer: fine)`, sinon l'état collait après un
+  tap), nom et rôle **dans** le bouton (cliquer le nom ouvre la fiche, le
+  texte visible est le nom accessible, plus d'`aria-label` dupliqué), liste
+  de requête média créée une seule fois (plus d'allocation à chaque
+  `pointermove`), date de RDV par défaut = jour même avec `min` (l'ancienne
+  valeur `2026-03-05` était passée), règle CSS morte supprimée. Tests :
+  21 → 28.
 * **Statut** : `Développé`, `Testé`, `En prévisualisation` — PR de la branche
   `claude/cleanup-home-interface-szp8qv` ; **aucune fusion, aucune production
   avant le contrôle explicite de la Direction** (méthode des DEC-2026-051 à

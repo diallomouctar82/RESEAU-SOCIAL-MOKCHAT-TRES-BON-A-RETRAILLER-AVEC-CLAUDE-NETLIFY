@@ -71,7 +71,12 @@
   CRISTAL » de `index.html` (hors couche aqua, sélecteurs courts),
   `tests/ExpertsCatalogue.test.tsx` (21 tests),
   `docs/captures/2026-09-05-experts-plateaux-de-cristal/`.
-* **Preuves** : tsc 0 · vitest 1048/1048 (74 fichiers) · build · captures
+* **Contrôle indépendant** : revue de code indépendante avant le feu vert,
+  dix constats, tous corrigés (fiche et RDV par portail au-dessus de toute la
+  coquille, racine `inert` + piège de focus, pastille hors du cercle qui la
+  rognait, survol réservé aux vrais pointeurs, Échap contextuel, pouls
+  composité, nom cliquable, date de RDV du jour, règle morte). Tests 21 → 28.
+* **Preuves** : tsc 0 · vitest 1067/1067 (74 fichiers) · build · captures
   avant/après mesurées (ordinateur et téléphone). DEC-2026-056.
 * **Production** : non — prévisualisation Netlify, en attente du feu vert
   explicite de la Direction.
