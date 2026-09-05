@@ -23,7 +23,9 @@ vi.mock('../services/supabaseClient', () => ({
     supabase: { auth: { getUser: (jwt?: string) => h.getUser(jwt), signOut: (options?: OptionsSignOut) => h.signOut(options), getSession: () => h.getSession() } },
 }));
 
-import { verifierSession, relireSession, DELAI_VERIFICATION_SESSION_MS } from '../services/auth';
+import { verifierSession, relireSession, DELAI_VERIFICATION_SESSION_MS, DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS, INTERVALLE_REPRISE_MS } from '../services/auth';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const utilisateur = { id: 'u-banc', aud: 'authenticated', email: 'banc@moknet.net' };
 const session = { access_token: 'jeton-de-banc', refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: utilisateur } as unknown as Session;
@@ -160,5 +162,22 @@ describe("relireSession — relecture détaillée de la session gardée par l'ap
         } finally {
             silence.mockRestore();
         }
+    });
+});
+
+describe("garde-fous des délais de reprise (DEC-2026-083)", () => {
+    it("DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS suit REFRESH_FAILURE_COOLDOWN_MS de supabase-js (sinon la tentative programmée tomberait dans la fenêtre du cache)", () => {
+        const source = readFileSync(resolve(__dirname, '..', 'node_modules', '@supabase', 'auth-js', 'dist', 'module', 'lib', 'constants.js'), 'utf8');
+        const tick = /AUTO_REFRESH_TICK_DURATION_MS = ([0-9 *]+);/.exec(source);
+        const cooldown = /REFRESH_FAILURE_COOLDOWN_MS = ([0-9 *]+) \* AUTO_REFRESH_TICK_DURATION_MS;/.exec(source);
+        expect(tick, 'AUTO_REFRESH_TICK_DURATION_MS introuvable dans auth-js').not.toBeNull();
+        expect(cooldown, 'REFRESH_FAILURE_COOLDOWN_MS introuvable dans auth-js').not.toBeNull();
+        const produit = (expr: string) => expr.split('*').map((n) => Number(n.trim())).reduce((a, b) => a * b, 1);
+        expect(DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS).toBe(produit(cooldown![1]) * produit(tick![1]));
+    });
+
+    it("la minuterie de reprise est plus courte que la fenêtre du cache et le plafond de relecture plus court que la minuterie", () => {
+        expect(INTERVALLE_REPRISE_MS).toBeLessThan(DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS);
+        expect(DELAI_VERIFICATION_SESSION_MS).toBeLessThan(INTERVALLE_REPRISE_MS);
     });
 });

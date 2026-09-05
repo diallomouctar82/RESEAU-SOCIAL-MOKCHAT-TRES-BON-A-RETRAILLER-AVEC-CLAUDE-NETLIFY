@@ -155,6 +155,19 @@ export type VerdictSession =
 /** Budget de la vérification : au-delà, la session est « non vérifiée », jamais « invalide ». */
 export const DELAI_VERIFICATION_SESSION_MS = 8000;
 
+/** Cadence des nouvelles tentatives automatiques sur l'écran de reprise (DEC-2026-083). */
+export const INTERVALLE_REPRISE_MS = 30_000;
+
+/**
+ * supabase-js (auth-js 2.112.4, `REFRESH_FAILURE_COOLDOWN_MS` = 2 × 30 s) garde
+ * en cache, pendant 60 s, l'échec de rafraîchissement d'un même jeton : toute
+ * relecture dans cette fenêtre reçoit l'échec sans appel réseau. Pour une
+ * session EXPIRÉE hors ligne, la reprise ne peut donc pas être immédiate au
+ * retour du réseau : l'écran de reprise programme une tentative juste après
+ * cette fenêtre (limite dite ; garde-fou : tests/sessionValidee.test.ts).
+ */
+export const DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS = 60_000;
+
 /**
  * Efface la session de CET appareil sans dépendre de la réponse du serveur
  * (`scope: 'local'` : un 401/403/404 du serveur est ignoré par supabase-js,

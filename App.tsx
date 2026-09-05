@@ -34,12 +34,9 @@ import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, MemberProfile } from './types';
-import { DELAI_VERIFICATION_SESSION_MS, onAuthStateChange, relireSession, signOut, verifierSession } from './services/auth';
+import { DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS, DELAI_VERIFICATION_SESSION_MS, INTERVALLE_REPRISE_MS, onAuthStateChange, relireSession, signOut, verifierSession } from './services/auth';
 import type { AuthChangeEvent, RelectureSession, Session, VerdictSession } from './services/auth';
 import { ServeurInjoignable } from './components/ServeurInjoignable';
-
-/** Cadence des nouvelles tentatives automatiques sur l'écran de reprise (DEC-2026-083). */
-const INTERVALLE_REPRISE_MS = 30_000;
 import { supabaseService } from './services/supabaseClient';
 import { fetchUserProfile } from './services/profile';
 import { detectStandaloneModule } from './services/modules/standaloneMode';
@@ -277,15 +274,28 @@ const AppContent = () => {
           }
           await applySession(relecture.statut === 'session' ? relecture.session : null, true, 'relecture');
       };
+      // Une seule relecture en vol à la fois : une tentative lancée pendant
+      // qu'une relecture tardive (jeton expiré, reprises internes de supabase-js)
+      // est encore en cours la partage au lieu d'en lancer une seconde.
+      let relectureEnVol: Promise<RelectureSession> | null = null;
+      const relectureUnique = (): Promise<RelectureSession> => {
+          if (relectureEnVol) return relectureEnVol;
+          const relecture = relireSession()
+              .catch((err) => {
+                  console.warn('Relecture de la session impossible — écran de connexion :', err);
+                  return { statut: 'aucune' as const };
+              })
+              .finally(() => { if (relectureEnVol === relecture) relectureEnVol = null; });
+          relectureEnVol = relecture;
+          return relecture;
+      };
       const relire = async (): Promise<void> => {
           let minuteur: ReturnType<typeof setTimeout> | undefined;
           const plafond = new Promise<'delai'>((resolve) => {
               minuteur = setTimeout(() => resolve('delai'), DELAI_VERIFICATION_SESSION_MS);
           });
-          const relecture: Promise<RelectureSession> = relireSession().catch((err) => {
-              console.warn('Relecture de la session impossible — écran de connexion :', err);
-              return { statut: 'aucune' as const };
-          });
+          const dejaEnVol = relectureEnVol !== null;
+          const relecture = relectureUnique();
           try {
               const resultat = await Promise.race([relecture, plafond]);
               if (resultat === 'delai') {
@@ -294,7 +304,13 @@ const AppContent = () => {
                   setIsAuthenticated(false);
                   setServeurInjoignable(`relecture de la session sans réponse en ${DELAI_VERIFICATION_SESSION_MS} ms`);
                   setIsAuthChecking(false);
-                  void relecture.then((tardive) => appliquerRelecture(tardive));
+                  // Le résultat tardif s'applique dès qu'il arrive — une seule
+                  // fois par relecture, même si plusieurs tentatives l'ont attendue.
+                  if (!dejaEnVol) {
+                      void relecture
+                          .then((tardive) => appliquerRelecture(tardive))
+                          .catch((err) => { console.warn('Relecture tardive de la session :', err); });
+                  }
                   return;
               }
               await appliquerRelecture(resultat);
@@ -302,24 +318,25 @@ const AppContent = () => {
               if (minuteur !== undefined) clearTimeout(minuteur);
           }
       };
-      void relire();
 
-      // REPRISE (DEC-2026-083) : relit la session conservée et redemande le
-      // verdict du serveur — si celui-ci répond, l'interface s'ouvre sans
-      // ressaisie. Une seule tentative à la fois (bouton, `online`, retour sur
-      // la page, minuterie partagent la même).
+      // TENTATIVE UNIQUE (DEC-2026-083) : la relecture initiale, le bouton
+      // « Réessayer », l'événement `online` et la minuterie partagent la même
+      // tentative — relire la session conservée et redemander le verdict du
+      // serveur ; s'il répond, l'interface s'ouvre sans ressaisie.
       let tentative: Promise<void> | null = null;
-      reessayerRef.current = () => {
+      const lancerTentative = (afficherEtat: boolean): Promise<void> => {
           if (tentative) return tentative;
-          if (isMounted) setTentativeEnCours(true);
+          if (afficherEtat && isMounted) setTentativeEnCours(true);
           tentative = relire()
-              .catch((err) => { console.warn('Nouvelle tentative impossible :', err); })
+              .catch((err) => { console.warn('Tentative de relecture impossible :', err); })
               .finally(() => {
                   tentative = null;
-                  if (isMounted) setTentativeEnCours(false);
+                  if (afficherEtat && isMounted) setTentativeEnCours(false);
               });
           return tentative;
       };
+      reessayerRef.current = () => lancerTentative(true);
+      void lancerTentative(false);
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion
@@ -345,21 +362,25 @@ const AppContent = () => {
   }, []);
 
   // REPRISE AUTOMATIQUE (DEC-2026-083), tant que l'écran de reprise est là :
-  // dès que le réseau revient (`online`), au retour sur la page (supabase-js
-  // rejoue déjà la session en `SIGNED_IN` — même verrou, verdict redemandé —
-  // mais un jeton expiré ne se rejoue pas : on relit aussi ici) et toutes les
-  // INTERVALLE_REPRISE_MS. Aucune ressaisie : la session conservée est revérifiée.
+  // dès que le réseau revient (`online`), toutes les INTERVALLE_REPRISE_MS, et
+  // une fois juste après la fenêtre pendant laquelle supabase-js garde en cache
+  // l'échec de rafraîchissement d'un jeton expiré (DELAI_CACHE_ECHEC_
+  // RAFRAICHISSEMENT_MS : avant, toute relecture recevrait l'échec sans appel
+  // réseau). Le retour sur la page n'a pas d'écouteur ici : supabase-js y rejoue
+  // la session en `SIGNED_IN` (jeton valide) ou retente le rafraîchissement
+  // (jeton expiré), et ce rejeu passe par le même verrou — un second écouteur
+  // doublait le chargement du profil. Aucune ressaisie : la session conservée
+  // est revérifiée.
   useEffect(() => {
       if (serveurInjoignable === null) return;
       const relancer = () => { void reessayerRef.current(); };
-      const surVisibilite = () => { if (document.visibilityState === 'visible') relancer(); };
       window.addEventListener('online', relancer);
-      document.addEventListener('visibilitychange', surVisibilite);
       const minuterie = setInterval(relancer, INTERVALLE_REPRISE_MS);
+      const apresCache = setTimeout(relancer, DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS + 1000);
       return () => {
           window.removeEventListener('online', relancer);
-          document.removeEventListener('visibilitychange', surVisibilite);
           clearInterval(minuterie);
+          clearTimeout(apresCache);
       };
   }, [serveurInjoignable]);
 
@@ -500,6 +521,8 @@ const AppContent = () => {
               <ServeurInjoignable
                   raison={serveurInjoignable}
                   tentativeEnCours={tentativeEnCours}
+                  intervalleMs={INTERVALLE_REPRISE_MS}
+                  delaiSessionExpireeMs={DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS}
                   onReessayer={() => { void reessayerRef.current(); }}
               />
           );
