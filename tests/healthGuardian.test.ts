@@ -157,10 +157,22 @@ describe('Edge Function — pipeline imposé', () => {
     });
 
     it('n\'ouvre pas le CORS à tout le monde par défaut de conception', () => {
-        // Le repli sur `*` reste possible tant que la variable n'est pas
-        // définie, mais il doit être explicite et signalé, pas silencieux.
+        // Sans HEALTH_ALLOWED_ORIGINS, le repli est la liste des domaines
+        // MokNet connus — signalé dans les journaux — et jamais `*` : la
+        // fonction mesure le CORS des autres, elle ne peut pas échouer à son
+        // propre contrôle.
         expect(indexSource).toContain('HEALTH_ALLOWED_ORIGINS');
         expect(indexSource).toContain('console.warn');
+        expect(indexSource).toContain('MOKNET_ORIGIN_RULES');
+        const corsFn = indexSource.slice(indexSource.indexOf('function corsHeaders('), indexSource.indexOf('function json('));
+        expect(corsFn).not.toContain("'*'");
+    });
+
+    it('sonde le VPS et le CORS sans jamais faire tomber la fonction', () => {
+        expect(indexSource).toMatch(/observeVps\(config\)\.catch\(/);
+        expect(indexSource).toMatch(/observeEdgeCors\(\)\.catch\(/);
+        // Le jeton de la porte /rtc ne peut ni publier ni s'abonner.
+        expect(indexSource).toMatch(/canPublish: false, canSubscribe: false/);
     });
 
     it('appelle les fonctions de santé avec le client scopé au JWT, jamais en service_role', () => {
@@ -187,6 +199,8 @@ describe('évaluateurs — verdicts à partir de mesures réelles', () => {
                           'post_documents_post_id_fkey'],
             rlsNoPolicy: ['audit_logs', 'health_snapshots'],
             auditLogPresent: true,
+            // 05/09/2026 — un Admin Général reconnu par la base.
+            superAdminCount: 1, adminCount: 1,
         },
         data: {
             orphanMessages: 0, orphanParticipants: 0, emptyConversations: 0, orphanReactions: 0,
@@ -201,6 +215,18 @@ describe('évaluateurs — verdicts à partir de mesures réelles', () => {
             callFailures24h: 1, blockFunctionPresent: true, zombieSessions: 0, expiredTranscripts: 0,
             vapidConfigured: true, pushSends24h: 50, pushFailures24h: 2, pushDeliveryLogRows: 50,
             deadSubscriptions: 0, healthActionsLogged: 0, publicBucketPresent: true,
+        },
+        // 05/09/2026 — VPS joignable, porte /rtc qui valide, aucune fonction
+        // ouverte à n'importe quelle origine.
+        vps: {
+            configured: true,
+            front: { reached: true, httpStatus: 200, latencyMs: 120, timedOut: false },
+            rtc: { reached: true, httpStatus: 200, latencyMs: 140, timedOut: false },
+        },
+        edgeCors: {
+            foreignOrigin: 'https://origine-inconnue.invalid',
+            functions: ['ai-gateway', 'discover-provider', 'livekit-token', 'mint-live-token', 'push-notify', 'health-guardian']
+                .map((slug) => ({ slug, reached: true, httpStatus: 200, allowOrigin: 'https://moknet.net' })),
         },
     });
 
@@ -268,6 +294,68 @@ describe('évaluateurs — verdicts à partir de mesures réelles', () => {
         const m = sain();
         m.catalogue.anonReadableTables = ['posts', 'profiles', 'messages', 'dossiers'];
         expect(verdict(m, 'securite.grants_anon').status).toBe('orange');
+    });
+
+    it('dit qu\'aucun Admin Général n\'est reconnu par la base — orange, jamais rouge, jamais vert', () => {
+        const m = sain();
+        m.catalogue.superAdminCount = 0;
+        const v = verdict(m, 'gouvernance.rang_admin_general');
+        expect(v.status).toBe('orange');
+        expect(v.measured).toMatch(/Aucun compte ne porte le rang super_admin/);
+        expect(v.gap).toMatch(/Réparer et restaurer sont impossibles/);
+    });
+
+    it('reste BLANC sur le rang Admin Général tant que la migration du compteur n\'est pas appliquée', () => {
+        const m = sain();
+        delete m.catalogue.superAdminCount;
+        const v = verdict(m, 'gouvernance.rang_admin_general');
+        expect(v.status).toBe('blanc');
+        expect(v.probeError).toMatch(/20260905090000/);
+    });
+
+    it('signale en orange toute fonction Edge qui répond à n\'importe quelle origine', () => {
+        const m = sain();
+        m.edgeCors!.functions[0].allowOrigin = '*';
+        m.edgeCors!.functions[1].allowOrigin = m.edgeCors!.foreignOrigin;
+        const v = verdict(m, 'securite.cors_fonctions');
+        expect(v.status).toBe('orange');
+        expect(v.measured).toMatch(/2 fonctions sur 6/);
+        expect(v.measured).toContain('ai-gateway');
+        expect(v.measured).toContain('discover-provider');
+    });
+
+    it('ne prouve pas fermée une fonction que la passerelle a masquée (404)', () => {
+        const m = sain();
+        m.edgeCors!.functions[5] = { slug: 'health-guardian', reached: false, httpStatus: 404, allowOrigin: null };
+        const v = verdict(m, 'securite.cors_fonctions');
+        expect(v.status).toBe('orange');
+        expect(v.measured).toMatch(/non interrogeable/);
+        expect(v.measured).toContain('health-guardian');
+    });
+
+    it('juge le VPS : façade muette = rouge, façade lente = orange, porte /rtc qui refuse = rouge', () => {
+        const muet = sain();
+        muet.vps!.front = { reached: false, httpStatus: null, latencyMs: 3000, timedOut: true };
+        expect(verdict(muet, 'vps.reverse_proxy').status).toBe('rouge');
+
+        const lent = sain();
+        lent.vps!.front = { reached: true, httpStatus: 200, latencyMs: 2400, timedOut: false };
+        expect(verdict(lent, 'vps.reverse_proxy').status).toBe('orange');
+
+        const refuse = sain();
+        refuse.vps!.rtc = { reached: true, httpStatus: 401, latencyMs: 90, timedOut: false };
+        const v = verdict(refuse, 'vps.signalisation');
+        expect(v.status).toBe('rouge');
+        expect(v.measured).toMatch(/refuse notre jeton/);
+
+        expect(verdict(sain(), 'vps.signalisation').status).toBe('vert');
+    });
+
+    it('laisse le VPS BLANC — jamais rouge — quand aucun transport n\'est configuré', () => {
+        const m = sain();
+        m.vps = { configured: false, front: null, rtc: null };
+        expect(verdict(m, 'vps.reverse_proxy').status).toBe('blanc');
+        expect(verdict(m, 'vps.signalisation').status).toBe('blanc');
     });
 
     it('rend une ligne BLANCHE si sa sonde lève, sans contaminer les autres', () => {
