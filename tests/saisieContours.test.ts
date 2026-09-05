@@ -54,11 +54,11 @@ describe('contours des zones de saisie (index.html)', () => {
         for (const s of selecteurs) expect(s.length).toBeLessThan(200);
     });
 
-    it('pose un trait de 1,5 px dérivé de la couleur du texte, avec un repli sans color-mix, et un accent aqua au focus', () => {
-        expect(bloc).toContain('border-width: 1.5px;');
+    it('pose un trait de 2 px dérivé de la couleur du texte (55 %), avec un repli sans color-mix, et un accent aqua au focus', () => {
+        expect(bloc).toContain('border-width: 2px;');
         expect(bloc).toContain('border-style: solid;');
-        expect(bloc).toContain('border-color: rgba(100, 116, 139, 0.75);');
-        expect(bloc).toContain('border-color: color-mix(in srgb, currentColor 42%, transparent);');
+        expect(bloc).toContain('border-color: rgba(100, 116, 139, 0.85);');
+        expect(bloc).toContain('border-color: color-mix(in srgb, currentColor 55%, transparent);');
         expect(bloc).toMatch(/:focus,?\s*[\s\S]*?\{\s*border-color: #0e7490;\s*\}/);
     });
 

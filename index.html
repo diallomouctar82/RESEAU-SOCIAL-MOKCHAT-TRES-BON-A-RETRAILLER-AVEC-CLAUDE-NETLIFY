@@ -1480,9 +1480,12 @@
          sur fond clair. Une règle globale plutôt que 450 retouches : elle
          s'applique à TOUTES les zones de texte, sur fond clair comme sur fond
          sombre, parce que la couleur dérive de la couleur du texte
-         (`currentColor` à 42 %) — grise sur un champ clair, claire sur un
-         champ sombre. Rien d'autre n'est touché : rayons, fonds, anneaux de
-         focus (`ring-*`, en box-shadow) restent ceux du composant.
+         (`currentColor` à 55 %, soit ~3:1 sur blanc) — grise sur un champ
+         clair, claire sur un champ sombre. Épaisseur 2 px et non 1,5 px :
+         mesuré en navigateur, 1,5 px s'arrondit à 1 px sur un écran de
+         densité 1 (la plupart des ordinateurs), donc n'épaissit rien. Rien
+         d'autre n'est touché : rayons, fonds, anneaux de focus (`ring-*`,
+         en box-shadow) restent ceux du composant.
          SPÉCIFICITÉ PLUTÔT QUE L'ORDRE (même principe que la couche aqua) :
          les deux `:not(.classe)` portent chaque sélecteur à (0,3,1), au-dessus
          des utilitaires Tailwind (0,1,0), de leurs variantes `focus:` et de la
@@ -1505,10 +1508,10 @@
       input:not([type]):not(.saisie-sans-contour):not(.saisie-contour-libre),
       textarea:not(.saisie-sans-contour):not(.saisie-contour-libre),
       [contenteditable="true"]:not(.saisie-sans-contour):not(.saisie-contour-libre) {
-        border-width: 1.5px;
+        border-width: 2px;
         border-style: solid;
-        border-color: rgba(100, 116, 139, 0.75); /* repli : slate-500 */
-        border-color: color-mix(in srgb, currentColor 42%, transparent);
+        border-color: rgba(100, 116, 139, 0.85); /* repli : slate-500 */
+        border-color: color-mix(in srgb, currentColor 55%, transparent);
       }
       /* Au focus : le contour prend l'accent aqua de la marque (aqua-600 de la
          couche générée), lisible sur clair comme sur sombre ; l'anneau

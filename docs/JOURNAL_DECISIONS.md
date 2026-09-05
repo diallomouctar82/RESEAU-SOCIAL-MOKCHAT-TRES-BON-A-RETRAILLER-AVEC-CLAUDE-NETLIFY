@@ -1151,13 +1151,22 @@ Chaque décision respecte le formalisme strict suivant :
      invisible.
   3. **Retenu** : (1) réordonner à l'affichage dans la barre latérale
      d'ordinateur seulement ; (2) **une règle globale** dans `index.html`,
-     trait de 1,5 px dont la couleur dérive de la couleur du texte
-     (`color-mix(currentColor 42 %)`, repli `slate-500` sans `color-mix`),
+     trait de 2 px dont la couleur dérive de la couleur du texte
+     (`color-mix(currentColor 55 %)`, ~3:1 sur blanc, repli `slate-500` sans
+     `color-mix`),
      accent aqua `#0e7490` au focus, sans toucher aux rayons, fonds ni anneaux
      `ring-*` ; portée par des sélecteurs courts (un par type de champ texte)
      à la spécificité (0,3,1) grâce à deux `:not(.classe)` qui servent aussi
      de porte de sortie (`saisie-sans-contour`, `saisie-contour-libre`) ;
      (3) le texte exact de la Direction.
+* **La preuve visuelle a corrigé la première version** : mesuré par
+  `getComputedStyle` en navigateur, un trait de 1,5 px s'arrondit à **1 px**
+  sur un écran de densité 1 — l'épaisseur n'aurait rien changé sur la
+  plupart des ordinateurs. Passé à 2 px, et la teinte de 42 % à 55 % de la
+  couleur du texte (~3:1 sur blanc). Le harnais de capture, copie
+  d'`index.html` datant de la première loupe, a lui aussi été pris en
+  défaut (il ne contenait pas le bloc) : régénéré depuis l'`index.html` de
+  chaque état.
 * **Deux garde-fous du dépôt ont parlé pendant la loupe, et ont été
   écoutés** : `tests/miroirFeuilleAnalysee.test.ts` refuse tout sélecteur de
   plus de 200 caractères (signature d'une règle avalée) — la première version
