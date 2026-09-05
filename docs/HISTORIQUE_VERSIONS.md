@@ -36,12 +36,52 @@
 | **v6.18.0** | 5 Septembre 2026 | **« Réseau MOC » juste sous « Accueil » dans la barre latérale ; contours de toutes les zones de saisie renforcés par une règle globale (2 px, couleur dérivée du texte à 55 %, accent aqua au focus) ; nouvelle invite du composeur « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. »** | Navigation globale (barre latérale), Réseau MOC, index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-053 | **Stable — production contrôlée demandée par la Direction, fusionnée dans `main`, vérifiée sur moknet.net** |
 | **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 fusionnée en squash → `cbdab0a` / DEC-2026-054 | **Stable — Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en production contrôlée depuis le 5/09 (Green Gate run 33933766630, moknet.net a servi `index-SB3nxKwK.js` avec les empreintes SAT-4) ; remplacée par v6.20.0 le même jour** |
 | **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026** : PR #81 fusionnée en squash → `main` `880b5fa` (Green Gate run 33936079398 vert), moknet.net sert `index-CjAVWgcX.js` avec les 7 empreintes SAT-5 (ancien bundle 404) ; migration `close_zombie_live_sessions` + job `close-zombie-live-sessions` appliquée à 01:28 UTC, **première exécution réelle à 02:15 UTC : 13 directs zombies fermés** (les 13 ids de la sauvegarde, `audit_logs` `health.auto_repair` actor NULL), exécutions suivantes 03:15/04:15/05:15 sans rien à faire, 06:15 : 1 direct de plus franchissant les 24 h fermé ; 0 zombie restant, directs récents intacts, aucune autre ligne touchée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées), défaut d'écran trouvé par le banc et corrigé, tsc 0 · vitest 1045/1045 |
+| **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-056 | **En prévisualisation — aucune fusion, aucune production avant le contrôle de la Direction** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.21.0] — 5 Septembre 2026 (Espace Experts « Plateaux de cristal »)
+
+* **La demande** : cinq directions visuelles d'abord, sans toucher au code ;
+  puis, capture à l'appui, le choix de la direction D « Plateaux de
+  cristal » : « Il faut implémenter ceci et aller à l'amélioration du design
+  des avatars et de leurs mouvements » ; « dès que les gens rentrent dans
+  l'espace expert, ils doivent retrouver tout de suite le panneau là comme
+  ça, vraiment au premier plan ». Contraintes : fond clair, couleurs
+  actuelles, une seule phrase au-dessus des bulles, rien d'autre ; ne pas
+  toucher au Live, à l'avatar, au bouton Santé-Sécurité.
+* **Ce qui change** : l'onglet « Équipe & Experts » (ouvert par défaut)
+  affiche la phrase puis 13 bulles de cristal sur plateaux de verre, cinq par
+  rangée en damier sur ordinateur (trois sur tablette, deux sur téléphone),
+  nom et rôle court sous chaque bulle ; l'en-tête du hub ne garde que la
+  barre d'onglets. Le bandeau sombre, la recherche, les filtres, la bascule
+  et les cartes blanches ne sont plus affichés. Un clic sur une bulle ouvre
+  une fiche légère portant Discuter, Vocal, Vidéo, Nouveau dossier, Analyser
+  un fichier ou Prendre RDV (formulaire inchangé).
+* **Avatars et mouvements** : bulle à trois lumières + lumière tournante sur
+  le bord, flottement à phase propre, soulèvement et inclinaison 3D au
+  survol avec parallaxe du portrait, halo aqua qui pulse sous le plateau,
+  pastille de disponibilité ; tout s'arrête sous `prefers-reduced-motion`.
+* **Où c'est** : `components/ExpertsCatalogue.tsx` (réécrit, mêmes
+  propriétés), `components/ExpertsHub.tsx` (en-tête), bloc « PLATEAUX DE
+  CRISTAL » de `index.html` (hors couche aqua, sélecteurs courts),
+  `tests/ExpertsCatalogue.test.tsx` (21 tests),
+  `docs/captures/2026-09-05-experts-plateaux-de-cristal/`.
+* **Contrôle indépendant** : revue de code indépendante avant le feu vert,
+  dix constats, tous corrigés (fiche et RDV par portail au-dessus de toute la
+  coquille, racine `inert` + piège de focus, pastille hors du cercle qui la
+  rognait, survol réservé aux vrais pointeurs, Échap contextuel, pouls
+  composité, nom cliquable, date de RDV du jour, règle morte). Tests 21 → 28.
+* **Preuves** : tsc 0 · vitest 1067/1067 (74 fichiers) · build · captures
+  avant/après mesurées (ordinateur et téléphone). DEC-2026-056.
+* **Production** : non — prévisualisation Netlify, en attente du feu vert
+  explicite de la Direction.
+
+---
 
 ### [Version 6.20.0] — 5 Septembre 2026 (SAT-5 — ce que l'application peut réparer seule, et ce qui exige le VPS)
 
