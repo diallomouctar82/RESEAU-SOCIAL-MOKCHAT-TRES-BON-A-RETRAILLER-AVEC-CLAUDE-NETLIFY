@@ -1,13 +1,25 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { generateImage, generateVideo, analyzeImage } from '../services/aiGateway';
-import { Video, Image as ImageIcon, Eye, Sparkles, AlertCircle, Download, MonitorPlay, X, Upload, User, Play, Users, Share2 } from 'lucide-react';
+import { Video, Image as ImageIcon, Eye, Sparkles, AlertCircle, Download, MonitorPlay, X, Upload, User, UserCircle2, Play, Users, Share2 } from 'lucide-react';
 import { StudioTab, GeneratedMedia } from '../types';
 import { Avatar3D } from './Avatar3D';
 import { StudioCollaboration } from './StudioCollaboration';
+import { AvatarStudio } from './studio/AvatarStudio';
+import { useGlobal } from '../contexts/GlobalContext';
+import { adminConfigService } from '../services/adminConfigService';
+import { supabaseService } from '../services/supabaseClient';
+import { voiceEngine } from '../services/voiceEngine';
 
 export const Studio: React.FC = () => {
+  const { userProfile, updateUserProfile } = useGlobal();
   const [activeTab, setActiveTab] = useState<StudioTab>('image');
+  // Réglage de l'Admin-Général : lu une fois à l'ouverture du Studio, comme
+  // partout ailleurs dans l'app (service local-first, aucune requête réseau).
+  const defaultAvatar = useMemo(
+    () => adminConfigService.getDetailedSettings().studio.defaultAvatar,
+    []
+  );
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -160,6 +172,12 @@ export const Studio: React.FC = () => {
             <User size={18} /> Avatar 3D
           </button>
           <button 
+            onClick={() => { setActiveTab('avatar_studio'); setResult(null); }}
+            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'avatar_studio' ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <UserCircle2 size={18} /> Mon Avatar
+          </button>
+          <button 
             onClick={() => { setActiveTab('vision'); setResult(null); }}
             className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'vision' ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
@@ -173,8 +191,16 @@ export const Studio: React.FC = () => {
           </button>
         </div>
 
-        {/* Tab 5 : Suite de Co-Création & Outils Collaboratifs */}
-        {activeTab === 'collaboration' ? (
+        {/* Tab « Mon Avatar » : parcours Pro accès → photo → consentement → nom → génération → aperçu */}
+        {activeTab === 'avatar_studio' ? (
+          <AvatarStudio
+            profile={userProfile}
+            defaultAvatar={defaultAvatar}
+            onUpdateProfile={updateUserProfile}
+            onUploadPhoto={(file) => supabaseService.uploadContentMedia(userProfile.id, file, 'posts')}
+            onSpeak={(text) => voiceEngine.speak(text)}
+          />
+        ) : activeTab === 'collaboration' ? (
           <StudioCollaboration 
             initialStudioAsset={sharedAssetForCollab} 
             onClearInitialAsset={() => setSharedAssetForCollab(null)} 

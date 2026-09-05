@@ -3,6 +3,32 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { generateSpeechDetailed } from './aiGateway';
+import { buildVoiceTrack, mixToMono, trackShapeAt, type VoiceTrack } from './architecte/alignment';
+import { buildProsodyScore, type ProsodyScore } from './architecte/gestures';
+import { MEDIA_PIPELINE_MS, createAudioClock } from './architecte/lipSync';
+
+/**
+ * Piste de voix ALIGNÉE en cours de lecture, publiée à chaque image : la
+ * partition des gestes et l'instant `performance.now()` qui correspond à
+ * l'instant 0 de la piste tel qu'AFFICHÉ (avance visuelle et retard
+ * d'affichage déjà comptés). L'avatar lit `performance.now() - t0Perf`.
+ */
+export interface VoiceTrackRef {
+    track: VoiceTrack;
+    score: ProsodyScore;
+    t0Perf: number;
+}
+import {
+    ANALYSER_FFT_SIZE,
+    LIP_SYNC_LOOKAHEAD_MS,
+    MOUTH_AT_REST,
+    MouthShapeBuffer,
+    createVoiceEnvelope,
+    mouthReadTime,
+    mouthShapeFromBands,
+    spectralBands,
+    type MouthShape,
+} from './architecte/lipSync';
 
 export interface VoiceEngineListener {
     onTranscript?: (transcript: string, isFinal: boolean) => void;
@@ -10,6 +36,29 @@ export interface VoiceEngineListener {
     onStart?: () => void;
     onEnd?: () => void;
     onSpeechVolume?: (volume: number) => void;
+    /**
+     * Niveau (0..1) de la voix que l'Architecte est en train de PRONONCER —
+     * à ne pas confondre avec `onSpeechVolume`, qui mesure le micro de
+     * l'utilisateur et se coupe précisément pendant que l'on parle.
+     *
+     * Mesuré sur l'élément `<audio>` du moteur ElevenLabs, seul chemin où le
+     * navigateur donne accès au signal. Le moteur natif (`speechSynthesis`)
+     * n'expose aucun flux : il n'émet donc jamais sur cet écouteur, et la
+     * synchro labiale retombe honnêtement sur le rythme des mots.
+     */
+    onOutputVolume?: (volume: number) => void;
+    /**
+     * Forme de bouche mesurée sur la voix HD à chaque image (visèmes
+     * acoustiques) — pour l'avatar vivant. Le niveau seul reste publié par
+     * `onOutputVolume` pour les jauges.
+     */
+    onMouthShape?: (shape: MouthShape) => void;
+    /** Piste alignée en cours (gestes planifiés), `null` hors parole ou sans alignement. */
+    onVoiceTrack?: (ref: VoiceTrackRef | null) => void;
+    /** `true` dès que le clip en cours de lecture est piloté par sa piste phonétique. */
+    onLipSyncAligned?: (aligned: boolean) => void;
+    /** Voix intégrée du navigateur : une frontière de mot vient d'être franchie (instant `performance.now()`, longueur du mot). */
+    onWordBoundary?: (pulse: { at: number; length: number }) => void;
     onSpeakingStateChange?: (isSpeaking: boolean) => void;
     onConversationalTurnChange?: (turn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user') => void;
     onTtsEngineChange?: (engine: 'elevenlabs' | 'browser_native') => void;
@@ -177,6 +226,29 @@ export class VoiceEngine {
 
     // ElevenLabs state & cache
     private currentAudioElement: HTMLAudioElement | null = null;
+    /**
+     * Chaîne d'analyse de la voix de sortie (synchro labiale de l'avatar de
+     * l'Architecte). `MediaElementAudioSourceNode` ne peut être créé QU'UNE
+     * FOIS par élément `<audio>` : le nœud est donc mémorisé avec l'élément
+     * qui lui correspond, et le contexte est réutilisé d'un segment à l'autre.
+     */
+    private outputAudioContext: AudioContext | null = null;
+    private outputAnalyser: AnalyserNode | null = null;
+    private outputSourceElement: HTMLAudioElement | null = null;
+    private outputRafId: number | null = null;
+    /**
+     * Latence de sortie de l'appareil (ms), lue à la création de la chaîne :
+     * le son mesuré maintenant n'est entendu qu'après le retard volontaire
+     * (`LIP_SYNC_LOOKAHEAD_MS`) ou cette latence si elle est plus grande
+     * (casque Bluetooth…). La bouche est lue dans son tampon à l'instant
+     * entendu + l'avance visuelle : ni en avance folle, ni en retard.
+     */
+    private outputLatencyMs = 0;
+    /** Alignements texte ↔ son en cours ou terminés, par URL de clip (borné). */
+    private trackJobs = new Map<string, Promise<VoiceTrack | null>>();
+    /** Pistes prêtes, par élément audio en lecture. */
+    private readyTracks = new WeakMap<HTMLAudioElement, { track: VoiceTrack; score: ProsodyScore }>();
+    private lipSyncAligned = false;
     private currentAudioUrl: string | null = null;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
@@ -939,13 +1011,218 @@ export class VoiceEngine {
         };
     }
 
+    /**
+     * Branche l'analyse d'amplitude sur la voix en cours de lecture, pour la
+     * synchro labiale de l'avatar de l'Architecte.
+     *
+     * Entièrement optionnel : si le navigateur refuse l'`AudioContext`, si le
+     * flux est d'une autre origine, ou si quoi que ce soit échoue, la lecture
+     * de la voix continue normalement et l'avatar retombe sur une bouche
+     * close. Jamais une fonctionnalité d'affichage ne doit pouvoir empêcher
+     * l'Architecte de parler.
+     */
+    /**
+     * Aligne le texte d'un segment sur son clip (alignment.ts) — une fois par
+     * clip, en tâche de fond, jamais bloquant : `null` si le navigateur ne
+     * peut pas décoder ou si l'alignement échoue (la bouche suit alors
+     * l'amplitude mesurée, comme avant).
+     */
+    private prepareVoiceTrack(audioUrl: string, text: string): Promise<VoiceTrack | null> {
+        const existing = this.trackJobs.get(audioUrl);
+        if (existing) return existing;
+        const job = (async (): Promise<VoiceTrack | null> => {
+            try {
+                if (typeof window === 'undefined') return null;
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioContextClass) return null;
+                const bytes = await VoiceEngine.audioUrlToBytes(audioUrl);
+                if (!bytes) return null;
+                if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+                const t0 = Date.now();
+                const decoded = await this.outputAudioContext.decodeAudioData(bytes);
+                const track = buildVoiceTrack(mixToMono(decoded), decoded.sampleRate, text);
+                this.trace(track ? 'piste phonétique alignée' : 'piste phonétique impossible', { ms: Date.now() - t0, chars: text.length, phones: track?.phones.length ?? 0 });
+                return track;
+            } catch (e) {
+                console.warn("Alignement phonétique indisponible (la voix continue, bouche à l'amplitude):", e);
+                return null;
+            }
+        })();
+        if (this.trackJobs.size >= 40) {
+            const oldest = this.trackJobs.keys().next().value;
+            if (oldest !== undefined) this.trackJobs.delete(oldest);
+        }
+        this.trackJobs.set(audioUrl, job);
+        return job;
+    }
+
+    /** Octets d'un clip : URL `data:` décodée sur place, sinon téléchargée. */
+    private static async audioUrlToBytes(url: string): Promise<ArrayBuffer | null> {
+        const data = /^data:[^;,]*;base64,(.*)$/s.exec(url);
+        if (data) {
+            const bin = atob(data[1]);
+            const out = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+            return out.buffer;
+        }
+        const res = await fetch(url);
+        return res.ok ? res.arrayBuffer() : null;
+    }
+
+    private attachOutputAnalyser(audio: HTMLAudioElement, trackPromise: Promise<VoiceTrack | null> = Promise.resolve(null)): void {
+        // Personne n'écoute le niveau de sortie : ne pas ouvrir de contexte
+        // audio pour rien (coûteux, et bloqué tant qu'il n'y a pas eu de geste
+        // utilisateur sur certains navigateurs).
+        let wanted = false;
+        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
+        if (!wanted) return;
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextClass) return;
+            if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+            const context = this.outputAudioContext;
+            if (context.state === 'suspended') void context.resume().catch(() => {});
+
+            // Un élément déjà relié garde son nœud : re-créer une source sur le
+            // même élément lève une exception et couperait le son.
+            if (this.outputSourceElement !== audio) {
+                const source = context.createMediaElementSource(audio);
+                // Prise de mesure TEMPORELLE (RMS sur ~46 ms) : le spectre en
+                // octets tenait la bouche ouverte sur le souffle (voir lipSync).
+                const analyser = context.createAnalyser();
+                analyser.fftSize = ANALYSER_FFT_SIZE;
+                // Spectre brut à chaque image : le lissage temporel est dans l'avatar.
+                analyser.smoothingTimeConstant = 0;
+                source.connect(analyser);
+                // La voix entendue passe par un court retard : la bouche, qui
+                // lit le signal non retardé, prend de l'avance et compense le
+                // retard de la chaîne (fenêtre, image, inertie de la lèvre).
+                // La latence de sortie de l'appareil compte déjà comme retard
+                // du son : on la retranche ; si elle dépasse l'avance voulue,
+                // c'est la bouche qu'on retarde (file `mouthQueue`).
+                // Indispensable : sans ce chemin jusqu'à la sortie, brancher
+                // la source sur l'analyseur REND LA VOIX MUETTE.
+                const ctxLatence = context as AudioContext & { outputLatency?: number };
+                const latenceSortieMs = Math.max(0, (Number.isFinite(ctxLatence.outputLatency!) ? ctxLatence.outputLatency! : context.baseLatency || 0) * 1000);
+                this.outputLatencyMs = latenceSortieMs;
+                const delay = context.createDelay(1);
+                delay.delayTime.value = Math.max(0, LIP_SYNC_LOOKAHEAD_MS - latenceSortieMs) / 1000;
+                source.connect(delay);
+                delay.connect(context.destination);
+                this.outputAnalyser = analyser;
+                this.outputSourceElement = audio;
+            }
+            void trackPromise.then((track) => {
+                if (!track) return;
+                this.readyTracks.set(audio, { track, score: buildProsodyScore(track) });
+                if (this.currentAudioElement === audio && !this.lipSyncAligned) {
+                    this.lipSyncAligned = true;
+                    this.listeners.forEach(l => l.onLipSyncAligned?.(true));
+                }
+            }).catch(() => {});
+            this.startOutputLevelLoop();
+        } catch (err) {
+            console.warn('Analyse du niveau de sortie indisponible (la voix continue):', err);
+        }
+    }
+
+    /** Boucle de mesure : une seule à la fois, arrêtée dès que la parole cesse. */
+    private startOutputLevelLoop(): void {
+        if (this.outputRafId !== null || !this.outputAnalyser) return;
+        const analyser = this.outputAnalyser;
+        const samples = new Float32Array(analyser.fftSize);
+        const spectrum = new Float32Array(analyser.frequencyBinCount);
+        const sampleRate = this.outputAudioContext?.sampleRate || 44100;
+        // Crête ré-étalonnée à chaque prise de parole : une voix plus douce
+        // ouvre la bouche autant qu'une voix forte.
+        const envelope = createVoiceEnvelope();
+        // Le son mesuré maintenant est entendu après ce délai : retard volontaire,
+        // ou latence de l'appareil si elle est plus grande.
+        const heardDelayMs = Math.max(LIP_SYNC_LOOKAHEAD_MS, this.outputLatencyMs);
+        const buffer = new MouthShapeBuffer();
+        const clock = createAudioClock();
+        let clockFor: HTMLAudioElement | null = null;
+        let lastAt = performance.now();
+        const tick = () => {
+            if (!this.outputAnalyser || !this.isSpeaking) {
+                this.outputRafId = null;
+                this.publishMouth(MOUTH_AT_REST);
+                this.publishTrack(null);
+                return;
+            }
+            const now = performance.now();
+            const audio = this.currentAudioElement;
+            const ready = audio ? this.readyTracks.get(audio) : undefined;
+            if (audio && ready) {
+                // PISTE PHONÉTIQUE : la bouche et les gestes suivent l'horloge du
+                // son lui-même (position de lecture lissée), à l'instant qui sera
+                // ENTENDU quand l'image sera affichée, plus l'avance visuelle.
+                if (clockFor !== audio) {
+                    clock.reset();
+                    clockFor = audio;
+                }
+                const media = clock.update(audio.currentTime * 1000, now);
+                const tMs = mouthReadTime(media, heardDelayMs + MEDIA_PIPELINE_MS);
+                this.publishMouth(trackShapeAt(ready.track, tMs));
+                this.publishTrack({ track: ready.track, score: ready.score, t0Perf: now - tMs });
+            } else {
+                // AMPLITUDE MESURÉE (repli, ou piste pas encore prête).
+                this.outputAnalyser.getFloatTimeDomainData(samples);
+                this.outputAnalyser.getFloatFrequencyData(spectrum);
+                buffer.push(now, mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt));
+                // Forme coarticulée lue pour qu'à l'écran les lèvres PRÉCÈDENT le son
+                // entendu (avance visuelle, retard d'affichage mesuré déduit).
+                this.publishMouth(buffer.at(mouthReadTime(now, heardDelayMs)));
+                this.publishTrack(null);
+            }
+            lastAt = now;
+            this.outputRafId = requestAnimationFrame(tick);
+        };
+        this.outputRafId = requestAnimationFrame(tick);
+    }
+
+    private lastTrackRef: VoiceTrackRef | null = null;
+
+    /** Publie la piste alignée (ou son absence) — sans répéter `null` à chaque image. */
+    private publishTrack(ref: VoiceTrackRef | null): void {
+        if (ref === null && this.lastTrackRef === null) return;
+        this.lastTrackRef = ref;
+        this.listeners.forEach(l => l.onVoiceTrack?.(ref));
+    }
+
+    /** Publie une forme de bouche et son niveau à tous les auditeurs. */
+    private publishMouth(shape: MouthShape): void {
+        this.listeners.forEach(l => {
+            l.onMouthShape?.(shape);
+            l.onOutputVolume?.(shape.level);
+        });
+    }
+
+    /** Arrête la mesure et remet la bouche au repos — appelé avec l'arrêt de la parole. */
+    private stopOutputLevelLoop(): void {
+        if (this.outputRafId !== null) {
+            cancelAnimationFrame(this.outputRafId);
+            this.outputRafId = null;
+        }
+        this.publishMouth(MOUTH_AT_REST);
+        this.publishTrack(null);
+        if (this.lipSyncAligned) {
+            this.lipSyncAligned = false;
+            this.listeners.forEach(l => l.onLipSyncAligned?.(false));
+        }
+    }
+
     /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */
-    private playAudioUrl(audioUrl: string, epoch: number): Promise<boolean> {
+    private playAudioUrl(audioUrl: string, epoch: number, text?: string): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
             try {
                 const audio = new Audio(audioUrl);
                 this.currentAudioElement = audio;
                 this.currentAudioUrl = audioUrl;
+                // La piste phonétique se prépare en parallèle du démarrage :
+                // souvent prête avant le premier son, sinon la bouche suit
+                // l'analyseur pendant quelques dizaines de millisecondes.
+                this.attachOutputAnalyser(audio, text ? this.prepareVoiceTrack(audioUrl, text) : Promise.resolve(null));
                 audio.onended = () => resolve(true);
                 // `stopSpeaking()` met l'audio en pause : l'événement pause
                 // avec une époque périmée signifie « coupé net » — on résout
@@ -1001,8 +1278,10 @@ export class VoiceEngine {
             const nextPromise = i + 1 < segments.length
                 ? this.generateSegmentAudio(segments[i + 1], voiceId, options)
                 : null;
+            // L'alignement du segment suivant se calcule PENDANT la lecture du courant.
+            if (nextPromise) void nextPromise.then((url) => { if (url) void this.prepareVoiceTrack(url, segments[i + 1]); }).catch(() => {});
 
-            const played = await this.playAudioUrl(currentUrl, epoch);
+            const played = await this.playAudioUrl(currentUrl, epoch, segments[i]);
             if (epoch !== this.speakEpoch) return true; // coupé net (barge-in/fermeture) : rien d'autre ne part
             if (!played) break; // erreur de lecture : fin propre, jamais une superposition
 
@@ -1147,6 +1426,17 @@ export class VoiceEngine {
         const utterance = new SpeechSynthesisUtterance(phrase);
         utterance.lang = 'fr-FR';
         utterance.rate = options?.rate || 1.02;
+        // Synchro labiale du repli : `speechSynthesis` n'expose aucun signal
+        // audio, mais il annonce chaque frontière de mot — la bouche suit ce
+        // rythme (niveau « rythme_des_mots », dit tel quel à l'écran).
+        utterance.onboundary = (e: SpeechSynthesisEvent) => {
+            if (e.name && e.name !== 'word') return;
+            const longueur = e.charLength && e.charLength > 0
+                ? e.charLength
+                : ((utterance.text || '').slice(e.charIndex).match(/^\S+/)?.[0].length ?? 5);
+            const pulse = { at: performance.now(), length: longueur };
+            this.listeners.forEach(l => l.onWordBoundary?.(pulse));
+        };
         utterance.pitch = options?.pitch || 1.0;
 
         const bestVoice = this.selectBestFrenchVoice(options?.voiceName);
@@ -1335,6 +1625,11 @@ export class VoiceEngine {
     }
 
     private notifySpeakingState(speaking: boolean) {
+        // Synchro labiale : un seul point de vérité. Quel que soit le chemin
+        // qui met fin à la parole — fin naturelle, `stopSpeaking()`, erreur —
+        // la mesure s'arrête ici et la bouche se referme. Sans cela, une
+        // boucle d'animation survivrait à la voix.
+        if (!speaking) this.stopOutputLevelLoop();
         this.listeners.forEach(l => l.onSpeakingStateChange?.(speaking));
     }
 

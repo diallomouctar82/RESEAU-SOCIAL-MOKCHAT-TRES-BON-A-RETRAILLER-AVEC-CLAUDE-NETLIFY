@@ -1,0 +1,348 @@
+[
+ {
+  "nom": "ordinateur",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "dockClicAtteint": null,
+  "repos": {
+   "boites": {
+    "sculpture": {
+     "x": 1160,
+     "y": 680,
+     "w": 96,
+     "h": 96
+    }
+   },
+   "couvertPourcent": 0.9,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": null,
+   "barre": false,
+   "panneau": false,
+   "variant": "sculpture",
+   "presence": "rest",
+   "sequence": "idle",
+   "mask": "url(\"/architecte/architecte-silhouette.png\")"
+  },
+  "pendant": {
+   "boites": {
+    "sculpture": {
+     "x": 1158,
+     "y": 678,
+     "w": 101,
+     "h": 101
+    },
+    "legende": {
+     "x": 883,
+     "y": 702,
+     "w": 269,
+     "h": 25
+    },
+    "barre": {
+     "x": 935,
+     "y": 733,
+     "w": 217,
+     "h": 43
+    }
+   },
+   "couvertPourcent": 2.4,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": "L'ArchitectePrésentation en cours…",
+   "barre": true,
+   "panneau": false,
+   "status": "playing",
+   "currentTime": 2.57,
+   "paused": false,
+   "source": "vision-smart-heygen.cutout.webm",
+   "videoWidth": 720,
+   "videoHeight": 1440,
+   "canvasOpacity": "1",
+   "presence": "speaking"
+  },
+  "alpha": {
+   "pixels": 8281,
+   "transparents": 3796,
+   "opaques": 4135
+  },
+  "dureeMs": 8595,
+  "apres": {
+   "boites": {
+    "sculpture": {
+     "x": 1158,
+     "y": 678,
+     "w": 101,
+     "h": 101
+    },
+    "legende": {
+     "x": 800,
+     "y": 701,
+     "w": 352,
+     "h": 26
+    },
+    "barre": {
+     "x": 935,
+     "y": 733,
+     "w": 217,
+     "h": 43
+    }
+   },
+   "couvertPourcent": 2.6,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": false,
+   "status": "idle",
+   "ended": true,
+   "currentTime": 8.17,
+   "presence": "error"
+  },
+  "panneau": {
+   "boites": {
+    "sculpture": {
+     "x": 1160,
+     "y": 680,
+     "w": 96,
+     "h": 96
+    },
+    "panneau": {
+     "x": 800,
+     "y": 542,
+     "w": 352,
+     "h": 153
+    },
+    "legende": {
+     "x": 800,
+     "y": 701,
+     "w": 352,
+     "h": 26
+    },
+    "barre": {
+     "x": 935,
+     "y": 733,
+     "w": 217,
+     "h": 43
+    }
+   },
+   "couvertPourcent": 7.8,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": true
+  },
+  "ferme": {
+   "boites": {
+    "sculpture": {
+     "x": 1158,
+     "y": 678,
+     "w": 101,
+     "h": 101
+    }
+   },
+   "couvertPourcent": 1,
+   "dockLibre": null,
+   "cartes": 6,
+   "cartesLibres": 6,
+   "statut": null,
+   "barre": false,
+   "panneau": false
+  },
+  "erreurs": []
+ },
+ {
+  "nom": "mobile",
+  "viewport": {
+   "width": 390,
+   "height": 844
+  },
+  "dockClicAtteint": true,
+  "repos": {
+   "boites": {
+    "sculpture": {
+     "x": 294,
+     "y": 664,
+     "w": 84,
+     "h": 84
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 2.1,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": null,
+   "barre": false,
+   "panneau": false,
+   "variant": "sculpture",
+   "presence": "rest",
+   "sequence": "idle",
+   "mask": "url(\"/architecte/architecte-silhouette.png\")"
+  },
+  "pendant": {
+   "boites": {
+    "sculpture": {
+     "x": 292,
+     "y": 662,
+     "w": 88,
+     "h": 88
+    },
+    "legende": {
+     "x": 32,
+     "y": 674,
+     "w": 254,
+     "h": 25
+    },
+    "barre": {
+     "x": 69,
+     "y": 705,
+     "w": 217,
+     "h": 43
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 6.8,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": "L'ArchitectePrésentation en cours…",
+   "barre": true,
+   "panneau": false,
+   "status": "playing",
+   "currentTime": 2.56,
+   "paused": false,
+   "source": "vision-smart-heygen.cutout.webm",
+   "videoWidth": 720,
+   "videoHeight": 1440,
+   "canvasOpacity": "1",
+   "presence": "speaking"
+  },
+  "alpha": {
+   "pixels": 25600,
+   "transparents": 11733,
+   "opaques": 12751
+  },
+  "dureeMs": 8605,
+  "apres": {
+   "boites": {
+    "sculpture": {
+     "x": 292,
+     "y": 662,
+     "w": 88,
+     "h": 88
+    },
+    "legende": {
+     "x": 32,
+     "y": 673,
+     "w": 254,
+     "h": 26
+    },
+    "barre": {
+     "x": 69,
+     "y": 705,
+     "w": 217,
+     "h": 43
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 6.8,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": false,
+   "status": "idle",
+   "ended": true,
+   "currentTime": 8.17,
+   "presence": "error"
+  },
+  "panneau": {
+   "boites": {
+    "sculpture": {
+     "x": 294,
+     "y": 664,
+     "w": 84,
+     "h": 84
+    },
+    "panneau": {
+     "x": 32,
+     "y": 489,
+     "w": 254,
+     "h": 178
+    },
+    "legende": {
+     "x": 32,
+     "y": 673,
+     "w": 254,
+     "h": 26
+    },
+    "barre": {
+     "x": 69,
+     "y": 705,
+     "w": 217,
+     "h": 43
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 20.2,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 4,
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+   "barre": true,
+   "panneau": true
+  },
+  "ferme": {
+   "boites": {
+    "sculpture": {
+     "x": 292,
+     "y": 662,
+     "w": 88,
+     "h": 88
+    },
+    "dock": {
+     "x": 0,
+     "y": 780,
+     "w": 390,
+     "h": 64
+    }
+   },
+   "couvertPourcent": 2.3,
+   "dockLibre": true,
+   "cartes": 6,
+   "cartesLibres": 5,
+   "statut": null,
+   "barre": false,
+   "panneau": false
+  },
+  "erreurs": []
+ }
+]
