@@ -1431,8 +1431,45 @@ export const supabaseService = {
     },
     async savePlatformSettings(settings: object): Promise<void> {
         if (!isSupabaseConfigured) return;
-        // Aucune table de configuration plateforme dédiée pour l'instant :
-        // dégradation silencieuse, l'admin console reste utilisable en local.
+        // Aucune table de configuration plateforme dédiée pour l'ensemble des
+        // réglages : dégradation silencieuse, l'admin console reste utilisable
+        // en local. Les réglages PARTAGÉS passent par `platform_settings`
+        // (clé → JSON), voir loadPlatformSetting / savePlatformSetting.
         return;
+    },
+    /**
+     * Réglage partagé par toute la plateforme (table `platform_settings`, clé →
+     * JSON ; migration 20260905160000). Tant que la table n'existe pas, ou sans
+     * droit de lecture : `null`, et l'application garde son réglage local.
+     */
+    async loadPlatformSetting<T = unknown>(key: string): Promise<{ value: T; updatedAt: string | null } | null> {
+        if (!isSupabaseConfigured) return null;
+        try {
+            const { data, error } = await supabase
+                .from('platform_settings')
+                .select('value, updated_at')
+                .eq('key', key)
+                .maybeSingle();
+            if (error || !data) return null;
+            return { value: data.value as T, updatedAt: (data.updated_at as string | null) ?? null };
+        } catch {
+            return null;
+        }
+    },
+    /** Écrit un réglage partagé (Admin Général) ; `false` si la table manque ou si le droit est refusé. */
+    async savePlatformSetting(key: string, value: unknown): Promise<boolean> {
+        if (!isSupabaseConfigured) return false;
+        try {
+            const { data: auth } = await supabase.auth.getUser();
+            const { error } = await supabase
+                .from('platform_settings')
+                .upsert(
+                    { key, value, updated_at: new Date().toISOString(), updated_by: auth?.user?.id ?? null },
+                    { onConflict: 'key' },
+                );
+            return !error;
+        } catch {
+            return false;
+        }
     },
 };

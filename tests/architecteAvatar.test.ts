@@ -15,6 +15,7 @@ import {
     shouldAnimate,
     validateArchitectePhotoUrl,
     type ArchitecteRuntimeSignals,
+    FACTORY_PORTRAIT_ID,
 } from '../services/architecte/architecteAvatar';
 import {
     LIP_SYNC_LEVEL_LABEL,
@@ -205,10 +206,52 @@ describe('Configuration héritée', () => {
         expect(merged.mouthAnchor).toEqual(DEFAULT_MOUTH_ANCHOR);
     });
 
-    it('complète une ancre partielle sans perdre ce qui est réglé', () => {
-        const merged = mergeArchitecteAvatarConfig({ mouthAnchor: { yPercent: 80 } });
+    it('complète une ancre partielle sans perdre ce qui est réglé (sous le portrait d’usine courant)', () => {
+        const merged = mergeArchitecteAvatarConfig({ factoryPortraitId: FACTORY_PORTRAIT_ID, mouthAnchor: { yPercent: 80 } });
         expect(merged.mouthAnchor.yPercent).toBe(80);
         expect(merged.mouthAnchor.xPercent).toBe(DEFAULT_MOUTH_ANCHOR.xPercent);
+    });
+
+    it('écarte le calage enregistré sous un ANCIEN portrait d’usine (rig relevé sur une autre image)', () => {
+        const heritee = mergeArchitecteAvatarConfig({
+            photoUrl: DEFAULT_ARCHITECTE_AVATAR.photoUrl,
+            rig: { ...DEFAULT_ARCHITECTE_AVATAR.rig, jawLinePercent: 67.3, eyeLeftXPercent: 41.75 },
+            mouthAnchor: { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 },
+            voiceKey: 'directeur',
+            animationsEnabled: false,
+        });
+        expect(heritee.rig).toEqual(DEFAULT_ARCHITECTE_AVATAR.rig);
+        expect(heritee.mouthAnchor).toEqual(DEFAULT_MOUTH_ANCHOR);
+        expect(heritee.factoryPortraitId).toBe(FACTORY_PORTRAIT_ID);
+        // Les choix qui ne dépendent pas de l'image sont conservés.
+        expect(heritee.voiceKey).toBe('directeur');
+        expect(heritee.animationsEnabled).toBe(false);
+    });
+
+    it('garde intégralement le calage d’une photo déposée par l’Admin-Général, et répare l’avatar précédent d’usine', () => {
+        const rig = { ...DEFAULT_ARCHITECTE_AVATAR.rig, jawLinePercent: 70.1 };
+        const merged = mergeArchitecteAvatarConfig({
+            photoUrl: 'data:image/jpeg;base64,AAAA',
+            rig,
+            mouthAnchor: { xPercent: 49, yPercent: 70, widthPercent: 20, tiltDeg: 0 },
+            silhouetteMaskUrl: 'data:image/png;base64,BBBB',
+            silhouetteMaskForPhotoUrl: 'data:image/jpeg;base64,AAAA',
+            previousAvatar: {
+                photoUrl: DEFAULT_ARCHITECTE_AVATAR.photoUrl,
+                rig: { ...DEFAULT_ARCHITECTE_AVATAR.rig, jawLinePercent: 67.3 },
+                mouthAnchor: { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 },
+                silhouetteMaskUrl: '/architecte/architecte-silhouette.png',
+                silhouetteMaskForPhotoUrl: DEFAULT_ARCHITECTE_AVATAR.photoUrl,
+                videoSequencesEnabled: true,
+                updatedAt: '',
+                updatedBy: '',
+            },
+        });
+        expect(merged.rig.jawLinePercent).toBe(70.1);
+        expect(merged.mouthAnchor.yPercent).toBe(70);
+        expect(merged.silhouetteMaskUrl).toBe('data:image/png;base64,BBBB');
+        expect(merged.previousAvatar?.rig).toEqual(DEFAULT_ARCHITECTE_AVATAR.rig);
+        expect(merged.previousAvatar?.mouthAnchor).toEqual(DEFAULT_MOUTH_ANCHOR);
     });
 
     it('résiste à un contenu illisible', () => {
