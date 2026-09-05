@@ -86,7 +86,7 @@ export const AIPostAssistantModal: React.FC<AIPostAssistantModalProps> = ({
     const declencheur = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const racine = racineApplication();
     racine?.setAttribute('inert', '');
-    // DEC-2026-082 : la modale suit la zone reellement visible (zoom de page
+    // DEC-2026-083 : la modale suit la zone reellement visible (zoom de page
     // d'iOS au focus d'un champ, clavier ouvert) ; sans visualViewport, le
     // inset-0 de la feuille suffit et rien n'est ecrit en ligne.
     const zoneVisible = window.visualViewport;
@@ -238,7 +238,7 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
     <div ref={feuilleRef} data-miroir role="dialog" aria-modal="true" aria-labelledby="ia-modale-titre" className="ia-fond fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
       <div className="ia-carte bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col animate-scale-up">
 
-        {/* Header — DEC-2026-082 : retrecissable et repliable pour les cartes etroites (zoom de page, petits ecrans) */}
+        {/* Header — DEC-2026-083 : retrecissable et repliable pour les cartes etroites (zoom de page, petits ecrans) */}
         <div className="ia-tete p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">

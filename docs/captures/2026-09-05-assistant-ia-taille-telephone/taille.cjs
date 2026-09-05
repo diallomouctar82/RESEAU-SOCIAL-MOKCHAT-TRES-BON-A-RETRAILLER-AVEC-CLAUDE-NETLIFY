@@ -57,6 +57,8 @@ const CAS = [
         zoneDefilante: zone ? { h: Math.round(zone.clientHeight), contenu: Math.round(zone.scrollHeight), defile: zone.scrollHeight > zone.clientHeight + 1 } : null,
         boutonSousLeDoigt: !!(sous && sous.closest('button') && /Appliquer/.test(sous.closest('button').textContent || '')),
         maxHeightCarte: getComputedStyle(carte).maxHeight,
+        fermer: (() => { const f = carte.querySelector('.ia-fermer'); return f ? r(f) : null; })(),
+        entete: (() => { const t = carte.querySelector('.ia-tete') || carte.firstElementChild; return { ...r(t), padding: getComputedStyle(t).padding, alignItems: getComputedStyle(t).alignItems }; })(),
         debordementCarte: { scrollLeft: carte.scrollLeft, scrollWidth: carte.scrollWidth, clientWidth: carte.clientWidth, deborde: carte.scrollWidth > carte.clientWidth + 1 },
         plusLarges: Array.from(carte.querySelectorAll('*')).filter((el) => el.getBoundingClientRect().right > cb.x + cb.w + 1 || el.getBoundingClientRect().left < cb.x - 1).slice(0, 4).map((el) => ({ tag: el.tagName, cls: String(el.className).slice(0, 40), l: Math.round(el.getBoundingClientRect().left), r: Math.round(el.getBoundingClientRect().right) })),
       };

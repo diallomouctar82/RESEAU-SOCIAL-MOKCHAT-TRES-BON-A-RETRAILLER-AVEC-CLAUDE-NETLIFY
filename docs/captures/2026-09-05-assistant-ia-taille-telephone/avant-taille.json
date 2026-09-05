@@ -1,8 +1,8 @@
 {
   "_meta": {
     "etat": "avant",
-    "sha": "a440309",
-    "date": "2026-09-05T17:22:33.189Z"
+    "sha": "f1bb563",
+    "date": "2026-09-05T18:32:48.435Z"
   },
   "iphone-se1-320x568": {
     "ecran": {
@@ -53,6 +53,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "511.2px",
+    "fermer": {
+      "x": 267,
+      "y": 111,
+      "w": 36,
+      "h": 36,
+      "bas": 147
+    },
+    "entete": {
+      "x": -24,
+      "y": 29,
+      "w": 286,
+      "h": 200,
+      "bas": 229,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 41,
+      "scrollWidth": 327,
+      "clientWidth": 286,
+      "deborde": true
+    },
+    "plusLarges": [
+      {
+        "tag": "DIV",
+        "cls": "p-5 bg-gradient-to-r from-blue-600 via-i",
+        "l": -24,
+        "r": 262
+      },
+      {
+        "tag": "DIV",
+        "cls": "flex items-center gap-3",
+        "l": -4,
+        "r": 267
+      },
+      {
+        "tag": "DIV",
+        "cls": "p-2.5 bg-white/20 backdrop-blur-md round",
+        "l": -4,
+        "r": 38
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 6,
+        "r": 28
+      }
+    ],
     "erreursJS": []
   },
   "android-360x640": {
@@ -104,6 +152,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "576px",
+    "fermer": {
+      "x": 308,
+      "y": 115,
+      "w": 36,
+      "h": 36,
+      "bas": 151
+    },
+    "entete": {
+      "x": 17,
+      "y": 33,
+      "w": 326,
+      "h": 200,
+      "bas": 233,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 327,
+      "clientWidth": 326,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "iphone-se-375x667": {
@@ -155,6 +251,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "600.3px",
+    "fermer": {
+      "x": 308,
+      "y": 116,
+      "w": 36,
+      "h": 36,
+      "bas": 152
+    },
+    "entete": {
+      "x": 17,
+      "y": 34,
+      "w": 341,
+      "h": 200,
+      "bas": 234,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 341,
+      "clientWidth": 341,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "iphone-390x844": {
@@ -206,6 +350,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "759.6px",
+    "fermer": {
+      "x": 317,
+      "y": 125,
+      "w": 36,
+      "h": 36,
+      "bas": 161
+    },
+    "entete": {
+      "x": 17,
+      "y": 43,
+      "w": 356,
+      "h": 200,
+      "bas": 243,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 356,
+      "clientWidth": 356,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "android-412x915": {
@@ -257,6 +449,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "823.5px",
+    "fermer": {
+      "x": 339,
+      "y": 121,
+      "w": 36,
+      "h": 36,
+      "bas": 157
+    },
+    "entete": {
+      "x": 17,
+      "y": 47,
+      "w": 378,
+      "h": 184,
+      "bas": 231,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 378,
+      "clientWidth": 378,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "iphone-390x500-clavier": {
@@ -308,6 +548,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "450px",
+    "fermer": {
+      "x": 317,
+      "y": 108,
+      "w": 36,
+      "h": 36,
+      "bas": 144
+    },
+    "entete": {
+      "x": 17,
+      "y": 26,
+      "w": 356,
+      "h": 200,
+      "bas": 226,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 356,
+      "clientWidth": 356,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "iphone-390x844-zoom150": {
@@ -359,6 +647,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "759.6px",
+    "fermer": {
+      "x": 317,
+      "y": 125,
+      "w": 36,
+      "h": 36,
+      "bas": 161
+    },
+    "entete": {
+      "x": 17,
+      "y": 43,
+      "w": 356,
+      "h": 200,
+      "bas": 243,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 356,
+      "clientWidth": 356,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "iphone-375x667-zoom133": {
@@ -410,6 +746,54 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "600.3px",
+    "fermer": {
+      "x": 308,
+      "y": 116,
+      "w": 36,
+      "h": 36,
+      "bas": 152
+    },
+    "entete": {
+      "x": 17,
+      "y": 34,
+      "w": 341,
+      "h": 200,
+      "bas": 234,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 341,
+      "clientWidth": 341,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
     "erreursJS": []
   },
   "ordinateur-1440x900": {
@@ -461,6 +845,36 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "810px",
+    "fermer": {
+      "x": 1047,
+      "y": 164,
+      "w": 36,
+      "h": 36,
+      "bas": 200
+    },
+    "entete": {
+      "x": 337,
+      "y": 140,
+      "w": 766,
+      "h": 84,
+      "bas": 224,
+      "padding": "20px",
+      "alignItems": "center"
+    },
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 766,
+      "clientWidth": 766,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 1054,
+        "r": 1243
+      }
+    ],
     "erreursJS": []
   }
 }

@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  *   - la feuille place la modale au-dessus du dock (50) et de la barre
  *     flottante (60), sous le studio Visuel IA, borne la carte à 90 % du voile
  *     (96 % quand il est bas), le voile suivant la zone réellement visible
- *     (DEC-2026-082), et respecte la zone sûre du bas.
+ *     (DEC-2026-083), et respecte la zone sûre du bas.
  */
 
 vi.mock('../services/ai', () => ({
@@ -69,7 +69,7 @@ describe('modale « Assistant IA Pré-Publication » (DEC-2026-080)', () => {
     const carte = dialogue.firstElementChild as HTMLElement;
     expect(carte.className).toContain('ia-carte');
     expect(carte.className).not.toMatch(/max-h-\[90vh\]/);
-    // DEC-2026-082 : en-tete retrecissable et repliable (cartes etroites)
+    // DEC-2026-083 : en-tete retrecissable et repliable (cartes etroites)
     const titre = dialogue.querySelector('#ia-modale-titre') as HTMLElement;
     expect(titre.className).toMatch(/\bbreak-words\b/);
     expect(titre.parentElement!.className).toMatch(/\bflex-wrap\b/);
@@ -95,7 +95,7 @@ describe('modale « Assistant IA Pré-Publication » (DEC-2026-080)', () => {
     const appliquer = screen.getByRole('button', { name: /Appliquer à ma publication/ }) as HTMLButtonElement;
     expect(annuler.closest('.ia-pied')).not.toBeNull();
     expect(appliquer.closest('.ia-pied')).not.toBeNull();
-    expect((appliquer.closest('.ia-pied') as HTMLElement).className).toMatch(/\bflex-wrap\b/); // DEC-2026-082 : le pied se replie sur les cartes etroites
+    expect((appliquer.closest('.ia-pied') as HTMLElement).className).toMatch(/\bflex-wrap\b/); // DEC-2026-083 : le pied se replie sur les cartes etroites
     expect(appliquer.disabled).toBe(false);
     fireEvent.click(appliquer);
     expect(onApply).toHaveBeenCalledWith('Bonjour, soyez les bienvenus', undefined, undefined);
@@ -104,7 +104,7 @@ describe('modale « Assistant IA Pré-Publication » (DEC-2026-080)', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it('suit la zone réellement visible tant qu’elle est ouverte (zoom de page, clavier) et cesse à la fermeture — DEC-2026-082', () => {
+  it('suit la zone réellement visible tant qu’elle est ouverte (zoom de page, clavier) et cesse à la fermeture — DEC-2026-083', () => {
     const faux = Object.assign(new EventTarget(), { offsetTop: 0, offsetLeft: 0, width: 390, height: 844, scale: 1 });
     Object.defineProperty(window, 'visualViewport', { value: faux, configurable: true });
     const retire = vi.spyOn(faux, 'removeEventListener');
@@ -152,7 +152,7 @@ describe('feuille de style de la modale (index.html, telle qu’analysée)', () 
   });
 
   it('borne la hauteur à 90 % du voile (qui suit la zone visible), et le pied respecte la zone sûre du bas', () => {
-    expect(valeurs('.ia-carte', 'max-height')).toEqual(['90%']); // 90 % du voile, qui suit la zone visible (DEC-2026-082)
+    expect(valeurs('.ia-carte', 'max-height')).toEqual(['90%']); // 90 % du voile, qui suit la zone visible (DEC-2026-083)
     expect(valeurs('.ia-fond .ia-carte', 'max-height')).toEqual(['96%']); // 96 % quand le voile est bas
     expect(valeurs('.ia-fond .ia-carte', 'overflow')).toEqual(['clip']); // jamais defilee horizontalement par un focus
     expect(valeurs('.ia-fond .ia-tete, .ia-fond .ia-onglets, .ia-fond .ia-pied', 'flex-shrink')).toEqual(['0']);
@@ -171,9 +171,9 @@ describe('feuille de style de la modale (index.html, telle qu’analysée)', () 
   });
 });
 
-describe('champ du composeur à 16 px sur tactile (index.html, DEC-2026-082)', () => {
+describe('champ du composeur à 16 px sur tactile (index.html, DEC-2026-083)', () => {
   const HTML = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
-  const debut = HTML.indexOf('COMPOSEUR A7 — CHAMP A 16 PX SUR TACTILE (DEC-2026-082)');
+  const debut = HTML.indexOf('COMPOSEUR A7 — CHAMP A 16 PX SUR TACTILE (DEC-2026-083)');
   const fin = HTML.indexOf('/* ===== FIN COMPOSEUR A7 CHAMP TACTILE ===== */');
   const bloc = HTML.slice(debut, fin);
   const feuille = postcss.parse(bloc.slice(bloc.indexOf('*/') + 2));

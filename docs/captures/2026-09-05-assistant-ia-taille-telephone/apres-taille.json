@@ -1,8 +1,8 @@
 {
   "_meta": {
     "etat": "apres",
-    "sha": "a440309-dirty",
-    "date": "2026-09-05T17:56:21.124Z"
+    "sha": "099ed6e",
+    "date": "2026-09-05T18:25:26.103Z"
   },
   "iphone-se1-320x568": {
     "ecran": {
@@ -37,22 +37,38 @@
       "bas": 541
     },
     "bouton": {
-      "x": 33,
-      "y": 472,
-      "w": 254,
-      "h": 52,
+      "x": 29,
+      "y": 488,
+      "w": 255,
+      "h": 36,
       "bas": 524
     },
     "carteDansLaZoneVisible": true,
     "boutonDansLaZoneVisible": true,
     "fondCouvreLaZoneVisible": true,
     "zoneDefilante": {
-      "h": 165,
-      "contenu": 750,
+      "h": 223,
+      "contenu": 674,
       "defile": true
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "96%",
+    "fermer": {
+      "x": 253,
+      "y": 40,
+      "w": 36,
+      "h": 36,
+      "bas": 76
+    },
+    "entete": {
+      "x": 17,
+      "y": 28,
+      "w": 286,
+      "h": 134,
+      "bas": 162,
+      "padding": "12px 14px",
+      "alignItems": "flex-start"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 286,
@@ -136,6 +152,22 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "90%",
+    "fermer": {
+      "x": 287,
+      "y": 115,
+      "w": 36,
+      "h": 36,
+      "bas": 151
+    },
+    "entete": {
+      "x": 17,
+      "y": 47,
+      "w": 326,
+      "h": 171,
+      "bas": 218,
+      "padding": "20px",
+      "alignItems": "center"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 326,
@@ -219,6 +251,22 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "90%",
+    "fermer": {
+      "x": 302,
+      "y": 116,
+      "w": 36,
+      "h": 36,
+      "bas": 152
+    },
+    "entete": {
+      "x": 17,
+      "y": 49,
+      "w": 341,
+      "h": 171,
+      "bas": 220,
+      "padding": "20px",
+      "alignItems": "center"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 341,
@@ -302,6 +350,22 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "90%",
+    "fermer": {
+      "x": 317,
+      "y": 125,
+      "w": 36,
+      "h": 36,
+      "bas": 161
+    },
+    "entete": {
+      "x": 17,
+      "y": 58,
+      "w": 356,
+      "h": 171,
+      "bas": 229,
+      "padding": "20px",
+      "alignItems": "center"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 356,
@@ -385,6 +449,22 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "90%",
+    "fermer": {
+      "x": 339,
+      "y": 121,
+      "w": 36,
+      "h": 36,
+      "bas": 157
+    },
+    "entete": {
+      "x": 17,
+      "y": 61,
+      "w": 378,
+      "h": 155,
+      "bas": 216,
+      "padding": "20px",
+      "alignItems": "center"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 378,
@@ -468,6 +548,22 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "96%",
+    "fermer": {
+      "x": 317,
+      "y": 94,
+      "w": 36,
+      "h": 36,
+      "bas": 130
+    },
+    "entete": {
+      "x": 17,
+      "y": 26,
+      "w": 356,
+      "h": 171,
+      "bas": 197,
+      "padding": "20px",
+      "alignItems": "center"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 356,
@@ -535,9 +631,9 @@
       "bas": 536
     },
     "bouton": {
-      "x": 33,
+      "x": 29,
       "y": 467,
-      "w": 194,
+      "w": 202,
       "h": 52,
       "bas": 519
     },
@@ -545,12 +641,28 @@
     "boutonDansLaZoneVisible": true,
     "fondCouvreLaZoneVisible": true,
     "zoneDefilante": {
-      "h": 97,
-      "contenu": 834,
+      "h": 119,
+      "contenu": 798,
       "defile": true
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "96%",
+    "fermer": {
+      "x": 193,
+      "y": 40,
+      "w": 36,
+      "h": 36,
+      "bas": 76
+    },
+    "entete": {
+      "x": 17,
+      "y": 28,
+      "w": 226,
+      "h": 217,
+      "bas": 244,
+      "padding": "12px 14px",
+      "alignItems": "flex-start"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 226,
@@ -618,9 +730,9 @@
       "bas": 476
     },
     "bouton": {
-      "x": 33,
+      "x": 29,
       "y": 407,
-      "w": 216,
+      "w": 224,
       "h": 52,
       "bas": 459
     },
@@ -628,12 +740,28 @@
     "boutonDansLaZoneVisible": true,
     "fondCouvreLaZoneVisible": true,
     "zoneDefilante": {
-      "h": 52,
-      "contenu": 818,
+      "h": 89,
+      "contenu": 746,
       "defile": true
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "96%",
+    "fermer": {
+      "x": 215,
+      "y": 38,
+      "w": 36,
+      "h": 36,
+      "bas": 74
+    },
+    "entete": {
+      "x": 17,
+      "y": 26,
+      "w": 248,
+      "h": 188,
+      "bas": 215,
+      "padding": "12px 14px",
+      "alignItems": "flex-start"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 248,
@@ -717,6 +845,22 @@
     },
     "boutonSousLeDoigt": true,
     "maxHeightCarte": "90%",
+    "fermer": {
+      "x": 1047,
+      "y": 164,
+      "w": 36,
+      "h": 36,
+      "bas": 200
+    },
+    "entete": {
+      "x": 337,
+      "y": 140,
+      "w": 766,
+      "h": 84,
+      "bas": 224,
+      "padding": "20px",
+      "alignItems": "center"
+    },
     "debordementCarte": {
       "scrollLeft": 0,
       "scrollWidth": 766,
