@@ -366,6 +366,14 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(decl(dansMedia(medias[0], '.a7-rail'), 'display')).toBeUndefined();
     expect(decl(dansMedia(medias[0], '.a7-corps'), 'grid-row')).toBe('1 / span 2');
     expect(decl(dansMedia(medias[0], '.a7-rangee'), 'grid-template-columns')).toBe('repeat(4, minmax(0, 1fr))');
+    // Le repli porte les mêmes finitions que la requête de conteneur : rail
+    // à 57 px, libellés IA qui peuvent se couper, groupe resserré.
+    expect(decl(dansMedia(medias[0], '.a7-rail .a7-ob'), 'padding')).toBe('4px 0');
+    expect(decl(dans('.a7-rail .a7-ob'), 'padding')).toBe('4px 0');
+    expect(decl(dansMedia(medias[0], '.a7-rangee .a7-ob'), 'overflow-wrap')).toBe('anywhere');
+    expect(decl(dans('.a7-rangee .a7-ob'), 'overflow-wrap')).toBe('anywhere');
+    expect(decl(dansMedia(medias[0], '.a7-groupe .a7-brouillon'), 'padding')).toBe('10px 12px');
+    expect(decl(dansMedia(medias[0], '.a7-groupe .a7-publier'), 'padding')).toBe('10px 14px');
     expect(decl(dansMedia(medias[1], '.a7-rail'), 'display')).toBe('none');
     expect(decl(dansMedia(medias[1], '.a7-medias-bas'), 'display')).toBe('flex');
     expect(decl(dansMedia(medias[1], '.a7-grille'), 'grid-template-columns')).toBe('44px minmax(0, 1fr)');
