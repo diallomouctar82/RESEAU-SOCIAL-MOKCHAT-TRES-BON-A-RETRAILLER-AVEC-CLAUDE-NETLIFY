@@ -1,0 +1,15 @@
+GET https://moknet.net/ -> 200 (165094 octets) 17:01:55 UTC
+bundle principal : assets/index-CacRDIgE.js
+  GET bundle -> 200 (5432686 octets)
+  js 'refus du serveur d'authentification (' : 1
+  js 'serveur d'authentification sans verdict' : 1
+  js 'Session locale refusée par le serveur' : 1
+  js 'le jeton ne correspond pas à l'utilisateur de la session locale' : 1
+  js ABSENT 'serveur d'authentification injoignable :' : 0 (attendu 0)
+  html '<div id="root"></div>' : 1
+  ancien bundle index-6ZrCib2c.js -> 404 (attendu 404)
+  cache-control: public,max-age=0,must-revalidate
+  date: Sat, 05 Sep 2026 17:01:56 GMT
+  etag: "b71f1754c867a5d2fa40eb69958df66c-ssl"
+  x-nf-request-id: 01M1S8A1XJ2361SFYBXDHW46J8
+VERDICT : conforme

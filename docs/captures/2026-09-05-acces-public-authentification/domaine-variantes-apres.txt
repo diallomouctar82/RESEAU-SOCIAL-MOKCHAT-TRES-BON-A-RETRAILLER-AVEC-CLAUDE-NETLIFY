@@ -1,0 +1,48 @@
+# Variantes d'écriture du domaine — production APRÈS fusion (2026-09-05T17:01:56Z, main daa6575)
+
+## https://moknet.net/
+  sauts=0 final=https://moknet.net/ http=200
+  HTTP/2 200 
+
+## https://www.moknet.net/
+  sauts=1 final=https://moknet.net/ http=200
+  HTTP/2 301 
+  location: https://moknet.net/
+
+## http://moknet.net/
+  sauts=1 final=https://moknet.net/ http=200
+  HTTP/1.1 301 Moved Permanently
+  location: https://moknet.net/
+
+## http://www.moknet.net/
+  sauts=2 final=https://moknet.net/ http=200
+  HTTP/1.1 301 Moved Permanently
+  location: https://www.moknet.net/
+
+## https://Moknet.net/
+  sauts=0 final=https://Moknet.net/ http=200
+  HTTP/2 200 
+
+## https://MOKNET.NET/
+  sauts=0 final=https://MOKNET.NET/ http=200
+  HTTP/2 200 
+
+## https://Www.Moknet.Net/
+  sauts=1 final=https://moknet.net/ http=200
+  HTTP/2 301 
+  location: https://moknet.net/
+
+## https://WWW.MOKNET.NET/
+  sauts=1 final=https://moknet.net/ http=200
+  HTTP/2 301 
+  location: https://moknet.net/
+
+## http://MOKNET.NET/
+  sauts=1 final=https://moknet.net/ http=200
+  HTTP/1.1 301 Moved Permanently
+  location: https://moknet.net/
+
+## http://Www.moknet.net/
+  sauts=2 final=https://moknet.net/ http=200
+  HTTP/1.1 301 Moved Permanently
+  location: https://www.moknet.net/
