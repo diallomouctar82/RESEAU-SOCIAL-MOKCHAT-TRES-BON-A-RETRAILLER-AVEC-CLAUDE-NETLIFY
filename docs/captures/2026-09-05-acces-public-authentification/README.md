@@ -111,3 +111,20 @@ Avant : la session refusée ouvrait déjà l'interface au premier écran, et le 
 - `cdn.tailwindcss.com` et `cdn.jsdelivr.net` ne sont pas joignables depuis le banc : Tailwind Play est servi depuis une copie locale, MediaPipe est absent (sans effet sur l'entrée).
 - Un jeton d'accès encore valide (≤ 1 h) après une « déconnexion partout » depuis un autre appareil n'est pas révoqué par ce contrôle (limite des jetons signés).
 - Colonne « Erreurs JS » : les seules lignes non filtrées sont, avec une session confirmée, `Blocked call to navigator.vibrate` (Chromium refuse la vibration avant tout geste de l'utilisateur — bruit connu du banc, sans rapport avec l'entrée) et, serveur coupé, `Erreur chargement profil Supabase : Failed to fetch` (le réseau est volontairement coupé dans ce scénario).
+
+## 🚀 Production (5 septembre 2026, après fusion de la PR #105 → `main` `daa6575`)
+
+`production-verification.txt` : `moknet.net` sert `index-CacRDIgE.js` depuis 17:01:54 UTC, quatre marqueurs du verrou présents, ancienne formulation absente, ancien bundle `index-6ZrCib2c.js` → 404. `domaine-variantes-apres.txt` : les dix écritures du domaine finissent sur `https://moknet.net/` après mise en ligne des règles `netlify.toml`. `production-mesures.json` : fumée Chromium sur le bundle **réellement servi** (miroir local de la page de production, serveur Supabase rejoué comme au banc) :
+
+| État | Canal | Premier écran | Après rejeu `SIGNED_IN` |
+| :--- | :--- | :--- | :--- |
+| vierge | navigateur-ordinateur | ECRAN_AUTHENTIFICATION | — |
+| vierge | navigateur-mobile | ECRAN_AUTHENTIFICATION | — |
+| session-invalide | navigateur-ordinateur | ECRAN_AUTHENTIFICATION | — |
+| session-invalide | navigateur-mobile | ECRAN_AUTHENTIFICATION | — |
+| session-valide | navigateur-ordinateur | INTERFACE_INTERNE | — |
+| session-valide | navigateur-mobile | INTERFACE_INTERNE | — |
+| session-invalide-rejeu | navigateur-ordinateur | ECRAN_AUTHENTIFICATION | ECRAN_AUTHENTIFICATION |
+| session-invalide-rejeu | navigateur-mobile | ECRAN_AUTHENTIFICATION | ECRAN_AUTHENTIFICATION |
+
+Captures : `production-session-invalide-*.jpg`, `production-session-invalide-rejeu-*-apres-rejeu.jpg`. Niveau de preuve : 🚀 page et bundle servis par la production ; le serveur d'authentification reste rejoué (réponses réelles de Supabase), le vrai téléphone appartient au contrôle de la Direction.
