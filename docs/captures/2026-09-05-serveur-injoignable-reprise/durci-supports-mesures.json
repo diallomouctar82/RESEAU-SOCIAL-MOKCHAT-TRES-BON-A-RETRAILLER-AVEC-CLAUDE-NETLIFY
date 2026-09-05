@@ -1,0 +1,4702 @@
+{
+  "vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 106,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 104,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 93,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 103,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 90,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 94,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-invalide",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 97,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 102,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 96,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-valide/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 83,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Mon Cap",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "Basculer le mode concentration",
+      "Basculer le mode présentation",
+      "Bilingue",
+      "🇫🇷",
+      "Mon Cap"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-valide",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 175,
+    "nbAppelsSupabase": 21,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 84,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 187,
+    "nbAppelsSupabase": 21,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 78,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "🇫🇷",
+      "Mon Cap",
+      "Accueil",
+      "Réseau MOC",
+      "Mon Parcours de VieCap",
+      "Campus & Éducation"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 171,
+    "nbAppelsSupabase": 21,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-reseau-coupe/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 69,
+    "nbAppelsSupabase": 8,
+    "attendu": "ECRAN_REPRISE (fermé par défaut, DEC-2026-083 : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 67,
+    "nbAppelsSupabase": 8,
+    "attendu": "ECRAN_REPRISE (fermé par défaut, DEC-2026-083 : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 74,
+    "nbAppelsSupabase": 8,
+    "attendu": "ECRAN_REPRISE (fermé par défaut, DEC-2026-083 : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe-puis-retour/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1038,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe-puis-retour",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 68,
+    "nbAppelsSupabase": 20,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-retour/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1058,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe-puis-retour",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 62,
+    "nbAppelsSupabase": 22,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-retour/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1057,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-reseau-coupe-puis-retour",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 61,
+    "nbAppelsSupabase": 22,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-bouton/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1142,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe-puis-bouton",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 73,
+    "nbAppelsSupabase": 21,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-bouton/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1067,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe-puis-bouton",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 71,
+    "nbAppelsSupabase": 22,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-bouton/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1124,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-reseau-coupe-puis-bouton",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 67,
+    "nbAppelsSupabase": 23,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-visibilite/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1063,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement visibilitychange",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe-puis-visibilite",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 67,
+    "nbAppelsSupabase": 21,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-visibilite/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1027,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement visibilitychange",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe-puis-visibilite",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 89,
+    "nbAppelsSupabase": 23,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-visibilite/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 1072,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement visibilitychange",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-reseau-coupe-puis-visibilite",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 66,
+    "nbAppelsSupabase": 24,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-bouton-toujours-coupe/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": false,
+      "composeur": false,
+      "champMotDePasse": false,
+      "ecranReprise": true,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "verdictEcran": "ECRAN_REPRISE",
+      "dureeMs": 16866,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "coupe",
+      "attendu": "ECRAN_REPRISE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe-bouton-toujours-coupe",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 80,
+    "nbAppelsSupabase": 15,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-bouton-toujours-coupe/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": false,
+      "composeur": false,
+      "champMotDePasse": false,
+      "ecranReprise": true,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "verdictEcran": "ECRAN_REPRISE",
+      "dureeMs": 16868,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "coupe",
+      "attendu": "ECRAN_REPRISE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe-bouton-toujours-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 66,
+    "nbAppelsSupabase": 15,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-bouton-toujours-coupe/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": false,
+      "composeur": false,
+      "champMotDePasse": false,
+      "ecranReprise": true,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "verdictEcran": "ECRAN_REPRISE",
+      "dureeMs": 16869,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "coupe",
+      "attendu": "ECRAN_REPRISE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-reseau-coupe-bouton-toujours-coupe",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 63,
+    "nbAppelsSupabase": 15,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-refus/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": false,
+      "composeur": false,
+      "champMotDePasse": true,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "verdictEcran": "ECRAN_AUTHENTIFICATION",
+      "dureeMs": 4905,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "refus-401",
+      "attendu": "ECRAN_AUTHENTIFICATION",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe-puis-refus",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 73,
+    "nbAppelsSupabase": 13,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-refus/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": false,
+      "composeur": false,
+      "champMotDePasse": true,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "verdictEcran": "ECRAN_AUTHENTIFICATION",
+      "dureeMs": 4907,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "refus-401",
+      "attendu": "ECRAN_AUTHENTIFICATION",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe-puis-refus",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 62,
+    "nbAppelsSupabase": 13,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-reseau-coupe-puis-refus/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": false,
+      "composeur": false,
+      "champMotDePasse": true,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "verdictEcran": "ECRAN_AUTHENTIFICATION",
+      "dureeMs": 4927,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "bouton Réessayer",
+      "modeReseau": "refus-401",
+      "attendu": "ECRAN_AUTHENTIFICATION",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-reseau-coupe-puis-refus",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /auth/v1/user",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 88,
+    "nbAppelsSupabase": 13,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "lien-prive-live-reseau-coupe/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-live-reseau-coupe",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 72,
+    "nbAppelsSupabase": 8,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "lien-prive-live-reseau-coupe/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-live-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 69,
+    "nbAppelsSupabase": 8,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "lien-prive-live-reseau-coupe/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-live-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 65,
+    "nbAppelsSupabase": 8,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-invalide-rejeu/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "apresRejeu": {
+      "navigationInterne": false,
+      "champMotDePasse": true,
+      "composeur": false,
+      "verdictEcran": "ECRAN_AUTHENTIFICATION"
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 103,
+    "nbAppelsSupabase": 7,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide-rejeu/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "apresRejeu": {
+      "navigationInterne": false,
+      "champMotDePasse": true,
+      "composeur": false,
+      "verdictEcran": "ECRAN_AUTHENTIFICATION"
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 125,
+    "nbAppelsSupabase": 7,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide-rejeu/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "apresRejeu": {
+      "navigationInterne": false,
+      "champMotDePasse": true,
+      "composeur": false,
+      "verdictEcran": "ECRAN_AUTHENTIFICATION"
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 90,
+    "nbAppelsSupabase": 7,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-expiree/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-expiree",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 87,
+    "nbAppelsSupabase": 3,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-expiree/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-expiree",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 116,
+    "nbAppelsSupabase": 3,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-expiree/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-expiree",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 85,
+    "nbAppelsSupabase": 3,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "deconnexion/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 83,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Mon Cap",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "Basculer le mode concentration",
+      "Basculer le mode présentation",
+      "Bilingue",
+      "🇫🇷",
+      "Mon Cap"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "deconnexion": {
+      "chemin": "ordinateur : avatar de profil (en-tête) puis « Se déconnecter » du menu",
+      "apresClic": {
+        "champMotDePasse": true,
+        "navigationInterne": false,
+        "cles": [
+          "lmav_enrolled_persons_v1",
+          "lmav_chat_conversations_cache"
+        ]
+      },
+      "apresReouverture": {
+        "champMotDePasse": true,
+        "navigationInterne": false,
+        "cles": [
+          "lmav_enrolled_persons_v1",
+          "lmav_chat_conversations_cache"
+        ]
+      }
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "deconnexion",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 188,
+    "nbAppelsSupabase": 25,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "deconnexion/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 84,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "deconnexion": {
+      "chemin": "téléphone/tablette : bouton « Ouvrir le menu » puis bouton « Se déconnecter » du tiroir",
+      "apresClic": {
+        "champMotDePasse": true,
+        "navigationInterne": false,
+        "cles": [
+          "lmav_enrolled_persons_v1",
+          "lmav_chat_conversations_cache"
+        ]
+      },
+      "apresReouverture": {
+        "champMotDePasse": true,
+        "navigationInterne": false,
+        "cles": [
+          "lmav_enrolled_persons_v1",
+          "lmav_chat_conversations_cache"
+        ]
+      }
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "deconnexion",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 185,
+    "nbAppelsSupabase": 25,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "deconnexion/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 78,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "🇫🇷",
+      "Mon Cap",
+      "Accueil",
+      "Réseau MOC",
+      "Mon Parcours de VieCap",
+      "Campus & Éducation"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "deconnexion": {
+      "chemin": "ordinateur : avatar de profil (en-tête) puis « Se déconnecter » du menu",
+      "apresClic": {
+        "champMotDePasse": true,
+        "navigationInterne": false,
+        "cles": [
+          "lmav_enrolled_persons_v1",
+          "lmav_chat_conversations_cache"
+        ]
+      },
+      "apresReouverture": {
+        "champMotDePasse": true,
+        "navigationInterne": false,
+        "cles": [
+          "lmav_enrolled_persons_v1",
+          "lmav_chat_conversations_cache"
+        ]
+      }
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "deconnexion",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 177,
+    "nbAppelsSupabase": 25,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "serveur-injoignable-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "serveur-injoignable-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 89,
+    "nbAppelsSupabase": 4,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "serveur-injoignable-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "serveur-injoignable-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 93,
+    "nbAppelsSupabase": 4,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "serveur-injoignable-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "serveur-injoignable-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 120,
+    "nbAppelsSupabase": 4,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-live-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 92,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-live-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 102,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-live-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 98,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-invitation-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_pending_invite",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-invitation-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?invite=ABCD1234",
+    "conforme": true,
+    "dureeAvantEcranMs": 113,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-invitation-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_pending_invite",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-invitation-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?invite=ABCD1234",
+    "conforme": true,
+    "dureeAvantEcranMs": 93,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-invitation-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_pending_invite",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-invitation-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?invite=ABCD1234",
+    "conforme": true,
+    "dureeAvantEcranMs": 93,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-messagerie-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/messagerie",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-messagerie-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/messagerie",
+    "conforme": true,
+    "dureeAvantEcranMs": 90,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-messagerie-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/messagerie",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-messagerie-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/messagerie",
+    "conforme": true,
+    "dureeAvantEcranMs": 87,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-messagerie-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/messagerie",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-messagerie-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/messagerie",
+    "conforme": true,
+    "dureeAvantEcranMs": 93,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-module-messagerie-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/?module=messagerie",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-module-messagerie-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?module=messagerie",
+    "conforme": true,
+    "dureeAvantEcranMs": 91,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-module-messagerie-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/?module=messagerie",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-module-messagerie-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?module=messagerie",
+    "conforme": true,
+    "dureeAvantEcranMs": 88,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-module-messagerie-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/?module=messagerie",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-module-messagerie-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?module=messagerie",
+    "conforme": true,
+    "dureeAvantEcranMs": 95,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-admin-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/#admin",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-admin-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/#admin",
+    "conforme": true,
+    "dureeAvantEcranMs": 90,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-admin-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/#admin",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-admin-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/#admin",
+    "conforme": true,
+    "dureeAvantEcranMs": 86,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-admin-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/#admin",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-admin-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/#admin",
+    "conforme": true,
+    "dureeAvantEcranMs": 91,
+    "nbAppelsSupabase": 2,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-session-invalide/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-live-session-invalide",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 95,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-session-invalide/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-live-session-invalide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 92,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-session-invalide/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/?live=live-banc-123",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-live-session-invalide",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 105,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "lien-prive-live-session-valide/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc",
+      "Masterclass Financement de Projet & Levée de Fonds 🚀"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 107,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Mon Cap",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "Basculer le mode concentration",
+      "Basculer le mode présentation",
+      "Bilingue",
+      "🇫🇷",
+      "Mon Cap"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-prive-live-session-valide",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 207,
+    "nbAppelsSupabase": 21,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "lien-prive-live-session-valide/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 93,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-prive-live-session-valide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 207,
+    "nbAppelsSupabase": 21,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "lien-prive-live-session-valide/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc",
+      "Masterclass Financement de Projet & Levée de Fonds 🚀"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 102,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "🇫🇷",
+      "Mon Cap",
+      "Accueil",
+      "Réseau MOC",
+      "Mon Parcours de VieCap",
+      "Campus & Éducation"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-prive-live-session-valide",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "urlCible": "http://127.0.0.1:3022/?live=live-banc-123",
+    "conforme": true,
+    "dureeAvantEcranMs": 200,
+    "nbAppelsSupabase": 21,
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-expiree-serveur-injoignable/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-expiree-serveur-injoignable",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8057,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-expiree-serveur-injoignable",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8061,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-expiree-serveur-injoignable",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8060,
+    "nbAppelsSupabase": 6,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable-puis-retour/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 4094,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-expiree-serveur-injoignable-puis-retour",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8060,
+    "nbAppelsSupabase": 37,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable-puis-retour/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 4048,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-expiree-serveur-injoignable-puis-retour",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8060,
+    "nbAppelsSupabase": 37,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable-puis-retour/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 4037,
+      "retourReseauApresMs": 0,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-expiree-serveur-injoignable-puis-retour",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8067,
+    "nbAppelsSupabase": 37,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable-retour-tardif/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 41899,
+      "retourReseauApresMs": 35000,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-expiree-serveur-injoignable-retour-tardif",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8063,
+    "nbAppelsSupabase": 34,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable-retour-tardif/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 41835,
+      "retourReseauApresMs": 35000,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-expiree-serveur-injoignable-retour-tardif",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8060,
+    "nbAppelsSupabase": 34,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "session-expiree-serveur-injoignable-retour-tardif/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/",
+    "racineMontee": true,
+    "h1": [
+      "MokNet est momentanément injoignable, veuillez réessayer."
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 1,
+    "boutons": [
+      "Réessayer"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "ecranReprise": true,
+    "boutonReessayer": true,
+    "messageReprise": true,
+    "texte": "MokNet est momentanément injoignable, veuillez réessayer. Votre session sur cet appareil est conservée. Dès que la conne",
+    "apresReprise": {
+      "navigationInterne": true,
+      "composeur": true,
+      "champMotDePasse": false,
+      "ecranReprise": false,
+      "cles": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache"
+      ],
+      "verdictEcran": "INTERFACE_INTERNE",
+      "dureeMs": 41790,
+      "retourReseauApresMs": 35000,
+      "clesAvant": [
+        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "declencheur": "événement online",
+      "modeReseau": "valide",
+      "attendu": "INTERFACE_INTERNE",
+      "conforme": true,
+      "ressaisie": false
+    },
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "session-expiree-serveur-injoignable-retour-tardif",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "POST /auth/v1/token?grant_type=refresh_token",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_REPRISE",
+    "urlCible": "http://127.0.0.1:3022/",
+    "conforme": true,
+    "dureeAvantEcranMs": 8059,
+    "nbAppelsSupabase": 34,
+    "attendu": "ECRAN_REPRISE"
+  },
+  "lien-architecte-vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3022/architecte",
+    "racineMontee": true,
+    "h1": [
+      "L’Architecte — avatar vivant"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "L'Architecte — parle. Avatar de démonstration",
+      "Le faire parler à voix haute",
+      "Voir l’avatar vidéo (modèle validé)",
+      "Écouter la phrase Vision Smart (voix HD)",
+      "Arrêter la boucle"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "PRÉSENCE OFFICIELLE MOKNET L’Architecte — avatar vivant Il respire, sa tête bouge, il cligne des yeux, et sa bouche suit",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "lien-architecte-vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "PAGE_DEMO_PUBLIQUE",
+    "urlCible": "http://127.0.0.1:3022/architecte",
+    "conforme": true,
+    "dureeAvantEcranMs": null,
+    "nbAppelsSupabase": 2,
+    "attendu": "PAGE_DEMO_PUBLIQUE (code actuel : DEC-2026-066, avant le verrou — à soumettre à la Direction)"
+  },
+  "lien-architecte-vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3022/architecte",
+    "racineMontee": true,
+    "h1": [
+      "L’Architecte — avatar vivant"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "L'Architecte — parle. Avatar de démonstration",
+      "Le faire parler à voix haute",
+      "Voir l’avatar vidéo (modèle validé)",
+      "Écouter la phrase Vision Smart (voix HD)",
+      "Arrêter la boucle"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "PRÉSENCE OFFICIELLE MOKNET L’Architecte — avatar vivant Il respire, sa tête bouge, il cligne des yeux, et sa bouche suit",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "lien-architecte-vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "PAGE_DEMO_PUBLIQUE",
+    "urlCible": "http://127.0.0.1:3022/architecte",
+    "conforme": true,
+    "dureeAvantEcranMs": null,
+    "nbAppelsSupabase": 2,
+    "attendu": "PAGE_DEMO_PUBLIQUE (code actuel : DEC-2026-066, avant le verrou — à soumettre à la Direction)"
+  },
+  "lien-architecte-vierge/navigateur-tablette": {
+    "url": "http://127.0.0.1:3022/architecte",
+    "racineMontee": true,
+    "h1": [
+      "L’Architecte — avatar vivant"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "L'Architecte — parle. Avatar de démonstration",
+      "Le faire parler à voix haute",
+      "Voir l’avatar vidéo (modèle validé)",
+      "Écouter la phrase Vision Smart (voix HD)",
+      "Arrêter la boucle"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "ecranReprise": false,
+    "boutonReessayer": false,
+    "messageReprise": false,
+    "texte": "PRÉSENCE OFFICIELLE MOKNET L’Architecte — avatar vivant Il respire, sa tête bouge, il cligne des yeux, et sa bouche suit",
+    "http": 200,
+    "canal": "navigateur-tablette",
+    "scenario": "lien-architecte-vierge",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/platform_settings?select=value%2Cupdated_at&key=eq.archit",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "PAGE_DEMO_PUBLIQUE",
+    "urlCible": "http://127.0.0.1:3022/architecte",
+    "conforme": true,
+    "dureeAvantEcranMs": null,
+    "nbAppelsSupabase": 2,
+    "attendu": "PAGE_DEMO_PUBLIQUE (code actuel : DEC-2026-066, avant le verrou — à soumettre à la Direction)"
+  }
+}
