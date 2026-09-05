@@ -166,7 +166,7 @@ export function verdictSentence(report: HealthReport): string {
     if (report.tally.rouge > 0) manques.push(`${report.tally.rouge} ligne(s) rouge(s)`);
     if (report.tally.orange > 0) manques.push(`${report.tally.orange} orange(s)`);
     if (report.tally.blanc > 0) manques.push(`${report.tally.blanc} non éprouvée(s)`);
-    return `${report.score} sur 100 sur ${couverture} — non certifiable : ${manques.join(', ')}.`;
+    return `Santé ${Math.round(report.score)} % sur ${couverture} — non certifiable : ${manques.join(', ')}.`;
 }
 
 /**
