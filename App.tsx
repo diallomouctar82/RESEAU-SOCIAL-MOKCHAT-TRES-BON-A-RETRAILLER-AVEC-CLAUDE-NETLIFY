@@ -34,7 +34,8 @@ import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, MemberProfile } from './types';
-import { getSession, onAuthStateChange, signOut } from './services/auth';
+import { getSession, onAuthStateChange, signOut, verifierSession } from './services/auth';
+import type { Session, VerdictSession } from './services/auth';
 import { supabaseService } from './services/supabaseClient';
 import { fetchUserProfile } from './services/profile';
 import { detectStandaloneModule } from './services/modules/standaloneMode';
@@ -127,17 +128,53 @@ const AppContent = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-078) : une session
+  // relue depuis le stockage local n'ouvre l'interface qu'après vérification
+  // auprès du serveur (services/auth.ts#verifierSession). Une seule
+  // vérification par jeton : `getSession()` et l'événement `INITIAL_SESSION`
+  // relisent le même jeton au démarrage et partagent ce verdict.
+  const verdictsRef = useRef(new Map<string, Promise<VerdictSession>>());
+  const verdictPourSession = (session: Session): Promise<VerdictSession> => {
+      const cle = session.access_token;
+      let verdict = verdictsRef.current.get(cle);
+      if (!verdict) {
+          verdict = verifierSession(session);
+          verdictsRef.current.set(cle, verdict);
+      }
+      return verdict;
+  };
+
   // GESTION DE SESSION RÉSILIENTE (Supabase Cloud + Local-First Fallback)
   useEffect(() => {
       let isMounted = true;
 
-      const applySession = async (userId: string | undefined, isInitial: boolean) => {
-          if (!userId) {
+      // `depuisStockage` : la session vient du stockage de l'appareil (ouverture
+      // de l'application), pas d'une connexion ou d'un rafraîchissement que le
+      // serveur vient d'émettre — elle doit être vérifiée avant d'entrer.
+      const applySession = async (session: Session | null, isInitial: boolean, depuisStockage: boolean) => {
+          const userId = session?.user?.id;
+          if (!session || !userId) {
               if (isMounted) {
                   setIsAuthenticated(false);
                   if (isInitial) setIsAuthChecking(false);
               }
               return;
+          }
+
+          if (depuisStockage) {
+              const verdict = await verdictPourSession(session);
+              if (!isMounted) return;
+              if (verdict.statut === 'invalide') {
+                  // Jeton refusé par le serveur (périmé, révoqué, forgé, compte
+                  // supprimé ou banni) : aucune page interne, écran de connexion.
+                  console.warn('Session locale refusée par le serveur — écran de connexion :', verdict.raison);
+                  setIsAuthenticated(false);
+                  if (isInitial) setIsAuthChecking(false);
+                  return;
+              }
+              if (verdict.statut === 'non-verifiee') {
+                  console.warn('Session locale conservée sans vérification (serveur injoignable) :', verdict.raison);
+              }
           }
 
           try {
@@ -162,7 +199,7 @@ const AppContent = () => {
           }
       };
 
-      getSession().then((session) => applySession(session?.user?.id, true));
+      getSession().then((session) => applySession(session, true, true));
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion
@@ -174,7 +211,11 @@ const AppContent = () => {
               return;
           }
           setIsPasswordRecovery(false);
-          applySession(session?.user?.id, false);
+          // `INITIAL_SESSION` rejoue la session du stockage : même verrou que
+          // `getSession()` ci-dessus (verdict partagé, une seule vérification).
+          // `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED` portent une session
+          // que le serveur vient d'émettre : elles entrent comme avant.
+          applySession(session, false, event === 'INITIAL_SESSION');
       });
 
       return () => {

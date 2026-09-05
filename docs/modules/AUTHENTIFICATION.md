@@ -1,6 +1,6 @@
 # 🔐 MODULE D'AUTHENTIFICATION & GESTION DES IDENTITÉS — LE MONDE À VOUS
 > **Documentation Technique & Opérationnelle Officielle**  
-> *Dernière mise à jour : 27 Août 2026*  
+> *Dernière mise à jour : 5 Septembre 2026 (DEC-2026-078 — verrou d'entrée vérifié par le serveur)*  
 > *Statut : Production Ready & Local-First Resilient*
 
 ---
@@ -27,6 +27,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 | **Mot de passe Oublié** | `components/Auth.tsx` & `services/auth.ts` | 🟢 100% Opérationnel | Envoi de lien de réinitialisation sécurisé + formulaire de définition nouveau mot de passe |
 | **Validation des Formulaires** | `components/Auth.tsx` | 🟢 100% Opérationnel | Regex emails, jauge de force du mot de passe (0 à 4), confirmation mot de passe, CGU |
 | **Gestion des Sessions** | `App.tsx` & `services/auth.ts` | 🟢 100% Opérationnel | `getSession()`, `onAuthStateChange()`, synchronisation multi-onglets `StorageEvent` |
+| **Verrou d'entrée — session vérifiée par le serveur** | `services/auth.ts#verifierSession` & `App.tsx` | 🟡 Prête pour production contrôlée (DEC-2026-078, v6.40.0) | Toute session relue depuis l'appareil est confirmée par `GET /auth/v1/user` avant d'ouvrir l'interface ; refus → session effacée, écran de connexion ; serveur injoignable → tolérance dite (§ 5) |
 | **Création & Résolution de Profil** | `services/profile.ts` | 🟢 100% Opérationnel | Table `profiles`, badges, compétences, auto-génération à la première connexion |
 
 ---
@@ -37,6 +38,28 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 - **Citoyen Alpha** : `citoyen@lemondeavous.com` / `citoyen123`
 
 ---
+
+## 🔒 5. VERROU D'ENTRÉE — SESSION VÉRIFIÉE PAR LE SERVEUR (DEC-2026-078, 5 septembre 2026)
+
+**Règle** (Direction, 05/09/2026) : l'accès direct à l'interface est strictement réservé aux sessions valides ; toute personne non connectée qui ouvre `moknet.net` — depuis un SMS, WhatsApp, Messenger, un navigateur mobile ou d'ordinateur, y compris les navigateurs intégrés des applications — arrive sur l'écran de connexion ou de création de compte ; une personne déjà connectée entre directement sur Réseau MokNet.
+
+**Ce qui se passe à l'ouverture** (`App.tsx`, `services/auth.ts`) :
+
+| Session gardée par l'appareil | Verdict de `verifierSession()` | Écran |
+|---|---|---|
+| Aucune | — (aucun appel serveur) | Connexion / création de compte |
+| Présente, **confirmée** par le serveur (`GET /auth/v1/user` avec le jeton, même utilisateur) | `valide` | Réseau MokNet (comme avant) |
+| Présente, **refusée** par le serveur (401/403 : jeton périmé côté serveur, révoqué, forgé ; compte supprimé ou banni ; utilisateur différent) | `invalide` → `signOut({ scope: 'local' })` | Connexion / création de compte — **avant DEC-2026-078, l'interface s'ouvrait** |
+| Présente, non expirée, serveur **injoignable** (panne réseau, 5xx, 8 s sans réponse) | `non-verifiee` | Réseau MokNet avec la session locale — tolérance DITE pour les réseaux mobiles, jamais pour un refus du serveur |
+
+- Une seule vérification par jeton : `getSession()` au démarrage et l'événement `INITIAL_SESSION` relisent le même jeton et partagent le verdict (`App.tsx`, `verdictsRef`).
+- Les sessions que le serveur vient d'émettre (`SIGNED_IN` après connexion, `TOKEN_REFRESHED`, `USER_UPDATED`) entrent sans seconde vérification — aucun aller-retour ajouté à la connexion.
+- Le jeton est passé explicitement à `getUser(jeton)` : pas de verrou multi-onglets, pas de relecture du stockage.
+- Tests : `tests/sessionValidee.test.ts` (verdicts sur les réponses réelles de supabase-js), `tests/appEntreeReseau.test.tsx` (écrans), `tests/netlifyRedirectsCanoniques.test.ts` (domaine).
+
+**Domaine canonique** (`netlify.toml`) : `https://www.moknet.net/*`, `http://www.moknet.net/*` et `http://moknet.net/*` sont redirigés en 301 forcé vers `https://moknet.net/:splat`, avant que l'application ne démarre ; les majuscules (`Moknet.net`, `MOKNET.NET`, majuscule automatique d'un clavier) sont normalisées par le navigateur lui-même (norme URL) et par le DNS — aucune règle nécessaire, prouvé sur dix écritures. Garde-fou : si le domaine principal du site change, ces règles changent avec lui (sinon boucle avec la redirection automatique de Netlify).
+
+**Limites dites** : un jeton d'accès encore valide (au plus 1 h) après une « déconnexion partout » depuis un autre appareil n'est pas révoqué par ce contrôle ; la tolérance « serveur injoignable » peut être durcie sur décision de la Direction ; `/architecte` reste la page publique de démonstration (DEC-2026-066), sans donnée de compte.
 
 ## 📁 4. FICHIERS DU MODULE
 - `/components/Auth.tsx` : Interface utilisateur moderne, accessible, avec Color Lab institutionnel.

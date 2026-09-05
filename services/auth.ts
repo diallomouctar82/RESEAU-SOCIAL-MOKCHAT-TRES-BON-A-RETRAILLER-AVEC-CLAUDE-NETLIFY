@@ -1,4 +1,5 @@
 
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { setRememberMe, supabase } from './supabaseClient';
 
@@ -92,6 +93,100 @@ export const getSession = async (): Promise<Session | null> => {
         return null;
     }
     return data.session;
+};
+
+/**
+ * VERROU D'ENTRÉE — session relue depuis le stockage local, vérifiée auprès du
+ * serveur avant d'ouvrir l'interface (Direction, 05/09/2026, DEC-2026-078).
+ *
+ * `getSession()` ne fait que relire ce que l'appareil a gardé : un jeton
+ * périmé côté serveur, révoqué, forgé, ou celui d'un compte supprimé ou banni
+ * passe cette relecture tant que sa date locale d'expiration n'est pas
+ * atteinte. Jusqu'ici, l'application ouvrait alors l'interface interne — et
+ * l'ouvrait AUSSI quand le chargement du profil échouait (« Local-First »).
+ * Ici, le serveur d'authentification tranche (`GET /auth/v1/user` avec ce
+ * jeton) :
+ *   • `valide`        → l'utilisateur existe et le jeton est accepté ;
+ *   • `invalide`      → refus du serveur (401/403, compte absent) : la session
+ *                       locale est effacée, l'écran de connexion s'impose ;
+ *   • `non-verifiee`  → le serveur est injoignable (panne réseau, 5xx, délai
+ *                       dépassé) : la session locale non expirée est conservée,
+ *                       tolérance DITE pour un réseau mobile capricieux — elle
+ *                       ne vaut jamais pour un jeton que le serveur a refusé.
+ * Les sessions issues d'une connexion ou d'un rafraîchissement (`SIGNED_IN`,
+ * `TOKEN_REFRESHED`) viennent du serveur lui-même : elles n'ont pas besoin de
+ * repasser par ici.
+ */
+export type VerdictSession =
+    | { statut: 'valide'; session: Session }
+    | { statut: 'non-verifiee'; session: Session; raison: string }
+    | { statut: 'invalide'; raison: string };
+
+/** Budget de la vérification : au-delà, la session est « non vérifiée », jamais « invalide ». */
+export const DELAI_VERIFICATION_SESSION_MS = 8000;
+
+/**
+ * Efface la session de CET appareil sans dépendre de la réponse du serveur
+ * (`scope: 'local'` : un 401/403/404 du serveur est ignoré par supabase-js,
+ * la session locale part dans tous les cas). Ne lève jamais.
+ */
+const effacerSessionLocale = async (): Promise<void> => {
+    try {
+        await supabase.auth.signOut({ scope: 'local' });
+    } catch (err) {
+        console.warn('Effacement de la session locale : erreur ignorée', err);
+    }
+};
+
+export const verifierSession = async (
+    session: Session,
+    delaiMs: number = DELAI_VERIFICATION_SESSION_MS
+): Promise<VerdictSession> => {
+    const jeton = session?.access_token;
+    const idAttendu = session?.user?.id;
+    if (!jeton || !idAttendu) {
+        await effacerSessionLocale();
+        return { statut: 'invalide', raison: 'session locale incomplète (jeton ou utilisateur absent)' };
+    }
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const delai = new Promise<'delai'>((resolve) => {
+        minuteur = setTimeout(() => resolve('delai'), delaiMs);
+    });
+    try {
+        // Le jeton est passé explicitement : la vérification porte sur CE
+        // jeton, sans verrou multi-onglets ni relecture du stockage.
+        const requete = supabase.auth.getUser(jeton);
+        // Si le délai gagne la course, la requête continue seule : son éventuel
+        // rejet tardif est marqué comme géré (pas de « unhandledrejection »).
+        void requete.catch(() => undefined);
+        const resultat = await Promise.race([requete, delai]);
+        if (resultat === 'delai') {
+            return { statut: 'non-verifiee', session, raison: `serveur d'authentification sans réponse en ${delaiMs} ms` };
+        }
+        const { data, error } = resultat;
+        if (error) {
+            // Lu avant la garde de type : `AuthRetryableFetchError` n'ajoute
+            // aucun membre à `AuthError`, TypeScript réduirait `error` à `never`
+            // après l'exclusion.
+            const motif: string = error.message;
+            if (isAuthRetryableFetchError(error)) {
+                return { statut: 'non-verifiee', session, raison: `serveur d'authentification injoignable : ${motif}` };
+            }
+            await effacerSessionLocale();
+            return { statut: 'invalide', raison: `refus du serveur d'authentification : ${motif}` };
+        }
+        if (!data?.user?.id || data.user.id !== idAttendu) {
+            await effacerSessionLocale();
+            return { statut: 'invalide', raison: 'le jeton ne correspond pas à l\'utilisateur de la session locale' };
+        }
+        return { statut: 'valide', session };
+    } catch (err) {
+        // supabase-js renvoie ses refus dans `error`, il ne les lève pas : une
+        // exception ici est une panne d'exécution, pas un verdict du serveur.
+        return { statut: 'non-verifiee', session, raison: `vérification interrompue : ${String(err)}` };
+    } finally {
+        if (minuteur !== undefined) clearTimeout(minuteur);
+    }
 };
 
 /**

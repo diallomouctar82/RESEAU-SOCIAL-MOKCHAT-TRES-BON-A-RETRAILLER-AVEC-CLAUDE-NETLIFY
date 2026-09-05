@@ -64,6 +64,49 @@
 # standaloneMode.ts) pour ne rendre que le module. Les autres chemins gardent
 # leur comportement : l'application principale navigue par hash (#onglet) et
 # n'a jamais eu besoin d'une réécriture générale.
+# ─── Domaine canonique — normalisation de toutes les écritures ───
+#
+# Accès public (Direction, 05/09/2026, DEC-2026-078) : quel que soit le canal
+# qui ouvre le lien (SMS, WhatsApp, Messenger, navigateur du téléphone ou de
+# l'ordinateur, navigateur intégré d'une application) et quelle que soit
+# l'écriture du domaine (`Moknet.net`, `MOKNET.NET`, avec ou sans `www`,
+# majuscule automatique d'un clavier), la page servie est TOUJOURS
+# `https://moknet.net/…`, en minuscules, avant que l'application ne démarre —
+# donc avant le verrou d'authentification, qui s'applique ensuite à tout le
+# monde de la même façon.
+#
+# Les majuscules ne demandent aucune règle : un nom de domaine est insensible
+# à la casse (DNS) et tout navigateur l'écrit en minuscules avant d'envoyer la
+# requête (norme URL). Les trois règles ci-dessous fixent, dans le dépôt, ce
+# que la configuration du site faisait jusqu'ici implicitement (domaine
+# principal `moknet.net`) : `www` → domaine nu et `http` → `https`, en une
+# seule redirection permanente (301), forcée (`force = true`) pour qu'aucun
+# fichier ne puisse les court-circuiter. Elles ne s'appliquent QUE quand la
+# requête porte ces hôtes : les deux autres sites Netlify de MokNet, qui
+# partagent ce fichier, ne les voient jamais.
+#
+# GARDE-FOU : si le domaine principal du site changeait un jour (par exemple
+# pour `www.moknet.net`), ces règles devraient changer avec lui, sans quoi la
+# redirection automatique de Netlify et celles-ci se renverraient l'une à
+# l'autre en boucle. Test : tests/netlifyRedirectsCanoniques.test.ts.
+[[redirects]]
+  from = "https://www.moknet.net/*"
+  to = "https://moknet.net/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.moknet.net/*"
+  to = "https://moknet.net/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://moknet.net/*"
+  to = "https://moknet.net/:splat"
+  status = 301
+  force = true
+
 # Démonstration publique de l'avatar de l'Architecte : route rendue par
 # l'application avant l'écran de connexion. Sans cette réécriture, l'URL
 # renvoie 404 et la page n'est jamais atteinte.

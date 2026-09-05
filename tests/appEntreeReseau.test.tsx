@@ -14,7 +14,10 @@ import { resolve } from 'node:path';
 const h = vi.hoisted(() => ({
     authCallback: null as null | ((session: unknown, event: string) => void),
     signOut: vi.fn(async () => {}),
-    getSession: vi.fn(async () => null),
+    getSession: vi.fn(async (): Promise<unknown> => null),
+    // Verrou d'entrée (DEC-2026-078) : verdict du serveur sur une session relue
+    // depuis le stockage local — 'valide' | 'non-verifiee' | 'invalide'.
+    verifierSession: vi.fn(async (session: { user?: { id?: string } }): Promise<unknown> => ({ statut: 'valide', session })),
 }));
 
 vi.mock('../services/auth', () => ({
@@ -24,6 +27,7 @@ vi.mock('../services/auth', () => ({
         return () => { h.authCallback = null; };
     },
     signOut: () => h.signOut(),
+    verifierSession: (session: { user?: { id?: string } }) => h.verifierSession(session),
 }));
 vi.mock('../services/profile', () => ({
     fetchUserProfile: async (id: string) => ({ id, name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 }),
@@ -88,8 +92,15 @@ async function seConnecter() {
     return screen.findByTestId('app-layout');
 }
 
+/** Session telle que supabase-js la relit depuis le stockage de l'appareil. */
+const sessionStockee = (id = 'u-stockee', access_token = 'jeton-stocke') => ({ access_token, user: { id } });
+
 beforeEach(() => {
     h.signOut.mockClear();
+    h.getSession.mockReset();
+    h.getSession.mockResolvedValue(null);
+    h.verifierSession.mockReset();
+    h.verifierSession.mockImplementation(async (session) => ({ statut: 'valide', session }));
     window.history.replaceState(null, '', '/');
 });
 
@@ -133,5 +144,83 @@ describe("Entrée directe sur Réseau MokNet (Direction, 05/09/2026)", () => {
             const source = readFileSync(resolve(racine, fichier), 'utf8');
             expect(source, fichier).not.toMatch(/location\.reload\(|location\.assign\(|location\.replace\(|location\.href\s*=/);
         }
+    });
+});
+
+describe("Verrou d'entrée — accès public réservé aux sessions valides (Direction, 05/09/2026, DEC-2026-078)", () => {
+    it("aucune session sur l'appareil : écran de connexion, aucune page interne, aucune vérification inutile", async () => {
+        render(<App />);
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(h.verifierSession).not.toHaveBeenCalled();
+    });
+
+    it("session locale REFUSÉE par le serveur (jeton périmé, révoqué, forgé, compte supprimé) : écran de connexion, jamais l'interface — avant : l'interface s'ouvrait", async () => {
+        h.getSession.mockResolvedValue(sessionStockee());
+        h.verifierSession.mockResolvedValue({ statut: 'invalide', raison: 'refus du serveur (401)' });
+        render(<App />);
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.queryByTestId('ecran-reseau-moknet')).toBeNull();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("session locale VALIDE (vérifiée par le serveur) : entrée directe sur Réseau MokNet, comme avant", async () => {
+        h.getSession.mockResolvedValue(sessionStockee());
+        render(<App />);
+        const layout = await screen.findByTestId('app-layout');
+        expect(layout).toHaveAttribute('data-tab', 'social');
+        expect(screen.getByTestId('ecran-reseau-moknet')).toBeInTheDocument();
+        expect(screen.queryByTestId('ecran-connexion')).toBeNull();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("l'événement INITIAL_SESSION (même jeton rejoué par supabase-js) partage le verdict : une seule vérification, et un refus ferme aussi cette porte", async () => {
+        const session = sessionStockee();
+        h.getSession.mockResolvedValue(session);
+        h.verifierSession.mockResolvedValue({ statut: 'invalide', raison: 'refus du serveur (401)' });
+        render(<App />);
+        await screen.findByTestId('ecran-connexion');
+        await act(async () => { h.authCallback?.(session, 'INITIAL_SESSION'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.getByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("INITIAL_SESSION avec un jeton refusé alors que getSession() n'avait rien vu : écran de connexion", async () => {
+        h.verifierSession.mockResolvedValue({ statut: 'invalide', raison: 'refus du serveur (403)' });
+        render(<App />);
+        await screen.findByTestId('ecran-connexion');
+        await act(async () => { h.authCallback?.(sessionStockee('u-autre', 'jeton-autre'), 'INITIAL_SESSION'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("connexion depuis l'écran (SIGNED_IN, session émise par le serveur) : entrée sans seconde vérification", async () => {
+        render(<App />);
+        await screen.findByTestId('ecran-connexion');
+        const layout = await seConnecter();
+        expect(layout).toHaveAttribute('data-tab', 'social');
+        expect(h.verifierSession).not.toHaveBeenCalled();
+    });
+
+    it("serveur injoignable au démarrage (session locale non expirée, non vérifiée) : tolérance DITE — l'entrée reste possible", async () => {
+        const session = sessionStockee();
+        h.getSession.mockResolvedValue(session);
+        h.verifierSession.mockResolvedValue({ statut: 'non-verifiee', session, raison: 'Failed to fetch' });
+        render(<App />);
+        expect(await screen.findByTestId('app-layout')).toHaveAttribute('data-tab', 'social');
+    });
+
+    it("déconnexion après une session vérifiée : écran de connexion, puis reconnexion sur Réseau MokNet", async () => {
+        h.getSession.mockResolvedValue(sessionStockee());
+        render(<App />);
+        await screen.findByTestId('app-layout');
+        fireEvent.click(screen.getByText('Se déconnecter'));
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        await act(async () => { h.authCallback?.(null, 'SIGNED_OUT'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        const layout = await seConnecter();
+        expect(layout).toHaveAttribute('data-tab', 'social');
     });
 });
