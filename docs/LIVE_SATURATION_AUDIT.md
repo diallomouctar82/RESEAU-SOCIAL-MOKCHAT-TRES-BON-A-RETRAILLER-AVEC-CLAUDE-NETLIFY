@@ -125,6 +125,24 @@ qui répond au-delà des 1 500 ms que la porte SAT-2 peut attendre est
 cours. La question « la voix passe-t-elle en ce moment ? » reste une question
 client (rapports `call_diagnostics`), hors du périmètre de cette ligne.
 
+**Suite — SAT-5 (5 septembre 2026, DEC-2026-055) : ce que l'application
+répare seule, et la frontière VPS.** Deux réparations sont désormais
+automatiques côté application (code sur `claude/lives-directs-sat5`, pas en
+production) : la relance bornée d'un direct dont la ligne tombe — trois fois
+au plus, uniquement si la base confirme que le direct est encore ouvert,
+jamais sur un refus nommé (direct complet) ni après une éviction par identité
+dupliquée, et sans jamais confondre « base injoignable » et « direct fermé »
+— et la clôture horaire des directs zombies par `pg_cron`, tracée dans
+`audit_logs`. **Frontière VPS — ce qu'aucune boucle client ni aucun cron ne
+peut faire** : redémarrer le conteneur `livekit-server` (le cas du 2
+septembre où `GET /` répondait 200 pendant que la voix ne passait pas),
+refaire tourner une clé API qui a divergé entre le coffre et le VPS (SAT-4 le
+voit : rouge « refuse nos identifiants »), rouvrir les ports UDP
+50000-50100 / 30000-30100, monter le serveur de 1.8.4 à 1.13.6, poser
+`prometheus_port` (SAT-1b). Ces gestes exigent SSH : ils reviennent au bouton
+de secours SAT-6 (tracé, confirmé, réservé à l'Administrateur Général) et aux
+étapes ACT-3/4/5 — un humain, jamais un automate.
+
 ---
 
 ## 5. Admin Général : la définition existe, mais côté client seulement
@@ -176,7 +194,7 @@ appareils — jamais par une sonde depuis cet environnement.
 | SAT-2 — porte côté serveur | **Oui**, dans `livekit-token`, qui détient déjà les identifiants |
 | SAT-3 — écran « complet » | **Oui** |
 | SAT-4 — détecter un blocage réel | **Livré et démontré en production le 05/09/2026 (DEC-2026-054)** — non pas une sonde HTTP sur `/`, mais `ListRooms` signé avec la clé du coffre : 401/403 = rouge (le cas que le ping déclarait vert), > 1 500 ms = orange (porte SAT-2 aveugle), délai/réseau = rouge, non sondé = blanc. Les compteurs média côté client restent hors de cette ligne : elle juge « un direct peut-il démarrer », pas « la voix passe-t-elle en ce moment » |
-| SAT-5 — récupération automatique | **Partiellement** — tout n'est pas récupérable sans redémarrer le serveur |
+| SAT-5 — récupération automatique | **Partiellement — code livré, pas en production (5/09/2026, DEC-2026-055)** : la ligne d'un direct se relance seule, bornée et gardée par la base (`isLiveSessionStillOpen` — ouvert / fermé / injoignable, trois réponses distinctes) ; les zombies se ferment toutes les heures par `pg_cron` (migration écrite, jouée à vide en transaction annulée, NON appliquée). Tout ce qui exige le VPS reste hors de portée : voir § 4 « Frontière VPS ». |
 | SAT-6 — bouton Admin Général | **Oui**, à condition de vérifier le rôle côté serveur |
 | SAT-1b — signal de marge (prédictif) | **Non** — demande `prometheus_port` et son routage sur le VPS |
 

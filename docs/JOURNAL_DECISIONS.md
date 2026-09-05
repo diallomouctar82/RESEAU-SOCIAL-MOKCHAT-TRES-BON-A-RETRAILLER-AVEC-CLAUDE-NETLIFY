@@ -1122,6 +1122,55 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-055] — 5 Septembre 2026
+
+* **Module(s)** : `Live / Directs`, hook `useLiveTransport`, base
+  (`close_zombie_live_sessions`, `pg_cron`)
+* **Problème / Besoin initial** : SAT-5 — la ligne d'un direct qui tombe
+  restait tombée (seul un appel se relançait, depuis AU-1) ; treize directs
+  « zombies » (jamais fermés, démarrés depuis plusieurs jours) tenaient la
+  ligne `live.sessions_zombies` de la Santé Globale au rouge, avec une
+  réparation qui n'existait qu'au clic de l'Administrateur Général. La
+  Direction a demandé de distinguer ce que l'application peut réparer seule
+  de ce qui exige le VPS — et, le même jour, de ne mettre en production que
+  ce qui est fini.
+* **Options considérées** :
+  1. Relancer un direct comme un appel, sans condition — rejeté : un direct
+     que l'animateur vient de fermer serait rejoint en boucle, et un direct
+     complet (SAT-3) martelé.
+  2. Relancer seulement si la base confirme que le direct est ouvert, en
+     traitant une base injoignable comme « fermé » — rejeté : une coupure
+     réseau afficherait « Ce direct est terminé. » à tort.
+  3. **Retenu** : relance bornée (3), gardée par une lecture en base
+     (`isLiveSessionStillOpen`) qui distingue trois réponses — ouvert,
+     fermé/absent, **injoignable (lève)** ; jamais sur un refus nommé, jamais
+     après une éviction ; une seule lecture en vol ; garde d'une tentative
+     annulée muette. Pour les zombies : la règle de réparation existante,
+     jouée toutes les heures par `pg_cron` et tracée dans `audit_logs`
+     (acteur vide), plutôt qu'une seconde règle.
+* **Décision finale** : option 3, livrée sur la branche isolée
+  `claude/lives-directs-sat5` (`9cb626b`) et **volontairement tenue hors de
+  la production** : la migration n'est pas appliquée, la PR reste en
+  brouillon. Le tri du 5 septembre a fait partir SAT-4 seul (PR #77) ; SAT-5
+  partira quand la Direction aura la liste et les preuves.
+* **Frontière VPS (ce qui n'est pas récupérable depuis l'application)** :
+  conteneur LiveKit à redémarrer, clé du coffre divergente, port UDP fermé,
+  montée de version 1.8.4 → 1.13.6. SAT-4 les signale ; SAT-6 (bouton de
+  secours tracé) et les étapes ACT les traiteront, toujours par un geste
+  humain.
+* **Impact** : `hooks/useLiveTransport.ts` (option `autoRecover`, relance
+  LIVE gardée), `services/live/liveSessionService.ts`
+  (`isLiveSessionStillOpen`), `components/SocialLive.tsx` (garde branchée),
+  `tests/useLiveTransportCall.test.tsx` (+9), migration
+  `20260905010000_live_sat5_close_zombie_sessions_cron.sql`.
+* **Preuves** : tsc 0 · vitest 1042/1042 · build · 7 contre-épreuves, une
+  ligne morte retirée ; répétition à vide de la migration en transaction
+  annulée sur la base réelle (13 → 0, idempotente, 4 récents intacts, audit
+  1, droits vérifiés, rollback vérifié). Sauvegarde des 13 lignes zombies
+  (ids, `started_at`, `updated_at`) prise avant tout essai.
+
+---
+
 ### [DEC-2026-054] — 5 Septembre 2026
 
 * **Module(s)** : `Santé Globale (Super-Admin)`, `Live / Directs`, fonction
