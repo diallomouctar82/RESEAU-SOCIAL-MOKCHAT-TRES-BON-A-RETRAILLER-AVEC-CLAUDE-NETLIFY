@@ -14,7 +14,8 @@ class H(http.server.BaseHTTPRequestHandler):
                 try: os.remove(local)
                 except OSError: pass
                 self.send_response(404); self.end_headers(); return
-        ctype = mimetypes.guess_type(chemin)[0] or 'application/octet-stream'
+        # Chemin sans extension (/messagerie, /architecte…) : réécriture SPA Netlify vers index.html, donc du HTML.
+        ctype = mimetypes.guess_type(chemin)[0] or ('text/html; charset=utf-8' if '.' not in os.path.basename(chemin) else 'application/octet-stream')
         if chemin.endswith('.js'): ctype = 'text/javascript'
         with open(local, 'rb') as f: corps = f.read()
         self.send_response(200); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(corps))); self.end_headers(); self.wfile.write(corps)
