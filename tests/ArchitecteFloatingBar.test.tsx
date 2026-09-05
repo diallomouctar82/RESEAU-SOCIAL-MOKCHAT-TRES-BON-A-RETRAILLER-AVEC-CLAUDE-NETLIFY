@@ -365,7 +365,8 @@ describe('Boucle 1 — accueil différencié (§1-2)', () => {
         await screen.findByText("L'Architecte");
 
         expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?", expect.anything());
-        expect(speak).not.toHaveBeenCalledWith(expect.stringContaining('bienvenue'), expect.anything());
+        // Quel que soit le nombre d'arguments : aucun texte prononcé ne contient « bienvenue ».
+        expect(speak.mock.calls.some(([texte]) => /bienvenue/.test(String(texte)))).toBe(false);
     });
 
     it("l'accueil se fait UNE fois par session de page — fermer puis rouvrir ne le rejoue pas", async () => {

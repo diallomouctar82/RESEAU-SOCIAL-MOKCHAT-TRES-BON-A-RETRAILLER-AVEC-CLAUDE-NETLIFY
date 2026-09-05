@@ -85,7 +85,9 @@ import type { UserProfile } from '../../types';
  *   - à droite, égaliseur à 5 barres cyan ;
  *   - à l'extrême droite, fermeture par une croix ;
  *   - comportement natif : un appui ouvre la barre ET démarre immédiatement
- *     l'écoute ; un second appui ferme et coupe la session.
+ *     l'écoute ; un second appui, barre ouverte, veut dire « je vous parle » :
+ *     il se tait s'il parlait et écoute (C1, 05/09/2026) — fermer, c'est le ✕
+ *     « Fermer » de la barre.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * CE QUI EST AMÉLIORÉ (feuille de route)
@@ -1362,7 +1364,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             architecteSequencePlayer.stop(SCULPTURE_SLOT);
             return;
         }
-        if (speakingRef.current) stopSpeaking();
+        // Inconditionnel : coupe aussi une réponse encore en génération (1 à
+        // 4 s de voix HD) — sinon elle partirait par-dessus « Je vous écoute. ».
+        stopSpeaking();
         setStatus('Je vous écoute.');
         setStatusTone('text-cyan-300/80');
         if (!listeningRef.current) void beginListening();

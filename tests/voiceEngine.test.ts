@@ -52,7 +52,7 @@ class FakeRecognition {
 }
 (window as any).webkitSpeechRecognition = FakeRecognition;
 
-const { voiceEngine, VoiceEngine, MIC_UNAVAILABLE_MESSAGE, LISTEN_NETWORK_MESSAGE } = await import('../services/voiceEngine');
+const { voiceEngine, VoiceEngine, MIC_UNAVAILABLE_MESSAGE, LISTEN_NETWORK_MESSAGE, SPEECH_OUTPUT_FAILED_MESSAGE } = await import('../services/voiceEngine');
 
 /** La reconnaissance unique que le moteur a construite et réutilise. */
 const rec = () => FakeRecognition.instances[0];
@@ -435,21 +435,89 @@ describe('voiceEngine — C1 : lecture HD déverrouillée dans le geste, jamais 
         expect(ends).toHaveLength(1);
     });
 
-    it("pendant que la voix HD parle, le flux de capture du micro est relâché (téléphone : plus de sortie en mode « appel »)", async () => {
-        const stop = vi.fn();
-        const stream = { getTracks: () => [{ stop }] };
-        const getUserMedia = vi.fn(async () => stream);
-        Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+
+    it("relais HD → repli SANS synthèse navigateur : `onEnd` UNE fois, message honnête, micro relancé — jamais un `onEnd` perdu (constat 1 de la revue)", async () => {
+        playRejects = true;
+        delete (window as any).speechSynthesis;
+        const errors: string[] = []; const ends: number[] = []; const starts: number[] = [];
+        const un = voiceEngine.addListener({ onError: (e) => errors.push(e) });
+        voiceEngine.setConversationalMode(true);
+        await voiceEngine.speak('Bonjour.', { onStart: () => starts.push(1), onEnd: () => ends.push(1) });
+        expect(ends).toHaveLength(1);
+        expect(starts).toHaveLength(1);
+        expect(errors).toContain(SPEECH_OUTPUT_FAILED_MESSAGE);
+        // Le tour est clos : l'écoute conversationnelle repart d'elle-même.
+        const avant = FakeRecognition.startCalls;
+        await attendre(450);
+        expect(FakeRecognition.startCalls).toBe(avant + 1);
+        un();
+    });
+
+    it("chemin relais avec synthèse navigateur : `onStart` une seule fois (le HD l'a déjà émis), `onEnd` une seule fois", async () => {
+        playRejects = true;
+        (window as any).speechSynthesis = {
+            cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: () => [], speaking: false,
+            speak: vi.fn((u: any) => { u.onstart?.(); setTimeout(() => u.onend?.(), 0); }),
+        };
+        (window as any).SpeechSynthesisUtterance = class {
+            text: string; lang = ''; rate = 1; pitch = 1; voice: any = null;
+            onstart: (() => void) | null = null; onend: (() => void) | null = null; onerror: ((e: unknown) => void) | null = null;
+            constructor(text: string) { this.text = text; }
+        };
+        const starts: number[] = []; const ends: number[] = [];
+        await voiceEngine.speak('Bonjour.', { onStart: () => starts.push(1), onEnd: () => ends.push(1) });
+        await attendre(600);
+        expect(starts).toHaveLength(1);
+        expect(ends).toHaveLength(1);
+    });
+
+    it("iPhone / iPad : la voix HD n'est JAMAIS reliée au graphe Web Audio (interrupteur silencieux) — elle sort en direct, la bouche suit la piste", async () => {
+        const ua = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent');
+        Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
         try {
-            await voiceEngine.startListening();
+            expect(VoiceEngine.prefersDirectPlayback()).toBe(true);
+            const un = voiceEngine.addListener({ onMouthShape: () => {} });
+            voiceEngine.unlockPlayback();
             await attendre(5);
-            expect(getUserMedia).toHaveBeenCalledTimes(1);
-            expect(stop).not.toHaveBeenCalled();
             await voiceEngine.speak('Bonjour.');
-            expect(stop).toHaveBeenCalled();
+            const ctx = FakeAudioContext.instances[0];
+            expect(ctx.state).toBe('running');
+            expect(ctx.createMediaElementSource).not.toHaveBeenCalled();
+            expect(playCalls).toHaveLength(2); // clip silencieux + la phrase, sur l'élément déverrouillé
+            expect(playCalls[1]).toBe(playCalls[0]);
+            un();
         } finally {
-            voiceEngine.stopListening();
-            delete (navigator as any).mediaDevices;
+            if (ua) Object.defineProperty(navigator, 'userAgent', ua); else delete (navigator as any).userAgent;
         }
+        // iPad qui se présente en Mac tactile.
+        expect(VoiceEngine.prefersDirectPlayback({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', platform: 'MacIntel', maxTouchPoints: 5 } as Navigator)).toBe(true);
+        expect(VoiceEngine.prefersDirectPlayback({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', platform: 'MacIntel', maxTouchPoints: 0 } as Navigator)).toBe(false);
+        expect(VoiceEngine.prefersDirectPlayback({ userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/120', platform: 'Linux armv8l', maxTouchPoints: 5 } as Navigator)).toBe(false);
+    });
+
+    it("deux gestes dans la même seconde ne lancent qu'UN clip silencieux (déverrouillage en cours)", async () => {
+        voiceEngine.unlockPlayback();
+        voiceEngine.unlockPlayback();
+        expect(playCalls).toHaveLength(1);
+        await attendre(5);
+        expect(voiceEngine.isPlaybackUnlocked()).toBe(true);
+    });
+
+    it("contexte refusé hors geste : mémorisé jusqu'au prochain geste — pas 150 ms d'attente à chaque phrase, et réessai après `unlockPlayback()`", async () => {
+        FakeAudioContext.allowResume = false;
+        const un = voiceEngine.addListener({ onMouthShape: () => {} });
+        await voiceEngine.speak('Bonjour.');
+        const ctx = FakeAudioContext.instances[0];
+        expect(ctx.resume).toHaveBeenCalledTimes(1);
+        await voiceEngine.speak('Encore.');
+        expect(ctx.resume).toHaveBeenCalledTimes(1);          // refus mémorisé : pas de nouvelle attente
+        FakeAudioContext.allowResume = true;
+        voiceEngine.unlockPlayback();                          // geste : nouvelle chance
+        await attendre(5);
+        await voiceEngine.speak('Et maintenant.');
+        expect(ctx.state).toBe('running');
+        expect(ctx.createMediaElementSource).toHaveBeenCalledTimes(1);
+        un();
     });
 });
+
