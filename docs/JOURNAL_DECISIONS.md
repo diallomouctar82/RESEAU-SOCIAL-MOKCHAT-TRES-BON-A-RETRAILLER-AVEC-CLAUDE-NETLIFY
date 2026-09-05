@@ -1149,10 +1149,17 @@ Chaque décision respecte le formalisme strict suivant :
      jouée toutes les heures par `pg_cron` et tracée dans `audit_logs`
      (acteur vide), plutôt qu'une seconde règle.
 * **Décision finale** : option 3, livrée sur la branche isolée
-  `claude/lives-directs-sat5` (`9cb626b`) et **volontairement tenue hors de
-  la production** : la migration n'est pas appliquée, la PR reste en
-  brouillon. Le tri du 5 septembre a fait partir SAT-4 seul (PR #77) ; SAT-5
-  partira quand la Direction aura la liste et les preuves.
+  `claude/lives-directs-sat5` et d'abord **tenue hors de la production** (tri
+  du 5 septembre : SAT-4 seul est parti, PR #77). Puis, sur instruction de la
+  Direction (« mets en production contrôlée seulement ce qui est 100 %
+  terminé, testé et sans régression »), SAT-5 a été amené à 100 % par un
+  **banc réel contre un LiveKit vivant** (39/39, cinq pannes injectées :
+  room supprimée ×2, refus `live_full`, serveur tué puis relancé, direct
+  clôturé en base) avant tout déploiement. Ce banc a trouvé un défaut
+  d'écran que les tests du hook ne pouvaient pas voir — « Diffusion
+  interrompue · Réessayer » affiché sur un direct clos, le message de la
+  garde jamais rendu — corrigé (`isLiveEndedError`, badge « TERMINÉ »,
+  bloc « Ce direct est terminé. · Quitter ») et couvert par 3 tests.
 * **Frontière VPS (ce qui n'est pas récupérable depuis l'application)** :
   conteneur LiveKit à redémarrer, clé du coffre divergente, port UDP fermé,
   montée de version 1.8.4 → 1.13.6. SAT-4 les signale ; SAT-6 (bouton de
@@ -1163,11 +1170,13 @@ Chaque décision respecte le formalisme strict suivant :
   (`isLiveSessionStillOpen`), `components/SocialLive.tsx` (garde branchée),
   `tests/useLiveTransportCall.test.tsx` (+9), migration
   `20260905010000_live_sat5_close_zombie_sessions_cron.sql`.
-* **Preuves** : tsc 0 · vitest 1042/1042 · build · 7 contre-épreuves, une
-  ligne morte retirée ; répétition à vide de la migration en transaction
-  annulée sur la base réelle (13 → 0, idempotente, 4 récents intacts, audit
-  1, droits vérifiés, rollback vérifié). Sauvegarde des 13 lignes zombies
-  (ids, `started_at`, `updated_at`) prise avant tout essai.
+* **Preuves** : tsc 0 · vitest 1045/1045 · build · 7 contre-épreuves, une
+  ligne morte retirée ; banc réel 39 OK / 0 DÉFAUT (détail dans
+  `docs/HISTORIQUE_VERSIONS.md`, v6.20.0) ; répétition à vide de la
+  migration en transaction annulée sur la base réelle (13 → 0, idempotente,
+  4 récents intacts, audit 1, droits vérifiés, rollback vérifié). Sauvegarde
+  des 13 lignes zombies (ids, `started_at`, `updated_at`) prise avant tout
+  essai. Comptes de preuve du banc supprimés à zéro trace.
 
 ---
 

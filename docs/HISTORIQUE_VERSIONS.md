@@ -35,7 +35,7 @@
 | **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée), libellé « Accueil & Cap » et entrée Super-Admin retirés de la liste (« Accueil » → « Conseil des Sages », capture de la Direction) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | PR #74 / DEC-2026-052 | **Stable — validée par la Direction le 4 septembre 2026 sur capture de référence, fusionnée dans `main` (PR #74), vérifiée sur moknet.net** |
 | **v6.18.0** | 5 Septembre 2026 | **« Réseau MOC » juste sous « Accueil » dans la barre latérale ; contours de toutes les zones de saisie renforcés par une règle globale (2 px, couleur dérivée du texte à 55 %, accent aqua au focus) ; nouvelle invite du composeur « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. »** | Navigation globale (barre latérale), Réseau MOC, index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-053 | **Stable — production contrôlée demandée par la Direction, fusionnée dans `main`, vérifiée sur moknet.net** |
 | **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 fusionnée en squash → `cbdab0a` / DEC-2026-054 | **Courante (Active) — Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en production contrôlée depuis le 5/09 (Green Gate run 33933766630, moknet.net sert `index-SB3nxKwK.js` avec les empreintes SAT-4, ancien bundle 404)** |
-| **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` (`9cb626b`) / DEC-2026-055 | **PARTIEL — code prouvé (tsc 0 · vitest 1042/1042 · 7 contre-épreuves) ; PR en brouillon ; migration cron NON appliquée ; rien de tout cela n'est en production** |
+| **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **PRÊT pour la production contrôlée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées) ; un défaut d'écran trouvé par le banc et corrigé ; tsc 0 · vitest 1045/1045 ; fusion de la PR #81 et application de la migration cron = le déploiement, à consigner ici une fois vérifié sur moknet.net** |
 
 ---
 
@@ -88,11 +88,33 @@
   intacts, 1 ligne d'audit (`changedCount` 13), droits `postgres`/
   `service_role` seuls — puis rollback vérifié (13 toujours ouverts, audit
   vide, ni fonction ni job).
-* **Pas en production, dit tel quel** : PR en brouillon sur
-  `claude/lives-directs-sat5` ; migration NON appliquée (l'appliquer est un
-  déploiement : il attend la liste de tri). Aucune preuve navigateur d'une
-  relance réelle contre un LiveKit vivant — la preuve est au niveau du hook,
-  comme pour AU-6.
+* **Banc réel contre un LiveKit vivant (5 septembre, second passage) —
+  39 OK / 0 DÉFAUT** (`scratchpad/sat5/preuve-sat5.cjs`, deux comptes
+  éphémères, direct réel en base, Supabase réel, `livekit-server` local sous
+  le contrôle du banc) : cinq pannes injectées par l'API serveur ou par le
+  système, jamais par un double. **C1** room supprimée, direct ouvert → les
+  deux lignes se rétablissent seules en 1,5 s (le serveur revoit les deux
+  identités, journal « nouvelle tentative 1/3 », un nouveau jeton chacun).
+  **C2** seconde suppression → « 1/3 » à nouveau : le budget est remis à zéro
+  par un succès. **C3** jeton refusé `live_full` (409) sur la relance → un
+  seul jeton demandé puis plus rien, écran « Ce direct est complet »,
+  « Réessayer » rend la place ; l'autre ligne revient normalement. **C5**
+  serveur TUÉ (vraie coupure de socket) → le SDK abandonne après ~47 s, puis
+  3 relances gardées par la base tombent (1/3 · 2/3 · 3/3), aucune 4e,
+  bannière « Diffusion interrompue » + « Réessayer », **jamais « terminé »** ;
+  serveur relancé → « Réessayer » rétablit les deux. **C4** `ended_at` posé
+  en base puis room supprimée → « Ce direct est terminé. » en 0,65 s chez
+  les deux, ZÉRO jeton demandé, room vide côté serveur.
+* **Défaut trouvé par le banc, corrigé avant toute production** : au premier
+  passage (35/37), l'écran affichait « Diffusion interrompue · Réessayer »
+  sur un direct clos — le hook disait « Ce direct est terminé. » mais
+  `SocialLive` ne rendait jamais le texte de l'erreur, seulement une bannière
+  de panne. Corrigé : `isLiveEndedError()`, badge « TERMINÉ » (avant
+  « INTERROMPU »), bloc `live-ended-notice` avec « Quitter » et sans
+  « Réessayer » ; 3 tests (`tests/liveStudioMatter.test.tsx`), 1045/1045.
+* **Déploiement = deux gestes distincts** : fusion de la PR #81 (client) et
+  application de la migration cron (base). Tant que cette ligne ne dit pas
+  « en production contrôlée, vérifié sur moknet.net », rien ne l'est.
 
 ---
 

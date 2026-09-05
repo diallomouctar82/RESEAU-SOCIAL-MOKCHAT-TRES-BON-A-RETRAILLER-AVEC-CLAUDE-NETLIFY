@@ -233,6 +233,15 @@ const AUTO_RETRY_MAX = 3;
 const autoRetryDelayMs = (attempt: number): number => Math.min(4000, 700 * 2 ** attempt);
 /** SAT-5 : ce que l'écran affiche quand la garde répond que le direct n'est plus ouvert. */
 export const LIVE_ENDED_MESSAGE = 'Ce direct est terminé.';
+/**
+ * SAT-5 : vrai quand l'erreur du transport EST la clôture du direct constatée
+ * par la garde. Le banc réel l'a montré : sans cette distinction, l'écran
+ * affichait « Diffusion interrompue · Réessayer » sur un direct clos — une
+ * panne inventée et un bouton qui ne mène nulle part.
+ */
+export function isLiveEndedError(error: string | null | undefined): boolean {
+    return error === LIVE_ENDED_MESSAGE;
+}
 
 export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTransportResult {
     const { roomName, participantName, canPublish, enabled, publishVideoOnConnect = true, publishAudioOnConnect = true, audioProfile = 'live', deviceId, conversationId, autoRecover } = options;
@@ -1012,8 +1021,11 @@ export interface LiveBadgeState {
  * transport) — plus jamais un « LIVE » rouge pulsant codé en dur pendant une
  * panne, une reconnexion ou un simple aperçu de démonstration.
  */
-export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean, isFull = false): LiveBadgeState {
+export function liveBadge(hasRealSession: boolean, state: LiveConnectionState, hasError: boolean, isFull = false, isEnded = false): LiveBadgeState {
     if (!hasRealSession) return { label: 'APERÇU', className: 'bg-slate-700 text-slate-200', isOnAir: false };
+    // SAT-5 : « TERMINÉ » passe avant « INTERROMPU » — un direct clos par son
+    // animateur n'est pas une panne, et « Réessayer » n'y rendrait rien.
+    if (isEnded) return { label: 'TERMINÉ', className: 'bg-slate-600 text-white', isOnAir: false };
     // SAT-3 : « COMPLET » passe AVANT « INTERROMPU ». Un direct plein n'a pas
     // été interrompu — on n'y est jamais entré. Dire « interrompu » ferait
     // croire à une panne et enverrait la personne chercher un problème qui

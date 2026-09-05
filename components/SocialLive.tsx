@@ -31,7 +31,7 @@ import { LiveSourceFactCheckModal } from './LiveSourceFactCheckModal';
 import { LiveInstantHelpModal } from './LiveInstantHelpModal';
 import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
-import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage, orderStageAgents } from '../hooks/useLiveTransport';
+import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage, orderStageAgents, isLiveEndedError, LIVE_ENDED_MESSAGE } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { fetchLiveSession, isLiveSessionStillOpen, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds, setFeaturedAgent, fetchFeaturedAgent, subscribeToFeaturedAgent } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges, postLiveAgentMessage } from '../services/live/liveChatService';
@@ -657,7 +657,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // (409 `live_full`, SAT-2). C'est un état à part entière — ni une panne, ni
   // une connexion en cours — et l'écran doit le traiter comme tel.
   const liveIsFull = isLiveFull(liveTransport.refusal);
-  const stageBadge = liveBadge(!!realSessionId, liveTransport.connectionState, !!liveTransport.error, liveIsFull);
+  // SAT-5 : la garde a relu la base et le direct n'est plus ouvert — ce n'est
+  // ni une panne ni un direct complet, l'écran le dit tel quel.
+  const liveEnded = isLiveEndedError(liveTransport.error);
+  const stageBadge = liveBadge(!!realSessionId, liveTransport.connectionState, !!liveTransport.error, liveIsFull, liveEnded);
   const viewerCount = realViewerCount({
     hasRealSession: !!realSessionId,
     connectionState: liveTransport.connectionState,
@@ -2755,7 +2758,22 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 refusé l'entrée. L'écran dédié ci-dessous le dit ; cette
                 bannière rouge et le point d'attente restent réservés aux vraies
                 pannes, sans quoi deux messages contradictoires cohabiteraient. */}
-            {realSessionId && liveTransport.error && !liveIsFull && (
+            {/* SAT-5 : le direct est CLOS en base (la garde l'a relu avant de
+                relancer). Le banc réel a montré que, sans ce bloc, l'écran
+                affichait « Diffusion interrompue · Réessayer » — une panne
+                inventée et une relance vers un direct qui n'existe plus. */}
+            {realSessionId && liveEnded && (
+              <div data-testid="live-ended-notice" className="absolute top-4 right-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/95 border border-white/15 text-white text-[11px] font-bold shadow-lg">
+                <span>{LIVE_ENDED_MESSAGE}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onClose(); }}
+                  className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/35 font-extrabold transition-colors"
+                >
+                  Quitter
+                </button>
+              </div>
+            )}
+            {realSessionId && liveTransport.error && !liveIsFull && !liveEnded && (
               <div className="absolute top-4 right-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-600/90 text-white text-[11px] font-bold shadow-lg">
                 <span>Diffusion interrompue</span>
                 <button
