@@ -181,7 +181,7 @@ describe('Validation, sauvegarde et retour arrière', () => {
         // Configuration ancienne (sans le champ) : le masque d'usine ne vaut que pour le portrait d'usine.
         const ancienne = { ...DEFAULT_ARCHITECTE_AVATAR } as Record<string, unknown>;
         delete ancienne.silhouetteMaskForPhotoUrl;
-        expect(sculptureMaskFor({ ...(ancienne as typeof DEFAULT_ARCHITECTE_AVATAR) })).toBe(DEFAULT_ARCHITECTE_AVATAR.silhouetteMaskUrl);
+        expect(sculptureMaskFor({ ...(ancienne as unknown as typeof DEFAULT_ARCHITECTE_AVATAR) })).toBe(DEFAULT_ARCHITECTE_AVATAR.silhouetteMaskUrl);
     });
 });
 
