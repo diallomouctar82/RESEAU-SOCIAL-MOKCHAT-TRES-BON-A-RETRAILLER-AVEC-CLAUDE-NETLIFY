@@ -169,6 +169,41 @@ interface PhotoRect {
     dh: number;
 }
 
+/** Une des neuf tuiles du prolongement : la photo au centre (fx = fy = 0), ses reflets autour, en pixels du carré basse résolution. */
+export interface MirrorTile {
+    fx: -1 | 0 | 1;
+    fy: -1 | 0 | 1;
+    translateX: number;
+    translateY: number;
+    scaleX: 1 | -1;
+    scaleY: 1 | -1;
+}
+
+/**
+ * Où poser chaque tuile pour que les reflets touchent la photo bord à bord :
+ * une tuile reflétée est dessinée après `translate(translateX, translateY)`
+ * puis `scale(scaleX, scaleY)`, de sorte que la tuile fx = −1 couvre
+ * [p.x − p.w, p.x] en miroir autour de p.x, la tuile fx = +1 couvre
+ * [p.x + p.w, p.x + 2·p.w] en miroir autour de p.x + p.w (idem en y).
+ * Fonction pure, testée sans canevas.
+ */
+export function mirrorTilePlacements(p: { x: number; y: number; w: number; h: number }): MirrorTile[] {
+    const tiles: MirrorTile[] = [];
+    for (const fx of [-1, 0, 1] as const) {
+        for (const fy of [-1, 0, 1] as const) {
+            tiles.push({
+                fx,
+                fy,
+                translateX: p.x + fx * p.w + (fx ? p.w : 0),
+                translateY: p.y + fy * p.h + (fy ? p.h : 0),
+                scaleX: fx ? -1 : 1,
+                scaleY: fy ? -1 : 1,
+            });
+        }
+    }
+    return tiles;
+}
+
 /** Teinte moyenne (« r, g, b ») de chaque bord de la photo, lue sur l'anneau d'un pixel du carré basse résolution. */
 function edgeTones(low: CanvasRenderingContext2D, p: { x: number; y: number; w: number; h: number }, L: number): Record<'top' | 'bottom' | 'left' | 'right', string> {
     const clamp = (v: number): number => Math.min(L - 1, Math.max(0, v));
@@ -215,15 +250,17 @@ function fillOverflow(ctx: CanvasRenderingContext2D, source: HTMLCanvasElement, 
     if (!l) return;
     const k = L / side;
     const p = { x: r.dx * k, y: r.dy * k, w: Math.max(1e-3, r.dw * k), h: Math.max(1e-3, r.dh * k) };
+    // 0. Socle : la photo étirée sur tout le carré, pour qu'aucune zone ne reste
+    //    transparente (→ noire au JPEG) même si une bande dépasse l'étendue des
+    //    reflets (photo coupée très serrée) — revue indépendante, constat 5.
+    l.drawImage(source, r.sx, r.sy, r.sw, r.sh, 0, 0, L, L);
     // 1. Le carré entier en basse résolution : la photo à sa place, ses bords reflétés tout autour (miroir, sans couture).
-    for (const fx of [-1, 0, 1]) {
-        for (const fy of [-1, 0, 1]) {
-            l.save();
-            l.translate(p.x + fx * p.w + (fx ? p.w : 0), p.y + fy * p.h + (fy ? p.h : 0));
-            l.scale(fx ? -1 : 1, fy ? -1 : 1);
-            l.drawImage(source, r.sx, r.sy, r.sw, r.sh, 0, 0, p.w, p.h);
-            l.restore();
-        }
+    for (const tile of mirrorTilePlacements(p)) {
+        l.save();
+        l.translate(tile.translateX, tile.translateY);
+        l.scale(tile.scaleX, tile.scaleY);
+        l.drawImage(source, r.sx, r.sy, r.sw, r.sh, 0, 0, p.w, p.h);
+        l.restore();
     }
     const tones = edgeTones(l, p, L);
     // 2. Ré-agrandi lissé sur tout le carré : la basse résolution tient lieu de flou.

@@ -19,12 +19,12 @@
     "src": "/architecte/architecte.webp",
     "video": {
       "statut": "playing",
-      "temps": 1.82,
+      "temps": 2.23,
       "src": "vision-smart-heygen.webm",
       "dimensions": "720x720",
       "luminanceHaut2a8pct": 125,
-      "luminanceHaut8a12pct": 131,
-      "luminanceSousBande14a20pct": 132
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 130
     },
     "erreurs": []
   },
@@ -48,12 +48,12 @@
     "src": "/architecte/architecte.webp",
     "video": {
       "statut": "playing",
-      "temps": 1.84,
+      "temps": 2.25,
       "src": "vision-smart-heygen.webm",
       "dimensions": "720x720",
       "luminanceHaut2a8pct": 125,
-      "luminanceHaut8a12pct": 131,
-      "luminanceSousBande14a20pct": 132
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 130
     },
     "erreurs": []
   },
@@ -70,19 +70,19 @@
       "H": 420
     },
     "portrait": {
-      "luminanceHaut2a8pct": 137,
+      "luminanceHaut2a8pct": 136,
       "luminanceHaut8a12pct": 131,
       "luminanceSousBande14a20pct": 133
     },
     "src": "/architecte/architecte.webp",
     "video": {
       "statut": "playing",
-      "temps": 1.82,
+      "temps": 2.22,
       "src": "vision-smart-heygen.webm",
       "dimensions": "720x720",
       "luminanceHaut2a8pct": 125,
-      "luminanceHaut8a12pct": 131,
-      "luminanceSousBande14a20pct": 132
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 130
     },
     "erreurs": []
   }

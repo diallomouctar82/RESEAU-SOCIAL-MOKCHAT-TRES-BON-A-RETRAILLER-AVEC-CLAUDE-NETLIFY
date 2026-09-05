@@ -109,24 +109,29 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     portraitUrl: '/architecte/architecte.webp',
     captionsUrl: '/architecte/vision-smart-heygen.fr.vtt',
     durationMs: 9082,
-    // Bande sombre corrigée (Direction, 05/09/2026) : la photo validée n'a pas de
-    // marge au-dessus du crâne, le modèle HeyGen portait donc la bande noire du
-    // portrait cadré (89 px sur 720). Sans nouveau crédit, la zone de bande de
-    // chacune des 228 images a été recomposée sur le portrait d'usine corrigé
-    // (prolongement adouci du fond), à travers la silhouette du détourage ; le
-    // reste des pixels HeyGen et le son AAC sont inchangés (H.264 crf 18, VP9).
+    // Bande sombre corrigée (Direction, 05/09/2026, v6.42.1) : la photo validée
+    // n'a pas de marge au-dessus du crâne, le modèle HeyGen portait donc la bande
+    // noire du portrait cadré (lignes 0 à 88 sur 720). Sans nouveau crédit, la
+    // zone de bande de chacune des 228 images générées a été recomposée sur le
+    // portrait d'usine corrigé (prolongement adouci du fond) à travers la
+    // silhouette du détourage — poids 1 jusqu'à la ligne 92, 0 à partir de la
+    // ligne 112, la silhouette n'entrant jamais avant la ligne 115 (revue
+    // indépendante : la rampe ne mord plus sur la bande, écart ligne à ligne
+    // < 1,5 entre 10 et 14 % de la hauteur). Le reste des pixels HeyGen et le
+    // son AAC sont inchangés ; ré-encodage H.264 crf 18 / VP9 en 227 images
+    // (`-shortest` sur la piste son de 9,08 s, comme les vidéos détourées).
     sources: [
         {
             url: '/architecte/vision-smart-heygen.mp4',
             type: 'video/mp4',
-            sha256: '1f87a5983466bd84eb0a233f464fade3f29f5b26df834eb445be4abe83d900c7',
-            sizeBytes: 1400595,
+            sha256: 'b049d042c13e2be56b771656833ba000e71e3903f449f29ab6db78eeb8da20d2',
+            sizeBytes: 1391269,
         },
         {
             url: '/architecte/vision-smart-heygen.webm',
             type: 'video/webm',
-            sha256: '7358f2e22b343bc53232d4469846c45516cedb6ea94b233539657125b9cab8ac',
-            sizeBytes: 561944,
+            sha256: 'b96135caf4fdb36f6b78e0703dc691c6e289a369d61759d177733cb69464c7a4',
+            sizeBytes: 561306,
         },
     ],
     // Détourage image par image (05/09/2026, photo validée) : silhouette relevée
@@ -151,7 +156,7 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     model: {
         // Le portrait d'usine = la photo validée par la Direction (05/09/2026),
         // cadrée par le moteur de l'option Super-Admin (768 px), le débord du haut
-        // comblé par le prolongement adouci du fond (v6.41.2).
+        // comblé par le prolongement adouci du fond (v6.42.1).
         portraitUrl: '/architecte/architecte.webp',
         voice: 'Voix attitrée de l’Architecte — ElevenLabs « George » (eleven_multilingual_v2), la même que la barre flottante, enregistrée le 05/09/2026 sur la phrase officielle',
         settings: { aspectRatio: '1:1', resolution: '720p', expressiveness: 'medium', fit: 'contain' },

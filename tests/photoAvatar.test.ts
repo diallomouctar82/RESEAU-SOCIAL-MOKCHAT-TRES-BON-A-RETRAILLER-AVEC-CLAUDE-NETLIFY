@@ -24,6 +24,7 @@ import {
     type Point,
 } from '../services/architecte/photoAvatar';
 import { DEFAULT_ARCHITECTE_AVATAR, sculptureMaskFor } from '../services/architecte/architecteAvatar';
+import { mirrorTilePlacements } from '../services/architecte/photoAvatarEngine';
 import { ARCHITECTE_PRESENTATION, sequenceFitsPhoto } from '../services/architecte/sequences';
 import { DEFAULT_PORTRAIT_RIG } from '../services/architecte/livingAvatar';
 
@@ -98,6 +99,25 @@ describe('Bandes de débord (photo trop serrée)', () => {
         expect(describeOverflow(all)).toEqual(['en haut (37,5 %)', 'en bas (37,5 %)', 'à gauche (37,5 %)', 'à droite (37,5 %)']);
         // Un carré entièrement hors de la photo est borné à 1, jamais au-delà.
         expect(overflowBands({ x: -1000, y: 0, side: 400 }, 100, 100).left).toBe(1);
+    });
+    it('les neuf tuiles du prolongement touchent la photo bord à bord, reflétées autour de chaque bord (géométrie pure du canevas)', () => {
+        const p = { x: 4, y: 6, w: 20, h: 16 };
+        const tiles = mirrorTilePlacements(p);
+        expect(tiles).toHaveLength(9);
+        // Intervalle couvert par une tuile : [translate, translate + w] si scale = 1, [translate − w, translate] si scale = −1.
+        const span = (t: number, s: 1 | -1, size: number): [number, number] => (s === 1 ? [t, t + size] : [t - size, t]);
+        for (const tile of tiles) {
+            expect(span(tile.translateX, tile.scaleX, p.w)).toEqual([p.x + tile.fx * p.w, p.x + (tile.fx + 1) * p.w]);
+            expect(span(tile.translateY, tile.scaleY, p.h)).toEqual([p.y + tile.fy * p.h, p.y + (tile.fy + 1) * p.h]);
+            // Un reflet est retourné (scale −1) exactement quand il n'est pas la photo elle-même.
+            expect(tile.scaleX).toBe(tile.fx === 0 ? 1 : -1);
+            expect(tile.scaleY).toBe(tile.fy === 0 ? 1 : -1);
+        }
+        // Le bord gauche de la tuile de gauche est le bord gauche de la photo, reflété : même abscisse, même contenu.
+        const gauche = tiles.find((t) => t.fx === -1 && t.fy === 0)!;
+        expect(gauche.translateX).toBe(p.x);
+        const centre = tiles.find((t) => t.fx === 0 && t.fy === 0)!;
+        expect([centre.translateX, centre.translateY, centre.scaleX, centre.scaleY]).toEqual([p.x, p.y, 1, 1]);
     });
     it('le carré calculé sur la photo validée (pupilles hautes) déborde bien en haut, avec la couverture qui va avec', () => {
         // 566 × 499 : pupilles à 30 % de la hauteur, écart de 21,4 % de la largeur → le carré fait 566 px et sort par le haut.
