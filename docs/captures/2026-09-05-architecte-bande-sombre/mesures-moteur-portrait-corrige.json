@@ -1,0 +1,39 @@
+{
+  "analyseMs": 2408,
+  "statut": "Photo analysée (478 repères du visage). Vérifiez l’aperçu vivant, puis validez.",
+  "avertissements": [
+    "Photo trop serrée : le cadre déborde de la photo en haut (12,5 %) — le fond y est prolongé (adouci) dans le portrait ; le masque y reste transparent."
+  ],
+  "portrait": {
+    "mime": "image/jpeg",
+    "octets": 43583
+  },
+  "masque": {
+    "mime": "image/png",
+    "octets": 16953
+  },
+  "rig": {
+    "eyeLinePercent": 46.3,
+    "eyeBandPercent": 3.1,
+    "jawLinePercent": 64.8,
+    "jawTravelPercent": 5.7,
+    "chinLinePercent": 78.5,
+    "eyeLeftXPercent": 39.3,
+    "eyeRightXPercent": 60.7,
+    "eyeWidthPercent": 8.1,
+    "browLinePercent": 39.9
+  },
+  "mouthAnchor": {
+    "xPercent": 50.9,
+    "yPercent": 64.8,
+    "widthPercent": 27.1,
+    "tiltDeg": -2.6
+  },
+  "voiceKey": "",
+  "videoSequencesEnabled": true,
+  "masquePourPhoto": true,
+  "erreurs": [
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU."
+  ]
+}
