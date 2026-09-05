@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrainCircuit, Mic, Image as ImageIcon, Loader2, CheckCircle2, XCircle, KeyRound, ChevronUp, ChevronDown, ExternalLink, CreditCard, BookOpen, Sparkles, AlertTriangle, Search } from 'lucide-react';
 import { AgentToolsMatrix } from './AgentToolsMatrix';
+import { AiCoreControlTower } from './AiCoreControlTower';
 import { AiCostGovernance } from './AiCostGovernance';
 import {
     AiCategory,
@@ -431,10 +432,18 @@ export const AiOrchestrator: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-fade-up">
-            <p className="text-sm text-slate-500">
-                Chaque catégorie bascule automatiquement sur le fournisseur suivant (par priorité) en cas d'échec,
-                d'indisponibilité ou de quota dépassé. Les clés ne sont jamais réaffichées après enregistrement.
-            </p>
+            {/* Tour de contrôle AI Core en PREMIER : c'est l'état du système
+                que l'Administrateur Général vient vérifier, avant d'entrer dans
+                le détail des fournisseurs. Elle ne fait que lire — aucun de ses
+                éléments n'active un outil ni n'accorde un droit. */}
+            <AiCoreControlTower />
+
+            <div className="pt-2 border-t border-slate-200">
+                <p className="text-sm text-slate-500">
+                    Chaque catégorie bascule automatiquement sur le fournisseur suivant (par priorité) en cas d'échec,
+                    d'indisponibilité ou de quota dépassé. Les clés ne sont jamais réaffichées après enregistrement.
+                </p>
+            </div>
             <ProviderDiscoveryPanel onDiscovered={load} />
             {categories.map((cat) => {
                 const rows = providers.filter((p) => p.category === cat);

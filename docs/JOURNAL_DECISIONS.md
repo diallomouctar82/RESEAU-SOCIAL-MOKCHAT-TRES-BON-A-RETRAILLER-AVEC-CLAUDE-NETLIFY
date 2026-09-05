@@ -3248,3 +3248,143 @@ Chaque décision respecte le formalisme strict suivant :
   que l'aperçu.
 
 ---
+
+### [DEC-2026-083] — 4 Septembre 2026
+* **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
+* **Problème / Besoin initial** : AI Core était une **boîte noire** pour
+  l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
+  bloqué, ce qui est activé. L'inspection du 4 septembre 2026 (lecture seule du
+  dépôt au commit `e9380bc` et de la base de production `rqciahtpixdjbyoajomg`)
+  a établi qu'AI Core **n'oriente aucun agent**, alors que son code est présent
+  et correct. Constats mesurés, non déduits :
+  1. `ai_tools.is_enabled = false` pour `search_ai_core_memory` ; **zéro ligne**
+     dans `agent_tool_grants` pour cet outil (les 31 lignes existantes couvrent
+     `web_search`, `get_user_context` et `create_dossier`).
+  2. `get_agent_tools` est une **jointure interne** sans défaut ni héritage : un
+     agent créé demain reçoit zéro outil tant qu'un humain n'insère pas ses
+     lignes. Rien n'applique AI Core « automatiquement ».
+  3. `body.agentId` part du navigateur vers `get_agent_tools` **sans aucune
+     validation** : ni existence de l'agent, ni droit de la personne à
+     l'incarner.
+  4. `ai_call_log` n'a **ni `agent_id` ni `tools_used`** : `toolsUsed` est
+     renvoyé au navigateur mais jamais écrit. Aucun usage d'outil n'est traçable.
+  5. **4 sites d'appel IA sur 87** transmettent un `agentId` ; les 83 autres
+     n'obtiennent aucun outil, AI Core compris. *(Chiffre du 4 septembre.
+     Le manifeste, remesuré à chaque build, donne **5 sur 89** au 5 septembre :
+     la PR #60 a ajouté un appel porteur d'un `agentId`, la PR #91 un appel
+     sans identité — le dénominateur grandit plus vite que le numérateur.)*
+  6. Le dépôt contient **2 migrations** contre **103** appliquées en base ;
+     `supabase/functions` est exclu de `tsc` et **aucun test** ne couvre AI Core.
+     *(Chiffre du 4 septembre, au commit `e9380bc`. Le manifeste, remesuré à
+     chaque build, compte **6 migrations dans le dépôt** au 5 septembre : les
+     PR #70, #86, #96 et #107 en ont versionné quatre depuis — dont
+     `platform_settings`, qui n'est pas appliquée. Le compte en base, 103,
+     reste celui du relevé du 4 septembre : il n'a pas été remesuré.)*
+
+  Le défaut n'était donc pas technique : il était **invisible**. Rien, dans
+  MokNet, ne permettait de le constater.
+* **Options envisagées** :
+  1. Corriger AI Core directement (activer l'outil, accorder les droits).
+     Écartée : toucher au catalogue et aux droits est un acte de production, qui
+     exige une autorisation explicite (§ XXVI de la Constitution) ; et corriger
+     sans rendre constatable laisserait le même angle mort au défaut suivant.
+  2. Produire un rapport ponctuel. Écartée : un rapport se périme au premier
+     commit et ne prouve rien le lendemain.
+  3. Un écran de contrôle **en lecture seule** dans la console
+     d'administration, alimenté par les surfaces déjà existantes, complété par
+     un manifeste **mesuré au build** pour les faits que le navigateur ne peut
+     pas lire.
+* **Décision retenue** : **option 3**. Une « Tour de contrôle AI Core » en tête
+  de *Super Admin → Connecteurs & Modèles IA*, qui affiche le statut global, les
+  cinq verrous un par un, les agents et leurs droits, la présence de
+  l'Architecte, l'usage détecté, la journalisation, les tests et la cohérence
+  dépôt/base. Elle **ne corrige pas** AI Core : elle le rend constatable.
+* **⚠️ Décision en attente d'arbitrage utilisateur** — les points suivants sont
+  **proposés et non validés**, et ne doivent être lus ni comme décidés ni comme
+  engagés :
+  1. **Exécution du Loop 1** (fondations) : validation de l'`agentId` côté
+     passerelle, journalisation `agent_id` + `tools_used`, mode `test` AI Core,
+     rapatriement des migrations manquantes (**6** dans le dépôt contre **103**
+     relevées en base le 4 septembre), extension du Green Gate par
+     `deno check` / `deno test`.
+  2. **Voie de preuve du Loop 1** : les deux règles en vigueur — « seule une
+     preuve venue du lien public compte » et « aucune fusion, aucune
+     production » — s'excluent sur ce Loop, dont trois chantiers ne produisent
+     aucun octet visible dans un navigateur. Trois voies ont été soumises ; **le
+     choix appartient à l'utilisateur**.
+  3. **Application de la migration `ai_call_log`** (écrite mais non appliquée,
+     ou appliquée sur le projet d'essai `vision-smart-essai`).
+  4. **Renommage du bloc de réglages homonyme `aiCore`** (`types.ts:5334`), sans
+     rapport avec Vision Smart AI Core et imposant `activeDefaultProvider:
+     'gemini'` — choix produit.
+  5. **Fusion de la PR #63** et déploiement de la tour de contrôle.
+* **Justification** : rendre l'écart visible avant de le corriger évite de
+  reproduire la cause racine (un défaut sans témoin). La lecture seule stricte
+  garantit que brancher l'écran ne modifie ni le comportement d'AI Core ni celui
+  d'un seul agent. La provenance de chaque case est écrite à l'écran (`lu en
+  base`, `mesuré au build`, `non lisible ici`) : une information non mesurée ne
+  peut pas se présenter comme mesurée.
+* **Conséquences** :
+  1. **Aucun faux vert possible par construction** : un verrou non éprouvé
+     interdit le statut vert ; une valeur non mesurable affiche « non
+     mesurable » et jamais « 0 » ; une base illisible donne « inconnu » et non
+     un rouge rassurant. Trois angles morts sont listés à l'écran plutôt que
+     tus : le jeton de service (secret serveur, invisible par conception),
+     l'usage réel d'AI Core (non traçable sans journalisation), le nombre de
+     migrations en base (schéma `supabase_migrations` non exposé à l'API REST —
+     valeur relevée hors ligne et datée).
+  2. **Quatre défauts trouvés et corrigés pendant la construction**, tous de la
+     même famille — un écran qui aurait *affirmé sans mesurer* :
+     a. le manifeste déclarait la journalisation **présente** (`p_agent_id:`,
+        argument du RPC `get_agent_tools`, satisfaisait la recherche de
+        `agent_id:`) et comptait 6 appels avec `agentId` au lieu de 4 ;
+     b. les pastilles d'état rendaient un **cadre vide** (prop nommée `enfants`
+        alors que JSX ne remplit que `children` — aucune erreur au typage) ;
+     c. la page publiait une **identité de build fabriquée** (un déploiement
+        Netlify par téléversement initialise un dépôt git neuf, `git rev-parse`
+        renvoyait un commit synthétique sur une branche « master » inexistante) ;
+        `commitDate`, faux pour la même raison, a été retiré plutôt que rafistolé ;
+     d. le **premier Green Gate est parti au rouge, et il avait raison** : `tsc`
+        échouait sur tout checkout propre (`snapshot.ts` importait statiquement
+        un fichier gitignoré, et le Green Gate lance `tsc` **avant** `build`).
+        Le poste de développement passait au vert uniquement parce qu'un build
+        précédent avait laissé le fichier — un vert de banc sale.
+  3. La prévisualisation charge désormais le manifeste **à l'exécution**, par le
+     même chemin que la console : ses chiffres se régénèrent à chaque build au
+     lieu de se figer. Effet mesuré : après la remise à niveau sur `main`, le
+     verrou 5 passe de **4/87** à **5/88** — la PR #60 a ajouté un vrai appel
+     porteur d'un `agentId` (`components/SocialLive.tsx`, un expert prenant la
+     parole dans un Live).
+  4. Aucun outil activé, aucun droit accordé, aucune RPC, aucune migration,
+     aucune colonne ajoutée. `netlify.toml` de la racine (celui de
+     `moknet.net`) **intact**, vérifié après chaque déploiement de
+     prévisualisation.
+* **Éléments techniques** : `components/admin/AiCoreControlTowerView.tsx` (vue
+  pure), `components/admin/AiCoreControlTower.tsx` (conteneur),
+  `services/aiCoreControlTowerModel.ts` (modèle et raisonnement, sans import
+  Supabase), `services/aiCoreControlTower.ts` (lecture réelle),
+  `scripts/build-ai-core-manifest.mjs` → `public/ai-core-manifest.json`,
+  `preview/tour-de-controle/*`, `vite.config.preview.ts`,
+  `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
+  `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
+  `components/admin/AiOrchestrator.tsx`.
+* **Preuves** : `tsc` 0 · **vitest 1657/1657 (110 fichiers)** après dix-sept remises
+  à niveau sur `main` (jusqu'à la PR #118) · `npm run build` propre · Green Gate
+  **vert** sur `b47a06a`, relancé sur le HEAD courant ·
+  séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
+  (conditions d'un checkout propre) · lien public de prévisualisation
+  `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify
+  **distinct** de `moknet.net`, `X-Robots-Tag: noindex` · **parité binaire**
+  entre les captures et le lien public (JS `sha256 9bf20220b847e1a9…` et CSS
+  `sha256 2f2eb85aaad35014…` identiques octet pour octet) · bundle de
+  prévisualisation sans client de base (0 occurrence de `createClient`,
+  `supabase.co`, `VITE_SUPABASE`) · aucune source du dépôt ni fichier étranger
+  servi sur l'URL publique (`/package.json`, `/.env.example`, `/sw.js`,
+  `/manifest.webmanifest`, `/icons/*` → 404) · aucun compte créé, aucune
+  écriture en base.
+* **Statut** : `Développé`, `Testé` — **NON FUSIONNÉ, NON DÉPLOYÉ**. PR #63
+  maintenue **en brouillon** à la demande de l'utilisateur. Les suites listées
+  au point « Décision en attente d'arbitrage utilisateur » ci-dessus ne sont
+  **pas** engagées.
+
+---

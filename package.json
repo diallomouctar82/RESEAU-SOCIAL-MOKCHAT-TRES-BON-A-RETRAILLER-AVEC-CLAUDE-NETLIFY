@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run manifest:ai-core && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "manifest:ai-core": "node scripts/build-ai-core-manifest.mjs",
+    "build:preview": "npm run manifest:ai-core && vite build --config vite.config.preview.ts"
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
@@ -31,7 +33,10 @@
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.5.4",
     "jsdom": "^25.0.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^3.2.7"

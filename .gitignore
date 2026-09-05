@@ -35,3 +35,9 @@ dist-ssr
 supabase/.temp/
 demo-local/
 dist-demo/
+
+# Sortie du build de prévisualisation (Tour de contrôle AI Core)
+dist-preview
+
+# Manifeste AI Core : régénéré à chaque build par scripts/build-ai-core-manifest.mjs
+public/ai-core-manifest.json

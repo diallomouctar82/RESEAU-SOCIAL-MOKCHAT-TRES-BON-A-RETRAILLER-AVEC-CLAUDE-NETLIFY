@@ -1,0 +1,28 @@
+# Configuration Netlify de la PRÉVISUALISATION « Tour de contrôle AI Core ».
+#
+# Elle vit ici, versionnée et relisible, plutôt que d'être improvisée au moment
+# du déploiement. Elle n'est JAMAIS active par elle-même : le `netlify.toml` de
+# la racine — celui de moknet.net — reste intact. La procédure de déploiement
+# (docs/TOUR_DE_CONTROLE_AI_CORE.md) copie ce fichier à la racine le temps d'un
+# déploiement, puis restaure l'original.
+#
+# Ce qu'elle garantit :
+#   • `publish = "dist-preview"` — SEULE la prévisualisation est publiée ;
+#     aucun fichier source du dépôt ne peut se retrouver sur une URL publique ;
+#   • `command` reconstruit la page depuis les sources, pour que le lien serve
+#     bien ce que le code produit, et non un artefact déposé à la main ;
+#   • `X-Robots-Tag: noindex` — une prévisualisation n'a rien à faire dans un
+#     moteur de recherche.
+
+[build]
+  publish = "dist-preview"
+  command = "npm run build:preview"
+
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
