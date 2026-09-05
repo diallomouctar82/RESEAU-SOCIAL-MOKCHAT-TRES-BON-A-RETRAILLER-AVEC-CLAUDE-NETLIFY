@@ -27,7 +27,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 | **Mot de passe Oublié** | `components/Auth.tsx` & `services/auth.ts` | 🟢 100% Opérationnel | Envoi de lien de réinitialisation sécurisé + formulaire de définition nouveau mot de passe |
 | **Validation des Formulaires** | `components/Auth.tsx` | 🟢 100% Opérationnel | Regex emails, jauge de force du mot de passe (0 à 4), confirmation mot de passe, CGU |
 | **Gestion des Sessions** | `App.tsx` & `services/auth.ts` | 🟢 100% Opérationnel | `getSession()`, `onAuthStateChange()`, synchronisation multi-onglets `StorageEvent` |
-| **Verrou d'entrée — session vérifiée par le serveur** | `services/auth.ts#verifierSession` & `App.tsx` | 🟡 Prête pour production contrôlée (DEC-2026-081, v6.42.0) | Toute session relue depuis l'appareil est confirmée par `GET /auth/v1/user` avant d'ouvrir l'interface ; refus → session effacée, écran de connexion ; serveur injoignable → tolérance dite (§ 5) |
+| **Verrou d'entrée — session vérifiée par le serveur** | `services/auth.ts#verifierSession` & `App.tsx` | 🟢 En production contrôlée depuis le 5/09/2026 à 17:01 UTC (DEC-2026-081, v6.42.0) | Toute session relue depuis l'appareil est confirmée par `GET /auth/v1/user` avant d'ouvrir l'interface ; refus → session effacée, écran de connexion ; serveur injoignable → tolérance dite (§ 5) |
 | **Création & Résolution de Profil** | `services/profile.ts` | 🟢 100% Opérationnel | Table `profiles`, badges, compétences, auto-génération à la première connexion |
 
 ---
@@ -54,7 +54,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 
 - Le verdict est attaché au **jeton**, jamais à l'événement : `getSession()`, `INITIAL_SESSION`, `SIGNED_IN` (y compris rejoué par supabase-js au retour sur l'onglet ou depuis un autre onglet, sans appel serveur), `TOKEN_REFRESHED`, `USER_UPDATED` passent tous par le verdict de leur jeton, une seule fois par jeton (`App.tsx`, `verdictsRef`) ; un jeton refusé reste refusé. Une connexion coûte un `GET /auth/v1/user` avant l'entrée.
 - Garde de course : une déconnexion ou une autre session survenue pendant le chargement du profil rend le traitement en vol caduc — l'interface ne s'ouvre pas après coup (`sessionCouranteRef`).
-- L'effacement local d'une session refusée est borné par le même délai : le `POST /auth/v1/logout` qui traîne ne retient pas l'écran de connexion (la session locale est retirée quoi qu'il arrive) ; la `Map` des verdicts garde au plus quatre jetons ; une exception de `getSession()` mène à l'écran de connexion, jamais à un chargement sans fin.
+- L'effacement local d'une session refusée est lui aussi borné par le délai : le `POST /auth/v1/logout` qui traîne ne retient pas l'écran de connexion (la session locale est retirée quoi qu'il arrive) ; au pire, un refus prend deux fois le délai, soit 16 s, jamais sans fin ; la `Map` des verdicts garde au plus quatre jetons ; une exception de `getSession()` mène à l'écran de connexion, jamais à un chargement sans fin.
 - Le jeton est passé explicitement à `getUser(jeton)` : pas de verrou multi-onglets, pas de relecture du stockage.
 - Tests : `tests/sessionValidee.test.ts` (verdicts sur les réponses réelles de supabase-js), `tests/appEntreeReseau.test.tsx` (écrans), `tests/netlifyRedirectsCanoniques.test.ts` (domaine).
 
