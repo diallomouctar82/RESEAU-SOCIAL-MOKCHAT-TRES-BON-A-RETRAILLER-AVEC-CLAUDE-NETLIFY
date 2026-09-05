@@ -1160,6 +1160,11 @@ Chaque décision respecte le formalisme strict suivant :
   interrompue · Réessayer » affiché sur un direct clos, le message de la
   garde jamais rendu — corrigé (`isLiveEndedError`, badge « TERMINÉ »,
   bloc « Ce direct est terminé. · Quitter ») et couvert par 3 tests.
+  **Déployé le 5 septembre** : PR #81 fusionnée en squash → `main` `880b5fa`
+  (Green Gate vert), bundle SAT-5 servi par moknet.net (7 empreintes) ;
+  migration appliquée à 01:28 UTC, première exécution réelle du cron à
+  02:15 UTC : 13 zombies fermés (les 13 ids sauvegardés), tracés dans
+  `audit_logs` ; 0 zombie restant, directs récents intacts.
 * **Frontière VPS (ce qui n'est pas récupérable depuis l'application)** :
   conteneur LiveKit à redémarrer, clé du coffre divergente, port UDP fermé,
   montée de version 1.8.4 → 1.13.6. SAT-4 les signale ; SAT-6 (bouton de
