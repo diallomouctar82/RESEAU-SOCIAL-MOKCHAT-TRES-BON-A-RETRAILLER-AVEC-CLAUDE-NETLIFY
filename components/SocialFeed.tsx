@@ -67,6 +67,71 @@ const ACTIONS_IA: ReadonlyArray<{ cle: AIPostAssistantTool; libelle: string; tei
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isRealPostId = (id: string) => UUID_RE.test(id);
 
+// L1 (assainissement du parcours Live) — modèle par défaut d'un direct
+// « lancé en un bouton » : PUBLIC, IMMÉDIAT, aucun champ à remplir. Source
+// unique réutilisée par le gros bouton « Lancer le Live » ET par la création
+// vocale (Architecte), pour ne jamais diverger. Le titre et la description
+// restent surchargeables (« Réglages / Programmer » ou dictée), mais rien
+// n'est obligatoire au démarrage — l'objectif du direct est optionnel.
+export function buildDefaultLiveStream(
+  currentUser: { id?: string; name: string; avatarUrl: string },
+  opts?: { title?: string; description?: string }
+): LiveStream {
+  const now = new Date();
+  const assignedAgent = AGENTS.find(a => a.id === '1');
+  return {
+    id: `live-${Date.now()}`,
+    title: (opts?.title || '').trim() || `Direct de ${currentUser.name}`,
+    description: opts?.description ?? '',
+    type: 'public',
+    hostName: currentUser.name,
+    hostAvatar: currentUser.avatarUrl,
+    viewers: 1,
+    isMixed: true,
+    aiAssistantId: assignedAgent?.id,
+    startedAt: now,
+    isScheduled: false,
+    duration: 45,
+    isPaid: false,
+    language: 'Français',
+    targetLanguage: 'Anglais',
+    coverImage: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&fit=crop',
+    isPrivate: false,
+    allowedMemberIds: [],
+    expertId: assignedAgent?.id,
+    isRecordingEnabled: true,
+    isTranslationEnabled: true,
+    isQuestionsEnabled: true,
+    isScreenShareEnabled: true,
+    isVisionEnabled: true,
+    isDataSaver: false,
+    qualityMode: 'auto',
+    tags: ['#Live', '#DialloOS', '#RéseauMok'],
+    speakers: [
+      {
+        id: currentUser.id || 'u1',
+        name: currentUser.name,
+        avatar: currentUser.avatarUrl,
+        role: 'host',
+        isMuted: false,
+        isVideoOn: true,
+        isVerified: true
+      },
+      ...(assignedAgent ? [{
+        id: `agent-${assignedAgent.id}`,
+        name: `${assignedAgent.name} (IA)`,
+        avatar: assignedAgent.avatarUrl,
+        role: 'expert_ai' as const,
+        isMuted: false,
+        isVideoOn: true,
+        isAi: true,
+        specialty: assignedAgent.specialty,
+        agentId: assignedAgent.id
+      }] : [])
+    ]
+  };
+}
+
 export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirectChat, onNavigate }) => {
   const { userProfile: currentUser, isSupabaseConnected, updateUserProfile } = useGlobal();
   const [activeTab, setActiveTab] = useState<'feed' | 'reels' | 'lives' | 'tribes' | 'my_space'>('feed');
@@ -1438,6 +1503,16 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
     }
   };
 
+  // L1 (assainissement) — LE gros bouton « Lancer le Live » : un seul geste,
+  // on est en direct tout de suite. Public par défaut, aucune question, titre
+  // par défaut « Direct de {nom} ». Réutilise exactement le chemin éprouvé
+  // handleCreateLive → onOpenLive → SocialLive (qui crée la session réelle).
+  // Les réglages (thème/objectif/visibilité/programmation) restent accessibles
+  // via « Réglages / Programmer » (LiveCreationModal), jamais imposés.
+  const handleQuickLaunchLive = () => {
+    handleCreateLive(buildDefaultLiveStream(currentUser));
+  };
+
   // --- Pont d'exécution de l'Architecte (LOOP Architecte) ---
   // Cet écran DÉCLARE les capacités qu'il sait exécuter, plutôt que de laisser
   // l'Architecte fouiller dans son état interne. Tant qu'il est monté, ces
@@ -1472,58 +1547,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         const now = new Date();
         const title = rawTitle ||
           `Live de ${currentUser.name} — ${now.toLocaleDateString('fr-FR')} ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
-        const assignedAgent = AGENTS.find(a => a.id === '1');
-        const newLive: LiveStream = {
-          id: `live-${Date.now()}`,
-          title,
-          description: "Session lancée à la voix via L'Architecte",
-          type: 'public',
-          hostName: currentUser.name,
-          hostAvatar: currentUser.avatarUrl,
-          viewers: 1,
-          isMixed: true,
-          aiAssistantId: assignedAgent?.id,
-          startedAt: now,
-          isScheduled: false,
-          duration: 45,
-          isPaid: false,
-          language: 'Français',
-          targetLanguage: 'Anglais',
-          coverImage: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&fit=crop',
-          isPrivate: false,
-          allowedMemberIds: [],
-          expertId: assignedAgent?.id,
-          isRecordingEnabled: true,
-          isTranslationEnabled: true,
-          isQuestionsEnabled: true,
-          isScreenShareEnabled: true,
-          isVisionEnabled: true,
-          isDataSaver: false,
-          qualityMode: 'auto',
-          tags: ['#Live', '#DialloOS', '#RéseauMok'],
-          speakers: [
-            {
-              id: currentUser.id || 'u1',
-              name: currentUser.name,
-              avatar: currentUser.avatarUrl,
-              role: 'host',
-              isMuted: false,
-              isVideoOn: true,
-              isVerified: true
-            },
-            ...(assignedAgent ? [{
-              id: `agent-${assignedAgent.id}`,
-              name: `${assignedAgent.name} (IA)`,
-              avatar: assignedAgent.avatarUrl,
-              role: 'expert_ai' as const,
-              isMuted: false,
-              isVideoOn: true,
-              isAi: true,
-              specialty: assignedAgent.specialty,
-              agentId: assignedAgent.id
-            }] : [])
-          ]
-        };
+        // L1 : une seule source de vérité pour le direct par défaut (partagée
+        // avec le gros bouton « Lancer le Live »). La voix impose juste son
+        // titre et sa description ; tout le reste (public, immédiat, copilote)
+        // vient du modèle commun.
+        const newLive = buildDefaultLiveStream(currentUser, { title, description: "Session lancée à la voix via L'Architecte" });
         handleCreateLive(newLive);
         return { ok: true, message: `Votre live « ${title} » est créé — il s'ouvre à l'écran.` };
       } catch (e: any) {
@@ -2606,8 +2634,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                   <Radio size={18} className="text-red-500 animate-pulse" />
                   Lives en Direct
                 </h3>
-                <button 
-                  onClick={() => setIsLiveModalOpen(true)}
+                <button
+                  onClick={handleQuickLaunchLive}
                   className="text-xs font-bold text-indigo-600 hover:underline"
                 >
                   + Lancer un live
@@ -2834,30 +2862,31 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
       {activeTab === 'lives' && (
         <div className="space-y-8 animate-fade-in">
           
-          {/* Header & Launch CTA */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-3xl border border-white/10 shadow-xl">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-red-600/30 text-red-400 rounded-xl border border-red-500/30 font-black text-xs uppercase flex items-center gap-1.5">
-                  <Radio size={14} className="animate-pulse" /> Espace Live Intelligent
-                </span>
-                <span className="text-xs text-indigo-300 font-bold hidden sm:inline">Propulsé par Diallo OS</span>
-              </div>
-              <h2 className="text-xl font-black text-white">
-                Rencontres, Expertises & Formations en Temps Réel
-              </h2>
-              <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-                Participez à des sessions interactives bilingues, posez vos questions aux experts IA et humains, 
-                ou lancez votre propre masterclass avec transcription et synthèse automatique.
-              </p>
+          {/* L2 (assainissement) — barre de lancement compacte EN TÊTE : le
+              gros bouton « Lancer le Live » reste toujours visible, réglages /
+              programmation en second. Le descriptif de l'Espace Live est
+              déplacé plus bas (rien n'est retiré), pour que les directs en
+              cours apparaissent directement, sans défiler la file. */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span className="p-1.5 bg-red-600/15 text-red-600 rounded-xl border border-red-500/30 font-black text-xs uppercase inline-flex items-center gap-1.5 self-start">
+              <Radio size={14} className="animate-pulse" /> Espace Live
+            </span>
+            <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
+              <button
+                onClick={handleQuickLaunchLive}
+                data-testid="live-quick-launch"
+                className="px-8 py-4 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white text-base font-black rounded-2xl shadow-xl shadow-red-600/30 hover:scale-102 active:scale-98 transition-all flex items-center justify-center gap-2"
+              >
+                <Radio size={20} className="animate-pulse" /> Lancer le Live
+              </button>
+              <button
+                onClick={() => setIsLiveModalOpen(true)}
+                data-testid="live-settings-schedule"
+                className="text-[11px] font-bold text-indigo-500 hover:text-indigo-700 hover:underline text-center"
+              >
+                Réglages / Programmer
+              </button>
             </div>
-
-            <button
-              onClick={() => setIsLiveModalOpen(true)}
-              className="px-6 py-3.5 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-red-600/30 hover:scale-102 active:scale-98 transition-all flex items-center justify-center gap-2"
-            >
-              <Radio size={16} className="animate-pulse" /> Lancer ou Programmer un Live
-            </button>
           </div>
 
           {/* Category Filter Chips */}
@@ -2957,6 +2986,25 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Descriptif de l'Espace Live Intelligent — déplacé SOUS les directs
+              en cours (L2 : rien retiré, seulement repositionné) pour que la
+              liste des directs soit la première chose vue en entrant. */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-3xl border border-white/10 shadow-xl space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-red-600/30 text-red-400 rounded-xl border border-red-500/30 font-black text-xs uppercase flex items-center gap-1.5">
+                <Radio size={14} className="animate-pulse" /> Espace Live Intelligent
+              </span>
+              <span className="text-xs text-indigo-300 font-bold hidden sm:inline">Propulsé par Diallo OS</span>
+            </div>
+            <h2 className="text-xl font-black text-white">
+              Rencontres, Expertises & Formations en Temps Réel
+            </h2>
+            <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+              Participez à des sessions interactives bilingues, posez vos questions aux experts IA et humains,
+              ou lancez votre propre masterclass avec transcription et synthèse automatique.
+            </p>
           </div>
 
           {/* Section 2: Sessions Programmées & Fuseaux Horaires */}

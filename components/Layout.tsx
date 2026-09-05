@@ -70,6 +70,11 @@ interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   onTabChange: (tab: string, context?: any) => void;
+  // L3 (assainissement Live) — ouvrir un direct par son id depuis le clic sur
+  // une notification d'invitation (target_action='live:<id>'). Sans ce pont,
+  // recevoir une invitation ne menait nulle part (Layout ne routait que
+  // 'chat'/'messages'). Câblé à App.handleOpenLive, le même chemin que le lien.
+  onOpenLive?: (liveId: string) => void;
   notifications: Notification[];
   onMarkRead: (id: string) => void;
   userProfile: UserProfile;
@@ -157,6 +162,7 @@ export const Layout: React.FC<LayoutProps> = ({
   children,
   activeTab,
   onTabChange,
+  onOpenLive,
   notifications,
   onMarkRead,
   userProfile,
@@ -186,6 +192,16 @@ export const Layout: React.FC<LayoutProps> = ({
     if (notif.targetAction === 'chat' || notif.targetAction === 'messages') {
       setChatOpenSignal(s => s + 1);
       setIsNotifOpen(false);
+    } else if (notif.targetAction && notif.targetAction.startsWith('live:')) {
+      // L3 — une invitation à un direct DOIT mener dans le direct. On rejoue
+      // exactement le chemin du lien ?live=<id> (App.handleOpenLive) ; les
+      // contrôles d'accès (RLS can_view_live_session) restent appliqués par
+      // SocialLive, jamais contournés ici.
+      const liveId = notif.targetAction.slice('live:'.length);
+      if (liveId) {
+        onOpenLive?.(liveId);
+        setIsNotifOpen(false);
+      }
     }
   };
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);

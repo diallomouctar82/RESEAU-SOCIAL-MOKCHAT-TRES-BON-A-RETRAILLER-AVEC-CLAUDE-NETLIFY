@@ -59,6 +59,13 @@ export interface LiveParticipantsPanelProps {
     onInvite: () => void;
     /** Retirer un agent IA de la scène (hôte seulement). */
     onRemoveAgent?: (agentId: string) => void;
+    /**
+     * L4 — QUI EST INVITÉ : personnes que l'hôte a invitées ce direct et qui
+     * ne sont pas encore entrées. Construit côté hôte à l'envoi de
+     * l'invitation (l'hôte ne peut pas relire les notifications d'autrui),
+     * jamais une supposition. Vide pour un spectateur.
+     */
+    invited?: { id: string; name: string; avatar?: string }[];
 }
 
 /**
@@ -230,7 +237,7 @@ const Ligne: React.FC<{
 };
 
 export const LiveParticipantsPanel: React.FC<LiveParticipantsPanelProps> = (props) => {
-    const { participants, isHost } = props;
+    const { participants, isHost, invited } = props;
     const surScene = participants.filter(p => isOnStageRole(p.role) || p.isAi);
     const dansLePublic = participants.filter(p => !isOnStageRole(p.role) && !p.isAi);
     const mainsLevees = dansLePublic.filter(p => p.isHandRaised).length;
@@ -283,6 +290,49 @@ export const LiveParticipantsPanel: React.FC<LiveParticipantsPanelProps> = (prop
                     </ul>
                 )}
             </section>
+
+            {/* L4 — QUI EST INVITÉ. Séparé du public (qui regarde déjà) : une
+                personne invitée n'est pas encore entrée. Réservé à l'hôte, qui
+                seul connaît honnêtement la liste (les notifications d'autrui ne
+                sont pas lisibles). Elle disparaît d'ici dès qu'elle rejoint. */}
+            {isHost && (
+                <section data-testid="live-invited-section">
+                    <h4 className="live-title text-[10px] mb-2" data-testid="live-invited-heading">
+                        Invité·e·s · {invited?.length ?? 0}
+                    </h4>
+                    {(!invited || invited.length === 0) ? (
+                        <p className="text-[11px]" style={{ color: 'var(--live-ink-soft)' }} data-testid="live-invited-empty">
+                            Personne d’invité pour l’instant. « Inviter quelqu’un » ci-dessus
+                            envoie une vraie invitation.
+                        </p>
+                    ) : (
+                        <ul className="space-y-1.5">
+                            {invited.map(iv => (
+                                <li
+                                    key={iv.id}
+                                    data-testid={`live-invited-${iv.id}`}
+                                    className="live-pane flex items-center gap-2.5 px-2.5 py-2 !rounded-2xl"
+                                >
+                                    {iv.avatar
+                                        ? <img src={iv.avatar} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                                        : (
+                                            <span
+                                                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-light shrink-0 border"
+                                                style={{ borderColor: 'var(--live-line)', color: 'var(--live-ink)', background: 'rgba(255,255,255,.06)' }}
+                                            >
+                                                {iv.name.charAt(0).toUpperCase()}
+                                            </span>
+                                        )}
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[12px] font-semibold truncate" style={{ color: 'var(--live-ink)' }}>{iv.name}</span>
+                                        <span className="block text-[10px]" style={{ color: 'var(--live-ink-soft)' }}>Invité·e — en attente d’entrée</span>
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </section>
+            )}
 
             {!isHost && (
                 <p className="text-[10px] leading-relaxed" style={{ color: 'var(--live-ink-soft)' }}>

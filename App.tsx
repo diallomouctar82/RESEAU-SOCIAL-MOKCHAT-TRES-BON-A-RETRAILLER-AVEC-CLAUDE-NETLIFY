@@ -386,6 +386,7 @@ const AppContent = () => {
     <Layout
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onOpenLive={handleOpenLive}
         notifications={notifications}
         onMarkRead={markNotificationRead}
         userProfile={userProfile}

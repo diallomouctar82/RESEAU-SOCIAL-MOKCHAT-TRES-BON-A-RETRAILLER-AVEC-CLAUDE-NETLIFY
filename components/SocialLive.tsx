@@ -264,7 +264,12 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // et peut refuser (repli : spectateur, jamais de caméra/micro publiés
   // sans ce choix explicite).
   const [hasMediaConsent, setHasMediaConsent] = useState(false);
-  const [showMediaConsentModal, setShowMediaConsentModal] = useState(isHost);
+  // L1 (assainissement) : JAMAIS de modale de consentement au LANCEMENT.
+  // L'hôte qui vient de lancer son direct auto-consent (le prompt navigateur
+  // natif via LiveKit reste la seule et unique autorisation, pas dupliquée) ;
+  // seul un spectateur promu par surprise voit encore la modale (applyMyRole
+  // → décision 'promote', plus bas). Init à false pour tout le monde.
+  const [showMediaConsentModal, setShowMediaConsentModal] = useState(false);
   // Équipe 10 (L1) : le choix (accord OU refus) est mémorisé pour ne jamais
   // rouvrir la modale en boucle — isHost se résout en ASYNCHRONE (effet de
   // resynchronisation plus bas) et le roster répète role='speaker' à chaque
@@ -317,7 +322,16 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     if (!isHost) return;
     isUserOnStageRef.current = true;
     setIsUserOnStage(true);
-    if (!hasMediaConsentRef.current && !mediaConsentAnsweredRef.current) setShowMediaConsentModal(true);
+    // L1 (assainissement) : l'hôte a lancé son direct — on ne redemande pas
+    // une autorisation applicative en plus du prompt navigateur natif
+    // (getUserMedia via LiveKit). On mémorise le consentement UNE fois, sans
+    // jamais ouvrir la modale ; la publication réelle reste gardée par le
+    // prompt du navigateur, seule et unique demande caméra/micro.
+    if (!mediaConsentAnsweredRef.current) {
+      mediaConsentAnsweredRef.current = true;
+      hasMediaConsentRef.current = true;
+      setHasMediaConsent(true);
+    }
   }, [isHost]);
 
   // Provisionnement de la session réelle (LOOP 05/14) — la plupart des points
@@ -2006,6 +2020,15 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteFriends, setInviteFriends] = useState<{ id: string; name: string; avatar?: string; title?: string }[]>([]);
   const [inviteFriendsLoading, setInviteFriendsLoading] = useState(false);
+  // L3 — recherche simple pour inviter au-delà de ses amis (n'importe quel
+  // membre). Champ vide → on montre mes amis ; champ rempli → résultats.
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('');
+  const [inviteSearchResults, setInviteSearchResults] = useState<{ id: string; name: string; avatar?: string; title?: string }[]>([]);
+  const [inviteSearchLoading, setInviteSearchLoading] = useState(false);
+  // L4 — QUI EST INVITÉ. L'hôte ne peut pas relire les notifications d'autrui
+  // (RLS notifications_owner), donc « qui est invité » se construit
+  // honnêtement côté hôte, à l'instant de l'envoi (jamais une supposition).
+  const [invitedPeople, setInvitedPeople] = useState<{ id: string; name: string; avatar?: string }[]>([]);
   const [inviteStates, setInviteStates] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({});
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [shareCopied, setShareCopied] = useState(false);
@@ -2033,11 +2056,52 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     return () => { annule = true; };
   }, [showInviteModal, userProfile.id, inviteFriends.length]);
 
+  // L3 — recherche débounce de membres à inviter. Passe par
+  // supabaseService.searchProfiles → discover_profiles (SECURITY DEFINER, RLS
+  // respectée : jamais un profil privé, jamais une personne bloquée, jamais
+  // anon). On exclut seulement soi-même ; le reste de la garde est en base, et
+  // inviter quelqu'un déjà présent n'a aucun effet (anti-doublon côté serveur).
+  useEffect(() => {
+    const q = inviteSearchQuery.trim();
+    if (!showInviteModal || !q) {
+      setInviteSearchResults([]);
+      setInviteSearchLoading(false);
+      return;
+    }
+    let annule = false;
+    setInviteSearchLoading(true);
+    const t = window.setTimeout(() => {
+      supabaseService.searchProfiles(q)
+        .then((rows: any[]) => {
+          if (annule) return;
+          const mapped = (rows || [])
+            .filter((p: any) => p && p.id && p.id !== userProfile.id)
+            .map((p: any) => ({ id: p.id, name: p.name || 'Membre', avatar: p.avatar_url || undefined, title: p.title || undefined }));
+          setInviteSearchResults(mapped);
+        })
+        .catch(() => { if (!annule) setInviteSearchResults([]); })
+        .finally(() => { if (!annule) setInviteSearchLoading(false); });
+    }, 280);
+    return () => { annule = true; window.clearTimeout(t); };
+  }, [inviteSearchQuery, showInviteModal, userProfile.id]);
+
   const handleInviteFriend = (friendId: string) => {
     if (!realSessionId) return;
     setInviteStates(prev => ({ ...prev, [friendId]: 'sending' }));
     inviteToLiveSession(realSessionId, friendId)
-      .then(() => setInviteStates(prev => ({ ...prev, [friendId]: 'sent' })))
+      .then(() => {
+        setInviteStates(prev => ({ ...prev, [friendId]: 'sent' }));
+        // L4 — sur un envoi RÉELLEMENT réussi (jamais avant), on garde le nom
+        // et l'avatar de la personne invitée pour la section « Invité·e·s »
+        // du panneau Personnes. La source est la liste déjà à l'écran (amis
+        // ou résultats de recherche), pas une invention.
+        const personne = [...inviteFriends, ...inviteSearchResults].find(p => p.id === friendId);
+        if (personne) {
+          setInvitedPeople(prev => prev.some(p => p.id === friendId)
+            ? prev
+            : [...prev, { id: personne.id, name: personne.name, avatar: personne.avatar }]);
+        }
+      })
       .catch((err) => {
         // Jamais un « Invité » affiché sur un échec : l'état revient à
         // « erreur » et porte la vraie raison renvoyée par la base.
@@ -3643,7 +3707,8 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 onToggleMute={handleToggleParticipantMute}
                 onRemove={handleRemoveParticipant}
                 onInvite={() => setShowInviteModal(true)}
-                onRemoveAgent={(agentId) => setAgentsRetires(prev => prev.includes(agentId) ? prev : [...prev, agentId])}
+                onRemoveAgent={handleRetirerAgentDeLaScene}
+                invited={invitedPeople.filter(ip => !stageParticipants.some(sp => sp.id === ip.id))}
               />
             )}
 
@@ -4383,7 +4448,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
           de suite), ou le lien du direct. */}
       <LiveInviteModal
         isOpen={showInviteModal}
-        onClose={() => setShowInviteModal(false)}
+        onClose={() => { setShowInviteModal(false); setInviteSearchQuery(''); }}
         friends={inviteFriends}
         friendsLoading={inviteFriendsLoading}
         inviteStates={inviteStates}
@@ -4395,6 +4460,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         onCopyShareUrl={handleCopyShareFromInvite}
         shareCopied={shareCopied}
         canInviteFriends={!!isHost && !!realSessionId}
+        searchQuery={inviteSearchQuery}
+        onSearchQueryChange={setInviteSearchQuery}
+        searchResults={inviteSearchResults}
+        searchLoading={inviteSearchLoading}
       />
 
       {showSummonExpertModal && (
@@ -4506,7 +4575,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
         isOpen={showWaitingRoomModal}
         onClose={() => setShowWaitingRoomModal(false)}
         liveStream={liveData}
-        onJoinLive={() => {
+        onEnterLive={() => {
           setShowWaitingRoomModal(false);
           addNotification("En Direct 🔴", "Vous avez rejoint la scène du Live.", "success");
         }}

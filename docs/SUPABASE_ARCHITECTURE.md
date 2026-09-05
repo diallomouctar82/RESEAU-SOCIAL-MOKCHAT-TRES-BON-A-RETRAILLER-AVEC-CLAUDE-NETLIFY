@@ -81,11 +81,28 @@ Toute l'app converge vers **une identité unique** : `auth.users` (Supabase Auth
 | Fonction | Rôle |
 |---|---|
 | `is_admin()` | Vérifie si l'utilisateur courant est admin (utilisée dans les policies). |
-| `can_view_live_session(id)` / `is_live_host(id)` | Visibilité et droits d'écriture sur une session Live. |
+| `can_view_live_session(id)` / `is_live_host(id)` | Visibilité et droits d'écriture sur une session Live. `can_view_live_session` autorise l'hôte, l'admin, un direct public, **un membre de `allowed_member_ids`** (invité explicite), un speaker ou un présent. |
+| `invite_to_live_session(session, invitee)` | Invitation d'une personne à un direct (animateur/modérateur seulement, bloqués exclus). Ajoute réellement l'invité·e à `allowed_member_ids` (idempotent — l'invitation ouvre donc l'entrée, même sur un direct privé) **et** écrit une notification `type='live_invite'` (`target_action='live:<id>'`, routée vers l'ouverture du direct). |
 | `can_access_dossier(id)` / `can_write_dossier(id)` | Visibilité et droits d'écriture sur un dossier (propriétaire ou partage explicite). |
 | `get_wallet_balance(user_id, currency)` | Solde dérivé (somme des transactions), avec vérification d'autorisation (soi-même ou admin). |
 | `insert_wallet_transaction(...)` | Seule voie d'écriture dans `wallet_transactions` — vérifie le solde avant un débit. |
 | `award_xp_and_credits(user_id, xp_delta, credits_delta)` | Seule voie légitime pour modifier `credits`/`xp`/`level` sur `profiles`. |
+
+> **LV-2 (assainissement Live) — L5, contrainte `notifications_type_check`.**
+> La contrainte n'autorisait que `type IN ('success','info','warning','alert')`.
+> Or `invite_to_live_session` écrit `type='live_invite'` : l'`INSERT` échouait
+> donc systématiquement, et comme la fonction est une transaction unique,
+> l'échec annulait AUSSI l'octroi `allowed_member_ids` — les invitations ne
+> fonctionnaient JAMAIS (cause profonde de « les invitations ne marchent
+> pas »). Migration additive `notifications_type_check_allow_live_invite` :
+> l'ensemble autorisé devient `('success','info','warning','alert','live_invite')`
+> — le seul type manquant réellement produit par l'application (énumération
+> exhaustive des fonctions SQL + du code client). Zéro régression (les lignes
+> existantes sont toutes `info`/`success`). Prouvé en base réelle par
+> impersonation en transaction annulée (zéro trace) : direct privé invisible à
+> un tiers → invitation → `allowed_member_ids` peuplé + notification `live_invite`
+> réellement écrite → l'invité·e peut entrer (`can_view=true`) → le tiers reste
+> exclu → visibilité publique inchangée.
 
 ---
 
