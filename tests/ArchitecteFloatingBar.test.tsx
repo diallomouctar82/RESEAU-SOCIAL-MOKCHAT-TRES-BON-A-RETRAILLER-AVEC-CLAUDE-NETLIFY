@@ -542,3 +542,36 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
         expect(lien).toHaveAttribute('target', '_blank');
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// PRÉSENTATION VIDÉO — le modèle validé par la Direction (05/09/2026)
+// ─────────────────────────────────────────────────────────────────────────
+import { ARCHITECTE_PRESENTATION, PRESENTATION_SEEN_KEY } from '../services/architecte/sequences';
+
+describe('Présentation vidéo de l’Architecte dans la barre', () => {
+    beforeEach(() => {
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', { configurable: true, value: vi.fn(() => Promise.resolve()) });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+        try { localStorage.removeItem(PRESENTATION_SEEN_KEY); } catch { /* sans stockage */ }
+    });
+
+    it('la barre ouverte propose la présentation une fois, puis la joue en grand dans le cadre au clic', async () => {
+        monter();
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        expect(await screen.findByTestId('architecte-presentation-invitation')).toBeInTheDocument();
+        const bouton = screen.getByTestId('architecte-presentation-bouton');
+        fireEvent.click(bouton);
+        const fenetre = await screen.findByTestId('architecte-presentation-fenetre');
+        expect(fenetre).toBeInTheDocument();
+        expect(screen.queryByTestId('architecte-presentation-invitation')).toBeNull();
+        const video = fenetre.querySelector('[data-testid="architecte-sequence-video"]') as HTMLVideoElement;
+        expect(video).toHaveAttribute('data-sequence-slot', 'presentation');
+        expect(video).toHaveAttribute('data-sequence-status', 'loading');
+        expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+        expect(fenetre).toHaveTextContent(ARCHITECTE_PRESENTATION.text.slice(0, 24));
+        expect(localStorage.getItem(PRESENTATION_SEEN_KEY)).toBe('1');
+        // Fermer la fenêtre rend la main au rig.
+        fireEvent.click(screen.getByLabelText('Fermer la fenêtre visuelle'));
+        expect(screen.queryByTestId('architecte-presentation-fenetre')).toBeNull();
+    });
+});

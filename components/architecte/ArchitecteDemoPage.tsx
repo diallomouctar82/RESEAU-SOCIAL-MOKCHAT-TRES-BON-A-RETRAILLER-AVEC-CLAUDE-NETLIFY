@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play, Volume2 } from 'lucide-react';
+import { Film, Pause, Play, Volume2 } from 'lucide-react';
 import { adminConfigService } from '../../services/adminConfigService';
 import {
     ARCHITECTE_DISCLOSURE,
@@ -25,6 +25,8 @@ import { buildVoiceTrack, mixToMono, trackShapeAt, type VoiceTrack } from '../..
 import { buildProsodyScore, type ProsodyScore } from '../../services/architecte/gestures';
 import type { VoiceTrackRef } from '../../services/voiceEngine';
 import { ArchitecteAvatar } from './ArchitecteAvatar';
+import { ARCHITECTE_PRESENTATION, architecteSequencePlayer } from '../../services/architecte/sequences';
+import { useSequencePlayerState } from './ArchitecteSequenceVideo';
 
 /** Ce que dit l'Architecte quand on lui demande de parler à voix haute. */
 export const PHRASE_DEMO = 'Bonjour. Je suis l’Architecte. Je vous accompagne dans MokNet.';
@@ -35,8 +37,8 @@ export const PHRASE_DEMO = 'Bonjour. Je suis l’Architecte. Je vous accompagne 
  * MESURÉE sur cet audio par le même analyseur qu'en production
  * (`voiceEngine`) — c'est la synchro labiale réelle, pas une animation.
  */
-export const PHRASE_VISION_SMART =
-    'Bonjour, je suis l’avatar de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle.';
+/** Même texte que la séquence vidéo validée : une seule source de vérité. */
+export const PHRASE_VISION_SMART = ARCHITECTE_PRESENTATION.text;
 export const AUDIO_VISION_SMART_URL = '/architecte/vision-smart.wav';
 
 /** Ce que la page expose aux bancs de preuve (enregistrement audio + vidéo). */
@@ -217,6 +219,10 @@ export const ArchitecteDemoPage: React.FC = () => {
     const [alignee, setAlignee] = useState(false);
     const pisteDriveRef = useRef<{ track: VoiceTrack; score: ProsodyScore } | null>(null);
     const [budgetPixels, setBudgetPixels] = useState<number | undefined>(undefined);
+    /** Séquence vidéo validée (modèle HeyGen) : état du lecteur partagé. */
+    const sequence = useSequencePlayerState(architecteSequencePlayer);
+    const videoEnCours = sequence.key === ARCHITECTE_PRESENTATION.key && (sequence.status === 'loading' || sequence.status === 'playing' || sequence.status === 'ended');
+    const videoRefusee = sequence.key === ARCHITECTE_PRESENTATION.key && sequence.status === 'failed';
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -267,7 +273,8 @@ export const ArchitecteDemoPage: React.FC = () => {
             changerVoix('indisponible');
             return;
         }
-        // Une lecture à la fois ; la boucle muette s'efface.
+        // Une lecture à la fois ; la boucle muette s'efface, la vidéo aussi.
+        architecteSequencePlayer.stop();
         hdRef.current?.audio.pause();
         cancelAnimationFrame(hdRafRef.current);
         setEnBoucle(false);
@@ -373,6 +380,7 @@ export const ArchitecteDemoPage: React.FC = () => {
             return;
         }
         synth.cancel();
+        architecteSequencePlayer.stop();
         const lecture = new SpeechSynthesisUtterance(PHRASE_DEMO);
         lecture.lang = 'fr-FR';
         lecture.rate = 0.95;
@@ -411,6 +419,26 @@ export const ArchitecteDemoPage: React.FC = () => {
             }
         }, DELAI_DEMARRAGE_VOIX_MS);
     };
+    /**
+     * LE MODÈLE VALIDÉ (Direction, 05/09/2026) : la séquence vidéo HeyGen jouée
+     * dans le cadre même de l'avatar, par-dessus le portrait vivant. Aucune
+     * génération, aucune clé : un fichier livré avec l'application. Appel
+     * SYNCHRONE dans le clic, sinon le son est refusé sur mobile.
+     */
+    const voirAvatarVideo = () => {
+        hdRef.current?.audio.pause();
+        cancelAnimationFrame(hdRafRef.current);
+        if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+        setEnBoucle(false);
+        enBoucleRef.current = false;
+        debutRef.current = null;
+        boucheRef.current = null;
+        pisteRef.current = null;
+        setAlignee(false);
+        publierNiveau(0);
+        changerVoix('inactive');
+        architecteSequencePlayer.play(ARCHITECTE_PRESENTATION.key, 'demo');
+    };
     const basculerBoucle = () => {
         const suivant = !enBoucleRef.current;
         enBoucleRef.current = suivant;
@@ -421,7 +449,7 @@ export const ArchitecteDemoPage: React.FC = () => {
     const voixEnCours = voix === 'parle';
     const voixHd = voix === 'hd';
     const parle = voixEnCours || voixHd || enPhrase;
-    const presence: ArchitectePresenceState = parle ? 'speaking' : 'rest';
+    const presence: ArchitectePresenceState = parle || (videoEnCours && sequence.status !== 'ended') ? 'speaking' : 'rest';
     const niveauSynchro = voixEnCours ? 'rythme_des_mots' : 'amplitude_reelle';
 
     return (
@@ -432,6 +460,7 @@ export const ArchitecteDemoPage: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-bold mt-2 text-center">L’Architecte — avatar vivant</h1>
             <p className="text-sm text-slate-400 mt-2 text-center max-w-lg leading-relaxed">
                 Il respire, sa tête bouge, il cligne des yeux, et sa bouche suit l’amplitude de sa voix.
+                La séquence vidéo validée par la Direction se joue dans le même cadre.
                 Page de démonstration : aucune donnée de compte n’est lue ni écrite.
             </p>
 
@@ -448,6 +477,8 @@ export const ArchitecteDemoPage: React.FC = () => {
                     voiceAligned={alignee}
                     pixelBudget={budgetPixels}
                     wordPulse={mot}
+                    sequence={ARCHITECTE_PRESENTATION}
+                    sequenceSlot="demo"
                     size={400}
                     actionLabel="Avatar de démonstration"
                 />
@@ -462,8 +493,18 @@ export const ArchitecteDemoPage: React.FC = () => {
             </p>
 
             <p className="text-sm text-slate-300 italic text-center mt-1 max-w-md min-h-[3rem]" aria-live="polite">
-                {voixHd ? `« ${PHRASE_VISION_SMART} »` : parle ? `« ${PHRASE_DEMO} »` : ''}
+                {voixHd || videoEnCours ? `« ${PHRASE_VISION_SMART} »` : parle ? `« ${PHRASE_DEMO} »` : ''}
             </p>
+            {videoEnCours && (
+                <p data-testid="demo-voix" className="text-xs text-cyan-200/80 text-center max-w-md">
+                    Séquence vidéo pré-rendue — modèle validé par la Direction le 5 septembre 2026 (HeyGen, portrait officiel, voix HD).
+                </p>
+            )}
+            {videoRefusee && (
+                <p data-testid="demo-voix" className="text-xs text-amber-300/90 text-center max-w-md">
+                    {sequence.error ?? 'Vidéo indisponible sur cet appareil.'} L’avatar animé reste actif.
+                </p>
+            )}
             {voixHd && (
                 <p data-testid="demo-voix" className="text-xs text-cyan-200/80 text-center max-w-md">
                     {alignee ? LIP_SYNC_LEVEL_LABEL.visemes_alignes : LIP_SYNC_LEVEL_LABEL.amplitude_reelle}
@@ -499,6 +540,14 @@ export const ArchitecteDemoPage: React.FC = () => {
                     className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 >
                     <Volume2 size={16} /> Le faire parler à voix haute
+                </button>
+                <button
+                    type="button"
+                    onClick={voirAvatarVideo}
+                    data-testid="demo-video-validee"
+                    className="px-5 py-2.5 rounded-xl bg-fuchsia-700 hover:bg-fuchsia-600 text-white text-sm font-bold transition flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+                >
+                    <Film size={16} /> Voir l’avatar vidéo (modèle validé)
                 </button>
                 <button
                     type="button"

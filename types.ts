@@ -5393,6 +5393,8 @@ export interface PlatformDetailedModuleSettings {
     animationsEnabled: boolean;
     lipSyncEnabled: boolean;
     voiceKey: string;
+    /** Séquences vidéo pré-rendues validées (P3a) proposées par l'avatar ; absent des anciens réglages = activé. */
+    videoSequencesEnabled: boolean;
     updatedAt: string;
     updatedBy: string;
   };

@@ -1437,6 +1437,7 @@ const INITIAL_DETAILED_SETTINGS: PlatformDetailedModuleSettings = {
     animationsEnabled: true,
     lipSyncEnabled: true,
     voiceKey: '',
+    videoSequencesEnabled: true,
     updatedAt: '',
     updatedBy: ''
   },

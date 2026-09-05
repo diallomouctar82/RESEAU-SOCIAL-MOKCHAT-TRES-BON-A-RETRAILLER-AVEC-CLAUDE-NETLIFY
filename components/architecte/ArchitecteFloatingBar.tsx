@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, DraftingCompass, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
+import { Camera, DraftingCompass, Film, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
 import { AiGatewayNetworkError, analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
@@ -17,6 +17,14 @@ import { ELEVENLABS_CURATED_VOICES, LISTEN_NETWORK_MESSAGE, MIC_UNAVAILABLE_MESS
 // une référence STABLE (jamais un littéral re-créé à chaque rendu, qui
 // invaliderait le `useCallback` du hook vocal à chaque frappe).
 import { ArchitecteAvatar, ArchitecteIdentityBadge } from './ArchitecteAvatar';
+import { useSequencePlayerState } from './ArchitecteSequenceVideo';
+import {
+    ARCHITECTE_PRESENTATION,
+    architecteSequencePlayer,
+    hasSeenPresentation,
+    rememberPresentationSeen,
+    shouldOfferPresentation,
+} from '../../services/architecte/sequences';
 import {
     mergeArchitecteAvatarConfig,
     resolveArchitectePresence,
@@ -131,7 +139,9 @@ const MIC_TIMEOUT_MESSAGE = "Le micro n'a pas démarré — utilisez la saisie."
  */
 type ArchitecteMediaView =
     | { kind: 'video'; query: string }
-    | { kind: 'document'; name: string; excerpt: string };
+    | { kind: 'document'; name: string; excerpt: string }
+    /** Présentation vidéo de l'Architecte — le modèle validé par la Direction (05/09/2026). */
+    | { kind: 'presentation' };
 
 /**
  * Extrait le sujet d'une demande de vidéo. Volontairement MINIMAL : seuls le
@@ -209,6 +219,12 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // (lecteur vidéo, aperçu document) — apparaît quand la parole l'exige,
     // disparaît quand il n'y a plus qu'à parler.
     const [mediaView, setMediaView] = useState<ArchitecteMediaView | null>(null);
+    // SÉQUENCE VIDÉO VALIDÉE : état du lecteur partagé, invitation à la première
+    // ouverture (jamais de démarrage automatique : la vidéo a du son).
+    const sequenceState = useSequencePlayerState(architecteSequencePlayer);
+    const presentationPlaying =
+        sequenceState.key === ARCHITECTE_PRESENTATION.key && (sequenceState.status === 'loading' || sequenceState.status === 'playing');
+    const [offrirPresentation, setOffrirPresentation] = useState(false);
     const [typedText, setTypedText] = useState('');
     const typedInputRef = useRef<HTMLInputElement | null>(null);
     useEffect(() => {
@@ -1049,13 +1065,46 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // État de présence : traduit des signaux RÉELS (voix, micro, réseau) par
     // la machine d'états normative d'AI Core — jamais d'émotion simulée.
     const avatarPresence = resolveArchitectePresence({
-        isSpeaking,
+        // La présentation vidéo est une parole de l'Architecte : même état, même halo.
+        isSpeaking: isSpeaking || presentationPlaying,
         isListening,
         isThinking,
         micFailed,
         online: typeof navigator === 'undefined' ? true : navigator.onLine,
         degraded: ttsEngine === 'browser_native',
     });
+
+    // INVITATION à la présentation vidéo : une fois par appareil, à l'ouverture
+    // de la barre. Proposer n'est pas jouer : rien ne démarre sans un geste.
+    useEffect(() => {
+        if (!isOpen) return;
+        setOffrirPresentation(
+            shouldOfferPresentation({
+                enabled: avatarConfig.videoSequencesEnabled !== false,
+                seen: hasSeenPresentation(),
+                sequence: ARCHITECTE_PRESENTATION,
+            }),
+        );
+    }, [isOpen, avatarConfig.videoSequencesEnabled]);
+
+    // La fenêtre de présentation joue la séquence DÈS son montage. React 18
+    // exécute cet effet de façon synchrone à la suite du clic : l'activation
+    // utilisateur est encore valable, le son n'est pas refusé. Fermer la
+    // fenêtre (ou quitter la barre) arrête la vidéo et rend la main au rig.
+    const stopSpeakingRef = useRef(stopSpeaking);
+    stopSpeakingRef.current = stopSpeaking;
+    useEffect(() => {
+        if (mediaView?.kind !== 'presentation') return undefined;
+        stopSpeakingRef.current();
+        architecteSequencePlayer.play(ARCHITECTE_PRESENTATION.key, 'presentation');
+        return () => { architecteSequencePlayer.stop(); };
+    }, [mediaView?.kind]);
+
+    const presenter = () => {
+        rememberPresentationSeen();
+        setOffrirPresentation(false);
+        setMediaView({ kind: 'presentation' });
+    };
 
     // ── État fermé : PRÉSENCE FLOTTANTE PERMANENTE ──────────────────────────
     // RO-3 (04/09/2026) — inversion de rôles décidée par la Direction :
@@ -1142,6 +1191,33 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                                     allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                                     allowFullScreen
                                 />
+                            </div>
+                        ) : mediaView.kind === 'presentation' ? (
+                            /* LE MODÈLE VALIDÉ (Direction, 05/09/2026) : la séquence vidéo
+                               HeyGen jouée dans le cadre même de l'avatar, en grand. */
+                            <div className="flex flex-col items-center gap-2 p-3 pt-10" data-testid="architecte-presentation-fenetre">
+                                <ArchitecteAvatar
+                                    config={avatarConfig}
+                                    presence={avatarPresence}
+                                    ttsEngine={ttsEngine}
+                                    outputLevel={0}
+                                    size={224}
+                                    actionLabel="Présentation de l'Architecte"
+                                    sequence={ARCHITECTE_PRESENTATION}
+                                    sequenceSlot="presentation"
+                                    testId="architecte-presentation"
+                                />
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/80 text-center">
+                                    {ARCHITECTE_PRESENTATION.title} — modèle validé par la Direction
+                                </p>
+                                <p className="text-[11px] italic leading-relaxed text-slate-200 text-center max-w-xs">
+                                    « {ARCHITECTE_PRESENTATION.text} »
+                                </p>
+                                {sequenceState.key === ARCHITECTE_PRESENTATION.key && sequenceState.status === 'failed' && (
+                                    <p className="text-[11px] text-amber-300/90 text-center" role="status">
+                                        {sequenceState.error} L'avatar animé reste actif.
+                                    </p>
+                                )}
                             </div>
                         ) : (
                             <div className="max-h-52 overflow-y-auto rounded-xl border border-cyan-400/30 bg-slate-900/70 p-3">
@@ -1334,6 +1410,33 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
                     onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
                 />
+                {avatarConfig.videoSequencesEnabled !== false && (
+                    <button
+                        onClick={presenter}
+                        className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                            mediaView?.kind === 'presentation'
+                                ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
+                                : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
+                        }`}
+                        title="Voir la présentation vidéo de l'Architecte (modèle validé par la Direction)"
+                        aria-label="Voir la présentation vidéo de l'Architecte"
+                        data-testid="architecte-presentation-bouton"
+                    >
+                        <Film size={13} />
+                        <span className="hidden sm:inline">Présentation</span>
+                        {/* INVITATION discrète, une fois par appareil : dans la barre
+                            elle-même, sans ouvrir le panneau (§16-17 : la voix reste
+                            le mode par défaut). Rien ne démarre sans le clic. */}
+                        {offrirPresentation && mediaView?.kind !== 'presentation' && (
+                            <span
+                                data-testid="architecte-presentation-invitation"
+                                className="ml-0.5 rounded-full bg-cyan-300 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-[#0f172a] animate-pulse"
+                            >
+                                Nouveau
+                            </span>
+                        )}
+                    </button>
+                )}
                 <button
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition-colors"

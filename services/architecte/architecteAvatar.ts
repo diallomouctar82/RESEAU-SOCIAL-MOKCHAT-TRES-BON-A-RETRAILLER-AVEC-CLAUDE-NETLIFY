@@ -71,6 +71,13 @@ export interface ArchitecteAvatarConfig {
     lipSyncEnabled: boolean;
     /** Clé du catalogue `ELEVENLABS_CURATED_VOICES` ; vide = voix attitrée par défaut. */
     voiceKey: string;
+    /**
+     * Séquences vidéo pré-rendues (niveau P3a) : la présentation validée par la
+     * Direction le 05/09/2026 (modèle HeyGen sur le portrait officiel et la voix
+     * HD). `false` = l'avatar ne propose plus la vidéo ; le rig 2D reste actif.
+     * Absent d'une configuration enregistrée avant cette version = `true`.
+     */
+    videoSequencesEnabled: boolean;
     updatedAt: string;
     updatedBy: string;
 }
@@ -90,6 +97,7 @@ export const DEFAULT_ARCHITECTE_AVATAR: ArchitecteAvatarConfig = {
     animationsEnabled: true,
     lipSyncEnabled: true,
     voiceKey: '',
+    videoSequencesEnabled: true,
     updatedAt: '',
     updatedBy: '',
 };
@@ -169,9 +177,12 @@ export function clampMouthAnchor(anchor: Partial<MouthAnchor>): MouthAnchor {
  * exigent une gateway d'avatars, un fournisseur sélectionné par pilote et un
  * consentement séparé (playbook 15 § 6 et § 8).
  */
-export type PresenceLevel = 'P0' | 'P1' | 'P2' | 'P3' | 'P4';
+export type PresenceLevel = 'P0' | 'P1' | 'P2' | 'P3' | 'P3a' | 'P4';
 
+/** Niveau de la présence en direct (rig 2D dans le navigateur). */
 export const ARCHITECTE_PRESENCE_LEVEL: PresenceLevel = 'P2';
+/** Niveau des séquences vidéo pré-rendues validées (playbook 15 v1.1.0, ADR-0025 d'AI Core). */
+export const ARCHITECTE_VIDEO_LEVEL: PresenceLevel = 'P3a';
 
 /**
  * Étiquette de divulgation — principe NON NÉGOCIABLE n°1 du playbook 15 :

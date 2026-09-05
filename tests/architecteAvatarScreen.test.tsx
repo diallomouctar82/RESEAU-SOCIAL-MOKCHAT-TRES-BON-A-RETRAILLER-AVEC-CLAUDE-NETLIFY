@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArchitecteAvatar, ArchitecteIdentityBadge } from '../components/architecte/ArchitecteAvatar';
 import { AdminArchitecteAvatarCard } from '../components/admin/AdminArchitecteAvatarCard';
@@ -271,5 +271,74 @@ describe('Console Super-Admin — les quatre réglages demandés', () => {
             />,
         );
         expect(screen.queryByLabelText('Ligne des yeux')).not.toBeInTheDocument();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// SÉQUENCE VIDÉO VALIDÉE (05/09/2026) — le modèle de la Direction dans le cadre
+// ─────────────────────────────────────────────────────────────────────────
+import { ARCHITECTE_PRESENTATION, createSequencePlayer } from '../services/architecte/sequences';
+
+describe('Séquence vidéo validée dans le cadre de l’avatar', () => {
+    beforeEach(() => {
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', { configurable: true, value: vi.fn(() => Promise.resolve()) });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+    });
+
+    it('sans séquence, aucune couche vidéo : le rig seul, comme avant', () => {
+        renderAvatar();
+        expect(screen.queryByTestId('architecte-sequence-video')).toBeNull();
+        expect(screen.getByTestId('architecte-avatar')).toHaveAttribute('data-sequence', 'idle');
+    });
+
+    it('avec la séquence, la couche vidéo est dans le cadre, invisible au repos, MP4 puis WebM, légendes en français', () => {
+        renderAvatar({ sequence: ARCHITECTE_PRESENTATION, sequenceSlot: 'test' });
+        const video = screen.getByTestId('architecte-sequence-video');
+        expect(video).toHaveAttribute('data-sequence-status', 'idle');
+        expect(video).toHaveAttribute('poster', ARCHITECTE_PRESENTATION.posterUrl);
+        expect(video).toHaveAttribute('playsinline');
+        expect(video.className).toContain('opacity-0');
+        const sources = video.querySelectorAll('source');
+        expect(sources).toHaveLength(2);
+        expect(sources[0]).toHaveAttribute('type', 'video/mp4');
+        expect(sources[1]).toHaveAttribute('type', 'video/webm');
+        expect(video.querySelector('track')).toHaveAttribute('srclang', 'fr');
+        expect(screen.getByTestId('architecte-avatar')).toHaveAttribute('data-sequence', 'idle');
+        // Le portrait vivant est toujours là, dessous : rien n'est supprimé.
+        expect(document.querySelector('canvas')).toHaveAttribute('data-portrait-src', '/architecte/architecte.webp');
+    });
+
+    it('le réglage Super-Admin « désactivé » retire la vidéo sans toucher au rig', () => {
+        renderAvatar({ config: config({ videoSequencesEnabled: false }), sequence: ARCHITECTE_PRESENTATION });
+        expect(screen.queryByTestId('architecte-sequence-video')).toBeNull();
+        expect(document.querySelector('canvas')).toBeInTheDocument();
+    });
+
+    it('une lecture demandée dans le geste devient visible, puis rend la main au rig à la fin', () => {
+        const player = createSequencePlayer();
+        renderAvatar({ sequence: ARCHITECTE_PRESENTATION, sequenceSlot: 'test', sequencePlayer: player });
+        const video = screen.getByTestId('architecte-sequence-video') as HTMLVideoElement;
+        act(() => { expect(player.play(ARCHITECTE_PRESENTATION.key, 'test')).toBe(true); });
+        expect(video).toHaveAttribute('data-sequence-status', 'loading');
+        act(() => { video.dispatchEvent(new Event('playing')); });
+        expect(video).toHaveAttribute('data-sequence-status', 'playing');
+        expect(video.className).toContain('opacity-100');
+        expect(screen.getByTestId('architecte-avatar')).toHaveAttribute('data-sequence', 'playing');
+        act(() => { video.dispatchEvent(new Event('error')); });
+        expect(video).toHaveAttribute('data-sequence-status', 'failed');
+        expect(video.className).toContain('opacity-0');
+    });
+
+    it('la carte Super-Admin expose la séquence validée : bascule, liste, prévisualisation', () => {
+        const onChange = vi.fn();
+        render(<AdminArchitecteAvatarCard value={DEFAULT_ARCHITECTE_AVATAR} adminName="Admin-Général" onChange={onChange} />);
+        const bascule = screen.getByLabelText('Séquence vidéo validée (présentation)') as HTMLInputElement;
+        expect(bascule.checked).toBe(true);
+        expect(screen.getByText(/8,2 s · HeyGen, expressivité moyenne/)).toBeInTheDocument();
+        expect(screen.getByTestId('architecte-sequences')).toHaveTextContent('validée le 2026-09-05 par Direction Vision Smart');
+        fireEvent.click(screen.getByRole('button', { name: /Prévisualiser : Présentation/ }));
+        expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+        fireEvent.click(bascule);
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ videoSequencesEnabled: false }));
     });
 });

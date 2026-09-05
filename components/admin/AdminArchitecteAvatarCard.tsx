@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ImageOff, Mic, RotateCcw, Sparkles, Volume2 } from 'lucide-react';
+import { Check, Film, ImageOff, Mic, RotateCcw, Sparkles, Volume2 } from 'lucide-react';
 import { ELEVENLABS_CURATED_VOICES } from '../../services/voiceEngine';
 import {
     ARCHITECTE_DISCLOSURE,
@@ -13,6 +13,12 @@ import {
 import { LIP_SYNC_LEVEL_LABEL } from '../../services/architecte/lipSync';
 import { clampPortraitRig } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatar } from '../architecte/ArchitecteAvatar';
+import {
+    ARCHITECTE_PRESENTATION,
+    ARCHITECTE_SEQUENCES,
+    architecteSequencePlayer,
+    formatSequenceDuration,
+} from '../../services/architecte/sequences';
 
 /**
  * AVATAR DE L'ARCHITECTE — console de l'Admin-Général.
@@ -94,7 +100,8 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                 </span>
             </div>
             <p className="text-xs text-slate-500 mb-5">
-                {ARCHITECTE_DISCLOSURE}. Présence légère et vocale : visage animé et bouche synchronisée sur la voix.
+                {ARCHITECTE_DISCLOSURE}. Présence légère et vocale : visage animé et bouche synchronisée sur la voix,
+                plus la séquence vidéo pré-rendue validée par la Direction le 5 septembre 2026 (modèle HeyGen, niveau P3a).
                 L’avatar vidéo temps réel et l’avatar génératif ne sont pas livrés.
             </p>
 
@@ -108,6 +115,8 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                         outputLevel={demoLevel}
                         size={96}
                         actionLabel="Aperçu"
+                        sequence={ARCHITECTE_PRESENTATION}
+                        sequenceSlot="admin-preview"
                     />
                     <label htmlFor="architecte-demo-level" className="text-[10px] font-bold uppercase tracking-wide text-cyan-300">
                         Simuler la voix
@@ -277,6 +286,48 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                         </p>
                         <p className="text-[11px] text-slate-400">
                             Un appareil réglé sur « réduire les animations » reste immobile même si ces cases sont cochées.
+                        </p>
+                    </div>
+
+                    {/* 2 bis. SÉQUENCES VIDÉO VALIDÉES (P3a) — le modèle de la Direction */}
+                    <div className="space-y-2.5" data-testid="architecte-sequences">
+                        <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-sm text-slate-700 font-medium">Séquence vidéo validée (présentation)</span>
+                            <input
+                                type="checkbox"
+                                aria-label="Séquence vidéo validée (présentation)"
+                                checked={draft.videoSequencesEnabled !== false}
+                                onChange={(e) => commit({ ...draft, videoSequencesEnabled: e.target.checked })}
+                                className="w-4 h-4 text-cyan-600 rounded"
+                            />
+                        </label>
+                        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50">
+                            {ARCHITECTE_SEQUENCES.map((sequence) => (
+                                <li key={sequence.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold text-slate-800 truncate">{sequence.title}</p>
+                                        <p className="text-[11px] text-slate-500">
+                                            {formatSequenceDuration(sequence.durationMs)} · HeyGen, expressivité{' '}
+                                            {sequence.model.settings.expressiveness === 'medium' ? 'moyenne' : sequence.model.settings.expressiveness} ·
+                                            validée le {sequence.validatedAt} par {sequence.validatedBy}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => architecteSequencePlayer.play(sequence.key, 'admin-preview')}
+                                        disabled={draft.videoSequencesEnabled === false}
+                                        className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-cyan-800 hover:bg-cyan-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        aria-label={`Prévisualiser : ${sequence.title}`}
+                                    >
+                                        <Film size={13} /> Prévisualiser
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="text-[11px] text-slate-400">
+                            La vidéo se joue dans l’aperçu ci-contre, par-dessus le portrait vivant ; le rig 2D reprend dès la fin ou en cas
+                            d’échec. Une nouvelle séquence se produit avec la méthode capitalisée dans Vision Smart AI Core (playbook 16), puis
+                            se livre avec l’application après validation.
                         </p>
                     </div>
 

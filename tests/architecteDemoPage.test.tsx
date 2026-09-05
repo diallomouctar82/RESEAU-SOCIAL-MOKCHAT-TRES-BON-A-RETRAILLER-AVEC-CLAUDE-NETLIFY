@@ -41,7 +41,7 @@ describe('Page publique de démonstration de l’avatar', () => {
         expect(bouton).toBeInTheDocument();
         fireEvent.click(bouton);
         // La boucle automatique se coupe au profit de la lecture déclenchée.
-        expect(screen.getByRole('button', { name: /Répéter en boucle/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /boucle/ })).toBeInTheDocument();
     });
 
     it('sans voix intégrée, retombe sur la démonstration muette et le DIT plutôt que de parler bouche close', () => {
@@ -73,5 +73,55 @@ describe('Page publique de démonstration de l’avatar', () => {
     it('dit ce qu’elle est : une page de preuve, sans donnée de compte', () => {
         render(<ArchitecteDemoPage />);
         expect(screen.getByText(/aucune donnée de compte n’est lue ni écrite/i)).toBeInTheDocument();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// LE MODÈLE VALIDÉ (Direction, 05/09/2026) sur la page publique
+// ─────────────────────────────────────────────────────────────────────────
+import { act } from '@testing-library/react';
+import { ARCHITECTE_PRESENTATION, architecteSequencePlayer } from '../services/architecte/sequences';
+
+describe('Page publique — séquence vidéo validée', () => {
+    beforeEach(() => {
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', { configurable: true, value: vi.fn(() => Promise.resolve()) });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+        architecteSequencePlayer.stop();
+    });
+
+    it('offre la commande « Voir l’avatar vidéo » à côté des commandes existantes, qui restent', () => {
+        render(<ArchitecteDemoPage />);
+        expect(screen.getByTestId('demo-video-validee')).toHaveTextContent(/Voir l’avatar vidéo/);
+        expect(screen.getByRole('button', { name: /Le faire parler/ })).toBeInTheDocument();
+        expect(screen.getByTestId('demo-vision-smart')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /boucle/ })).toBeInTheDocument();
+        const video = screen.getByTestId('architecte-sequence-video');
+        expect(video).toHaveAttribute('data-sequence-slot', 'demo');
+        expect(video.querySelector('source')).toHaveAttribute('src', ARCHITECTE_PRESENTATION.sources[0].url);
+    });
+
+    it('le clic joue la vidéo DANS le cadre : état « parle », texte et provenance affichés, puis retour au repos', () => {
+        render(<ArchitecteDemoPage />);
+        const video = screen.getByTestId('architecte-sequence-video') as HTMLVideoElement;
+        fireEvent.click(screen.getByTestId('demo-video-validee'));
+        expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+        expect(video).toHaveAttribute('data-sequence-status', 'loading');
+        act(() => { video.dispatchEvent(new Event('playing')); });
+        expect(screen.getByRole('status')).toHaveTextContent(/L’Architecte parle/);
+        expect(screen.getByText(new RegExp(ARCHITECTE_PRESENTATION.text.slice(0, 30)))).toBeInTheDocument();
+        expect(screen.getByTestId('demo-voix')).toHaveTextContent(/modèle validé par la Direction le 5 septembre 2026/);
+        expect(screen.getByTestId('architecte-avatar')).toHaveAttribute('data-sequence', 'playing');
+        act(() => { video.dispatchEvent(new Event('ended')); });
+        expect(video).toHaveAttribute('data-sequence-status', 'ended');
+    });
+
+    it('si la vidéo échoue, la page le dit et l’avatar animé reste actif', () => {
+        render(<ArchitecteDemoPage />);
+        const video = screen.getByTestId('architecte-sequence-video') as HTMLVideoElement;
+        fireEvent.click(screen.getByTestId('demo-video-validee'));
+        act(() => { video.dispatchEvent(new Event('error')); });
+        expect(screen.getByTestId('demo-voix')).toHaveTextContent(/L’avatar animé reste actif/);
+        expect(document.querySelector('canvas')).toBeInTheDocument();
+        expect(screen.getByRole('status')).toHaveTextContent(/au repos/);
     });
 });

@@ -50,6 +50,8 @@ import {
 } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatarFace } from './ArchitecteAvatarFace';
 import { LivingPortrait, type LivingPortraitHandle } from './LivingPortrait';
+import { ArchitecteSequenceVideo, useSequencePlayerState } from './ArchitecteSequenceVideo';
+import { architecteSequencePlayer, type ArchitecteSequence, type SequencePlayer } from '../../services/architecte/sequences';
 
 /**
  * AVATAR VIVANT DE L'ARCHITECTE — présence P1 + P2 (AI Core, playbook 15).
@@ -112,6 +114,15 @@ export interface ArchitecteAvatarProps {
     voiceAligned?: boolean;
     /** Budget de pixels du canevas du portrait (bancs de preuve) ; défaut : `CANVAS_PIXEL_BUDGET`. */
     pixelBudget?: number;
+    /**
+     * Séquence vidéo pré-rendue (niveau P3a) jouable DANS ce cadre — la
+     * présentation validée par la Direction. Absente = cadre sans vidéo.
+     * Elle ne joue que sur `sequencePlayer.play(key, sequenceSlot)`.
+     */
+    sequence?: ArchitecteSequence | null;
+    /** Nom de ce cadre pour le lecteur (« demo », « panel »…). Défaut : `testId`. */
+    sequenceSlot?: string;
+    sequencePlayer?: SequencePlayer;
     /** Diamètre en pixels. */
     size?: number;
     onClick?: () => void;
@@ -174,6 +185,9 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     voiceTrackRef = null,
     voiceAligned = false,
     pixelBudget,
+    sequence = null,
+    sequenceSlot,
+    sequencePlayer,
     wordPulse = null,
     wordPulseRef = null,
     size = 48,
@@ -396,6 +410,14 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     const photo = realAvatarUrl(config.photoUrl);
     const stateLabel = ARCHITECTE_STATE_LABEL[presence];
     const mouth = config.mouthAnchor;
+    const player = sequencePlayer ?? architecteSequencePlayer;
+    const slot = sequenceSlot ?? testId;
+    const sequenceEnabled = sequence !== null && config.videoSequencesEnabled !== false;
+    const sequenceState = useSequencePlayerState(player);
+    const sequenceStatus =
+        sequenceEnabled && sequence && sequenceState.key === sequence.key && sequenceState.slot === slot
+            ? sequenceState.status
+            : 'idle';
 
     return (
         <button
@@ -410,6 +432,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             data-presence={presence}
             data-animated={animated ? 'true' : 'false'}
             data-lipsync={lipSyncLevel}
+            data-sequence={sequenceStatus}
             style={{ width: size, height: size }}
             className={`relative shrink-0 rounded-full overflow-hidden border border-cyan-500/60 bg-[#0A1622] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a] ${className}`}
         >
@@ -435,6 +458,12 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                    pas l'avatar : un tracé vectoriel ne respire pas de façon
                    crédible — il évite seulement un cadre vide. */
                 <ArchitecteAvatarFace mouthOpenness={openness} accent={accent} animated={animated} />
+            )}
+
+            {/* SÉQUENCE VIDÉO VALIDÉE (P3a) : jouée par-dessus le portrait, dans
+                le même cadre ; invisible au repos, le rig reprend dès la fin. */}
+            {sequenceEnabled && sequence && (
+                <ArchitecteSequenceVideo sequence={sequence} slot={slot} player={player} />
             )}
 
             {/* Média synthétique : obligatoire dès qu'une photo remplace le
