@@ -396,7 +396,11 @@ export const SPEECH_SWAY_PERIOD_MS = 2600;
  */
 export function speechSway(elapsedMs: number): number {
     if (!Number.isFinite(elapsedMs)) return 0;
-    return Math.sin((2 * Math.PI * elapsedMs) / SPEECH_SWAY_PERIOD_MS) * 0.8;
+    // Deux périodes sans rapport simple et une amplitude divisée par deux : un
+    // balancement à période unique de ±0,8 % lisait comme un métronome
+    // (Direction, 05/09 : « stabilité », « pas naturel »).
+    return Math.sin((2 * Math.PI * elapsedMs) / SPEECH_SWAY_PERIOD_MS) * 0.3
+        + Math.sin((2 * Math.PI * elapsedMs) / (SPEECH_SWAY_PERIOD_MS * 1.63)) * 0.15;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -538,13 +542,17 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
     // centre. Sans ce couplage, tête et yeux bougent chacun de leur côté
     // (Direction, 05/09 : « les yeux ne suivent pas naturellement »).
     const turnX = g && Number.isFinite(g.turnX) ? g.turnX : 0;
-    const vor = { x: -0.35 * turnX, y: g ? -0.5 * (g.nodY + g.liftY) : 0 };
+    // Gains discrets : à 0,5, les yeux sautaient à chaque hochement (65 % de
+    // l'énergie du regard vertical au-dessus de 3 Hz, mesuré le 05/09).
+    const vor = { x: -0.25 * turnX, y: g ? -0.2 * (g.nodY + g.liftY) : 0 };
 
     return {
         // Respiration visible sans devenir un effet : 1,5 % d'échelle, les
         // épaules montent avec — devant un fond qui, lui, ne bouge pas.
-        breathScale: 1 + respiration * 0.015 * ampleur,
-        breathY: -respiration * 1.0 * ampleur,
+        // Respiration : 1,1 % d'échelle (1,5 % faisait « pulser » le portrait à
+        // 400 px : 6 px de croissance visibles), les épaules montent de 0,7 %.
+        breathScale: 1 + respiration * 0.011 * ampleur,
+        breathY: -respiration * 0.7 * ampleur,
         headRotate: derive.rotate * calme + tilt * (1 - blend) + nod.rotate + (g ? g.nodRotate + g.tilt : 0),
         headX: derive.x * calme + sway + turnX,
         headY: derive.y * calme + nod.y + nodEcoute + (g ? g.nodY + g.liftY : 0),
@@ -587,3 +595,36 @@ export const LIP_CLOSURE_MS = 90;
 /** Seuils de détection d'une attaque et d'une retombée de syllabe sur la cible d'ouverture. */
 export const SYLLABLE_ONSET = 0.3;
 export const SYLLABLE_RELEASE = 0.12;
+
+// ─────────────────────────────────────────────────────────────────────────
+// 7. CADENCE : qualité de rendu adaptée à l'appareil
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Au-delà de cette durée médiane d'image (ms), l'appareil ne suit pas : on baisse la résolution. */
+export const FRAME_SLOW_MS = 40;
+/** En deçà de cette durée médiane, l'appareil a de la marge : on remonte la résolution, un cran à la fois. */
+export const FRAME_FAST_MS = 20;
+export const QUALITY_STEP = 0.25;
+export const MIN_QUALITY = 0.5;
+
+/** Médiane d'une série (0 si vide). */
+export function medianOf(values: readonly number[]): number {
+    const sorted = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+    if (sorted.length === 0) return 0;
+    const mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Qualité de rendu suivante d'après la durée médiane des images : un cran de
+ * moins quand l'appareil dépasse 40 ms par image (< 25 images/s), un cran de
+ * plus quand il reste sous 20 ms. Entre les deux, rien ne change — un film à
+ * 30 images/s (33 ms) garde sa pleine résolution.
+ */
+export function adaptQuality(quality: number, medianFrameMs: number): number {
+    const q = Number.isFinite(quality) ? Math.min(1, Math.max(MIN_QUALITY, quality)) : 1;
+    if (!Number.isFinite(medianFrameMs) || medianFrameMs <= 0) return q;
+    if (medianFrameMs > FRAME_SLOW_MS) return Math.max(MIN_QUALITY, q - QUALITY_STEP);
+    if (medianFrameMs < FRAME_FAST_MS && q < 1) return Math.min(1, q + QUALITY_STEP);
+    return q;
+}

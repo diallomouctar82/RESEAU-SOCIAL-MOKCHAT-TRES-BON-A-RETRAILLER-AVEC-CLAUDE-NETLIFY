@@ -1,3 +1,5 @@
+import { adaptQuality, medianOf } from '../services/architecte/livingAvatar';
+import { CANVAS_PIXEL_BUDGET, fitDpr } from '../services/architecte/portraitPainter';
 import { GESTURE_AT_REST } from '../services/architecte/gestures';
 import { describe, expect, it } from 'vitest';
 import {
@@ -357,19 +359,54 @@ describe('Couplage yeux-tête (réflexe vestibulo-oculaire)', () => {
         const sans = resolveLivingPose({ ...base, gesture: gesture({}) });
         const avec = resolveLivingPose({ ...base, gesture: gesture({ nodY: 1 }) });
         expect(avec.headY - sans.headY).toBeCloseTo(1, 6);
-        expect(avec.gazeY - sans.gazeY).toBeCloseTo(-0.5, 6);
+        // Gain discret (0,2) : à 0,5 les yeux sautaient à chaque hochement.
+        expect(avec.gazeY - sans.gazeY).toBeCloseTo(-0.2, 6);
     });
 
     it('quand la tête suit le regard, elle se déplace et les yeux reviennent d’autant vers le centre', () => {
         const sans = resolveLivingPose({ ...base, gesture: gesture({ gazeX: 0.6 }) });
         const avec = resolveLivingPose({ ...base, gesture: gesture({ gazeX: 0.6, turnX: 0.15 }) });
         expect(avec.headX - sans.headX).toBeCloseTo(0.15, 6);
-        expect(avec.gazeX - sans.gazeX).toBeCloseTo(-0.35 * 0.15, 6);
+        expect(avec.gazeX - sans.gazeX).toBeCloseTo(-0.25 * 0.15, 6);
     });
 
     it('sans geste, rien ne change', () => {
         const a = resolveLivingPose({ ...base, gesture: null });
         const b = resolveLivingPose({ ...base, gesture: gesture({}) });
         expect(a).toEqual(b);
+    });
+});
+
+describe('Cadence : la résolution suit l’appareil (playbook 15 § 3)', () => {
+    it('médiane > 40 ms → un cran de moins ; < 20 ms → un cran de plus ; entre les deux (film à 30 i/s) → inchangé', () => {
+        expect(adaptQuality(1, 45)).toBe(0.75);
+        expect(adaptQuality(0.75, 45)).toBe(0.5);
+        expect(adaptQuality(0.5, 90)).toBe(0.5);
+        expect(adaptQuality(0.5, 16.7)).toBe(0.75);
+        expect(adaptQuality(1, 16.7)).toBe(1);
+        expect(adaptQuality(1, 33.3)).toBe(1);
+        expect(adaptQuality(0.75, 33.3)).toBe(0.75);
+        expect(adaptQuality(Number.NaN, 45)).toBe(0.75);
+        expect(adaptQuality(1, Number.NaN)).toBe(1);
+    });
+    it('médiane robuste aux valeurs absentes', () => {
+        expect(medianOf([])).toBe(0);
+        expect(medianOf([16, 17, 100])).toBe(17);
+        expect(medianOf([16, 34])).toBe(25);
+        expect(medianOf([Number.NaN, 20])).toBe(20);
+    });
+    it('résolution du canevas : plafonnée par le ratio de l’appareil, le budget de pixels et la qualité', () => {
+        // Grand portrait (400 px CSS) sur écran ×2 : le budget 420 × 420 le ramène à ×1,05 — 60 images/s mesurées.
+        expect(fitDpr(400, 2)).toBeCloseTo(1.05, 2);
+        // Petit avatar (56 px) : pleine résolution ×2.
+        expect(fitDpr(56, 2)).toBe(2);
+        // Écran ×3 : jamais plus de ×2.
+        expect(fitDpr(56, 3)).toBe(2);
+        // Qualité 0,5 : moitié ; jamais sous ×0,5.
+        expect(fitDpr(56, 2, CANVAS_PIXEL_BUDGET, 0.5)).toBe(1);
+        expect(fitDpr(2000, 1, CANVAS_PIXEL_BUDGET, 0.5)).toBe(0.5);
+        // Budget relevé pour un film de preuve : ×2 sur 400 px.
+        expect(fitDpr(400, 2, 800 * 800)).toBe(2);
+        expect(fitDpr(0, 2)).toBe(1);
     });
 });

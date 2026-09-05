@@ -61,6 +61,15 @@ export const BLINK_MIN_GAP_MS = 1200;
 export const BLINK_MAX_GAP_MS = 4500;
 /** Un clignement de la table (ou d'une saccade) dans cette fenêtre suffit : pas de doublon dans une pause. */
 export const BLINK_RECENT_MS = 900;
+/**
+ * Raideur des ressorts (rad/s). Hochement : 13 → descente en ~180 ms, remontée
+ * ~300 ms, comme une tête humaine ; à 24 elle claquait. Regard : 10.
+ */
+export const NOD_OMEGA = 13;
+export const GAZE_OMEGA = 10;
+/** Amplitude d'un hochement plein : 0,95 % du cadre vers le bas et un roulis discret de 0,35°. */
+export const NOD_Y_PERCENT = 0.95;
+export const NOD_ROLL_DEG = 0.35;
 
 /** Hachage déterministe dans [0, 1) : une variante par index, jamais un tirage. */
 export function hash01(index: number): number {
@@ -179,7 +188,7 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
                 // finir : une phrase sur deux environ, côté et durée variables.
                 const r = hash01(tr.phraseIndex * 11 + 5);
                 if (r > 0.5) {
-                    tr.gazeTarget = { x: (r > 0.75 ? 1 : -1) * (0.45 + 0.3 * r), y: -0.25 - 0.2 * r };
+                    tr.gazeTarget = { x: (r > 0.75 ? 1 : -1) * (0.22 + 0.15 * r), y: -0.12 - 0.1 * r };
                     tr.gazeUntil = t + 350 + 250 * r;
                 }
             }
@@ -216,7 +225,7 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
                     tr.lastBlinkAt = t;
                 }
                 if (h > 0.6) {
-                    tr.gazeTarget = { x: (h > 0.8 ? 1 : -1) * (0.35 + 0.25 * h), y: -0.2 - 0.15 * h };
+                    tr.gazeTarget = { x: (h > 0.8 ? 1 : -1) * (0.18 + 0.12 * h), y: -0.1 - 0.08 * h };
                     tr.gazeUntil = t + 380 + 200 * h;
                 }
             }
@@ -244,12 +253,12 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
     const liftTarget = t < tr.liftUntil ? 1 : 0;
     const browTarget = t < tr.browUntil ? tr.browAmount : 0;
     const gaze = t < tr.gazeUntil ? tr.gazeTarget : { x: 0, y: 0 };
-    stepSpring(tr.nodY, nodTarget, 24, dtMs);
-    stepSpring(tr.nodR, nodTarget, 24, dtMs);
-    stepSpring(tr.lift, liftTarget, 14, dtMs);
-    stepSpring(tr.brow, browTarget, 20, dtMs);
-    stepSpring(tr.gazeX, gaze.x, 15, dtMs);
-    stepSpring(tr.gazeY, gaze.y, 15, dtMs);
+    stepSpring(tr.nodY, nodTarget, NOD_OMEGA, dtMs);
+    stepSpring(tr.nodR, nodTarget, NOD_OMEGA, dtMs);
+    stepSpring(tr.lift, liftTarget, 12, dtMs);
+    stepSpring(tr.brow, browTarget, 16, dtMs);
+    stepSpring(tr.gazeX, gaze.x, GAZE_OMEGA, dtMs);
+    stepSpring(tr.gazeY, gaze.y, GAZE_OMEGA, dtMs);
     stepSpring(tr.tilt, tr.tiltTarget, 2.6, dtMs);
     if (tr.blinkStartedAt !== null && t > tr.blinkStartedAt + BLINK_DURATION_MS + 50) tr.blinkStartedAt = null;
 
@@ -257,8 +266,8 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
     // Amplitudes VISIBLES (Direction, 05/09 : à 0,45 % du cadre, un hochement
     // faisait deux pixels — invisible) : ~1 % du cadre et ~0,8° sur un temps fort.
     return {
-        nodY: tr.nodY.x * 0.95 + 0,
-        nodRotate: tr.nodR.x * 0.8 + 0,
+        nodY: tr.nodY.x * NOD_Y_PERCENT + 0,
+        nodRotate: tr.nodR.x * NOD_ROLL_DEG + 0,
         liftY: -tr.lift.x * 0.55 + 0,
         tilt: tr.tilt.x + 0,
         brow: tr.brow.x + 0,
@@ -344,12 +353,15 @@ export function buildProsodyScore(track: VoiceTrack): ProsodyScore {
             events.push({ t: t - PHRASE_LEAD_MS, kind: 'lift', amount: 1, untilMs: t + 200 });
             events.push({ t: t - PHRASE_LEAD_MS, kind: 'brow', amount: 0.45 + 0.3 * h, untilMs: t + 200 + 150 * h });
             // Une phrase sur deux : le regard s'échappe avant le premier mot et revient sur la première syllabe forte.
+            // Regard qui s'échappe : discret (moitié de l'amplitude précédente :
+            // les yeux roulaient visiblement vers le haut), et seulement devant
+            // une phrase assez longue pour qu'on « cherche ses mots ».
             const r = hash01(sentenceIndex * 11 + 5);
             const sentenceWords = words.slice(wi, words.findIndex((w, k) => k >= wi && w.punctuation === '.') + 1 || undefined);
-            if (r > 0.5 && sentenceWords.length >= 3) {
+            if (r > 0.5 && sentenceWords.length >= 5) {
                 const firstStress = phones.find((p) => p.start >= t && p.stress >= 1);
                 const until = Math.min(firstStress ? firstStress.start : t + 700, t + 700);
-                events.push({ t: t - GAZE_LEAD_MS, kind: 'gaze', amount: 1, x: (r > 0.75 ? 1 : -1) * (0.45 + 0.3 * r), y: -0.25 - 0.2 * r, untilMs: until });
+                events.push({ t: t - GAZE_LEAD_MS, kind: 'gaze', amount: 1, x: (r > 0.75 ? 1 : -1) * (0.22 + 0.15 * r), y: -0.12 - 0.1 * r, untilMs: until });
                 // On cligne souvent en déplaçant le regard (la saccade cache le clignement).
                 if (hash01(sentenceIndex * 3 + 1) > 0.35) blink(t - GAZE_LEAD_MS);
             }
@@ -378,12 +390,17 @@ export function buildProsodyScore(track: VoiceTrack): ProsodyScore {
             }
             continue;
         }
+        // Hochements : sur l'accent de groupe (fin de proposition ou de phrase),
+        // et sur un accent de mot sur trois seulement — neuf hochements en huit
+        // secondes faisaient une tête qui dodeline (mesuré : 1,8 inversion/s,
+        // 56 % de l'énergie verticale au-dessus de 3 Hz).
         if (p.stress >= 0.5 && p.start - lastNodAt >= BEAT_MIN_GAP_MS) {
             beatIndex += 1;
             const h = hash01(beatIndex);
-            if (h > 0.2) {
+            const secondary = p.stress < 1;
+            if (!secondary ? h > 0.15 : h > 0.66) {
                 lastNodAt = p.start;
-                events.push({ t: p.start - NOD_LEAD_MS, kind: 'nod', amount: p.stress >= 1 ? 0.6 + 0.4 * h : 0.35 + 0.25 * h });
+                events.push({ t: p.start - NOD_LEAD_MS, kind: 'nod', amount: secondary ? 0.3 + 0.2 * h : 0.6 + 0.4 * h });
             }
         }
         // Trop longtemps sans cligner : à la fin de cette syllabe, jamais en
@@ -460,7 +477,7 @@ export function updateScore(tr: ScoreTracker, input: ScoreInput): GestureState {
         // Un événement dépassé de beaucoup (onglet caché, saut) n'est pas rejoué.
         if (t - e.t > 400) continue;
         switch (e.kind) {
-            case 'nod': tr.nodAmount = e.amount; tr.nodUntil = e.t + 130; break;
+            case 'nod': tr.nodAmount = e.amount; tr.nodUntil = e.t + 170; break;
             case 'lift': tr.liftUntil = e.untilMs ?? e.t + 320; break;
             case 'brow': tr.browAmount = e.amount; tr.browUntil = e.untilMs ?? e.t + 350; break;
             case 'gaze': tr.gazeTarget = { x: e.x ?? 0, y: e.y ?? 0 }; tr.gazeUntil = e.untilMs ?? e.t + 500; break;
@@ -473,19 +490,22 @@ export function updateScore(tr: ScoreTracker, input: ScoreInput): GestureState {
     const liftTarget = t < tr.liftUntil ? 1 : 0;
     const browTarget = t < tr.browUntil ? tr.browAmount : 0;
     const gaze = t < tr.gazeUntil ? tr.gazeTarget : { x: 0, y: 0 };
-    stepSpring(tr.nodY, nodTarget, 24, dtMs);
-    stepSpring(tr.nodR, nodTarget, 24, dtMs);
-    stepSpring(tr.lift, liftTarget, 14, dtMs);
-    stepSpring(tr.brow, browTarget, 20, dtMs);
-    stepSpring(tr.gazeX, gaze.x, 15, dtMs);
-    stepSpring(tr.gazeY, gaze.y, 15, dtMs);
+    // Ressorts LENTS : un hochement humain prend 150 à 250 ms pour descendre,
+    // autant pour remonter ; à 24 rad/s la tête claquait (56 % de l'énergie
+    // au-dessus de 3 Hz, mesuré le 05/09).
+    stepSpring(tr.nodY, nodTarget, NOD_OMEGA, dtMs);
+    stepSpring(tr.nodR, nodTarget, NOD_OMEGA, dtMs);
+    stepSpring(tr.lift, liftTarget, 12, dtMs);
+    stepSpring(tr.brow, browTarget, 16, dtMs);
+    stepSpring(tr.gazeX, gaze.x, GAZE_OMEGA, dtMs);
+    stepSpring(tr.gazeY, gaze.y, GAZE_OMEGA, dtMs);
     // La tête SUIT le regard, plus lentement et pour un quart du chemin.
     stepSpring(tr.turn, gaze.x * 0.25, 7, dtMs);
     stepSpring(tr.tilt, tr.tiltTarget, 2.6, dtMs);
     if (tr.blinkStartedAt !== null && t > tr.blinkStartedAt + BLINK_DURATION_MS + 50) tr.blinkStartedAt = null;
     return {
-        nodY: tr.nodY.x * 0.95 + 0,
-        nodRotate: tr.nodR.x * 0.8 + 0,
+        nodY: tr.nodY.x * NOD_Y_PERCENT + 0,
+        nodRotate: tr.nodR.x * NOD_ROLL_DEG + 0,
         liftY: -tr.lift.x * 0.55 + 0,
         tilt: tr.tilt.x + 0,
         brow: tr.brow.x + 0,
@@ -502,7 +522,7 @@ export function updateScore(tr: ScoreTracker, input: ScoreInput): GestureState {
  * main : il hérite de l'état des ressorts pour que rien ne saute — la tête
  * revient droite en douceur au lieu de se redresser d'un coup.
  */
-export function adoptSprings(from: ScoreTracker, to: ProsodyTracker): void {
+export function adoptSprings(from: ScoreTracker | ProsodyTracker, to: ScoreTracker | ProsodyTracker): void {
     const copy = (a: Spring, b: Spring) => { b.x = a.x; b.v = a.v; };
     copy(from.nodY, to.nodY);
     copy(from.nodR, to.nodR);
@@ -512,4 +532,5 @@ export function adoptSprings(from: ScoreTracker, to: ProsodyTracker): void {
     copy(from.gazeY, to.gazeY);
     copy(from.tilt, to.tilt);
     to.tiltTarget = from.tiltTarget;
+    if ('turn' in from && 'turn' in to) copy(from.turn, to.turn);
 }

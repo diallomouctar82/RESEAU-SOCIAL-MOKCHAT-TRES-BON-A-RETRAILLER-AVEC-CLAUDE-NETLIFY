@@ -58,6 +58,8 @@ export interface DemoAudioHook {
 export interface DemoDriveHook {
     /** Début d'une lecture pilotée ; avec une piste alignée, les gestes suivent sa partition. */
     debuter: (piste?: { track: VoiceTrack; score: ProsodyScore } | null) => void;
+    /** Budget de pixels du canevas pour le rendu de preuve (le film garde sa pleine résolution). */
+    budget: (pixels: number) => void;
     /** Forme de bouche de l'image, et l'instant de piste (ms) qu'elle représente. */
     pousser: (forme: MouthShape, tMs?: number) => void;
     finir: () => void;
@@ -214,6 +216,7 @@ export const ArchitecteDemoPage: React.FC = () => {
     const pisteRef = useRef<VoiceTrackRef | null>(null);
     const [alignee, setAlignee] = useState(false);
     const pisteDriveRef = useRef<{ track: VoiceTrack; score: ProsodyScore } | null>(null);
+    const [budgetPixels, setBudgetPixels] = useState<number | undefined>(undefined);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -234,6 +237,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                 pisteRef.current = piste && tMs !== undefined ? { track: piste.track, score: piste.score, t0Perf: performance.now() - tMs } : null;
                 publierNiveau(forme.level);
             },
+            budget: (pixels) => setBudgetPixels(pixels),
             finir: () => {
                 boucheRef.current = null;
                 pisteRef.current = null;
@@ -442,6 +446,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                     mouthShapeRef={boucheRef}
                     voiceTrackRef={pisteRef}
                     voiceAligned={alignee}
+                    pixelBudget={budgetPixels}
                     wordPulse={mot}
                     size={400}
                     actionLabel="Avatar de démonstration"

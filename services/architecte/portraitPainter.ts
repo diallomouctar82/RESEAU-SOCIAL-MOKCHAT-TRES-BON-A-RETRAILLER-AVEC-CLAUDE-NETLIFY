@@ -156,18 +156,51 @@ export interface PortraitPainter {
     /** `true` dès que la photo est décodée. */
     isReady(): boolean;
     onReady(callback: () => void): void;
+    /** Facteur de qualité (0,5..1) appliqué à la résolution : baissé quand l'appareil n'atteint pas la cadence. */
+    setQuality(quality: number): void;
+    /** Budget de pixels du canevas (voir `CANVAS_PIXEL_BUDGET`). */
+    setPixelBudget(pixels: number): void;
     dispose(): void;
+}
+
+/**
+ * BUDGET DE PIXELS du portrait animé : 420 × 420. Le portrait est repeint à
+ * chaque image ; ce que coûte réellement chaque image, ce n'est pas le calcul
+ * (2 à 6 ms) mais la rastérisation et l'envoi au compositeur d'un canevas
+ * de cette taille. Mesuré le 05/09/2026 sur le navigateur de preuve (rendu
+ * logiciel, le cas d'un téléphone modeste) pendant la phrase Vision Smart :
+ * 800 × 800 → 45 images/s, 30 % d'images à 33 ms (saccades visibles) ;
+ * 600 × 600 → 53 ; 400 × 400 → 60 images/s, aucune image lente. Playbook 15
+ * § 3 : « la fréquence d'images est mesurée avant toute déclaration de
+ * qualité ». Un petit avatar (56 px) reste en pleine résolution.
+ */
+export const CANVAS_PIXEL_BUDGET = 420 * 420;
+
+/** Résolution retenue (pixels par pixel CSS) : ratio de l'appareil, plafonné à 2, borné par le budget, fois la qualité. */
+export function fitDpr(cssPx: number, devicePixelRatio: number, pixelBudget: number = CANVAS_PIXEL_BUDGET, quality: number = 1): number {
+    if (!Number.isFinite(cssPx) || cssPx <= 0) return 1;
+    const device = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+    const budget = Number.isFinite(pixelBudget) && pixelBudget > 0 ? Math.sqrt(pixelBudget) / cssPx : Infinity;
+    const q = Number.isFinite(quality) ? Math.min(1, Math.max(0.5, quality)) : 1;
+    return Math.max(0.5, Math.min(2, device, budget) * q);
 }
 
 interface CoverRect { dx: number; dy: number; dw: number; dh: number; scale: number }
 
-export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: string): PortraitPainter {
+export interface PortraitPainterOptions {
+    pixelBudget?: number;
+}
+
+export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: string, options: PortraitPainterOptions = {}): PortraitPainter {
     let ctx: CanvasRenderingContext2D | null = null;
     try {
-        ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+        // `desynchronized` : le canevas se présente sans attendre le compositeur (moins de saccades sur les appareils qui le supportent).
+        ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d', { desynchronized: true }) : null;
     } catch {
         ctx = null; // environnement sans Canvas (tests) : le peintre reste inerte
     }
+    let quality = 1;
+    let pixelBudget = options.pixelBudget ?? CANVAS_PIXEL_BUDGET;
     let ready = false;
     let disposed = false;
     const readyCallbacks: Array<() => void> = [];
@@ -198,7 +231,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
     const fitSize = (): boolean => {
         const css = canvas.clientWidth || 0;
         if (!css) return false;
-        const nextDpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
+        const nextDpr = fitDpr(css, (typeof window !== 'undefined' && window.devicePixelRatio) || 1, pixelBudget, quality);
         const px = Math.max(1, Math.round(css * nextDpr));
         if (px !== size || nextDpr !== dpr) {
             size = px;
@@ -336,7 +369,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
         // claire entre des lèvres à peine entrouvertes sur une fricative.
         const fricative = Number.isFinite(pose.mouthTeeth) ? Math.min(1, Math.max(0, pose.mouthTeeth)) : 0;
         const teethHeight = Math.max(Math.min(1.35, lowerLip * 0.32), fricative * 0.45);
-        const teethOpacity = Math.max(Math.min(1, Math.max(0, (pose.jawOpen - 0.25) * 3)) * 0.68, fricative * 0.85);
+        const teethOpacity = Math.max(Math.min(1, Math.max(0, (pose.jawOpen - 0.25) * 3)) * 0.68, fricative * 0.7);
         if (teethOpacity > 0.02 && teethHeight > 0.1) {
             c.save();
             cavite(0);
@@ -529,6 +562,8 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
     return {
         isReady: () => ready,
         onReady: (cb) => { if (ready) cb(); else readyCallbacks.push(cb); },
+        setQuality: (q) => { quality = Number.isFinite(q) ? Math.min(1, Math.max(0.5, q)) : 1; },
+        setPixelBudget: (px) => { pixelBudget = Number.isFinite(px) && px > 0 ? px : CANVAS_PIXEL_BUDGET; },
         dispose: () => {
             disposed = true;
             if (image) { image.onload = null; }
@@ -586,6 +621,8 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             if (canvas.dataset.gaze !== gaze) canvas.dataset.gaze = gaze;
             const brow = pose.browRaise.toFixed(2);
             if (canvas.dataset.brow !== brow) canvas.dataset.brow = brow;
+            const resolution = `${size}@${dpr.toFixed(2)}`;
+            if (canvas.dataset.resolution !== resolution) canvas.dataset.resolution = resolution;
         },
     };
 }

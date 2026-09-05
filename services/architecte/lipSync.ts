@@ -408,7 +408,7 @@ export function mouthShapeFromBands(bands: SpectralBands, envelope: VoiceEnvelop
 
 /** Constantes de temps du lissage de forme : lèvres et dents plus vives que la mâchoire. */
 export const MOUTH_WIDTH_MS = 90;
-export const MOUTH_TEETH_MS = 50;
+export const MOUTH_TEETH_MS = 80;
 export const MOUTH_CLOSED_MS = 35;
 
 /** Lissage EN TEMPS de la forme (l'ouverture passe par `smoothOpenness`). */

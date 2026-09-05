@@ -22,6 +22,8 @@ import { createPortraitPainter, type PortraitPainter } from '../../services/arch
 
 export interface LivingPortraitHandle {
     draw(pose: LivingPose): void;
+    /** Qualité de rendu (0,5..1) décidée par l'appelant d'après la cadence réellement mesurée. */
+    setQuality(quality: number): void;
 }
 
 export interface LivingPortraitProps {
@@ -30,10 +32,12 @@ export interface LivingPortraitProps {
     mouth: MouthAnchor;
     accent: string;
     className?: string;
+    /** Budget de pixels du canevas (défaut : `CANVAS_PIXEL_BUDGET`) — les bancs de preuve peuvent le relever. */
+    pixelBudget?: number;
 }
 
 export const LivingPortrait = forwardRef<LivingPortraitHandle, LivingPortraitProps>(function LivingPortrait(
-    { photoUrl, rig, mouth, accent, className = 'w-full h-full block' },
+    { photoUrl, rig, mouth, accent, className = 'w-full h-full block', pixelBudget },
     ref,
 ) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,7 +54,7 @@ export const LivingPortrait = forwardRef<LivingPortraitHandle, LivingPortraitPro
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return undefined;
-        const painter = createPortraitPainter(canvas, photoUrl);
+        const painter = createPortraitPainter(canvas, photoUrl, pixelBudget !== undefined ? { pixelBudget } : {});
         painterRef.current = painter;
         painter.onReady(repaint);
         // Une taille qui change (téléphone pivoté, fenêtre redimensionnée)
@@ -65,11 +69,18 @@ export const LivingPortrait = forwardRef<LivingPortraitHandle, LivingPortraitPro
     }, [photoUrl]);
 
     useEffect(() => { repaint(); }, [rig, mouth, accent]);
+    useEffect(() => {
+        if (pixelBudget !== undefined) painterRef.current?.setPixelBudget(pixelBudget);
+        repaint();
+    }, [pixelBudget]);
 
     useImperativeHandle(ref, () => ({
         draw(pose: LivingPose) {
             poseRef.current = pose;
             repaint();
+        },
+        setQuality(quality: number) {
+            painterRef.current?.setQuality(quality);
         },
     }), []);
 

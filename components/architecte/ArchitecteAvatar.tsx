@@ -45,6 +45,8 @@ import {
     SPEAKING_BLEND_MS,
     ATTENTION_BLEND_MS,
     LIP_WIDTH_MS,
+    adaptQuality,
+    medianOf,
 } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatarFace } from './ArchitecteAvatarFace';
 import { LivingPortrait, type LivingPortraitHandle } from './LivingPortrait';
@@ -108,6 +110,8 @@ export interface ArchitecteAvatarProps {
     voiceTrackRef?: { readonly current: VoiceTrackRef | null } | null;
     /** `true` quand la bouche suit une piste phonétique alignée (annoncé pour ce qu'il est). */
     voiceAligned?: boolean;
+    /** Budget de pixels du canevas du portrait (bancs de preuve) ; défaut : `CANVAS_PIXEL_BUDGET`. */
+    pixelBudget?: number;
     /** Diamètre en pixels. */
     size?: number;
     onClick?: () => void;
@@ -169,6 +173,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     mouthShapeRef = null,
     voiceTrackRef = null,
     voiceAligned = false,
+    pixelBudget,
     wordPulse = null,
     wordPulseRef = null,
     size = 48,
@@ -238,6 +243,10 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     const attentionBlendRef = useRef(0);
     // Le portrait se peint lui-même (Canvas) : pas de rendu React à 60 Hz.
     const portraitRef = useRef<LivingPortraitHandle>(null);
+    // Cadence RÉELLE : durées des 60 dernières images ; si l'appareil ne suit
+    // pas, la résolution du portrait baisse d'un cran (playbook 15 § 3).
+    const frameTimesRef = useRef<number[]>([]);
+    const qualityRef = useRef(1);
     levelRef.current = outputLevel;
     wordPulseLocalRef.current = wordPulse;
     speakingRef.current = presence === 'speaking';
@@ -266,6 +275,16 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             // Durée réelle de l'image : les lissages sont en temps, pas en images.
             const dt = Math.min(100, Math.max(1, maintenant - imagePrecedente));
             imagePrecedente = maintenant;
+            const durees = frameTimesRef.current;
+            durees.push(dt);
+            if (durees.length >= 60) {
+                const suivante = adaptQuality(qualityRef.current, medianOf(durees));
+                durees.length = 0;
+                if (suivante !== qualityRef.current) {
+                    qualityRef.current = suivante;
+                    portraitRef.current?.setQuality(suivante);
+                }
+            }
             const pulse = wordPulseRef ? wordPulseRef.current : wordPulseLocalRef.current;
             const niveau = outputLevelRef ? outputLevelRef.current : levelRef.current;
             const forme = mouthShapeRef ? mouthShapeRef.current : null;
@@ -283,7 +302,10 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                 // du texte, calés sur le son) ou, à défaut, du spectre de la voix —
                 // voyelle ouverte ou fermée, lèvres étirées ou arrondies, dents sur
                 // une fricative, lèvres jointes sur « m », « b », « p » et les silences.
-                cible = forme.closed > 0.5 ? 0 : forme.open;
+                // Fermeture CONTINUE (plus de bascule à 0,5 : elle faisait un
+                // à-coup à chaque « m », « b », « p »).
+                const jointes = forme.closed <= 0.4 ? 0 : forme.closed >= 0.7 ? 1 : (() => { const x = (forme.closed - 0.4) / 0.3; return x * x * (3 - 2 * x); })();
+                cible = forme.open * (1 - jointes);
                 largeurVisee = forme.width;
                 dentsVisees = forme.teeth;
                 niveauVoix = forme.level;
@@ -320,8 +342,12 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             let geste;
             if (piste) {
                 if (scoreForRef.current !== piste.score || !scoreRef.current) {
+                    // Nouvelle piste (segment suivant) : les ressorts héritent de
+                    // l'état courant — jamais un retour brutal à zéro entre deux phrases.
+                    const suivant = createScoreTracker(piste.score);
+                    adoptSprings(scoreRef.current ?? prosodyRef.current, suivant);
                     scoreForRef.current = piste.score;
-                    scoreRef.current = createScoreTracker(piste.score);
+                    scoreRef.current = suivant;
                 }
                 geste = updateScore(scoreRef.current, { t: maintenant - piste.t0Perf, dtMs: dt, elapsedMs: maintenant - debut });
             } else {
@@ -402,6 +428,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                     rig={config.rig}
                     mouth={mouth}
                     accent={accent}
+                    pixelBudget={pixelBudget}
                 />
             ) : (
                 /* Repli technique quand AUCUNE photo n'est configurée. Ce n'est
