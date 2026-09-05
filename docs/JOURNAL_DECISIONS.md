@@ -1439,8 +1439,39 @@ Chaque décision respecte le formalisme strict suivant :
   décision de l'entrée du registre AI Core ont été alignés (contenu de la
   version inchangé, ligne d'audit `update_knowledge_entry_metadata`). Les
   titres de commit et de PR déjà fusionnés (#95) gardent l'ancien numéro.
+* **Version 2 du registre (compétence 1.1.1)** : pendant que la PR de
+  documentation attendait sa fenêtre de fusion, la PR #96 (équipe SAT-6,
+  `main` `92cf8b0`) a fait passer la compétence à 1.1.0 en ajoutant § 7.6
+  (finalisation documentaire quand `main` a avancé — ajout « plus strict »,
+  rien retiré). Pour que le registre reste « réutilisable telle quelle », la
+  même séquence gouvernée a été rejouée, précédée d'une **revue indépendante
+  de l'ajout** par un contrôleur séparé (producteur ≠ contrôleur) : verdict
+  REQUEST_REVISION pour un seul point, prouvé en dépôt jetable — la sauvegarde
+  `git diff > …patch` avant `git reset --hard` omettait les changements
+  indexés (patch de 0 octet, travail perdu) ; corrigé en **1.1.1** (`git diff
+  HEAD`, patch non vide vérifié, ou `git stash push` / commit provisoire ;
+  note `grep -c` sous `set -e`), diff strictement additif, aucun secret,
+  contre-vérification APPROVE. Registre : proposition
+  `8151454d-082a-4b49-bef1-f45b763ead5d` (type METHOD, action UPDATE vers
+  l'entrée `159f024b-4982-4b79-a07b-9a883c948739`, contenu = texte intégral de
+  la compétence 1.1.1, 27 959 octets), revue APPROVE
+  `a1a50a0d-4d7b-49fa-b848-f6e2f23d910c` signée par le contrôleur indépendant,
+  version 2 `cdc62f12-bffb-463e-be0e-0eaa1f8b54d8` (empreinte SHA-256
+  `d7034175e4d975256c945c0ed7f75bf9e2768e61f3e73a1acb2a5aec04b283c1`, blob git
+  `713c96865ced2fe0b59b7b9be22611cce385b95a`, identique octet pour octet au
+  fichier de la branche, donc au fichier fusionné en squash), entrée basculée
+  sur la version 2 (statut ACTIVE inchangé, version 1 conservée dans
+  l'historique), action du gardien `37f9c65e-0dcb-4761-b209-b24bf8dbc335`,
+  trois lignes d'audit (corrélation `0e4217ca-144e-4c78-aa62-18c31ca74475`),
+  le 5/09/2026 à 13:37 UTC. Honnêteté : la validation écrite de la Direction porte
+  sur la méthode 1.0.0 ; § 7.6 et la précision 1.1.1 sont enregistrés comme
+  ajouts « plus stricts » revus indépendamment, la Direction peut les faire
+  retirer (retour de l'entrée sur la version 1 sans perte). Le front matter de
+  la compétence ne porte plus d'identifiant de version (circulaire par
+  construction) mais la carte v1 ↔ 1.0.0, v2 ↔ 1.1.1 et le chemin
+  d'historique de l'API.
 * **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ET PUBLIÉ DANS LE REGISTRE AI CORE
-  (entrée ACTIVE, 5/09/2026 à 13:11 UTC).
+  (entrée ACTIVE : version 1 le 5/09/2026 à 13:11 UTC, version 2 — compétence 1.1.1 — le 5/09/2026 à 13:37 UTC).
 
 ---
 
