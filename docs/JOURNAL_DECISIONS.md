@@ -72,8 +72,9 @@ Chaque décision respecte le formalisme strict suivant :
   clavier, zoom 1,5 et 1,33, ordinateur) : après, carte et bouton dans la
   zone visible, bouton sous le doigt, aucun débordement horizontal, aucun
   rognage ; avant, les deux cas de zoom hors cadre ; parcours complet
-  jusqu'à la publication réussi sur trois écrans. Limite honnête : zoom
-  émulé par Chromium (le zoom automatique d'iOS ne s'émule pas), pas
+  jusqu'à la publication réussi sur trois écrans. Avant = `main` `f1bb563`,
+  après = tête `099ed6e` (SHA déclarés dans `_meta` des JSON, même sonde
+  pour les deux). Limite honnête : zoom émulé par Chromium (le zoom automatique d'iOS ne s'émule pas), pas
   d'appareil réel.
 * **Statut** : 🟠 PRÊTE, NON DÉPLOYÉE — PR brouillon depuis
   `claude/cleanup-home-interface-szp8qv` ; production seulement sur feu vert
