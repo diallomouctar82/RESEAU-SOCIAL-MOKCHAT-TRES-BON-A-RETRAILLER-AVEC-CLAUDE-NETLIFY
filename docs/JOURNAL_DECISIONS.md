@@ -1867,6 +1867,14 @@ Chaque décision respecte le formalisme strict suivant :
   du bundle servi par `moknet.net`, captures avec le chemin exact. La
   promotion du profil de la Direction au rang `super_admin` reste une
   décision de la Direction (mot écrit).
+* **Ajustement du 5/09 (v6.40.1, PR #104)** : la Direction a demandé où se
+  fait le dialogue et comment l'activer. Le champ de saisie, jusque-là sous
+  les boutons de commande et la progression, est placé juste sous la
+  conversation (touche Entrée ou bouton Envoyer), avec le placeholder
+  « Écrivez ici : … ». Rien n'est à activer : le dialogue (analyser,
+  expliquer, diagnostiquer, questions libres, voix, micro) est ouvert à tout
+  administrateur ; seul l'acte d'appliquer une réparation exige le rang
+  Admin Général. Le README des captures dit désormais où se fait le dialogue.
 * **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
   11:14 UTC) — PR #91 fusionnée en squash → `main` `b36318b` (Green
   Gate run 33962624632 vert sur `5b265dd`) ; `moknet.net` sert
