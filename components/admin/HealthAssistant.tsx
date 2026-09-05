@@ -472,6 +472,18 @@ export const HealthAssistant: React.FC<HealthAssistantProps> = ({
                         )}
                     </div>
 
+                    {/* Consigne écrite — juste sous le dialogue, là où l'on répond à ce qu'on vient de lire */}
+                    <form onSubmit={envoyer} className="flex items-center gap-2">
+                        <label htmlFor="assistant-saisie" className="sr-only">Consigne ou question</label>
+                        <input id="assistant-saisie" type="text" value={saisie} onChange={(e) => setSaisie(e.target.value)} autoComplete="off"
+                               placeholder="Écrivez ici : « répare les rouges », « explique … », « restaure le lot », ou une question"
+                               className="flex-1 min-w-0 rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <button type="submit" disabled={!saisie.trim()} aria-label="Envoyer"
+                                className="px-3.5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                            <Send size={16} />
+                        </button>
+                    </form>
+
                     {/* Commandes */}
                     <div className="space-y-2.5">
                         <div className="flex flex-wrap items-center gap-2">
@@ -545,18 +557,6 @@ export const HealthAssistant: React.FC<HealthAssistantProps> = ({
                     {campagne && (
                         <Progression campagne={campagne} occupe={occupe} onArreter={arreter} />
                     )}
-
-                    {/* Consigne écrite */}
-                    <form onSubmit={envoyer} className="flex items-center gap-2">
-                        <label htmlFor="assistant-saisie" className="sr-only">Consigne ou question</label>
-                        <input id="assistant-saisie" type="text" value={saisie} onChange={(e) => setSaisie(e.target.value)} autoComplete="off"
-                               placeholder="« répare les rouges », « explique … », « restaure le lot », ou une question"
-                               className="flex-1 min-w-0 rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        <button type="submit" disabled={!saisie.trim()} aria-label="Envoyer"
-                                className="px-3.5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                            <Send size={16} />
-                        </button>
-                    </form>
                 </div>
             </div>
 

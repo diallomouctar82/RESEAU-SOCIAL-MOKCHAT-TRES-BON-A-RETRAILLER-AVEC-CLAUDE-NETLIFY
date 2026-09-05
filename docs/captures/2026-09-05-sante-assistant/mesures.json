@@ -5,13 +5,13 @@
     "boutonsAdmin": [
       "Voix : coupée",
       "Parler",
+      "",
       "Analyser",
       "tout le lot\n(15)",
       "les rouges seuls\n(6)",
       "les oranges seuls\n(9)",
       "ce domaine",
-      "ce point",
-      ""
+      "ce point"
     ],
     "dialogueAdmin": "BILAN MESURÉ\n\nBilan de MokNet : état rouge — critique ou bloquant. Santé 75 % sur 95 % du périmètre mesuré. Sécurité 51 % aujourd'hui, contre 61 % à l'audit du 4 septembre 2026. 6 rouges, 9 oranges, 5 non mesurés, 38 verts. Priorités : Attribution de crédits réservée au serveur (risque critique) ; Crédit de portefeuille non déclarable par le client (risque critique) ; Aucun script tiers exécuté (risque critique). 8 réparations automatiques possibles, 7 points à traiter à la main. Votre rang (admin) permet de mesurer et de diagnostiquer ; réparer exige le rang Admin Général, je peux vous guider pour l'activer.\n\nVOUS\n\nexplique l'attribution de crédits réservée au serveur\n\nASSISTANT\n\nAttribution de crédits réservée au serveur : rouge — critique ou bloquant. Constaté : `award_xp_and_credits` est exécutable par tout compte connecté. Écart : Un compte ordinaire peut s'attribuer des crédits et de l'XP sans limite. Cause probable : `award_xp_and_credits` est `SECURITY DEFINER`, exécutable par défaut par `authenticated`, et son contrôle interne autorise l'appelant à se cibler lui-même avant de désactiver le garde des colonnes sensibles (constat R-01 de l'audit du 04/09/2026). Impact : N'importe quel compte connecté peut, en un seul appel, se créditer un montant arbitraire et le dépenser en boutique, en cadeaux de LIVE ou dans les cagnottes : l'économie de MokNet perd toute intégrité. Niveau de risque : risque critique. Réparation automatique disponible (Retirer le droit d'exécution aux comptes ordinaires), mais votre rang ne permet que le diagnostic.\n\nVOUS\n\nrépare\n\nASSISTANT\n\nPrécisez la portée : « tout le lot », « les rouges », « les oranges », un domaine (sécurité, application, connecteurs, live, VPS, base de données, services externes) ou le nom d'un point.",
     "progressionAdmin": "100",
@@ -20,13 +20,13 @@
     "boutonsSuper": [
       "Voix : coupée",
       "Parler",
+      "",
       "Analyser",
       "tout le lot\n(15)",
       "les rouges seuls\n(6)",
       "les oranges seuls\n(9)",
       "ce domaine",
-      "ce point",
-      ""
+      "ce point"
     ],
     "modaleLot": "UNE CONFIRMATION POUR LE LOT\n\nAppliquer les rouges seuls ?\n\nPérimètre exact établi par le diagnostic. Rien n'a encore été modifié.\n\nAttribution de crédits réservée au serveur\n\nRetirer le droit d'exécution aux comptes ordinaires — 1 élément · droits de fonction (pg_proc) · restaurable\n\n1 élément(s) seront modifiés, après sauvegarde.\n\nCrédit de portefeuille non déclarable par le client\n\nFermer l'écriture directe du grand livre — 1 élément · droits de fonction (pg_proc) · restaurable\n\n1 élément(s) seront modifiés, après sauvegarde.\n\n2 éléments dans 1 table (droits de fonction (pg_proc)), en 2 points. Pour chaque point : sauvegarde avant, application, vérification après, journal. La campagne s'arrête d'elle-même à la première dérive.\n\nJ'ai lu le périmètre exact ci-dessus et j'autorise l'application du lot.\nAnnuler — rien n'est appliqué\nAppliquer le lot (2)",
     "progressionSuper": "100",

@@ -5,6 +5,13 @@
 **« Assistant Santé Globale »** (juste sous la barre de commandement, avant
 les graphiques).
 
+**Où se fait le dialogue** : dans ce panneau, le champ « Écrivez ici : … »
+placé juste sous la conversation (touche Entrée ou bouton Envoyer), ou le
+bouton « Parler » (micro du navigateur, autorisation demandée au premier clic).
+Rien à activer : le dialogue est ouvert à tout administrateur ; seul l'acte
+d'appliquer une réparation exige le rang Admin Général. Captures régénérées
+le 5/09 après le déplacement du champ sous la conversation (v6.40.1).
+
 **Comment ces captures ont été produites** : le composant de production
 (`components/admin/AdminHealthTab.tsx`, Assistant compris) rendu dans un
 harnais Chromium local sur les **mesures de production relevées le

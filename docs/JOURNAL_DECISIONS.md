@@ -33,6 +33,83 @@ Chaque décision respecte le formalisme strict suivant :
 * **Essai navigateur réel (Chromium 1194, `docs/captures/2026-09-05-acces-public-authentification/`)** : **avant** = 🚀 page de production servie (`index-Bm6woHcd.js`) en miroir local ; **après** = 🧪 build de la branche ; sept canaux (navigateur ordinateur 1440 × 900 ; navigateur mobile, SMS Android WebView, WhatsApp Android, Messenger Android, Messenger iOS, WhatsApp iOS SafariView : 390 × 844 ×2, agent utilisateur réel de chaque navigateur intégré) × cinq états de l'appareil (vierge ; profil local sans session ; session refusée par le serveur ; session confirmée ; serveur injoignable) = 70 mesures DOM (`avant-mesures.json`, `apres-mesures.json`). **Session refusée par le serveur : 7/7 interface interne avant → 7/7 écran de connexion après.** Vierge et profil local sans session : 28/28 écran de connexion (avant comme après). Session confirmée : 14/14 interface, Réseau MokNet à l'entrée (aucune régression). Serveur injoignable : 14/14 interface (tolérance dite). Domaine : dix écritures (`www`, `http`, `Moknet.net`, `MOKNET.NET`, `Www.Moknet.Net`…) tracées par `curl` — toutes finissent sur `https://moknet.net/` ; norme URL vérifiée (`new URL('https://WWW.Moknet.NET/').host === 'www.moknet.net'`).
 * **Limites dites** : les navigateurs intégrés sont émulés par leur agent utilisateur dans Chromium — le comportement réel de WhatsApp, Messenger et SMS sur un téléphone appartient au contrôle de la Direction ; un jeton d'accès encore valide (au plus 1 h) après une « déconnexion partout » lancée depuis un autre appareil n'est pas révoqué par ce contrôle (limite des jetons signés) ; serveur d'authentification injoignable au démarrage → tolérance (entrée avec la session locale non expirée), à durcir sur décision de la Direction ; les règles de domaine de `netlify.toml` ne s'observent qu'en production (le preview Netlify n'a pas ce domaine) ; connexion Google depuis un navigateur intégré Messenger / Facebook : Google refuse ses formulaires dans ces navigateurs (limite Google, hors périmètre — la connexion par e-mail reste disponible) ; `/architecte` reste la page publique de démonstration décidée par DEC-2026-066 (aucune donnée de compte).
 * **Statut** : 🟡 **PRÊTE POUR PRODUCTION CONTRÔLÉE** — PR brouillon ouverte sur `claude/moknet-public-access-auth-hu6yy7`, en attente du Green Gate, de la revue indépendante et du feu vert écrit de la Direction (v6.41.0).
+### [DEC-2026-078] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — composeur « A7, rail latéral » et bande
+  « Aurore » (`index.html`, blocs « COMPOSEUR A7 » et « BANDE AURORE »),
+  commentaires de `components/SocialFeed.tsx`, gardes CSS de
+  `tests/composeurRail.test.tsx` et `tests/accesRapideAurore.test.tsx`,
+  captures `docs/captures/2026-09-05-reseau-meme-disposition-telephone/`.
+* **Problème / Besoin initial** : consigne de la Direction : « Harmonise la
+  disposition des boutons entre ordinateur et téléphone. Les actions de
+  publication comme photo, vidéo, audio, expert, live et autres doivent être
+  visibles et accessibles sans défilement horizontal gênant sur téléphone.
+  Garde une présentation propre, raisonnable, facile à utiliser, sans rien
+  casser. Fournis des captures ordinateur et téléphone, zéro régression.
+  Périmètre strict : interface publication et options de Réseau Moknet ; la
+  disposition des boutons sur ordinateur fait la même chose sur téléphone,
+  comme sur la photo. » Constat mesuré sur `origin/main` (harnais 390 × 844) :
+  rail des médias masqué et remplacé par quatre icônes sans libellé sous le
+  champ, actions IA en 2 × 2 sans intitulé, bande Aurore en rail horizontal
+  aimanté avec **12 orbes sur 16 hors écran** (défilement obligatoire).
+* **Options considérées** : (a) rail des médias à côté de l'avatar sur une
+  troisième colonne — champ réduit à ~190 px, rejeté ; (b) rail **sous
+  l'avatar dans la première colonne**, corps sur la colonne de droite —
+  champ de 249 px (219 px à 360, 234 px à 375), avatar à la même place : retenu ; (c) bande en 8 colonnes
+  sur téléphone — orbes de 34 px, illisible, rejeté ; (d) bande en **grille
+  4 × 4** avec damier et libellés courts : retenu ; (e) supprimer la ligne
+  d'icônes sous le champ — rejeté (rien ne disparaît) : elle reste le repli
+  des cartes très étroites (≤ 270 px de largeur intérieure, écran de 344 px au plus).
+* **Décision** : CSS seulement, aucun balisage ni gestionnaire modifié.
+  Requête de conteneur `a7 (max-width: 560px)` : grille
+  `minmax(44px, auto) minmax(0, 1fr)` / `auto 1fr`, rail en colonne 1 rangée
+  2 (libellés conservés, 10 px), corps en colonne 2 sur les deux rangées,
+  intitulé « Assistant IA » affiché et quatre actions sur une ligne
+  (libellés autorisés à passer à la ligne, orbes alignées en haut) ; nouvelle
+  requête `a7 (max-width: 270px)` — écran de 344 px au plus, soit 320 px, tandis que 360 et 375 px gardent la disposition de l'ordinateur (revue indépendante) — qui rétablit l'ancienne ligne d'icônes ;
+  replis `@supports not` à 639 px et 344 px ; Brouillon | Publier resserré de 216 à 208 px pour tenir dans la colonne de droite d'un écran de 360 px. Requête `aurore (max-width:
+  480px)` : la grille de la racine passe à quatre colonnes (damier conservé,
+  bulles de 46 px, libellés courts), plus aucune règle de défilement,
+  d'aimantation ni de fondu ; repli à 639 px identique. Ordinateur et
+  tablette large : aucun changement (mesures identiques). L'avatar n'a
+  aucune règle : il est placé par la grille dans la première cellule libre,
+  même boîte et mêmes coordonnées sur les six écrans.
+* **Contrôle** : typage 0 erreur, 1589/1589 tests (104 fichiers) après
+  écriture des gardes CSS (rail non masqué à 560 px, rangées `auto 1fr`,
+  quatre colonnes IA, repli 270 px (aucun seuil 300 px), replis 639/344, resserrement du groupe ; bande : grille 4
+  colonnes, aucun `overflow-x` / `scroll-snap` / `mask-image`, damier non
+  annulé), build OK ; captures et mesures avant/après sur six écrans
+  (1440 × 900, 820 × 1180, 390 × 844, 360 × 800, 375 × 667, 320 × 568 ; script `mesurer.cjs` versionné avec les captures) : téléphone — rail visible
+  avec 4 libellés, actions IA sur 1 rangée, champ 249 px (219 px à 360, 234 px à 375), avatar 37,82 44 × 44
+  identique, bande 16/16 orbes visibles, 0 hors écran, aucun défilement ;
+  ordinateur — toutes mesures identiques ; 320 px — repli actif (intitulé « Assistant IA » désormais visible, champ 120 px : rien ne disparaît). Revue
+  indépendante « À CORRIGER » (6 constats, tous corrigés) puis contre-vérification « PRÊT ».
+* **Production contrôlée** : feu vert écrit de la Direction le 5/09/2026 vers
+  15:11 UTC (« je donne mon feu vert écrit pour une production assistée de la
+  PR cent. Tu peux fusionner et vérifier immédiatement sur moknet point net.
+  Si tu rencontres un problème pendant ou juste après, tu le corriges dans ce
+  même cadre ; si c'est incontrôlable, tu arrêtes et tu reviens à l'état
+  stable précédent »). `main` `1466525` inchangé depuis le dernier Green Gate,
+  aucune autre fusion en cours ; PR #100 fusionnée en squash sur la tête
+  exacte `a921a2f` → `main` `a615593` à **15:12:30 UTC**. Vérification
+  immédiate : `moknet.net` sert la nouvelle feuille depuis **15:13:19 UTC**
+  (20 s après la fusion ; bundle `index-Bm6woHcd.js` inchangé, aucun
+  JavaScript modifié ; etag `061af64e…`, `cache-control: max-age=0,
+  must-revalidate`) — marqueurs présents (`a7 (max-width: 270px)`,
+  `(max-width: 344px)`, `grid-template-rows: auto 1fr`, resserrement du
+  groupe), aucun seuil 300/360 px, aucune règle `scroll-snap` / `mask-image` /
+  `overflow-x` dans la bande, ancien bundle `index-DnzvQMzK.js` → 404,
+  vérificateur « conforme » ; Green Gate vert sur `main` (run 33974090869) ;
+  miroir local ouvert dans Chromium : racine montée, requêtes de conteneur
+  `a7` 560/270 et `aurore` 800/480 analysées, deux replis `@supports`.
+  Limite honnête : l'écran authentifié (composeur) n'est pas capturable sans
+  compte ; les captures ordinateur et téléphone du composeur proviennent du
+  harnais sur ce même code
+  (`docs/captures/2026-09-05-reseau-meme-disposition-telephone/`).
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  fusion 15:12:30 UTC, page servie 15:13:19 UTC, v6.40.0).
+
+---
 
 ### [DEC-2026-077] — 5 Septembre 2026
 * **Module(s)** : Super-Admin (Paramètres plateforme, carte « Avatar vivant de l'Architecte ») ; Diallo OS & Architecte (module 01) ; banc `design-lab/banc/super-admin-avatar.html`.
@@ -1803,6 +1880,14 @@ Chaque décision respecte le formalisme strict suivant :
   du bundle servi par `moknet.net`, captures avec le chemin exact. La
   promotion du profil de la Direction au rang `super_admin` reste une
   décision de la Direction (mot écrit).
+* **Ajustement du 5/09 (v6.40.1, PR #104)** : la Direction a demandé où se
+  fait le dialogue et comment l'activer. Le champ de saisie, jusque-là sous
+  les boutons de commande et la progression, est placé juste sous la
+  conversation (touche Entrée ou bouton Envoyer), avec le placeholder
+  « Écrivez ici : … ». Rien n'est à activer : le dialogue (analyser,
+  expliquer, diagnostiquer, questions libres, voix, micro) est ouvert à tout
+  administrateur ; seul l'acte d'appliquer une réparation exige le rang
+  Admin Général. Le README des captures dit désormais où se fait le dialogue.
 * **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
   11:14 UTC) — PR #91 fusionnée en squash → `main` `b36318b` (Green
   Gate run 33962624632 vert sur `5b265dd`) ; `moknet.net` sert
