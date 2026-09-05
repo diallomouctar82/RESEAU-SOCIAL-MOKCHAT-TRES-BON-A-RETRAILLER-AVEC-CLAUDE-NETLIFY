@@ -22,6 +22,12 @@ import {
 } from './healthTypes';
 import { HEALTH_LINES } from './healthRegistry';
 import { blankOutcome, buildReport, validateRegistry } from './healthScore';
+import type {
+    LiveEmergencyAction,
+    LiveEmergencyOverview,
+    LiveEmergencyPlan,
+    LiveEmergencyResult,
+} from './liveEmergency';
 
 /** Rang de l'appelant, tel que la base le rapporte. */
 export interface HealthRank {
@@ -338,6 +344,41 @@ export async function loadJournal(limit = 50): Promise<HealthJournalEntry[]> {
         message: e.metadata?.measuredAfter ?? '',
         createdAt: String(e.created_at),
     }));
+}
+
+// ─────────────────────── SAT-6 : SECOURS DU DIRECT ───────────────────────
+//
+// Même fonction Edge, même séquence que les réparations : DIAGNOSTIQUER →
+// CONFIRMER (jeton signé) → APPLIQUER → VÉRIFIER → JOURNALISER. Le rang est
+// contrôlé côté serveur à chaque appel ; ce fichier ne décide rien.
+
+/** Les directs ouverts et l'état réel de leur room LiveKit (lecture, administrateurs). */
+export async function loadLiveEmergencyOverview(): Promise<LiveEmergencyOverview> {
+    const { data, error } = await invoke<LiveEmergencyOverview>({ action: 'live_emergency_overview' });
+    if (error || !data) throw new Error(error ?? 'État des directs sans réponse.');
+    return data;
+}
+
+/** Ce qu'un geste de secours FERAIT sur ce direct, sans rien modifier. */
+export async function diagnoseLiveEmergency(action: LiveEmergencyAction, sessionId: string): Promise<LiveEmergencyPlan> {
+    const { data, error } = await invoke<LiveEmergencyPlan>({
+        action: 'live_emergency_diagnose', emergencyAction: action, sessionId,
+    });
+    if (error || !data) throw new Error(error ?? 'Diagnostic de secours sans réponse.');
+    return data;
+}
+
+/** Applique le geste confirmé. Le serveur relit le rang et l'état du direct avant d'agir. */
+export async function applyLiveEmergency(
+    action: LiveEmergencyAction,
+    sessionId: string,
+    confirmationToken: string,
+): Promise<LiveEmergencyResult> {
+    const { data, error } = await invoke<LiveEmergencyResult>({
+        action: 'live_emergency_apply', emergencyAction: action, sessionId, confirmationToken,
+    });
+    if (error || !data) throw new Error(error ?? 'Geste de secours sans réponse.');
+    return data;
 }
 
 /** Réexporté pour que l'interface n'ait pas à connaître le moteur de score. */

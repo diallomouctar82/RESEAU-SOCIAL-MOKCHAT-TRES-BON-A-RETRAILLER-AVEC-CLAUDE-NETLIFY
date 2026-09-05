@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Activity, AlertTriangle, ChevronRight, CircleHelp, ClipboardList, Database, ExternalLink, Filter,
     Globe, ListChecks, Loader2, Lock, MonitorSmartphone, Plug, Radio, RefreshCw, Search, Server,
@@ -14,6 +15,8 @@ import {
 } from '../../services/health/healthService';
 import { SecurityReport, buildSecurityReport } from '../../services/health/securityAudit';
 import { resolveGuideUrl } from '../../services/health/healthGuide';
+import { emergencyJournalLabel } from '../../services/health/liveEmergency';
+import { LiveEmergencyPanel } from './LiveEmergencyPanel';
 
 /**
  * Santé Globale — console d'exploitation de MokNet.
@@ -480,8 +483,14 @@ const FicheProbleme: React.FC<{
         return () => window.removeEventListener('keydown', onKey);
     }, [onFermer]);
 
-    return (
-        <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="titre-detail">
+    // Rendu dans document.body : les enveloppes de l'espace admin gardent un
+    // `transform` identité après leur animation d'entrée (animate-fade-up), et
+    // un ancêtre transformé devient le cadre de tout `position: fixed` — la
+    // fiche se cadrait alors sur la boîte de l'onglet, pas sur la fenêtre
+    // (relevé du banc SAT-6). Le portail rend la fenêtre au cadre.
+    return createPortal(
+        <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="titre-detail"
+             data-testid="health-detail-drawer">
             <button className="absolute inset-0 bg-slate-900/40" onClick={onFermer} aria-label="Fermer la fiche" />
             <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-xl animate-fade-up">
                 <div className={`px-5 py-4 border-b border-slate-200 ${s.fond}`}>
@@ -675,7 +684,8 @@ const FicheProbleme: React.FC<{
                     <p className="text-[10px] text-slate-400 font-mono">{line.id} · poids {line.weight} / 100 dans son domaine technique</p>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
 
@@ -701,9 +711,12 @@ const ModaleConfirmation: React.FC<{
         return () => window.removeEventListener('keydown', onKey);
     }, [onAnnuler, occupe]);
 
-    return (
+    // Même portail que la fiche : hors de l'arbre transformé de l'espace
+    // admin, la modale se centre sur la fenêtre et non sur l'onglet.
+    return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
-             role="dialog" aria-modal="true" aria-labelledby="titre-confirmation">
+             role="dialog" aria-modal="true" aria-labelledby="titre-confirmation"
+             data-testid="health-confirm-modal">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-full overflow-y-auto">
                 <div className={`px-5 py-4 border-b border-slate-200 ${sansJeton ? 'bg-amber-50' : 'bg-orange-50'}`}>
                     <div className={`flex items-center gap-2 ${sansJeton ? 'text-amber-800' : 'text-orange-700'}`}>
@@ -795,16 +808,21 @@ const ModaleConfirmation: React.FC<{
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
 
 // ─────────────────────────── Journal ───────────────────────────
 
+// Quatre natures d'entrée, quatre mots : une réparation, une restauration,
+// une réparation automatique (cron) et un geste de SECOURS (SAT-6) ne se
+// lisent pas de la même façon.
 const LIBELLE_ACTION: Record<string, { texte: string; classe: string }> = {
     'health.repair':      { texte: 'Réparation',             classe: 'bg-blue-50 text-blue-700' },
     'health.restore':     { texte: 'Restauration',           classe: 'bg-slate-100 text-slate-600' },
     'health.auto_repair': { texte: 'Réparation automatique', classe: 'bg-emerald-50 text-emerald-700' },
+    'health.emergency':   { texte: 'Secours',                classe: 'bg-red-50 text-red-700' },
 };
 
 // ─────────────────────────── Onglet ───────────────────────────
@@ -1105,6 +1123,9 @@ export const AdminHealthTab: React.FC = () => {
                              rank={rank} filtreActif={filtreActif} onOuvrir={setSelection} />
             ))}
 
+            {/* ── SECOURS DU DIRECT (SAT-6) ─────────────────────────────── */}
+            <LiveEmergencyPanel rank={rank} onJournalChanged={() => void rafraichirJournal()} />
+
             {/* ── JOURNAL ───────────────────────────────────────────────── */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
@@ -1125,10 +1146,18 @@ export const AdminHealthTab: React.FC = () => {
                             return (
                                 <div key={entry.id} className="px-4 py-2.5 flex flex-wrap items-center gap-3 text-xs">
                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${libelle.classe}`}>{libelle.texte}</span>
-                                    <button onClick={() => entry.lineId && ouvrirLigne(entry.lineId)}
-                                            className="font-mono text-slate-500 truncate max-w-[16rem] hover:text-blue-700 hover:underline text-left">
-                                        {parId.get(entry.lineId ?? '')?.line.title ?? entry.lineId}
-                                    </button>
+                                    {entry.action === 'health.emergency' ? (
+                                        // Un geste de secours ne vise aucune ligne du registre : le libellé
+                                        // vient du geste lui-même (Relancer / Clore), jamais d'un id brut.
+                                        <span className="font-mono text-slate-500 truncate max-w-[16rem]">
+                                            {emergencyJournalLabel(entry.remediationId)}
+                                        </span>
+                                    ) : (
+                                        <button onClick={() => entry.lineId && ouvrirLigne(entry.lineId)}
+                                                className="font-mono text-slate-500 truncate max-w-[16rem] hover:text-blue-700 hover:underline text-left">
+                                            {parId.get(entry.lineId ?? '')?.line.title ?? entry.lineId}
+                                        </button>
+                                    )}
                                     <span className="text-slate-600 tabular-nums">{entry.changedCount ?? 0} élément(s)</span>
                                     {auteur && <span className="text-slate-500">{auteur}</span>}
                                     <span className="text-[10px] text-slate-400 font-mono">{depuis(entry.createdAt)}</span>
@@ -1148,7 +1177,9 @@ export const AdminHealthTab: React.FC = () => {
                                         <span className="text-[10px] text-slate-400">
                                             {entry.action === 'health.auto_repair'
                                                 ? 'appliquée par la base, sans clic'
-                                                : entry.restorable ? "restauration réservée à l'Admin Général" : 'sauvegarde déjà restaurée ou purgée'}
+                                                : entry.action === 'health.emergency'
+                                                    ? 'geste de secours, sans sauvegarde : non restaurable'
+                                                    : entry.restorable ? "restauration réservée à l'Admin Général" : 'sauvegarde déjà restaurée ou purgée'}
                                         </span>
                                     )}
                                 </div>
