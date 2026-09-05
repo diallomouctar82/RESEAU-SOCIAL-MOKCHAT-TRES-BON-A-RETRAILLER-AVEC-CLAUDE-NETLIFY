@@ -17,8 +17,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  *   - le pied garde « Annuler » et « Appliquer à ma publication » et
  *     « Appliquer » envoie le texte puis ferme ;
  *   - la feuille place la modale au-dessus du dock (50) et de la barre
- *     flottante (60), sous le studio Visuel IA, borne la hauteur à la fenêtre
- *     visible (dvh avec repli vh) et respecte la zone sûre du bas.
+ *     flottante (60), sous le studio Visuel IA, borne la carte à 90 % du voile
+ *     (96 % quand il est bas), le voile suivant la zone réellement visible
+ *     (DEC-2026-082), et respecte la zone sûre du bas.
  */
 
 vi.mock('../services/ai', () => ({
@@ -151,13 +152,21 @@ describe('feuille de style de la modale (index.html, telle qu’analysée)', () 
   });
 
   it('borne la hauteur à 90 % du voile (qui suit la zone visible), et le pied respecte la zone sûre du bas', () => {
-    expect(valeurs('.ia-carte', 'max-height')).toEqual(['90%', '96%']); // 90 % du voile (96 % quand le voile est bas), qui suit la zone visible (DEC-2026-082)
+    expect(valeurs('.ia-carte', 'max-height')).toEqual(['90%']); // 90 % du voile, qui suit la zone visible (DEC-2026-082)
+    expect(valeurs('.ia-fond .ia-carte', 'max-height')).toEqual(['96%']); // 96 % quand le voile est bas
     expect(valeurs('.ia-fond .ia-carte', 'overflow')).toEqual(['clip']); // jamais defilee horizontalement par un focus
     expect(valeurs('.ia-fond .ia-tete, .ia-fond .ia-onglets, .ia-fond .ia-pied', 'flex-shrink')).toEqual(['0']);
     expect(valeurs('.ia-fond .ia-corps', 'min-height')).toEqual(['0']);
     expect(valeurs('.ia-fond', 'container-type')).toEqual(['size']); // largeur ET hauteur du voile interrogeables
     const conteneurs: string[] = []; feuille.walkAtRules('container', (a) => { conteneurs.push(a.params); });
     expect(conteneurs).toEqual(['ia (max-width: 320px)', 'ia (max-height: 560px)']);
+    // Toute regle des blocs de conteneur doit battre les utilitaires Tailwind (0,1,0) injectees apres la feuille : prefixe .ia-fond obligatoire.
+    const dansConteneur: string[] = []; feuille.walkAtRules('container', (a) => { a.walkRules((r) => { dansConteneur.push(r.selector); }); });
+    expect(dansConteneur.length).toBeGreaterThanOrEqual(6);
+    for (const sel of dansConteneur) expect(sel.startsWith('.ia-fond .')).toBe(true);
+    expect(valeurs('.ia-fond .ia-tete', 'padding')).toEqual(['12px 14px']);
+    expect(valeurs('.ia-fond .ia-tete', 'align-items')).toEqual(['flex-start']);
+    expect(valeurs('.ia-fond .ia-pied', 'padding')).toEqual(['10px 12px']);
     expect(valeurs('.ia-fond .ia-pied', 'padding-bottom')[0]).toMatch(/max\(1rem, env\(safe-area-inset-bottom\)\)/);
   });
 });

@@ -239,7 +239,7 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
       <div className="ia-carte bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col animate-scale-up">
 
         {/* Header — DEC-2026-082 : retrecissable et repliable pour les cartes etroites (zoom de page, petits ecrans) */}
-        <div className="ia-tete p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-start justify-between gap-2">
+        <div className="ia-tete p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
               <Wand2 size={22} className="text-white animate-pulse" />
