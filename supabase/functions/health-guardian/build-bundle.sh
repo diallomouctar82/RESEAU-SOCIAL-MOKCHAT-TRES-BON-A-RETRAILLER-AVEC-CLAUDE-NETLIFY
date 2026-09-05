@@ -41,7 +41,7 @@ npx --yes esbuild "supabase/functions/health-guardian/index.ts" \
     --banner:js='// ARTEFACT GÉNÉRÉ — NE PAS MODIFIER ICI.
 //
 // Produit par supabase/functions/health-guardian/build-bundle.sh à partir de
-// index.ts + evaluate.ts + supabase.ts + liveTransportProbe.ts.
+// index.ts + evaluate.ts + supabase.ts + liveTransportProbe.ts + liveEmergency.ts.
 // La source de vérité est le dépôt : pour vérifier que la production
 // correspond, rejouer le script et comparer les octets.' \
     --outfile="$SORTIE"

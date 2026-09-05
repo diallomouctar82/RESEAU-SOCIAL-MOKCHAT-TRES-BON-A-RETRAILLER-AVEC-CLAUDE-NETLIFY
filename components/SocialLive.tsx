@@ -974,6 +974,14 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     };
 
     const refresh = () => {
+      // SAT-6 (banc, passe 2) : « présent » est photographié AVANT la lecture.
+      // Une lecture partie avant que mon inscription (joinLiveSession) ne soit
+      // revenue, mais traitée après, ne me trouvait pas — et concluait « l'hôte
+      // m'a retiré » : spectateur éjecté 0,4 s après avoir rejoint, ligne
+      // fantôme laissée en base (left_at jamais posé, hasLeftSessionRef
+      // ayant pris la sortie pour un acte de l'hôte). Seule une lecture
+      // lancée alors que j'étais déjà inscrit peut valoir un retrait.
+      const presentAuDepart = presentInSessionRef.current;
       fetchActiveParticipants(realSessionId).then((participants) => {
         if (cancelled) return;
         // LV-1 : LA correction de la cause racine — la vraie liste alimente
@@ -1000,10 +1008,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             isCurrentlyPresent: true,
           });
           if (directive === 'force-mute') applyForcedMute();
-        } else if (isUserOnStageRef.current || presentInSessionRef.current) {
+        } else if (presentAuDepart) {
           // Ma ligne a disparu des présents alors que j'étais là : l'hôte m'a
           // retiré (left_at posé). Un simple message serait malhonnête — on
-          // quitte réellement.
+          // quitte réellement. (Un hôte ou une personne sur scène est toujours
+          // inscrit avant d'être « présent » : la photographie couvre ces cas.)
           applyRemovalByHost();
         }
         if (isHost) {

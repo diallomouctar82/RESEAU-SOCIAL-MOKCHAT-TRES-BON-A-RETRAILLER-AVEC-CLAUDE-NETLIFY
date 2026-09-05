@@ -1329,6 +1329,284 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-060] — 5 Septembre 2026
+
+* **Module(s)** : `Super-Admin / Santé Globale` (`components/admin/HealthAssistant.tsx`
+  nouveau, `components/admin/AdminHealthTab.tsx`),
+  `services/health/assistant/repairCampaign.ts` et `assistantBrain.ts` (nouveaux,
+  purs), `services/health/healthService.ts` (`runHealthCheck({ onPhase })`),
+  tests `tests/repairCampaign.test.ts`, `tests/assistantBrain.test.ts`,
+  `tests/HealthAssistant.test.tsx`, captures
+  `docs/captures/2026-09-05-sante-assistant/`.
+* **Problème / Besoin initial** : mission immédiate de la Direction (5/09) —
+  « créer et intégrer un Assistant IA de Santé Globale de l'application,
+  vocal et texte, avatar naturel si possible via l'existant, responsable de
+  la santé globale de l'application jusqu'à une production contrôlée.
+  Utiliser en priorité les compétences de Vision Smart AI Core, les
+  connecteurs et plateformes déjà en place comme HeyGen et ElevenLabs.
+  Fonctions obligatoires : bouton Analyser qui scanne tout, statuts visibles
+  vert, orange, rouge, bouton Réparer pour tout le lot, pour les rouges
+  seuls, pour les oranges seuls, par brique et point par point, avec
+  pourcentage de progression à chaque boucle. Si une réparation échoue,
+  fournir la cause, les étapes exactes et un lien vers l'endroit à corriger.
+  […] Si c'est incontrôlable, arrêt immédiat, retour à l'état stable initial,
+  et déclaration claire des problèmes pour décision et mesures de la
+  Direction. » Le tableau de bord v2 (DEC-2026-057) réparait un point à la
+  fois, depuis sa fiche : ni lot, ni progression par boucle, ni voix.
+* **Options considérées** :
+  1. Un agent conversationnel hébergé (ElevenLabs Agents) ou un assistant
+     externe qui piloterait l'écran — rejeté : une réparation ne doit passer
+     que par le pipeline `health-guardian` (diagnostic → jeton lié au
+     périmètre → sauvegarde → application → vérification → journal) sous le
+     rang `super_admin` ; retenu : un moteur de campagne **dans
+     l'application**, pur et testé, qui n'appelle que ce pipeline, et
+     l'assistant vocal déjà partagé par les experts (`useVoiceAssistant` :
+     ElevenLabs HD, secours navigateur annoncé, reconnaissance du
+     navigateur).
+  2. Laisser le modèle de langage décider de la portée d'une réparation —
+     rejeté : « répare » sans précision demande de préciser, jamais de portée
+     devinée ; les intentions (analyser, réparer tout / les rouges / les
+     oranges / un domaine / un point, expliquer un point, restaurer, stop,
+     aide) sont déterministes et testées ; le modèle ne sert qu'aux questions
+     libres, avec les mesures en contexte JSON et une consigne qui lui
+     interdit d'inventer, et sa réponse est étiquetée « Réponse IA — à
+     vérifier ».
+  3. Une confirmation par point réparé — rejeté : une campagne de quinze
+     points demanderait quinze clics alors que la Direction demande un lot ;
+     retenu : diagnostic de chaque point sans écriture, puis **une seule
+     confirmation** sur le périmètre consolidé (points, éléments, tables,
+     restaurabilité, case « j'ai lu »), puis réparation point par point avec
+     le pourcentage à chaque boucle et un bouton Arrêt.
+  4. Continuer la campagne après un échec, quoi qu'il arrive — rejeté : un
+     échec « incontrôlable » (réseau, serveur 5xx, authentification, droits,
+     deux échecs consécutifs) arrête la campagne, marque les points restants
+     « non tentés » et propose « Restaurer le lot » (sauvegardes rejouées en
+     ordre inverse) ; un échec ordinaire est rapporté avec sa cause exacte,
+     des étapes dérivées de la cause et les liens vers la fiche et l'endroit
+     exact, et la campagne continue.
+  5. Une vidéo HeyGen du bilan (avatar parlant) — reportée : un rendu HeyGen
+     prend plusieurs minutes alors que la passerelle `ai-gateway` est
+     synchrone (45 s côté client, sondage borné côté serveur) ; un bouton qui
+     échouerait à coup sûr serait un faux bouton. L'avatar « naturel via
+     l'existant » est l'`Avatar3D` de l'expert Directeur Diallo (vidéos
+     repos / parle / écoute) et la voix est ElevenLabs HD ; un mode
+     soumettre/relever de la passerelle est une évolution séparée.
+* **Décision finale** : panneau « Assistant Santé Globale » sous la barre de
+  commandement de l'onglet. **Analyser** avec la progression réelle des deux
+  familles de sondes (serveur, navigateur) ; le bilan dit en français dès la
+  fin de l'analyse (état, santé % sur couverture, sécurité % contre l'audit
+  du 4/09, comptes, trois priorités par risque, réparations automatiques et
+  manuelles, rang) — à voix haute seulement après une action de la
+  Direction, jamais au chargement. **Réparer** tout le lot / les rouges
+  seuls / les oranges seuls / ce domaine (sept blocs) / ce point ;
+  « Diagnostiquer » à la place de « Réparer » quand le rang ne permet pas
+  d'appliquer, et l'Assistant le dit ; progression « Boucle i/n · X % » ;
+  résultats point par point (réparé et vérifié, diagnostiqué, rien à
+  corriger, échec avec cause + étapes exactes + liens, action manuelle avec
+  endroit exact et étapes, recommandé, non tenté) ; Arrêt ; Restaurer le
+  lot ; la confirmation du lot est rendue par portail dans `document.body`,
+  comme la fiche et la modale unitaire depuis SAT-6. Aucune table, migration
+  ni fonction Edge nouvelle.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : 39 tests — moteur
+  (portées, progression monotone jusqu'à 100, mode diagnostic sans
+  confirmation ni écriture, lot refusé, échec qui continue, arrêt
+  incontrôlable qui garde les sauvegardes, deux échecs consécutifs, arrêt
+  demandé, restauration en ordre inverse), cerveau (narration, intentions,
+  ambiguïté refusée, contexte IA) et écran (libellés par rang, campagne de
+  bout en bout avec une confirmation, échec avec cause / étapes / lien,
+  arrêt immédiat, consignes écrites et vocales, question IA étiquetée, voix
+  coupée respectée, restauration) ; harnais Chromium sur les mesures de
+  production du 5/09 en quatre parcours (rang réel `admin`, banc
+  `super_admin` simulé, ordinateur et téléphone), 0 erreur JavaScript.
+* **Production** : la mission vaut feu vert écrit (« conduire jusqu'à une
+  production contrôlée vérifiable par la Direction… si c'est corrigeable, il
+  corrige, teste et avance ») ; PR #91 sur
+  `claude/moknet-security-audit-ohfwc1` (reconstruite sur `main` après la
+  fusion de SAT-6, PR #88), fusion en squash après Green Gate, vérification
+  du bundle servi par `moknet.net`, captures avec le chemin exact. La
+  promotion du profil de la Direction au rang `super_admin` reste une
+  décision de la Direction (mot écrit).
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  11:14 UTC) — PR #91 fusionnée en squash → `main` `b36318b` (Green
+  Gate run 33962624632 vert sur `5b265dd`) ; `moknet.net` sert
+  `index-JAHL7yTa.js` avec les empreintes de l'Assistant (« Assistant Santé
+  Globale », « Restaurer le lot », « Précisez la portée », « les rouges
+  seuls », « Réponse IA — à vérifier », « Retour à l'état stable »), ancien
+  bundle `index-BKkSLQXf.js` → 404. Le contrôle final dans l'application
+  (voix, micro, avatar animé, campagne réelle) appartient à la Direction ;
+  réparer réellement exige le rang `super_admin`.
+
+---
+
+### [DEC-2026-059] — 5 Septembre 2026
+
+* **Module(s)** : `Santé Globale (Super-Admin)`, fonction Edge
+  `health-guardian` (`liveEmergency.ts`, `index.ts`), `Live / Directs`
+* **Problème / Besoin initial** : SAT-6 — la frontière VPS posée par SAT-5
+  laissait deux gestes sans bouton : provoquer le rétablissement d'un direct
+  qui tourne mal (les lignes SAT-5 se relancent seules, mais aucun humain ne
+  pouvait déclencher ce rétablissement depuis l'administration) et clore un
+  direct. Et la définition d'« Admin Général » n'existait que côté client
+  (`isSuperAdmin` évalué dans le navigateur, § 5 de l'audit) : impossible
+  d'y adosser un geste de secours. Instruction de la Direction : « Lance
+  SAT-6 sur une branche dédiée avec preuves et tests verts … aucune mise en
+  prod sans validation complète ».
+* **Options considérées** :
+  1. Un bouton client qui appelle `RoomService` directement — rejeté : les
+     identifiants LiveKit sortiraient du coffre, et le rang serait celui du
+     navigateur.
+  2. Un geste serveur en un clic, sans diagnostic ni confirmation —
+     rejeté : un DeleteRoom sur un direct de deux cents personnes sans avoir
+     vu le nombre de présents, sans fenêtre de validité, sans journal.
+  3. **Retenu** : trois actions greffées sur `health-guardian`
+     (`live_emergency_overview` / `diagnose` / `apply`), écrites comme un
+     flux pur à ports injectés (`liveEmergency.ts`, testable sans réseau) :
+     rang relu **en base** (`health_my_rank`) avant toute lecture, et
+     **relu à nouveau** au moment du geste ; diagnostic qui mesure la room
+     réelle (`ListRooms` / `ListParticipants`) et signe un jeton HMAC de
+     cinq minutes lié au geste, au direct et à l'acteur — un jeton d'un
+     autre geste, d'un autre direct ou d'une autre personne vaut 403 ;
+     geste puis **re-mesure** avant tout verdict (room disparue ou renée =
+     vérifié ; même sid = échec ; LiveKit muet = non vérifié) ; clôture
+     écrite **par l'identité de l'appelant** (policy
+     `live_sessions_update_host`, jamais le rôle service — un refus de la
+     base vaut 403 sans DeleteRoom) ; journal `audit_logs`
+     (`health.emergency`, `live.secours.<geste>`) avec acteur, présents
+     avant, sid avant/après, verdict. Les gestes SSH (conteneur, clé
+     divergente, ports UDP, montée 1.8.4 → 1.13.6) restent listés dans le
+     panneau comme action humaine, jamais promis par un bouton.
+* **Décision finale** : option 3, livrée sur `claude/lives-directs-sat6`
+  (PR #88), d'abord **non déployée** — ni la fonction Edge (v4 ; la v3 en
+  production ne connaissait pas ces actions) ni le client — dans l'attente
+  de la validation de la Direction. Ordre de mise en production, imposé et
+  tenu : fonction Edge d'abord (additive ; retour arrière = redéployer
+  l'artefact v3 régénéré par `build-bundle.sh`), backend vérifié, fusion du
+  client ensuite — dans l'autre sens, le panneau afficherait « action
+  inconnue » à l'Admin Général. Voir « Mise en production contrôlée »
+  ci-dessous.
+* **Ce que le banc a trouvé** (passe 1, 44 OK / 1 DÉFAUT) : un faux défaut
+  de banc (`innerText` rend l'en-tête en capitales, « NON RÉVERSIBLE ») ;
+  et, sur les captures, deux vrais défauts que Playwright masquait en
+  faisant défiler tout seul — la **boîte de confirmation hors de l'écran**
+  (seul le voile se voyait : le relevé du banc a nommé le piège — l'animation
+  d'entrée `animate-fade-up` laisse un `transform` identité sur trois
+  enveloppes de l'espace admin, et un ancêtre transformé devient le cadre de
+  tout `position:fixed` ; corrigé par un portail vers `<body>`, comme la
+  goutte de la messagerie — et le même portail a été donné à la fiche
+  problème et à la modale de confirmation de la Santé Globale, prises dans le
+  même piège depuis leur création) et, après la relance, un panneau qui disait
+  « Aucune room active » alors que les deux personnes étaient déjà revenues
+  (corrigé par une seconde relecture 5 s après le geste, le temps que les
+  lignes SAT-5 se rétablissent). **Passe 2 (38 OK / 10 DÉFAUT)** : les dix
+  défauts avaient une seule cause, hors du périmètre initial de SAT-6 mais
+  réelle pour tout spectateur — Bilal était **éjecté 0,43 s après avoir
+  rejoint** le direct (journal LiveKit : `leave CLIENT_INITIATED`, ligne
+  `live_speakers` avec `left_at` null) : la relecture périodique du roster
+  de `SocialLive.tsx`, lancée AVANT que `joinLiveSession` ait répondu, ne
+  trouvait pas encore la personne parmi les présents et concluait « l'hôte
+  m'a retiré » — course corrigée en photographiant « j'étais inscrit » avant
+  la lecture, seule une lecture lancée après l'inscription pouvant valoir un
+  retrait. Passe 3, sur le code corrigé : 49 OK / 1 DÉFAUT — le seul
+  défaut était un artefact de la nouvelle mesure du banc (le volet du tiroir
+  mesuré en plein `animate-fade-up` : y=19, hauteur 882 = échelle 0,98) ; le
+  banc mesure désormais le voile, jamais animé, et attend la fin des
+  animations. **Passe 4 : 51 OK / 0 DÉFAUT** (5/09/2026, 08h09 UTC).
+* **Impact** : `supabase/functions/health-guardian/liveEmergency.ts`
+  (nouveau), `index.ts` (+3 actions, `loadTransportConfig`),
+  `services/health/liveEmergency.ts` (nouveau),
+  `services/health/healthService.ts` (+3 appels),
+  `components/admin/LiveEmergencyPanel.tsx` (nouveau ; modale par portail,
+  seconde relecture différée), `components/admin/AdminHealthTab.tsx`
+  (écran v2 de DEC-2026-057 : panneau monté avant le journal, libellé
+  « Secours » et geste nommé dans le journal ; `FicheProbleme` et
+  `ModaleConfirmation` rendues par portail), `components/SocialLive.tsx` (course du roster : un spectateur
+  n'est plus pris pour « retiré » pendant son inscription),
+  `tests/liveEmergency.test.ts` (26), `tests/liveEmergencyPanel.test.tsx`
+  (8). Aucune migration, aucune table nouvelle.
+* **Preuves** : tsc 0 · vitest 1101/1101 · build · 4 contre-épreuves rouges
+  (rang non relu au geste, même sid déclaré vérifié, jeton d'un autre geste
+  accepté, bouton actif sans case) ; banc réel détaillé dans
+  `docs/HISTORIQUE_VERSIONS.md` (v6.24.0). **Limites du banc** (levées en
+  production le 5/09, voir ci-dessous) : au banc, le flux Edge réel tourne
+  dans Node avec ses ports réels (base réelle pour le rang et la RLS,
+  LiveKit vivant pour DeleteRoom), sauf le port journal, remplacé par un
+  fichier faute de clé de service dans le bac à sable — l'écriture réelle
+  dans `audit_logs` n'avait donc pas été jouée au banc (elle emprunte
+  `journal()`, déjà en production pour SAT-4/SAT-5). Comptes de preuve
+  supprimés à zéro trace.
+* **Fusion avec `main` (5/09, matin)** : pendant le banc, `main` a pris
+  DEC-2026-057 / v6.22.0 (Santé Globale v2, PR #86) et déployé la fonction
+  Edge **v3** ; la PR #88 est passée en conflit sur sept fichiers, sans
+  référence de fusion pour le Green Gate. Décision : fusionner `main` dans
+  la branche (jamais l'inverse), renuméroter SAT-6 en DEC-2026-058 /
+  v6.23.0 / Edge v4 — puis, `main` ayant pris DEC-2026-058 / v6.23.0 pour
+  la bande « Aurore » (PR #89, #90) pendant l'attente de la validation,
+  **DEC-2026-059 / v6.24.0 / Edge v4** à la seconde fusion de `main`
+  (documentaire seulement : aucun fichier de code commun) —, et regreffer
+  SAT-6 sur l'écran v2 (le fichier
+  `AdminHealthTab.tsx` de `main` a été pris tel quel, puis le panneau, les
+  libellés du journal et les deux portails y ont été reposés à la main) et
+  sur `index.ts` v3 (les trois actions et leurs ports ajoutés à la v3, qui
+  fournit déjà `loadTransportConfig` et `hmacKey`). Preuves rejouées sur
+  l'arbre fusionné : tsc 0 · vitest 1128/1128 (1094 de `main` + 34 de SAT-6)
+  · build · artefact v4 régénéré par `build-bundle.sh` (66 569 octets à ce
+  moment-là, 66 588 octets une fois la bannière du script complétée — c'est
+  cet artefact, régénéré depuis `ae0d5eb`, qui a été déployé ; les trois
+  actions et les sondes v3 présentes) · **banc réel passe 5 : 51 OK /
+  0 DÉFAUT** (5/09/2026, 09h44 UTC). Deux faux départs de banc, sans rapport
+  avec le produit : les comptes de preuve, supprimés après la passe 4, ont dû
+  être recréés en SQL ; et le banc visait la première carte du DOM alors que
+  l'écran v2 replie certains blocs (62 cartes, 58 visibles) — il vise
+  désormais la première carte visible. Comptes de preuve de nouveau
+  supprimés à zéro trace : 63 lignes retirées, balayage de 264 colonnes
+  `uuid` (`public`, `storage`, `auth`) = 0, 0 `super_admin` restant (le
+  compte de test signalé par DEC-2026-057 est retiré), 4 directs réels
+  ouverts intacts.
+* **Mise en production contrôlée (5/09/2026)** : validation de la Direction
+  à 10h40 UTC (« D'abord, tu déploies la fonction Edge v4. Tu vérifies le
+  backend. Ensuite tu fusionnes le client et tu contrôles dans le tableau
+  de bord réel que le bouton est visible et actif. … Si elle n'est pas
+  maîtrisable, tu reviens immédiatement à l'état initial stable. »), avec la
+  règle de coordination posée le même jour : travaux parallèles autorisés,
+  chacun dans son périmètre, annonce et isolement d'impact avant toute
+  fusion ou mise en production (l'équipe Avatar, PR #71, ne partage aucun
+  fichier de code avec SAT-6 ; seuls les trois documents de mémoire vivante
+  sont touchés des deux côtés). **Retour arrière préparé avant tout geste** :
+  artefact v3 régénéré depuis `main` par `build-bundle.sh` et comparé à la
+  source relue depuis la production — identique octet pour octet (51 040
+  octets, SHA-256 `22ad0d48…`). **Fonction Edge v4 déployée à 10:49:57 UTC**
+  (`verify_jwt` conservé ; artefact régénéré depuis `ae0d5eb`, 66 588
+  octets, SHA-256 `236742b3…`) puis source relue depuis la production :
+  identique octet pour octet. **Backend vérifié à 10:53 UTC avec trois
+  vraies sessions** (comptes de preuve `user` / `admin` / `super_admin`
+  créés en SQL, supprimés à zéro trace en fin de mise en production) :
+  `probe` par un administrateur répond comme la v3 (200 en 2,4 s, 45 lignes,
+  0 blanc, `live.transport_utilisable` vert en 391 ms — aucune régression du
+  tableau de bord) ; `live_emergency_overview` 200 pour `admin`
+  (`canRepair:false`) et `super_admin` (`canRepair:true`), 403 pour `user` ;
+  `live_emergency_diagnose` par un `admin` → 403 `emergency_forbidden`
+  (« Réservé à l'Admin Général … votre rang selon la base : admin ») —
+  c'est, par conception, ce que voit le compte de la Direction tant qu'il
+  est `admin` ; action inconnue → 400 avec la liste des huit actions ; CORS
+  `https://moknet.net` sur chaque réponse. **Geste réel joué en production à
+  10:55 UTC** sur un direct de banc privé, sans room, créé par le
+  `super_admin` de preuve : diagnostic « Relancer » → rien à relancer, aucun
+  jeton ; diagnostic « Clore » → jeton signé cinq minutes ; jeton forgé →
+  400 `confirmation_invalid` ; jeton du super_admin présenté par un membre →
+  403 `confirmation_mismatch` ; jeton « Clore » présenté pour « Relancer » →
+  403 `confirmation_mismatch` ; **`apply` → verdict vérifié, `ended_at` posé
+  sous la RLS par l'identité de l'appelant, ligne `audit_logs`
+  `health.emergency` réellement écrite** (la limite du banc est levée) ;
+  second diagnostic → 409 `session_already_closed` ; le direct disparaît de
+  la vue d'ensemble. Client : fusion de la PR #88 en squash sur `main` (ce
+  commit) — bundle servi par `moknet.net` et contrôle du tableau de bord
+  réel consignés par la PR de mémoire vivante qui suit.
+* **Statut** : 🟢 fonction Edge v4 DÉPLOYÉE ET VÉRIFIÉE EN PRODUCTION
+  (5/09/2026, 10:49 UTC) ; client EN FUSION (PR #88) — statut final tenu
+  dans `docs/HISTORIQUE_VERSIONS.md` (v6.24.0).
+
+---
+
 ### [DEC-2026-058] — 5 Septembre 2026
 
 * **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, carte d'accès
