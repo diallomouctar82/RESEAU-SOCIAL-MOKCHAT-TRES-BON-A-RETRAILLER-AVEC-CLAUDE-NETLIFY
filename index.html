@@ -2002,12 +2002,14 @@
          grille — les seize orbes restent seize, le damier ne bouge pas.
          Rendu seulement quand on a quitte le fil. */
       .aurore-retour {
+        position: relative;
+        vertical-align: top;
         display: inline-flex;
         align-items: center;
         gap: 5px;
         margin: 2px 0 0 2px;
         padding: 8px 14px 8px 10px;
-        min-height: 36px;
+        min-height: 44px;
         border: 0;
         border-radius: 999px;
         background: rgba(255,255,255,.72);
@@ -2115,13 +2117,13 @@
         transition: transform .3s, filter .3s;
       }
       /* orbe de la section courante : remplie de sa teinte, icone blanche.
-         Clartes 38 % -> 28 % et reflets attenues pour garder l'icone a
-         3:1 au moins, meme sur les teintes claires (vert 158, aqua 196). */
+         Clartes 38 % -> 28 %, sans reflet radial (seul le petit reflet
+         ::after reste, attenue) : l'icone tient 3:1 au moins sous toute sa
+         surface, meme sur les teintes claires (vert 158 : 3,4 ; aqua 196 :
+         4,6, mesure par le controle independant). */
       .aurore-orbe[aria-current="page"] .aurore-bulle {
         color: #fff;
-        background:
-          radial-gradient(circle at 32% 26%, rgba(255,255,255,.4), rgba(255,255,255,0) 40%),
-          linear-gradient(160deg, hsl(var(--h, 196) 70% 38%), hsl(var(--h, 196) 65% 28%));
+        background: linear-gradient(160deg, hsl(var(--h, 196) 70% 38%), hsl(var(--h, 196) 65% 28%));
       }
       .aurore-orbe[aria-current="page"] .aurore-bulle::after { opacity: .4; }
       .aurore-libelle,
