@@ -2025,6 +2025,10 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   const [inviteSearchQuery, setInviteSearchQuery] = useState('');
   const [inviteSearchResults, setInviteSearchResults] = useState<{ id: string; name: string; avatar?: string; title?: string }[]>([]);
   const [inviteSearchLoading, setInviteSearchLoading] = useState(false);
+  // L4 — QUI EST INVITÉ. L'hôte ne peut pas relire les notifications d'autrui
+  // (RLS notifications_owner), donc « qui est invité » se construit
+  // honnêtement côté hôte, à l'instant de l'envoi (jamais une supposition).
+  const [invitedPeople, setInvitedPeople] = useState<{ id: string; name: string; avatar?: string }[]>([]);
   const [inviteStates, setInviteStates] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({});
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [shareCopied, setShareCopied] = useState(false);
@@ -2085,7 +2089,19 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     if (!realSessionId) return;
     setInviteStates(prev => ({ ...prev, [friendId]: 'sending' }));
     inviteToLiveSession(realSessionId, friendId)
-      .then(() => setInviteStates(prev => ({ ...prev, [friendId]: 'sent' })))
+      .then(() => {
+        setInviteStates(prev => ({ ...prev, [friendId]: 'sent' }));
+        // L4 — sur un envoi RÉELLEMENT réussi (jamais avant), on garde le nom
+        // et l'avatar de la personne invitée pour la section « Invité·e·s »
+        // du panneau Personnes. La source est la liste déjà à l'écran (amis
+        // ou résultats de recherche), pas une invention.
+        const personne = [...inviteFriends, ...inviteSearchResults].find(p => p.id === friendId);
+        if (personne) {
+          setInvitedPeople(prev => prev.some(p => p.id === friendId)
+            ? prev
+            : [...prev, { id: personne.id, name: personne.name, avatar: personne.avatar }]);
+        }
+      })
       .catch((err) => {
         // Jamais un « Invité » affiché sur un échec : l'état revient à
         // « erreur » et porte la vraie raison renvoyée par la base.
@@ -3692,6 +3708,7 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
                 onRemove={handleRemoveParticipant}
                 onInvite={() => setShowInviteModal(true)}
                 onRemoveAgent={handleRetirerAgentDeLaScene}
+                invited={invitedPeople.filter(ip => !stageParticipants.some(sp => sp.id === ip.id))}
               />
             )}
 
