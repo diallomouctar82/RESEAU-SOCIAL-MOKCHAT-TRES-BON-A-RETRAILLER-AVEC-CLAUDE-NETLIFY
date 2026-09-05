@@ -1,0 +1,155 @@
+{
+  "ordinateur": {
+    "composeur": {
+      "largeur": 1120,
+      "hauteur": 212,
+      "top": 111
+    },
+    "avatar": {
+      "l": 44,
+      "h": 44,
+      "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+    },
+    "champ": {
+      "l": 1020,
+      "h": 67,
+      "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
+    },
+    "boutonsVisibles": [
+      "Assistant IA Pré-Publication",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Brouillon",
+      "Publier"
+    ],
+    "nbBoutons": 7,
+    "horsEcran": [],
+    "railVisible": null,
+    "basVisible": null,
+    "selects": [
+      "🌐 Public",
+      "Tech & Innovation"
+    ],
+    "compteur": null,
+    "compteurVisible": false,
+    "debordeX": false,
+    "orbe": null,
+    "police": null,
+    "ciblesPetites": [
+      "Assistant IA Pré-Publication 237x28",
+      "Photo 77x33",
+      "Vidéo 75x33",
+      "Document 106x33",
+      "Voix 66x33",
+      "Brouillon 95x34",
+      "Publier 119x32"
+    ],
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "tablette": {
+    "composeur": {
+      "largeur": 500,
+      "hauteur": 288,
+      "top": 143
+    },
+    "avatar": {
+      "l": 44,
+      "h": 44,
+      "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+    },
+    "champ": {
+      "l": 400,
+      "h": 67,
+      "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
+    },
+    "boutonsVisibles": [
+      "Assistant IA Pré-Publication",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Brouillon",
+      "Publier"
+    ],
+    "nbBoutons": 7,
+    "horsEcran": [],
+    "railVisible": null,
+    "basVisible": null,
+    "selects": [
+      "🌐 Public",
+      "Tech & Innovation"
+    ],
+    "compteur": null,
+    "compteurVisible": false,
+    "debordeX": false,
+    "orbe": null,
+    "police": null,
+    "ciblesPetites": [
+      "Assistant IA Pré-Publication 237x28",
+      "Photo 77x33",
+      "Vidéo 75x33",
+      "Document 106x33",
+      "Voix 66x33",
+      "Brouillon 95x34",
+      "Publier 119x32"
+    ],
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "telephone": {
+    "composeur": {
+      "largeur": 358,
+      "hauteur": 325,
+      "top": 61
+    },
+    "avatar": {
+      "l": 44,
+      "h": 44,
+      "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+    },
+    "champ": {
+      "l": 258,
+      "h": 67,
+      "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
+    },
+    "boutonsVisibles": [
+      "Assistant IA Pré-Publication",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Brouillon",
+      "Publier"
+    ],
+    "nbBoutons": 7,
+    "horsEcran": [],
+    "railVisible": null,
+    "basVisible": null,
+    "selects": [
+      "🌐 Public",
+      "Tech & Innovation"
+    ],
+    "compteur": null,
+    "compteurVisible": false,
+    "debordeX": false,
+    "orbe": null,
+    "police": null,
+    "ciblesPetites": [
+      "Assistant IA Pré-Publication 237x28",
+      "Photo 33x33",
+      "Vidéo 33x33",
+      "Document 33x33",
+      "Voix 33x33",
+      "Brouillon 95x34",
+      "Publier 119x32"
+    ],
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  }
+}

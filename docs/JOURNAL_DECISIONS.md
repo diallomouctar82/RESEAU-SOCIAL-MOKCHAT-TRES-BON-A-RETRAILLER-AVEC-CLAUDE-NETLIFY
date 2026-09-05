@@ -1346,6 +1346,178 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-061] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, bloc du
+  composeur « créer une publication »), `components/AIPostAssistantModal.tsx`
+  (prop `initialTool`), **nouveaux** `components/VisuelIAStudio.tsx` et
+  `services/visuelIA.ts`, `index.html` (blocs « COMPOSEUR A7 » et « VISUEL
+  IA »), `tests/composeurRail.test.tsx`, `tests/visuelIA.test.ts`,
+  `tests/visuelIAStudio.test.tsx`.
+* **Problème / Besoin initial** : la Direction a d'abord demandé dix
+  propositions visuelles du bloc « créer une publication » (sans code), en a
+  retenu la direction « Assistant en scène », puis dix variantes, puis deux
+  séries de dix (A : la zone de publication ; B : le studio « Visuel IA »
+  intégré à la publication, avec deux modes obligatoires, prompt et réglages
+  manuels, photo et vidéo, visage, cheveux, peau, yeux, lumière, rendu
+  cinématique, texte). Elle a choisi **A7 « rail latéral »** et **B10
+  « plein écran sombre »** avec une mission ciblée : « prépare une
+  production contrôlée. Zéro régression. Si un problème apparaît et qu'il
+  est maîtrisable, tu le corriges. S'il n'est pas maîtrisable, tu reviens
+  immédiatement à l'état initial stable. » Contraintes permanentes : ne pas
+  toucher à l'avatar, ne rien faire disparaître (logo VS, champ, Assistant
+  IA, améliorer le style, traduire, hashtags, Visuel IA, Public, Tech &
+  Innovation, photo, vidéo, document, voix, brouillon, publier), aucun
+  bouton factice. Le composeur RO-1 alignait sept boutons de 28 à 34 px de
+  haut sur une ligne et n'offrait les actions IA qu'à travers un seul
+  bouton ; « Visuel IA » n'y était qu'un onglet de la modale avec quatre
+  images de banque, aucune retouche.
+* **Options considérées** :
+  1. Recopier les maquettes A7 et B10 (HTML/CSS autonomes) dans le fil —
+     rejeté : elles simulaient les gestes ; retenu : réécrire le bloc du
+     composeur en gardant chaque gestionnaire d'origine (entrées de fichier,
+     `handlePublishPost(true|false)` et ses conditions `disabled`, bascule
+     d'écoute vocale, les deux `<select>` avec leurs valeurs et options,
+     aperçus des pièces jointes, retour vocal), et brancher les orbes IA sur
+     la modale existante ouverte directement sur le bon onglet (nouvelle
+     prop `initialTool`).
+  2. Rendre le rail des médias une seule fois et le déplacer par CSS entre
+     ordinateur et téléphone — rejeté : l'ordre voulu sur téléphone (médias
+     entre les sélecteurs et Brouillon | Publier) n'est pas atteignable par
+     placement de grille sans casser l'ordre de lecture ; retenu : une seule
+     fonction `outilsMedias` rendue deux fois (rail, ligne), la requête de
+     conteneur `a7` n'en affichant jamais qu'un exemplaire (l'autre est
+     `display: none`, donc absent de l'arbre d'accessibilité).
+  3. Menu déroulant sur « Publier » (chevron) comme sur la maquette —
+     rejeté : un contrôle qui n'ouvre rien est un bouton factice ; retenu :
+     Brouillon | Publier en groupe, sans chevron.
+  4. Limite de caractères imposée par le compteur — rejeté (régression
+     possible sur des publications longues existantes) ; retenu : simple
+     compte, sans limite.
+  5. Studio « Visuel IA » : simuler la retouche ciblée (yeux, dents, mèche)
+     par des masques fixes — rejeté : ce serait un rendu mensonger ; retenu :
+     un **vrai pipeline de pixels** global (lumière, ombres, hautes lumières,
+     température, teinte, saturation ; split-tone par look ; peau douce dans
+     la plage de luminance de la peau ; netteté ; flou des bords ; éclat ;
+     brillance des tons foncés ; vignette ; grain déterministe ; texte) et,
+     en mode Prompt, l'IA de la plateforme (`analyzeImage`, JSON seul)
+     qui regarde la photo et renvoie des **réglages** — jamais une image
+     réinventée dans le dos du membre ; sans photo, `generateImage`
+     (fournisseur actif). L'écran dit explicitement que la retouche est
+     globale et renvoie la retouche ciblée vers le Prompt.
+  6. Vidéo : ré-encodage serveur — rejeté (hors périmètre, coût) ; retenu :
+     aperçu par filtre CSS + texte, export `webm` par
+     `canvas.captureStream` + `MediaRecorder` quand le navigateur le permet,
+     message honnête sinon (la vidéo d'origine reste intacte).
+* **Décision finale** : composeur A7 (`div.a7-comp`, grille avatar | rail |
+  corps, `data-testid="composeur-a7"`) : avatar intouché (classes
+  identiques) ; rail `.a7-rail` de quatre orbes `.a7-ob` (Photo 150°, Vidéo
+  262°, Document 42°, Voix 330° — l'orbe pulse en rouge et se nomme
+  « Écoute... » en écoute) ; champ `.a7-champ` (150 px sur ordinateur, 96
+  sur téléphone) avec l'étincelle `.a7-etincelle` (orbe d'or, « Assistant
+  IA Pré-Publication ») ; rangée `.a7-rangee` « Assistant IA » (Améliorer
+  le style 42° → onglet `style`, Traduire 186° → `translate`, Hashtags 262°
+  → `hashtags`, Visuel IA 14° → studio) ; `.a7-ligne` avec les deux
+  `<select>` habillés en texte (`aria-label` ajoutés) et le compteur ;
+  aperçus et retour vocal inchangés ; `.a7-pied` : entrées de fichier
+  cachées (uniques), `.a7-medias-bas` (téléphone), groupe `.a7-groupe`
+  Brouillon | Publier. Libellés masqués sur téléphone mais `aria-label`
+  portés par les boutons. Studio B10 (`VisuelIAStudio`) : portail sur
+  `body` (`z-index` au-dessus de toute la coquille), `#root` inerte, focus
+  piégé, Échap (capture, seulement si le focus est dedans), modes Prompt /
+  Réglages manuels, familles Visage & cheveux, Lumière, Cinéma, Texte,
+  Vidéo ; aperçu canvas 720 px différé de 40 ms ; Avant / Après ; Annuler
+  (20 pas) et Réinitialiser ; insertion = rendu à 1 600 px → JPEG 0,92 →
+  `File` → `setNewPostImage` + `setNewPostImageFile` (téléversé à la
+  publication comme n'importe quelle photo) ; canvas souillé (image tierce
+  sans CORS) → message clair ; lien discret « Besoin de plus ? Studio
+  Créatif » (`onNavigate('studio')`) quand la navigation existe. CSS :
+  `@container a7 (max-width: 560px)` + repli `@supports not` /
+  `@media (max-width: 639px)`, survol réservé à `(hover: hover) and
+  (pointer: fine)`, `prefers-reduced-motion` ; feuille du studio
+  `min(1040px, 100%)`, `color-scheme: dark`, enfants non compressibles
+  (`.vis-feuille > * { flex: none }` — la feuille défile, l'aperçu et la
+  barre des familles ne s'écrasent jamais), plein écran ≤ 639 px. Couche
+  aqua régénérée. 51 tests dédiés.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : une revue de code
+  indépendante a lu le diff complet, exécuté typage, tests et build,
+  comparé le composeur élément par élément avec `origin/main` (avatar,
+  champ, sélecteurs, entrées de fichier, aperçus, retour vocal, conditions
+  de Brouillon / Publier, bascule Voix : tous conservés, aucun bouton
+  factice), calculé les contrastes, et rendu « À CORRIGER » : un
+  bloquant, quatre importants, quinze mineurs — les cinq premiers corrigés
+  et couverts par des tests, dix mineurs corrigés dans la foulée. (1)
+  BLOQUANT — le studio se remettait à zéro (image générée comprise) à
+  chaque re-rendu du parent, l'effet d'ouverture dépendant de `onFermer`
+  recréée à chaque rendu de SocialFeed (une notification temps réel
+  suffisait) ; corrigé : effets dépendant de `ouvert` seul, gestionnaires
+  et props lus par des refs, `useCallback` côté SocialFeed, test « re-rendu
+  du parent → réglages conservés ». (2) IMPORTANT — la requête de conteneur
+  `@container a7` visait `.a7-comp`, qui est le conteneur lui-même : une
+  requête de conteneur ne peut styler que ses descendants, la grille à deux
+  colonnes de tablette / téléphone n'était jamais appliquée (champ de 244
+  px au lieu de 266 sur téléphone, mesuré) et le test CSS vérifiait le
+  texte d'une règle morte ; corrigé : la carte reste le conteneur, la
+  grille est son enfant `.a7-grille`, test qui refuse toute règle
+  `.a7-comp` dans la requête. (3) IMPORTANT — une réponse `{}` de la
+  passerelle (mode JSON sans JSON) passait pour un succès ; corrigé :
+  `reglagesDepuisReponse` renvoie `null` sans clé connue et le studio
+  refuse un résultat sans changement, avec message honnête. (4) IMPORTANT
+  — le focus n'était pas rendu au déclencheur à la fermeture (il tombait
+  sur `<body>`) ; corrigé : déclencheur mémorisé à l'ouverture et
+  refocalisé après le retrait d'`inert`. (5) IMPORTANT — export vidéo :
+  type MIME et extension faux hors WebM (Safari produit du MP4), son perdu
+  et filtres ignorés en silence ; corrigé : type réel de l'enregistreur,
+  refus explicite sans `captureStream` sur la vidéo (son) et quand le
+  canvas ne sait pas appliquer les filtres demandés, garde-fous (fin après
+  début, délai de positionnement, vitesse restaurée). Mineurs corrigés :
+  actions IA nommées et compteur visibles sur téléphone (grille 2 × 2),
+  cibles des sélecteurs (28 px), orbe d'or assombrie (contraste), anneau de
+  focus non rogné, historique par geste (un glissé = une entrée, sans effet
+  de bord dans un updater), durée vidéo lue à `loadedmetadata`, URL `blob:`
+  remplacées révoquées, `100dvh`, look « noir » cohérent entre aperçu et
+  pipeline, fond blanc sous les PNG transparents, repli « Insérer telle
+  quelle » pour une image distante qui refuse ses pixels. Non traités,
+  laissés à l'arbitrage de la Direction : compteur partagé d'`inert` entre
+  dialogues (aucun cas simultané aujourd'hui), indicateur de progression
+  de l'export vidéo. **Contre-vérification indépendante** sur la tête
+  corrigée : les cinq constats confirmés corrigés (contre-épreuves rejouées
+  sans modification), mais une régression introduite par la correction du
+  constat 2 — la colonne de grille de 40 px sur tablette / téléphone
+  écrasait l'avatar en 40 × 44 px (mesuré), alors que l'avatar ne doit pas
+  être touché ; colonne remise à 44 px dans la requête et son repli,
+  re-mesuré 44 × 44 sur les trois écrans, garde ajoutée au test CSS et au
+  README. Deux mineurs traités dans la foulée : frappe du titre et du
+  sous-titre comptée comme un seul geste d'historique, message distinct
+  quand l'IA ne propose aucun changement. Autocontrôle du
+  producteur sur les captures : deux défauts trouvés et corrigés avant la
+  PR (aperçu du studio rogné et barre des familles écrasée sur téléphone —
+  même cause, la compression des enfants flex de la feuille). Livré par la
+  PR #93 (branche `claude/cleanup-home-interface-szp8qv`) :
+  typage 0 erreur, 1233/1233 tests (86 fichiers, 57 dédiés), build OK, captures
+  avant/après mesurées à 1440×900, 820×1180 et 390×844
+  (`docs/captures/2026-09-05-composeur-a7-studio-b10/` : 11 boutons dans
+  l'ordre, 0 cible sous 40 px contre 7 sur 7 avant, rail / ligne selon
+  l'écran, modale sur l'onglet Traduire, studio ouvert avec racine inerte
+  et focus sur « Fermer », insertion d'une image `blob:` puis studio fermé
+  et `inert` retiré).
+* **Production** : feu vert écrit de la Direction, deux fois (« prépare une
+  production contrôlée […] Ensuite, fournis le lien de production et la
+  preuve visible », puis « Feu vert pour avancer vers une production
+  contrôlée […] étape par étape »). PR #93 fusionnée en squash → `main`
+  `36e0a44` le 5/09/2026 à 12:38 UTC, après Green Gate vert sur la tête
+  finale `94514df` (run 33966471120) et contre-vérification indépendante
+  « PRÊT » ; Green Gate vert sur `main` (run 33966591144).
+  **Contrôle post-déploiement** : `moknet.net` sert `index-ggiwFepQ.js` depuis le 5/09/2026 à 12:38:39 UTC (même bundle que le preview contrôlé de la tête `94514df`), la page servie porte les blocs « COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-061) » (`.a7-grille`, `@container a7 (max-width: 560px)`, colonne d'avatar 44 px) et « VISUEL IA — STUDIO PLEIN ECRAN SOMBRE » (`.vis-feuille > * { flex: none; }`), le bundle contient `composeur-a7`, `a7-rail`, `a7-medias-bas`, `a7-etincelle`, `visuel-ia-studio`, « Insérer dans la publication », le message système du retoucheur et l'invite inchangée du champ, l'ancienne barre d'outils en est absente, l'ancien bundle `index-JAHL7yTa.js` répond 404 ; miroir local de la production ouvert dans Chromium (ordinateur et téléphone) : racine React montée, règles `.a7-comp`, `.a7-orbe`, `.vis-feuille`, `.vis-feuille > *` et `@container a7` analysées par le navigateur (le composeur lui-même est derrière la connexion, hors de portée du bac à sable). Retour arrière disponible :
+  `git revert` du squash (aucune migration, aucune donnée touchée) ; aucun
+  incident constaté.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  12:39 UTC). Le contrôle visuel final dans l'application appartient à la
+  Direction, qui a annoncé contrôler après coup et transmettre les
+  corrections éventuelles.
+
+---
+
 ### [DEC-2026-060] — 5 Septembre 2026
 
 * **Module(s)** : `Super-Admin / Santé Globale` (`components/admin/HealthAssistant.tsx`
