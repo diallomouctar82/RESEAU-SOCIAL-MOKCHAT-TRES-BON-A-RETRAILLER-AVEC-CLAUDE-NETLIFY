@@ -1190,7 +1190,7 @@ Chaque décision respecte le formalisme strict suivant :
   seul administrateur restant = le compte réel de la Direction.
 * **Statut** : `Développé`, `Testé`, `Déployé` (Edge v2), `Démontré en
   production` côté fonction. Côté écran : la ligne de registre vit dans le
-  code client de la branche `claude/lives-directs` (PR #77) — l'onglet
+  code client de la branche `claude/lives-directs` (PR #77, fusionnée le 5/09 → `cbdab0a`, servie par moknet.net) — l'onglet
   Santé Globale l'affichera après fusion et déploiement Netlify ; la fonction
   la sert déjà.
 * **Restes assumés** : pas de contre-épreuve **en production** (faire passer
