@@ -1998,6 +1998,29 @@
         container-name: aurore;
         padding: 10px 12px 8px;
       }
+      /* Retour au fil : un petit bouton au-dessus de la liste, HORS de la
+         grille — les seize orbes restent seize, le damier ne bouge pas.
+         Rendu seulement quand on a quitte le fil. */
+      .aurore-retour {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin: 2px 0 0 2px;
+        padding: 8px 14px 8px 10px;
+        min-height: 36px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255,255,255,.72);
+        color: var(--au-encre);
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11.5px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(11,58,70,.10), inset 0 0 0 1px rgba(255,255,255,.9);
+        -webkit-tap-highlight-color: transparent;
+      }
+      .aurore-retour:focus-visible { outline: 3px solid var(--au-acc); outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
       .aurore-rangee {
         display: grid;
         grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -2035,7 +2058,7 @@
         max-width: 100%;
       }
       .aurore-item:nth-child(2n) .aurore-orbe { transform: translateY(10px); }
-      .aurore-orbe:focus-visible { outline: 3px solid var(--au-acc); outline-offset: 2px; }
+      .aurore-orbe:focus-visible { outline: 3px solid var(--au-acc); outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
       .aurore-bulle {
         position: relative;
         display: grid;
@@ -2068,14 +2091,21 @@
         transform: rotate(-18deg);
         pointer-events: none;
       }
-      /* halo teinte qui respire, derriere l'orbe */
-      .aurore-bulle::before {
+      /* halo teinte qui respire, derriere l'orbe. Il est porte par le
+         bouton et non par la bulle : une bulle transformee (survol, appui,
+         transition) devient son propre contexte d'empilement et ferait
+         passer un pseudo-element z-index -1 DEVANT son fond de verre. */
+      .aurore-orbe::before {
         content: "";
         position: absolute;
-        inset: -7px;
+        top: 1px;
+        left: calc(50% - 34px);
+        width: 68px;
+        height: 68px;
         border-radius: 50%;
         background: radial-gradient(circle, var(--au-halo), transparent 70%);
         z-index: -1;
+        pointer-events: none;
         animation: aurore-halo var(--t, 5s) ease-in-out calc(var(--i, 0) * -.6s) infinite;
         transition: transform .35s, opacity .35s;
       }
@@ -2084,12 +2114,16 @@
         z-index: 1;
         transition: transform .3s, filter .3s;
       }
+      /* orbe de la section courante : remplie de sa teinte, icone blanche.
+         Clartes 38 % -> 28 % et reflets attenues pour garder l'icone a
+         3:1 au moins, meme sur les teintes claires (vert 158, aqua 196). */
       .aurore-orbe[aria-current="page"] .aurore-bulle {
         color: #fff;
         background:
-          radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), rgba(255,255,255,0) 40%),
-          linear-gradient(160deg, hsl(var(--h, 196) 75% 52%), hsl(var(--h, 196) 70% 38%));
+          radial-gradient(circle at 32% 26%, rgba(255,255,255,.4), rgba(255,255,255,0) 40%),
+          linear-gradient(160deg, hsl(var(--h, 196) 70% 38%), hsl(var(--h, 196) 65% 28%));
       }
+      .aurore-orbe[aria-current="page"] .aurore-bulle::after { opacity: .4; }
       .aurore-libelle,
       .aurore-court {
         font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -2131,11 +2165,12 @@
             0 22px 40px rgba(11,58,70,.2),
             0 0 0 8px var(--au-anneau);
         }
-        .aurore-orbe:hover .aurore-bulle::before {
+        .aurore-orbe:hover::before {
           animation: none;
           opacity: 1;
           transform: scale(1.3);
         }
+        .aurore-retour:hover { background: #fff; }
         .aurore-orbe:hover .aurore-bulle svg {
           filter: drop-shadow(0 0 6px hsl(var(--h, 196) 90% 60% / .8));
         }
@@ -2148,30 +2183,37 @@
         0%, 100% { opacity: .35; transform: scale(.95); }
         50% { opacity: .9; transform: scale(1.08); }
       }
-      /* Tablette : carte de 800 px ou moins (huit colonnes de 100 px au
-         plus) — orbes reduites, libelles courts. */
+      /* Tablette : largeur INTERIEURE de la carte (sans ses 12 px de
+         marge interne de chaque cote, donc une carte de 826 px au plus) de
+         800 px ou moins — orbes reduites, libelles courts. */
       @container aurore (max-width: 800px) {
         .aurore-bulle { width: 48px; height: 48px; }
+        .aurore-orbe::before { left: calc(50% - 31px); width: 62px; height: 62px; }
         .aurore-reflet { top: 56px; }
         .aurore-libelle { display: none; }
         .aurore-court { display: block; font-size: 10px; }
       }
-      /* Telephone : carte de 480 px ou moins, rail horizontal aimante. */
+      /* Telephone : largeur interieure de 480 px ou moins (carte de 506 px
+         au plus), rail horizontal aimante. Les marges internes du rail
+         valent exactement le fondu des bords : en butee, la premiere et la
+         derniere orbe sont entierement nettes. */
       @container aurore (max-width: 480px) {
         .aurore-rangee {
           display: flex;
           overflow-x: auto;
           scroll-snap-type: x mandatory;
+          scroll-padding-inline: 16px;
           gap: 6px;
-          padding: 6px 6px 8px;
+          padding: 6px 16px 8px;
           scrollbar-width: none;
-          -webkit-mask-image: linear-gradient(90deg, transparent, #000 22px, #000 calc(100% - 26px), transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 22px, #000 calc(100% - 26px), transparent);
+          -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
         }
         .aurore-rangee::-webkit-scrollbar { display: none; }
         .aurore-item { flex: none; width: 72px; scroll-snap-align: start; }
         .aurore-item:nth-child(2n) .aurore-orbe { transform: none; }
         .aurore-orbe { width: 100%; padding-left: 0; padding-right: 0; }
+        .aurore-orbe::before { left: calc(50% - 30px); width: 60px; height: 60px; }
         .aurore-bulle { width: 46px; height: 46px; }
         .aurore-reflet { top: 54px; }
       }
@@ -2179,23 +2221,25 @@
       @supports not (container-type: inline-size) {
         @media (max-width: 1023px) {
           .aurore-bulle { width: 48px; height: 48px; }
+          .aurore-orbe::before { left: calc(50% - 31px); width: 62px; height: 62px; }
           .aurore-reflet { top: 56px; }
           .aurore-libelle { display: none; }
           .aurore-court { display: block; font-size: 10px; }
         }
         @media (max-width: 639px) {
-          .aurore-rangee { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 6px; padding: 6px 6px 8px; scrollbar-width: none; }
+          .aurore-rangee { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; gap: 6px; padding: 6px 16px 8px; scrollbar-width: none; }
           .aurore-item { flex: none; width: 72px; scroll-snap-align: start; }
           .aurore-item:nth-child(2n) .aurore-orbe { transform: none; }
           .aurore-orbe { width: 100%; padding-left: 0; padding-right: 0; }
+          .aurore-orbe::before { left: calc(50% - 30px); width: 60px; height: 60px; }
           .aurore-bulle { width: 46px; height: 46px; }
           .aurore-reflet { top: 54px; }
         }
       }
       @media (prefers-reduced-motion: reduce) {
-        .aurore-bulle::before { animation: none !important; opacity: .55; }
+        .aurore-orbe::before { animation: none !important; opacity: .55; }
         .aurore-bulle,
-        .aurore-bulle::before,
+        .aurore-orbe::before,
         .aurore-bulle svg,
         .aurore-reflet { transition: none; }
       }

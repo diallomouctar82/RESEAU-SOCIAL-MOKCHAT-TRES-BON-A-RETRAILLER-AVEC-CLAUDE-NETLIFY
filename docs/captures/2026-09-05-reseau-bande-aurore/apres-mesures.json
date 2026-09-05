@@ -32,7 +32,9 @@
       "h": 54,
       "radius": "50%",
       "anim": "none",
-      "animAvant": "aurore-halo"
+      "animAvant": "none",
+      "halo": "aurore-halo",
+      "haloTaille": "68px"
     },
     "libelleVisible": [
       "Équipe & Experts"
@@ -60,7 +62,16 @@
     "police": "\"Plus Jakarta Sans\"",
     "erreursJS": [
       "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
-    ]
+    ],
+    "etatActif": {
+      "retour": true,
+      "retourDansListe": false,
+      "actifs": [
+        "Live"
+      ],
+      "orbes": 16,
+      "hauteur": 291
+    }
   },
   "tablette": {
     "boutons": 16,
@@ -95,7 +106,9 @@
       "h": 46,
       "radius": "50%",
       "anim": "none",
-      "animAvant": "aurore-halo"
+      "animAvant": "none",
+      "halo": "aurore-halo",
+      "haloTaille": "60px"
     },
     "libelleVisible": [
       "Experts"
@@ -123,7 +136,16 @@
     "police": "\"Plus Jakarta Sans\"",
     "erreursJS": [
       "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
-    ]
+    ],
+    "etatActif": {
+      "retour": true,
+      "retourDansListe": false,
+      "actifs": [
+        "Live"
+      ],
+      "orbes": 16,
+      "hauteur": 153
+    }
   },
   "telephone": {
     "boutons": 16,
@@ -158,7 +180,9 @@
       "h": 46,
       "radius": "50%",
       "anim": "none",
-      "animAvant": "aurore-halo"
+      "animAvant": "none",
+      "halo": "aurore-halo",
+      "haloTaille": "60px"
     },
     "libelleVisible": [
       "Experts"
@@ -186,6 +210,15 @@
     "police": "\"Plus Jakarta Sans\"",
     "erreursJS": [
       "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
-    ]
+    ],
+    "etatActif": {
+      "retour": true,
+      "retourDansListe": false,
+      "actifs": [
+        "Live"
+      ],
+      "orbes": 16,
+      "hauteur": 153
+    }
   }
 }

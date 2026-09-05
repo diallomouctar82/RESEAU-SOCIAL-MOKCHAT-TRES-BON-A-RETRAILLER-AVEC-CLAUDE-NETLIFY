@@ -1857,19 +1857,24 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           admin-procedures, world, studio, shop).
 
           « Fil d'actu » n'est pas dans la liste de la Direction : sur le fil
-          on Y EST déjà. Il n'apparaît, en tête, que lorsqu'on l'a quitté,
-          sinon aucun retour ne serait possible depuis Reels/Tribus/Croissance.
+          on Y EST déjà. Il n'apparaît que lorsqu'on l'a quitté, sinon aucun
+          retour ne serait possible depuis Reels/Tribus/Croissance — et il
+          reste HORS de la grille (petit bouton au-dessus des orbes) : les
+          seize orbes restent seize, le damier et les phases ne bougent pas.
 
           Ordinateur : deux rangées de huit en damier. Tablette : mêmes
           rangées, orbes et libellés réduits. Téléphone : rail horizontal
           aimanté, libellés courts. Le bloc CSS lit la largeur réelle de la
           carte (container query), pas celle de l'écran. */}
       <nav className="mir-glass rounded-3xl aurore-bande" data-testid="acces-rapide" aria-label="Accès rapide">
+        {activeTab !== 'feed' && (
+          <button type="button" className="aurore-retour" data-testid="acces-rapide-feed" onClick={() => setActiveTab('feed')}>
+            <ChevronLeft size={16} strokeWidth={2.2} aria-hidden="true" />
+            <span>Fil d'actu</span>
+          </button>
+        )}
         <ul className="aurore-rangee">
           {[
-            ...(activeTab !== 'feed'
-              ? [{ cle: 'feed', libelle: "Fil d'actu", court: 'Fil', Icone: ChevronLeft, teinte: 196, agir: () => setActiveTab('feed'), actif: false }]
-              : []),
             { cle: 'live', libelle: 'Live', court: 'Live', Icone: Radio, teinte: 196, agir: () => setActiveTab('lives'), actif: activeTab === 'lives' },
             ...(onNavigate
               ? [

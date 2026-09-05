@@ -1168,19 +1168,36 @@ Chaque décision respecte le formalisme strict suivant :
   (teinte en degrés : 196, 204, 212, 262, 14, 158, 330, 186, 230, 350, 150,
   42, 200, 176, 280, 30), `--i` (phase) et `--t` (période 5 à 8 s) ;
   `aria-label` = libellé complet, libellé court `aria-hidden` affiché sur
-  tablette et téléphone ; « Fil d'actu » en tête uniquement hors du fil.
-  CSS : orbe de 54 px (48 sur tablette, 46 sur téléphone), verre teinté
-  `hsl(var(--h) 80% 93%)`, icône `hsl(var(--h) 55% 30%)`, halo `::before`
+  tablette et téléphone ; « Fil d'actu » = petit bouton au-dessus de la
+  liste, HORS de la grille, uniquement hors du fil (les seize orbes restent
+  seize, damier et phases inchangés). CSS : orbe de 54 px (48 sur tablette,
+  46 sur téléphone), verre teinté `hsl(var(--h) 80% 93%)`, icône
+  `hsl(var(--h) 55% 30%)`, halo porté par le bouton (`.aurore-orbe::before`)
   qui respire (`aurore-halo`, transform + opacité), reflet au sol, damier
   de 10 px sur les orbes paires, survol (soulèvement de 7 px, anneau, lueur
   de l'icône) réservé à `(hover: hover) and (pointer: fine)`, orbe courante
-  remplie `hsl(var(--h) 75% 52%) → hsl(var(--h) 70% 38%)` avec icône
-  blanche, rail aimanté avec fondu des bords sous 480 px de carte, tout
-  arrêté sous `prefers-reduced-motion`. Couche aqua régénérée (la règle
-  `ring-cyan-300/70`, devenue orpheline, disparaît). Neuf tests dédiés.
-  Livré par la PR #89 (branche `claude/cleanup-home-interface-szp8qv`,
-  `8adffb1`) : typage 0 erreur, 1103/1103 tests (78 fichiers), build OK,
-  captures avant/après mesurées à 1440×900, 820×1180 et 390×844
+  remplie `hsl(var(--h) 70% 38%) → hsl(var(--h) 65% 28%)` avec icône
+  blanche (≥ 3:1 jusqu'en haut de l'orbe, teintes claires comprises), rail
+  aimanté dont les marges internes valent le fondu des bords (16 px) sous
+  480 px de largeur intérieure, tout arrêté sous `prefers-reduced-motion`.
+  Couche aqua régénérée (la règle `ring-cyan-300/70`, devenue orpheline,
+  disparaît). Dix tests dédiés.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : une revue de code
+  indépendante a lu le diff, exécuté typage et tests, calculé les
+  contrastes et rendu « à corriger » (aucun bloquant, trois importants,
+  quatre mineurs) — tous corrigés puis revérifiés : (1) le halo `::before`
+  passait DEVANT l'orbe dès qu'elle était transformée (survol, appui) ;
+  porté par le bouton désormais ; (2) « Fil d'actu » s'insérait comme 17e
+  orbe et inversait tout le damier dès qu'une section était active ; sorti
+  de la grille ; (3) icône blanche à 1,7–2,5:1 sur les orbes actives
+  Croissance/Live ; clartés 38 → 28 % et reflets atténués ; (4) fondu du
+  rail qui estompait la première et la dernière orbe en butée ; (5)
+  commentaires des seuils `@container` (largeur intérieure, pas largeur de
+  carte) ; (6) anneau de focus bicolore ; (7) tests : unicité des seize
+  teintes, Ma Story, Reels/Croissance, `type="button"`, repli `@supports`.
+  Livré par la PR #89 (branche `claude/cleanup-home-interface-szp8qv`) :
+  typage 0 erreur, 1104/1104 tests (78 fichiers), build OK, captures
+  avant/après mesurées à 1440×900, 820×1180 et 390×844
   (`docs/captures/2026-09-05-reseau-bande-aurore/`).
 * **Production** : la mission de la Direction vaut feu vert écrit («
   implémenter et amener en production, de façon contrôlée […] Livrable :

@@ -72,7 +72,8 @@ const ESPACES: Array<[string, string]> = [
 function monter(onNavigate = vi.fn()) {
   const r = render(<SocialFeed onOpenLive={vi.fn()} onOpenDirectChat={vi.fn()} onNavigate={onNavigate} />);
   const bande = screen.getByTestId('acces-rapide');
-  return { ...r, bande, onNavigate, boutons: () => within(bande).getAllByRole('button') };
+  const liste = () => bande.querySelector('ul.aurore-rangee') as HTMLElement;
+  return { ...r, bande, onNavigate, liste, boutons: () => within(liste()).getAllByRole('button') };
 }
 
 describe('bande « Aurore » du Réseau MOC (DEC-2026-058)', () => {
@@ -84,6 +85,7 @@ describe('bande « Aurore » du Réseau MOC (DEC-2026-058)', () => {
     expect(noms).toEqual(ORDRE);
     for (const b of boutons()) {
       expect(b.className).toBe('aurore-orbe');
+      expect(b.getAttribute('type')).toBe('button');
       expect(b.querySelector('.aurore-bulle svg')).not.toBeNull();
       expect(b.querySelector('.aurore-reflet')).not.toBeNull();
     }
@@ -91,6 +93,7 @@ describe('bande « Aurore » du Réseau MOC (DEC-2026-058)', () => {
 
   it('donne à chaque entrée sa propre teinte (--h) et une phase propre (--i, --t)', () => {
     const { boutons } = monter();
+    expect(new Set(TEINTES).size).toBe(16);
     expect(boutons().map((b) => Number(b.style.getPropertyValue('--h')))).toEqual(TEINTES);
     expect(boutons().map((b) => b.style.getPropertyValue('--i'))).toEqual(TEINTES.map((_, i) => String(i)));
     expect(boutons().map((b) => b.style.getPropertyValue('--t'))).toEqual(TEINTES.map((_, i) => `${5 + (i % 4)}s`));
@@ -114,25 +117,43 @@ describe('bande « Aurore » du Réseau MOC (DEC-2026-058)', () => {
     }
   });
 
-  it('remplit l’orbe de la section courante et ne fait apparaître « Fil d’actu » qu’une fois le fil quitté', () => {
+  it('remplit l’orbe de la section courante ; « Fil d’actu » n’apparaît qu’une fois le fil quitté, hors de la grille', () => {
     const { bande, boutons, onNavigate } = monter();
     expect(within(bande).queryByRole('button', { name: "Fil d'actu" })).toBeNull();
     expect(boutons().filter((b) => b.getAttribute('aria-current') === 'page')).toHaveLength(0);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Live' }));
-    expect(screen.getByRole('button', { name: 'Live' }).getAttribute('aria-current')).toBe('page');
+    for (const [nom, actifs] of [['Live', 'Live'], ['Reels', 'Reels'], ['Croissance', 'Croissance']] as const) {
+      fireEvent.click(screen.getByRole('button', { name: nom }));
+      expect(boutons().filter((b) => b.getAttribute('aria-current') === 'page').map((b) => b.getAttribute('aria-label'))).toEqual([actifs]);
+    }
     expect(onNavigate).not.toHaveBeenCalled();
+
+    // Le retour vit dans la bande mais HORS de la liste : seize orbes, mêmes
+    // rangs (--i) et même damier qu'avant, quelle que soit la section.
     const retour = within(bande).getByRole('button', { name: "Fil d'actu" });
-    expect(boutons()[0]).toBe(retour);
-    expect(boutons().map((b) => b.getAttribute('aria-label'))).toEqual(["Fil d'actu", ...ORDRE]);
+    expect(retour.className).toBe('aurore-retour');
+    expect(retour.closest('ul')).toBeNull();
+    expect(retour.compareDocumentPosition(bande.querySelector('ul.aurore-rangee')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(boutons()).toHaveLength(16);
+    expect(boutons().map((b) => b.getAttribute('aria-label'))).toEqual(ORDRE);
+    expect(boutons().map((b) => b.style.getPropertyValue('--i'))).toEqual(TEINTES.map((_, i) => String(i)));
 
     fireEvent.click(screen.getByRole('button', { name: 'Tribus' }));
     expect(screen.getByRole('button', { name: 'Tribus' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('button', { name: 'Live' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Croissance' }).getAttribute('aria-current')).toBeNull();
 
     fireEvent.click(retour);
     expect(within(bande).queryByRole('button', { name: "Fil d'actu" })).toBeNull();
     expect(boutons()).toHaveLength(16);
+  });
+
+  it('« Ma Story » ouvre la création de story, sans quitter le fil', () => {
+    const { bande, onNavigate } = monter();
+    expect(screen.queryByText('Créer une Story Mooc')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ma Story' }));
+    expect(screen.getByText('Créer une Story Mooc')).toBeTruthy();
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(within(bande).queryByRole('button', { name: "Fil d'actu" })).toBeNull();
   });
 
   it('garde la bande à sa place : sous le composeur, au-dessus de la carte « Réseau Mooc »', () => {
@@ -162,7 +183,14 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     expect(regles['.aurore-bulle']).toMatch(/hsl\(var\(--h, 196\) 80% 93%\)/);
     expect(regles['.aurore-bulle']).toMatch(/border-radius: 50%/);
     expect(regles['.aurore-orbe[aria-current="page"] .aurore-bulle']).toMatch(/color: #fff/);
-    expect(regles['.aurore-bulle::before']).toMatch(/animation: aurore-halo var\(--t, 5s\)/);
+    // le halo est porté par le bouton : une bulle transformée (survol) est
+    // son propre contexte d'empilement et ferait passer un ::before devant elle
+    expect(regles['.aurore-bulle::before']).toBeUndefined();
+    expect(regles['.aurore-orbe::before']).toMatch(/animation: aurore-halo var\(--t, 5s\)/);
+    expect(regles['.aurore-orbe::before']).toMatch(/z-index: -1/);
+    expect(regles['.aurore-orbe']).toMatch(/isolation: isolate/);
+    expect(regles['.aurore-orbe[aria-current="page"] .aurore-bulle']).toMatch(/hsl\(var\(--h, 196\) 70% 38%\), hsl\(var\(--h, 196\) 65% 28%\)/);
+    expect(regles['.aurore-retour']).toMatch(/border-radius: 999px/);
     expect(regles['.aurore-item:nth-child(2n) .aurore-orbe']).toMatch(/translateY\(10px\)/);
     const keyframes: string[] = [];
     racine.walkAtRules('keyframes', (a) => { keyframes.push(a.params); });
@@ -174,7 +202,7 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     racine.walkAtRules('media', (a) => { medias.push(a.params); });
     expect(medias).toContain('(hover: hover) and (pointer: fine)');
     expect(medias).toContain('(prefers-reduced-motion: reduce)');
-    const survol = bloc.match(/\.aurore-orbe:hover/g) ?? [];
+    const survol = bloc.match(/\.aurore-(?:orbe|retour):hover/g) ?? [];
     let dansMedia = 0;
     racine.walkAtRules('media', (a) => { if (a.params.includes('hover: hover')) a.walkRules((r) => { if (r.selector.includes(':hover')) dansMedia += 1; }); });
     expect(survol.length).toBeGreaterThan(0);
@@ -185,7 +213,10 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     expect(regleRacine(racine, '.aurore-bande')).toMatch(/container-type: inline-size/);
     let reduit = '';
     racine.walkAtRules('media', (a) => { if (a.params.includes('reduced-motion')) reduit = a.toString(); });
-    expect(reduit).toMatch(/\.aurore-bulle::before \{ animation: none !important/);
+    expect(reduit).toMatch(/\.aurore-orbe::before \{ animation: none !important/);
+    const replis: string[] = [];
+    racine.walkAtRules('supports', (a) => { replis.push(a.params); });
+    expect(replis).toEqual(['not (container-type: inline-size)']);
   });
 });
 
