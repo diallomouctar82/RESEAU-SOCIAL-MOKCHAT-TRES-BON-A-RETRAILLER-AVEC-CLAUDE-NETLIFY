@@ -38,12 +38,45 @@
 | **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026** : PR #81 fusionnée en squash → `main` `880b5fa` (Green Gate run 33936079398 vert), moknet.net sert `index-CjAVWgcX.js` avec les 7 empreintes SAT-5 (ancien bundle 404) ; migration `close_zombie_live_sessions` + job `close-zombie-live-sessions` appliquée à 01:28 UTC, **première exécution réelle à 02:15 UTC : 13 directs zombies fermés** (les 13 ids de la sauvegarde, `audit_logs` `health.auto_repair` actor NULL), exécutions suivantes 03:15/04:15/05:15 sans rien à faire, 06:15 : 1 direct de plus franchissant les 24 h fermé ; 0 zombie restant, directs récents intacts, aucune autre ligne touchée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées), défaut d'écran trouvé par le banc et corrigé, tsc 0 · vitest 1045/1045 |
 | **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | branche `claude/cleanup-home-interface-szp8qv`, PR #83 fusionnée en squash → `5b1c1ce` / DEC-2026-056 | **Remplacée par la v6.22.0 le 5/09/2026 — production contrôlée validée par la Direction ; Green Gate vert sur `af6a8d2` (run 33951780278) et sur `main` (run 33952228718) ; `moknet.net` sert `index-BUCPWfy5.js` depuis le 5/09 à 07h20 UTC, ancien bundle 404, vérifié en navigateur sur miroir** |
 | **v6.22.0** | 5 Septembre 2026 | **Santé Globale v2 — santé ET sécurité en % (audit du 4/09 intégré : 61 % de référence, note vivante recalculée), graphiques (santé par domaine, audit → aujourd'hui, progression des vagues P0/P1/P2), sept domaines × rouge/orange/vert, fiche problème/cause/impact/risque/action sur 58 lignes, action manuelle guidée (endroit exact, lien direct, étapes) uniquement quand rien d'automatique n'existe, sondes VPS/CORS/rang, repli CORS jamais `*`** | Super-Admin / Santé Globale, `services/health/*`, Edge `health-guardian` v3, Base (`health_probe_catalogue`) | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-057 / PR #86 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 08:01 UTC** : PR #86 fusionnée en squash → `main` `e6c68ae` (Green Gate run 146 vert sur `f72eca6`), `moknet.net` sert `index-6F5PzUd7.js` avec les neuf empreintes du tableau de bord v2 (ancien bundle `index-BUCPWfy5.js` → 404, `cache-control: max-age=0, must-revalidate`) ; fonction Edge v3 déployée et vérifiée (identique octet pour octet au bundle généré, 51 040 octets ; origine inconnue → `https://moknet.net`), migration `20260905090000` appliquée et vérifiée (0 puis 1 `super_admin`, 89 tables) ; harnais sur mesures de production du 5/09 : santé 75 % sur 95 % mesuré, sécurité 51 % sur 84 % (audit 61 %), 6 R · 9 O · 5 blancs · 38 V ; typage 0 erreur, 1072/1072 tests |
+| **v6.23.0** | 5 Septembre 2026 | **Bande « Aurore » du Réseau MOC (variante 3 choisie par la Direction parmi dix, sur la base « Orbes lumineux ») : seize orbes de cristal, une teinte par entrée, en damier sur deux rangées de huit, dans l'ordre imposé ; l'orbe de la section courante se remplit ; halo qui respire, soulèvement et lueur au survol ; rail aimanté sur téléphone ; reduced-motion respecté** | Réseau MOC (carte d'accès rapide sous le composeur), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-058 / PR #89 | **Prête pour production — PR #89 ouverte le 5/09/2026, revue indépendante passée (7 constats corrigés), en attente de la fusion en squash** ; typage 0 erreur, 1104/1104 tests, build OK, captures avant/après (`docs/captures/2026-09-05-reseau-bande-aurore/`) |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.23.0] — 5 Septembre 2026 (Bande « Aurore » du Réseau MOC)
+
+* **La demande** (Direction, 5 septembre) : après dix propositions puis dix
+  variantes sans code, « implémenter et amener en production, de façon
+  contrôlée, uniquement l'option numéro trois Aurore, comme sur la capture.
+  Ne rien toucher d'autre. Aucune extrapolation, aucune autre modif. »
+* **Ce que le membre voit désormais** : sous le composeur du Réseau MOC,
+  **seize orbes de cristal** en damier sur deux rangées de huit — Live,
+  Équipe & Experts, Campus & Éducation, Reels, Tribus, Croissance, Ma Story,
+  Langues & Immersion, Carrière & Accomplissement, Santé & Bien-être,
+  Habitat & Installation, Finance & Wallet, Mes Démarches, Mobilité &
+  Expatriation, Studio Créatif, Marché Mondial — chacune dans sa teinte
+  (aqua, bleu, lavande, violet, corail, vert, rose, cyan, indigo, rouge,
+  menthe, ambre, bleu clair, turquoise, pourpre, orange), halo qui respire à
+  son propre rythme, soulèvement et lueur au survol, l'orbe de la section
+  courante remplie de sa couleur ; sur tablette et téléphone, un rail
+  horizontal aimanté avec les libellés courts. Les sept entrées d'origine
+  gardent leurs actions ; les neuf nouvelles ouvrent l'espace du menu
+  latéral qui porte le même nom. Rien d'autre n'a bougé.
+* **Contrôle indépendant** : revue de code indépendante avant fusion —
+  trois constats importants (halo devant l'orbe au survol, 17e orbe « Fil
+  d'actu » qui cassait le damier, contraste de l'orbe active) et quatre
+  mineurs, tous corrigés et revérifiés.
+* **Preuve** : typage 0 erreur ; 1104/1104 tests (78 fichiers, dont 10 dans
+  `tests/accesRapideAurore.test.tsx`) ; build OK ; harnais Chromium :
+  16 boutons dans l'ordre, 8 par rangée, damier de 10 px, orbes de 54 px,
+  halo `aurore-halo` actif, rail de 46 px sur tablette (carte de 476 px) et
+  téléphone, aucun débordement, aucune erreur JS
+  (`docs/captures/2026-09-05-reseau-bande-aurore/`).
+* **Production** : voir la ligne v6.23.0 du tableau (mise à jour après la
+  fusion et le contrôle sur `moknet.net`).
 
 ### [Version 6.22.0] — 5 Septembre 2026 (Santé Globale v2 — un tableau de bord qui chiffre, explique et guide)
 
