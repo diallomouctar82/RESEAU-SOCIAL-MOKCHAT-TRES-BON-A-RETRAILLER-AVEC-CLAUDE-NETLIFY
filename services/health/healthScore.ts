@@ -12,13 +12,15 @@
 // monter la note. Un « faux vert » n'est pas atteignable par accident.
 
 import {
+    BlockScore,
     DomainScore,
     HealthLineState,
     HealthReport,
     HealthStatus,
     ProbeOutcome,
+    RiskLevel,
 } from './healthTypes';
-import { HEALTH_DOMAINS, HEALTH_LINES, HEALTH_LINE_BY_ID } from './healthRegistry';
+import { HEALTH_BLOCKS, HEALTH_DOMAINS, HEALTH_LINES, HEALTH_LINE_BY_ID } from './healthRegistry';
 
 /**
  * Valeur numérique d'un statut mesuré. Le blanc est absent : il n'a pas de
@@ -30,6 +32,9 @@ const STATUS_VALUE: Record<Exclude<HealthStatus, 'blanc'>, number> = {
     orange: 40,
     rouge: 0,
 };
+
+/** Niveaux de risque admis, du plus grave au plus bénin. */
+export const RISK_LEVELS: RiskLevel[] = ['critique', 'eleve', 'moyen', 'faible'];
 
 /** Ordre de gravité, du plus sain au plus grave. Sert à agréger un domaine. */
 const SEVERITY_ORDER: HealthStatus[] = ['vert', 'jaune', 'orange', 'rouge'];
@@ -96,6 +101,44 @@ export function scoreDomain(domainId: string, states: HealthLineState[]): Domain
 }
 
 /**
+ * Note d'un BLOC de lecture (Sécurité, Application, Connecteurs, Live, VPS,
+ * Base de données, Services externes). Le poids d'une ligne dans son bloc est
+ * son poids RÉEL dans la note globale — poids du domaine × poids de la ligne —
+ * pour que la somme des blocs raconte la même histoire que la note globale.
+ * Même règle qu'ailleurs : le blanc ne compte pas, il réduit la couverture.
+ */
+export function scoreBlock(blockId: string, domains: DomainScore[]): BlockScore {
+    const block = HEALTH_BLOCKS.find((b) => b.id === blockId);
+    if (!block) throw new Error(`Bloc de santé inconnu : ${blockId}`);
+
+    const entries = domains.flatMap((d) => d.lines
+        .filter((state) => state.line.bloc === block.id)
+        .map((state) => ({ state, poids: d.domain.weight * state.line.weight })));
+
+    const total = entries.reduce((sum, e) => sum + e.poids, 0);
+    const measured = entries.filter((e) => isMeasured(e.state.outcome.status));
+    const measuredWeight = measured.reduce((sum, e) => sum + e.poids, 0);
+    const score = measuredWeight === 0
+        ? null
+        : measured.reduce(
+            (sum, e) => sum + e.poids * STATUS_VALUE[e.state.outcome.status as Exclude<HealthStatus, 'blanc'>],
+            0,
+        ) / measuredWeight;
+
+    const tally: Record<HealthStatus, number> = { vert: 0, jaune: 0, orange: 0, rouge: 0, blanc: 0 };
+    for (const e of entries) tally[e.state.outcome.status] += 1;
+
+    return {
+        block,
+        score: score === null ? null : round1(score),
+        coverage: total === 0 ? 0 : measuredWeight / total,
+        status: worstStatus(entries.map((e) => e.state.outcome.status)),
+        lines: entries.map((e) => e.state),
+        tally,
+    };
+}
+
+/**
  * Rapport complet. Les domaines sans aucune mesure sortent du calcul de la
  * note (leur poids quitte le dénominateur) et pèsent sur la couverture : c'est
  * la seule façon d'empêcher un domaine muet de tirer la note vers le haut ou
@@ -136,6 +179,7 @@ export function buildReport(outcomes: ProbeOutcome[]): HealthReport {
         coverage,
         status: worstStatus(domains.map((d) => d.status)),
         domains,
+        blocks: HEALTH_BLOCKS.map((block) => scoreBlock(block.id, domains)),
         generatedAt: new Date().toISOString(),
         tally,
     };
@@ -220,6 +264,43 @@ export function validateRegistry(): string[] {
         }
         if (line.location === 'humain' && !line.humanAction) {
             problems.push(`La ligne ${line.id} est de portée humaine sans action humaine décrite.`);
+        }
+
+        // 05/09/2026 — chaque problème doit pouvoir être expliqué : cause,
+        // impact, niveau de risque, et une action (automatique, guidée ou
+        // recommandée). Une ligne muette sur l'un d'eux n'est pas une aide
+        // à la décision, c'est un voyant.
+        if (!HEALTH_BLOCKS.some((b) => b.id === line.bloc)) {
+            problems.push(`La ligne ${line.id} référence un bloc inconnu : ${line.bloc}`);
+        }
+        if (!line.cause?.trim()) problems.push(`La ligne ${line.id} n'a pas de cause décrite.`);
+        if (!line.impact?.trim()) problems.push(`La ligne ${line.id} n'a pas d'impact décrit.`);
+        if (!RISK_LEVELS.includes(line.risk)) {
+            problems.push(`La ligne ${line.id} a un niveau de risque inconnu : ${String(line.risk)}`);
+        }
+        if (line.humanAction && !line.manual) {
+            problems.push(`La ligne ${line.id} décrit une action humaine sans guide pas à pas (manual).`);
+        }
+        if (line.manual && !line.humanAction) {
+            problems.push(`La ligne ${line.id} porte un guide manuel sans action humaine.`);
+        }
+        if (line.manual && (!line.manual.where?.trim() || line.manual.steps.length === 0)) {
+            problems.push(`La ligne ${line.id} a un guide manuel sans lieu ou sans étape.`);
+        }
+        if (line.manual?.url && !/^(\{supabase\}|\{repo\}|https:\/\/)/.test(line.manual.url)) {
+            problems.push(`La ligne ${line.id} a un lien de guide non résolu : ${line.manual.url}`);
+        }
+        if (!line.remediation && !line.humanAction && !line.recommendedAction?.trim()) {
+            problems.push(`La ligne ${line.id} n'a ni réparation, ni action humaine, ni action recommandée.`);
+        }
+        if (line.remediation && line.recommendedAction) {
+            problems.push(`La ligne ${line.id} propose une réparation ET une action recommandée : une seule voie à la fois.`);
+        }
+    }
+
+    for (const block of HEALTH_BLOCKS) {
+        if (!HEALTH_LINES.some((l) => l.bloc === block.id)) {
+            problems.push(`Le bloc ${block.id} n'a aucune ligne.`);
         }
     }
 

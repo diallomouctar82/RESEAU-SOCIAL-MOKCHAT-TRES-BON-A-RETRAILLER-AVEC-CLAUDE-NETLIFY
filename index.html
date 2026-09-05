@@ -1979,6 +1979,275 @@
       /* ===== FIN PLATEAUX DE CRISTAL ===== */
 
       /* ===================================================================
+         RESEAU MOC — BANDE AURORE (DEC-2026-058)
+
+         Variante 3 « Aurore » choisie par la Direction parmi dix, sur la
+         base « Orbes lumineux » : seize orbes de cristal, une teinte par
+         entree (--h, en degres, posee par le composant), en damier sur deux
+         rangees de huit ; l'orbe de la section courante se remplit de sa
+         teinte. Halo qui respire, soulevement et lueur au survol (vrais
+         pointeurs seulement), rail aimante sur telephone. Le bloc lit la
+         largeur reelle de la carte (container query), pas celle de l'ecran.
+         Tout s'arrete sous prefers-reduced-motion. Selecteurs courts et
+         sans accent (garde-fou tests/miroirFeuilleAnalysee).
+         =================================================================== */
+      .aurore-bande {
+        --au-encre: var(--mir-ink, #0B3A46);
+        --au-acc: var(--mir-acc, #0F9EC2);
+        container-type: inline-size;
+        container-name: aurore;
+        padding: 10px 12px 8px;
+      }
+      /* Retour au fil : un petit bouton au-dessus de la liste, HORS de la
+         grille — les seize orbes restent seize, le damier ne bouge pas.
+         Rendu seulement quand on a quitte le fil. */
+      .aurore-retour {
+        position: relative;
+        vertical-align: top;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin: 2px 0 0 2px;
+        padding: 8px 14px 8px 10px;
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255,255,255,.72);
+        color: var(--au-encre);
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11.5px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(11,58,70,.10), inset 0 0 0 1px rgba(255,255,255,.9);
+        -webkit-tap-highlight-color: transparent;
+      }
+      .aurore-retour:focus-visible { outline: 3px solid var(--au-acc); outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
+      .aurore-rangee {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 16px 6px;
+        margin: 0;
+        padding: 8px 0 4px;
+        list-style: none;
+      }
+      .aurore-item {
+        display: flex;
+        justify-content: center;
+        min-width: 0;
+      }
+      .aurore-orbe {
+        --au-halo: hsl(var(--h, 196) 90% 72% / .55);
+        --au-reflet: hsl(var(--h, 196) 70% 55% / .35);
+        --au-anneau: hsl(var(--h, 196) 90% 70% / .4);
+        position: relative;
+        isolation: isolate;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 9px;
+        margin: 0;
+        padding: 8px 2px 6px;
+        border: 0;
+        background: none;
+        font: inherit;
+        color: var(--au-encre);
+        cursor: pointer;
+        border-radius: 16px;
+        -webkit-tap-highlight-color: transparent;
+        flex: none;
+        max-width: 100%;
+      }
+      .aurore-item:nth-child(2n) .aurore-orbe { transform: translateY(10px); }
+      .aurore-orbe:focus-visible { outline: 3px solid var(--au-acc); outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
+      .aurore-bulle {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        color: hsl(var(--h, 196) 55% 30%);
+        background:
+          radial-gradient(circle at 32% 26%, rgba(255,255,255,1) 0, rgba(255,255,255,.55) 18%, rgba(255,255,255,0) 48%),
+          radial-gradient(circle at 70% 82%, hsl(var(--h, 196) 85% 78% / .8), transparent 60%),
+          linear-gradient(160deg, #fff, hsl(var(--h, 196) 80% 93%));
+        box-shadow:
+          inset 0 0 0 1.5px rgba(255,255,255,.95),
+          inset 0 -12px 20px hsl(var(--h, 196) 70% 60% / .25),
+          0 12px 26px rgba(11,58,70,.14),
+          0 0 0 5px rgba(255,255,255,.35);
+        transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s, background .35s, color .35s;
+      }
+      /* reflet de lumiere en haut a gauche */
+      .aurore-bulle::after {
+        content: "";
+        position: absolute;
+        left: 18%;
+        top: 9%;
+        width: 38%;
+        height: 22%;
+        border-radius: 50%;
+        background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,0));
+        transform: rotate(-18deg);
+        pointer-events: none;
+      }
+      /* halo teinte qui respire, derriere l'orbe. Il est porte par le
+         bouton et non par la bulle : une bulle transformee (survol, appui,
+         transition) devient son propre contexte d'empilement et ferait
+         passer un pseudo-element z-index -1 DEVANT son fond de verre. */
+      .aurore-orbe::before {
+        content: "";
+        position: absolute;
+        top: 1px;
+        left: calc(50% - 34px);
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--au-halo), transparent 70%);
+        z-index: -1;
+        pointer-events: none;
+        animation: aurore-halo var(--t, 5s) ease-in-out calc(var(--i, 0) * -.6s) infinite;
+        transition: transform .35s, opacity .35s;
+      }
+      .aurore-bulle svg {
+        position: relative;
+        z-index: 1;
+        transition: transform .3s, filter .3s;
+      }
+      /* orbe de la section courante : remplie de sa teinte, icone blanche.
+         Clartes 38 % -> 28 %, sans reflet radial (seul le petit reflet
+         ::after reste, attenue) : l'icone tient 3:1 au moins sous toute sa
+         surface, meme sur les teintes claires (vert 158 : 3,4 ; aqua 196 :
+         4,6, mesure par le controle independant). */
+      .aurore-orbe[aria-current="page"] .aurore-bulle {
+        color: #fff;
+        background: linear-gradient(160deg, hsl(var(--h, 196) 70% 38%), hsl(var(--h, 196) 65% 28%));
+      }
+      .aurore-orbe[aria-current="page"] .aurore-bulle::after { opacity: .4; }
+      .aurore-libelle,
+      .aurore-court {
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: .005em;
+        text-align: center;
+        max-width: 112px;
+        text-wrap: balance;
+        overflow-wrap: anywhere;
+      }
+      .aurore-court { display: none; }
+      /* reflet au sol, sous l'orbe */
+      .aurore-reflet {
+        display: block;
+        position: absolute;
+        top: 62px;
+        left: 50%;
+        width: 44px;
+        height: 10px;
+        transform: translateX(-50%);
+        border-radius: 50%;
+        background: radial-gradient(ellipse, var(--au-reflet), transparent 70%);
+        filter: blur(1px);
+        pointer-events: none;
+        transition: transform .35s, opacity .35s;
+      }
+      .aurore-orbe:active .aurore-bulle {
+        transform: translateY(-2px) scale(.97);
+        transition-duration: .12s;
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .aurore-orbe:hover .aurore-bulle {
+          transform: translateY(-7px) scale(1.06);
+          box-shadow:
+            inset 0 0 0 1.5px #fff,
+            inset 0 -12px 20px hsl(var(--h, 196) 70% 60% / .3),
+            0 22px 40px rgba(11,58,70,.2),
+            0 0 0 8px var(--au-anneau);
+        }
+        .aurore-orbe:hover::before {
+          animation: none;
+          opacity: 1;
+          transform: scale(1.3);
+        }
+        .aurore-retour:hover { background: #fff; }
+        .aurore-orbe:hover .aurore-bulle svg {
+          filter: drop-shadow(0 0 6px hsl(var(--h, 196) 90% 60% / .8));
+        }
+        .aurore-orbe:hover .aurore-reflet {
+          transform: translateX(-50%) scaleX(1.35);
+          opacity: .8;
+        }
+      }
+      @keyframes aurore-halo {
+        0%, 100% { opacity: .35; transform: scale(.95); }
+        50% { opacity: .9; transform: scale(1.08); }
+      }
+      /* Tablette : largeur INTERIEURE de la carte (sans ses 12 px de
+         marge interne de chaque cote, donc une carte de 826 px au plus) de
+         800 px ou moins — orbes reduites, libelles courts. */
+      @container aurore (max-width: 800px) {
+        .aurore-bulle { width: 48px; height: 48px; }
+        .aurore-orbe::before { left: calc(50% - 31px); width: 62px; height: 62px; }
+        .aurore-reflet { top: 56px; }
+        .aurore-libelle { display: none; }
+        .aurore-court { display: block; font-size: 10px; }
+      }
+      /* Telephone : largeur interieure de 480 px ou moins (carte de 506 px
+         au plus), rail horizontal aimante. Les marges internes du rail
+         valent exactement le fondu des bords : en butee, la premiere et la
+         derniere orbe sont entierement nettes. */
+      @container aurore (max-width: 480px) {
+        .aurore-rangee {
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          scroll-padding-inline: 16px;
+          gap: 6px;
+          padding: 6px 16px 8px;
+          scrollbar-width: none;
+          -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+        }
+        .aurore-rangee::-webkit-scrollbar { display: none; }
+        .aurore-item { flex: none; width: 72px; scroll-snap-align: start; }
+        .aurore-item:nth-child(2n) .aurore-orbe { transform: none; }
+        .aurore-orbe { width: 100%; padding-left: 0; padding-right: 0; }
+        .aurore-orbe::before { left: calc(50% - 30px); width: 60px; height: 60px; }
+        .aurore-bulle { width: 46px; height: 46px; }
+        .aurore-reflet { top: 54px; }
+      }
+      /* Navigateurs sans container query : la meme chose, par l'ecran. */
+      @supports not (container-type: inline-size) {
+        @media (max-width: 1023px) {
+          .aurore-bulle { width: 48px; height: 48px; }
+          .aurore-orbe::before { left: calc(50% - 31px); width: 62px; height: 62px; }
+          .aurore-reflet { top: 56px; }
+          .aurore-libelle { display: none; }
+          .aurore-court { display: block; font-size: 10px; }
+        }
+        @media (max-width: 639px) {
+          .aurore-rangee { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; gap: 6px; padding: 6px 16px 8px; scrollbar-width: none; }
+          .aurore-item { flex: none; width: 72px; scroll-snap-align: start; }
+          .aurore-item:nth-child(2n) .aurore-orbe { transform: none; }
+          .aurore-orbe { width: 100%; padding-left: 0; padding-right: 0; }
+          .aurore-orbe::before { left: calc(50% - 30px); width: 60px; height: 60px; }
+          .aurore-bulle { width: 46px; height: 46px; }
+          .aurore-reflet { top: 54px; }
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .aurore-orbe::before { animation: none !important; opacity: .55; }
+        .aurore-bulle,
+        .aurore-orbe::before,
+        .aurore-bulle svg,
+        .aurore-reflet { transition: none; }
+      }
+      /* ===== FIN BANDE AURORE ===== */
+
+      /* ===================================================================
          DS-EX-2 · LA NAPPE D'EAU RÉELLEMENT VISIBLE DANS TOUTE L'APPLICATION
 
          Constat mesuré : `data-miroir` couvrait déjà tous les écrans, mais
@@ -2277,6 +2546,7 @@
       [data-miroir] .group:hover .group-hover\:border-indigo-600{border-color:#0A7590;}
       [data-miroir] .group:hover .group-hover\:text-blue-300{color:#5ECBE7;}
       [data-miroir] .group:hover .group-hover\:text-blue-600{color:#0A7590;}
+      [data-miroir] .group:hover .group-hover\:text-blue-700{color:#086077;}
       [data-miroir] .group:hover .group-hover\:text-cyan-300{color:#5ECBE7;}
       [data-miroir] .group:hover .group-hover\:text-indigo-200{color:#A5E4F5;}
       [data-miroir] .group:hover .group-hover\:text-indigo-300{color:#5ECBE7;}
@@ -2377,7 +2647,6 @@
       [data-miroir] .ring-blue-600{--tw-ring-color:#0A7590;}
       [data-miroir] .ring-blue-600\/20{--tw-ring-color:rgba(10,117,144,0.2);}
       [data-miroir] .ring-blue-800{--tw-ring-color:#094E60;}
-      [data-miroir] .ring-cyan-300\/70{--tw-ring-color:rgba(94,203,231,0.7);}
       [data-miroir] .ring-cyan-400{--tw-ring-color:#29B4D6;}
       [data-miroir] .ring-cyan-500{--tw-ring-color:#0C90B2;}
       [data-miroir] .ring-cyan-500\/40{--tw-ring-color:rgba(12,144,178,0.4);}

@@ -36,7 +36,9 @@
 | **v6.18.0** | 5 Septembre 2026 | **« Réseau MOC » juste sous « Accueil » dans la barre latérale ; contours de toutes les zones de saisie renforcés par une règle globale (2 px, couleur dérivée du texte à 55 %, accent aqua au focus) ; nouvelle invite du composeur « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. »** | Navigation globale (barre latérale), Réseau MOC, index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-053 | **Stable — production contrôlée demandée par la Direction, fusionnée dans `main`, vérifiée sur moknet.net** |
 | **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 fusionnée en squash → `cbdab0a` / DEC-2026-054 | **Stable — Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en production contrôlée depuis le 5/09 (Green Gate run 33933766630, moknet.net a servi `index-SB3nxKwK.js` avec les empreintes SAT-4) ; remplacée par v6.20.0 le même jour** |
 | **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026** : PR #81 fusionnée en squash → `main` `880b5fa` (Green Gate run 33936079398 vert), moknet.net sert `index-CjAVWgcX.js` avec les 7 empreintes SAT-5 (ancien bundle 404) ; migration `close_zombie_live_sessions` + job `close-zombie-live-sessions` appliquée à 01:28 UTC, **première exécution réelle à 02:15 UTC : 13 directs zombies fermés** (les 13 ids de la sauvegarde, `audit_logs` `health.auto_repair` actor NULL), exécutions suivantes 03:15/04:15/05:15 sans rien à faire, 06:15 : 1 direct de plus franchissant les 24 h fermé ; 0 zombie restant, directs récents intacts, aucune autre ligne touchée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées), défaut d'écran trouvé par le banc et corrigé, tsc 0 · vitest 1045/1045 |
-| **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | branche `claude/cleanup-home-interface-szp8qv`, PR #83 fusionnée en squash → `5b1c1ce` / DEC-2026-056 | **Courante (Active) — production contrôlée validée par la Direction ; Green Gate vert sur `af6a8d2` (run 33951780278) et sur `main` (run 33952228718) ; `moknet.net` sert `index-BUCPWfy5.js` depuis le 5/09 à 07h20 UTC, ancien bundle 404, vérifié en navigateur sur miroir** |
+| **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | branche `claude/cleanup-home-interface-szp8qv`, PR #83 fusionnée en squash → `5b1c1ce` / DEC-2026-056 | **Remplacée par la v6.22.0 le 5/09/2026 — production contrôlée validée par la Direction ; Green Gate vert sur `af6a8d2` (run 33951780278) et sur `main` (run 33952228718) ; `moknet.net` sert `index-BUCPWfy5.js` depuis le 5/09 à 07h20 UTC, ancien bundle 404, vérifié en navigateur sur miroir** |
+| **v6.22.0** | 5 Septembre 2026 | **Santé Globale v2 — santé ET sécurité en % (audit du 4/09 intégré : 61 % de référence, note vivante recalculée), graphiques (santé par domaine, audit → aujourd'hui, progression des vagues P0/P1/P2), sept domaines × rouge/orange/vert, fiche problème/cause/impact/risque/action sur 58 lignes, action manuelle guidée (endroit exact, lien direct, étapes) uniquement quand rien d'automatique n'existe, sondes VPS/CORS/rang, repli CORS jamais `*`** | Super-Admin / Santé Globale, `services/health/*`, Edge `health-guardian` v3, Base (`health_probe_catalogue`) | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-057 / PR #86 | **Remplacée par la v6.23.0 le 5/09/2026 à 09:57 UTC — était en production contrôlée depuis le 5/09/2026 à 08:01 UTC** : PR #86 fusionnée en squash → `main` `e6c68ae` (Green Gate run 146 vert sur `f72eca6`), `moknet.net` sert `index-6F5PzUd7.js` avec les neuf empreintes du tableau de bord v2 (ancien bundle `index-BUCPWfy5.js` → 404, `cache-control: max-age=0, must-revalidate`) ; fonction Edge v3 déployée et vérifiée (identique octet pour octet au bundle généré, 51 040 octets ; origine inconnue → `https://moknet.net`), migration `20260905090000` appliquée et vérifiée (0 puis 1 `super_admin`, 89 tables) ; harnais sur mesures de production du 5/09 : santé 75 % sur 95 % mesuré, sécurité 51 % sur 84 % (audit 61 %), 6 R · 9 O · 5 blancs · 38 V ; typage 0 erreur, 1072/1072 tests |
+| **v6.23.0** | 5 Septembre 2026 | **Bande « Aurore » du Réseau MOC (variante 3 choisie par la Direction parmi dix, sur la base « Orbes lumineux ») : seize orbes de cristal, une teinte par entrée, en damier sur deux rangées de huit, dans l'ordre imposé ; l'orbe de la section courante se remplit ; halo qui respire, soulèvement et lueur au survol ; rail aimanté sur téléphone ; reduced-motion respecté** | Réseau MOC (carte d'accès rapide sous le composeur), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-058 / PR #89 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 09:57 UTC** : PR #89 fusionnée en squash → `main` `6f9d062` (Green Gate vert sur `2bbe45f`, run 33959258373, et sur `main`, run 33959347666), revue indépendante passée (7 constats corrigés, contre-vérifiés « PRÊT »), `moknet.net` sert `index-CgZyiRwk.js` depuis 09:57:56 UTC (bloc « BANDE AURORE » présent, marqueurs du bundle présents, ancienne grille absente, ancien bundle `index-6F5PzUd7.js` → 404), miroir local vérifié dans Chromium ; typage 0 erreur, 1104/1104 tests, build OK, captures avant/après (`docs/captures/2026-09-05-reseau-bande-aurore/`) |
 | **v6.24.0** | 4 Septembre 2026 | **Studio Avatar : avatar par défaut défini par l'Admin-Général pour tous les nouveaux comptes ; avatar personnel des membres Pro (accès → photo → consentement → nom → génération → aperçu), révocable ; console admin protégée contre un `localStorage` antérieur au réglage** | Studio & Création, Espace Super-Admin, Profil & identité | DEC-2026-059 | **Développée & testée — NON déployée (autorisation de production requise)** |
 | **v6.25.0** | 4 Septembre 2026 | **Avatar vivant de l'Architecte : visage à la place du bouton, 8 états animés (dont mode allégé et hors ligne), synchro labiale sur la voix réellement prononcée ; Super-Admin — changer l'avatar, remettre par défaut, animations, voix** | Diallo OS & Architecte, Espace Super-Admin, Moteur vocal | AI Core playbook 15 / DEC-2026-060 | **Développée & testée — NON déployée (validation visuelle Direction requise)** |
 | **v6.26.0** | 4 Septembre 2026 | **Portrait vivant de l'Architecte : vraie photo qui respire, cligne (paupières de peau), parle (lèvre du haut fixe, cavité et dents), bouge la tête ; calage relevé sur grille ; page publique `/architecte` qui parle à voix haute avec la voix du navigateur** | Diallo OS & Architecte, Espace Super-Admin | AI Core playbook 15 / DEC-2026-061 | **Développée & testée — NON déployée en production (prévisualisation de branche, validation visuelle Direction requise)** |
@@ -52,6 +54,79 @@
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.23.0] — 5 Septembre 2026 (Bande « Aurore » du Réseau MOC)
+
+* **La demande** (Direction, 5 septembre) : après dix propositions puis dix
+  variantes sans code, « implémenter et amener en production, de façon
+  contrôlée, uniquement l'option numéro trois Aurore, comme sur la capture.
+  Ne rien toucher d'autre. Aucune extrapolation, aucune autre modif. »
+* **Ce que le membre voit désormais** : sous le composeur du Réseau MOC,
+  **seize orbes de cristal** en damier sur deux rangées de huit — Live,
+  Équipe & Experts, Campus & Éducation, Reels, Tribus, Croissance, Ma Story,
+  Langues & Immersion, Carrière & Accomplissement, Santé & Bien-être,
+  Habitat & Installation, Finance & Wallet, Mes Démarches, Mobilité &
+  Expatriation, Studio Créatif, Marché Mondial — chacune dans sa teinte
+  (aqua, bleu, lavande, violet, corail, vert, rose, cyan, indigo, rouge,
+  menthe, ambre, bleu clair, turquoise, pourpre, orange), halo qui respire à
+  son propre rythme, soulèvement et lueur au survol, l'orbe de la section
+  courante remplie de sa couleur ; sur tablette et téléphone, un rail
+  horizontal aimanté avec les libellés courts. Les sept entrées d'origine
+  gardent leurs actions ; les neuf nouvelles ouvrent l'espace du menu
+  latéral qui porte le même nom. Rien d'autre n'a bougé.
+* **Contrôle indépendant** : revue de code indépendante avant fusion —
+  trois constats importants (halo devant l'orbe au survol, 17e orbe « Fil
+  d'actu » qui cassait le damier, contraste de l'orbe active) et quatre
+  mineurs, tous corrigés et revérifiés.
+* **Preuve** : typage 0 erreur ; 1104/1104 tests (78 fichiers, dont 10 dans
+  `tests/accesRapideAurore.test.tsx`) ; build OK ; harnais Chromium :
+  16 boutons dans l'ordre, 8 par rangée, damier de 10 px, orbes de 54 px,
+  halo `aurore-halo` actif, rail de 46 px sur tablette (carte de 476 px) et
+  téléphone, aucun débordement, aucune erreur JS
+  (`docs/captures/2026-09-05-reseau-bande-aurore/`).
+* **Production** : PR #89 fusionnée en squash → `main` `6f9d062` le
+  5/09/2026 à 09:57 UTC ; `moknet.net` sert `index-CgZyiRwk.js` depuis
+  09:57:56 UTC (même bundle que le preview contrôlé), ancien bundle 404,
+  bloc CSS et marqueurs présents, miroir local vérifié dans Chromium.
+  Le contrôle visuel final dans l'application appartient à la Direction.
+
+### [Version 6.22.0] — 5 Septembre 2026 (Santé Globale v2 — un tableau de bord qui chiffre, explique et guide)
+
+* **La demande** (Direction, 5 septembre) : « Reprendre le module Santé
+  Globale / Sécurité pour qu'il devienne un vrai tableau de bord utile » —
+  santé et sécurité en %, graphiques, progression par vague, rapport
+  sécurité du 4/09 (61 %) intégré, trois blocs de couleur, domaines séparés
+  (sécurité, application, connecteurs, live, VPS, base de données, services
+  externes), problème / cause / impact / risque / action pour chaque ligne,
+  vrai bouton Réparer, action manuelle guidée seulement quand rien
+  d'automatique n'existe, jamais de faux bouton.
+* **Ce que l'Admin Général voit désormais** : deux anneaux (santé sur sa
+  couverture, sécurité sur la sienne) et le mot du statut ; trois
+  graphiques — santé par domaine (barres empilées rouge/orange/blanc/vert),
+  audit du 4 septembre → aujourd'hui pour les 8 domaines de sécurité,
+  progression des vagues P0/P1/P2 avec le pourcentage et chaque constat
+  cliquable ; sept sections de domaine, chacune en trois blocs (rouge,
+  orange, vert) plus une bande « ni rouge, ni vert » pour le non mesuré ;
+  une fiche par contrôle (problème, pourquoi ça compte, cause probable,
+  impact, niveau de risque, puis UNE voie : Réparer, Diagnostic seulement,
+  Action manuelle requise avec « Ouvrir l'endroit exact » et les étapes, ou
+  Action recommandée) ; un journal qui nomme les réparations automatiques du
+  cron (« appliquée par la base, sans clic »).
+* **Ce que la fonction Edge mesure en plus (v3)** : le CORS réel des six
+  fonctions (5 répondent `*` — constat O-03 mesuré, plus supposé), la façade
+  HTTPS du VPS et la porte `/rtc/validate` avec un jeton du coffre, le
+  nombre de comptes `super_admin` (migration `20260905090000`). Elle-même ne
+  se replie plus jamais sur `*`.
+* **Preuve** : typage 0 erreur ; 1072/1072 tests (77 fichiers, dont
+  `healthBlocks`, `securityAudit`, `healthGuide`, `healthGuardian` étendu) ;
+  artefact déployé identique octet pour octet au bundle généré ; mesures
+  réelles du 5/09 : `GET https://live.moknet.net/` 200 en 0,41 s,
+  `/rtc/validate` 200 « success » en 0,73 s (jeton bidon → 401),
+  `ListRooms` 200 en 0,62 s ; harnais sur les mesures de production :
+  santé 75 % sur 95 %, sécurité 51 % sur 84 %, aucun bouton « Appliquer »
+  rendu au rang admin. Captures ordinateur et téléphone transmises.
+* **Restes assumés** : voir DEC-2026-057 (rang de la Direction, compte de
+  test SAT-6, J-01b non mesurable, CORS des cinq autres fonctions guidé).
 
 ### [Version 6.21.0] — 5 Septembre 2026 (Espace Experts « Plateaux de cristal »)
 

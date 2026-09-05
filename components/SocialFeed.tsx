@@ -7,7 +7,7 @@ import {
   Smile, Send, ChevronDown, ChevronUp, ArrowRight, Mic, Phone, PhoneCall, Paperclip, 
   MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp,
   Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle, Trash2, Archive,
-  GraduationCap, Flame
+  GraduationCap, Flame, Briefcase, HeartPulse, Home as HomeIcon, Wallet as WalletIcon, Palette, ShoppingBag
 } from 'lucide-react';
 import { 
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
@@ -1839,56 +1839,86 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         </div>
       )}
 
-      {/* RO-1 — CARTE D'ACCÈS RAPIDE, JUSTE SOUS LA PUBLICATION.
-          Ordre imposé par la Direction : Live, Équipe & Experts, Campus &
-          Éducation, Reels, Tribus, Croissance, puis Ma Story.
+      {/* DEC-2026-058 — BANDE « AURORE », JUSTE SOUS LA PUBLICATION.
+          Variante 3 choisie par la Direction parmi dix, sur la base « Orbes
+          lumineux » : seize entrées dans l'ordre imposé, chacune dans une orbe
+          de cristal teintée de sa propre couleur (--h, en degrés) ; l'orbe de
+          la section courante se remplit de sa teinte. Le mouvement (halo qui
+          respire, soulèvement et lueur au survol) est entièrement CSS — bloc
+          « BANDE AURORE » d'index.html — et s'arrête sous
+          prefers-reduced-motion.
 
-          Elle remplace DEUX surfaces qui se disputaient le même rôle : la
-          sous-barre « Équipe & Experts » (un bouton seul en haut de page) et la
-          rangée d'onglets de la carte Réseau Mooc (Fil d'actu / Reels / Lives /
-          Tribus / Croissance). Les deux sont retirées — garder les trois aurait
-          été exactement le « tout en vrac » que la Direction refuse.
+          Elle remplace la carte RO-1 (sept pastilles carrées) au même endroit
+          et conserve ses actions : Live, Reels, Tribus et Croissance restent
+          des onglets internes du fil, Équipe & Experts et Campus ouvrent leur
+          écran, Ma Story ouvre la création ; les neuf entrées suivantes
+          ouvrent l'espace nommé par `onNavigate` (mêmes identifiants que le
+          menu latéral : languages, career, health, housing, wallet,
+          admin-procedures, world, studio, shop).
 
-          Grille de 4 colonnes sur téléphone (deux rangées) plutôt qu'un
-          défilement horizontal : tout est visible d'un coup d'œil, aucune
-          entrée ne se cache hors de l'écran. Cible tactile 44 px (règle du
-          projet) portée par la pastille d'icône, libellé écrit sous chacune. */}
-      <div className="mir-glass rounded-3xl p-3 sm:p-4" data-testid="acces-rapide">
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 sm:gap-2">
+          « Fil d'actu » n'est pas dans la liste de la Direction : sur le fil
+          on Y EST déjà. Il n'apparaît que lorsqu'on l'a quitté, sinon aucun
+          retour ne serait possible depuis Reels/Tribus/Croissance — et il
+          reste HORS de la grille (petit bouton au-dessus des orbes) : les
+          seize orbes restent seize, le damier et les phases ne bougent pas.
+
+          Ordinateur : deux rangées de huit en damier. Tablette : mêmes
+          rangées, orbes et libellés réduits. Téléphone : rail horizontal
+          aimanté, libellés courts. Le bloc CSS lit la largeur réelle de la
+          carte (container query), pas celle de l'écran. */}
+      <nav className="mir-glass rounded-3xl aurore-bande" data-testid="acces-rapide" aria-label="Accès rapide">
+        {activeTab !== 'feed' && (
+          <button type="button" className="aurore-retour" data-testid="acces-rapide-feed" onClick={() => setActiveTab('feed')}>
+            <ChevronLeft size={16} strokeWidth={2.2} aria-hidden="true" />
+            <span>Fil d'actu</span>
+          </button>
+        )}
+        <ul className="aurore-rangee">
           {[
-            // « Fil d'actu » n'est pas dans la liste de la Direction : sur
-            // l'accueil on Y EST déjà. Il n'apparaît que lorsqu'on l'a quitté,
-            // sinon il n'y aurait aucun retour depuis Reels/Tribus/Croissance.
-            ...(activeTab !== 'feed'
-              ? [{ cle: 'feed', libelle: "Fil d'actu", Icone: ChevronLeft, agir: () => setActiveTab('feed'), actif: false }]
-              : []),
-            { cle: 'live', libelle: 'Live', Icone: Radio, agir: () => setActiveTab('lives'), actif: activeTab === 'lives' },
+            { cle: 'live', libelle: 'Live', court: 'Live', Icone: Radio, teinte: 196, agir: () => setActiveTab('lives'), actif: activeTab === 'lives' },
             ...(onNavigate
               ? [
-                  { cle: 'experts', libelle: 'Équipe & Experts', Icone: Users, agir: () => onNavigate('experts'), actif: false },
-                  { cle: 'campus', libelle: 'Campus & Éducation', Icone: GraduationCap, agir: () => onNavigate('campus'), actif: false },
+                  { cle: 'experts', libelle: 'Équipe & Experts', court: 'Experts', Icone: Users, teinte: 204, agir: () => onNavigate('experts'), actif: false },
+                  { cle: 'campus', libelle: 'Campus & Éducation', court: 'Campus', Icone: GraduationCap, teinte: 212, agir: () => onNavigate('campus'), actif: false },
                 ]
               : []),
-            { cle: 'reels', libelle: 'Reels', Icone: Video, agir: () => setActiveTab('reels'), actif: activeTab === 'reels' },
-            { cle: 'tribus', libelle: 'Tribus', Icone: Flame, agir: () => setActiveTab('tribes'), actif: activeTab === 'tribes' },
-            { cle: 'croissance', libelle: 'Croissance', Icone: TrendingUp, agir: () => setActiveTab('my_space'), actif: activeTab === 'my_space' },
-            { cle: 'story', libelle: 'Ma Story', Icone: Plus, agir: () => setIsCreateStoryOpen(true), actif: false },
-          ].map(({ cle, libelle, Icone, agir, actif }) => (
-            <button
-              key={cle}
-              onClick={agir}
-              data-testid={`acces-rapide-${cle}`}
-              aria-current={actif ? 'page' : undefined}
-              className={`flex flex-col items-center justify-start gap-1.5 px-1 py-2 rounded-2xl min-h-[68px] transition-all active:scale-95 ${actif ? 'bg-white/70 ring-1 ring-cyan-300/70' : 'hover:bg-white/40'}`}
-            >
-              <span className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${actif ? 'bg-cyan-600 text-white' : 'bg-white/70 text-slate-700'}`}>
-                <Icone size={18} />
-              </span>
-              <span className="text-[10px] font-bold text-slate-700 leading-tight text-center">{libelle}</span>
-            </button>
+            { cle: 'reels', libelle: 'Reels', court: 'Reels', Icone: Video, teinte: 262, agir: () => setActiveTab('reels'), actif: activeTab === 'reels' },
+            { cle: 'tribus', libelle: 'Tribus', court: 'Tribus', Icone: Flame, teinte: 14, agir: () => setActiveTab('tribes'), actif: activeTab === 'tribes' },
+            { cle: 'croissance', libelle: 'Croissance', court: 'Croissance', Icone: TrendingUp, teinte: 158, agir: () => setActiveTab('my_space'), actif: activeTab === 'my_space' },
+            { cle: 'story', libelle: 'Ma Story', court: 'Ma Story', Icone: Plus, teinte: 330, agir: () => setIsCreateStoryOpen(true), actif: false },
+            ...(onNavigate
+              ? [
+                  { cle: 'langues', libelle: 'Langues & Immersion', court: 'Langues', Icone: Languages, teinte: 186, agir: () => onNavigate('languages'), actif: false },
+                  { cle: 'carriere', libelle: 'Carrière & Accomplissement', court: 'Carrière', Icone: Briefcase, teinte: 230, agir: () => onNavigate('career'), actif: false },
+                  { cle: 'sante', libelle: 'Santé & Bien-être', court: 'Santé', Icone: HeartPulse, teinte: 350, agir: () => onNavigate('health'), actif: false },
+                  { cle: 'habitat', libelle: 'Habitat & Installation', court: 'Habitat', Icone: HomeIcon, teinte: 150, agir: () => onNavigate('housing'), actif: false },
+                  { cle: 'finance', libelle: 'Finance & Wallet', court: 'Finance', Icone: WalletIcon, teinte: 42, agir: () => onNavigate('wallet'), actif: false },
+                  { cle: 'demarches', libelle: 'Mes Démarches', court: 'Démarches', Icone: FileText, teinte: 200, agir: () => onNavigate('admin-procedures'), actif: false },
+                  { cle: 'mobilite', libelle: 'Mobilité & Expatriation', court: 'Mobilité', Icone: Globe, teinte: 176, agir: () => onNavigate('world'), actif: false },
+                  { cle: 'studio', libelle: 'Studio Créatif', court: 'Studio', Icone: Palette, teinte: 280, agir: () => onNavigate('studio'), actif: false },
+                  { cle: 'marche', libelle: 'Marché Mondial', court: 'Marché', Icone: ShoppingBag, teinte: 30, agir: () => onNavigate('shop'), actif: false },
+                ]
+              : []),
+          ].map(({ cle, libelle, court, Icone, teinte, agir, actif }, i) => (
+            <li key={cle} className="aurore-item">
+              <button
+                type="button"
+                onClick={agir}
+                data-testid={`acces-rapide-${cle}`}
+                aria-label={libelle}
+                aria-current={actif ? 'page' : undefined}
+                className="aurore-orbe"
+                style={{ '--i': i, '--h': teinte, '--t': `${5 + (i % 4)}s` } as React.CSSProperties}
+              >
+                <span className="aurore-bulle" aria-hidden="true"><Icone size={24} strokeWidth={1.9} /></span>
+                <span className="aurore-libelle">{libelle}</span>
+                <span className="aurore-court" aria-hidden="true">{court}</span>
+                <span className="aurore-reflet" aria-hidden="true" />
+              </button>
+            </li>
           ))}
-        </div>
-      </div>
+        </ul>
+      </nav>
 
       {/* 1. TOP HEADER & MAIN NAVIGATION */}
       {/* DS-M2b : carte « Réseau Mooc » en verre soufflé translucide, comme
