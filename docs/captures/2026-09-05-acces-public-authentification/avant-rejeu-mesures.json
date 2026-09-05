@@ -1,0 +1,131 @@
+{
+  "session-invalide-rejeu/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3001/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 81,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Mon Cap",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "Basculer le mode concentration",
+      "Basculer le mode présentation",
+      "Bilingue",
+      "🇫🇷",
+      "Mon Cap"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "apresRejeu": {
+      "navigationInterne": true,
+      "champMotDePasse": false,
+      "composeur": true,
+      "verdictEcran": "INTERFACE_INTERNE"
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/posts?select=*%2Cauthor%3Aprofiles%21posts_au",
+      "GET /rest/v1/conversations?select=id%2Cis_group%2Ctitle%2Clast_mes",
+      "POST /rest/v1/rpc/get_my_conversation_participant_profiles",
+      "GET /rest/v1/user_blocks?select=blocked_id&blocker_id=eq.u1"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide-rejeu/navigateur-mobile": {
+    "url": "http://127.0.0.1:3001/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "apresRejeu": {
+      "navigationInterne": true,
+      "champMotDePasse": false,
+      "composeur": true,
+      "verdictEcran": "INTERFACE_INTERNE"
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/posts?select=*%2Cauthor%3Aprofiles%21posts_au",
+      "GET /rest/v1/conversations?select=id%2Cis_group%2Ctitle%2Clast_mes",
+      "POST /rest/v1/rpc/get_my_conversation_participant_profiles",
+      "GET /rest/v1/user_blocks?select=blocked_id&blocker_id=eq.u1"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  }
+}

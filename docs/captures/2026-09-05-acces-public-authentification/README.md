@@ -1,6 +1,6 @@
 # Accès public à MokNet — verrou d'entrée vérifié par le serveur (DEC-2026-080, v6.42.0)
 
-Preuves avant / après de la mission « correction de l'accès public » (Direction, 5 septembre 2026). Généré le 2026-09-05 15:34 UTC.
+Preuves avant / après de la mission « correction de l'accès public » (Direction, 5 septembre 2026). Généré le 2026-09-05 16:01 UTC.
 
 ## Niveau de preuve (honnête)
 
@@ -87,6 +87,19 @@ Détail complet : `avant-mesures.json`, `apres-mesures.json` (URL, titre, h1 vis
 | `avant-vierge-navigateur-mobile.jpg` | Avant (production servie) | Appareil vierge (aucune session) | Navigateur mobile (Chrome Android, 390 × 844) |
 | `apres-vierge-navigateur-mobile.jpg` | Après (build de la branche) | Appareil vierge (aucune session) | Navigateur mobile (Chrome Android, 390 × 844) |
 | `apres-session-valide-navigateur-mobile.jpg` | Après (build de la branche) | Session locale CONFIRMÉE par le serveur | Navigateur mobile (Chrome Android, 390 × 844) |
+
+## Rejeu `SIGNED_IN` par supabase-js (constat bloquant du contrôle indépendant, corrigé)
+
+supabase-js rejoue en `SIGNED_IN` la session lue dans le stockage — à l'initialisation, à chaque retour sur l'onglet (`visibilitychange`) et par BroadcastChannel depuis un autre onglet — **sans appel serveur**. Scénario : session refusée par le serveur (401) → puis le jeton est remis dans le stockage (comme le ferait un autre onglet) et un retour sur l'onglet est déclenché → supabase-js émet `SIGNED_IN` avec ce jeton.
+
+| Moment | Canal | Premier écran | Après rejeu `SIGNED_IN` |
+| :--- | :--- | :--- | :--- |
+| Avant (production servie) | Navigateur ordinateur (Chromium, 1440 × 900) | Interface interne | Interface interne |
+| Avant (production servie) | Navigateur mobile (Chrome Android, 390 × 844) | Interface interne | Interface interne |
+| Après (build de la branche) | Navigateur ordinateur (Chromium, 1440 × 900) | Écran de connexion | Écran de connexion |
+| Après (build de la branche) | Navigateur mobile (Chrome Android, 390 × 844) | Écran de connexion | Écran de connexion |
+
+Avant : la session refusée ouvrait déjà l'interface au premier écran, et le rejeu la laissait ouverte. Après : écran de connexion au premier écran **et** après le rejeu (le verdict est attaché au jeton, un jeton refusé reste refusé — `apres-session-invalide-rejeu-*.jpg`, `apres-session-invalide-rejeu-*-apres-rejeu.jpg`, `*-rejeu-mesures.json`).
 
 ## Variantes d'écriture du domaine
 

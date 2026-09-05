@@ -951,15 +951,15 @@
     "nbBoutonsVisibles": 84,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -970,7 +970,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "navigateur-mobile",
     "scenario": "session-valide",
@@ -979,13 +979,13 @@
       "GET /auth/v1/user",
       "GET /auth/v1/user",
       "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
-      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
-      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
-      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
-      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
-      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
-      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
       "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
       "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
       "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
     ],
@@ -1010,15 +1010,15 @@
     "nbBoutonsVisibles": 84,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1029,7 +1029,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "sms-android-webview",
     "scenario": "session-valide",
@@ -1069,15 +1069,15 @@
     "nbBoutonsVisibles": 84,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1088,7 +1088,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "whatsapp-android",
     "scenario": "session-valide",
@@ -1128,15 +1128,15 @@
     "nbBoutonsVisibles": 84,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1147,7 +1147,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "messenger-android",
     "scenario": "session-valide",
@@ -1187,15 +1187,15 @@
     "nbBoutonsVisibles": 83,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1206,7 +1206,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "messenger-ios",
     "scenario": "session-valide",
@@ -1246,15 +1246,15 @@
     "nbBoutonsVisibles": 83,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1265,7 +1265,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "whatsapp-ios-safariview",
     "scenario": "session-valide",
@@ -1318,9 +1318,9 @@
     ],
     "stockage": {
       "local": [
-        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_enrolled_persons_v1",
         "lmav_chat_conversations_cache",
-        "lmav_enrolled_persons_v1"
+        "sb-rqciahtpixdjbyoajomg-auth-token"
       ],
       "session": []
     },
@@ -1344,8 +1344,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
@@ -1367,15 +1367,15 @@
     "nbBoutonsVisibles": 82,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1385,7 +1385,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "navigateur-mobile",
     "scenario": "session-reseau-coupe",
@@ -1405,8 +1405,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
@@ -1428,15 +1428,15 @@
     "nbBoutonsVisibles": 82,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1446,7 +1446,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "sms-android-webview",
     "scenario": "session-reseau-coupe",
@@ -1466,8 +1466,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
@@ -1489,15 +1489,15 @@
     "nbBoutonsVisibles": 82,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1507,7 +1507,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "whatsapp-android",
     "scenario": "session-reseau-coupe",
@@ -1527,8 +1527,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
@@ -1550,25 +1550,25 @@
     "nbBoutonsVisibles": 82,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
-        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_enrolled_persons_v1",
         "lmav_chat_conversations_cache",
-        "lmav_enrolled_persons_v1"
+        "sb-rqciahtpixdjbyoajomg-auth-token"
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "messenger-android",
     "scenario": "session-reseau-coupe",
@@ -1588,8 +1588,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
@@ -1611,25 +1611,25 @@
     "nbBoutonsVisibles": 82,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
-        "lmav_enrolled_persons_v1",
+        "sb-rqciahtpixdjbyoajomg-auth-token",
         "lmav_chat_conversations_cache",
-        "sb-rqciahtpixdjbyoajomg-auth-token"
+        "lmav_enrolled_persons_v1"
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "messenger-ios",
     "scenario": "session-reseau-coupe",
@@ -1649,8 +1649,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
@@ -1672,15 +1672,15 @@
     "nbBoutonsVisibles": 82,
     "boutons": [
       "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
       "Assistant IA Pré-Publication",
       "Améliorer le style",
       "Traduire",
       "Hashtags",
-      "Visuel IA",
-      "Photo",
-      "Vidéo",
-      "Document",
-      "Voix"
+      "Visuel IA"
     ],
     "stockage": {
       "local": [
@@ -1690,7 +1690,7 @@
       ],
       "session": []
     },
-    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Améliorer le style Traduire Hashtags Visuel ",
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
     "http": 200,
     "canal": "whatsapp-ios-safariview",
     "scenario": "session-reseau-coupe",
@@ -1710,8 +1710,8 @@
       "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
     ],
     "erreursJS": [
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }",
-      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-DslUqM1Y.js:4249:79383), hint: , code: }"
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
     ],
     "verdictEcran": "INTERFACE_INTERNE",
     "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
