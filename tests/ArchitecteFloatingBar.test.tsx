@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -73,6 +73,7 @@ vi.mock('../services/aiGateway', () => ({
 
 import {
     ArchitecteFloatingBar,
+    SCULPTURE_YIELD_RETURN_MS,
     extractVideoQuery,
     isVideoRequest,
 } from '../components/architecte/ArchitecteFloatingBar';
@@ -756,5 +757,43 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         await ecrire('Ferme la vidéo');
         await waitFor(() => expect(screen.queryByTitle(/Vidéos pour/)).toBeNull());
         expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+describe('Retrait pendant la saisie (zéro obstruction sur le fil)', () => {
+    it('la sculpture se réduit à une pastille quand une zone de saisie de MokNet a le focus, et revient après le délai', async () => {
+        vi.useFakeTimers();
+        try {
+            monter();
+            const champ = document.createElement('textarea');
+            champ.setAttribute('data-testid', 'composeur-externe');
+            document.body.appendChild(champ);
+            expect(screen.getByTestId('architecte-ancrage')).toHaveAttribute('data-retrait', 'false');
+            await act(async () => { champ.focus(); });
+            expect(screen.getByTestId('architecte-ancrage')).toHaveAttribute('data-retrait', 'true');
+            expect(screen.getByTestId('architecte-flottant').className).toContain('scale-[.34]');
+            await act(async () => { champ.blur(); });
+            // Le clic qui suit la saisie (« Publier ») a le temps d'atteindre sa cible.
+            expect(screen.getByTestId('architecte-ancrage')).toHaveAttribute('data-retrait', 'true');
+            await act(async () => { vi.advanceTimersByTime(SCULPTURE_YIELD_RETURN_MS + 10); });
+            expect(screen.getByTestId('architecte-ancrage')).toHaveAttribute('data-retrait', 'false');
+            expect(screen.getByTestId('architecte-flottant').className).not.toContain('scale-[.34]');
+            champ.remove();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('la propre zone de saisie de l’Architecte ne le fait pas se retirer', async () => {
+        monter();
+        ouvrir();
+        const boutonEcrire = await screen.findByRole('button', { name: /Écrire/ });
+        fireEvent.click(boutonEcrire);
+        const saisie = await screen.findByTestId('architecte-saisie-ligne');
+        const champ = saisie.querySelector('input, textarea') as HTMLElement;
+        await act(async () => { champ.focus(); });
+        // Ouverte, la sculpture garde sa taille : l'attribut n'existe que fermée, et aucune classe de retrait n'est posée.
+        expect(screen.getByTestId('architecte-flottant').className).not.toContain('scale-[.34]');
     });
 });

@@ -157,7 +157,7 @@ function zeroIsGood(
  * constante a dérivé. Sans ce test, la ligne « schéma versionné » finirait
  * par mentir dans le sens rassurant — exactement ce qu'on cherche à empêcher.
  */
-export const VERSIONED_TABLE_COUNT = 2;
+export const VERSIONED_TABLE_COUNT = 3;
 
 export const EVALUATORS: Record<string, Evaluator> = {
 

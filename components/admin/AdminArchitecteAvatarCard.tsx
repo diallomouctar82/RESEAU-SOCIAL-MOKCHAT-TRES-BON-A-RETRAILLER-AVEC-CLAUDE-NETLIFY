@@ -172,8 +172,9 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
             </p>
 
             <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-start">
-                {/* Aperçu réel — le composant lui-même. */}
-                <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-[#0f172a]">
+                {/* Aperçu réel — le composant lui-même. Sur téléphone, il passe SOUS les
+                    réglages : l'option « depuis une photo » est la première chose visible. */}
+                <div className="order-2 lg:order-none flex flex-col items-center gap-3 p-4 rounded-2xl bg-[#0f172a]">
                     <ArchitecteAvatar
                         config={draft}
                         presence={demoLevel > 0.02 ? 'speaking' : 'rest'}
@@ -201,7 +202,7 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                     </p>
                 </div>
 
-                <div className="space-y-5">
+                <div className="order-1 lg:order-none space-y-5">
                     {/* 0. CRÉER OU REMPLACER L'AVATAR VIVANT DEPUIS UNE PHOTO
                         (Direction, 05/09/2026). Tout se passe ICI, dans la carte :
                         aucun panneau par-dessus l'application. */}
