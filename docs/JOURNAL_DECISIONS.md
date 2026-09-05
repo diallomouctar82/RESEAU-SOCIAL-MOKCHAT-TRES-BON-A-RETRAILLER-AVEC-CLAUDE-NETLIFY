@@ -1256,8 +1256,16 @@ Chaque décision respecte le formalisme strict suivant :
   quelle » pour une image distante qui refuse ses pixels. Non traités,
   laissés à l'arbitrage de la Direction : compteur partagé d'`inert` entre
   dialogues (aucun cas simultané aujourd'hui), indicateur de progression
-  de l'export vidéo. Contre-vérification indépendante demandée sur la tête
-  corrigée avant fusion. Autocontrôle du
+  de l'export vidéo. **Contre-vérification indépendante** sur la tête
+  corrigée : les cinq constats confirmés corrigés (contre-épreuves rejouées
+  sans modification), mais une régression introduite par la correction du
+  constat 2 — la colonne de grille de 40 px sur tablette / téléphone
+  écrasait l'avatar en 40 × 44 px (mesuré), alors que l'avatar ne doit pas
+  être touché ; colonne remise à 44 px dans la requête et son repli,
+  re-mesuré 44 × 44 sur les trois écrans, garde ajoutée au test CSS et au
+  README. Deux mineurs traités dans la foulée : frappe du titre et du
+  sous-titre comptée comme un seul geste d'historique, message distinct
+  quand l'IA ne propose aucun changement. Autocontrôle du
   producteur sur les captures : deux défauts trouvés et corrigés avant la
   PR (aperçu du studio rogné et barre des familles écrasée sur téléphone —
   même cause, la compression des enfants flex de la feuille). Livré par la

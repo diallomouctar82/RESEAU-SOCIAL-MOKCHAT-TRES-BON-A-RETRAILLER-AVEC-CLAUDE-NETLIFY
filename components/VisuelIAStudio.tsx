@@ -253,7 +253,8 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                 const nouveaux = reglagesDepuisReponse(reponse, reglages);
                 /* constat 3 de la revue : `{}` (réponse vide de la passerelle
                    en mode JSON) ne doit jamais passer pour un succès */
-                if (!nouveaux || !reglagesModifies(nouveaux, reglages)) throw new Error("L'IA n'a renvoyé aucun réglage exploitable. Précisez la consigne (par exemple « peau douce, lumière dorée ») ou passez en réglages manuels.");
+                if (!nouveaux) throw new Error("L'IA n'a renvoyé aucun réglage exploitable. Précisez la consigne (par exemple « peau douce, lumière dorée ») ou passez en réglages manuels.");
+                if (!reglagesModifies(nouveaux, reglages)) throw new Error("L'IA n'a proposé aucun changement par rapport aux réglages actuels. Précisez la consigne ou passez en réglages manuels.");
                 appliquer(nouveaux);
                 setMessage({ type: 'ok', texte: 'Réglages appliqués par l\'IA — ajustez-les à la main si besoin, puis insérez.' });
             } catch (e) {
@@ -506,8 +507,8 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                             <>
                                 <h3><Type size={13} />Texte <span>titre, sous-titre, police, position</span></h3>
                                 <div className="vis-texte">
-                                    <input type="text" value={reglages.titre} maxLength={120} placeholder="Titre sur l'image" aria-label="Titre sur l'image" onChange={(e) => appliquer({ titre: e.target.value })} />
-                                    <input type="text" value={reglages.sousTitre} maxLength={160} placeholder="Sous-titre (facultatif)" aria-label="Sous-titre" onChange={(e) => appliquer({ sousTitre: e.target.value })} />
+                                    <input type="text" value={reglages.titre} maxLength={120} placeholder="Titre sur l'image" aria-label="Titre sur l'image" onChange={(e) => appliquer({ titre: e.target.value }, 'titre')} />
+                                    <input type="text" value={reglages.sousTitre} maxLength={160} placeholder="Sous-titre (facultatif)" aria-label="Sous-titre" onChange={(e) => appliquer({ sousTitre: e.target.value }, 'sousTitre')} />
                                 </div>
                                 <div className="vis-puces" role="group" aria-label="Police">
                                     {(Object.keys(POLICES) as (keyof typeof POLICES)[]).map((k) => (

@@ -296,7 +296,9 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(decl(dans('.a7-medias-bas'), 'display')).toBe('flex');
     // La grille à deux colonnes vise `.a7-grille`, jamais `.a7-comp` : une
     // règle sur le conteneur lui-même serait morte (revue indépendante).
-    expect(decl(dans('.a7-grille'), 'grid-template-columns')).toBe('40px minmax(0, 1fr)');
+    // Première colonne à 44 px : l'avatar (w-11 = 44 px) ne doit jamais être
+    // écrasé par une colonne plus étroite (contre-vérification, constat A).
+    expect(decl(dans('.a7-grille'), 'grid-template-columns')).toBe('44px minmax(0, 1fr)');
     expect(dans('.a7-comp')).toBeUndefined();
     // Sur téléphone seules les icônes des médias perdent leur libellé ; les
     // quatre actions IA gardent leur nom et le compteur reste visible.
@@ -315,7 +317,7 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(railRepli).toBe('none');
     let grilleRepli: string | undefined;
     media?.walkRules('.a7-grille', (r) => { r.walkDecls('grid-template-columns', (d) => { grilleRepli = d.value; }); });
-    expect(grilleRepli).toBe('40px minmax(0, 1fr)');
+    expect(grilleRepli).toBe('44px minmax(0, 1fr)');
   });
 
   it('le survol n’existe que pour les vrais pointeurs, le pouls d’écoute s’arrête sous prefers-reduced-motion', () => {

@@ -45,12 +45,12 @@ l'application appartient à la Direction.
 
 | Mesure | Avant (`origin/main` 0f384b3) | Après (branche) |
 | :--- | :--- | :--- |
-| Avatar (logo VS) : classes | `w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20` | **identiques**, 44 × 44 px |
+| Avatar (logo VS) : classes et boîte | `w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20`, 44 × 44 px | **identiques**, 44 × 44 px sur les trois écrans (la contre-vérification avait relevé 40 × 44 sur tablette et téléphone avec une colonne de grille de 40 px ; colonne remise à 44 px, re-mesuré) |
 | Invite du champ | « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. » | **identique** |
 | Boutons visibles dans le composeur, ordinateur | 7 (Assistant IA, Photo, Vidéo, Document, Voix, Brouillon, Publier) | **11** : Photo, Vidéo, Document, Voix (rail), Assistant IA Pré-Publication (étincelle), Améliorer le style, Traduire, Hashtags, Visuel IA, Brouillon, Publier |
 | Boutons visibles, tablette et téléphone | 7 | 11 (les médias passent sous le champ) |
 | Cibles de moins de 40 px de haut | **7 sur 7** (28 à 34 px ; 33 × 33 px sur téléphone) | **0** (orbes de 40 px dans des boutons d'au moins 44 px) |
-| Largeur du champ, ordinateur / tablette / téléphone | 1020 / 400 / 258 px | 927 / 408 / 266 px (après la correction de la revue : la grille à deux colonnes s'applique vraiment sur tablette et téléphone — 386 / 244 px avant correction) |
+| Largeur du champ, ordinateur / tablette / téléphone | 1020 / 400 / 258 px | 927 / 404 / 262 px (après la correction de la revue : la grille à deux colonnes s'applique vraiment sur tablette et téléphone — 386 / 244 px avant correction) |
 | Hauteur du champ, ordinateur / tablette / téléphone | 67 / 67 / 67 px | 150 / 96 / 96 px |
 | Hauteur de la carte, ordinateur / tablette / téléphone | 212 / 288 / 325 px | 390 / 510 / 555 px (actions IA nommées sur deux lignes sur tablette et téléphone) |
 | Rail latéral / ligne de médias sous le champ | — | ordinateur : rail visible, ligne masquée ; tablette et téléphone : rail masqué, ligne visible (icônes seules, noms accessibles portés par les boutons) |

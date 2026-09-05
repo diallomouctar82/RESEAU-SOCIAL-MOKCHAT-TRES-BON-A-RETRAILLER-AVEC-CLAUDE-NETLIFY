@@ -236,6 +236,15 @@ describe('studio « Visuel IA » (DEC-2026-061, B10)', () => {
     fireEvent.click(bouton(/^Annuler/));
     expect(curseur('Peau douce').value).toBe('0');
     expect(bouton(/^Annuler/)).toBeDisabled();
+
+    // La frappe d'un titre est un seul geste, pas une entrée par lettre.
+    fireEvent.click(bouton('Texte'));
+    const titre = screen.getByRole('textbox', { name: "Titre sur l'image" }) as HTMLInputElement;
+    for (const v of ['C', 'Ca', 'Cam', 'Camp']) fireEvent.change(titre, { target: { value: v } });
+    expect(titre.value).toBe('Camp');
+    fireEvent.click(bouton(/^Annuler/));
+    expect((screen.getByRole('textbox', { name: "Titre sur l'image" }) as HTMLInputElement).value).toBe('');
+    expect(bouton(/^Annuler/)).toBeDisabled();
   });
 
   it('rend le focus au déclencheur à la fermeture (revue indépendante, constat 4)', async () => {

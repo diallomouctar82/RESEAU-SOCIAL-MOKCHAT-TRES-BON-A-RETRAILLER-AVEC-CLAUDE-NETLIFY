@@ -105,12 +105,12 @@
       "top": 143
     },
     "avatar": {
-      "l": 40,
+      "l": 44,
       "h": 44,
       "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
     },
     "champ": {
-      "l": 408,
+      "l": 404,
       "h": 96,
       "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
     },
@@ -204,12 +204,12 @@
       "top": 61
     },
     "avatar": {
-      "l": 40,
+      "l": 44,
       "h": 44,
       "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
     },
     "champ": {
-      "l": 266,
+      "l": 262,
       "h": 96,
       "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
     },

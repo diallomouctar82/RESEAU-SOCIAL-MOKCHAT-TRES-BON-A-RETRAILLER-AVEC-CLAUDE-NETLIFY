@@ -2364,9 +2364,10 @@
       /* Telephone : le rail devient une ligne sous le champ, libelles des orbes masques */
       /* Telephone : le rail devient une ligne d'icones sous le champ ; les
          quatre actions IA gardent leur nom (elles passent sur deux lignes),
-         le compteur reste visible. */
+         le compteur reste visible. La colonne de l'avatar reste a 44 px :
+         plus etroite, elle ecraserait l'image (max-width: 100% du preflight). */
       @container a7 (max-width: 560px) {
-        .a7-grille { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+        .a7-grille { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
         .a7-rail { display: none; }
         .a7-medias-bas { display: flex; flex: 1 0 100%; }
         .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
@@ -2378,7 +2379,7 @@
       }
       @supports not (container-type: inline-size) {
         @media (max-width: 639px) {
-          .a7-grille { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+          .a7-grille { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
           .a7-rail { display: none; }
           .a7-medias-bas { display: flex; flex: 1 0 100%; }
           .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
