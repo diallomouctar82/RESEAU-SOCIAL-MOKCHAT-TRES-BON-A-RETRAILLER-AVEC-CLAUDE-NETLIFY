@@ -5,7 +5,7 @@ variantes de la série A) et **B10 « Plein écran sombre »** pour le studio
 Visuel IA intégré à la publication (parmi dix variantes de la série B).
 Produites par le harnais local **non versionné** (Layout + SocialFeed rendus
 sans Supabase, `?tab=social`) sur `origin/main` (**avant**, `0f384b3`) et sur
-la branche (**après**), dans Chromium headless via Playwright, à **1440×900**
+la branche (**après**, tête corrigée après la revue indépendante), dans Chromium headless via Playwright, à **1440×900**
 (ordinateur), **820×1180, densité 2** (tablette) et **390×844, densité 2**
 (téléphone). Le composeur est amené en haut de la zone de contenu avant
 chaque capture ; les fichiers `-composeur` sont la carte seule.
@@ -24,7 +24,7 @@ synthétique** dessinée pour la démonstration (aucune personne réelle).
 | Ordinateur, studio en réglages manuels (Portrait pro + Golden hour + vignette 35 + titre et sous-titre) | — | `apres-ordinateur-studio-manuel.png` |
 | Ordinateur, aperçu « Avant » / « Après » | — | `apres-ordinateur-studio-avant.png` / `apres-ordinateur-studio-apres.png` |
 | Ordinateur, photo retouchée insérée dans la publication (studio fermé) | — | `apres-ordinateur-inseree.png` |
-| Le composeur seul, tablette (carte de 500 px : médias sous le champ, libellés masqués) | `avant-tablette-composeur.png` | `apres-tablette-composeur.png` |
+| Le composeur seul, tablette (carte de 500 px : médias en icônes sous le champ, actions IA nommées en grille 2 × 2) | `avant-tablette-composeur.png` | `apres-tablette-composeur.png` |
 | Tablette, studio en réglages manuels | — | `apres-tablette-studio-manuel.png` |
 | Réseau MOC, téléphone (page) | `avant-telephone.png` | `apres-telephone.png` |
 | Le composeur seul, téléphone | `avant-telephone-composeur.png` | `apres-telephone-composeur.png` |
@@ -50,10 +50,12 @@ l'application appartient à la Direction.
 | Boutons visibles dans le composeur, ordinateur | 7 (Assistant IA, Photo, Vidéo, Document, Voix, Brouillon, Publier) | **11** : Photo, Vidéo, Document, Voix (rail), Assistant IA Pré-Publication (étincelle), Améliorer le style, Traduire, Hashtags, Visuel IA, Brouillon, Publier |
 | Boutons visibles, tablette et téléphone | 7 | 11 (les médias passent sous le champ) |
 | Cibles de moins de 40 px de haut | **7 sur 7** (28 à 34 px ; 33 × 33 px sur téléphone) | **0** (orbes de 40 px dans des boutons d'au moins 44 px) |
+| Largeur du champ, ordinateur / tablette / téléphone | 1020 / 400 / 258 px | 927 / 408 / 266 px (après la correction de la revue : la grille à deux colonnes s'applique vraiment sur tablette et téléphone — 386 / 244 px avant correction) |
 | Hauteur du champ, ordinateur / tablette / téléphone | 67 / 67 / 67 px | 150 / 96 / 96 px |
-| Hauteur de la carte, ordinateur / tablette / téléphone | 212 / 288 / 325 px | 382 / 404 / 404 px |
-| Rail latéral / ligne de médias sous le champ | — | ordinateur : rail visible, ligne masquée ; tablette et téléphone : rail masqué, ligne visible |
-| Compteur de caractères | — | ordinateur : « 0 caractère » puis « 102 caractères » ; masqué sur tablette et téléphone |
+| Hauteur de la carte, ordinateur / tablette / téléphone | 212 / 288 / 325 px | 390 / 510 / 555 px (actions IA nommées sur deux lignes sur tablette et téléphone) |
+| Rail latéral / ligne de médias sous le champ | — | ordinateur : rail visible, ligne masquée ; tablette et téléphone : rail masqué, ligne visible (icônes seules, noms accessibles portés par les boutons) |
+| Actions IA sur tablette et téléphone | — | quatre orbes **nommées** (Améliorer le style, Traduire, Hashtags, Visuel IA) en grille 2 × 2, rien ne défile ni ne se cache |
+| Compteur de caractères | — | « 0 caractère » puis « 102 caractères », visible sur les trois écrans |
 | Visibilité / catégorie par défaut | 🌐 Public / Tech & Innovation | **identiques** (mêmes `<select>`, mêmes options) |
 | Orbe « Traduire » | — | modale « Assistant IA Pré-Publication Mooc » ouverte sur « Choisissez la langue cible » ; fermée ensuite |
 | Studio Visuel IA (feuille) | — | ordinateur 1040 × 817 px centrée ; tablette 784 × 901 px ; téléphone **plein écran** 390 × 844 px ; racine `#root` inerte ; focus sur « Fermer le studio » |

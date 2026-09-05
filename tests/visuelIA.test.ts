@@ -85,6 +85,11 @@ describe('réglages : bornage et lecture de la réponse de l’IA', () => {
     expect(reglagesDepuisReponse('{"exposition": 10', REGLAGES_DEFAUT)).toBeNull();
     expect(reglagesDepuisReponse('', REGLAGES_DEFAUT)).toBeNull();
     expect(reglagesDepuisReponse('[1,2]', REGLAGES_DEFAUT)).toBeNull();
+    // « {} » (réponse vide de la passerelle en mode JSON) et un objet sans
+    // aucune clé connue ne sont pas des réglages : jamais un faux succès.
+    expect(reglagesDepuisReponse('{}', REGLAGES_DEFAUT)).toBeNull();
+    expect(reglagesDepuisReponse('{"foo": 1, "bar": "x"}', REGLAGES_DEFAUT)).toBeNull();
+    expect(reglagesDepuisReponse('{"foo": 1, "grain": 12}', REGLAGES_DEFAUT)?.grain).toBe(12);
   });
 
   it('demande à l’IA des RÉGLAGES en JSON seul, avec les clés exactes du modèle', () => {
@@ -165,12 +170,14 @@ describe('pipeline de pixels', () => {
     expect(moyenne(sombre)[0]).toBeLessThan(90);
   });
 
-  it('le look « noir » désature complètement (R = G = B)', () => {
-    const d = imageUnie(L, H, [200, 80, 60]);
-    appliquerPixels(d, L, H, normaliserReglages({ look: 'noir' }));
-    const [r, g, b] = pixel(d, L, 12, 8);
-    expect(Math.abs(r - g)).toBeLessThanOrEqual(1);
-    expect(Math.abs(g - b)).toBeLessThanOrEqual(1);
+  it('le look « noir » désature complètement (R = G = B), même avec une saturation demandée', () => {
+    for (const saturation of [0, 50]) {
+      const d = imageUnie(L, H, [200, 80, 60]);
+      appliquerPixels(d, L, H, normaliserReglages({ look: 'noir', saturation }));
+      const [r, g, b] = pixel(d, L, 12, 8);
+      expect(Math.abs(r - g), `saturation ${saturation}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(g - b), `saturation ${saturation}`).toBeLessThanOrEqual(1);
+    }
   });
 
   it('la saturation négative rapproche les canaux, la température réchauffe (R monte, B descend)', () => {

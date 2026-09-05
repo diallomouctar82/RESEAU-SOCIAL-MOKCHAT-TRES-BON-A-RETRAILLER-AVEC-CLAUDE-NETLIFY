@@ -1215,15 +1215,54 @@ Chaque décision respecte le formalisme strict suivant :
   (`.vis-feuille > * { flex: none }` — la feuille défile, l'aperçu et la
   barre des familles ne s'écrasent jamais), plein écran ≤ 639 px. Couche
   aqua régénérée. 51 tests dédiés.
-* **Contrôle indépendant** (producteur ≠ contrôleur) : revue de code
-  indépendante lancée sur le diff complet (diff, typage, tests, build,
-  accessibilité, CSS, pipeline, sécurité) ; ses constats et leurs
-  corrections seront consignés ici avant toute fusion. Autocontrôle du
+* **Contrôle indépendant** (producteur ≠ contrôleur) : une revue de code
+  indépendante a lu le diff complet, exécuté typage, tests et build,
+  comparé le composeur élément par élément avec `origin/main` (avatar,
+  champ, sélecteurs, entrées de fichier, aperçus, retour vocal, conditions
+  de Brouillon / Publier, bascule Voix : tous conservés, aucun bouton
+  factice), calculé les contrastes, et rendu « À CORRIGER » : un
+  bloquant, quatre importants, quinze mineurs — les cinq premiers corrigés
+  et couverts par des tests, dix mineurs corrigés dans la foulée. (1)
+  BLOQUANT — le studio se remettait à zéro (image générée comprise) à
+  chaque re-rendu du parent, l'effet d'ouverture dépendant de `onFermer`
+  recréée à chaque rendu de SocialFeed (une notification temps réel
+  suffisait) ; corrigé : effets dépendant de `ouvert` seul, gestionnaires
+  et props lus par des refs, `useCallback` côté SocialFeed, test « re-rendu
+  du parent → réglages conservés ». (2) IMPORTANT — la requête de conteneur
+  `@container a7` visait `.a7-comp`, qui est le conteneur lui-même : une
+  requête de conteneur ne peut styler que ses descendants, la grille à deux
+  colonnes de tablette / téléphone n'était jamais appliquée (champ de 244
+  px au lieu de 266 sur téléphone, mesuré) et le test CSS vérifiait le
+  texte d'une règle morte ; corrigé : la carte reste le conteneur, la
+  grille est son enfant `.a7-grille`, test qui refuse toute règle
+  `.a7-comp` dans la requête. (3) IMPORTANT — une réponse `{}` de la
+  passerelle (mode JSON sans JSON) passait pour un succès ; corrigé :
+  `reglagesDepuisReponse` renvoie `null` sans clé connue et le studio
+  refuse un résultat sans changement, avec message honnête. (4) IMPORTANT
+  — le focus n'était pas rendu au déclencheur à la fermeture (il tombait
+  sur `<body>`) ; corrigé : déclencheur mémorisé à l'ouverture et
+  refocalisé après le retrait d'`inert`. (5) IMPORTANT — export vidéo :
+  type MIME et extension faux hors WebM (Safari produit du MP4), son perdu
+  et filtres ignorés en silence ; corrigé : type réel de l'enregistreur,
+  refus explicite sans `captureStream` sur la vidéo (son) et quand le
+  canvas ne sait pas appliquer les filtres demandés, garde-fous (fin après
+  début, délai de positionnement, vitesse restaurée). Mineurs corrigés :
+  actions IA nommées et compteur visibles sur téléphone (grille 2 × 2),
+  cibles des sélecteurs (28 px), orbe d'or assombrie (contraste), anneau de
+  focus non rogné, historique par geste (un glissé = une entrée, sans effet
+  de bord dans un updater), durée vidéo lue à `loadedmetadata`, URL `blob:`
+  remplacées révoquées, `100dvh`, look « noir » cohérent entre aperçu et
+  pipeline, fond blanc sous les PNG transparents, repli « Insérer telle
+  quelle » pour une image distante qui refuse ses pixels. Non traités,
+  laissés à l'arbitrage de la Direction : compteur partagé d'`inert` entre
+  dialogues (aucun cas simultané aujourd'hui), indicateur de progression
+  de l'export vidéo. Contre-vérification indépendante demandée sur la tête
+  corrigée avant fusion. Autocontrôle du
   producteur sur les captures : deux défauts trouvés et corrigés avant la
   PR (aperçu du studio rogné et barre des familles écrasée sur téléphone —
   même cause, la compression des enfants flex de la feuille). Livré par la
-  PR #93 (branche `claude/cleanup-home-interface-szp8qv`, tête `8015d58`) :
-  typage 0 erreur, 1228/1228 tests (86 fichiers), build OK, captures
+  PR #93 (branche `claude/cleanup-home-interface-szp8qv`) :
+  typage 0 erreur, 1233/1233 tests (86 fichiers, 57 dédiés), build OK, captures
   avant/après mesurées à 1440×900, 820×1180 et 390×844
   (`docs/captures/2026-09-05-composeur-a7-studio-b10/` : 11 boutons dans
   l'ordre, 0 cible sous 40 px contre 7 sur 7 avant, rail / ligne selon

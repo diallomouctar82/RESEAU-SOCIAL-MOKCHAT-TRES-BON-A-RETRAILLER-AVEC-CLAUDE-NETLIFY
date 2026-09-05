@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Heart, MessageCircle, Share2, MoreHorizontal, Plus, Sparkles, TrendingUp, 
   Radio, PlayCircle, Video, Play, Users, Trophy, UserPlus, Calendar, Languages, 
@@ -1590,16 +1590,23 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   // DEC-2026-061 — ce que le studio « Visuel IA » renvoie remplace le média
   // en attente : même chemin que handleImageSelect / handleVideoSelect (URL
   // d'aperçu + fichier téléversé à la publication par uploadContentMedia).
-  const insererVisuel = (resultat: ResultatVisuel) => {
+  // Identités stables (useCallback) : le studio ne doit jamais voir un
+  // nouveau gestionnaire à chaque rendu du fil. L'URL blob remplacée est
+  // révoquée (elle n'est plus référencée nulle part).
+  const insererVisuel = useCallback((resultat: ResultatVisuel) => {
     if (resultat.image) {
+      if (newPostImage && newPostImage.startsWith('blob:') && newPostImage !== resultat.image.url) URL.revokeObjectURL(newPostImage);
       setNewPostImage(resultat.image.url);
-      setNewPostImageFile(resultat.image.fichier);
+      setNewPostImageFile(resultat.image.fichier ?? null);
     }
     if (resultat.video) {
+      if (newPostVideo && newPostVideo.startsWith('blob:') && newPostVideo !== resultat.video.url) URL.revokeObjectURL(newPostVideo);
       setNewPostVideo(resultat.video.url);
       setNewPostVideoFile(resultat.video.fichier);
     }
-  };
+  }, [newPostImage, newPostVideo]);
+  const fermerStudio = useCallback(() => setIsStudioOpen(false), []);
+  const ouvrirStudioCreatif = useCallback(() => onNavigate?.('studio'), [onNavigate]);
 
   // DEC-2026-061 — les quatre médias du composeur A7 (Photo, Vidéo,
   // Document, Voix), rendus deux fois (rail à gauche sur ordinateur, ligne
@@ -1703,6 +1710,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               ordinateur, ligne sous le champ sur téléphone — depuis la même
               fonction `outilsMedias` ; la requête de conteneur `a7` n'en
               affiche jamais qu'un seul (index.html, bloc COMPOSEUR A7). */}
+
+          {/* La carte (`.a7-comp`) est le conteneur nommé `a7` ; la grille
+              est son enfant `.a7-grille` : une requête de conteneur ne peut
+              pas styler son propre conteneur, seulement ses descendants
+              (revue indépendante, constat 2 — la grille à deux colonnes du
+              téléphone ne s'appliquait jamais). */}
+          <div className="a7-grille">
 
           {/* Colonne 1 — l'avatar : intouchable. */}
           <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20" />
@@ -1897,6 +1911,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               </div>
             </div>
 
+          </div>
           </div>
         </div>
       )}
@@ -3110,12 +3125,12 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           par le lien « Besoin de plus ? » quand la navigation existe. */}
       <VisuelIAStudio
         ouvert={isStudioOpen}
-        onFermer={() => setIsStudioOpen(false)}
+        onFermer={fermerStudio}
         image={newPostImage}
         video={newPostVideo}
         texteDuPost={newPostContent}
         onInserer={insererVisuel}
-        onOuvrirStudioCreatif={onNavigate ? () => onNavigate('studio') : undefined}
+        onOuvrirStudioCreatif={onNavigate ? ouvrirStudioCreatif : undefined}
       />
 
       {/* Member Personal Space Profile Modal */}

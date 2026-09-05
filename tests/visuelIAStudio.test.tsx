@@ -196,8 +196,71 @@ describe('studio « Visuel IA » (DEC-2026-061, B10)', () => {
     await waitFor(() => expect(analyzeImage).toHaveBeenCalledTimes(1));
     expect(vi.mocked(analyzeImage).mock.calls[0][2]).toBe('Consigne du membre : Mon texte de publication');
     const alerte = await screen.findByRole('alert');
-    expect(alerte.textContent).toMatch(/n'a pas renvoyé de réglages exploitables/);
+    expect(alerte.textContent).toMatch(/aucun réglage exploitable/);
     expect(bouton(/Réinitialiser/)).toBeDisabled();
+  });
+
+  it('une réponse « {} » de la passerelle (mode JSON sans JSON) est une erreur, pas un succès', async () => {
+    vi.mocked(analyzeImage).mockResolvedValueOnce('{}');
+    monter();
+    await attendreCanvas();
+    fireEvent.click(bouton('Appliquer'));
+    const alerte = await screen.findByRole('alert');
+    expect(alerte.textContent).toMatch(/aucun réglage exploitable/);
+    expect(screen.queryByText(/Réglages appliqués par l'IA/)).toBeNull();
+    expect(bouton(/^Annuler/)).toBeDisabled();
+    expect(bouton(/Réinitialiser/)).toBeDisabled();
+  });
+
+  it('ne se remet pas à zéro quand le parent se re-rend avec de nouveaux gestionnaires (revue indépendante, constat 1)', async () => {
+    const { rerender, props } = monter();
+    await attendreCanvas();
+    fireEvent.click(bouton('Réglages manuels'));
+    fireEvent.click(bouton('Lumière'));
+    fireEvent.change(curseur('Exposition'), { target: { value: '30' } });
+    expect(curseur('Exposition').value).toBe('30');
+
+    rerender(<VisuelIAStudio {...props} onFermer={vi.fn()} onInserer={vi.fn()} texteDuPost="autre texte" />);
+    expect(curseur('Exposition').value).toBe('30');
+    expect(bouton('Réglages manuels').getAttribute('aria-pressed')).toBe('true');
+    expect(bouton(/Réinitialiser/)).toBeEnabled();
+    expect(document.querySelector('canvas.vis-canvas')).not.toBeNull();
+  });
+
+  it('un glissé de curseur ne fait qu’une entrée d’historique ; « Annuler » revient d’un coup au point de départ', async () => {
+    monter();
+    await attendreCanvas();
+    fireEvent.click(bouton('Réglages manuels'));
+    for (const v of ['10', '20', '35']) fireEvent.change(curseur('Peau douce'), { target: { value: v } });
+    expect(curseur('Peau douce').value).toBe('35');
+    fireEvent.click(bouton(/^Annuler/));
+    expect(curseur('Peau douce').value).toBe('0');
+    expect(bouton(/^Annuler/)).toBeDisabled();
+  });
+
+  it('rend le focus au déclencheur à la fermeture (revue indépendante, constat 4)', async () => {
+    const declencheur = document.createElement('button');
+    declencheur.textContent = 'Visuel IA';
+    document.body.appendChild(declencheur);
+    declencheur.focus();
+    expect(document.activeElement).toBe(declencheur);
+    const { rerender, props } = monter();
+    await waitFor(() => expect(document.activeElement?.className).toBe('vis-fermer'));
+    rerender(<VisuelIAStudio {...props} ouvert={false} />);
+    expect(document.activeElement).toBe(declencheur);
+    expect(document.getElementById('root')?.hasAttribute('inert')).toBe(false);
+    declencheur.remove();
+  });
+
+  it('une image distante qui refuse ses pixels peut être insérée telle quelle, sans retouche (constat 19)', async () => {
+    const url = 'https://images.exemple.test/casse.jpg';
+    const { onInserer, onFermer } = monter({ image: url });
+    await screen.findByRole('alert');
+    expect(bouton(/Insérer dans la publication/)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Insérer telle quelle, sans retouche' }));
+    expect(onInserer).toHaveBeenCalledTimes(1);
+    expect(onInserer.mock.calls[0][0]).toEqual({ image: { url } });
+    expect(onFermer).toHaveBeenCalledTimes(1);
   });
 
   it('mode Prompt sans photo : « Générer depuis le texte » appelle la passerelle et la photo générée devient retouchable', async () => {
@@ -300,6 +363,14 @@ describe('studio « Visuel IA » (DEC-2026-061, B10)', () => {
     fireEvent.click(bouton(/Insérer dans la publication/));
     const alerte = await screen.findByRole('alert');
     expect(alerte.textContent).toMatch(/ne sait pas ré-encoder la vidéo/);
+    expect(onInserer).not.toHaveBeenCalled();
+
+    // Une fin avant le début est refusée avant toute tentative d'export.
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Familles de réglages' })).getByRole('button', { name: 'Vidéo' }));
+    fireEvent.change(curseur('Début (s)'), { target: { value: '10' } });
+    fireEvent.change(curseur('Fin (s)'), { target: { value: '5' } });
+    fireEvent.click(bouton(/Insérer dans la publication/));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/La fin doit être après le début/);
     expect(onInserer).not.toHaveBeenCalled();
   });
 });

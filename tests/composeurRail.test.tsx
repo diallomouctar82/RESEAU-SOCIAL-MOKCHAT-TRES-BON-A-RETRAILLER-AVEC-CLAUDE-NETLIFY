@@ -86,8 +86,14 @@ describe('composeur « A7, rail latéral » (DEC-2026-061)', () => {
     const { comp, rail, bas, champ } = monter();
     expect(comp.className).toContain('a7-comp');
 
-    // 1. L'avatar : premier enfant, mêmes classes qu'avant, à l'octet près.
-    const avatar = comp.firstElementChild as HTMLImageElement;
+    // 0. La carte est le conteneur, la grille son unique enfant (une requête
+    //    de conteneur ne peut styler que les descendants du conteneur).
+    const grille = comp.firstElementChild as HTMLElement;
+    expect(grille.className).toBe('a7-grille');
+    expect(comp.children).toHaveLength(1);
+
+    // 1. L'avatar : premier enfant de la grille, mêmes classes qu'avant, à l'octet près.
+    const avatar = grille.firstElementChild as HTMLImageElement;
     expect(avatar.tagName).toBe('IMG');
     expect(avatar.getAttribute('src')).toBe('https://example.com/a.png');
     expect(avatar.getAttribute('alt')).toBe('Testeur MokNet');
@@ -270,11 +276,13 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(racine.nodes.length).toBeGreaterThan(20);
   });
 
-  it('le composeur est un conteneur nommé « a7 » en grille avatar | rail | corps', () => {
+  it('la carte est le conteneur nommé « a7 », la grille avatar | rail | corps est son enfant', () => {
     const comp = regle('.a7-comp');
     expect(decl(comp, 'container-type')).toBe('inline-size');
     expect(decl(comp, 'container-name')).toBe('a7');
-    expect(decl(comp, 'grid-template-columns')).toBe('44px auto minmax(0, 1fr)');
+    expect(decl(comp, 'display')).toBeUndefined();
+    expect(decl(regle('.a7-grille'), 'display')).toBe('grid');
+    expect(decl(regle('.a7-grille'), 'grid-template-columns')).toBe('44px auto minmax(0, 1fr)');
     expect(decl(regle('.a7-medias-bas'), 'display')).toBe('none');
     expect(decl(regle('.a7-corps'), 'min-width')).toBe('0');
   });
@@ -286,7 +294,15 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     const dans = (sel: string) => { let r: postcss.Rule | undefined; conteneur?.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
     expect(decl(dans('.a7-rail'), 'display')).toBe('none');
     expect(decl(dans('.a7-medias-bas'), 'display')).toBe('flex');
-    expect(decl(dans('.a7-comp'), 'grid-template-columns')).toBe('40px minmax(0, 1fr)');
+    // La grille à deux colonnes vise `.a7-grille`, jamais `.a7-comp` : une
+    // règle sur le conteneur lui-même serait morte (revue indépendante).
+    expect(decl(dans('.a7-grille'), 'grid-template-columns')).toBe('40px minmax(0, 1fr)');
+    expect(dans('.a7-comp')).toBeUndefined();
+    // Sur téléphone seules les icônes des médias perdent leur libellé ; les
+    // quatre actions IA gardent leur nom et le compteur reste visible.
+    expect(decl(dans('.a7-medias-bas .a7-lb'), 'display')).toBe('none');
+    expect(dans('.a7-ob .a7-lb')).toBeUndefined();
+    expect(dans('.a7-compteur')).toBeUndefined();
 
     let repli: postcss.AtRule | undefined;
     racine.walkAtRules('supports', (at) => { if (/not \(container-type: inline-size\)/.test(at.params)) repli = at; });
@@ -297,6 +313,9 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     let railRepli: string | undefined;
     media?.walkRules('.a7-rail', (r) => { r.walkDecls('display', (d) => { railRepli = d.value; }); });
     expect(railRepli).toBe('none');
+    let grilleRepli: string | undefined;
+    media?.walkRules('.a7-grille', (r) => { r.walkDecls('grid-template-columns', (d) => { grilleRepli = d.value; }); });
+    expect(grilleRepli).toBe('40px minmax(0, 1fr)');
   });
 
   it('le survol n’existe que pour les vrais pointeurs, le pouls d’écoute s’arrête sous prefers-reduced-motion', () => {
@@ -315,6 +334,7 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
   it('les boutons ont une taille de cible suffisante et un anneau de focus visible', () => {
     expect(decl(regle('.a7-ob'), 'min-width')).toBe('44px');
     expect(decl(regle('.a7-orbe'), 'width')).toBe('40px');
+    expect(decl(regle('.a7-sels select'), 'min-height')).toBe('28px');
     let focus = 0; racine.walkRules((r) => { if (/:focus-visible/.test(r.selector)) focus++; });
     expect(focus).toBeGreaterThanOrEqual(3);
   });

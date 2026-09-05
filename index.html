@@ -2258,9 +2258,10 @@
          Brouillon | Publier en groupe. Tout ce qui existait reste, seul
          l'habillage change. Meme orbe de cristal que la bande Aurore.
          =================================================================== */
-      .a7-comp {
-        container-type: inline-size;
-        container-name: a7;
+      /* La carte est le conteneur ; la grille est son enfant : une requete de
+         conteneur ne peut styler que les descendants du conteneur. */
+      .a7-comp { container-type: inline-size; container-name: a7; }
+      .a7-grille {
         display: grid;
         grid-template-columns: 44px auto minmax(0, 1fr);
         gap: 14px;
@@ -2286,8 +2287,8 @@
       .a7-orbe.or {
         color: #fff;
         background:
-          radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), rgba(255,255,255,0) 40%),
-          linear-gradient(160deg, hsl(42 70% 45%), hsl(30 70% 38%));
+          radial-gradient(circle at 32% 26%, rgba(255,255,255,.45), rgba(255,255,255,0) 40%),
+          linear-gradient(160deg, hsl(38 70% 38%), hsl(28 70% 32%));
         box-shadow: 0 8px 18px rgba(245,184,65,.4), 0 0 0 4px rgba(255,255,255,.35);
       }
       .a7-orbe.ecoute {
@@ -2334,7 +2335,7 @@
       .a7-sels select {
         appearance: none; -webkit-appearance: none;
         border: 0; background: transparent;
-        padding: 2px 22px 2px 0;
+        padding: 6px 22px 6px 0; min-height: 28px;
         font: inherit; font-weight: 700; font-size: 13px; color: var(--mir-ink-2, #3E6A76);
         background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233E6A76' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
         background-repeat: no-repeat; background-position: right 2px center;
@@ -2361,24 +2362,28 @@
       .a7-groupe button:disabled { opacity: .55; cursor: default; }
       .a7-groupe button:focus-visible { outline: 3px solid var(--mir-acc, #0F9EC2); outline-offset: -3px; }
       /* Telephone : le rail devient une ligne sous le champ, libelles des orbes masques */
+      /* Telephone : le rail devient une ligne d'icones sous le champ ; les
+         quatre actions IA gardent leur nom (elles passent sur deux lignes),
+         le compteur reste visible. */
       @container a7 (max-width: 560px) {
-        .a7-comp { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+        .a7-grille { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
         .a7-rail { display: none; }
         .a7-medias-bas { display: flex; flex: 1 0 100%; }
         .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
-        .a7-ob .a7-lb { display: none; }
-        .a7-ob { padding: 4px 3px; }
+        .a7-medias-bas .a7-lb { display: none; }
+        .a7-medias-bas .a7-ob { padding: 4px 3px; }
         .a7-rangee .a7-lab { display: none; }
-        .a7-rangee { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding: 2px; }
-        .a7-compteur { display: none; }
+        .a7-rangee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px 0; }
+        .a7-rangee .a7-ob { padding: 6px 4px; }
       }
       @supports not (container-type: inline-size) {
         @media (max-width: 639px) {
-          .a7-comp { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+          .a7-grille { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
           .a7-rail { display: none; }
           .a7-medias-bas { display: flex; flex: 1 0 100%; }
           .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
-          .a7-ob .a7-lb, .a7-rangee .a7-lab, .a7-compteur { display: none; }
+          .a7-medias-bas .a7-lb, .a7-rangee .a7-lab { display: none; }
+          .a7-rangee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -2557,7 +2562,7 @@
       .vis-inserer:disabled { opacity: .55; cursor: default; box-shadow: none; }
       @media (max-width: 639px) {
         .vis-voile { padding: 0; align-items: stretch; }
-        .vis-feuille { width: 100%; max-height: 100vh; border-radius: 0; border: 0; padding: 12px 12px 16px; }
+        .vis-feuille { width: 100%; max-height: 100vh; max-height: 100dvh; border-radius: 0; border: 0; padding: 12px 12px 16px; }
         .vis-apercu { max-height: 40vh; }
         .vis-canvas, .vis-video { max-height: 40vh; }
         .vis-outils { justify-content: flex-start; }

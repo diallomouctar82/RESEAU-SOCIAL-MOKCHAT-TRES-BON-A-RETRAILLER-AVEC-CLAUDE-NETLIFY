@@ -153,7 +153,11 @@ export function reglagesDepuisReponse(reponse: string, base: ReglagesVisuel): Re
     if (debut < 0 || fin <= debut) return null;
     try {
         const objet = JSON.parse(brut.slice(debut, fin + 1));
-        if (!objet || typeof objet !== 'object') return null;
+        if (!objet || typeof objet !== 'object' || Array.isArray(objet)) return null;
+        /* une réponse sans aucune clé connue (« {} » de la passerelle quand
+           le modèle ne produit pas de JSON) n'est pas un réglage */
+        const connues = Object.keys(REGLAGES_DEFAUT);
+        if (!Object.keys(objet as object).some((k) => connues.includes(k))) return null;
         return normaliserReglages(objet, base);
     } catch {
         return null;
@@ -240,7 +244,9 @@ export function appliquerPixels(donnees: Uint8ClampedArray, largeur: number, hau
     const flou = besoinFlou ? flouBoite(donnees, largeur, hauteur, Math.max(1, Math.round(Math.min(largeur, hauteur) / 160))) : null;
     const expo = 1 + r.exposition / 100;
     const contr = 1 + (r.contraste + look.contraste) / 100;
-    const sat = Math.max(0, 1 + (r.saturation + look.saturation) / 100);
+    /* look « noir » : désaturation totale, quelle que soit la saturation
+       demandée — comme le filtre CSS de l'aperçu vidéo (grayscale(1)) */
+    const sat = r.look === 'noir' ? 0 : Math.max(0, 1 + (r.saturation + look.saturation) / 100);
     const temp = r.temperature / 50, teinte = r.teinte / 50;
     const kOmbres = r.ombres / 100, kHautes = r.hautesLumieres / 100;
     const kPeau = (r.peauDouce / 100) * 0.75, kEclat = (r.eclat / 100) * 0.35, kCheveux = (r.brillanceCheveux / 100) * 0.4, kNet = (r.nettete / 100) * 0.9;
@@ -338,6 +344,9 @@ export function rendreImage(source: CanvasImageSource, largeurSource: number, ha
     cible.width = dims.largeur; cible.height = dims.hauteur;
     const ctx = cible.getContext('2d', { willReadFrequently: true });
     if (!ctx) return false;
+    /* fond blanc : un PNG transparent exporté en JPEG ne devient pas noir */
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, dims.largeur, dims.hauteur);
     ctx.drawImage(source, dims.source.sx, dims.source.sy, dims.source.sw, dims.source.sh, 0, 0, dims.largeur, dims.hauteur);
     if (reglagesModifies({ ...r, titre: '', sousTitre: '', cadrage: 'original', positionTexte: 'bas', tailleTexte: 50, policeTexte: 'outfit', debut: 0, fin: null, vitesse: 100 })) {
         const image = ctx.getImageData(0, 0, dims.largeur, dims.hauteur);

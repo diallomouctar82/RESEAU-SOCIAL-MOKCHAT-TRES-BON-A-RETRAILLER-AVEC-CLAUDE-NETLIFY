@@ -34,7 +34,10 @@ import {
  */
 
 export interface ResultatVisuel {
-    image?: { url: string; fichier: File };
+    /* `fichier` manque seulement pour « Insérer telle quelle » (image tierce
+       qui refuse la lecture de ses pixels) : l'URL est alors gardée comme
+       l'onglet Visuel de la modale le faisait déjà. */
+    image?: { url: string; fichier?: File };
     video?: { url: string; fichier: File };
 }
 
@@ -107,22 +110,48 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
     const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
     const [occupe, setOccupe] = useState<'' | 'analyse' | 'generation' | 'export'>('');
     const [message, setMessage] = useState<{ type: 'info' | 'erreur' | 'ok'; texte: string } | null>(null);
+    const [imageIndisponible, setImageIndisponible] = useState(false);
+    const [duree, setDuree] = useState(0);
     const feuilleRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const rendezVous = useRef<number | null>(null);
+    /* Refs tenues à jour : les effets d'ouverture ne dépendent que de
+       `ouvert`. Revue indépendante (constat 1) : quand ils dépendaient aussi
+       de `onFermer` (flèche recréée à chaque rendu du parent), une simple
+       notification temps réel re-rendait SocialFeed et remettait le studio à
+       zéro, image générée comprise. */
+    const onFermerRef = useRef(onFermer);
+    const propsRef = useRef({ image, video });
+    const reglagesRef = useRef(reglages);
+    const dernierGeste = useRef<{ cle: string | null; t: number }>({ cle: null, t: 0 });
+    useEffect(() => { onFermerRef.current = onFermer; }, [onFermer]);
+    useEffect(() => { propsRef.current = { image, video }; }, [image, video]);
+    useEffect(() => { reglagesRef.current = reglages; }, [reglages]);
 
-    /* ouverture : source par défaut, racine inerte, focus, Échap */
+    /* ouverture : état initial, lu une seule fois */
     useEffect(() => {
         if (!ouvert) return;
-        setSource(video && !image ? 'video' : 'photo');
-        setImageUrl(image);
+        const { image: img, video: vid } = propsRef.current;
+        setSource(vid && !img ? 'video' : 'photo');
+        setImageUrl(img);
+        setImageIndisponible(false);
         setReglages(REGLAGES_DEFAUT);
         setHistorique([]);
         setAvant(false);
         setMessage(null);
         setMode('prompt');
         setSection('visage');
+        setDuree(0);
+        dernierGeste.current = { cle: null, t: 0 };
+    }, [ouvert]);
+
+    /* ouverture : racine inerte, focus, Échap ; fermeture : focus rendu au
+       déclencheur (constat 4 de la revue : sans cela, le focus tombait sur
+       <body> et un lecteur d'écran repartait du haut de la page) */
+    useEffect(() => {
+        if (!ouvert) return;
+        const declencheur = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         const racine = racineApplication();
         racine?.setAttribute('inert', '');
         const t = window.setTimeout(() => {
@@ -130,21 +159,30 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
             premier?.focus();
         }, 30);
         const surTouche = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && feuilleRef.current?.contains(document.activeElement)) { e.stopPropagation(); onFermer(); }
+            if (e.key === 'Escape' && feuilleRef.current?.contains(document.activeElement)) { e.stopPropagation(); onFermerRef.current(); }
         };
         document.addEventListener('keydown', surTouche, true);
         return () => {
             window.clearTimeout(t);
             document.removeEventListener('keydown', surTouche, true);
             racine?.removeAttribute('inert');
+            if (declencheur && declencheur.isConnected) declencheur.focus();
         };
-    }, [ouvert, image, video, onFermer]);
+    }, [ouvert]);
 
     /* chargement de l'image source */
     useEffect(() => {
         if (!ouvert || !imageUrl) { setImageEl(null); return; }
         let vivant = true;
-        chargerImage(imageUrl).then((img) => { if (vivant) setImageEl(img); }).catch((e: Error) => { if (vivant) { setImageEl(null); setMessage({ type: 'erreur', texte: e.message }); } });
+        setImageIndisponible(false);
+        chargerImage(imageUrl).then((img) => { if (vivant) setImageEl(img); }).catch((e: Error) => {
+            if (!vivant) return;
+            setImageEl(null);
+            /* image distante qui refuse la lecture de ses pixels (CORS) : on
+               ne la perd pas, on propose de l'insérer telle quelle */
+            setImageIndisponible(/^https?:/i.test(imageUrl));
+            setMessage({ type: 'erreur', texte: e.message });
+        });
         return () => { vivant = false; };
     }, [ouvert, imageUrl]);
 
@@ -172,14 +210,29 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
         else if (!e.shiftKey && document.activeElement === dernier) { e.preventDefault(); premier.focus(); }
     };
 
-    const appliquer = (partiel: Partial<ReglagesVisuel>) => {
-        setReglages((courant) => { setHistorique((h) => [...h.slice(-19), courant]); return normaliserReglages({ ...courant, ...partiel }, courant); });
+    /* Historique : une entrée par geste (un glissé de curseur = une entrée,
+       pas une par tic), sans effet de bord dans un updater (constat 11). */
+    const appliquer = (partiel: Partial<ReglagesVisuel>, geste?: string) => {
+        const maintenant = Date.now();
+        const memeGeste = !!geste && dernierGeste.current.cle === geste && maintenant - dernierGeste.current.t < 900;
+        dernierGeste.current = { cle: geste ?? null, t: maintenant };
+        if (!memeGeste) { const avantGeste = reglagesRef.current; setHistorique((h) => [...h.slice(-19), avantGeste]); }
+        setReglages((courant) => normaliserReglages({ ...courant, ...partiel }, courant));
         setAvant(false);
     };
     const annuler = () => {
-        setHistorique((h) => { if (!h.length) return h; setReglages(h[h.length - 1]); return h.slice(0, -1); });
+        if (!historique.length) return;
+        const precedent = historique[historique.length - 1];
+        setHistorique((h) => h.slice(0, -1));
+        setReglages(precedent);
+        dernierGeste.current = { cle: null, t: 0 };
     };
-    const reinitialiser = () => { setHistorique((h) => [...h.slice(-19), reglages]); setReglages(REGLAGES_DEFAUT); setAvant(false); };
+    const reinitialiser = () => { setHistorique((h) => [...h.slice(-19), reglages]); setReglages(REGLAGES_DEFAUT); setAvant(false); dernierGeste.current = { cle: null, t: 0 }; };
+    const insererTelleQuelle = () => {
+        if (!imageUrl) return;
+        onInserer({ image: { url: imageUrl } });
+        onFermer();
+    };
 
     /* mode Prompt : l'IA renvoie des réglages ; sans photo, elle génère une image */
     const lancerPrompt = async () => {
@@ -198,7 +251,9 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                 const base64 = petit.toDataURL('image/jpeg', 0.8).split(',')[1];
                 const reponse = await analyzeImage(base64, 'image/jpeg', `Consigne du membre : ${texte}`, { jsonMode: true, systemInstruction: SYSTEME_PROMPT_REGLAGES });
                 const nouveaux = reglagesDepuisReponse(reponse, reglages);
-                if (!nouveaux) throw new Error("L'IA n'a pas renvoyé de réglages exploitables. Réessayez ou passez en réglages manuels.");
+                /* constat 3 de la revue : `{}` (réponse vide de la passerelle
+                   en mode JSON) ne doit jamais passer pour un succès */
+                if (!nouveaux || !reglagesModifies(nouveaux, reglages)) throw new Error("L'IA n'a renvoyé aucun réglage exploitable. Précisez la consigne (par exemple « peau douce, lumière dorée ») ou passez en réglages manuels.");
                 appliquer(nouveaux);
                 setMessage({ type: 'ok', texte: 'Réglages appliqués par l\'IA — ajustez-les à la main si besoin, puis insérez.' });
             } catch (e) {
@@ -241,22 +296,37 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
         }
         const v = videoRef.current;
         if (!v || !video) { setMessage({ type: 'info', texte: 'Ajoutez une vidéo avec « Vidéo » pour la retoucher.' }); return; }
+        if (reglages.fin !== null && reglages.fin <= reglages.debut) { setMessage({ type: 'erreur', texte: 'La fin doit être après le début.' }); return; }
         const canvas = document.createElement('canvas');
         const capture = (canvas as unknown as { captureStream?: (fps?: number) => MediaStream }).captureStream;
         if (typeof capture !== 'function' || typeof MediaRecorder === 'undefined') {
             setMessage({ type: 'erreur', texte: "Ce navigateur ne sait pas ré-encoder la vidéo. La vidéo d'origine restera telle quelle ; les réglages ne sont pas appliqués." });
             return;
         }
+        const captureSource = (v as unknown as { captureStream?: () => MediaStream }).captureStream;
+        if (typeof captureSource !== 'function') {
+            /* Safari : pas de captureStream sur <video>, donc pas de piste audio
+               possible — refuser vaut mieux qu'une vidéo muette sans prévenir
+               (constat 5 de la revue). */
+            setMessage({ type: 'erreur', texte: "Ce navigateur ne permet pas de conserver le son lors du ré-encodage. La vidéo d'origine reste telle quelle ; les réglages ne sont pas appliqués." });
+            return;
+        }
         setOccupe('export');
+        const vitesseAvant = v.playbackRate;
         try {
             const dims = dimensionsSortie(v.videoWidth, v.videoHeight, reglages.cadrage, 1280);
             canvas.width = dims.largeur; canvas.height = dims.hauteur;
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error('Canvas indisponible.');
+            const filtre = filtreCss(reglages);
+            const filtresPrisEnCharge = 'filter' in ctx;
+            if (!filtresPrisEnCharge && filtre !== filtreCss(REGLAGES_DEFAUT)) {
+                throw new Error("Ce navigateur ne sait pas appliquer la lumière et le look à une vidéo. Retirez ces réglages (le texte, le début / la fin et la vitesse restent possibles) ou utilisez Chrome ou Firefox.");
+            }
             const flux = capture.call(canvas, 30);
-            const fluxSource = (v as unknown as { captureStream?: () => MediaStream }).captureStream?.();
-            fluxSource?.getAudioTracks().forEach((piste) => flux.addTrack(piste));
-            const types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+            const fluxSource = captureSource.call(v);
+            fluxSource.getAudioTracks().forEach((piste) => flux.addTrack(piste));
+            const types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
             const mime = types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
             const enregistreur = new MediaRecorder(flux, mime ? { mimeType: mime } : undefined);
             const morceaux: Blob[] = [];
@@ -264,18 +334,21 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
             const fin = reglages.fin ?? v.duration;
             v.pause();
             v.currentTime = Math.min(reglages.debut, Math.max(0, v.duration - 0.1));
-            await new Promise<void>((res) => { const h = () => { v.removeEventListener('seeked', h); res(); }; v.addEventListener('seeked', h); });
+            await new Promise<void>((res, rej) => {
+                const garde = window.setTimeout(() => { v.removeEventListener('seeked', h); rej(new Error('La vidéo ne répond pas (positionnement impossible).')); }, 4000);
+                const h = () => { window.clearTimeout(garde); v.removeEventListener('seeked', h); res(); };
+                v.addEventListener('seeked', h);
+            });
             v.playbackRate = reglages.vitesse / 100;
-            const filtre = filtreCss(reglages);
             const termine = new Promise<void>((res) => { enregistreur.onstop = () => res(); });
             enregistreur.start(250);
             await v.play();
             await new Promise<void>((res) => {
                 const boucle = () => {
                     if (v.ended || v.currentTime >= fin) { res(); return; }
-                    try { (ctx as CanvasRenderingContext2D & { filter: string }).filter = filtre; } catch { /* filtre non pris en charge : image brute */ }
+                    if (filtresPrisEnCharge) ctx.filter = filtre;
                     ctx.drawImage(v, dims.source.sx, dims.source.sy, dims.source.sw, dims.source.sh, 0, 0, dims.largeur, dims.hauteur);
-                    (ctx as CanvasRenderingContext2D & { filter: string }).filter = 'none';
+                    if (filtresPrisEnCharge) ctx.filter = 'none';
                     dessinerTexte(ctx, dims.largeur, dims.hauteur, reglages);
                     requestAnimationFrame(boucle);
                 };
@@ -284,14 +357,21 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
             v.pause();
             enregistreur.stop();
             await termine;
-            const blob = new Blob(morceaux, { type: mime || 'video/webm' });
+            /* le type réel de l'enregistreur fait foi (Safari produit du MP4) */
+            const type = enregistreur.mimeType || mime || 'video/webm';
+            const blob = new Blob(morceaux, { type });
             if (!blob.size) throw new Error("Le navigateur n'a rien enregistré.");
-            const fichier = new File([blob], 'visuel-ia.webm', { type: blob.type });
+            const extension = /mp4/i.test(type) ? 'mp4' : 'webm';
+            const fichier = new File([blob], `visuel-ia.${extension}`, { type });
             onInserer({ video: { url: URL.createObjectURL(fichier), fichier } });
             onFermer();
         } catch (e) {
             setMessage({ type: 'erreur', texte: e instanceof Error ? e.message : "L'export vidéo a échoué." });
-        } finally { setOccupe(''); }
+        } finally {
+            v.playbackRate = vitesseAvant;
+            v.pause();
+            setOccupe('');
+        }
     };
 
     const filtreVideo = useMemo(() => (avant ? 'none' : filtreCss(reglages)), [avant, reglages]);
@@ -319,13 +399,16 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                             <canvas ref={canvasRef} className="vis-canvas" aria-label="Aperçu de la retouche" />
                         ) : (
                             <div className="vis-vide">
-                                {imageUrl ? <Loader2 size={22} className="animate-spin" /> : <ImageIcon size={26} />}
-                                <p>{imageUrl ? 'Chargement de la photo…' : 'Aucune photo jointe. Décrivez le visuel voulu et générez-le depuis le texte, ou fermez et ajoutez une photo.'}</p>
+                                {imageUrl && !imageIndisponible ? <Loader2 size={22} className="animate-spin" /> : <ImageIcon size={26} />}
+                                <p>{imageIndisponible
+                                    ? "Cette image vient d'un site qui n'autorise pas la retouche dans le navigateur. Vous pouvez l'insérer telle quelle, ou l'enregistrer puis l'ajouter avec « Photo »."
+                                    : imageUrl ? 'Chargement de la photo…' : 'Aucune photo jointe. Décrivez le visuel voulu et générez-le depuis le texte, ou fermez et ajoutez une photo.'}</p>
+                                {imageIndisponible && <button type="button" className="vis-secondaire" onClick={insererTelleQuelle}>Insérer telle quelle, sans retouche</button>}
                             </div>
                         )
                     ) : (
                         <div className="vis-video-cadre">
-                            <video ref={videoRef} src={video || undefined} controls playsInline preload="metadata" className="vis-video" style={{ filter: filtreVideo }} />
+                            <video ref={videoRef} src={video || undefined} controls playsInline preload="metadata" className="vis-video" style={{ filter: filtreVideo }} onLoadedMetadata={(e) => setDuree(Math.floor(e.currentTarget.duration) || 0)} />
                             {(reglages.titre || reglages.sousTitre) && !avant && (
                                 <div className={`vis-titre-video pos-${reglages.positionTexte}`} style={{ fontFamily: police.css, fontWeight: police.poids, fontSize: `${0.8 + reglages.tailleTexte / 60}em` }}>
                                     <b>{reglages.titre}</b>{reglages.sousTitre && <small>{reglages.sousTitre}</small>}
@@ -377,10 +460,10 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                             <>
                                 <h3><ScanFace size={13} />Visage & cheveux <span>adoucissement, éclat, brillance</span></h3>
                                 <div className="vis-curseurs">
-                                    <Curseur nom="Peau douce" valeur={reglages.peauDouce} min={0} max={100} onChange={(v) => appliquer({ peauDouce: v })} />
-                                    <Curseur nom="Éclat du regard" valeur={reglages.eclat} min={0} max={100} onChange={(v) => appliquer({ eclat: v })} />
-                                    <Curseur nom="Brillance cheveux (tons foncés)" valeur={reglages.brillanceCheveux} min={0} max={100} onChange={(v) => appliquer({ brillanceCheveux: v })} />
-                                    <Curseur nom="Netteté" valeur={reglages.nettete} min={0} max={100} onChange={(v) => appliquer({ nettete: v })} />
+                                    <Curseur nom="Peau douce" valeur={reglages.peauDouce} min={0} max={100} onChange={(v) => appliquer({ peauDouce: v }, 'peauDouce')} />
+                                    <Curseur nom="Éclat du regard" valeur={reglages.eclat} min={0} max={100} onChange={(v) => appliquer({ eclat: v }, 'eclat')} />
+                                    <Curseur nom="Brillance cheveux (tons foncés)" valeur={reglages.brillanceCheveux} min={0} max={100} onChange={(v) => appliquer({ brillanceCheveux: v }, 'brillanceCheveux')} />
+                                    <Curseur nom="Netteté" valeur={reglages.nettete} min={0} max={100} onChange={(v) => appliquer({ nettete: v }, 'nettete')} />
                                 </div>
                                 <p className="vis-note">Ces réglages s'appliquent à toute l'image, en douceur. Pour viser une zone précise (yeux, dents, mèche), décrivez-la dans le Prompt : l'IA regarde la photo et règle pour elle.</p>
                             </>
@@ -389,13 +472,13 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                             <>
                                 <h3><Sun size={13} />Lumière <span>exposition, ombres, température</span></h3>
                                 <div className="vis-curseurs">
-                                    <Curseur nom="Exposition" valeur={reglages.exposition} min={-50} max={50} onChange={(v) => appliquer({ exposition: v })} />
-                                    <Curseur nom="Contraste" valeur={reglages.contraste} min={-50} max={50} onChange={(v) => appliquer({ contraste: v })} />
-                                    <Curseur nom="Ombres" valeur={reglages.ombres} min={-50} max={50} onChange={(v) => appliquer({ ombres: v })} />
-                                    <Curseur nom="Hautes lumières" valeur={reglages.hautesLumieres} min={-50} max={50} onChange={(v) => appliquer({ hautesLumieres: v })} />
-                                    <Curseur nom="Température" valeur={reglages.temperature} min={-50} max={50} onChange={(v) => appliquer({ temperature: v })} />
-                                    <Curseur nom="Teinte" valeur={reglages.teinte} min={-50} max={50} onChange={(v) => appliquer({ teinte: v })} />
-                                    <Curseur nom="Saturation" valeur={reglages.saturation} min={-50} max={50} onChange={(v) => appliquer({ saturation: v })} />
+                                    <Curseur nom="Exposition" valeur={reglages.exposition} min={-50} max={50} onChange={(v) => appliquer({ exposition: v }, 'exposition')} />
+                                    <Curseur nom="Contraste" valeur={reglages.contraste} min={-50} max={50} onChange={(v) => appliquer({ contraste: v }, 'contraste')} />
+                                    <Curseur nom="Ombres" valeur={reglages.ombres} min={-50} max={50} onChange={(v) => appliquer({ ombres: v }, 'ombres')} />
+                                    <Curseur nom="Hautes lumières" valeur={reglages.hautesLumieres} min={-50} max={50} onChange={(v) => appliquer({ hautesLumieres: v }, 'hautesLumieres')} />
+                                    <Curseur nom="Température" valeur={reglages.temperature} min={-50} max={50} onChange={(v) => appliquer({ temperature: v }, 'temperature')} />
+                                    <Curseur nom="Teinte" valeur={reglages.teinte} min={-50} max={50} onChange={(v) => appliquer({ teinte: v }, 'teinte')} />
+                                    <Curseur nom="Saturation" valeur={reglages.saturation} min={-50} max={50} onChange={(v) => appliquer({ saturation: v }, 'saturation')} />
                                 </div>
                             </>
                         )}
@@ -408,9 +491,9 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                                     ))}
                                 </div>
                                 <div className="vis-curseurs">
-                                    <Curseur nom="Grain" valeur={reglages.grain} min={0} max={100} onChange={(v) => appliquer({ grain: v })} />
-                                    <Curseur nom="Vignette" valeur={reglages.vignette} min={0} max={100} onChange={(v) => appliquer({ vignette: v })} />
-                                    <Curseur nom="Flou des bords" valeur={reglages.flouBords} min={0} max={100} onChange={(v) => appliquer({ flouBords: v })} />
+                                    <Curseur nom="Grain" valeur={reglages.grain} min={0} max={100} onChange={(v) => appliquer({ grain: v }, 'grain')} />
+                                    <Curseur nom="Vignette" valeur={reglages.vignette} min={0} max={100} onChange={(v) => appliquer({ vignette: v }, 'vignette')} />
+                                    <Curseur nom="Flou des bords" valeur={reglages.flouBords} min={0} max={100} onChange={(v) => appliquer({ flouBords: v }, 'flouBords')} />
                                 </div>
                                 <div className="vis-puces" role="group" aria-label="Cadrage">
                                     {(Object.keys(CADRAGES) as (keyof typeof CADRAGES)[]).map((k) => (
@@ -437,7 +520,7 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                                     <button type="button" aria-pressed={reglages.positionTexte === 'centre'} onClick={() => appliquer({ positionTexte: 'centre' })}><Focus size={13} />Centre</button>
                                 </div>
                                 <div className="vis-curseurs">
-                                    <Curseur nom="Taille du texte" valeur={reglages.tailleTexte} min={0} max={100} onChange={(v) => appliquer({ tailleTexte: v })} />
+                                    <Curseur nom="Taille du texte" valeur={reglages.tailleTexte} min={0} max={100} onChange={(v) => appliquer({ tailleTexte: v }, 'tailleTexte')} />
                                 </div>
                             </>
                         )}
@@ -445,9 +528,9 @@ export const VisuelIAStudio: React.FC<VisuelIAStudioProps> = ({ ouvert, onFermer
                             <>
                                 <h3><Film size={13} />Vidéo <span>début, fin, vitesse</span></h3>
                                 <div className="vis-curseurs">
-                                    <Curseur nom="Début (s)" valeur={reglages.debut} min={0} max={Math.max(1, Math.floor(videoRef.current?.duration || 60))} onChange={(v) => appliquer({ debut: v })} />
-                                    <Curseur nom="Fin (s)" valeur={reglages.fin ?? Math.floor(videoRef.current?.duration || 60)} min={1} max={Math.max(1, Math.floor(videoRef.current?.duration || 60))} onChange={(v) => appliquer({ fin: v })} />
-                                    <Curseur nom="Vitesse" valeur={reglages.vitesse} min={50} max={200} unite=" %" onChange={(v) => appliquer({ vitesse: v })} />
+                                    <Curseur nom="Début (s)" valeur={reglages.debut} min={0} max={Math.max(1, duree || 60)} onChange={(v) => appliquer({ debut: v }, 'debut')} />
+                                    <Curseur nom="Fin (s)" valeur={reglages.fin ?? (duree || 60)} min={1} max={Math.max(1, duree || 60)} onChange={(v) => appliquer({ fin: v }, 'fin')} />
+                                    <Curseur nom="Vitesse" valeur={reglages.vitesse} min={50} max={200} unite=" %" onChange={(v) => appliquer({ vitesse: v }, 'vitesse')} />
                                 </div>
                                 <p className="vis-note">À l'insertion, la vidéo est ré-encodée par votre navigateur avec la lumière, le look, le texte, le début / la fin et la vitesse choisis. Si le navigateur ne le permet pas, l'écran le dira et la vidéo d'origine restera intacte.</p>
                             </>
