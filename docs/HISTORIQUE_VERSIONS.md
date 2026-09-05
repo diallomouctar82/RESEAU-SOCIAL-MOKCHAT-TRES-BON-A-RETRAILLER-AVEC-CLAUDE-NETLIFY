@@ -40,12 +40,57 @@
 | **v6.22.0** | 5 Septembre 2026 | **Santé Globale v2 — santé ET sécurité en % (audit du 4/09 intégré : 61 % de référence, note vivante recalculée), graphiques (santé par domaine, audit → aujourd'hui, progression des vagues P0/P1/P2), sept domaines × rouge/orange/vert, fiche problème/cause/impact/risque/action sur 58 lignes, action manuelle guidée (endroit exact, lien direct, étapes) uniquement quand rien d'automatique n'existe, sondes VPS/CORS/rang, repli CORS jamais `*`** | Super-Admin / Santé Globale, `services/health/*`, Edge `health-guardian` v3, Base (`health_probe_catalogue`) | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-057 / PR #86 | **Remplacée par la v6.23.0 le 5/09/2026 à 09:57 UTC — était en production contrôlée depuis le 5/09/2026 à 08:01 UTC** : PR #86 fusionnée en squash → `main` `e6c68ae` (Green Gate run 146 vert sur `f72eca6`), `moknet.net` sert `index-6F5PzUd7.js` avec les neuf empreintes du tableau de bord v2 (ancien bundle `index-BUCPWfy5.js` → 404, `cache-control: max-age=0, must-revalidate`) ; fonction Edge v3 déployée et vérifiée (identique octet pour octet au bundle généré, 51 040 octets ; origine inconnue → `https://moknet.net`), migration `20260905090000` appliquée et vérifiée (0 puis 1 `super_admin`, 89 tables) ; harnais sur mesures de production du 5/09 : santé 75 % sur 95 % mesuré, sécurité 51 % sur 84 % (audit 61 %), 6 R · 9 O · 5 blancs · 38 V ; typage 0 erreur, 1072/1072 tests |
 | **v6.23.0** | 5 Septembre 2026 | **Bande « Aurore » du Réseau MOC (variante 3 choisie par la Direction parmi dix, sur la base « Orbes lumineux ») : seize orbes de cristal, une teinte par entrée, en damier sur deux rangées de huit, dans l'ordre imposé ; l'orbe de la section courante se remplit ; halo qui respire, soulèvement et lueur au survol ; rail aimanté sur téléphone ; reduced-motion respecté** | Réseau MOC (carte d'accès rapide sous le composeur), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-058 / PR #89 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 09:57 UTC** : PR #89 fusionnée en squash → `main` `6f9d062` (Green Gate vert sur `2bbe45f`, run 33959258373, et sur `main`, run 33959347666), revue indépendante passée (7 constats corrigés, contre-vérifiés « PRÊT »), `moknet.net` sert `index-CgZyiRwk.js` depuis 09:57:56 UTC (bloc « BANDE AURORE » présent, marqueurs du bundle présents, ancienne grille absente, ancien bundle `index-6F5PzUd7.js` → 404), miroir local vérifié dans Chromium ; typage 0 erreur, 1104/1104 tests, build OK, captures avant/après (`docs/captures/2026-09-05-reseau-bande-aurore/`) |
 | **v6.24.0** | 5 Septembre 2026 | **SAT-6 — le bouton de secours du direct, réservé à l'Admin Général : relancer la room d'un direct ou le clore depuis la Santé Globale, sans SSH — rang relu en base avant toute lecture et de nouveau au geste, diagnostic qui compte les présents réels, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; deux défauts pré-existants corrigés en chemin (modales de la Santé Globale cadrées sur l'onglet au lieu de la fenêtre, spectateur éjecté à son arrivée par une course du roster)** | Santé Globale (Super-Admin), Edge `health-guardian` v4, Live / Directs | branche `claude/lives-directs-sat6`, PR #88 / DEC-2026-059 | **EN COURS DE MISE EN PRODUCTION CONTRÔLÉE (validation de la Direction le 5/09/2026 à 10h40 UTC)** : fonction Edge v4 **déployée** à 10:49:57 UTC (artefact régénéré depuis `ae0d5eb`, 66 588 octets, source relue identique octet pour octet ; retour arrière v3 régénéré et vérifié identique à l'ancienne production avant le déploiement), backend vérifié à 10:53 UTC avec trois vraies sessions (`probe` 45 lignes comme la v3, 403 pour `user`, lecture seule pour `admin`, gestes pour `super_admin`), geste réel « Clore » joué à 10:55 UTC sur un direct de banc privé (journal `audit_logs` réel) ; client : PR #88 fusionnée en squash sur `main` — bundle servi et contrôle du tableau de bord réel consignés par la PR de mémoire vivante suivante ; greffée sur la Santé Globale v2 (v6.22.0). Banc réel contre un LiveKit vivant, trois vrais comptes et la base réelle : **51 OK / 0 DÉFAUT** (passe 4, après trois passes correctives 44/45, 38/48, 49/50 ; **passe 5 rejouée sur l'arbre fusionné : 51 OK / 0 DÉFAUT**) ; tsc 0 · vitest 1128/1128 · build |
+| **v6.25.0** | 5 Septembre 2026 | **Assistant IA de Santé Globale — vocal et texte, avatar existant (Directeur Diallo), Analyser avec progression réelle et bilan dit, Réparer tout le lot / les rouges seuls / les oranges seuls / un domaine / un point, une seule confirmation par lot, pourcentage à chaque boucle, échec → cause + étapes exactes + lien, arrêt immédiat si incontrôlable et retour à l'état stable (restauration du lot), « Diagnostiquer » quand le rang ne permet pas d'appliquer** | Super-Admin / Santé Globale, `services/health/assistant/*`, moteur vocal partagé, passerelle IA | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-060 / PR #91 | **PR #91 ouverte — fusion en squash après Green Gate, vérification du bundle servi à suivre** : typage 0 erreur, 1177/1177 tests (83 fichiers, 39 nouveaux) sur la branche reconstruite depuis `main` après SAT-6, build OK, harnais sur mesures de production du 5/09 (rang réel admin + banc super_admin simulé, ordinateur et téléphone, 0 erreur JS, `docs/captures/2026-09-05-sante-assistant/`) |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.25.0] — 5 Septembre 2026 (Assistant IA de Santé Globale)
+
+* **La demande** (Direction, 5 septembre) : « créer et intégrer un Assistant
+  IA de Santé Globale de l'application, vocal et texte, avatar naturel si
+  possible via l'existant, responsable de la santé globale de l'application
+  jusqu'à une production contrôlée » — Analyser qui scanne tout, statuts
+  vert / orange / rouge, Réparer tout le lot / les rouges seuls / les oranges
+  seuls / par brique / point par point avec le pourcentage de progression à
+  chaque boucle ; en cas d'échec la cause, les étapes exactes et un lien ; si
+  c'est incontrôlable, arrêt immédiat et retour à l'état stable.
+* **Ce que la Direction voit désormais** : sous la barre de commandement de
+  Santé Globale, le panneau **« Assistant Santé Globale »** — l'avatar
+  Directeur Diallo (repos / réfléchit / parle), la voix (ElevenLabs HD,
+  secours navigateur annoncé, « Voix : coupée » possible), le micro, le
+  dialogue écrit ; **Analyser** avec « sondes serveur ✓ · sondes navigateur ✓ »
+  puis le bilan dit (état, santé 75 % sur 95 % mesuré le 5/09, sécurité 51 %
+  contre 61 % à l'audit, 6 R · 9 O · 5 blancs · 38 V, priorités, 8
+  réparations automatiques / 7 manuelles, rang) ; **Réparer** tout le lot
+  (15) / les rouges seuls (6) / les oranges seuls (9) / ce domaine / ce point
+  — ou **Diagnostiquer** avec le rang `admin` d'aujourd'hui, et l'Assistant
+  le dit ; « Boucle i/n · X % » ; une confirmation pour le lot avec le
+  périmètre exact ; résultats point par point ; Arrêt ; Restaurer le lot.
+  Consignes écrites ou dites : « analyse tout », « répare les rouges »,
+  « répare le domaine live », « explique <point> », « restaure le lot »,
+  « stop » ; « répare » seul → « Précisez la portée » ; une question libre
+  passe par la passerelle IA avec les mesures en contexte et revient
+  étiquetée « Réponse IA — à vérifier ».
+* **Contrôle indépendant** : 39 tests (16 moteur, 10 cerveau, 13 DOM) ;
+  harnais Chromium sur les mesures de production du 5/09 en quatre parcours
+  (rang réel `admin` : diagnostic des rouges 2/2 · 100 %, rien modifié ;
+  banc `super_admin` simulé : une confirmation, 4/4 · 100 %, 1 réparé et
+  vérifié, 1 échec avec cause + étapes + lien, 2 manuels avec l'endroit
+  exact, restauration 1/1 ; téléphone 390 px), 0 erreur JavaScript
+  (`docs/captures/2026-09-05-sante-assistant/`). Rien du banc n'a touché
+  la production.
+* **Preuve** : typage 0 erreur ; suite complète verte ; build OK.
+* **Production** : PR #91 ouverte — fusion en squash après Green Gate,
+  vérification du bundle servi par `moknet.net` et captures avec le chemin
+  exact à suivre.
+* **Restes assumés** : pas de vidéo HeyGen du bilan (rendu de plusieurs
+  minutes contre une passerelle synchrone : un mode soumettre/relever est
+  une évolution séparée) ; réparer réellement depuis l'Assistant exige le
+  rang `super_admin`, décision de la Direction.
 
 ### [Version 6.24.0] — 5 Septembre 2026 (SAT-6 — le bouton de secours du direct, Admin Général)
 
