@@ -53,6 +53,21 @@ export interface MouthAnchor {
 // droite (la tête est un peu tournée).
 export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 };
 
+/**
+ * L'avatar précédent, conservé pour le retour arrière quand l'Admin-Général
+ * remplace l'avatar vivant depuis une photo (une seule version conservée).
+ */
+export interface ArchitecteAvatarSnapshot {
+    photoUrl: string;
+    rig: PortraitRig;
+    mouthAnchor: MouthAnchor;
+    silhouetteMaskUrl: string;
+    silhouetteMaskForPhotoUrl: string;
+    videoSequencesEnabled: boolean;
+    updatedAt: string;
+    updatedBy: string;
+}
+
 export interface ArchitecteAvatarConfig {
     /**
      * PHOTO du visage — c'est elle qui est animée. Vide = repli technique sur
@@ -85,6 +100,15 @@ export interface ArchitecteAvatarConfig {
      * vaut que pour le portrait d'usine ; une autre photo garde le cadre rond.
      */
     silhouetteMaskUrl: string;
+    /**
+     * La photo pour laquelle le masque a été relevé : le détourage ne
+     * s'applique qu'à ELLE (portrait d'usine, ou photo analysée par l'option
+     * Super-Admin « avatar vivant depuis une photo »). Absent d'une
+     * configuration ancienne = le portrait d'usine.
+     */
+    silhouetteMaskForPhotoUrl?: string;
+    /** Avatar précédent, pour « Revenir à l'avatar précédent » ; `null` = rien à quoi revenir. */
+    previousAvatar?: ArchitecteAvatarSnapshot | null;
     updatedAt: string;
     updatedBy: string;
 }
@@ -106,18 +130,22 @@ export const DEFAULT_ARCHITECTE_AVATAR: ArchitecteAvatarConfig = {
     voiceKey: '',
     videoSequencesEnabled: true,
     silhouetteMaskUrl: '/architecte/architecte-silhouette.png',
+    silhouetteMaskForPhotoUrl: '/architecte/architecte.webp',
+    previousAvatar: null,
     updatedAt: '',
     updatedBy: '',
 };
 
 /**
- * Le masque de la sculpture n'a été relevé que sur le portrait d'usine : une
- * autre photo (choisie par l'Admin-Général) retombe sur le cadre rond, jamais
- * sur un détourage faux.
+ * Le masque de la sculpture ne vaut que pour la photo sur laquelle il a été
+ * relevé (portrait d'usine, ou photo analysée par l'option Super-Admin) : une
+ * autre adresse de photo retombe sur le cadre rond, jamais sur un détourage
+ * faux.
  */
 export function sculptureMaskFor(config: ArchitecteAvatarConfig): string | null {
     if (!config.silhouetteMaskUrl) return null;
-    return config.photoUrl === DEFAULT_ARCHITECTE_AVATAR.photoUrl ? config.silhouetteMaskUrl : null;
+    const madeFor = config.silhouetteMaskForPhotoUrl ?? DEFAULT_ARCHITECTE_AVATAR.photoUrl;
+    return config.photoUrl === madeFor ? config.silhouetteMaskUrl : null;
 }
 
 /** Complète une configuration partielle ou héritée — jamais de champ `undefined` lu par l'écran. */
