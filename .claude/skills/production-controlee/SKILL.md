@@ -1,7 +1,7 @@
 ---
 name: production-controlee
 description: Méthode de référence Vision Smart pour conduire une évolution de MokNet jusqu'à la production contrôlée, zéro régression, preuve avant affirmation, producteur ≠ contrôleur. Validée par la Direction le 5 septembre 2026 (DEC-2026-058 et DEC-2026-061). À charger pour TOUTE mission qui touche le code livré. Réutilisable telle quelle ; améliorable seulement en plus strict, jamais en moins.
-version: 1.0.0
+version: 1.1.0
 canonical_key: visionsmart.moknet.methode.production-controlee
 type: METHOD
 status: ACTIVE
@@ -10,8 +10,8 @@ provenance: PR #89 / #90 (bande « Aurore », DEC-2026-058) puis PR #93 / #94 (c
 source_uri: .claude/skills/production-controlee/SKILL.md
 ai_core_project_id: 6aeffdc5-e681-4ec4-ad36-7d9d71449d66
 ai_core_entry_id: 159f024b-4982-4b79-a07b-9a883c948739
-ai_core_version_id: b613605e-4d36-47ea-bb15-c4f419521721
-ai_core_proposal_id: 9985f324-6d57-4b72-ba48-40ffeb5522fd
+ai_core_versions: v1 ↔ compétence 1.0.0 (b613605e-4d36-47ea-bb15-c4f419521721) ; v2 ↔ compétence 1.1.0 (identifiant consigné dans docs/JOURNAL_DECISIONS.md, DEC-2026-074) ; historique complet via /v1/knowledge/{ai_core_entry_id}/history
+ai_core_proposal_id: 9985f324-6d57-4b72-ba48-40ffeb5522fd (première publication)
 ai_core_published_at: 2026-09-05T13:11:18Z
 ---
 
@@ -112,6 +112,22 @@ Une seule fusion ou production contrôlée à la fois sur le dépôt. Avant chaq
 ### 7.5 Retour arrière
 Problème maîtrisable (corrigeable sans toucher aux données, avec preuve) : corriger, retester, refaire le cycle. Non maîtrisable (production cassée, donnée touchée, cause inconnue après 30 minutes) : `git revert` du squash par PR immédiate, vérification de `moknet.net`, déclaration claire à la Direction (cause, impact, état, décision demandée). Aucune migration ni donnée réelle n'est touchée sans sauvegarde vérifiée.
 
+### 7.6 Finalisation documentaire quand `main` a avancé — correction isolée, sans régression
+
+Cas concret (SAT-6-PROD, DEC-2026-059) : entre la fusion du code et la PR de mémoire vivante, plusieurs équipes ont fait avancer `main` de plusieurs versions. La finalisation documentaire ne doit alors **ni re-couronner** l'ancienne version, **ni écraser** les entrées plus récentes.
+
+**Détecter un `main` qui a avancé (au-delà de « il a pris mon numéro », § 3)**
+- `git fetch origin main` puis `git log --oneline HEAD..origin/main` : les commits pris par d'autres équipes. `main` peut avoir **déplacé le couronnement** (« Version Courante », « Courante (Active) ») vers une version plus récente **et** laissé des **renvois différés** (« bundle servi et contrôle du tableau de bord réel consignés par la PR de mémoire vivante suivante ») que **ta** PR doit remplir.
+- Lire ce que `main` dit **déjà** de ton sujet avant d'écrire : `git show origin/main:docs/<fichier> | grep -n <marqueur>`. Si l'équipe suivante a re-couronné et pointé vers « la PR de mémoire vivante suivante », c'est la tienne : la **remplir**, pas la dupliquer.
+- Le **bundle servi a pu changer plusieurs fois** : `curl -s https://moknet.net/ | grep -o 'assets/index-[^"]*\.js'`. L'ancien bundle de ta fusion est probablement **404** ; ta fonctionnalité est **portée** dans le bundle courant. Le prouver honnêtement plutôt que citer un bundle périmé : composant présent et **monté** dans l'arbre courant (`grep` du montage), **discriminateurs présents dans le bundle réellement servi** (`curl … | grep -a <libellé/testid>`), fonction Edge vivante (`curl` → 401 attendu si `verify_jwt`).
+
+**Isoler la correction, sans régression**
+- **Repartir de `origin/main`** : sauvegarder d'abord ton diff antérieur en patch (`git diff > <scratchpad>/…patch`), puis `git reset --hard origin/main`. Un diff bâti sur une base périmée re-couronnerait à tort — ne jamais le rejouer tel quel.
+- **Ne toucher qu'aux résidus de TON sujet.** Jamais re-couronner ta version comme « Courante » quand une plus récente l'est déjà ; jamais modifier l'entrée d'une autre équipe. La version passée reste « était en production contrôlée / remplacée par vX » — on corrige seulement son statut resté faux (« en fusion » → « fusionné, en production contrôlée »).
+- **Remplacement atomique tout-ou-rien** : un script qui, en passe 1, exige que **chaque** ancienne chaîne existe **exactement une fois** ; si une seule ne matche pas (0 ou >1), **rien n'est écrit** (pas d'application partielle, § 9.2). Passe 2 : remplacement. Passe 3 : post-vérification (0 résidu stale, 0 renvoi différé pendant). Cibler des sous-chaînes **mono-ligne** — les lignes-tableau sont géantes, éviter de matcher des sauts de ligne.
+- **Garde-fou d'isolation par word-diff** : `git diff --word-diff=porcelain -- docs/` ne doit montrer **aucun segment réellement changé** portant le marqueur d'une autre version. Une ligne-tableau géante qui **mentionne** une autre version des deux côtés (`-`/`+`) est bénigne tant que ce mot n'est pas dans un segment changé — le vérifier explicitement (`… | grep -E '^(\+|-)[^+-]' | grep -c '<autre-version>'` doit valoir 0).
+- **Remplir les renvois différés** au lieu de les laisser pendants : le « consigné par la PR suivante » devient le fait réel (bundle courant, preuve 🚀 du tableau de bord réel), au niveau de preuve honnête (§ 8).
+
 ## 8. Niveaux de preuve et formulations honnêtes
 
 🧪 banc (jsdom, harnais Chromium, doublures) · 🗄️ environnement d'essai · 🌐 conditions réelles · 📱 appareil réel · 🚀 production (page et bundle servis, miroir Chromium). Ne jamais présenter un niveau pour un autre : « le harnais prouve le rendu de l'écran ; la production prouve que ce code est servi ; le contrôle visuel final dans l'application appartient à la Direction ». Ce qui n'a pas pu être vérifié (Safari, CORS d'un fournisseur, appareil réel) est **nommé** dans le rapport.
@@ -153,5 +169,6 @@ Intervention humaine indispensable → format ACTION REQUISE (action, plateforme
 | Version | Date | Changement | Sens |
 | :--- | :--- | :--- | :--- |
 | 1.0.0 | 5 septembre 2026 | Première consolidation à partir des missions DEC-2026-058 et DEC-2026-061, validées par la Direction. Publiée le même jour dans le registre Vision Smart AI Core (entrée `159f024b-4982-4b79-a07b-9a883c948739`, statut ACTIVE, version `b613605e-4d36-47ea-bb15-c4f419521721`, empreinte SHA-256 du contenu publié `57d5c24afa872e1602c99fef159062059e71d31b34fcb7a7f55e3f754e37aa08`). | Référence |
+| 1.1.0 | 5 septembre 2026 | Ajout § 7.6 : finalisation documentaire quand `main` a avancé — détecter un couronnement déplacé et des renvois différés ; correction isolée par reset sur `origin/main`, remplacement atomique tout-ou-rien, garde-fou d'isolation par word-diff, remplissage des renvois différés. Issu de SAT-6-PROD (DEC-2026-059). Publiée dans le registre Vision Smart AI Core comme version 2 de l’entrée `159f024b-4982-4b79-a07b-9a883c948739` (identifiant de version et empreinte consignés dans DEC-2026-074). | Ajout (plus strict) |
 
 Toute version suivante indique « plus strict » ou « ajout » dans la colonne Sens ; « moins strict » est interdit.
