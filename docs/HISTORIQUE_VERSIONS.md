@@ -89,8 +89,10 @@
 * **Comment** : composant (`ia-tete`, `ia-onglets`, `ia-corps`, `ia-pied`,
   en-tête et pied repliables, suivi de `window.visualViewport`) et feuille
   (carte 90 % / 96 % du voile, `overflow: clip`, parties fixes
-  `flex-shrink: 0`, requêtes de conteneur `ia` ≤ 320 px et ≤ 560 px, champ
-  du composeur à 16 px sur `pointer: coarse` ou ≤ 767 px). DEC-2026-083.
+  `flex-shrink: 0`, requêtes de conteneur `ia` sur la boîte de contenu du voile — largeur
+  ≤ 320 px pour l'en-tête et le pied compacts, hauteur ≤ 560 px pour la
+  carte à 96 % — en spécificité (0,2,0), champ du composeur à 16 px sur
+  `pointer: coarse` ou ≤ 767 px). DEC-2026-083.
 * **Preuves** : typage 0 erreur, 1635/1635 tests (107 fichiers), build OK ;
   sonde sur neuf cas (tailles de téléphone, clavier, zoom 1,33 et 1,5,
   ordinateur) avant / après et parcours complet jusqu'à la publication :
