@@ -85,7 +85,9 @@ import type { UserProfile } from '../../types';
  *   - à droite, égaliseur à 5 barres cyan ;
  *   - à l'extrême droite, fermeture par une croix ;
  *   - comportement natif : un appui ouvre la barre ET démarre immédiatement
- *     l'écoute ; un second appui ferme et coupe la session.
+ *     l'écoute ; un second appui, barre ouverte, veut dire « je vous parle » :
+ *     il se tait s'il parlait et écoute (C1, 05/09/2026) — fermer, c'est le ✕
+ *     « Fermer » de la barre.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * CE QUI EST AMÉLIORÉ (feuille de route)
@@ -326,6 +328,18 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // Lu depuis le watchdog, qui s'exécute hors du rendu et ne verrait sinon
     // que la valeur figée de `isListening` au moment de sa création.
     const listeningRef = useRef(false);
+    /** Lu par le chien de garde du micro : la voix met le micro en pause EXPRÈS quand elle parle. */
+    const speakingRef = useRef(false);
+    /**
+     * C1 (Direction, 05/09/2026 — « l'avatar doit accompagner toute la
+     * conversation ») : la réflexion ne s'éteint plus à l'envoi de la réponse
+     * mais au moment où la voix DÉMARRE (ou renonce). Entre les deux — la
+     * génération de la voix HD, 1 à 4 s — l'Architecte retombait au repos :
+     * il avait l'air d'avoir lâché la conversation. Le jeton écarte la fin
+     * d'une parole précédente qui arriverait pendant la réflexion suivante.
+     */
+    const speechTokenRef = useRef(0);
+    const thinkingHeldBySpeechRef = useRef(false);
 
     // Le profil est relu à chaque appel de handler via cette ref : un réglage
     // modifié entre-temps ne doit jamais être écrasé par une valeur périmée
@@ -451,6 +465,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         }
     }, [voiceError, isOpen]);
 
+    useEffect(() => { speakingRef.current = isSpeaking; }, [isSpeaking]);
+
     useEffect(() => {
         listeningRef.current = isListening;
         // L'écoute a fini par démarrer : annuler le watchdog encore en
@@ -511,15 +527,41 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
      * fermeture (commande encore en vol) est conservée dans le fil mais
      * n'est JAMAIS prononcée — l'Architecte ne monologue pas en arrière-plan.
      */
+    /**
+     * Dit un texte barre ouverte, en PORTANT la présence : « réfléchit » tient
+     * jusqu'au premier son, puis la voix elle-même passe l'avatar en « parle ».
+     * Renvoie `true` si la parole est partie — la fin de la réflexion lui
+     * appartient alors (voir `settleThinking`).
+     */
+    const dire = useCallback((message: string): boolean => {
+        if (!isOpenRef.current) return false;
+        const token = ++speechTokenRef.current;
+        thinkingHeldBySpeechRef.current = true;
+        const release = () => { if (speechTokenRef.current === token) setIsThinking(false); };
+        void speak(message, { onStart: release }).catch(() => undefined).finally(release);
+        return true;
+    }, [speak]);
+    /** Début d'une réflexion : toute parole antérieure cesse de la porter. */
+    const beginThinking = useCallback(() => {
+        speechTokenRef.current += 1;
+        thinkingHeldBySpeechRef.current = false;
+        setIsThinking(true);
+    }, []);
+    /** Fin d'une commande : la réflexion s'éteint tout de suite si rien n'est dit, sinon quand la voix démarre. */
+    const settleThinking = useCallback(() => {
+        if (!thinkingHeldBySpeechRef.current) setIsThinking(false);
+        thinkingHeldBySpeechRef.current = false;
+    }, []);
+
     const announce = useCallback((message: string, tone: string) => {
         setStatus(message);
         setStatusTone(tone);
         addSessionTurn({ role: 'architecte', kind: 'texte', text: message });
-        if (isOpenRef.current) void speak(message);
-    }, [speak]);
+        dire(message);
+    }, [dire]);
 
     const analyseVisual = useCallback(async (base64: string, mimeType: string, contexte: string) => {
-        setIsThinking(true);
+        beginThinking();
         setStatus('Je regarde...');
         setStatusTone('text-cyan-300/80');
         try {
@@ -543,9 +585,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         } catch (e: any) {
             announce(`L'analyse a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
         } finally {
-            setIsThinking(false);
+            settleThinking();
         }
-    }, [announce]);
+    }, [announce, beginThinking, settleThinking]);
 
     // ── Fiche de consentement — formulaire rempli RÉELLEMENT, question par
     // question (§9/§18 de la mission de finalisation). L'état vit dans une
@@ -748,7 +790,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // au modèle de le dire au lieu de répondre de mémoire.
         if (isWebSearchCommand(command)) {
             addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
-            setIsThinking(true);
+            beginThinking();
             setStatus('Je cherche sur le web...');
             setStatusTone('text-cyan-300/80');
             try {
@@ -768,7 +810,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             } catch (e: any) {
                 announce(`La recherche web a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
             } finally {
-                setIsThinking(false);
+                settleThinking();
             }
             return;
         }
@@ -784,7 +826,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 announce("Montrez-moi d'abord ce que je dois transformer — un document via le bouton Fichier, ou une photo via la caméra.", 'text-amber-300');
                 return;
             }
-            setIsThinking(true);
+            beginThinking();
             setStatus('Je prépare votre fichier...');
             setStatusTone('text-cyan-300/80');
             try {
@@ -821,7 +863,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             } catch (e: any) {
                 announce(`La préparation du fichier a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
             } finally {
-                setIsThinking(false);
+                settleThinking();
             }
             return;
         }
@@ -843,7 +885,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             return;
         }
 
-        setIsThinking(true);
+        beginThinking();
         setStatus('Analyse...');
         setStatusTone('text-cyan-300/80');
         try {
@@ -885,7 +927,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             if (spoken) {
                 setStatus(spoken);
                 setStatusTone(outcome.execution ? PHASE_TONE[outcome.execution.phase] : 'text-cyan-300/80');
-                if (isOpenRef.current) void speak(spoken);
+                dire(spoken);
             }
 
             if (outcome.action?.type === 'NAVIGATE' && outcome.action.target) {
@@ -906,11 +948,11 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             setStatus(message);
             setStatusTone(isNetwork ? 'text-red-300' : 'text-amber-300');
             addSessionTurn({ role: 'architecte', kind: 'texte', text: message });
-            if (isOpenRef.current) void speak(message);
+            dire(message);
         } finally {
-            setIsThinking(false);
+            settleThinking();
         }
-    }, [onNavigate, speak, announce, analyseVisual, handleConsentAnswer]);
+    }, [onNavigate, dire, announce, analyseVisual, handleConsentAnswer, beginThinking, settleThinking]);
 
     // La garde de ré-entrance (deps []) lit toujours la dernière version.
     useEffect(() => { runCommandBodyRef.current = runCommandBody; });
@@ -947,7 +989,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // les anciens refus. Le document rejoint la session : l'Architecte
         // peut en discuter immédiatement, à la voix comme au clavier.
         try {
-            setIsThinking(true);
+            beginThinking();
             setStatus('Je lis le document...');
             setStatusTone('text-cyan-300/80');
             const doc = await extractDocumentText(file);
@@ -971,9 +1013,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 announce(`La lecture de « ${file.name} » a échoué : ${e?.message || 'raison inconnue'}.`, 'text-red-300');
             }
         } finally {
-            setIsThinking(false);
+            settleThinking();
         }
-    }, [analyseVisual, announce]);
+    }, [analyseVisual, announce, beginThinking, settleThinking]);
 
     // --- Caméra ---------------------------------------------------------
 
@@ -1080,6 +1122,26 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    /**
+     * Chien de garde du micro : « Connexion... » ne doit pas durer. Mais la
+     * voix met le micro en pause EXPRÈS quand l'Architecte parle (il
+     * transcrirait sa propre voix) et le relance à la fin : pendant ce temps le
+     * micro n'est pas en panne. C1 (05/09/2026) : le chien de garde patiente
+     * tant que la voix parle, au lieu d'afficher « le micro n'a pas démarré »
+     * et de passer l'avatar en erreur au beau milieu de l'accueil.
+     */
+    const armListenWatchdog = useCallback(() => {
+        const verifier = () => {
+            listenWatchdog.current = null;
+            if (listeningRef.current || !isOpenRef.current) return;
+            if (speakingRef.current) { listenWatchdog.current = setTimeout(verifier, 3000); return; }
+            setStatus(MIC_TIMEOUT_MESSAGE);
+            setStatusTone('text-amber-300');
+        };
+        if (listenWatchdog.current) clearTimeout(listenWatchdog.current);
+        listenWatchdog.current = setTimeout(verifier, 3000);
+    }, []);
+
     /** Démarre réellement l'écoute, avec l'attente « Connexion... » bornée et dite. */
     const beginListening = useCallback(async () => {
         const started = await startListening();
@@ -1096,17 +1158,15 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // périphérique muet). L'original restait alors bloqué indéfiniment
         // sur « Connexion... » — un état qui ressemble à une attente normale
         // alors que rien n'écoute. On borne cette attente et on le dit.
-        if (listenWatchdog.current) clearTimeout(listenWatchdog.current);
-        listenWatchdog.current = setTimeout(() => {
-            if (!listeningRef.current) {
-                setStatus(MIC_TIMEOUT_MESSAGE);
-                setStatusTone('text-amber-300');
-            }
-        }, 3000);
-    }, [startListening, isSupported]);
+        armListenWatchdog();
+    }, [startListening, isSupported, armListenWatchdog]);
 
     const open = useCallback(async (options?: { presenting?: boolean }) => {
         const presenting = options?.presenting === true;
+        // Au mieux : dans le geste quand l'ouverture vient de la sculpture ;
+        // après lui (dock, barre latérale) le navigateur l'accorde encore un
+        // court instant sur ordinateur. Idempotent, jamais bloquant.
+        voiceEngine.unlockPlayback();
         setIsOpen(true);
         // Mise à jour SYNCHRONE : l'accueil ci-dessous doit pouvoir parler
         // avant que l'effet qui synchronise la ref ait tourné.
@@ -1263,6 +1323,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
 
     /** Bouton « Présentation » : rejoue le modèle validé DANS la sculpture, dans le geste (son autorisé). */
     const presenter = () => {
+        voiceEngine.unlockPlayback();
         rememberPresentationSeen();
         setOffrirPresentation(false);
         presentationPlayedRef.current = true;
@@ -1276,6 +1337,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
      * bouton « Présentation » le rejoue à la demande.
      */
     const ouvrirParLaSculpture = () => {
+        // DANS le geste : la lecture audio est déverrouillée pour toute la page
+        // (téléphone) — l'accueil et chaque réponse pourront être entendus.
+        voiceEngine.unlockPlayback();
         let presenting = false;
         if (presentationAvailable && !presentationPlayedRef.current) {
             presentationPlayedRef.current = true;
@@ -1284,6 +1348,28 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             presenting = architecteSequencePlayer.play(ARCHITECTE_PRESENTATION.key, SCULPTURE_SLOT);
         }
         void open({ presenting });
+    };
+
+    /**
+     * Clic sur la sculpture OUVERTE — C1 (Direction, 05/09/2026 : « l'avatar
+     * doit accompagner toute la conversation »). Ce n'est plus « fermer » :
+     * la personne qui touche l'Architecte veut lui parler. Il se tait s'il
+     * parlait, coupe sa présentation si elle jouait, écoute — et le geste
+     * déverrouille le son (téléphone). Fermer reste sur le bouton ✕ « Fermer ».
+     */
+    const reprendreLaParole = () => {
+        voiceEngine.unlockPlayback();
+        if (presentationPlaying) {
+            // L'accueil différé et l'écoute suivent l'arrêt (effet ci-dessus).
+            architecteSequencePlayer.stop(SCULPTURE_SLOT);
+            return;
+        }
+        // Inconditionnel : coupe aussi une réponse encore en génération (1 à
+        // 4 s de voix HD) — sinon elle partirait par-dessus « Je vous écoute. ».
+        stopSpeaking();
+        setStatus('Je vous écoute.');
+        setStatusTone('text-cyan-300/80');
+        if (!listeningRef.current) void beginListening();
     };
 
     // ── État fermé : PRÉSENCE FLOTTANTE PERMANENTE ──────────────────────────
@@ -1307,7 +1393,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // voit sans rien ouvrir. Depuis le 05/09/2026 : LA SCULPTURE VIVANTE — le
     // visage validé, détouré, sans cadre ni page autour, au même emplacement
     // que l'ancien bouton. Ouvert, il reste à sa place et devient le bouton
-    // qui referme ; la petite barre s'ouvre À CÔTÉ de lui, jamais par-dessus
+    // pour LUI PARLER (C1 : il ne referme plus — fermer, c'est le ✕ de la
+    // barre) ; la petite barre s'ouvre À CÔTÉ de lui, jamais par-dessus
     // l'application.
     const sculpture = (
         <ArchitecteAvatar
@@ -1328,8 +1415,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             sequence={presentationAvailable ? ARCHITECTE_PRESENTATION : null}
             sequenceSlot={SCULPTURE_SLOT}
             size={isDesktop ? SCULPTURE_SIZE.desktop : SCULPTURE_SIZE.mobile}
-            onClick={isOpen ? close : ouvrirParLaSculpture}
-            actionLabel={isOpen ? "Fermer l'Architecte" : "Ouvrir l'Architecte"}
+            onClick={isOpen ? reprendreLaParole : ouvrirParLaSculpture}
+            actionLabel={isOpen ? "Parler à l'Architecte" : "Ouvrir l'Architecte"}
             testId="architecte-flottant"
             className={
                 !isOpen && isYielding
@@ -1403,6 +1490,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 const t = typedText.trim();
                 if (!t) return;
                 setTypedText('');
+                // L'envoi est un geste : la réponse pourra être entendue (téléphone).
+                voiceEngine.unlockPlayback();
                 void handleCommand(t);
             }}
             data-testid={dansPanneau ? undefined : 'architecte-saisie-ligne'}

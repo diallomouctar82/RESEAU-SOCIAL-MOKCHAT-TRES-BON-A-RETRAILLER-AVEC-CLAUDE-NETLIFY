@@ -1,0 +1,372 @@
+[
+  {
+    "ecran": "ordinateur-1440x900",
+    "jalons": {
+      "repos": {
+        "t": 2938,
+        "presence": "rest"
+      },
+      "presentation": {
+        "t": 4658,
+        "presence": "speaking",
+        "video": {
+          "statut": "playing",
+          "temps": 1.39,
+          "duree": 9.1
+        }
+      },
+      "accueil": {
+        "t": 6802,
+        "presence": "speaking",
+        "sousTitre": [
+          "Bonjour Amadou. Que puis-je faire pour vous aujourd'hui ?"
+        ]
+      },
+      "ecoute1": {
+        "t": 13044,
+        "presence": "listening"
+      },
+      "reflexion1": {
+        "t": 16376,
+        "presence": "speaking",
+        "sousTitre": [
+          "Vision Smart réunit vos experts, vos formations et votre réseau au même endroit. Dites-moi ce que vous voulez faire et je vous y conduis."
+        ]
+      },
+      "reponse1": {
+        "t": 17674,
+        "presence": "speaking",
+        "reponseAffichee": true
+      },
+      "ecoute2": {
+        "t": 20908,
+        "presence": "listening"
+      },
+      "appuiPendantReponse": {
+        "t": 21493,
+        "presenceAvant": "speaking"
+      },
+      "reprise": {
+        "t": 22815,
+        "barreOuverte": true,
+        "sousTitre": [
+          "Je vous écoute."
+        ],
+        "presence": "listening",
+        "parleEncore": false,
+        "libelle": "L'Architecte — vous écoute. Parler à l'Architecte"
+      },
+      "ecoute3": {
+        "t": 22864,
+        "presence": "listening"
+      },
+      "ferme": {
+        "t": 23569,
+        "barreOuverte": false,
+        "presence": "rest"
+      }
+    },
+    "appelsPasserelle": {
+      "voix": 6,
+      "llm": 2,
+      "warmup": 0
+    },
+    "paroles": [
+      {
+        "debut": 5453,
+        "fin": 12447,
+        "dureeMs": 6994
+      },
+      {
+        "debut": 13136,
+        "fin": 20038,
+        "dureeMs": 6902
+      },
+      {
+        "debut": 20983,
+        "fin": 21894,
+        "dureeMs": 911
+      }
+    ],
+    "bouchePendantLaParole": {
+      "images": 406,
+      "ouvertureMax": 0.348,
+      "ouvertureMoyenne": 0.118,
+      "partOuverte": 0.71
+    },
+    "boucheHorsParole": {
+      "images": 2,
+      "ouvertureMax": 0,
+      "ouvertureMoyenne": 0,
+      "partOuverte": 0
+    },
+    "moteurs": [
+      "elevenlabs"
+    ],
+    "erreursMoteur": [],
+    "alignements": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false
+    ],
+    "liaisonsAuGraphe": 1,
+    "lectures": [
+      "AUDIO:data:audio/wav;base64,",
+      "VIDEO:http://127.0.0.1:5178/",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,"
+    ],
+    "demarragesEcoute": 3,
+    "lectureDeverrouillee": true,
+    "etatContexteAudio": "running",
+    "presence": [
+      {
+        "t": 262,
+        "presence": "absent"
+      },
+      {
+        "t": 1105,
+        "presence": "rest"
+      },
+      {
+        "t": 3168,
+        "presence": "speaking"
+      },
+      {
+        "t": 5485,
+        "presence": "rest"
+      },
+      {
+        "t": 5602,
+        "presence": "speaking"
+      },
+      {
+        "t": 12471,
+        "presence": "listening"
+      },
+      {
+        "t": 13142,
+        "presence": "speaking"
+      },
+      {
+        "t": 20101,
+        "presence": "rest"
+      },
+      {
+        "t": 20433,
+        "presence": "listening"
+      },
+      {
+        "t": 21046,
+        "presence": "speaking"
+      },
+      {
+        "t": 21973,
+        "presence": "rest"
+      },
+      {
+        "t": 22068,
+        "presence": "listening"
+      },
+      {
+        "t": 22979,
+        "presence": "rest"
+      }
+    ],
+    "erreursPage": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  {
+    "ecran": "telephone-390x844",
+    "jalons": {
+      "repos": {
+        "t": 2874,
+        "presence": "rest"
+      },
+      "presentation": {
+        "t": 4706,
+        "presence": "speaking",
+        "video": {
+          "statut": "playing",
+          "temps": 1.55,
+          "duree": 9.1
+        }
+      },
+      "accueil": {
+        "t": 6817,
+        "presence": "speaking",
+        "sousTitre": [
+          "Bonjour Amadou. Que puis-je faire pour vous aujourd'hui ?"
+        ]
+      },
+      "ecoute1": {
+        "t": 13050,
+        "presence": "listening"
+      },
+      "reflexion1": {
+        "t": 16520,
+        "presence": "speaking",
+        "sousTitre": [
+          "Vision Smart réunit vos experts, vos formations et votre réseau au même endroit. Dites-moi ce que vous voulez faire et je vous y conduis."
+        ]
+      },
+      "reponse1": {
+        "t": 17907,
+        "presence": "speaking",
+        "reponseAffichee": true
+      },
+      "ecoute2": {
+        "t": 20992,
+        "presence": "listening"
+      },
+      "appuiPendantReponse": {
+        "t": 21571,
+        "presenceAvant": "speaking"
+      },
+      "reprise": {
+        "t": 23005,
+        "barreOuverte": true,
+        "sousTitre": [
+          "Je vous écoute."
+        ],
+        "presence": "listening",
+        "parleEncore": false,
+        "libelle": "L'Architecte — vous écoute. Parler à l'Architecte"
+      },
+      "ecoute3": {
+        "t": 23038,
+        "presence": "listening"
+      },
+      "ferme": {
+        "t": 23837,
+        "barreOuverte": false,
+        "presence": "rest"
+      }
+    },
+    "appelsPasserelle": {
+      "voix": 6,
+      "llm": 2,
+      "warmup": 0
+    },
+    "paroles": [
+      {
+        "debut": 5438,
+        "fin": 12342,
+        "dureeMs": 6904
+      },
+      {
+        "debut": 13111,
+        "fin": 19984,
+        "dureeMs": 6873
+      },
+      {
+        "debut": 21056,
+        "fin": 21971,
+        "dureeMs": 915
+      }
+    ],
+    "bouchePendantLaParole": {
+      "images": 417,
+      "ouvertureMax": 0.348,
+      "ouvertureMoyenne": 0.118,
+      "partOuverte": 0.72
+    },
+    "boucheHorsParole": {
+      "images": 2,
+      "ouvertureMax": 0,
+      "ouvertureMoyenne": 0,
+      "partOuverte": 0
+    },
+    "moteurs": [
+      "elevenlabs"
+    ],
+    "erreursMoteur": [],
+    "alignements": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false
+    ],
+    "liaisonsAuGraphe": 1,
+    "lectures": [
+      "AUDIO:data:audio/wav;base64,",
+      "VIDEO:http://127.0.0.1:5178/",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,",
+      "AUDIO:data:audio/wav;base64,"
+    ],
+    "demarragesEcoute": 3,
+    "lectureDeverrouillee": true,
+    "etatContexteAudio": "running",
+    "presence": [
+      {
+        "t": 231,
+        "presence": "absent"
+      },
+      {
+        "t": 950,
+        "presence": "rest"
+      },
+      {
+        "t": 3068,
+        "presence": "speaking"
+      },
+      {
+        "t": 5449,
+        "presence": "rest"
+      },
+      {
+        "t": 5498,
+        "presence": "speaking"
+      },
+      {
+        "t": 12346,
+        "presence": "listening"
+      },
+      {
+        "t": 13124,
+        "presence": "speaking"
+      },
+      {
+        "t": 20031,
+        "presence": "rest"
+      },
+      {
+        "t": 20372,
+        "presence": "listening"
+      },
+      {
+        "t": 21107,
+        "presence": "speaking"
+      },
+      {
+        "t": 22049,
+        "presence": "rest"
+      },
+      {
+        "t": 22138,
+        "presence": "listening"
+      },
+      {
+        "t": 23166,
+        "presence": "rest"
+      }
+    ],
+    "erreursPage": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  }
+]

@@ -172,6 +172,30 @@ export const LISTEN_NETWORK_MESSAGE =
 export const SPEECH_OUTPUT_FAILED_MESSAGE =
     "La voix n'a pas pu être jouée sur cet appareil — ma réponse reste affichée à l'écran.";
 
+/**
+ * C1 (Direction, 05/09/2026 — « l'avatar doit accompagner toute la
+ * conversation ») : clip WAV SILENCIEUX (8 échantillons PCM 16 bits à 8 kHz)
+ * joué DANS le geste de la personne pour déverrouiller la lecture audio sur
+ * téléphone. Aucun son audible ; construit ici pour ne dépendre d'aucun actif.
+ */
+function buildSilentWavDataUri(): string {
+    const samples = 8;
+    const dataBytes = samples * 2;
+    const bytes = new Uint8Array(44 + dataBytes);
+    const ascii = (offset: number, text: string) => { for (let i = 0; i < text.length; i += 1) bytes[offset + i] = text.charCodeAt(i); };
+    const u32 = (offset: number, value: number) => {
+        bytes[offset] = value & 255; bytes[offset + 1] = (value >> 8) & 255; bytes[offset + 2] = (value >> 16) & 255; bytes[offset + 3] = (value >> 24) & 255;
+    };
+    const u16 = (offset: number, value: number) => { bytes[offset] = value & 255; bytes[offset + 1] = (value >> 8) & 255; };
+    ascii(0, 'RIFF'); u32(4, 36 + dataBytes); ascii(8, 'WAVE');
+    ascii(12, 'fmt '); u32(16, 16); u16(20, 1); u16(22, 1); u32(24, 8000); u32(28, 16000); u16(32, 2); u16(34, 16);
+    ascii(36, 'data'); u32(40, dataBytes);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+    return `data:audio/wav;base64,${typeof btoa === 'function' ? btoa(binary) : ''}`;
+}
+export const SILENT_WAV_DATA_URI = buildSilentWavDataUri();
+
 export class VoiceEngine {
     private static instance: VoiceEngine;
     private recognition: any = null;
@@ -250,6 +274,23 @@ export class VoiceEngine {
     private readyTracks = new WeakMap<HTMLAudioElement, { track: VoiceTrack; score: ProsodyScore }>();
     private lipSyncAligned = false;
     private currentAudioUrl: string | null = null;
+    /**
+     * Élément audio DÉVERROUILLÉ dans un geste de la personne (C1, 05/09/2026)
+     * et réutilisé pour toute la voix HD. Sur téléphone, un `new Audio()` créé
+     * hors geste peut être refusé à `play()` par la politique de lecture
+     * automatique ; un élément déjà joué dans un geste reste autorisé pour
+     * toute la page. `playbackUnlocked` : le clip silencieux a réellement joué.
+     */
+    private playbackElement: HTMLAudioElement | null = null;
+    private playbackUnlocked = false;
+    /** Clip silencieux en cours de lecture : un second geste dans la même seconde ne relance rien. */
+    private playbackUnlocking = false;
+    /** Compteur de lectures : l'horloge de la bouche repart à chaque clip, même URL sur le même élément. */
+    private playbackSerial = 0;
+    /** Le contexte de sortie a refusé de démarrer hors geste : on n'attend plus, jusqu'au prochain geste. */
+    private outputContextRefused = false;
+    /** Époque pour laquelle la voix HD a déjà émis `onStart` : le repli ne le répète pas. */
+    private startAnnouncedEpoch = -1;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
     // (1 à 4 s) — sans jeton, un `stopSpeaking()` (fermeture de la barre,
@@ -676,6 +717,70 @@ export class VoiceEngine {
     }
 
     /**
+     * DÉVERROUILLAGE DE LA LECTURE — à appeler DANS un geste de la personne
+     * (appui sur la sculpture, bouton Présentation, envoi d'un message).
+     *
+     * C1 (Direction, 05/09/2026) : après sa présentation, l'Architecte restait
+     * muet et immobile sur téléphone. Deux causes, toutes deux ici :
+     *  - le contexte audio de sortie, créé hors geste, restait `suspended` —
+     *    or la voix HD passe par lui pour la synchro labiale : contexte
+     *    suspendu = son perdu, sans aucune erreur ;
+     *  - `new Audio()` à chaque phrase, hors geste, pouvait être refusé à
+     *    `play()` par la politique de lecture automatique.
+     * Dans le geste : le contexte démarre, et un élément audio joue un clip
+     * silencieux — il reste autorisé pour toute la page et porte ensuite
+     * chaque phrase. Idempotent, jamais bloquant, sans son audible.
+     */
+    public unlockPlayback(): void {
+        if (typeof window === 'undefined') return;
+        // Nouveau geste : le contexte de sortie a de nouveau le droit d'essayer.
+        this.outputContextRefused = false;
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioContextClass) {
+                if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+                if (this.outputAudioContext.state !== 'running') void this.outputAudioContext.resume().catch(() => {});
+            }
+        } catch { /* contexte audio indisponible : la voix sortira de l'élément seul */ }
+        try {
+            if (typeof Audio === 'undefined') return;
+            if (!this.playbackElement) {
+                const element = new Audio();
+                element.preload = 'auto';
+                element.setAttribute('playsinline', '');
+                this.playbackElement = element;
+            }
+            // Le clip silencieux « bénit » l'élément — sauf pendant qu'il porte
+            // déjà une phrase : on ne coupe jamais la voix pour ça.
+            if (!this.playbackUnlocked && !this.playbackUnlocking && this.currentAudioElement !== this.playbackElement) {
+                const element = this.playbackElement;
+                element.src = SILENT_WAV_DATA_URI;
+                this.playbackUnlocking = true;
+                const started = element.play();
+                if (started && typeof started.then === 'function') {
+                    started.then(() => {
+                        this.playbackUnlocked = true;
+                        this.trace('lecture audio déverrouillée dans le geste');
+                    }).catch(() => { /* refusé ici : le prochain geste réessaiera */ })
+                        .finally(() => { this.playbackUnlocking = false; });
+                } else {
+                    this.playbackUnlocked = true;
+                    this.playbackUnlocking = false;
+                }
+            }
+        } catch {
+            // Lecture impossible ici : la prochaine phrase passera par l'élément
+            // quand même — et le prochain geste a le droit de réessayer le clip.
+            this.playbackUnlocking = false;
+        }
+    }
+
+    /** Vrai quand le clip silencieux a réellement joué dans un geste (lecture autorisée pour la page). */
+    public isPlaybackUnlocked(): boolean {
+        return this.playbackUnlocked;
+    }
+
+    /**
      * Résout l'ID de voix ElevenLabs correspondant à l'expert ou au contexte
      */
     public getVoiceIdForAgent(agentRoleOrId?: string): string {
@@ -806,7 +911,10 @@ export class VoiceEngine {
             onEnd?: () => void;
         }
     ) {
-        if (!text || typeof window === 'undefined') return;
+        // Rien à dire (texte vide, hors navigateur, ou vidé par le nettoyage) :
+        // le tour se clôt quand même — `onEnd` n'est jamais perdu pour l'écran
+        // qui l'attend (C1). Aucun message d'échec : il n'y avait rien à jouer.
+        if (!text || typeof window === 'undefined') { options?.onEnd?.(); return; }
 
         // Arrêter toute diction en cours — et prendre l'époque APRÈS :
         // toute continuation asynchrone d'un `speak` antérieur devient stale.
@@ -814,7 +922,7 @@ export class VoiceEngine {
         const epoch = this.speakEpoch;
 
         const cleanedText = this.formatForSpokenVoice(text);
-        if (!cleanedText) return;
+        if (!cleanedText) { options?.onEnd?.(); return; }
 
         const effectiveVoiceId = options?.voiceId || this.getVoiceIdForAgent(options?.voiceName);
 
@@ -846,12 +954,12 @@ export class VoiceEngine {
             if (epoch !== this.speakEpoch) return;
             if (!success) {
                 console.log("ℹ️ Transition gracieuse vers le moteur vocal natif...");
-                this.fallbackToBrowserSpeech(cleanedText, options);
+                this.fallbackToBrowserSpeech(cleanedText, this.relayOptions(options, epoch));
             }
         } catch (e) {
             if (epoch !== this.speakEpoch) return;
             console.warn("ElevenLabs TTS non disponible, bascule sur la synthèse système:", e);
-            this.fallbackToBrowserSpeech(cleanedText, options);
+            this.fallbackToBrowserSpeech(cleanedText, this.relayOptions(options, epoch));
         }
     }
 
@@ -1069,23 +1177,22 @@ export class VoiceEngine {
         return res.ok ? res.arrayBuffer() : null;
     }
 
-    private attachOutputAnalyser(audio: HTMLAudioElement, trackPromise: Promise<VoiceTrack | null> = Promise.resolve(null)): void {
-        // Personne n'écoute le niveau de sortie : ne pas ouvrir de contexte
-        // audio pour rien (coûteux, et bloqué tant qu'il n'y a pas eu de geste
-        // utilisateur sur certains navigateurs).
-        let wanted = false;
-        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
-        if (!wanted) return;
+    private attachOutputAnalyser(
+        audio: HTMLAudioElement,
+        audioUrl: string,
+        context: AudioContext | null,
+        trackPromise: Promise<VoiceTrack | null> = Promise.resolve(null),
+    ): void {
         try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            if (!AudioContextClass) return;
-            if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
-            const context = this.outputAudioContext;
-            if (context.state === 'suspended') void context.resume().catch(() => {});
-
+            // Relier l'élément au graphe SEULEMENT si le contexte TOURNE (C1,
+            // 05/09/2026) : relié à un contexte suspendu, l'élément « joue »
+            // jusqu'au bout mais aucun son ne sort et l'analyseur ne voit rien —
+            // c'était l'Architecte muet et immobile après sa présentation sur
+            // téléphone. Sans contexte, la voix sort en direct de l'élément et
+            // la bouche suit la piste phonétique dès qu'elle est prête.
             // Un élément déjà relié garde son nœud : re-créer une source sur le
             // même élément lève une exception et couperait le son.
-            if (this.outputSourceElement !== audio) {
+            if (context && context.state === 'running' && this.outputSourceElement !== audio) {
                 const source = context.createMediaElementSource(audio);
                 // Prise de mesure TEMPORELLE (RMS sur ~46 ms) : le spectre en
                 // octets tenait la bouche ouverte sur le souffle (voir lipSync).
@@ -1113,7 +1220,8 @@ export class VoiceEngine {
                 this.outputSourceElement = audio;
             }
             void trackPromise.then((track) => {
-                if (!track) return;
+                // Élément partagé : une piste arrivée après la phrase suivante ne doit pas la remplacer.
+                if (!track || this.currentAudioUrl !== audioUrl) return;
                 this.readyTracks.set(audio, { track, score: buildProsodyScore(track) });
                 if (this.currentAudioElement === audio && !this.lipSyncAligned) {
                     this.lipSyncAligned = true;
@@ -1128,23 +1236,30 @@ export class VoiceEngine {
 
     /** Boucle de mesure : une seule à la fois, arrêtée dès que la parole cesse. */
     private startOutputLevelLoop(): void {
-        if (this.outputRafId !== null || !this.outputAnalyser) return;
-        const analyser = this.outputAnalyser;
-        const samples = new Float32Array(analyser.fftSize);
-        const spectrum = new Float32Array(analyser.frequencyBinCount);
+        if (this.outputRafId !== null || !this.isSpeaking) return;
+        let wanted = false;
+        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
+        if (!wanted) return; // personne ne regarde la bouche : pas d'image calculée pour rien
+        // Tampons alloués pour l'analyseur du moment : il peut apparaître en
+        // cours de parole (phrase suivante qui relie un élément) ou manquer
+        // (contexte pas démarré) — la boucle suit alors la piste seule.
+        let samplesFor: AnalyserNode | null = null;
+        let samples = new Float32Array(0);
+        let spectrum = new Float32Array(0);
         const sampleRate = this.outputAudioContext?.sampleRate || 44100;
         // Crête ré-étalonnée à chaque prise de parole : une voix plus douce
         // ouvre la bouche autant qu'une voix forte.
         const envelope = createVoiceEnvelope();
         // Le son mesuré maintenant est entendu après ce délai : retard volontaire,
-        // ou latence de l'appareil si elle est plus grande.
-        const heardDelayMs = Math.max(LIP_SYNC_LOOKAHEAD_MS, this.outputLatencyMs);
+        // ou latence de l'appareil si elle est plus grande — relue à chaque
+        // image (l'analyseur peut être relié en cours de parole).
+        const heardDelay = () => Math.max(LIP_SYNC_LOOKAHEAD_MS, this.outputLatencyMs);
         const buffer = new MouthShapeBuffer();
         const clock = createAudioClock();
-        let clockFor: HTMLAudioElement | null = null;
+        let clockForSerial = -1;
         let lastAt = performance.now();
         const tick = () => {
-            if (!this.outputAnalyser || !this.isSpeaking) {
+            if (!this.isSpeaking) {
                 this.outputRafId = null;
                 this.publishMouth(MOUTH_AT_REST);
                 this.publishTrack(null);
@@ -1157,22 +1272,35 @@ export class VoiceEngine {
                 // PISTE PHONÉTIQUE : la bouche et les gestes suivent l'horloge du
                 // son lui-même (position de lecture lissée), à l'instant qui sera
                 // ENTENDU quand l'image sera affichée, plus l'avance visuelle.
-                if (clockFor !== audio) {
+                // Élément partagé entre les phrases : l'horloge repart à chaque
+                // lecture (compteur), même quand deux phrases ont la même URL.
+                if (clockForSerial !== this.playbackSerial) {
                     clock.reset();
-                    clockFor = audio;
+                    clockForSerial = this.playbackSerial;
                 }
                 const media = clock.update(audio.currentTime * 1000, now);
-                const tMs = mouthReadTime(media, heardDelayMs + MEDIA_PIPELINE_MS);
+                const tMs = mouthReadTime(media, heardDelay() + MEDIA_PIPELINE_MS);
                 this.publishMouth(trackShapeAt(ready.track, tMs));
                 this.publishTrack({ track: ready.track, score: ready.score, t0Perf: now - tMs });
-            } else {
+            } else if (this.outputAnalyser) {
                 // AMPLITUDE MESURÉE (repli, ou piste pas encore prête).
-                this.outputAnalyser.getFloatTimeDomainData(samples);
-                this.outputAnalyser.getFloatFrequencyData(spectrum);
+                const analyser = this.outputAnalyser;
+                if (samplesFor !== analyser) {
+                    samples = new Float32Array(analyser.fftSize);
+                    spectrum = new Float32Array(analyser.frequencyBinCount);
+                    samplesFor = analyser;
+                }
+                analyser.getFloatTimeDomainData(samples);
+                analyser.getFloatFrequencyData(spectrum);
                 buffer.push(now, mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt));
                 // Forme coarticulée lue pour qu'à l'écran les lèvres PRÉCÈDENT le son
                 // entendu (avance visuelle, retard d'affichage mesuré déduit).
-                this.publishMouth(buffer.at(mouthReadTime(now, heardDelayMs)));
+                this.publishMouth(buffer.at(mouthReadTime(now, heardDelay())));
+                this.publishTrack(null);
+            } else {
+                // Ni piste prête ni analyseur (contexte audio pas démarré) : la
+                // voix est entendue en direct ; la bouche attend la piste.
+                this.publishMouth(MOUTH_AT_REST);
                 this.publishTrack(null);
             }
             lastAt = now;
@@ -1212,24 +1340,93 @@ export class VoiceEngine {
         }
     }
 
-    /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */
-    private playAudioUrl(audioUrl: string, epoch: number, text?: string): Promise<boolean> {
+    /**
+     * Contexte audio de sortie DÉMARRÉ, ou `null` s'il ne peut pas l'être
+     * maintenant (aucun geste encore, appareil qui refuse) — attente bornée à
+     * ~150 ms, jamais bloquante. `null` aussi quand personne n'écoute le niveau
+     * de sortie : pas de contexte ouvert pour rien.
+     */
+    private async ensureOutputContextRunning(): Promise<AudioContext | null> {
+        if (typeof window === 'undefined') return null;
+        // iPhone / iPad : la voix sort en DIRECT de l'élément, jamais par le
+        // graphe Web Audio — sur ces appareils, la sortie Web Audio suit
+        // l'interrupteur silencieux alors qu'un élément média s'entend quand
+        // même ; relier la voix au graphe pouvait la rendre muette exactement
+        // là où la Direction l'a constaté. La bouche suit la piste phonétique
+        // (décodée à part, contexte démarré ou non).
+        if (VoiceEngine.prefersDirectPlayback()) return null;
+        if (this.outputContextRefused) return null; // déjà refusé hors geste : on n'attend pas 150 ms à chaque phrase
+        let wanted = false;
+        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
+        if (!wanted) return null;
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextClass) return null;
+            if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+            const context = this.outputAudioContext;
+            if (context.state !== 'running') {
+                await Promise.race([Promise.resolve(context.resume()).catch(() => undefined), this.waitMs(150)]);
+            }
+            if (context.state !== 'running') {
+                this.outputContextRefused = true;
+                return null;
+            }
+            return context;
+        } catch {
+            return null;
+        }
+    }
+
+    /** iPhone, iPod et iPad (y compris l'iPad qui se présente en Mac tactile). */
+    static prefersDirectPlayback(nav: Navigator | undefined = typeof navigator !== 'undefined' ? navigator : undefined): boolean {
+        if (!nav) return false;
+        const ua = nav.userAgent || '';
+        if (/iPhone|iPad|iPod/i.test(ua)) return true;
+        return nav.platform === 'MacIntel' && (nav.maxTouchPoints || 0) > 1;
+    }
+
+    /**
+     * L'élément déverrouillé dans un geste porte la voix — sauf s'il est déjà
+     * relié à un contexte qui ne tourne pas (le son n'en sortirait pas) : alors
+     * un élément libre, en direct, qui garde sa chance d'être joué.
+     */
+    private pickPlaybackElement(): HTMLAudioElement {
+        const unlocked = this.playbackElement;
+        if (unlocked) {
+            const contextRunning = this.outputAudioContext?.state === 'running';
+            const boundToSilentContext = this.outputSourceElement === unlocked && !contextRunning;
+            if (!boundToSilentContext) return unlocked;
+        }
+        return new Audio();
+    }
+
+    /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur ou refus de lecture (false), ou immédiatement si l'époque a été annulée (false). */
+    private async playAudioUrl(audioUrl: string, epoch: number, text?: string): Promise<boolean> {
+        const context = await this.ensureOutputContextRunning();
+        if (epoch !== this.speakEpoch) return false;
         return new Promise<boolean>((resolve) => {
             try {
-                const audio = new Audio(audioUrl);
+                const audio = this.pickPlaybackElement();
+                audio.src = audioUrl;
+                this.playbackSerial += 1;
                 this.currentAudioElement = audio;
                 this.currentAudioUrl = audioUrl;
+                // Élément partagé entre les phrases : la piste de la précédente ne vaut plus.
+                this.readyTracks.delete(audio);
                 // La piste phonétique se prépare en parallèle du démarrage :
                 // souvent prête avant le premier son, sinon la bouche suit
                 // l'analyseur pendant quelques dizaines de millisecondes.
-                this.attachOutputAnalyser(audio, text ? this.prepareVoiceTrack(audioUrl, text) : Promise.resolve(null));
+                this.attachOutputAnalyser(audio, audioUrl, context, text ? this.prepareVoiceTrack(audioUrl, text) : Promise.resolve(null));
                 audio.onended = () => resolve(true);
                 // `stopSpeaking()` met l'audio en pause : l'événement pause
                 // avec une époque périmée signifie « coupé net » — on résout
                 // tout de suite au lieu de laisser une promesse pendante.
                 audio.onpause = () => { if (epoch !== this.speakEpoch) resolve(false); };
                 audio.onerror = (e) => { console.warn('Erreur lecture audio ElevenLabs:', e); resolve(false); };
-                audio.play().catch((err) => { console.warn('Échec lecture autoplay audio:', err); resolve(false); });
+                const started = audio.play();
+                if (started && typeof started.catch === 'function') {
+                    started.catch((err: unknown) => { console.warn('Échec lecture autoplay audio:', err); resolve(false); });
+                }
             } catch (err) {
                 console.warn('Erreur initialisation Audio ElevenLabs:', err);
                 resolve(false);
@@ -1271,6 +1468,7 @@ export class VoiceEngine {
         this.notifySpeakingState(true);
         this.notifyConversationalTurn('ai_speaking');
         this.listeners.forEach(l => l.onTtsEngineChange?.('elevenlabs'));
+        this.startAnnouncedEpoch = epoch;
         options?.onStart?.();
 
         for (let i = 0; i < segments.length; i++) {
@@ -1283,7 +1481,18 @@ export class VoiceEngine {
 
             const played = await this.playAudioUrl(currentUrl, epoch, segments[i]);
             if (epoch !== this.speakEpoch) return true; // coupé net (barge-in/fermeture) : rien d'autre ne part
-            if (!played) break; // erreur de lecture : fin propre, jamais une superposition
+            if (!played) {
+                if (i === 0) {
+                    // PREMIÈRE phrase refusée (lecture automatique bloquée, erreur
+                    // de lecture) : rien n'a été entendu. Fin propre SANS relancer
+                    // le micro, et `false` pour que le repli navigateur tente sa
+                    // chance — l'ancien code rendait `true` : un silence pris pour
+                    // un succès, l'Architecte muet sans un mot (C1).
+                    this.finishSpeakingElevenLabs(options, 'relais');
+                    return false;
+                }
+                break; // erreur en cours de route : fin propre, jamais une superposition
+            }
 
             if (nextPromise) {
                 // Respiration entre deux blocs, selon la ponctuation réelle.
@@ -1308,10 +1517,17 @@ export class VoiceEngine {
         return true;
     }
 
-    private finishSpeakingElevenLabs(options?: { onEnd?: () => void }) {
+    private finishSpeakingElevenLabs(options?: { onEnd?: () => void }, mode: 'terminee' | 'relais' = 'terminee') {
         this.isSpeaking = false;
         this.currentAudioElement = null;
         this.notifySpeakingState(false);
+        if (mode === 'relais') {
+            // La première phrase n'a pas pu être jouée : le repli navigateur
+            // prend le relais tout de suite — ni `onEnd` (la parole n'est pas
+            // finie), ni micro relancé (la voix de secours le recouperait).
+            this.trace('voix HD : lecture refusée avant le premier son — relais au repli navigateur');
+            return;
+        }
         options?.onEnd?.();
 
         this.trace('voix HD : lecture terminée');
@@ -1339,10 +1555,16 @@ export class VoiceEngine {
             onEnd?: () => void; 
         }
     ) {
-        if (typeof window === 'undefined' || !window.speechSynthesis) return;
+        if (typeof window === 'undefined' || !window.speechSynthesis) { this.abandonSpeech(options); return; }
 
         const phrases = this.splitIntoAcousticPhrases(text);
-        if (phrases.length === 0) return;
+        if (phrases.length === 0) { this.abandonSpeech(options); return; }
+        // Époque de CETTE lecture (C1) : `speak()` vient de l'incrémenter via
+        // `stopSpeaking()`. Les minuteries de la file (différé anti-cancel,
+        // respiration, chien de garde) la vérifient — sans cela, la minuterie
+        // d'une réponse précédente pouvait piloter la file de la suivante avec
+        // ses propres options (`onEnd` orphelin, fin signalée au mauvais tour).
+        const epoch = this.speakEpoch;
 
         // Task force P0 (S3-A) : le verrou d'identité vocale (§9) n'est plus
         // posé ICI mais au premier `utterance.onstart` réel — une voix qui
@@ -1369,7 +1591,37 @@ export class VoiceEngine {
         // PERDENT silencieusement une utterance lancée immédiatement après
         // (ni onstart, ni onend, ni onerror : voix muette ET micro jamais
         // relancé, démontré par la reproduction de l'audit). Court différé.
-        setTimeout(() => { if (this.isProcessingQueue) this.processNextInQueue(options); }, 80);
+        setTimeout(() => { if (epoch === this.speakEpoch && this.isProcessingQueue) this.processNextInQueue(options, epoch); }, 80);
+    }
+
+    /**
+     * Options transmises au repli navigateur après un relais HD : quand la
+     * voix HD a déjà émis `onStart` pour cette parole, le repli ne le répète
+     * pas — un seul début, une seule fin, pour tous les écrans (C1).
+     */
+    private relayOptions<T extends { onStart?: () => void }>(options: T | undefined, epoch: number): T | undefined {
+        if (!options || this.startAnnouncedEpoch !== epoch) return options;
+        return { ...options, onStart: undefined };
+    }
+
+    /**
+     * Aucune voix possible (synthèse du navigateur absente, rien à dire) :
+     * le dire honnêtement, clore le tour (`onEnd` une fois — jamais perdu
+     * pour les écrans qui l'attendent) et relancer l'écoute conversationnelle.
+     */
+    private abandonSpeech(options?: { onEnd?: () => void }) {
+        this.trace('aucune voix disponible — parole abandonnée, dite honnêtement');
+        this.listeners.forEach(l => l.onError?.(SPEECH_OUTPUT_FAILED_MESSAGE));
+        options?.onEnd?.();
+        if (this.isConversationalMode) {
+            this.notifyConversationalTurn('waiting_user');
+            setTimeout(() => {
+                if (this.isConversationalMode && !this.isSpeaking && !this.isListening) {
+                    this.trace('micro relancé après parole abandonnée');
+                    this.startListening('fr-FR');
+                }
+            }, 350);
+        }
     }
 
     private splitIntoAcousticPhrases(text: string): string[] {
@@ -1411,7 +1663,9 @@ export class VoiceEngine {
         return phrases;
     }
 
-    private processNextInQueue(options?: { voiceName?: string; rate?: number; pitch?: number; onEnd?: () => void }) {
+    private processNextInQueue(options?: { voiceName?: string; rate?: number; pitch?: number; onEnd?: () => void }, epoch: number = this.speakEpoch) {
+        // Une minuterie d'une lecture antérieure ne touche jamais à la file courante.
+        if (epoch !== this.speakEpoch) return;
         if (!this.isProcessingQueue || this.speechQueue.length === 0) {
             this.finishSpeakingBrowser(options);
             return;
@@ -1456,9 +1710,9 @@ export class VoiceEngine {
         // toujours : voix muette ET micro jamais relancé (blocage
         // irrécupérable). Si rien n'a démarré sous 2 s, on passe à la suite.
         const lostWatchdog = setTimeout(() => {
-            if (this.currentUtterance === utterance && this.isProcessingQueue) {
+            if (epoch === this.speakEpoch && this.currentUtterance === utterance && this.isProcessingQueue) {
                 this.trace('utterance perdue — chien de garde', { phrase: phrase.slice(0, 40) });
-                this.processNextInQueue(options);
+                this.processNextInQueue(options, epoch);
             }
         }, 2000);
 
@@ -1477,8 +1731,8 @@ export class VoiceEngine {
         utterance.onend = () => {
             clearTimeout(lostWatchdog);
             setTimeout(() => {
-                if (this.isProcessingQueue) {
-                    this.processNextInQueue(options);
+                if (epoch === this.speakEpoch && this.isProcessingQueue) {
+                    this.processNextInQueue(options, epoch);
                 }
             }, breath);
         };
@@ -1486,8 +1740,8 @@ export class VoiceEngine {
         utterance.onerror = (e) => {
             clearTimeout(lostWatchdog);
             console.warn('Speech chunk notice:', e);
-            if (this.isProcessingQueue) {
-                this.processNextInQueue(options);
+            if (epoch === this.speakEpoch && this.isProcessingQueue) {
+                this.processNextInQueue(options, epoch);
             }
         };
 
