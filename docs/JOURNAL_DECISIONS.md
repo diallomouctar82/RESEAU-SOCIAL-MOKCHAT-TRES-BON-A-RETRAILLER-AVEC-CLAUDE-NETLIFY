@@ -1122,7 +1122,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-057] — 5 Septembre 2026
+### [DEC-2026-058] — 5 Septembre 2026
 
 * **Module(s)** : `Santé Globale (Super-Admin)`, fonction Edge
   `health-guardian` (`liveEmergency.ts`, `index.ts`), `Live / Directs`
@@ -1160,11 +1160,11 @@ Chaque décision respecte le formalisme strict suivant :
      divergente, ports UDP, montée 1.8.4 → 1.13.6) restent listés dans le
      panneau comme action humaine, jamais promis par un bouton.
 * **Décision finale** : option 3, livrée sur `claude/lives-directs-sat6`
-  (PR en brouillon), **non déployée** — ni la fonction Edge (la v2 en
+  (PR #88 en brouillon), **non déployée** — ni la fonction Edge (v4 ; la v3 en
   production ne connaît pas ces actions) ni le client : validation de la
   Direction requise. Ordre de mise en production si elle est validée :
   fonction Edge d'abord (additive ; retour arrière = redéployer l'artefact
-  v2 régénéré par `build-bundle.sh`), fusion du client ensuite — dans
+  v3 régénéré par `build-bundle.sh`), fusion du client ensuite — dans
   l'autre sens, le panneau afficherait « action inconnue » à l'Admin
   Général.
 * **Ce que le banc a trouvé** (passe 1, 44 OK / 1 DÉFAUT) : un faux défaut
@@ -1175,9 +1175,9 @@ Chaque décision respecte le formalisme strict suivant :
   d'entrée `animate-fade-up` laisse un `transform` identité sur trois
   enveloppes de l'espace admin, et un ancêtre transformé devient le cadre de
   tout `position:fixed` ; corrigé par un portail vers `<body>`, comme la
-  goutte de la messagerie — et le même portail a été donné au tiroir de
-  détail et à la modale de réparation de la Santé Globale, pris dans le même
-  piège depuis leur création) et, après la relance, un panneau qui disait
+  goutte de la messagerie — et le même portail a été donné à la fiche
+  problème et à la modale de confirmation de la Santé Globale, prises dans le
+  même piège depuis leur création) et, après la relance, un panneau qui disait
   « Aucune room active » alors que les deux personnes étaient déjà revenues
   (corrigé par une seconde relecture 5 s après le geste, le temps que les
   lignes SAT-5 se rétablissent). **Passe 2 (38 OK / 10 DÉFAUT)** : les dix
@@ -1200,22 +1200,130 @@ Chaque décision respecte le formalisme strict suivant :
   `services/health/healthService.ts` (+3 appels),
   `components/admin/LiveEmergencyPanel.tsx` (nouveau ; modale par portail,
   seconde relecture différée), `components/admin/AdminHealthTab.tsx`
-  (panneau monté avant le journal, badges Secours / Automatique /
-  Restauration ; tiroir de détail et modale de réparation rendus par
-  portail), `components/SocialLive.tsx` (course du roster : un spectateur
+  (écran v2 de DEC-2026-057 : panneau monté avant le journal, libellé
+  « Secours » et geste nommé dans le journal ; `FicheProbleme` et
+  `ModaleConfirmation` rendues par portail), `components/SocialLive.tsx` (course du roster : un spectateur
   n'est plus pris pour « retiré » pendant son inscription),
   `tests/liveEmergency.test.ts` (26), `tests/liveEmergencyPanel.test.tsx`
   (8). Aucune migration, aucune table nouvelle.
 * **Preuves** : tsc 0 · vitest 1101/1101 · build · 4 contre-épreuves rouges
   (rang non relu au geste, même sid déclaré vérifié, jeton d'un autre geste
   accepté, bouton actif sans case) ; banc réel détaillé dans
-  `docs/HISTORIQUE_VERSIONS.md` (v6.22.0). **Limites honnêtes** : la
+  `docs/HISTORIQUE_VERSIONS.md` (v6.23.0). **Limites honnêtes** : la
   fonction Edge n'est pas déployée ; au banc, le flux Edge réel tourne dans
   Node avec ses ports réels (base réelle pour le rang et la RLS, LiveKit
   vivant pour DeleteRoom), sauf le port journal, remplacé par un fichier
   faute de clé de service dans le bac à sable — l'écriture réelle dans
   `audit_logs` n'a pas encore été jouée (elle emprunte `journal()`, déjà en
   production pour SAT-4/SAT-5). Comptes de preuve supprimés à zéro trace.
+* **Fusion avec `main` (5/09, matin)** : pendant le banc, `main` a pris
+  DEC-2026-057 / v6.22.0 (Santé Globale v2, PR #86) et déployé la fonction
+  Edge **v3** ; la PR #88 est passée en conflit sur sept fichiers, sans
+  référence de fusion pour le Green Gate. Décision : fusionner `main` dans
+  la branche (jamais l'inverse), renuméroter SAT-6 en **DEC-2026-058 /
+  v6.23.0 / Edge v4**, et regreffer SAT-6 sur l'écran v2 (le fichier
+  `AdminHealthTab.tsx` de `main` a été pris tel quel, puis le panneau, les
+  libellés du journal et les deux portails y ont été reposés à la main) et
+  sur `index.ts` v3 (les trois actions et leurs ports ajoutés à la v3, qui
+  fournit déjà `loadTransportConfig` et `hmacKey`). Preuves rejouées sur
+  l'arbre fusionné : tsc 0 · vitest 1128/1128 (1094 de `main` + 34 de SAT-6)
+  · build · artefact v4 régénéré par `build-bundle.sh` (66 569 octets, les
+  trois actions et les sondes v3 présentes) · **banc réel passe 5 : 51 OK /
+  0 DÉFAUT** (5/09/2026, 09h44 UTC). Deux faux départs de banc, sans rapport
+  avec le produit : les comptes de preuve, supprimés après la passe 4, ont dû
+  être recréés en SQL ; et le banc visait la première carte du DOM alors que
+  l'écran v2 replie certains blocs (62 cartes, 58 visibles) — il vise
+  désormais la première carte visible. Comptes de preuve de nouveau
+  supprimés à zéro trace : 63 lignes retirées, balayage de 264 colonnes
+  `uuid` (`public`, `storage`, `auth`) = 0, 0 `super_admin` restant (le
+  compte de test signalé par DEC-2026-057 est retiré), 4 directs réels
+  ouverts intacts.
+
+---
+
+### [DEC-2026-057] — 5 Septembre 2026
+
+* **Module(s)** : `Super-Admin / Santé Globale` (`components/admin/AdminHealthTab.tsx`,
+  `services/health/*`), fonction Edge `health-guardian` (**v3**), base
+  (`health_probe_catalogue`, migration `20260905090000`).
+* **Problème / Besoin initial** : la Direction a jugé l'écran « Santé
+  Globale » insuffisant pour piloter et a fixé un cadre strict : à la fin de
+  l'analyse, la **santé** et la **sécurité** en pour cent, des graphiques,
+  le pourcentage de progression **à côté de chaque vague de correctifs** ;
+  le **rapport de sécurité du 4 septembre (61 %)** intégré ; **trois blocs
+  de couleur** (rouge critique ou bloquant, orange partiel ou fragile, vert
+  conforme) — « ne mélange pas tout dans une seule liste » ; les domaines
+  **Sécurité, Application, Connecteurs, Live, VPS, Base de données,
+  Services externes** séparés ; pour chaque problème **le problème, la
+  cause, l'impact, le niveau de risque, l'action recommandée** ; un **vrai
+  bouton Réparer**, l'action manuelle n'apparaissant que si rien
+  d'automatique n'existe, avec l'endroit exact et un guide pas à pas ;
+  jamais de faux bouton. Cause racine de l'écran précédent : une seule file
+  de 53 lignes, ni cause ni impact, aucune note de sécurité, aucun guide, et
+  une ligne manquante qui explique pourquoi Réparer restait bloqué pour
+  tout le monde (au matin du 5/09 : 0 `super_admin`, 1 `admin` en base —
+  l'application déduit son Super-Admin d'une adresse écrite en dur que la
+  base ignore, constat J-01b).
+* **Options considérées** :
+  1. Remplacer les 12 domaines techniques par les 7 demandés — rejeté : poids,
+     évaluateurs, tests et documentation reposent sur les 12 ; retenu : un
+     **bloc de lecture** déclaré sur chaque ligne (`bloc`), les 12 domaines
+     restant l'unité de notation.
+  2. Recopier le 61 % de l'audit comme note de sécurité — rejeté : une note
+     figée ne bouge pas quand on corrige ; retenu : l'audit comme
+     **référence** (8 domaines, poids, notes, 14 constats, 3 vagues) et une
+     note **vivante** recalculée sur les mêmes poids à partir des lignes
+     réellement mesurées, les deux toujours côte à côte (mesuré le 5/09 :
+     51 % sur 84 % du périmètre, contre 61 % à l'audit — même ordre, même
+     orange, écart tenu sous 15 points par un test).
+  3. Rattacher J-01b (adresse en dur) à la ligne « Un Admin Général reconnu
+     par la base » — rejeté après constat : un compte de test `super_admin`
+     créé le même matin par la mission SAT-6 aurait fait passer le constat
+     pour résolu ; J-01b reste **non mesuré**, ce qui est la vérité.
+  4. Corriger le CORS `*` des cinq autres fonctions Edge dans cette PR —
+     rejeté (hors périmètre) : **mesuré** par une sonde et **guidé** dans la
+     fiche, pas modifié.
+* **Décision finale** : (a) registre porté à **58 lignes**, chacune avec
+  `cause`, `impact`, `risk` (critique/élevé/moyen/faible, écrit avant toute
+  mesure) et **une seule voie d'action** — réparation automatique, guide
+  manuel (`manual` : où, lien direct `{supabase}`/`{repo}` résolu à
+  l'exécution, étapes) ou recommandation — sous garde de
+  `validateRegistry` ; cinq lignes nouvelles : `securite.cors_fonctions`,
+  `gouvernance.rang_admin_general`, `vps.reverse_proxy`,
+  `vps.signalisation`, `vps.version_livekit` (humaine) ; (b)
+  `securityAudit.ts` : référence + note vivante + progression par vague
+  (part des constats dont TOUTES les lignes sont vertes) ; (c) écran : deux
+  anneaux, trois graphiques, sept sections × trois blocs + bande « ni rouge,
+  ni vert », fiche problème, guide manuel, journal qui nomme les
+  réparations automatiques du cron ; (d) fonction Edge **v3** : sondes CORS
+  (pré-vol vers les six fonctions depuis une origine inventée), VPS (façade
+  HTTPS + `/rtc/validate` avec jeton du coffre sans publication ni
+  abonnement), rang (migration `20260905090000`, deux compteurs, aucun droit
+  ni donnée touchés) ; repli CORS **jamais `*`** — sans
+  `HEALTH_ALLOWED_ORIGINS`, moknet.net et les sites Netlify de l'équipe
+  seulement (vérifié : origine inconnue → `https://moknet.net`). Artefact
+  déployé identique octet pour octet au bundle généré (51 040 octets).
+  Livré par la PR #86 (branche `claude/moknet-security-audit-ohfwc1`,
+  reconstruite sur `main` après la fusion de « Plateaux de cristal »),
+  1072/1072 tests, typage 0 erreur, harnais local sur les mesures de
+  production du 5/09 (santé 75 % sur 95 % mesuré ; 6 rouges, 9 oranges,
+  5 non mesurés, 38 verts ; aucun bouton « Appliquer » rendu au rang admin).
+* **Rappel des livraisons précédentes de la même lignée (non journalisées
+  jusqu'ici)** : PR #70 (onglet « Santé Globale » dans Super-Admin, 4/09),
+  PR #78 (bandeau « Nouvelle version de MokNet disponible », détection du
+  bundle servi, jamais de rechargement forcé), PR #80 (`launch_handler`
+  `navigate-existing` : un lien vers l'application installée la fait
+  naviguer), PR #82 (statut en mot et en couleur, santé en %, « Diagnostic
+  seulement » écrit en toutes lettres).
+* **Restes assumés** : Réparer reste « Diagnostic seulement » pour le compte
+  de la Direction tant que son profil est `admin` — décision de la
+  Direction, guidée dans la fiche « Un Admin Général reconnu par la base »
+  (une requête, réversible) ; le compte de test `sat6.admin@moknet.net` en
+  `super_admin` appartient à la mission SAT-6, qui doit le retirer ;
+  `vps.version_livekit` ne se mesure qu'en SSH ; J-01b et le CORS des cinq
+  autres fonctions sont guidés, pas corrigés ; `dependances.*`,
+  `securite.mots_de_passe_fuites` et `stockage.validation_televersement`
+  restent des contrôles humains (blancs) tant qu'aucune sonde ne les lit.
 
 ---
 

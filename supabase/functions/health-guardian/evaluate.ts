@@ -14,6 +14,7 @@
 
 import {
     type RawLiveTransportProbe,
+    SEUIL_DEGRADE_MS,
     describeLiveTransport,
     judgeLiveTransport,
     liveTransportVerdict,
@@ -52,6 +53,49 @@ export interface RawMetrics {
         configured: boolean;
         probe: RawLiveTransportProbe | null;
     };
+    /**
+     * 05/09/2026 — le VPS du direct, vu de l'extérieur : la façade HTTPS
+     * (nginx/CloudPanel) et la porte des appareils (`/rtc/validate`), avec un
+     * jeton signé par la clé du coffre. `undefined` = sonde non exécutée →
+     * lignes BLANCHES.
+     */
+    vps?: RawVpsMetrics;
+    /**
+     * 05/09/2026 — réponse de chaque fonction Edge à une requête de pré-vol
+     * (OPTIONS) venue d'une origine inventée. C'est le constat O-03 de
+     * l'audit, mesuré au lieu d'être supposé.
+     */
+    edgeCors?: RawEdgeCorsMetrics;
+}
+
+/** Une requête HTTP observée : atteinte ou non, code, délai. */
+export interface RawHttpProbe {
+    reached: boolean;
+    httpStatus: number | null;
+    latencyMs: number;
+    timedOut: boolean;
+}
+
+export interface RawVpsMetrics {
+    /** `false` quand aucune configuration de transport n'est active : rien à sonder. */
+    configured: boolean;
+    /** `GET /` sur le serveur du direct — la façade HTTPS. */
+    front: RawHttpProbe | null;
+    /** `GET /rtc/validate?access_token=…` — la porte réellement utilisée par les appareils. */
+    rtc: RawHttpProbe | null;
+}
+
+export interface RawEdgeCorsMetrics {
+    /** L'origine inventée envoyée dans la requête de pré-vol. */
+    foreignOrigin: string;
+    functions: {
+        slug: string;
+        /** `false` si la passerelle a répondu à la place de la fonction (404) ou si l'appel a échoué. */
+        reached: boolean;
+        httpStatus: number | null;
+        /** Valeur brute de `Access-Control-Allow-Origin` renvoyée. */
+        allowOrigin: string | null;
+    }[];
 }
 
 interface Verdict {
@@ -598,6 +642,146 @@ export const EVALUATORS: Record<string, Evaluator> = {
                 ? "Journal en place, aucune action de santé encore enregistrée."
                 : `Journal en place, ${count} action(s) de santé enregistrée(s).`,
             evidence: { healthActionsLogged: count },
+        };
+    },
+    // ───────────────────── 05/09/2026 — RANG, CORS, VPS ─────────────────────
+
+    'gouvernance.rang_admin_general': ({ catalogue }) => {
+        if (!('superAdminCount' in catalogue)) {
+            // Compteur absent = migration 20260905090000 non appliquée. On ne
+            // devine pas : la ligne reste blanche avec la raison.
+            throw new Error("Compteur `superAdminCount` absent de la sonde : migration 20260905090000 non appliquée.");
+        }
+        const superAdmins = n(catalogue.superAdminCount);
+        const admins = n(catalogue.adminCount);
+        const evidence = { superAdminCount: superAdmins, adminCount: admins };
+        if (superAdmins === 0) {
+            return {
+                status: 'orange',
+                measured: `Aucun compte ne porte le rang super_admin (${admins} administrateur${admins > 1 ? 's' : ''} ordinaire${admins > 1 ? 's' : ''}).`,
+                gap: "Réparer et restaurer sont impossibles pour tout le monde : ce tableau ne peut que diagnostiquer.",
+                evidence,
+            };
+        }
+        if (superAdmins > 3) {
+            return {
+                status: 'orange',
+                measured: `${superAdmins} comptes portent le rang super_admin.`,
+                gap: "Un rang qui donne le pouvoir de réparer et de restaurer ne devrait tenir que dans une poignée de mains.",
+                evidence,
+            };
+        }
+        return {
+            status: 'vert',
+            measured: `${superAdmins} compte${superAdmins > 1 ? 's' : ''} Admin Général reconnu${superAdmins > 1 ? 's' : ''} par la base.`,
+            evidence,
+        };
+    },
+
+    'securite.cors_fonctions': ({ edgeCors }) => {
+        if (!edgeCors) throw new Error("La sonde CORS des fonctions Edge n'a pas été exécutée.");
+        const reached = edgeCors.functions.filter((f) => f.reached);
+        const unreached = edgeCors.functions.filter((f) => !f.reached).map((f) => f.slug);
+        const open = reached
+            .filter((f) => f.allowOrigin === '*' || f.allowOrigin === edgeCors.foreignOrigin)
+            .map((f) => f.slug);
+        const evidence = {
+            foreignOrigin: edgeCors.foreignOrigin,
+            functions: edgeCors.functions.map((f) => ({ slug: f.slug, allowOrigin: f.allowOrigin, httpStatus: f.httpStatus })),
+        };
+        if (reached.length === 0) {
+            throw new Error(`Aucune fonction n'a pu être interrogée (${unreached.join(', ') || 'liste vide'}).`);
+        }
+        if (open.length > 0) {
+            return {
+                status: 'orange',
+                measured: `${open.length} fonction${open.length > 1 ? 's' : ''} sur ${reached.length} répond${open.length > 1 ? 'ent' : ''} à n'importe quelle origine : ${open.join(', ')}.`,
+                gap: "Attendu : aucune. Chaque fonction doit n'accepter que les origines MokNet (constat O-03 de l'audit).",
+                evidence,
+            };
+        }
+        if (unreached.length > 0) {
+            return {
+                status: 'orange',
+                measured: `${reached.length} fonction${reached.length > 1 ? 's' : ''} restreinte${reached.length > 1 ? 's' : ''} aux origines MokNet, mais ${unreached.length} non interrogeable${unreached.length > 1 ? 's' : ''} : ${unreached.join(', ')}.`,
+                gap: "Une fonction non interrogeable n'est pas prouvée fermée.",
+                evidence,
+            };
+        }
+        return {
+            status: 'vert',
+            measured: `Les ${reached.length} fonctions n'acceptent que les origines MokNet.`,
+            evidence,
+        };
+    },
+
+    'vps.reverse_proxy': ({ vps }) => {
+        if (!vps) throw new Error("La sonde du VPS n'a pas été exécutée.");
+        if (!vps.configured) throw new Error("Aucune configuration de transport active : le VPS ne peut pas être sondé.");
+        const front = vps.front;
+        if (!front) throw new Error("La façade HTTPS du VPS n'a pas pu être observée.");
+        const evidence = { httpStatus: front.httpStatus, latencyMs: front.latencyMs, seuilDegradeMs: SEUIL_DEGRADE_MS };
+        if (!front.reached) {
+            return {
+                status: 'rouge',
+                measured: front.timedOut
+                    ? `Le VPS ne répond pas en HTTPS dans le délai (${front.latencyMs} ms).`
+                    : "Le VPS est injoignable en HTTPS (erreur réseau ou certificat).",
+                gap: "Aucun téléphone ne peut joindre le direct tant que la façade ne répond pas.",
+                evidence,
+            };
+        }
+        if (front.latencyMs > SEUIL_DEGRADE_MS) {
+            return {
+                status: 'orange',
+                measured: `Le VPS répond en HTTPS (HTTP ${front.httpStatus}) mais en ${front.latencyMs} ms.`,
+                gap: `Attendu : moins de ${SEUIL_DEGRADE_MS} ms. Une machine lente fait échouer les connexions au direct.`,
+                evidence,
+            };
+        }
+        return {
+            status: 'vert',
+            measured: `Le VPS répond en HTTPS (HTTP ${front.httpStatus}) en ${front.latencyMs} ms.`,
+            evidence,
+        };
+    },
+
+    'vps.signalisation': ({ vps }) => {
+        if (!vps) throw new Error("La sonde du VPS n'a pas été exécutée.");
+        if (!vps.configured) throw new Error("Aucune configuration de transport active : la porte /rtc ne peut pas être sondée.");
+        const rtc = vps.rtc;
+        if (!rtc) throw new Error("Le jeton de sonde n'a pas pu être signé : la porte /rtc n'a pas été observée.");
+        const evidence = { httpStatus: rtc.httpStatus, latencyMs: rtc.latencyMs };
+        if (!rtc.reached) {
+            return {
+                status: 'rouge',
+                measured: rtc.timedOut
+                    ? `La porte /rtc ne répond pas dans le délai (${rtc.latencyMs} ms).`
+                    : "La porte /rtc est injoignable (erreur réseau ou certificat).",
+                gap: "Les appareils ne peuvent pas ouvrir de direct ni d'appel.",
+                evidence,
+            };
+        }
+        if (rtc.httpStatus === 200) {
+            return {
+                status: 'vert',
+                measured: `La porte /rtc valide notre jeton en ${rtc.latencyMs} ms.`,
+                evidence,
+            };
+        }
+        if (rtc.httpStatus === 401 || rtc.httpStatus === 403) {
+            return {
+                status: 'rouge',
+                measured: `La porte /rtc refuse notre jeton (HTTP ${rtc.httpStatus}).`,
+                gap: "La clé du VPS et celle du coffre ont divergé : aucun appareil ne peut entrer.",
+                evidence,
+            };
+        }
+        return {
+            status: 'rouge',
+            measured: `La porte /rtc ne répond pas correctement (HTTP ${rtc.httpStatus}).`,
+            gap: "Le relais nginx de /rtc ou le conteneur LiveKit est en défaut.",
+            evidence,
         };
     },
 };

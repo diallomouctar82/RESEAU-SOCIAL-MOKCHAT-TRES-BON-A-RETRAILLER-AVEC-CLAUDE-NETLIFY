@@ -20,7 +20,7 @@
 
 import { AccessToken, RoomServiceClient } from 'npm:livekit-server-sdk@2.18.0';
 import { createServiceRoleClient, createUserScopedClient } from './supabase.ts';
-import { evaluateAll, ProbeOutcome, RawMetrics } from './evaluate.ts';
+import { evaluateAll, ProbeOutcome, RawEdgeCorsMetrics, RawHttpProbe, RawMetrics, RawVpsMetrics } from './evaluate.ts';
 import { SEUIL_DEGRADE_MS, type RawLiveTransportProbe, toLiveKitApiUrl } from './liveTransportProbe.ts';
 import {
     apply as applyLiveEmergency,
@@ -41,23 +41,41 @@ import {
 // existantes : c'est le constat O-03 de l'audit du 04/09/2026, et une
 // nouvelle fonction n'a aucune raison de reproduire un défaut connu.
 // `HEALTH_ALLOWED_ORIGINS` (liste séparée par des virgules) porte les
-// domaines MokNet. Tant qu'elle n'est pas définie, on se replie sur `*` en
-// le DISANT dans les journaux — un tableau de bord injoignable serait un
-// faux problème de sécurité résolu par une vraie panne.
+// domaines MokNet. Tant qu'elle n'est pas définie, on se replie sur la liste
+// des domaines MokNet CONNUS (moknet.net et les sites Netlify de l'équipe,
+// avec leurs aperçus de déploiement) — jamais sur `*` : depuis le 05/09/2026,
+// cette fonction mesure elle-même le CORS des fonctions, elle ne peut pas
+// être la première à échouer à son propre contrôle. Le repli est dit dans
+// les journaux, au démarrage.
 
 const ALLOWED_ORIGINS = (Deno.env.get('HEALTH_ALLOWED_ORIGINS') ?? '')
     .split(',').map((o) => o.trim()).filter(Boolean);
 
+/** Domaines MokNet connus, utilisés seulement en l'absence de HEALTH_ALLOWED_ORIGINS. */
+const MOKNET_ORIGIN_RULES: RegExp[] = [
+    /^https:\/\/(www\.)?moknet\.net$/,
+    /^https:\/\/([a-z0-9-]+--)?(lovely-maamoul-478226|thunderous-cendol-32d226|incandescent-moxie-cbffe6|moknet)\.netlify\.app$/,
+    /^http:\/\/localhost(:\d+)?$/,
+];
+const FALLBACK_ORIGIN = 'https://moknet.net';
+
+if (ALLOWED_ORIGINS.length === 0) {
+    console.warn(
+        'health-guardian: HEALTH_ALLOWED_ORIGINS non définie — repli sur la liste des domaines MokNet ' +
+        'connus (moknet.net et sites Netlify de l\'équipe). Définir la variable pour la restreindre.',
+    );
+}
+
+function isMokNetOrigin(origin: string): boolean {
+    return ALLOWED_ORIGINS.length > 0
+        ? ALLOWED_ORIGINS.includes(origin)
+        : MOKNET_ORIGIN_RULES.some((rule) => rule.test(origin));
+}
+
 function corsHeaders(origin: string | null): Record<string, string> {
-    let allow = '*';
-    if (ALLOWED_ORIGINS.length > 0) {
-        allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-    } else {
-        console.warn(
-            'health-guardian: HEALTH_ALLOWED_ORIGINS non définie — CORS ouvert. ' +
-            'Définir la variable pour restreindre aux domaines MokNet.',
-        );
-    }
+    // Une origine inconnue reçoit une origine qui n'est pas la sienne : le
+    // navigateur refuse alors la réponse. C'est le comportement attendu.
+    const allow = origin && isMokNetOrigin(origin) ? origin : (ALLOWED_ORIGINS[0] ?? FALLBACK_ORIGIN);
     return {
         'Access-Control-Allow-Origin': allow,
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -172,19 +190,62 @@ interface LiveTransportConfigRow {
     api_secret: string;
 }
 
-/**
- * La configuration de transport active, lue au coffre par le rôle service.
- * Partagée par la sonde SAT-4 et le secours SAT-6 : les deux parlent au MÊME
- * serveur avec la MÊME clé que `livekit-token`.
- */
+/** Lit la configuration active du transport. `null` quand rien n'est branché. */
 async function loadTransportConfig(): Promise<LiveTransportConfigRow | null> {
     const service = createServiceRoleClient();
     const environment = Deno.env.get('LIVE_TRANSPORT_ENVIRONMENT') ?? 'development';
+
     const { data: config } = await service
         .rpc('get_live_transport_config_internal', { p_environment: environment })
         .maybeSingle<LiveTransportConfigRow>();
+
     if (!config?.server_url || !config?.api_key || !config?.api_secret) return null;
     return config;
+}
+
+/**
+ * Signe un jeton de sonde avec la clé du coffre. `null` si la signature est
+ * impossible — un défaut de configuration, pas une panne du serveur : on le
+ * dit sans accuser le transport.
+ */
+async function signProbeToken(
+    config: LiveTransportConfigRow,
+    grant: Record<string, unknown>,
+): Promise<string | null> {
+    try {
+        const at = new AccessToken(config.api_key, config.api_secret, {
+            identity: 'health-guardian',
+            ttl: PROBE_TOKEN_TTL_S,
+        });
+        at.addGrant(grant);
+        return await at.toJwt();
+    } catch (err) {
+        console.error('health-guardian: signature du jeton de sonde impossible', err);
+        return null;
+    }
+}
+
+/** Une requête HTTP bornée dans le temps, observée sans jugement. */
+type ObservedRequest = RawHttpProbe & { body: unknown; headers: Headers | null };
+
+async function timedRequest(url: string, init: RequestInit, timeoutMs: number): Promise<ObservedRequest> {
+    const controller = new AbortController();
+    const minuterie = setTimeout(() => controller.abort(), timeoutMs);
+    const debut = Date.now();
+    try {
+        const res = await fetch(url, { ...init, signal: controller.signal });
+        const texte = await res.text();
+        // Le corps est lu SANS supposer qu'il est du JSON : un reverse-proxy
+        // égaré rend volontiers une page HTML avec un 200.
+        let corps: unknown = null;
+        try { corps = JSON.parse(texte); } catch { corps = texte; }
+        return { reached: true, httpStatus: res.status, latencyMs: Date.now() - debut, timedOut: false, body: corps, headers: res.headers };
+    } catch (err) {
+        const expire = err instanceof DOMException && err.name === 'AbortError';
+        return { reached: false, httpStatus: null, latencyMs: Date.now() - debut, timedOut: expire, body: null, headers: null };
+    } finally {
+        clearTimeout(minuterie);
+    }
 }
 
 /**
@@ -195,85 +256,120 @@ async function loadTransportConfig(): Promise<LiveTransportConfigRow | null> {
  * même SDK et la même clé. Ce que la sonde éprouve est donc précisément ce
  * dont dépend un direct — pas une approximation.
  */
-async function observeLiveTransport(): Promise<{ configured: boolean; probe: RawLiveTransportProbe | null }> {
-    const config = await loadTransportConfig();
-    if (!config) {
-        return { configured: false, probe: null };
-    }
+async function observeLiveTransport(
+    config: LiveTransportConfigRow | null,
+): Promise<{ configured: boolean; probe: RawLiveTransportProbe | null }> {
+    if (!config) return { configured: false, probe: null };
 
-    let jeton: string;
-    try {
-        const at = new AccessToken(config.api_key, config.api_secret, {
-            identity: 'health-guardian',
-            ttl: PROBE_TOKEN_TTL_S,
-        });
-        // `roomList` seul : la sonde peut LIRE la liste des directs, jamais en
-        // créer un, en rejoindre un, ni publier quoi que ce soit.
-        at.addGrant({ roomList: true });
-        jeton = await at.toJwt();
-    } catch (err) {
-        // Un jeton non signable est un défaut de configuration, pas une panne
-        // du serveur : on le dit sans accuser le transport.
-        console.error('health-guardian: signature du jeton de sonde impossible', err);
-        return { configured: false, probe: null };
-    }
+    // `roomList` seul : la sonde peut LIRE la liste des directs, jamais en
+    // créer un, en rejoindre un, ni publier quoi que ce soit.
+    const jeton = await signProbeToken(config, { roomList: true });
+    if (!jeton) return { configured: false, probe: null };
 
     const url = `${toLiveKitApiUrl(config.server_url)}/twirp/livekit.RoomService/ListRooms`;
-    const controller = new AbortController();
-    const minuterie = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-    const debut = Date.now();
+    const r = await timedRequest(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${jeton}`, 'Content-Type': 'application/json' },
+        body: '{}',
+    }, PROBE_TIMEOUT_MS);
+    return {
+        configured: true,
+        probe: { reached: r.reached, httpStatus: r.httpStatus, body: r.body, latencyMs: r.latencyMs, timedOut: r.timedOut },
+    };
+}
 
-    try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${jeton}`, 'Content-Type': 'application/json' },
-            body: '{}',
-            signal: controller.signal,
-        });
-        const texte = await res.text();
-        // Le corps est lu SANS supposer qu'il est du JSON : un reverse-proxy
-        // égaré rend volontiers une page HTML avec un 200. `judgeLiveTransport`
-        // exige la forme réelle du contrat, et un corps illisible arrive donc
-        // ici en `null` — ce qui le range en « inutilisable », jamais en succès.
-        let corps: unknown = null;
-        try { corps = JSON.parse(texte); } catch { corps = texte; }
-        return {
-            configured: true,
-            probe: {
-                reached: true,
-                httpStatus: res.status,
-                body: corps,
-                latencyMs: Date.now() - debut,
-                timedOut: false,
+// ───────────── 05/09/2026 : LE VPS VU DE L'EXTÉRIEUR ─────────────
+//
+// Deux portes distinctes, qui tombent séparément : la façade HTTPS (nginx,
+// certificat, port 443) et la porte des appareils (`/rtc/validate`), celle
+// que frappent réellement les téléphones. `ListRooms` ci-dessus éprouve l'API
+// d'administration ; ces deux-ci éprouvent le chemin des utilisateurs.
+
+const VPS_TIMEOUT_MS = 3_000;
+
+async function observeVps(config: LiveTransportConfigRow | null): Promise<RawVpsMetrics> {
+    if (!config) return { configured: false, front: null, rtc: null };
+    const base = toLiveKitApiUrl(config.server_url);
+
+    // Jeton d'entrée dans une salle qui n'existe pas et n'existera pas :
+    // `/rtc/validate` ne crée rien, il ne fait que valider la signature et les
+    // droits. Ni publication ni abonnement : le jeton ne peut servir à rien.
+    const jeton = await signProbeToken(config, {
+        roomJoin: true, room: 'health-guardian-sonde', canPublish: false, canSubscribe: false,
+    });
+
+    const [front, rtc] = await Promise.all([
+        timedRequest(`${base}/`, { method: 'GET' }, VPS_TIMEOUT_MS),
+        jeton
+            ? timedRequest(`${base}/rtc/validate?access_token=${encodeURIComponent(jeton)}`, { method: 'GET' }, VPS_TIMEOUT_MS)
+            : Promise.resolve(null),
+    ]);
+    const strip = (r: ObservedRequest | null): RawHttpProbe | null =>
+        r ? { reached: r.reached, httpStatus: r.httpStatus, latencyMs: r.latencyMs, timedOut: r.timedOut } : null;
+    return { configured: true, front: strip(front), rtc: strip(rtc) };
+}
+
+// ───────────── 05/09/2026 : LE CORS DES FONCTIONS, MESURÉ ─────────────
+//
+// Constat O-03 de l'audit : cinq fonctions répondaient `*`. Plutôt que de le
+// supposer réglé, on envoie à chaque fonction — celle-ci comprise — une
+// requête de pré-vol depuis une origine inventée, et on lit ce qu'elle
+// autorise. Une passerelle qui répond 404 à la place de la fonction n'est pas
+// un constat sur la fonction : la ligne le dit.
+
+const EDGE_FUNCTION_SLUGS = ['ai-gateway', 'discover-provider', 'livekit-token', 'mint-live-token', 'push-notify', 'health-guardian'];
+const FOREIGN_ORIGIN = 'https://origine-inconnue.invalid';
+const CORS_TIMEOUT_MS = 4_000;
+
+async function observeEdgeCors(): Promise<RawEdgeCorsMetrics> {
+    const base = Deno.env.get('SUPABASE_URL');
+    if (!base) throw new Error('SUPABASE_URL absente : impossible de sonder les fonctions.');
+
+    const functions = await Promise.all(EDGE_FUNCTION_SLUGS.map(async (slug) => {
+        const r = await timedRequest(`${base}/functions/v1/${slug}`, {
+            method: 'OPTIONS',
+            headers: {
+                Origin: FOREIGN_ORIGIN,
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'authorization, content-type',
             },
-        };
-    } catch (err) {
-        const expire = err instanceof DOMException && err.name === 'AbortError';
+        }, CORS_TIMEOUT_MS);
+        // 404 = la passerelle a répondu à la place d'une fonction absente : ce
+        // n'est pas un constat sur la fonction, on ne la compte pas atteinte.
+        const reached = r.reached && r.httpStatus !== 404;
         return {
-            configured: true,
-            probe: {
-                reached: false,
-                httpStatus: null,
-                body: null,
-                latencyMs: Date.now() - debut,
-                timedOut: expire,
-            },
+            slug,
+            reached,
+            httpStatus: r.httpStatus,
+            allowOrigin: reached ? (r.headers?.get('access-control-allow-origin') ?? null) : null,
         };
-    } finally {
-        clearTimeout(minuterie);
-    }
+    }));
+    return { foreignOrigin: FOREIGN_ORIGIN, functions };
 }
 
 async function runProbes(userClient: UserClient): Promise<{ outcomes: ProbeOutcome[]; error?: string }> {
-    const [cat, data, ops, liveTransport] = await Promise.all([
+    const config = await loadTransportConfig().catch((err) => {
+        console.error('health-guardian: configuration de transport illisible', err);
+        return null;
+    });
+
+    // Aucune sonde réseau ne lève : une sonde qui casserait la fonction
+    // entière ferait disparaître TOUTES les lignes du tableau de bord pour un
+    // seul service indisponible. Ce qui échoue devient `undefined`, donc BLANC.
+    const [cat, data, ops, liveTransport, vps, edgeCors] = await Promise.all([
         userClient.rpc('health_probe_catalogue'),
         userClient.rpc('health_probe_data'),
         userClient.rpc('health_probe_operations'),
-        // Ne lève jamais : une sonde réseau qui casserait la fonction entière
-        // ferait disparaître TOUTES les lignes du tableau de bord pour un seul
-        // service indisponible.
-        observeLiveTransport().catch((err) => {
+        observeLiveTransport(config).catch((err) => {
             console.error('health-guardian: sonde de transport en échec', err);
+            return undefined;
+        }),
+        observeVps(config).catch((err) => {
+            console.error('health-guardian: sonde du VPS en échec', err);
+            return undefined;
+        }),
+        observeEdgeCors().catch((err) => {
+            console.error('health-guardian: sonde CORS en échec', err);
             return undefined;
         }),
     ]);
@@ -292,6 +388,8 @@ async function runProbes(userClient: UserClient): Promise<{ outcomes: ProbeOutco
         data: (data.data ?? {}) as Record<string, unknown>,
         operations: (ops.data ?? {}) as Record<string, unknown>,
         liveTransport,
+        vps,
+        edgeCors,
     };
     return { outcomes: evaluateAll(metrics) };
 }
@@ -327,7 +425,10 @@ async function journal(
 // ───────────────────── SAT-6 : PORTS DU SECOURS ─────────────────────
 //
 // Le flux vit dans `liveEmergency.ts` (pur, testé). Ici, seulement les
-// accès au monde, chacun borné en temps et incapable de lever.
+// accès au monde, chacun borné en temps et incapable de lever. La
+// configuration de transport est celle de `loadTransportConfig()` : le
+// secours parle au MÊME serveur avec la MÊME clé que la sonde SAT-4 et que
+// `livekit-token`.
 
 /** Même plafond que la porte d'admission (`livekit-token`) : au-delà, on ne sait pas. */
 const EMERGENCY_ROOM_SERVICE_TIMEOUT_MS = 1500;
@@ -679,13 +780,13 @@ Deno.serve(async (req: Request) => {
         // Le rang est contrôlé DANS le flux, à chaque étape, à partir de la
         // base — pas ici, et jamais à partir du corps de la requête.
         case 'live_emergency_overview': {
-            const ports = buildEmergencyPorts(userClient, await loadTransportConfig());
+            const ports = buildEmergencyPorts(userClient, await loadTransportConfig().catch(() => null));
             const r = await liveEmergencyOverview(ports);
             return json(r.body, r.status, origin);
         }
 
         case 'live_emergency_diagnose': {
-            const ports = buildEmergencyPorts(userClient, await loadTransportConfig());
+            const ports = buildEmergencyPorts(userClient, await loadTransportConfig().catch(() => null));
             const r = await diagnoseLiveEmergency(ports, {
                 action: body.emergencyAction,
                 sessionId: body.sessionId,
@@ -695,7 +796,7 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'live_emergency_apply': {
-            const ports = buildEmergencyPorts(userClient, await loadTransportConfig());
+            const ports = buildEmergencyPorts(userClient, await loadTransportConfig().catch(() => null));
             const r = await applyLiveEmergency(ports, {
                 action: body.emergencyAction,
                 sessionId: body.sessionId,
