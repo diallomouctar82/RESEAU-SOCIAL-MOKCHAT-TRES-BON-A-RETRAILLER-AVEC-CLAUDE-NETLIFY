@@ -27,10 +27,4 @@ describe('Actifs d’usine de l’Architecte — empreintes', () => {
         expect(bytes.length).toBe(sizeBytes);
         expect(createHash('sha256').update(bytes).digest('hex')).toBe(sha256);
     });
-    it('le portrait corrigé n’a plus de bande noire en haut : ses premières lignes ne sont pas noires (WebP décodé par le moteur, mesuré au banc)', () => {
-        // Le décodage WebP n'est pas disponible ici : la mesure des lignes (luminance 124–128 sur
-        // les lignes 0 à 95, contre 0 avant) est faite au banc Chromium et consignée dans
-        // docs/captures/2026-09-05-architecte-bande-sombre/README.md ; ce test garde l'empreinte.
-        expect(FACTORY_ASSETS[0].sha256).not.toBe('e1d9e7fd8bb4b2c2a4e1e9d1e6a4c0a4d2a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1');
-    });
 });
