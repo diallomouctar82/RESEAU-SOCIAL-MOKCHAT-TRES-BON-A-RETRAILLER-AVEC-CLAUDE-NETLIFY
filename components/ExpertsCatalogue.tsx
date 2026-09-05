@@ -1,29 +1,39 @@
-import React, { useState } from 'react';
-import { 
-    Search, 
-    Filter, 
-    Sparkles, 
-    MessageSquare, 
-    Phone, 
-    Video, 
-    FolderPlus, 
-    Calendar, 
-    ShieldCheck, 
-    Star, 
-    Globe2, 
-    CheckCircle2, 
-    Clock, 
-    ArrowRight, 
-    Award, 
-    FileText, 
-    UserCheck,
-    Bot,
-    User,
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    MessageSquare,
+    Phone,
+    Video,
+    FolderPlus,
+    Calendar,
+    CheckCircle2,
     Upload,
-    Check
+    Globe2,
+    Bot,
+    UserCheck,
+    X
 } from 'lucide-react';
 import { Agent, DossierParcours } from '../types';
 import { AGENTS } from '../constants';
+
+/**
+ * DEC-2026-055 — « Plateaux de cristal » (direction D choisie par la Direction).
+ *
+ * L'écran d'entrée de l'espace Experts ne montre plus qu'une phrase et les
+ * experts, chacun dans une bulle de cristal posée sur une lame de verre :
+ * pas de bandeau sombre, pas de barre de recherche, pas de filtres, pas de
+ * cartes. Toutes les actions qui existaient sur les anciennes cartes
+ * (Discuter, Vocal, Vidéo, Nouveau dossier, Analyser un fichier, Prendre RDV)
+ * sont conservées : elles s'ouvrent dans une fiche légère au clic sur la bulle.
+ *
+ * Le mouvement est purement CSS (flottement, halo, reflets) ; l'inclinaison 3D
+ * au survol pose des variables CSS sur le plateau sans passer par un état
+ * React, donc sans aucun re-rendu. Tout s'arrête sous
+ * `prefers-reduced-motion: reduce` (voir index.html, bloc « PLATEAUX DE
+ * CRISTAL »).
+ */
+
+export const PHRASE_EXPERTS =
+    'Nos experts vous accompagnent avec des conseils fiables, des orientations pratiques et une assistance adaptée à vos besoins.';
 
 interface ExpertsCatalogueProps {
     onSelectAgentForChat: (agent: Agent, prompt?: string) => void;
@@ -34,6 +44,20 @@ interface ExpertsCatalogueProps {
     dossiers: DossierParcours[];
 }
 
+const mouvementReduit = (): boolean =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Rôle court sous la bulle : le titre sans le préfixe « Expert ». */
+const roleCourt = (agent: Agent): string => agent.title.replace(/^Expert\s+/i, '');
+
+const libelleDisponibilite = (agent: Agent): string => {
+    if (agent.availabilityStatus === 'available') return 'Disponible maintenant';
+    if (agent.availabilityStatus === 'in_call') return 'En entretien';
+    return 'Sur rendez-vous';
+};
+
 export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
     onSelectAgentForChat,
     onStartCallWithAgent,
@@ -42,42 +66,70 @@ export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
     onShareDocWithAgent,
     dossiers
 }) => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');
-    const [typeFilter, setTypeFilter] = useState<'all' | 'ai' | 'human'>('all');
-    
-    // Booking modal for human experts
+    // Fiche ouverte au clic sur une bulle (toutes les actions y vivent).
+    const [ficheAgent, setFicheAgent] = useState<Agent | null>(null);
+    const ficheRef = useRef<HTMLDivElement | null>(null);
+    const declencheurRef = useRef<HTMLButtonElement | null>(null);
+
+    // Prise de rendez-vous des experts humains (fonction conservée telle quelle).
     const [bookingAgent, setBookingAgent] = useState<Agent | null>(null);
     const [bookingDate, setBookingDate] = useState('2026-03-05');
     const [bookingTime, setBookingTime] = useState('14:00');
     const [bookingSubject, setBookingSubject] = useState('');
     const [bookingSuccess, setBookingSuccess] = useState(false);
 
-    // Filter agents
-    const filteredAgents = AGENTS.filter(agent => {
-        // Type filter
-        if (typeFilter === 'ai' && agent.isHuman) return false;
-        if (typeFilter === 'human' && !agent.isHuman) return false;
+    const ouvrirFiche = (agent: Agent, bouton: HTMLButtonElement) => {
+        declencheurRef.current = bouton;
+        setFicheAgent(agent);
+    };
 
-        // Role filter
-        if (selectedRoleFilter !== 'all' && agent.role !== selectedRoleFilter) return false;
+    const fermerFiche = useCallback(() => {
+        setFicheAgent(null);
+        const bouton = declencheurRef.current;
+        declencheurRef.current = null;
+        if (bouton && typeof bouton.focus === 'function') bouton.focus();
+    }, []);
 
-        // Search query
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            const matchesName = agent.name.toLowerCase().includes(q);
-            const matchesTitle = agent.title.toLowerCase().includes(q);
-            const matchesSpecialty = agent.specialty.toLowerCase().includes(q);
-            const matchesDesc = agent.description.toLowerCase().includes(q);
-            const matchesSkills = agent.skills?.some(s => s.toLowerCase().includes(q));
-            const matchesLang = agent.languages?.some(l => l.toLowerCase().includes(q));
-            if (!matchesName && !matchesTitle && !matchesSpecialty && !matchesDesc && !matchesSkills && !matchesLang) {
-                return false;
-            }
-        }
+    // Échap ferme la fiche ; le focus entre dans la fiche à l'ouverture.
+    // Écoute en phase de capture sur le document : la coquille (Layout) pose
+    // ses propres écouteurs Échap au niveau du document, et la fiche doit
+    // se fermer quel que soit l'élément qui a le focus.
+    useEffect(() => {
+        if (!ficheAgent) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') fermerFiche();
+        };
+        document.addEventListener('keydown', onKey, true);
+        ficheRef.current?.focus();
+        return () => document.removeEventListener('keydown', onKey, true);
+    }, [ficheAgent, fermerFiche]);
 
-        return true;
-    });
+    // Inclinaison 3D et parallaxe du portrait, pilotées par le pointeur.
+    const incliner = (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (mouvementReduit() || e.pointerType === 'touch') return;
+        if (!Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        const s = e.currentTarget.style;
+        s.setProperty('--ry', `${(x * 22).toFixed(1)}deg`);
+        s.setProperty('--rx', `${(-y * 18).toFixed(1)}deg`);
+        s.setProperty('--px', `${(x * -6).toFixed(1)}px`);
+        s.setProperty('--py', `${(y * -6).toFixed(1)}px`);
+    };
+    const reposer = (e: React.PointerEvent<HTMLButtonElement>) => {
+        const s = e.currentTarget.style;
+        ['--rx', '--ry', '--px', '--py'].forEach((v) => s.removeProperty(v));
+    };
+
+    const action = (fn: (agent: Agent) => void) => () => {
+        if (!ficheAgent) return;
+        const agent = ficheAgent;
+        setFicheAgent(null);
+        declencheurRef.current = null;
+        fn(agent);
+    };
 
     const handleConfirmBooking = (e: React.FormEvent) => {
         e.preventDefault();
@@ -89,282 +141,185 @@ export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
         }, 2000);
     };
 
+    const dossierDeLaFiche = ficheAgent ? dossiers.find((d) => d.leadAgentId === ficheAgent.id) : undefined;
+
     return (
-        <div className="h-full overflow-y-auto bg-slate-50 p-4 sm:p-6 lg:p-8 space-y-8">
-            
-            {/* 1. HERO BANNER & MISSION */}
-            <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="relative z-10 max-w-3xl space-y-3">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-400/30 rounded-full text-blue-300 text-xs font-bold tracking-wide">
-                        <Sparkles size={14} className="animate-spin" /> Écosystème des Experts Diallo & Réseau Mok
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
-                        Accompagnement Continu & Multimodal de Vie
-                    </h1>
-                    <p className="text-sm text-slate-300 leading-relaxed">
-                        Chaque expert vous accompagne pas à pas : du diagnostic initial à l'exécution, avec mémoire active, livrables certifiés, appels audio/vidéo et suivi longitudinal.
-                    </p>
-                </div>
-            </div>
+        <div className="cristal-panneau" data-testid="experts-cristal">
+            <p className="cristal-phrase">{PHRASE_EXPERTS}</p>
 
-            {/* 2. SEARCH & FILTER CONTROLS */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-                
-                {/* Search & Type Switch */}
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
-                    
-                    {/* Search Bar */}
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Rechercher par nom, spécialité, langue (ex: Arabe, Visas, Finance, Droit, Projet)..."
-                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all outline-none"
-                        />
-                    </div>
-
-                    {/* AI vs Human Toggle — flex-wrap : sur mobile les 3
-                        libellés longs débordaient du conteneur nowrap. */}
-                    <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-1 shrink-0">
-                        <button
-                            onClick={() => setTypeFilter('all')}
-                            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                typeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <Sparkles size={14} /> Tous ({AGENTS.length})
-                        </button>
-                        <button
-                            onClick={() => setTypeFilter('ai')}
-                            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                typeFilter === 'ai' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <Bot size={14} /> Experts IA 24/7 ({AGENTS.filter(a => !a.isHuman).length})
-                        </button>
-                        <button
-                            onClick={() => setTypeFilter('human')}
-                            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                typeFilter === 'human' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <UserCheck size={14} /> Experts Humains Vérifiés ({AGENTS.filter(a => a.isHuman).length})
-                        </button>
-                    </div>
-                </div>
-
-                {/* Role Tabs — le voile dégradé (mobile) signale qu'il y a
-                    d'autres filtres à faire défiler : la barre est masquée
-                    (no-scrollbar) et rien n'indiquait le débordement. */}
-                <div className="relative">
-                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar text-xs font-bold">
-                        {[
-                            { id: 'all', label: 'Toutes les Spécialités' },
-                            { id: 'projet', label: '🚀 Projet & Financement' },
-                            { id: 'juridique', label: '⚖️ Juridique & Droit' },
-                            { id: 'administration', label: '📑 Administratif & Visas' },
-                            { id: 'emploi', label: '💼 Emploi & Carrière' },
-                            { id: 'education', label: '🎓 Éducation & Soutien' },
-                            { id: 'sante', label: '🩺 Santé & Prévention' },
-                            { id: 'finance', label: '💰 Finance & Commerce' },
-                            { id: 'logement', label: '🏠 Logement & Habitat' },
-                            { id: 'coach', label: '🌐 Langues & Traduction' },
-                            { id: 'voyage', label: '✈️ Voyage & Mobilité' }
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setSelectedRoleFilter(tab.id)}
-                                className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all ${
-                                    selectedRoleFilter === tab.id
-                                        ? 'bg-slate-900 text-white shadow-xs'
-                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div aria-hidden="true" className="md:hidden pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
-                </div>
-            </div>
-
-            {/* 3. EXPERTS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredAgents.map(agent => {
-                    const activeDossierForAgent = dossiers.find(d => d.leadAgentId === agent.id);
-
+            <ul className="cristal-scene" aria-label="Nos experts">
+                {AGENTS.map((agent, i) => {
+                    const vars = {
+                        '--tf': `${(5.5 + (i % 5) * 0.8).toFixed(1)}s`,
+                        '--df': `${(-i * 0.9).toFixed(1)}s`,
+                        '--th': `${5 + (i % 4)}s`,
+                        '--dh': `${(-i * 0.7).toFixed(1)}s`
+                    } as React.CSSProperties;
                     return (
-                        <div 
-                            key={agent.id}
-                            className="bg-white rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
-                        >
-                            {/* Card Header & Profile */}
-                            <div className="p-6 space-y-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="relative">
-                                        <img 
-                                            src={agent.avatarUrl} 
-                                            alt={agent.name}
-                                            className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-100 shadow-sm group-hover:scale-105 transition-all"
+                        <li key={agent.id} className="cristal-expert">
+                            <button
+                                type="button"
+                                className="cristal-plateau"
+                                style={vars}
+                                aria-haspopup="dialog"
+                                aria-label={`${agent.name} — ${agent.title}`}
+                                onClick={(e) => ouvrirFiche(agent, e.currentTarget)}
+                                onPointerMove={incliner}
+                                onPointerLeave={reposer}
+                                onPointerCancel={reposer}
+                            >
+                                <span className="cristal-flotteur">
+                                    <span className="cristal-bulle">
+                                        <img src={agent.avatarUrl} alt="" loading="lazy" decoding="async" />
+                                        <span className="cristal-lumiere" aria-hidden="true" />
+                                        <span
+                                            className="cristal-pastille"
+                                            data-etat={agent.availabilityStatus || 'appointment_only'}
+                                            title={libelleDisponibilite(agent)}
                                         />
-                                        <span 
-                                            className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-white rounded-full ${
-                                                agent.availabilityStatus === 'available' ? 'bg-emerald-500 animate-pulse' :
-                                                agent.availabilityStatus === 'in_call' ? 'bg-amber-500' : 'bg-blue-500'
-                                            }`}
-                                            title={agent.availabilityStatus === 'available' ? 'Disponible Immédiatement' : 'Sur rendez-vous'}
-                                        />
-                                    </div>
-
-                                    {/* Badges */}
-                                    <div className="flex flex-col items-end gap-1.5">
-                                        {agent.isHuman ? (
-                                            <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
-                                                <UserCheck size={12} className="text-amber-600" /> Humain Vérifié
-                                            </span>
-                                        ) : (
-                                            <span className="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
-                                                <Bot size={12} className="text-blue-600" /> Expert IA 24/7
-                                            </span>
-                                        )}
-                                        
-                                        <div className="flex items-center gap-1 text-xs font-black text-amber-500">
-                                            <Star size={13} fill="currentColor" />
-                                            <span>{agent.rating || 4.9}</span>
-                                            <span className="text-[10px] text-slate-400 font-normal">({agent.reviewsCount || 120})</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Identity & Specialty */}
-                                <div>
-                                    <h3 className="font-black text-base text-slate-900 group-hover:text-blue-600 transition-colors">
-                                        {agent.name}
-                                    </h3>
-                                    <p className="text-xs font-bold text-blue-600 mb-1">{agent.title}</p>
-                                    <p className="text-xs text-slate-500 font-medium">{agent.specialty}</p>
-                                </div>
-
-                                {/* Description */}
-                                <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
-                                    {agent.description}
-                                </p>
-
-                                {/* Spoken Languages */}
-                                {agent.languages && (
-                                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                        <Globe2 size={12} className="text-slate-400 shrink-0" />
-                                        {agent.languages.slice(0, 4).map(lang => (
-                                            <span key={lang} className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">
-                                                {lang}
-                                            </span>
-                                        ))}
-                                        {agent.languages.length > 4 && (
-                                            <span className="text-[10px] text-slate-400 font-bold">+{agent.languages.length - 4}</span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Key Skills */}
-                                {agent.skills && (
-                                    <div className="space-y-1 pt-1">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Compétences Clés</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {agent.skills.slice(0, 3).map((skill, idx) => (
-                                                <span key={idx} className="text-[10px] font-medium px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md">
-                                                    ✓ {skill}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Associated Active Dossier Banner */}
-                                {activeDossierForAgent && (
-                                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 font-medium flex items-center justify-between">
-                                        <span className="truncate flex items-center gap-1">
-                                            <FolderPlus size={13} className="text-emerald-600 shrink-0" />
-                                            Dossier: <strong>{activeDossierForAgent.title}</strong>
-                                        </span>
-                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                                            {activeDossierForAgent.progress}%
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Action Buttons Footer */}
-                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2">
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button
-                                        onClick={() => onSelectAgentForChat(agent)}
-                                        className="py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all"
-                                        title="Ouvrir le chat interactif"
-                                    >
-                                        <MessageSquare size={14} /> Discuter
-                                    </button>
-                                    <button
-                                        onClick={() => onStartCallWithAgent(agent)}
-                                        className="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-                                        title="Lancer un appel vocal direct"
-                                    >
-                                        <Phone size={14} /> Vocal
-                                    </button>
-                                    <button
-                                        onClick={() => onStartVideoWithAgent(agent)}
-                                        className="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-                                        title="Lancer un appel vidéo / caméra"
-                                    >
-                                        <Video size={14} /> Vidéo
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2 pt-1">
-                                    <button
-                                        onClick={() => onCreateDossierWithAgent(agent)}
-                                        className="py-1.5 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
-                                    >
-                                        <FolderPlus size={13} className="text-purple-600" /> Nouveau Dossier
-                                    </button>
-
-                                    {agent.isHuman ? (
-                                        <button
-                                            onClick={() => setBookingAgent(agent)}
-                                            className="py-1.5 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-xs"
-                                        >
-                                            <Calendar size={13} /> Prendre RDV ({agent.hourlyRate}€/h)
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={() => onShareDocWithAgent && onShareDocWithAgent(agent)}
-                                            className="py-1.5 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
-                                        >
-                                            <Upload size={13} className="text-emerald-600" /> Analyser Fichier
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                                    </span>
+                                </span>
+                                <span className="cristal-reflet" aria-hidden="true" />
+                            </button>
+                            <span className="cristal-nom">{agent.name}</span>
+                            <span className="cristal-role">{roleCourt(agent)}</span>
+                        </li>
                     );
                 })}
-            </div>
+            </ul>
 
-            {/* 4. MODAL DE PRISE DE RENDEZ-VOUS POUR EXPERTS HUMAINS */}
+            {/* Fiche légère : toutes les actions de l'ancienne carte, sur demande. */}
+            {ficheAgent && (
+                <div className="cristal-voile" onClick={fermerFiche} data-testid="experts-fiche-voile">
+                    <div
+                        ref={ficheRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cristal-fiche-nom"
+                        tabIndex={-1}
+                        className="cristal-fiche"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            onClick={fermerFiche}
+                            className="cristal-fermer"
+                            aria-label="Fermer la fiche"
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <div className="cristal-fiche-tete">
+                            <span className="cristal-bulle cristal-bulle-fiche">
+                                <img src={ficheAgent.avatarUrl} alt="" />
+                                <span className="cristal-lumiere" aria-hidden="true" />
+                                <span
+                                    className="cristal-pastille"
+                                    data-etat={ficheAgent.availabilityStatus || 'appointment_only'}
+                                    title={libelleDisponibilite(ficheAgent)}
+                                />
+                            </span>
+                            <div className="min-w-0">
+                                <h2 id="cristal-fiche-nom" className="cristal-fiche-nom">{ficheAgent.name}</h2>
+                                <p className="cristal-fiche-titre">{ficheAgent.title}</p>
+                                <p className="cristal-fiche-specialite">{ficheAgent.specialty}</p>
+                                <p className="cristal-fiche-etat">
+                                    {ficheAgent.isHuman ? (
+                                        <><UserCheck size={13} /> Humain vérifié · {libelleDisponibilite(ficheAgent)}{ficheAgent.hourlyRate ? ` · ${ficheAgent.hourlyRate} €/h` : ''}</>
+                                    ) : (
+                                        <><Bot size={13} /> Expert IA 24/7 · {libelleDisponibilite(ficheAgent)}</>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+
+                        <p className="cristal-fiche-texte">{ficheAgent.description}</p>
+
+                        {ficheAgent.languages && ficheAgent.languages.length > 0 && (
+                            <p className="cristal-fiche-langues">
+                                <Globe2 size={13} aria-hidden="true" />
+                                {ficheAgent.languages.slice(0, 5).map((lang) => (
+                                    <span key={lang}>{lang}</span>
+                                ))}
+                                {ficheAgent.languages.length > 5 && <span>+{ficheAgent.languages.length - 5}</span>}
+                            </p>
+                        )}
+
+                        {dossierDeLaFiche && (
+                            <p className="cristal-fiche-dossier">
+                                <FolderPlus size={13} aria-hidden="true" />
+                                <span className="truncate">Dossier en cours : <strong>{dossierDeLaFiche.title}</strong></span>
+                                <span className="cristal-fiche-progres">{dossierDeLaFiche.progress}%</span>
+                            </p>
+                        )}
+
+                        <div className="cristal-actions">
+                            <button
+                                type="button"
+                                onClick={action((a) => onSelectAgentForChat(a))}
+                                className="cristal-action cristal-action-principale"
+                                title="Ouvrir le chat interactif"
+                            >
+                                <MessageSquare size={15} /> Discuter
+                            </button>
+                            <button
+                                type="button"
+                                onClick={action(onStartCallWithAgent)}
+                                className="cristal-action"
+                                title="Lancer un appel vocal direct"
+                            >
+                                <Phone size={15} /> Vocal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={action(onStartVideoWithAgent)}
+                                className="cristal-action"
+                                title="Lancer un appel vidéo / caméra"
+                            >
+                                <Video size={15} /> Vidéo
+                            </button>
+                            <button
+                                type="button"
+                                onClick={action(onCreateDossierWithAgent)}
+                                className="cristal-action"
+                            >
+                                <FolderPlus size={15} /> Nouveau dossier
+                            </button>
+                            {ficheAgent.isHuman ? (
+                                <button
+                                    type="button"
+                                    onClick={action((a) => setBookingAgent(a))}
+                                    className="cristal-action cristal-action-rdv"
+                                >
+                                    <Calendar size={15} /> Prendre RDV
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={action((a) => onShareDocWithAgent && onShareDocWithAgent(a))}
+                                    className="cristal-action"
+                                >
+                                    <Upload size={15} /> Analyser un fichier
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Prise de rendez-vous des experts humains — fonction inchangée. */}
             {bookingAgent && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-100 animate-scale-in">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div className="flex items-center gap-3">
-                                <img src={bookingAgent.avatarUrl} className="w-10 h-10 rounded-full object-cover border" />
+                                <img src={bookingAgent.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover border" />
                                 <div>
                                     <h3 className="font-black text-sm text-slate-900">Rendez-vous avec {bookingAgent.name}</h3>
                                     <p className="text-xs text-amber-700 font-bold">{bookingAgent.title} • {bookingAgent.hourlyRate}€ / heure</p>
                                 </div>
                             </div>
-                            <button onClick={() => setBookingAgent(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+                            <button type="button" onClick={() => setBookingAgent(null)} className="text-slate-400 hover:text-slate-600" aria-label="Fermer">✕</button>
                         </div>
 
                         {bookingSuccess ? (
@@ -377,9 +332,10 @@ export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
                             <form onSubmit={handleConfirmBooking} className="space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Date Souhaitée</label>
-                                        <input 
-                                            type="date" 
+                                        <label htmlFor="rdv-date" className="block text-xs font-bold text-slate-700 mb-1">Date Souhaitée</label>
+                                        <input
+                                            id="rdv-date"
+                                            type="date"
                                             required
                                             value={bookingDate}
                                             onChange={(e) => setBookingDate(e.target.value)}
@@ -387,8 +343,9 @@ export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Créneau Horaire</label>
-                                        <select 
+                                        <label htmlFor="rdv-creneau" className="block text-xs font-bold text-slate-700 mb-1">Créneau Horaire</label>
+                                        <select
+                                            id="rdv-creneau"
                                             value={bookingTime}
                                             onChange={(e) => setBookingTime(e.target.value)}
                                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
@@ -402,8 +359,9 @@ export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">Objet de la Consultation & Contexte</label>
-                                    <textarea 
+                                    <label htmlFor="rdv-objet" className="block text-xs font-bold text-slate-700 mb-1">Objet de la Consultation & Contexte</label>
+                                    <textarea
+                                        id="rdv-objet"
                                         rows={3}
                                         required
                                         value={bookingSubject}
@@ -418,15 +376,15 @@ export const ExpertsCatalogue: React.FC<ExpertsCatalogueProps> = ({
                                 </div>
 
                                 <div className="flex justify-end gap-2 pt-2">
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setBookingAgent(null)}
                                         className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
                                     >
                                         Annuler
                                     </button>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         className="px-5 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-xs"
                                     >
                                         Valider la Réservation

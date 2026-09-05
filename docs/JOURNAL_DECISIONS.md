@@ -1122,6 +1122,84 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-055] — 5 Septembre 2026
+
+* **Module(s)** : `Espace Experts` (`components/ExpertsCatalogue.tsx`,
+  en-tête de `components/ExpertsHub.tsx`), `index.html` (bloc « PLATEAUX DE
+  CRISTAL »), tests `tests/ExpertsCatalogue.test.tsx`
+* **Problème / Besoin initial** : la Direction a demandé une réorganisation
+  visuelle des Experts en deux temps. D'abord cinq directions visuelles, sans
+  toucher au code : « chaque expert dans une bulle de cristal en 3D, effet
+  lumineux, fluide et professionnel, avec une animation douce », « une
+  interface beaucoup plus légère et claire », « au-dessus des boules de
+  cristal, garde une seule phrase courte qui explique le rôle des experts,
+  rien de plus », « ne reprends pas le fond sombre », « ne touche pas au
+  live, ni à l'avatar, ni au bouton Santé-Sécurité ». Puis, capture à
+  l'appui, le choix : la direction **D « Plateaux de cristal »** — « Il faut
+  implémenter ceci et aller à l'amélioration du design des avatars et de
+  leurs mouvements » ; « dès que les gens rentrent dans l'espace expert, ils
+  doivent retrouver tout de suite le panneau là comme ça, vraiment au
+  premier plan ».
+* **Décision** : l'écran d'entrée de l'espace Experts (onglet « Équipe &
+  Experts », ouvert par défaut) ne montre plus que **la phrase** « Nos
+  experts vous accompagnent avec des conseils fiables, des orientations
+  pratiques et une assistance adaptée à vos besoins. » puis **les 13 experts**
+  (10 IA, 3 humains vérifiés), chacun dans une **bulle de cristal** posée sur
+  une **lame de verre** aux bords irréguliers, avec un filet de lumière aqua
+  qui pulse dessous, cinq par rangée en damier (trois sur tablette, deux sur
+  téléphone), le nom et le rôle court sous chaque bulle. Le bandeau sombre,
+  la barre de recherche, les filtres, la bascule Tous/IA/Humains et les
+  cartes blanches ont été **retirés de l'affichage** ; le titre et le
+  sous-titre de l'en-tête du hub aussi (le titre reste lu par les lecteurs
+  d'écran, `sr-only`), la barre d'onglets du hub est conservée car chaque
+  onglet est une fonction. **Aucune fonction supprimée** : un clic sur une
+  bulle ouvre une **fiche légère** (dialogue modal, verre clair) qui porte les
+  cinq actions de l'ancienne carte — Discuter, Vocal, Vidéo, Nouveau dossier,
+  Analyser un fichier (IA) ou Prendre RDV (humain, formulaire de réservation
+  inchangé) — plus la description, les langues, l'état de disponibilité et le
+  dossier en cours dont l'expert est référent. Palette : uniquement les
+  jetons du menu « Miroir d'eau » (`--mir-bg`, `--mir-ink`, `--mir-acc`,
+  `--mir-pros`, `--water-accent`), fond clair.
+* **Avatars et mouvements** : la bulle est faite de trois lumières
+  (rehaut, voile de verre, reflet arqué) et d'une **lumière tournante** sur son
+  bord ; elle **flotte** avec une période et une phase propres à chaque
+  expert (jamais en chœur) ; au survol, elle se **soulève** et s'**incline en
+  3D** en suivant le pointeur, le portrait glissant en parallaxe — deux
+  couches distinctes (`.cristal-flotteur` pour le flottement,
+  `.cristal-bulle` pour le survol) afin que les deux transformations ne se
+  disputent jamais ; pastille de disponibilité qui pulse (verte), ambre en
+  entretien, aqua sur rendez-vous. Rien ne passe par un état React :
+  l'inclinaison pose des variables CSS sur le plateau. **Tout s'arrête sous
+  `prefers-reduced-motion: reduce`** (mesuré : `animation-name: none`), et
+  aucune inclinaison au doigt.
+* **Ce qui n'a pas été touché** : le Live et le Studio Live, la barre
+  flottante de l'Architecte (`ArchitecteFloatingBar`), l'en-tête et la barre
+  latérale de la coquille, la Santé Globale, les autres onglets du hub, les
+  données des experts (`constants.ts`).
+* **Preuves** : tsc 0 · vitest **1048/1048** (74 fichiers) · build · 21 tests
+  dans `tests/ExpertsCatalogue.test.tsx` (13 experts rendus par leur nom,
+  phrase unique exactement avant la scène, ancien bandeau/recherche/filtres
+  absents, fiche au clic et cinq actions avec le bon expert, RDV pour les
+  humains, Échap/Fermer/voile referment sans rien déclencher, dossier en
+  cours, phases de mouvement distinctes, inclinaison au pointeur et pas au
+  doigt, bloc CSS borné hors de la couche aqua, sélecteurs courts sans
+  accent, adaptation 5/3/2, reduced-motion) ; couche aqua régénérée par le
+  script (405 classes) ; captures avant/après mesurées dans Chromium à
+  1440×900 et 390×844 (`docs/captures/2026-09-05-experts-plateaux-de-cristal/`)
+  — 5 experts par rangée sur ordinateur, 2 sur téléphone, décalage 22/18 px,
+  animations calculées `cristal-flotte` / `cristal-tourne` / `cristal-pouls`,
+  matrice 3D au survol, fiche avec les cinq actions, formulaire de RDV
+  ouvert.
+* **Statut** : `Développé`, `Testé`, `En prévisualisation` — PR de la branche
+  `claude/cleanup-home-interface-szp8qv` ; **aucune fusion, aucune production
+  avant le contrôle explicite de la Direction** (méthode des DEC-2026-051 à
+  053).
+* **Restes assumés** : la recherche et les filtres par spécialité ne sont
+  plus affichés sur cet écran (13 experts tiennent sur un seul écran ; la
+  Direction a demandé « aucune surcharge ») — leur code a été retiré du
+  composant, pas des autres écrans ; les portraits restent des URL Unsplash
+  comme avant ; le formulaire de RDV garde sa date par défaut historique.
+
 ### [DEC-2026-054] — 5 Septembre 2026
 
 * **Module(s)** : `Santé Globale (Super-Admin)`, `Live / Directs`, fonction

@@ -1,0 +1,220 @@
+{
+  "avant-ordinateur": {
+    "h1": [
+      {
+        "texte": "Le Monde à Vous",
+        "classe": "text-lg font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-700"
+      },
+      {
+        "texte": "Espace Experts & Parcours de Vie",
+        "classe": "text-base sm:text-lg font-black text-slate-900 flex items-center gap-2"
+      },
+      {
+        "texte": "Accompagnement Continu & Multimodal de Vie",
+        "classe": "text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white"
+      }
+    ],
+    "sousTitre": true,
+    "bandeauSombre": true,
+    "recherche": true,
+    "bascule": true,
+    "cartes": 13,
+    "phrases": [],
+    "bulles": 0,
+    "plateaux": 0,
+    "noms": [],
+    "animFlotteur": null,
+    "animLumiere": null,
+    "animPastille": null,
+    "parRangee": 0,
+    "decalage": null,
+    "zone": {
+      "top": 111,
+      "height": 789
+    },
+    "onglets": 4
+  },
+  "avant-telephone": {
+    "h1": [
+      {
+        "texte": "Le Monde à Vous",
+        "classe": "text-lg font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-700"
+      },
+      {
+        "texte": "Espace Experts & Parcours de Vie",
+        "classe": "text-base sm:text-lg font-black text-slate-900 flex items-center gap-2"
+      },
+      {
+        "texte": "Accompagnement Continu & Multimodal de Vie",
+        "classe": "text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white"
+      }
+    ],
+    "sousTitre": true,
+    "bandeauSombre": true,
+    "recherche": true,
+    "bascule": true,
+    "cartes": 13,
+    "phrases": [],
+    "bulles": 0,
+    "plateaux": 0,
+    "noms": [],
+    "animFlotteur": null,
+    "animLumiere": null,
+    "animPastille": null,
+    "parRangee": 0,
+    "decalage": null,
+    "zone": {
+      "top": 61,
+      "height": 783
+    },
+    "onglets": 4
+  },
+  "apres-ordinateur": {
+    "h1": [
+      {
+        "texte": "Le Monde à Vous",
+        "classe": "text-lg font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-700"
+      },
+      {
+        "texte": "Espace Experts",
+        "classe": "sr-only"
+      }
+    ],
+    "sousTitre": false,
+    "bandeauSombre": true,
+    "recherche": false,
+    "bascule": false,
+    "cartes": 0,
+    "phrases": [
+      "Nos experts vous accompagnent avec des conseils fiables, des orientations pratiques et une assistance adaptée à vos besoins."
+    ],
+    "bulles": 13,
+    "plateaux": 13,
+    "noms": [
+      "Diallo",
+      "Maître Diallo",
+      "Conseiller Diallo",
+      "Professeur Diallo",
+      "Docteur Diallo",
+      "Monsieur Diallo",
+      "Guide Diallo",
+      "Directeur Diallo",
+      "Trésorier Diallo",
+      "Officier Diallo",
+      "Me Sarah Mansouri",
+      "Dr. Karim Ouedraogo",
+      "Fatou Ndiaye, CPA"
+    ],
+    "animFlotteur": "cristal-flotte",
+    "animLumiere": "cristal-tourne",
+    "animPastille": "cristal-pouls",
+    "parRangee": 5,
+    "decalage": 22,
+    "zone": {
+      "top": 111,
+      "height": 789
+    },
+    "onglets": 4,
+    "survol": {
+      "vars": "--rx:4.5deg --ry:4.8deg --px:-1.3px --py:1.5px",
+      "transform": "matrix3d(1.04133, 0.00686073, -0.0834199, 0, 0, 1.04178, 0.0784591, 0, 0.0874433, -0.0817022, 0.993421, 0, 0, -6, 0, 1)"
+    },
+    "fiche": {
+      "nom": "Maître Diallo",
+      "actions": [
+        "Discuter",
+        "Vocal",
+        "Vidéo",
+        "Nouveau dossier",
+        "Analyser un fichier"
+      ],
+      "focusDedans": true
+    },
+    "ficheFermee": true,
+    "autresDialogs": 1,
+    "ficheHumain": [
+      "Discuter",
+      "Vocal",
+      "Vidéo",
+      "Nouveau dossier",
+      "Prendre RDV"
+    ],
+    "rdvOuvert": 1,
+    "mouvementReduit": {
+      "flotteur": "none",
+      "lumiere": "none"
+    }
+  },
+  "apres-telephone": {
+    "h1": [
+      {
+        "texte": "Le Monde à Vous",
+        "classe": "text-lg font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-700"
+      },
+      {
+        "texte": "Espace Experts",
+        "classe": "sr-only"
+      }
+    ],
+    "sousTitre": false,
+    "bandeauSombre": true,
+    "recherche": false,
+    "bascule": false,
+    "cartes": 0,
+    "phrases": [
+      "Nos experts vous accompagnent avec des conseils fiables, des orientations pratiques et une assistance adaptée à vos besoins."
+    ],
+    "bulles": 13,
+    "plateaux": 13,
+    "noms": [
+      "Diallo",
+      "Maître Diallo",
+      "Conseiller Diallo",
+      "Professeur Diallo",
+      "Docteur Diallo",
+      "Monsieur Diallo",
+      "Guide Diallo",
+      "Directeur Diallo",
+      "Trésorier Diallo",
+      "Officier Diallo",
+      "Me Sarah Mansouri",
+      "Dr. Karim Ouedraogo",
+      "Fatou Ndiaye, CPA"
+    ],
+    "animFlotteur": "cristal-flotte",
+    "animLumiere": "cristal-tourne",
+    "animPastille": "cristal-pouls",
+    "parRangee": 2,
+    "decalage": 18,
+    "zone": {
+      "top": 61,
+      "height": 783
+    },
+    "onglets": 4,
+    "fiche": {
+      "nom": "Maître Diallo",
+      "actions": [
+        "Discuter",
+        "Vocal",
+        "Vidéo",
+        "Nouveau dossier",
+        "Analyser un fichier"
+      ],
+      "focusDedans": true
+    },
+    "ficheFermee": true,
+    "autresDialogs": 1,
+    "ficheHumain": [
+      "Discuter",
+      "Vocal",
+      "Vidéo",
+      "Nouveau dossier",
+      "Prendre RDV"
+    ],
+    "rdvOuvert": 1,
+    "mouvementReduit": {
+      "flotteur": "none",
+      "lumiere": "none"
+    }
+  }
+}

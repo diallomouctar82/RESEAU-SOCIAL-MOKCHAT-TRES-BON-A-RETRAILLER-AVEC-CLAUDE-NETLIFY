@@ -1531,6 +1531,418 @@
       /* ===== FIN ZONES DE SAISIE ===== */
 
       /* ===================================================================
+         EXPERTS — PLATEAUX DE CRISTAL (DEC-2026-055)
+
+         Direction D choisie par la Direction : une phrase, puis chaque
+         expert dans une bulle de cristal posée sur une lame de verre, en
+         lumière du jour et dans les couleurs du menu « Miroir d'eau ».
+         Le mouvement (flottement, halo, lumière tournante, inclinaison au
+         survol) est entièrement CSS et s'arrête sous
+         prefers-reduced-motion. Les sélecteurs restent courts et sans
+         accent (garde-fou tests/miroirFeuilleAnalysee).
+         =================================================================== */
+      .cristal-panneau {
+        --cr-encre: var(--mir-ink, #0B3A46);
+        --cr-encre-2: #3E6A76;
+        --cr-acc: var(--mir-acc, #0F9EC2);
+        --cr-lum: var(--water-accent, #7DD3FC);
+        --cr-vivant: var(--mir-pros, #12A579);
+        position: relative;
+        isolation: isolate;
+        height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background:
+          radial-gradient(60% 40% at 20% 0%, rgba(255,255,255,.75), transparent 70%),
+          radial-gradient(50% 50% at 90% 100%, rgba(125,211,252,.28), transparent 70%),
+          var(--mir-bg, #EAF7FB);
+      }
+      .cristal-phrase {
+        text-align: center;
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-weight: 500;
+        font-size: clamp(16px, 1.9vw, 21px);
+        line-height: 1.35;
+        color: var(--cr-encre);
+        max-width: 62ch;
+        margin: 30px auto 8px;
+        padding: 0 24px;
+        text-wrap: balance;
+      }
+      .cristal-scene {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        list-style: none;
+        margin: 0;
+        padding: 34px 22px 64px;
+        gap: 34px 0;
+      }
+      .cristal-expert {
+        flex: 0 0 20%;
+        max-width: 20%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+      }
+      .cristal-expert:nth-child(2n) { transform: translateY(22px); }
+      .cristal-plateau {
+        position: relative;
+        width: 100%;
+        max-width: 200px;
+        height: 150px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        border-radius: 24px;
+        perspective: 700px;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .cristal-plateau:focus-visible { outline: 3px solid var(--cr-acc); outline-offset: 4px; }
+      /* la lame de verre aux bords irreguliers */
+      .cristal-plateau::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 6px;
+        height: 76px;
+        border-radius: 52% 48% 46% 54% / 64% 70% 30% 36%;
+        background: linear-gradient(160deg, rgba(255,255,255,.85), rgba(221,241,248,.55));
+        box-shadow:
+          inset 0 0 0 1.5px rgba(255,255,255,.95),
+          inset 0 -10px 18px rgba(15,158,194,.14),
+          0 16px 30px rgba(11,58,70,.14);
+        transform: rotate(-4deg);
+        transition: box-shadow .35s, transform .35s;
+      }
+      /* le filet de lumiere aqua qui pulse sous le portrait */
+      .cristal-plateau::after {
+        content: "";
+        position: absolute;
+        left: 14%;
+        right: 14%;
+        bottom: 18px;
+        height: 3px;
+        border-radius: 3px;
+        background: linear-gradient(90deg, transparent, var(--cr-lum), transparent);
+        opacity: .9;
+        animation: cristal-halo var(--th, 6s) ease-in-out var(--dh, 0s) infinite;
+      }
+      .cristal-plateau:hover::before,
+      .cristal-plateau:focus-visible::before {
+        box-shadow:
+          inset 0 0 0 1.5px rgba(255,255,255,1),
+          inset 0 -10px 18px rgba(15,158,194,.20),
+          0 22px 40px rgba(11,58,70,.18),
+          0 0 0 4px rgba(125,211,252,.22);
+        transform: rotate(-4deg) translateY(2px);
+      }
+      .cristal-reflet {
+        position: absolute;
+        left: 50%;
+        bottom: 10px;
+        width: 70px;
+        height: 16px;
+        transform: translateX(-50%);
+        border-radius: 50%;
+        background: radial-gradient(ellipse, rgba(15,158,194,.30), rgba(15,158,194,0) 70%);
+        filter: blur(1px);
+        pointer-events: none;
+      }
+      /* le flotteur porte le flottement ; la bulle porte le survol et l'inclinaison :
+         deux couches pour que les deux transformations ne se disputent jamais */
+      .cristal-flotteur {
+        position: relative;
+        z-index: 1;
+        display: block;
+        animation: cristal-flotte var(--tf, 7s) ease-in-out var(--df, 0s) infinite;
+        will-change: transform;
+      }
+      .cristal-plateau:hover .cristal-flotteur { animation-play-state: paused; }
+      .cristal-bulle {
+        --d: 112px;
+        position: relative;
+        display: block;
+        width: var(--d);
+        height: var(--d);
+        border-radius: 50%;
+        flex: none;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 32% 26%, rgba(255,255,255,.95) 0, rgba(255,255,255,.55) 14%, rgba(255,255,255,0) 40%),
+          radial-gradient(circle at 70% 80%, rgba(125,211,252,.55), rgba(125,211,252,0) 55%),
+          linear-gradient(160deg, rgba(255,255,255,.75), rgba(221,241,248,.55));
+        box-shadow:
+          inset 0 0 0 1.5px rgba(255,255,255,.95),
+          inset 0 -14px 24px rgba(15,158,194,.18),
+          inset 0 10px 18px rgba(255,255,255,.7),
+          0 14px 30px rgba(11,58,70,.16),
+          0 0 0 6px rgba(255,255,255,.35);
+        transform-style: preserve-3d;
+        transform: translateY(var(--lift, 0px)) scale(var(--sc, 1)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+        transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s;
+      }
+      .cristal-bulle img {
+        position: absolute;
+        inset: 10%;
+        width: 80%;
+        height: 80%;
+        border-radius: 50%;
+        object-fit: cover;
+        filter: saturate(.92) contrast(1.02);
+        transform: translate(var(--px, 0px), var(--py, 0px)) scale(1.02);
+        transition: transform .35s cubic-bezier(.2,.7,.2,1);
+        background: #DDF1F8;
+      }
+      /* voile de verre par-dessus le portrait */
+      .cristal-bulle::before {
+        content: "";
+        position: absolute;
+        inset: 10%;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 30% 22%, rgba(255,255,255,.55), rgba(255,255,255,0) 45%),
+          linear-gradient(180deg, rgba(255,255,255,.08), rgba(15,158,194,.14));
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.7);
+        pointer-events: none;
+      }
+      /* le reflet arque, signature cristal */
+      .cristal-bulle::after {
+        content: "";
+        position: absolute;
+        left: 18%;
+        top: 9%;
+        width: 38%;
+        height: 22%;
+        border-radius: 50%;
+        background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,0));
+        filter: blur(.6px);
+        transform: rotate(-18deg);
+        pointer-events: none;
+      }
+      /* la lumiere qui tourne lentement sur le bord de la bulle */
+      .cristal-lumiere {
+        position: absolute;
+        inset: -2%;
+        border-radius: 50%;
+        background: conic-gradient(from 0deg, transparent 0 58%, rgba(255,255,255,.85) 66%, rgba(125,211,252,.55) 71%, transparent 78%);
+        -webkit-mask: radial-gradient(circle, transparent 60%, #000 67%, #000 100%);
+        mask: radial-gradient(circle, transparent 60%, #000 67%, #000 100%);
+        opacity: .75;
+        animation: cristal-tourne 12s linear infinite;
+        pointer-events: none;
+      }
+      .cristal-pastille {
+        position: absolute;
+        right: 9%;
+        bottom: 10%;
+        z-index: 2;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--cr-vivant);
+        border: 2.5px solid #fff;
+        box-shadow: 0 0 0 3px rgba(18,165,121,.28);
+      }
+      .cristal-pastille[data-etat="available"] { animation: cristal-pouls 2.6s ease-in-out infinite; }
+      .cristal-pastille[data-etat="in_call"] { background: #F59E0B; box-shadow: 0 0 0 3px rgba(245,158,11,.28); }
+      .cristal-pastille[data-etat="appointment_only"] { background: var(--cr-acc); box-shadow: 0 0 0 3px rgba(15,158,194,.28); }
+      .cristal-plateau:hover .cristal-bulle,
+      .cristal-plateau:focus-visible .cristal-bulle {
+        --lift: -6px;
+        --sc: 1.045;
+        box-shadow:
+          inset 0 0 0 1.5px rgba(255,255,255,1),
+          inset 0 -14px 24px rgba(15,158,194,.22),
+          inset 0 10px 18px rgba(255,255,255,.75),
+          0 22px 40px rgba(11,58,70,.20),
+          0 0 0 8px rgba(125,211,252,.35);
+      }
+      .cristal-nom {
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--cr-encre);
+        letter-spacing: .01em;
+        line-height: 1.2;
+      }
+      .cristal-role {
+        font-size: 11.5px;
+        color: var(--cr-encre-2);
+        margin-top: -6px;
+        line-height: 1.25;
+        padding: 0 6px;
+      }
+
+      /* la fiche : toutes les actions de l'ancienne carte, sur demande */
+      .cristal-voile {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(11,58,70,.30);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        animation: cristal-apparait .2s ease-out;
+      }
+      .cristal-fiche {
+        --cr-encre: var(--mir-ink, #0B3A46);
+        --cr-encre-2: #3E6A76;
+        --cr-acc: var(--mir-acc, #0F9EC2);
+        --cr-lum: var(--water-accent, #7DD3FC);
+        --cr-vivant: var(--mir-pros, #12A579);
+        position: relative;
+        width: 100%;
+        max-width: 540px;
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+        border-radius: 28px;
+        padding: 26px 24px 22px;
+        color: var(--cr-encre);
+        background: linear-gradient(160deg, rgba(255,255,255,.94), rgba(234,247,251,.90));
+        border: 1.5px solid rgba(255,255,255,.95);
+        box-shadow: 0 30px 60px rgba(11,58,70,.22), inset 0 0 0 1px rgba(255,255,255,.6);
+        animation: cristal-surgit .32s cubic-bezier(.2,.7,.2,1);
+        outline: none;
+      }
+      .cristal-fermer {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(11,58,70,.12);
+        border-radius: 50%;
+        background: rgba(255,255,255,.8);
+        color: var(--cr-encre-2);
+        cursor: pointer;
+      }
+      .cristal-fermer:hover { color: var(--cr-encre); background: #fff; }
+      .cristal-fiche-tete { display: flex; align-items: center; gap: 18px; padding-right: 40px; }
+      .cristal-bulle-fiche { --d: 116px; flex: none; }
+      .cristal-fiche-nom {
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-weight: 800;
+        font-size: 20px;
+        line-height: 1.15;
+        color: var(--cr-encre);
+        margin: 0;
+      }
+      .cristal-fiche-titre { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--cr-acc); }
+      .cristal-fiche-specialite { margin: 2px 0 0; font-size: 12px; color: var(--cr-encre-2); }
+      .cristal-fiche-etat {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 8px 0 0;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--cr-encre-2);
+      }
+      .cristal-fiche-texte { margin: 16px 0 0; font-size: 13px; line-height: 1.55; color: var(--cr-encre); }
+      .cristal-fiche-langues { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--cr-encre-2); }
+      .cristal-fiche-langues span {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.7);
+        border: 1px solid rgba(11,58,70,.10);
+        color: var(--cr-encre);
+      }
+      .cristal-fiche-dossier {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0 0;
+        padding: 9px 12px;
+        border-radius: 14px;
+        font-size: 12px;
+        color: #065F46;
+        background: rgba(209,250,229,.75);
+        border: 1px solid rgba(16,185,129,.35);
+      }
+      .cristal-fiche-progres { margin-left: auto; font-weight: 800; }
+      .cristal-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+      .cristal-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 8px;
+        border-radius: 14px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--cr-encre);
+        background: rgba(255,255,255,.85);
+        border: 1.5px solid rgba(11,58,70,.14);
+        cursor: pointer;
+        transition: transform .2s, box-shadow .2s, background .2s;
+      }
+      .cristal-action:hover { background: #fff; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(11,58,70,.12); }
+      .cristal-action:focus-visible { outline: 3px solid var(--cr-acc); outline-offset: 2px; }
+      .cristal-action-principale { color: #fff; background: var(--cr-acc); border-color: transparent; }
+      .cristal-action-principale:hover { background: #0E7490; }
+      .cristal-action-rdv { color: #fff; background: #D97706; border-color: transparent; }
+      .cristal-action-rdv:hover { background: #B45309; }
+      .cristal-actions .cristal-action:nth-child(4),
+      .cristal-actions .cristal-action:nth-child(5) { grid-column: span 1; }
+      .cristal-actions .cristal-action:nth-child(4) { grid-column: 1 / span 2; }
+
+      @keyframes cristal-flotte { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+      @keyframes cristal-halo { 0%, 100% { opacity: .55; } 50% { opacity: .95; } }
+      @keyframes cristal-tourne { to { transform: rotate(360deg); } }
+      @keyframes cristal-pouls { 0%, 100% { box-shadow: 0 0 0 3px rgba(18,165,121,.28); } 50% { box-shadow: 0 0 0 7px rgba(18,165,121,.10); } }
+      @keyframes cristal-apparait { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes cristal-surgit { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+
+      @media (max-width: 1023px) {
+        .cristal-expert { flex-basis: 33.333%; max-width: 33.333%; }
+      }
+      @media (max-width: 639px) {
+        .cristal-scene { padding: 24px 10px 48px; gap: 26px 0; }
+        .cristal-expert { flex-basis: 50%; max-width: 50%; }
+        .cristal-expert:nth-child(2n) { transform: translateY(18px); }
+        .cristal-plateau { height: 138px; }
+        .cristal-bulle { --d: 100px; }
+        .cristal-fiche { padding: 22px 18px 18px; border-radius: 22px; }
+        .cristal-fiche-tete { gap: 14px; }
+        .cristal-bulle-fiche { --d: 92px; }
+        .cristal-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cristal-actions .cristal-action:nth-child(4) { grid-column: auto; }
+        .cristal-actions .cristal-action:nth-child(5) { grid-column: 1 / -1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cristal-flotteur,
+        .cristal-plateau::after,
+        .cristal-pastille,
+        .cristal-lumiere,
+        .cristal-voile,
+        .cristal-fiche { animation: none !important; }
+        .cristal-bulle,
+        .cristal-bulle img,
+        .cristal-plateau::before,
+        .cristal-action { transition: none; }
+      }
+      /* ===== FIN PLATEAUX DE CRISTAL ===== */
+
+      /* ===================================================================
          DS-EX-2 · LA NAPPE D'EAU RÉELLEMENT VISIBLE DANS TOUTE L'APPLICATION
 
          Constat mesuré : `data-miroir` couvrait déjà tous les écrans, mais
@@ -2003,7 +2415,6 @@
       [data-miroir] .text-sky-700{color:#086077;}
       [data-miroir] .to-blue-50{--tw-gradient-to:#ECFAFD var(--tw-gradient-to-position);}
       [data-miroir] .to-blue-600{--tw-gradient-to:#0A7590 var(--tw-gradient-to-position);}
-      [data-miroir] .to-blue-700{--tw-gradient-to:#086077 var(--tw-gradient-to-position);}
       [data-miroir] .to-cyan-400{--tw-gradient-to:#29B4D6 var(--tw-gradient-to-position);}
       [data-miroir] .to-cyan-500{--tw-gradient-to:#0C90B2 var(--tw-gradient-to-position);}
       [data-miroir] .to-cyan-600{--tw-gradient-to:#0A7590 var(--tw-gradient-to-position);}
