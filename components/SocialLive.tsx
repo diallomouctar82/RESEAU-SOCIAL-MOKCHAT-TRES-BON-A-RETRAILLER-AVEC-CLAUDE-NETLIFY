@@ -448,11 +448,23 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // consentement explicite (LOOP 12/16) — jamais de getUserMedia déclenché
   // avant ce choix. Désactivé tant que la session réelle n'est pas
   // confirmée (voir ci-dessus).
+  // SAT-5 : garde de la relance automatique — la ligne du direct tombe sans
+  // qu'on l'ait demandé (réseau, serveur qui redémarre) : avant chaque nouvelle
+  // tentative, on relit la session EN BASE. Un direct clôturé par l'animateur
+  // répond « non » et l'écran le dit ; un direct toujours ouvert répond
+  // « oui » et la ligne se rétablit seule, trois fois au plus.
+  const autoRecoverLive = useCallback(async () => {
+    if (!realSessionId) return false;
+    const session = await fetchLiveSession(realSessionId);
+    return !!session && !session.endedAt;
+  }, [realSessionId]);
+
   const liveTransport = useLiveTransport({
     roomName: realSessionId || '',
     participantName: userProfile.name,
     canPublish: isUserOnStage && hasMediaConsent,
     enabled: !!realSessionId,
+    autoRecover: autoRecoverLive,
   });
 
   // Référence conservée pour la capture de frame réelle (LOOP 11/14, Vision
