@@ -11,12 +11,13 @@ mêmes fichiers que ceux référencés par `constants.ts`.
 | Écran | Avant | Après |
 | :--- | :--- | :--- |
 | Entrée de l'espace Experts, ordinateur | `avant-ordinateur.png` | `apres-ordinateur.png` |
-| Page entière, ordinateur (3e rangée : les trois experts humains) | — | `apres-ordinateur-page-entiere.png` |
+| Bas du panneau, ordinateur (les 13 experts, dont la 3e rangée : les trois experts humains vérifiés) | — | `apres-ordinateur-bas.png` |
 | Bulle au survol (soulèvement + inclinaison 3D) | — | `apres-ordinateur-survol.png` |
 | Fiche ouverte au clic (expert IA, cinq actions) | — | `apres-ordinateur-fiche.png` |
 | Formulaire de rendez-vous ouvert depuis la fiche d'un expert humain | — | `apres-ordinateur-rdv.png` |
 | Entrée de l'espace Experts, téléphone | `avant-telephone.png` | `apres-telephone.png` |
 | Fiche ouverte, téléphone | — | `apres-telephone-fiche.png` |
+| Bas du panneau, téléphone (experts humains) | — | `apres-telephone-bas.png` |
 
 Niveau de preuve : 🧪 banc (navigateur réel, données locales, Supabase non
 configuré). Le contrôle final dans l'application appartient à la Direction.
