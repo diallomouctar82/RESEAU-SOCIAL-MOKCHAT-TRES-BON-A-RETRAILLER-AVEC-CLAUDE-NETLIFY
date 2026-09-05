@@ -35,3 +35,6 @@ dist-ssr
 supabase/.temp/
 demo-local/
 dist-demo/
+
+# Sorties du kit de sauvegarde (zips de plus de 100 Mo, jamais dans git — stockage chiffré de la Direction)
+kit-sauvegarde-sorties/

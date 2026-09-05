@@ -1,0 +1,44 @@
+{
+  "releve_le": "2026-09-05T20:16:00Z",
+  "methode": "lecture seule par le serveur MCP Supabase (list_tables, list_migrations, list_edge_functions, list_extensions) et requêtes de catalogue de supabase/extraire-structure.sql ; aucune donnée applicative ni valeur de secret lue",
+  "projet": {
+    "nom": "monde a vous",
+    "ref": "rqciahtpixdjbyoajomg",
+    "region": "eu-west-1",
+    "postgres": "17.6.1.054",
+    "cree_le": "2025-12-14T14:18:41Z",
+    "statut": "ACTIVE_HEALTHY",
+    "url": "https://rqciahtpixdjbyoajomg.supabase.co"
+  },
+  "migrations": { "nombre": 110, "premiere": "20260827135957_identity_and_roles", "derniere": "20260905201430_notifications_type_check_allow_live_invite", "source": "supabase_migrations.schema_migrations (version, name, statements)" },
+  "comptes": { "tables_public": 89, "politiques_rls": 186, "fonctions_public": 84, "fonctions_private": 2, "contraintes": 309, "index": 228, "declencheurs_public": 31, "declencheur_auth_users": 1, "vues": 1, "taches_cron": 6, "buckets": 3, "tables_realtime": 14, "secrets_coffre_noms": 16, "extensions_installees": 9 },
+  "fonctions_edge": [
+    { "slug": "ai-gateway", "version": 25, "verify_jwt": true, "entree": "supabase/functions/ai-gateway/index.ts", "secrets_lus": ["AI_CORE_BASE_URL", "AI_CORE_PROJECT_ID", "AI_CORE_SERVICE_TOKEN", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] },
+    { "slug": "discover-provider", "version": 3, "verify_jwt": true, "entree": "supabase/functions/discover-provider/index.ts", "secrets_lus": ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] },
+    { "slug": "health-guardian", "version": 4, "verify_jwt": true, "entree": "supabase/functions/health-guardian/index.ts", "secrets_lus": ["HEALTH_ALLOWED_ORIGINS", "LIVE_TRANSPORT_ENVIRONMENT", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] },
+    { "slug": "livekit-token", "version": 7, "verify_jwt": true, "entree": "supabase/functions/livekit-token/index.ts", "secrets_lus": ["LIVE_NODE_METRICS_URL", "LIVE_TRANSPORT_ENVIRONMENT", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] },
+    { "slug": "mint-live-token", "version": 6, "verify_jwt": true, "entree": "supabase/functions/mint-live-token/index.ts", "secrets_lus": ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] },
+    { "slug": "push-notify", "version": 4, "verify_jwt": true, "entree": "supabase/functions/push-notify/index.ts", "secrets_lus": ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] }
+  ],
+  "extensions_installees": [
+    { "nom": "pg_cron", "version": "1.6.4", "schema": "pg_catalog", "creee_par_migration": false },
+    { "nom": "pg_graphql", "version": "1.5.11", "schema": "graphql", "creee_par_migration": false },
+    { "nom": "pg_stat_statements", "version": "1.11", "schema": "extensions", "creee_par_migration": false },
+    { "nom": "pgcrypto", "version": "1.3", "schema": "extensions", "creee_par_migration": false },
+    { "nom": "plpgsql", "version": "1.0", "schema": "pg_catalog", "creee_par_migration": false },
+    { "nom": "supabase_vault", "version": "0.3.1", "schema": "vault", "creee_par_migration": false },
+    { "nom": "unaccent", "version": "1.1", "schema": "extensions", "creee_par_migration": true },
+    { "nom": "uuid-ossp", "version": "1.1", "schema": "extensions", "creee_par_migration": false },
+    { "nom": "wrappers", "version": "0.5.6", "schema": "extensions", "creee_par_migration": false }
+  ],
+  "hors_migrations": {
+    "buckets": ["mok bouker"],
+    "extensions": ["pg_cron", "pgcrypto", "uuid-ossp", "supabase_vault", "pg_graphql", "pg_stat_statements", "wrappers"],
+    "coffre": ["live_transport_dev_livekit", "livekit-production-secret", "push_vapid_private_20260901203540160", "ai_provider:* (13 entrées)"],
+    "note": "objets créés à la main ou par l'application ; voir prerequis.sql et complements-hors-migrations.sql"
+  },
+  "depot_versus_base": {
+    "migrations_dans_le_depot": ["20260901141000_ai_core_memory_tool_catalogue", "20260902010000_call_diagnostics", "20260904150000_health_guardian", "20260905010000_live_sat5_close_zombie_sessions_cron", "20260905090000_health_rang_admin_general", "20260905160000_platform_settings"],
+    "note": "le dépôt ne versionne que 6 fichiers, avec des horodatages différents des versions appliquées en base ; l'historique de référence est celui de la base (110 versions), embarqué dans kit-sauvegarde/supabase/migrations/. `platform_settings` (dépôt) n'a pas d'équivalent nommé en base au moment du relevé : la table n'existe pas en production le 5/09 à 20:16 UTC (chantier en cours, PR ouverte)."
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "releve_le": "2026-09-05T20:20:00Z",
+  "methode": "API Netlify en lecture (site et déploiement courant) + fichiers du dépôt (netlify.toml, package.json, .github/workflows/ci.yml)",
+  "site_production": {
+    "nom": "lovely-maamoul-478226",
+    "site_id": "1d4f71d9-3149-4ef5-9bdf-47f4eb506e04",
+    "url": "https://moknet.net",
+    "url_branche": "https://main--lovely-maamoul-478226.netlify.app",
+    "plan": "nf_team_pro",
+    "framework_detecte": "vite",
+    "branche_production": "main",
+    "dernier_deploiement_releve": { "id": "6a9c6540a62aa9000714444b", "commit": "b393726f8a0d094336800cc79e1a14e4e1513338", "publie_le": "2026-09-05T18:54:25Z", "duree_s": 31, "fonctions_netlify": 0, "regles_redirection": 6, "regles_entetes": 1, "scan_secrets_netlify": "0 correspondance sur 960 fichiers" },
+    "autres_sites": "netlify.toml mentionne trois sites Netlify partageant ce dépôt ; seul le site de production a pu être identifié par l'API (recherche « maamoul »). Les deux autres restent à nommer par la Direction."
+  },
+  "build": {
+    "installation": "npm ci",
+    "commande": "npm run build",
+    "outil": "vite build",
+    "repertoire_publie": "dist",
+    "node": "22",
+    "gestionnaire": "npm (package-lock.json, lockfileVersion 3) — bun.lock présent mais la CI et Netlify utilisent npm",
+    "controles_ci": ["npx tsc --noEmit", "npm test", "npm run build"],
+    "source_de_verite": "netlify.toml n'a volontairement PAS de section [build] : la configuration est portée par l'interface Netlify de chaque site. L'assistant la pose explicitement par l'API (build_settings.cmd / dir) pour ne rien laisser implicite."
+  },
+  "variables_environnement_netlify": [
+    { "nom": "VITE_SUPABASE_URL", "obligatoire": true },
+    { "nom": "VITE_SUPABASE_ANON_KEY", "obligatoire": true },
+    { "nom": "VITE_GOOGLE_MAPS_API_KEY", "obligatoire": false },
+    { "nom": "VITE_GOOGLE_OAUTH_CLIENT_ID", "obligatoire": false },
+    { "nom": "NODE_VERSION", "obligatoire": true, "valeur_non_secrete": "22" }
+  ],
+  "fichier_netlify_toml": {
+    "entetes": ["X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy", "Permissions-Policy"],
+    "redirections": ["www/http → https://moknet.net (301 forcé, 3 règles)", "/architecte → /index.html (200)", "/messagerie et /messagerie/* → /index.html (200)"],
+    "garde_fou": "les trois règles de domaine canonique sont liées au domaine principal moknet.net : si le nouveau déploiement change de domaine, les adapter (sinon boucle de redirection)"
+  },
+  "domaine_en_dur_dans_le_code": ["components/SocialFeed.tsx (lien de partage https://moknet.net/?post=)", "components/ui/InviteButton.tsx", "services/health/healthRegistry.ts (sondes, CORS attendu, live.moknet.net)", "supabase/functions/push-notify/index.ts (origine par défaut)", "supabase/functions/health-guardian/index.ts et liveTransportProbe.ts", "netlify.toml (redirections canoniques)"],
+  "dependances_externes_au_chargement": ["https://cdn.tailwindcss.com (Tailwind Play)", "https://fonts.googleapis.com et fonts.gstatic.com (polices)", "https://aistudiocdn.com (carte d'import déclarée dans index.html ; le bundle Vite embarque react, react-dom, lucide-react et @google/genai depuis node_modules)"]
+}
