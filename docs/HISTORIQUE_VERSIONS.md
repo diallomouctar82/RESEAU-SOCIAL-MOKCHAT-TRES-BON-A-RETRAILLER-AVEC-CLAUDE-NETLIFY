@@ -34,12 +34,48 @@
 | **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Stable — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), vérifiée sur moknet.net** |
 | **v6.17.0** | 4 Septembre 2026 | **Nettoyage de la barre latérale : bouton « L’Architecte », bloc « Mes Favoris » et bloc « Récents » retirés de l’affichage (les étoiles de favori restent sur chaque entrée), libellé « Accueil & Cap » et entrée Super-Admin retirés de la liste (« Accueil » → « Conseil des Sages », capture de la Direction) — menu non répétitif, l’Architecte reste joignable par sa pastille flottante et le dock ; couche CSS « Miroir d’eau » régénérée** | Navigation globale (barre latérale), index.html (couche aqua) | PR #74 / DEC-2026-052 | **Stable — validée par la Direction le 4 septembre 2026 sur capture de référence, fusionnée dans `main` (PR #74), vérifiée sur moknet.net** |
 | **v6.18.0** | 5 Septembre 2026 | **« Réseau MOC » juste sous « Accueil » dans la barre latérale ; contours de toutes les zones de saisie renforcés par une règle globale (2 px, couleur dérivée du texte à 55 %, accent aqua au focus) ; nouvelle invite du composeur « Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document. »** | Navigation globale (barre latérale), Réseau MOC, index.html | PR de la branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-053 | **Courante (Active) — production contrôlée demandée par la Direction, fusionnée dans `main`, vérifiée sur moknet.net** |
+| **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 / DEC-2026-054 | **Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en PR — pas encore la version servie par moknet.net** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.19.0] — 5 Septembre 2026 (SAT-4 — savoir si un direct peut démarrer, pas si le serveur répond)
+
+* **La demande** : ne pas présenter SAT-4 comme terminé tant que le
+  branchement réel n'est pas livré ; preuves, tests, zéro régression ; à
+  chaque étape, ce qui est en production, ce qui ne l'est pas, ce qui reste
+  partiel.
+* **Ce qui change** : la ligne `live.transport_utilisable` du tableau de bord
+  de santé n'interroge plus `GET /` (qui répond 200 même quand rien ne passe)
+  mais `POST /twirp/livekit.RoomService/ListRooms`, signé avec la clé du
+  coffre — l'appel dont dépend réellement l'ouverture d'un direct. Vert si
+  200 + liste exploitable en ≤ 1 500 ms ; orange au-delà (la porte SAT-2 ne
+  compte plus) ; rouge sur 401/403 (le serveur vit et refuse nos
+  identifiants), 5xx, corps illisible, délai ou réseau ; blanc si rien n'est
+  configuré ou si la sonde n'a pas tourné.
+* **Où c'est** : règle pure `supabase/functions/health-guardian/liveTransportProbe.ts`
+  (zéro réseau), évaluateur dans `evaluate.ts`, sonde confinée à `index.ts`
+  (`observeLiveTransport`, ne lève jamais), ligne de registre
+  `services/health/healthRegistry.ts` (poids LIVE 34/28/22/16 = 100).
+  Artefact déployé désormais **généré** par `build-bundle.sh`.
+* **En production** : fonction Edge `health-guardian` **v2** (déployée,
+  amorçage prouvé, puis **démontrée** avec une vraie session administrateur :
+  HTTP 200 en 2,17 s, 41 lignes, `live.transport_utilisable` vert / réel /
+  400 ms / 0 direct, `seuilDegradeMs 1500`).
+* **Pas en production** : le code client (ligne de registre) est sur
+  `claude/lives-directs`, PR #77 ouverte, Green Gate à passer, fusion et
+  déploiement Netlify à venir.
+* **Partiel** : pas de contre-épreuve en production (les contre-épreuves sont
+  dans les tests, au niveau de la règle) ; SAT-5/6/7 non commencés ;
+  ACT-3/4/5 toujours bloqués sur l'accès SSH au VPS.
+* **Preuves** : tsc 0 · vitest 1006/1006 (71 fichiers) · build · 28 tests SAT-4
+  dont 2 contre-épreuves · source de production relue = 10/10 empreintes ·
+  zéro trace du compte éphémère (balayage = 0). DEC-2026-054.
+
+---
 
 ### [Version 6.18.0] — 5 Septembre 2026 (« Réseau MOC » sous « Accueil », contours des zones de saisie, invite du composeur)
 
