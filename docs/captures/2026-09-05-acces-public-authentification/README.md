@@ -1,4 +1,4 @@
-# Accès public à MokNet — verrou d'entrée vérifié par le serveur (DEC-2026-079, v6.41.0)
+# Accès public à MokNet — verrou d'entrée vérifié par le serveur (DEC-2026-080, v6.42.0)
 
 Preuves avant / après de la mission « correction de l'accès public » (Direction, 5 septembre 2026). Généré le 2026-09-05 15:34 UTC.
 

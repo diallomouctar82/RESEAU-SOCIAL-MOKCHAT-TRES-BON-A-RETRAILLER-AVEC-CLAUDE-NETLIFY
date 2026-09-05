@@ -128,7 +128,7 @@ const AppContent = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-079) : AUCUNE session
+  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-080) : AUCUNE session
   // n'ouvre l'interface sans un verdict du serveur sur SON jeton
   // (services/auth.ts#verifierSession), quel que soit l'événement qui
   // l'apporte. Le nom de l'événement n'est pas une preuve : supabase-js rejoue

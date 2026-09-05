@@ -1,6 +1,6 @@
 # 🔐 MODULE D'AUTHENTIFICATION & GESTION DES IDENTITÉS — LE MONDE À VOUS
 > **Documentation Technique & Opérationnelle Officielle**  
-> *Dernière mise à jour : 5 Septembre 2026 (DEC-2026-079 — verrou d'entrée vérifié par le serveur)*  
+> *Dernière mise à jour : 5 Septembre 2026 (DEC-2026-080 — verrou d'entrée vérifié par le serveur)*  
 > *Statut : Production Ready & Local-First Resilient*
 
 ---
@@ -27,7 +27,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 | **Mot de passe Oublié** | `components/Auth.tsx` & `services/auth.ts` | 🟢 100% Opérationnel | Envoi de lien de réinitialisation sécurisé + formulaire de définition nouveau mot de passe |
 | **Validation des Formulaires** | `components/Auth.tsx` | 🟢 100% Opérationnel | Regex emails, jauge de force du mot de passe (0 à 4), confirmation mot de passe, CGU |
 | **Gestion des Sessions** | `App.tsx` & `services/auth.ts` | 🟢 100% Opérationnel | `getSession()`, `onAuthStateChange()`, synchronisation multi-onglets `StorageEvent` |
-| **Verrou d'entrée — session vérifiée par le serveur** | `services/auth.ts#verifierSession` & `App.tsx` | 🟡 Prête pour production contrôlée (DEC-2026-079, v6.41.0) | Toute session relue depuis l'appareil est confirmée par `GET /auth/v1/user` avant d'ouvrir l'interface ; refus → session effacée, écran de connexion ; serveur injoignable → tolérance dite (§ 5) |
+| **Verrou d'entrée — session vérifiée par le serveur** | `services/auth.ts#verifierSession` & `App.tsx` | 🟡 Prête pour production contrôlée (DEC-2026-080, v6.42.0) | Toute session relue depuis l'appareil est confirmée par `GET /auth/v1/user` avant d'ouvrir l'interface ; refus → session effacée, écran de connexion ; serveur injoignable → tolérance dite (§ 5) |
 | **Création & Résolution de Profil** | `services/profile.ts` | 🟢 100% Opérationnel | Table `profiles`, badges, compétences, auto-génération à la première connexion |
 
 ---
@@ -39,7 +39,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 
 ---
 
-## 🔒 5. VERROU D'ENTRÉE — SESSION VÉRIFIÉE PAR LE SERVEUR (DEC-2026-079, 5 septembre 2026)
+## 🔒 5. VERROU D'ENTRÉE — SESSION VÉRIFIÉE PAR LE SERVEUR (DEC-2026-080, 5 septembre 2026)
 
 **Règle** (Direction, 05/09/2026) : l'accès direct à l'interface est strictement réservé aux sessions valides ; toute personne non connectée qui ouvre `moknet.net` — depuis un SMS, WhatsApp, Messenger, un navigateur mobile ou d'ordinateur, y compris les navigateurs intégrés des applications — arrive sur l'écran de connexion ou de création de compte ; une personne déjà connectée entre directement sur Réseau MokNet.
 
@@ -49,7 +49,7 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 |---|---|---|
 | Aucune | — (aucun appel serveur) | Connexion / création de compte |
 | Présente, **confirmée** par le serveur (`GET /auth/v1/user` avec le jeton, même utilisateur) | `valide` | Réseau MokNet (comme avant) |
-| Présente, **refusée** par Supabase lui-même (réponse JSON 401 : jeton périmé côté serveur, révoqué, forgé ; 403 : compte supprimé ou banni ; utilisateur différent) | `invalide` → `signOut({ scope: 'local' })` | Connexion / création de compte — **avant DEC-2026-079, l'interface s'ouvrait** |
+| Présente, **refusée** par Supabase lui-même (réponse JSON 401 : jeton périmé côté serveur, révoqué, forgé ; 403 : compte supprimé ou banni ; utilisateur différent) | `invalide` → `signOut({ scope: 'local' })` | Connexion / création de compte — **avant DEC-2026-080, l'interface s'ouvrait** |
 | Présente, non expirée, **aucun verdict** (panne réseau, 5xx, 429, réponse non JSON d'un portail captif ou d'un proxy, 8 s sans réponse) | `non-verifiee` | Réseau MokNet avec la session locale — tolérance DITE pour les réseaux mobiles, jamais pour un refus du serveur |
 
 - Le verdict est attaché au **jeton**, jamais à l'événement : `getSession()`, `INITIAL_SESSION`, `SIGNED_IN` (y compris rejoué par supabase-js au retour sur l'onglet ou depuis un autre onglet, sans appel serveur), `TOKEN_REFRESHED`, `USER_UPDATED` passent tous par le verdict de leur jeton, une seule fois par jeton (`App.tsx`, `verdictsRef`) ; un jeton refusé reste refusé. Une connexion coûte un `GET /auth/v1/user` avant l'entrée.
