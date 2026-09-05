@@ -1219,8 +1219,15 @@ Chaque décision respecte le formalisme strict suivant :
   du bundle servi par `moknet.net`, captures avec le chemin exact. La
   promotion du profil de la Direction au rang `super_admin` reste une
   décision de la Direction (mot écrit).
-* **Statut** : 🟠 PR #91 OUVERTE — fusion et vérification en production à
-  suivre dans ce journal.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  11:14 UTC) — PR #91 fusionnée en squash → `main` `b36318b` (Green
+  Gate run 33962624632 vert sur `5b265dd`) ; `moknet.net` sert
+  `index-JAHL7yTa.js` avec les empreintes de l'Assistant (« Assistant Santé
+  Globale », « Restaurer le lot », « Précisez la portée », « les rouges
+  seuls », « Réponse IA — à vérifier », « Retour à l'état stable »), ancien
+  bundle `index-BKkSLQXf.js` → 404. Le contrôle final dans l'application
+  (voix, micro, avatar animé, campagne réelle) appartient à la Direction ;
+  réparer réellement exige le rang `super_admin`.
 
 ---
 
