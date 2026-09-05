@@ -70,10 +70,31 @@ Chaque décision respecte le formalisme strict suivant :
   avec 4 libellés, actions IA sur 1 rangée, champ 249 px (219 px à 360, 234 px à 375), avatar 37,82 44 × 44
   identique, bande 16/16 orbes visibles, 0 hors écran, aucun défilement ;
   ordinateur — toutes mesures identiques ; 320 px — repli actif (intitulé « Assistant IA » désormais visible, champ 120 px : rien ne disparaît). Revue
-  indépendante et contre-vérification : consignées dans la PR.
-* **Statut** : 🟠 DÉVELOPPÉ, TESTÉ ET MESURÉ — NON DÉPLOYÉ (PR brouillon,
-  prévisualisation Netlify ; production seulement sur feu vert écrit de la
-  Direction, v6.40.0).
+  indépendante « À CORRIGER » (6 constats, tous corrigés) puis contre-vérification « PRÊT ».
+* **Production contrôlée** : feu vert écrit de la Direction le 5/09/2026 vers
+  15:11 UTC (« je donne mon feu vert écrit pour une production assistée de la
+  PR cent. Tu peux fusionner et vérifier immédiatement sur moknet point net.
+  Si tu rencontres un problème pendant ou juste après, tu le corriges dans ce
+  même cadre ; si c'est incontrôlable, tu arrêtes et tu reviens à l'état
+  stable précédent »). `main` `1466525` inchangé depuis le dernier Green Gate,
+  aucune autre fusion en cours ; PR #100 fusionnée en squash sur la tête
+  exacte `a921a2f` → `main` `a615593` à **15:12:30 UTC**. Vérification
+  immédiate : `moknet.net` sert la nouvelle feuille depuis **15:13:19 UTC**
+  (20 s après la fusion ; bundle `index-Bm6woHcd.js` inchangé, aucun
+  JavaScript modifié ; etag `061af64e…`, `cache-control: max-age=0,
+  must-revalidate`) — marqueurs présents (`a7 (max-width: 270px)`,
+  `(max-width: 344px)`, `grid-template-rows: auto 1fr`, resserrement du
+  groupe), aucun seuil 300/360 px, aucune règle `scroll-snap` / `mask-image` /
+  `overflow-x` dans la bande, ancien bundle `index-DnzvQMzK.js` → 404,
+  vérificateur « conforme » ; Green Gate vert sur `main` (run 33974090869) ;
+  miroir local ouvert dans Chromium : racine montée, requêtes de conteneur
+  `a7` 560/270 et `aurore` 800/480 analysées, deux replis `@supports`.
+  Limite honnête : l'écran authentifié (composeur) n'est pas capturable sans
+  compte ; les captures ordinateur et téléphone du composeur proviennent du
+  harnais sur ce même code
+  (`docs/captures/2026-09-05-reseau-meme-disposition-telephone/`).
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  fusion 15:12:30 UTC, page servie 15:13:19 UTC, v6.40.0).
 
 ---
 
