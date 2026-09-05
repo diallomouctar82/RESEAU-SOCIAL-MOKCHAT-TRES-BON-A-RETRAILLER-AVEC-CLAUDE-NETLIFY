@@ -423,3 +423,129 @@ describe('Point d’entrée unique du composant', () => {
     });
 });
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// Visèmes acoustiques : du spectre à la forme de la bouche
+// ─────────────────────────────────────────────────────────────────────────
+import {
+    MAX_SPEECH_OPENNESS,
+    MOUTH_AT_REST,
+    createVoiceEnvelope as nouvelleEnveloppe,
+    mouthShapeFromBands,
+    smoothMouthShape,
+    spectralBands,
+    type SpectralBands,
+} from '../services/architecte/lipSync';
+
+/** Spectre de banc en dB par bande, pour un tampon de 1 024 bandes à 44,1 kHz. */
+function spectre(regle: (hz: number) => number): Float32Array {
+    const out = new Float32Array(1024);
+    for (let i = 0; i < out.length; i += 1) out[i] = regle((i * 44100) / 2048);
+    return out;
+}
+const voyelleA = spectre((hz) => (hz >= 250 && hz <= 900 ? -20 : -95));
+const voyelleI = spectre((hz) => (hz >= 250 && hz <= 350 ? -22 : hz >= 2100 && hz <= 2600 ? -26 : -95));
+const voyelleOU = spectre((hz) => (hz >= 250 && hz <= 380 ? -20 : hz >= 900 && hz <= 1100 ? -30 : -95));
+const fricativeS = spectre((hz) => (hz >= 3500 && hz <= 7500 ? -30 : -95));
+const nasaleM = spectre((hz) => (hz >= 100 && hz <= 300 ? -35 : -95));
+const rien = spectre(() => -140);
+const tampon = (amplitude: number) => new Float32Array(2048).fill(amplitude);
+
+describe('Visèmes acoustiques — la forme de la bouche vient du spectre, pas du volume seul', () => {
+    it('lit les bandes et les centroïdes du spectre en dB ; tampon vide = rien', () => {
+        const b = spectralBands(voyelleA, tampon(0.2), 44100);
+        expect(b.rms).toBeCloseTo(0.2, 6);
+        expect(b.f1).toBeGreaterThan(b.high * 1000);
+        expect(b.cF1).toBeGreaterThan(500);
+        expect(b.cF1).toBeLessThan(700);
+        const vide = spectralBands(new Float32Array(0), [], 44100);
+        expect(vide).toEqual({ rms: 0, low: 0, f1: 0, mid: 0, high: 0, cF1: 0, cF2: 0 });
+    });
+
+    it('« a » ouvre la mâchoire à l’amplitude de parole, jamais jusqu’au cri', () => {
+        const env = nouvelleEnveloppe();
+        const forme = mouthShapeFromBands(spectralBands(voyelleA, tampon(0.2), 44100), env, 16);
+        expect(forme.open).toBeGreaterThan(0.35);
+        expect(forme.open).toBeLessThanOrEqual(MAX_SPEECH_OPENNESS + 0.01);
+        expect(forme.closed).toBeLessThan(0.1);
+        expect(forme.teeth).toBeLessThan(0.1);
+    });
+
+    it('« i » étire les lèvres et garde la mâchoire presque close ; « ou » les arrondit', () => {
+        const env = nouvelleEnveloppe();
+        const i = mouthShapeFromBands(spectralBands(voyelleI, tampon(0.15), 44100), env, 16);
+        expect(i.width).toBeGreaterThan(1.1);
+        expect(i.open).toBeLessThan(0.2);
+        const ou = mouthShapeFromBands(spectralBands(voyelleOU, tampon(0.15), 44100), env, 16);
+        expect(ou.width).toBeLessThan(0.97);
+    });
+
+    it('« s » montre les dents entre des lèvres à peine entrouvertes ; « m » joint les lèvres ; le silence aussi', () => {
+        const env = nouvelleEnveloppe();
+        mouthShapeFromBands(spectralBands(voyelleA, tampon(0.2), 44100), env, 16); // étalonne la crête
+        const s = mouthShapeFromBands(spectralBands(fricativeS, tampon(0.02), 44100), env, 16);
+        expect(s.teeth).toBeGreaterThan(0.5);
+        expect(s.open).toBeLessThan(0.18);
+        expect(s.open).toBeGreaterThan(0.05);
+        const m = mouthShapeFromBands(spectralBands(nasaleM, tampon(0.025), 44100), env, 16);
+        expect(m.closed).toBeGreaterThan(0.8);
+        expect(m.open).toBeLessThan(0.02);
+        const silence = mouthShapeFromBands(spectralBands(rien, tampon(0), 44100), env, 16);
+        expect(silence.open).toBe(0);
+        expect(silence.closed).toBeGreaterThan(0.9);
+        expect(silence.level).toBe(0);
+    });
+
+    it('le lissage de forme est en temps et borné ; le niveau suit sans inertie', () => {
+        const cible = { open: 0.5, width: 1.2, teeth: 1, closed: 0, level: 0.8 };
+        const une = smoothMouthShape(MOUTH_AT_REST, cible, 16);
+        expect(une.open).toBeGreaterThan(0);
+        expect(une.open).toBeLessThan(0.5);
+        expect(une.width).toBeGreaterThan(1);
+        expect(une.width).toBeLessThan(1.2);
+        expect(une.level).toBe(0.8);
+        let s = MOUTH_AT_REST;
+        for (let i = 0; i < 120; i += 1) s = smoothMouthShape(s, cible, 16);
+        expect(s.open).toBeCloseTo(0.5, 2);
+        expect(s.width).toBeCloseTo(1.2, 2);
+        expect(s.teeth).toBeCloseTo(1, 2);
+    });
+
+    it('la phrase Vision Smart RÉELLEMENT analysée : voyelles ouvertes, « i » étirés, « s » avec les dents, « m »/« p » jointes, silences fermés, jamais grand ouverte', () => {
+        // Traits relevés image par image par l'analyseur du navigateur (05/09/2026).
+        const fixture = JSON.parse(readFileSync('tests/fixtures/vision-smart-bands.json', 'utf8')) as {
+            fps: number;
+            frames: (SpectralBands & { t: number })[];
+        };
+        const env = nouvelleEnveloppe();
+        let lisse = MOUTH_AT_REST;
+        const dt = 1000 / fixture.fps;
+        const suite = fixture.frames.map((f) => {
+            const brute = mouthShapeFromBands(f, env, dt);
+            lisse = smoothMouthShape(lisse, brute, dt);
+            return { t: f.t, brute, lisse };
+        });
+        const a = (t: number) => suite.reduce((p, c) => (Math.abs(c.t - t) < Math.abs(p.t - t) ? c : p));
+        // « a » de « l'avatar », « pour », « -sa- » : mâchoire franchement ouverte.
+        for (const t of [0.8, 1.07, 2.9, 4.9]) expect(a(t).brute.open).toBeGreaterThan(0.4);
+        // « i » de « Vision », « ici », « gui- » : lèvres étirées, mâchoire presque close.
+        for (const t of [1.4, 2.47, 4.2]) {
+            expect(a(t).brute.width).toBeGreaterThan(1.1);
+            expect(a(t).brute.open).toBeLessThan(0.2);
+        }
+        // « ou » de « Bonjour » : arrondie.
+        expect(a(0.37).brute.width).toBeLessThan(0.95);
+        // « s » de « suis », « Smart », « ici » : dents.
+        for (const t of [0.6, 1.6, 2.57]) expect(a(t).brute.teeth).toBeGreaterThan(0.5);
+        // « m » de « Smart », « p » de « pour », « m » de « accompagner », silence entre les phrases : lèvres jointes.
+        for (const t of [1.7, 2.75, 3.1, 2.0]) {
+            expect(a(t).brute.closed).toBeGreaterThan(0.9);
+            expect(a(t).brute.open).toBeLessThan(0.01);
+        }
+        // Amplitude « pro » : jamais grand ouverte, l'essentiel du temps entrouverte ou close.
+        const ouvertures = suite.filter((s) => s.t > 0.05 && s.t < 8.1).map((s) => s.lisse.open);
+        expect(Math.max(...ouvertures)).toBeLessThan(0.65);
+        expect(ouvertures.filter((o) => o > 0.4).length / ouvertures.length).toBeLessThan(0.15);
+        expect(ouvertures.filter((o) => o < 0.08).length / ouvertures.length).toBeGreaterThan(0.3);
+    });
+});

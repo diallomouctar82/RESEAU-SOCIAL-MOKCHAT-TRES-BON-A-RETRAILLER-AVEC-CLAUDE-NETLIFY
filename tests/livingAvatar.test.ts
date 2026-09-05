@@ -1,3 +1,4 @@
+import { GESTURE_AT_REST } from '../services/architecte/gestures';
 import { describe, expect, it } from 'vitest';
 import {
     BLINK_DURATION_MS,
@@ -317,11 +318,15 @@ describe('Comportement — ce qui fait une présence et non une animation', () =
         expect(ecoute.headY).toBeGreaterThan(repos.headY);
     });
 
-    it('les sourcils se haussent sur l’emphase et, au repos, de loin en loin seulement', () => {
+    it('les sourcils suivent l’emphase avec retenue, se haussent franchement sur un geste de début de phrase, et au repos de loin en loin seulement', () => {
         const calme = resolveLivingPose({ ...base, speaking: true, emphasis: 0 });
         const appuye = resolveLivingPose({ ...base, speaking: true, emphasis: 0.8 });
-        expect(appuye.browRaise).toBeGreaterThan(calme.browRaise + 0.5);
-        expect(appuye.browRaise).toBeLessThanOrEqual(1);
+        // 0,9 × emphase montait les sourcils à chaque syllabe forte : mécanique (05/09).
+        expect(appuye.browRaise).toBeGreaterThan(calme.browRaise + 0.2);
+        expect(appuye.browRaise).toBeLessThan(calme.browRaise + 0.4);
+        const geste = resolveLivingPose({ ...base, speaking: true, emphasis: 0, gesture: { ...GESTURE_AT_REST, brow: 0.5 } });
+        expect(geste.browRaise).toBeGreaterThan(calme.browRaise + 0.45);
+        expect(geste.browRaise).toBeLessThanOrEqual(1);
         let dessus = 0;
         for (let t = 0; t < 60_000; t += 20) if (idleBrowRaise(t) > 0.1) dessus += 1;
         expect(dessus / 3000).toBeLessThan(0.2);

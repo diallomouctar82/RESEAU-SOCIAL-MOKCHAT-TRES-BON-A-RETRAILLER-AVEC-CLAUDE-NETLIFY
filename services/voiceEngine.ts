@@ -3,7 +3,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { generateSpeechDetailed } from './aiGateway';
-import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS, createVoiceEnvelope, rmsAmplitude, voiceEnvelopeOpenness } from './architecte/lipSync';
+import {
+    ANALYSER_FFT_SIZE,
+    LIP_SYNC_LOOKAHEAD_MS,
+    MOUTH_AT_REST,
+    createVoiceEnvelope,
+    mouthShapeFromBands,
+    spectralBands,
+    type MouthShape,
+} from './architecte/lipSync';
 
 export interface VoiceEngineListener {
     onTranscript?: (transcript: string, isFinal: boolean) => void;
@@ -22,6 +30,12 @@ export interface VoiceEngineListener {
      * synchro labiale retombe honnêtement sur le rythme des mots.
      */
     onOutputVolume?: (volume: number) => void;
+    /**
+     * Forme de bouche mesurée sur la voix HD à chaque image (visèmes
+     * acoustiques) — pour l'avatar vivant. Le niveau seul reste publié par
+     * `onOutputVolume` pour les jauges.
+     */
+    onMouthShape?: (shape: MouthShape) => void;
     /** Voix intégrée du navigateur : une frontière de mot vient d'être franchie (instant `performance.now()`, longueur du mot). */
     onWordBoundary?: (pulse: { at: number; length: number }) => void;
     onSpeakingStateChange?: (isSpeaking: boolean) => void;
@@ -201,6 +215,13 @@ export class VoiceEngine {
     private outputAnalyser: AnalyserNode | null = null;
     private outputSourceElement: HTMLAudioElement | null = null;
     private outputRafId: number | null = null;
+    /**
+     * Retard à appliquer à la BOUCHE quand la sortie audio de l'appareil est
+     * plus lente que l'avance voulue (casque Bluetooth…) : sans lui, la bouche
+     * parlerait bien avant le son.
+     */
+    private mouthDelayMs = 0;
+    private mouthQueue: { at: number; shape: MouthShape }[] = [];
     private currentAudioUrl: string | null = null;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
@@ -978,7 +999,7 @@ export class VoiceEngine {
         // audio pour rien (coûteux, et bloqué tant qu'il n'y a pas eu de geste
         // utilisateur sur certains navigateurs).
         let wanted = false;
-        this.listeners.forEach(l => { if (l.onOutputVolume) wanted = true; });
+        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
         if (!wanted) return;
         try {
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -995,14 +1016,22 @@ export class VoiceEngine {
                 // octets tenait la bouche ouverte sur le souffle (voir lipSync).
                 const analyser = context.createAnalyser();
                 analyser.fftSize = ANALYSER_FFT_SIZE;
+                // Spectre brut à chaque image : le lissage temporel est dans l'avatar.
+                analyser.smoothingTimeConstant = 0;
                 source.connect(analyser);
                 // La voix entendue passe par un court retard : la bouche, qui
-                // lit le signal non retardé, prend 60 ms d'avance et compense
-                // le retard de la chaîne (fenêtre, image, inertie de la lèvre).
+                // lit le signal non retardé, prend de l'avance et compense le
+                // retard de la chaîne (fenêtre, image, inertie de la lèvre).
+                // La latence de sortie de l'appareil compte déjà comme retard
+                // du son : on la retranche ; si elle dépasse l'avance voulue,
+                // c'est la bouche qu'on retarde (file `mouthQueue`).
                 // Indispensable : sans ce chemin jusqu'à la sortie, brancher
                 // la source sur l'analyseur REND LA VOIX MUETTE.
+                const ctxLatence = context as AudioContext & { outputLatency?: number };
+                const latenceSortieMs = Math.max(0, (Number.isFinite(ctxLatence.outputLatency!) ? ctxLatence.outputLatency! : context.baseLatency || 0) * 1000);
+                this.mouthDelayMs = Math.max(0, latenceSortieMs - LIP_SYNC_LOOKAHEAD_MS);
                 const delay = context.createDelay(1);
-                delay.delayTime.value = LIP_SYNC_LOOKAHEAD_MS / 1000;
+                delay.delayTime.value = Math.max(0, LIP_SYNC_LOOKAHEAD_MS - latenceSortieMs) / 1000;
                 source.connect(delay);
                 delay.connect(context.destination);
                 this.outputAnalyser = analyser;
@@ -1019,24 +1048,44 @@ export class VoiceEngine {
         if (this.outputRafId !== null || !this.outputAnalyser) return;
         const analyser = this.outputAnalyser;
         const samples = new Float32Array(analyser.fftSize);
+        const spectrum = new Float32Array(analyser.frequencyBinCount);
+        const sampleRate = this.outputAudioContext?.sampleRate || 44100;
         // Crête ré-étalonnée à chaque prise de parole : une voix plus douce
         // ouvre la bouche autant qu'une voix forte.
         const envelope = createVoiceEnvelope();
         let lastAt = performance.now();
+        this.mouthQueue = [];
         const tick = () => {
             if (!this.outputAnalyser || !this.isSpeaking) {
                 this.outputRafId = null;
-                this.listeners.forEach(l => l.onOutputVolume?.(0));
+                this.publishMouth(MOUTH_AT_REST);
                 return;
             }
             this.outputAnalyser.getFloatTimeDomainData(samples);
+            this.outputAnalyser.getFloatFrequencyData(spectrum);
             const now = performance.now();
-            const level = voiceEnvelopeOpenness(envelope, rmsAmplitude(samples), now - lastAt);
+            const shape = mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt);
             lastAt = now;
-            this.listeners.forEach(l => l.onOutputVolume?.(level));
+            if (this.mouthDelayMs < 8) {
+                this.publishMouth(shape);
+            } else {
+                // Sortie audio en retard sur l'avance voulue : la bouche attend le son.
+                this.mouthQueue.push({ at: now, shape });
+                let due: MouthShape | null = null;
+                while (this.mouthQueue.length && this.mouthQueue[0].at <= now - this.mouthDelayMs) due = this.mouthQueue.shift()!.shape;
+                if (due) this.publishMouth(due);
+            }
             this.outputRafId = requestAnimationFrame(tick);
         };
         this.outputRafId = requestAnimationFrame(tick);
+    }
+
+    /** Publie une forme de bouche et son niveau à tous les auditeurs. */
+    private publishMouth(shape: MouthShape): void {
+        this.listeners.forEach(l => {
+            l.onMouthShape?.(shape);
+            l.onOutputVolume?.(shape.level);
+        });
     }
 
     /** Arrête la mesure et remet la bouche au repos — appelé avec l'arrêt de la parole. */
@@ -1045,7 +1094,8 @@ export class VoiceEngine {
             cancelAnimationFrame(this.outputRafId);
             this.outputRafId = null;
         }
-        this.listeners.forEach(l => l.onOutputVolume?.(0));
+        this.mouthQueue = [];
+        this.publishMouth(MOUTH_AT_REST);
     }
 
     /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */

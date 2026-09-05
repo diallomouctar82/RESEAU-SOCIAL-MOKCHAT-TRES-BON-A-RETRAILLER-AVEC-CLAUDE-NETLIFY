@@ -332,8 +332,11 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
         c.fillStyle = g;
         c.fill();
         // Dents : un soupçon, seulement quand la bouche s'ouvre franchement.
-        const teethHeight = Math.min(1.35, lowerLip * 0.32);
-        const teethOpacity = Math.min(1, Math.max(0, (pose.jawOpen - 0.25) * 3)) * 0.68;
+        // Dents : un soupçon quand la bouche s'ouvre franchement, et une ligne
+        // claire entre des lèvres à peine entrouvertes sur une fricative.
+        const fricative = Number.isFinite(pose.mouthTeeth) ? Math.min(1, Math.max(0, pose.mouthTeeth)) : 0;
+        const teethHeight = Math.max(Math.min(1.35, lowerLip * 0.32), fricative * 0.45);
+        const teethOpacity = Math.max(Math.min(1, Math.max(0, (pose.jawOpen - 0.25) * 3)) * 0.68, fricative * 0.85);
         if (teethOpacity > 0.02 && teethHeight > 0.1) {
             c.save();
             cavite(0);

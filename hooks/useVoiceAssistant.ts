@@ -5,6 +5,7 @@
 // abonnement (une seule fois, pas une fois par composant) et la résolution
 // de la voix, sans dupliquer la mécanique déjà correcte de voiceEngine.ts.
 
+import type { MouthShape } from '../services/architecte/lipSync';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { voiceEngine, type VoiceEngineListener } from '../services/voiceEngine';
 import { Agent } from '../types';
@@ -42,6 +43,8 @@ export interface UseVoiceAssistantResult {
     outputVolumeRef: { readonly current: number };
     /** Dernière frontière de mot de la voix intégrée du navigateur (repli) — par référence, pour l'avatar. */
     wordPulseRef: { readonly current: { at: number; length: number } | null };
+    /** Forme de bouche mesurée sur la voix HD (visèmes), par référence, lue à chaque image par l'avatar. */
+    mouthShapeRef: { readonly current: MouthShape | null };
     transcript: string;
     error: string | null;
     conversationalTurn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user' | null;
@@ -67,6 +70,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     const [outputVolume, setOutputVolume] = useState(0);
     const outputVolumeRef = useRef(0);
     const wordPulseRef = useRef<{ at: number; length: number } | null>(null);
+    const mouthShapeRef = useRef<MouthShape | null>(null);
     const outputVolumeUiAtRef = useRef(0);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -99,6 +103,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
             onError: (err) => setError(err),
             onSpeechVolume: (v) => setVolume(v),
             onWordBoundary: (pulse) => { wordPulseRef.current = pulse; },
+            onMouthShape: (shape) => { mouthShapeRef.current = shape; },
             onOutputVolume: (v) => {
                 outputVolumeRef.current = v;
                 // L'état React ne suit qu'à ~12 Hz (et tout de suite au retour à 0) :
@@ -176,6 +181,7 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
         outputVolume,
         outputVolumeRef,
         wordPulseRef,
+        mouthShapeRef,
         transcript,
         error,
         conversationalTurn,

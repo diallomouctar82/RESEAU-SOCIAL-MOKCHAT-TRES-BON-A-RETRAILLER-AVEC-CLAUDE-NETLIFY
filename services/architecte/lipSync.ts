@@ -85,9 +85,10 @@ export const ANALYSER_FFT_SIZE = 2048;
  * 60 ms avant la sortie audio, l'analyseur lit le signal NON retardé. Cette
  * avance compense le retard de la chaîne (fenêtre de 46 ms centrée sur le
  * passé, image suivante, inertie de la lèvre). Sans elle, la bouche suivait
- * la voix avec ~160 ms de retard (mesuré le 04/09).
+ * la voix avec ~160 ms de retard (mesuré le 04/09) ; à 60 ms, encore 34 ms
+ * derrière le son entendu (mesuré le 05/09 dans la page réelle) : 90 ms.
  */
-export const LIP_SYNC_LOOKAHEAD_MS = 60;
+export const LIP_SYNC_LOOKAHEAD_MS = 90;
 
 /** Amplitude efficace (RMS, 0..1) d'un tampon temporel flottant (−1..1), tampon vide compris. */
 export function rmsAmplitude(samples: ArrayLike<number>): number {
@@ -210,4 +211,171 @@ export function resolveMouthOpenness(
     if (level === 'amplitude_reelle') return amplitudeToOpenness(source.amplitude ?? 0);
     if (level === 'rythme_des_mots') return wordEnvelopeOpenness(source.elapsedMs ?? Infinity, source.wordLength ?? 5);
     return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Visèmes acoustiques : du spectre à la FORME de la bouche
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Le volume seul ouvre la bouche sur tout ce qui est fort — un « s », un
+// « f » — et la referme sur une voyelle douce : on voit que « ça ne colle
+// pas » sans savoir pourquoi (Direction, 05/09 : « pas suffisamment
+// synchronisé »). Une bouche humaine s'ouvre sur les VOYELLES, d'autant plus
+// que la voyelle est ouverte (« a ») ; elle s'étire sur « i », s'arrondit sur
+// « ou », se ferme sur « m », « b », « p » et laisse voir les dents sur les
+// fricatives. Tout cela se lit dans le spectre :
+//  - premier formant (F1) haut → mâchoire ouverte ; bas → presque close ;
+//  - second formant (F2) haut → lèvres étirées ; bas → arrondies ;
+//  - énergie surtout au-dessus de 3 kHz → fricative, dents visibles ;
+//  - énergie seulement en dessous de 400 Hz, et faible → lèvres jointes.
+// Calibré le 05/09 sur la phrase Vision Smart, image par image, avec
+// l'analyseur du navigateur lui-même (voir tests et fixtures).
+
+/** Bandes (Hz) lues dans le spectre — mêmes valeurs dans le moteur, la page de démonstration et les tests. */
+export const SPEECH_BANDS_HZ = {
+    low: [80, 400],
+    f1: [400, 1000],
+    mid: [1000, 2500],
+    high: [3000, 8000],
+    centroidF1: [250, 1000],
+    centroidF2: [800, 2800],
+} as const;
+
+export interface SpectralBands {
+    /** Amplitude efficace du signal temporel (0..1). */
+    rms: number;
+    /** Puissances linéaires par bande. */
+    low: number;
+    f1: number;
+    mid: number;
+    high: number;
+    /** Centroïdes (Hz) des zones du premier et du second formant. */
+    cF1: number;
+    cF2: number;
+}
+
+/**
+ * Traits spectraux d'une image : `freqDb` = `getFloatFrequencyData` (dB par
+ * bande), `samples` = `getFloatTimeDomainData`. Pur : rien n'est lu ici.
+ */
+export function spectralBands(
+    freqDb: ArrayLike<number>,
+    samples: ArrayLike<number>,
+    sampleRate: number,
+    fftSize: number = ANALYSER_FFT_SIZE,
+): SpectralBands {
+    const n = freqDb ? freqDb.length : 0;
+    const rms = rmsAmplitude(samples);
+    if (n === 0 || !Number.isFinite(sampleRate) || sampleRate <= 0) {
+        return { rms, low: 0, f1: 0, mid: 0, high: 0, cF1: 0, cF2: 0 };
+    }
+    const binOf = (hz: number) => Math.min(n - 1, Math.max(0, Math.round((hz * fftSize) / sampleRate)));
+    const hzOf = (i: number) => (i * sampleRate) / fftSize;
+    const power = (i: number) => {
+        const db = freqDb[i];
+        return Number.isFinite(db) ? 10 ** (db / 10) : 0;
+    };
+    const sum = ([a, b]: readonly [number, number]) => {
+        let s = 0;
+        for (let i = binOf(a); i <= binOf(b); i += 1) s += power(i);
+        return s;
+    };
+    const centroid = ([a, b]: readonly [number, number]) => {
+        let s = 0;
+        let w = 0;
+        for (let i = binOf(a); i <= binOf(b); i += 1) {
+            const p = power(i);
+            s += p * hzOf(i);
+            w += p;
+        }
+        return w > 0 ? s / w : 0;
+    };
+    return {
+        rms,
+        low: sum(SPEECH_BANDS_HZ.low),
+        f1: sum(SPEECH_BANDS_HZ.f1),
+        mid: sum(SPEECH_BANDS_HZ.mid),
+        high: sum(SPEECH_BANDS_HZ.high),
+        cF1: centroid(SPEECH_BANDS_HZ.centroidF1),
+        cF2: centroid(SPEECH_BANDS_HZ.centroidF2),
+    };
+}
+
+/** Forme de bouche visée pour une image. */
+export interface MouthShape {
+    /** Ouverture de mâchoire (0..1 de la course du calage) — déjà ramenée à l'amplitude de parole. */
+    open: number;
+    /** Facteur de largeur des lèvres : < 1 arrondies (« ou »), > 1 étirées (« i »). */
+    width: number;
+    /** Dents visibles entre des lèvres à peine entrouvertes (fricatives « s », « f », « ch »). */
+    teeth: number;
+    /** Lèvres jointes (« m », « b », « p », silences). */
+    closed: number;
+    /** Niveau de voix (0..1) : l'enveloppe adaptative, pour les jauges et les gestes. */
+    level: number;
+}
+
+export const MOUTH_AT_REST: MouthShape = { open: 0, width: 1, teeth: 0, closed: 1, level: 0 };
+
+/**
+ * Amplitude de parole : une voyelle « a » franche ouvre la mâchoire à 60 % de
+ * la course du calage (la course complète est un cri). Relevé sur le banc à
+ * pose fixée le 05/09 après le retour « la bouche s'ouvre beaucoup trop ».
+ */
+export const MAX_SPEECH_OPENNESS = 0.6;
+
+const clamp01 = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
+const smoothstep = (x: number, a: number, b: number) => {
+    if (!Number.isFinite(x)) return 0;
+    const t = clamp01((x - a) / (b - a));
+    return t * t * (3 - 2 * t);
+};
+const toDb = (p: number) => 10 * Math.log10((Number.isFinite(p) && p > 0 ? p : 0) + 1e-12);
+
+/**
+ * Traits spectraux → forme de bouche, sans lissage (le composant lisse en
+ * temps). Met à jour la crête de l'enveloppe comme `voiceEnvelopeOpenness`.
+ */
+export function mouthShapeFromBands(bands: SpectralBands, envelope: VoiceEnvelope, dtMs: number): MouthShape {
+    const level = voiceEnvelopeOpenness(envelope, bands.rms, dtMs);
+    const peak = envelope.peak > 0 ? envelope.peak : VOICE_PEAK_MIN;
+    // Audible sans être une voyelle forte : les fricatives sont faibles, elles
+    // seraient effacées par le seuil de fermeture de l'enveloppe.
+    const audible = smoothstep(bands.rms / peak, 0.04, 0.1);
+    const voiced = bands.low + bands.f1 + bands.mid;
+    const fric = voiced + bands.high > 0 ? bands.high / (voiced + bands.high) : 0;
+    // « Sourd » : il ne reste que le grave (nasale à lèvres jointes, occlusive,
+    // queue de silence) — et faible, sinon c'est une voyelle arrondie.
+    const dull = smoothstep(toDb(bands.low) - toDb(bands.mid), 18, 28);
+    const closed = Math.max(dull * (1 - smoothstep(level, 0.2, 0.45)), 1 - smoothstep(bands.rms / peak, 0.03, 0.08));
+    const vowelOpen = smoothstep(bands.cF1, 290, 760);
+    const spread = smoothstep(bands.cF2, 1300, 2300);
+    const teeth = smoothstep(fric, 0.35, 0.8) * audible * (1 - closed);
+    const jaw = level * (0.28 + 0.72 * vowelOpen) * (1 - 0.85 * teeth) * (1 - closed);
+    return {
+        // Une fricative entrouvre les lèvres juste assez pour montrer les dents (banc : 0,12 se voit, 0,06 non).
+        open: Math.min(1, jaw * MAX_SPEECH_OPENNESS + teeth * 0.12),
+        width: 0.9 + 0.28 * spread + 0.06 * vowelOpen + 0.06 * teeth,
+        teeth,
+        closed,
+        level,
+    };
+}
+
+/** Constantes de temps du lissage de forme : lèvres et dents plus vives que la mâchoire. */
+export const MOUTH_WIDTH_MS = 90;
+export const MOUTH_TEETH_MS = 50;
+export const MOUTH_CLOSED_MS = 35;
+
+/** Lissage EN TEMPS de la forme (l'ouverture passe par `smoothOpenness`). */
+export function smoothMouthShape(previous: MouthShape, target: MouthShape, dtMs: number): MouthShape {
+    const dt = Number.isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, 100) : DEFAULT_FRAME_MS;
+    const k = (tau: number) => 1 - Math.exp(-dt / tau);
+    return {
+        open: smoothOpenness(previous.open, target.open, dt),
+        width: previous.width + (target.width - previous.width) * k(MOUTH_WIDTH_MS),
+        teeth: previous.teeth + (target.teeth - previous.teeth) * k(MOUTH_TEETH_MS),
+        closed: previous.closed + (target.closed - previous.closed) * k(MOUTH_CLOSED_MS),
+        level: target.level,
+    };
 }

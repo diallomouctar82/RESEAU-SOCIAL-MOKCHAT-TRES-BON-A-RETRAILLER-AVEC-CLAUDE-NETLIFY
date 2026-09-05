@@ -12,8 +12,9 @@ import {
     LIP_SYNC_LEVEL_LABEL,
     LIP_SYNC_LOOKAHEAD_MS,
     createVoiceEnvelope,
-    rmsAmplitude,
-    voiceEnvelopeOpenness,
+    mouthShapeFromBands,
+    spectralBands,
+    type MouthShape,
 } from '../../services/architecte/lipSync';
 import { ArchitecteAvatar } from './ArchitecteAvatar';
 
@@ -38,6 +39,24 @@ export interface DemoAudioHook {
     source: MediaElementAudioSourceNode;
     /** Signal ENTENDU (après le court retard) : c'est lui qu'un enregistrement doit capter. */
     output: AudioNode;
+}
+
+/**
+ * Prise de PILOTAGE pour les preuves image par image (rendu à horloge
+ * virtuelle, son analysé hors ligne par le navigateur lui-même) : le banc
+ * pousse les formes de bouche calculées par les MÊMES fonctions que le
+ * moteur. Hors application : cette page est une page de preuve.
+ */
+export interface DemoDriveHook {
+    debuter: () => void;
+    pousser: (forme: MouthShape) => void;
+    finir: () => void;
+    outils: {
+        spectralBands: typeof spectralBands;
+        mouthShapeFromBands: typeof mouthShapeFromBands;
+        createVoiceEnvelope: typeof createVoiceEnvelope;
+        fftSize: number;
+    };
 }
 
 /**
@@ -173,6 +192,35 @@ export const ArchitecteDemoPage: React.FC = () => {
 
     const hdRef = useRef<DemoAudioHook | null>(null);
     const hdRafRef = useRef(0);
+    /** Forme de bouche mesurée sur la voix HD, lue par l'avatar à chaque image. */
+    const boucheRef = useRef<MouthShape | null>(null);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const drive: DemoDriveHook = {
+            debuter: () => {
+                hdRef.current?.audio.pause();
+                cancelAnimationFrame(hdRafRef.current);
+                setEnBoucle(false);
+                enBoucleRef.current = false;
+                debutRef.current = null;
+                changerVoix('hd');
+            },
+            pousser: (forme) => {
+                boucheRef.current = forme;
+                publierNiveau(forme.level);
+            },
+            finir: () => {
+                boucheRef.current = null;
+                publierNiveau(0);
+                changerVoix('inactive');
+            },
+            outils: { spectralBands, mouthShapeFromBands, createVoiceEnvelope, fftSize: ANALYSER_FFT_SIZE },
+        };
+        (window as unknown as { __moknetDemoDrive?: DemoDriveHook }).__moknetDemoDrive = drive;
+        return () => { delete (window as unknown as { __moknetDemoDrive?: DemoDriveHook }).__moknetDemoDrive; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     /**
      * TEST AVEC SON : la phrase Vision Smart, vraie voix HD, bouche pilotée
@@ -198,6 +246,7 @@ export const ArchitecteDemoPage: React.FC = () => {
         // temporelle sur le signal brut, voix entendue retardée de 60 ms.
         const analyser = context.createAnalyser();
         analyser.fftSize = ANALYSER_FFT_SIZE;
+        analyser.smoothingTimeConstant = 0;
         source.connect(analyser);
         // PIÈGE connu (DEC-2026-054) : sans chemin jusqu'à la destination, la voix est muette.
         const output = context.createDelay(1);
@@ -205,6 +254,7 @@ export const ArchitecteDemoPage: React.FC = () => {
         source.connect(output);
         output.connect(context.destination);
         const echantillons = new Float32Array(analyser.fftSize);
+        const spectre = new Float32Array(analyser.frequencyBinCount);
         const enveloppe = createVoiceEnvelope();
         let derniereMesure = performance.now();
         hdRef.current = { audio, context, source, output };
@@ -212,13 +262,17 @@ export const ArchitecteDemoPage: React.FC = () => {
         const mesurer = () => {
             if (audio.paused || audio.ended) return;
             analyser.getFloatTimeDomainData(echantillons);
+            analyser.getFloatFrequencyData(spectre);
             const maintenant = performance.now();
-            publierNiveau(voiceEnvelopeOpenness(enveloppe, rmsAmplitude(echantillons), maintenant - derniereMesure));
+            const forme = mouthShapeFromBands(spectralBands(spectre, echantillons, context.sampleRate), enveloppe, maintenant - derniereMesure);
             derniereMesure = maintenant;
+            boucheRef.current = forme;
+            publierNiveau(forme.level);
             hdRafRef.current = requestAnimationFrame(mesurer);
         };
         const fin = () => {
             cancelAnimationFrame(hdRafRef.current);
+            boucheRef.current = null;
             publierNiveau(0);
             changerVoix('inactive');
         };
@@ -321,6 +375,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                     ttsEngine={voixEnCours ? 'browser_native' : 'elevenlabs'}
                     outputLevel={niveau}
                     outputLevelRef={niveauRef}
+                    mouthShapeRef={boucheRef}
                     wordPulse={mot}
                     size={400}
                     actionLabel="Avatar de démonstration"

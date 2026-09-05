@@ -10,10 +10,14 @@ import {
     type ArchitectePresenceState,
 } from '../../services/architecte/architecteAvatar';
 import {
+    MAX_SPEECH_OPENNESS,
+    MOUTH_TEETH_MS,
     resolveLipSyncLevel,
     resolveMouthOpenness,
     smoothOpenness,
+    type MouthShape,
 } from '../../services/architecte/lipSync';
+import { createProsodyTracker, updateProsody } from '../../services/architecte/gestures';
 import { realAvatarUrl } from '../../services/studio/avatarIdentity';
 import {
     resolveLivingPose,
@@ -79,6 +83,12 @@ export interface ArchitecteAvatarProps {
      * sur `outputLevel` quand il est fourni.
      */
     outputLevelRef?: { readonly current: number } | null;
+    /**
+     * FORME de bouche mesurée sur la voix HD (visèmes acoustiques : mâchoire,
+     * largeur des lèvres, dents, lèvres jointes), publiée par
+     * `voiceEngine.onMouthShape`. Prioritaire sur le niveau quand elle existe.
+     */
+    mouthShapeRef?: { readonly current: MouthShape | null } | null;
     /** Diamètre en pixels. */
     size?: number;
     onClick?: () => void;
@@ -137,6 +147,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     ttsEngine,
     outputLevel,
     outputLevelRef = null,
+    mouthShapeRef = null,
     wordPulse = null,
     wordPulseRef = null,
     size = 48,
@@ -184,6 +195,9 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     // même point — et les premiers clignements n'arriveraient jamais.
     const origineRef = useRef<number | null>(null);
     const wordPulseLocalRef = useRef<{ at: number; length: number } | null>(null);
+    /** Dents visibles, lissées ; et suiveur de prosodie (gestes portés par la voix). */
+    const teethRef = useRef(0);
+    const prosodyRef = useRef(createProsodyTracker());
     // Emphase : enveloppe LENTE de la voix, pour des hochements qui suivent
     // le phrasé et non chaque syllabe (retour Direction : « pas naturel »).
     const emphasisRef = useRef(0);
@@ -211,6 +225,8 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             speakingBlendRef.current = 0;
             attentionBlendRef.current = 0;
             syllableRef.current = { index: 0, wasOpen: false, closureUntil: 0, width: 1 };
+            teethRef.current = 0;
+            prosodyRef.current = createProsodyTracker();
             portraitRef.current?.draw(STILL_POSE);
             setPose(STILL_POSE);
             return;
@@ -225,30 +241,56 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             imagePrecedente = maintenant;
             const pulse = wordPulseRef ? wordPulseRef.current : wordPulseLocalRef.current;
             const niveau = outputLevelRef ? outputLevelRef.current : levelRef.current;
+            const forme = mouthShapeRef ? mouthShapeRef.current : null;
             let cible = resolveMouthOpenness(lipSyncLevel, {
                 amplitude: niveau,
                 elapsedMs: pulse ? maintenant - pulse.at : undefined,
                 wordLength: pulse ? pulse.length : undefined,
             });
-            // Syllabes : attaque → forme de lèvres suivante ; retombée → parfois
-            // lèvres jointes un instant (« m », « b », « p »).
             const syl = syllableRef.current;
-            if (cible >= SYLLABLE_ONSET && !syl.wasOpen) {
-                syl.wasOpen = true;
-                syl.index += 1;
-            } else if (cible <= SYLLABLE_RELEASE && syl.wasOpen) {
-                syl.wasOpen = false;
-                if (syl.index % LIP_CLOSURE_EVERY === LIP_CLOSURE_EVERY - 1) syl.closureUntil = maintenant + LIP_CLOSURE_MS;
+            let largeurVisee = 1;
+            let dentsVisees = 0;
+            let niveauVoix = cible;
+            if (forme && lipSyncLevel === 'amplitude_reelle') {
+                // VOIX HD MESURÉE : la forme vient du spectre de la voix — voyelle
+                // ouverte ou fermée, lèvres étirées ou arrondies, dents sur une
+                // fricative, lèvres jointes sur « m », « b », « p » et les silences.
+                cible = forme.closed > 0.5 ? 0 : forme.open;
+                largeurVisee = forme.width;
+                dentsVisees = forme.teeth;
+                niveauVoix = forme.level;
+                syl.wasOpen = cible >= SYLLABLE_ONSET;
+            } else {
+                // RYTHME DES MOTS (voix du navigateur) ou démonstration : syllabes
+                // comptées sur la cible ; attaque → forme de lèvres suivante ;
+                // retombée → parfois lèvres jointes un instant (« m », « b », « p »).
+                if (cible >= SYLLABLE_ONSET && !syl.wasOpen) {
+                    syl.wasOpen = true;
+                    syl.index += 1;
+                } else if (cible <= SYLLABLE_RELEASE && syl.wasOpen) {
+                    syl.wasOpen = false;
+                    if (syl.index % LIP_CLOSURE_EVERY === LIP_CLOSURE_EVERY - 1) syl.closureUntil = maintenant + LIP_CLOSURE_MS;
+                }
+                largeurVisee = speakingRef.current ? LIP_SHAPES[syl.index % LIP_SHAPES.length] : 1;
+                // Lèvres entrouvertes tant qu'il parle : une bouche qui se referme
+                // complètement entre deux syllabes claque comme une marionnette —
+                // sauf pendant une fermeture voulue.
+                if (maintenant < syl.closureUntil) cible = 0;
+                else if (speakingRef.current) cible = Math.max(cible, LIPS_PARTED_WHILE_SPEAKING);
             }
-            const largeurVisee = speakingRef.current ? LIP_SHAPES[syl.index % LIP_SHAPES.length] : 1;
             syl.width += (largeurVisee - syl.width) * easeFactor(LIP_WIDTH_MS, dt);
-            // Lèvres entrouvertes tant qu'il parle : une bouche qui se referme
-            // complètement entre deux syllabes claque comme une marionnette —
-            // sauf pendant une fermeture voulue.
-            if (maintenant < syl.closureUntil) cible = 0;
-            else if (speakingRef.current) cible = Math.max(cible, LIPS_PARTED_WHILE_SPEAKING);
+            teethRef.current += (dentsVisees - teethRef.current) * easeFactor(MOUTH_TEETH_MS, dt);
             opennessRef.current = smoothOpenness(opennessRef.current, cible, dt);
             const ouverture = opennessRef.current;
+            // Gestes déclenchés par la voix : temps forts, débuts de phrase, pauses.
+            const geste = updateProsody(prosodyRef.current, {
+                t: maintenant,
+                open: Math.min(1, cible / MAX_SPEECH_OPENNESS),
+                loud: niveauVoix,
+                speaking: speakingRef.current,
+                dtMs: dt,
+                elapsedMs: maintenant - debut,
+            });
             emphasisRef.current += (ouverture - emphasisRef.current)
                 * easeFactor(ouverture > emphasisRef.current ? EMPHASIS_RISE_MS : EMPHASIS_FALL_MS, dt);
             speakingBlendRef.current += ((speakingRef.current ? 1 : 0) - speakingBlendRef.current) * easeFactor(SPEAKING_BLEND_MS, dt);
@@ -263,6 +305,8 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                 mouthWidth: syl.width,
                 attention: attentionRef.current,
                 attentionBlend: attentionBlendRef.current,
+                mouthTeeth: teethRef.current,
+                gesture: geste,
             });
             // Photo : le portrait se peint directement. Repli vectoriel : état React.
             if (portraitRef.current) portraitRef.current.draw(pose);
@@ -271,7 +315,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         };
         frame = requestAnimationFrame(boucle);
         return () => cancelAnimationFrame(frame);
-    }, [animated, lipSyncLevel, outputLevelRef, wordPulseRef]);
+    }, [animated, lipSyncLevel, outputLevelRef, mouthShapeRef, wordPulseRef]);
 
     const openness = pose.jawOpen;
 

@@ -48,6 +48,8 @@ export const ATTENTION_BLEND_MS = 269;
 /** Largeur des lèvres d'une forme à la suivante : ~130 ms. */
 export const LIP_WIDTH_MS = 130;
 
+import type { GestureState } from './gestures';
+
 export interface PortraitRig {
     /** Ligne des yeux (0 = haut du cadre, 100 = bas). */
     eyeLinePercent: number;
@@ -161,6 +163,16 @@ export function blinkAmount(elapsedMs: number): number {
     return Math.max(tableBlinkAmount(elapsedMs), saccadeBlinkAmount(elapsedMs));
 }
 
+/**
+ * Courbe d'un clignement, `sinceStartMs` après son départ : fermeture plus
+ * rapide que la réouverture (35 % / 65 %). 0 hors de la durée du clignement.
+ */
+export function blinkCurve(sinceStartMs: number): number {
+    if (!Number.isFinite(sinceStartMs) || sinceStartMs < 0 || sinceStartMs >= BLINK_DURATION_MS) return 0;
+    const phase = sinceStartMs / BLINK_DURATION_MS;
+    return phase < 0.35 ? phase / 0.35 : 1 - (phase - 0.35) / 0.65;
+}
+
 /** Clignements de la table fixe seulement (sans ceux liés aux saccades). */
 export function tableBlinkAmount(elapsedMs: number): number {
     if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0;
@@ -169,10 +181,7 @@ export function tableBlinkAmount(elapsedMs: number): number {
     for (const intervalle of BLINK_INTERVALS_MS) {
         const debut = curseur + intervalle;
         if (position < debut) return 0; // entre deux clignements : œil ouvert
-        if (position < debut + BLINK_DURATION_MS) {
-            const phase = (position - debut) / BLINK_DURATION_MS;
-            return phase < 0.35 ? phase / 0.35 : 1 - (phase - 0.35) / 0.65;
-        }
+        if (position < debut + BLINK_DURATION_MS) return blinkCurve(position - debut);
         curseur = debut + BLINK_DURATION_MS;
     }
     return 0;
@@ -243,7 +252,9 @@ export function restTilt(elapsedMs: number): number {
  */
 export function speechNod(emphasis: number): { y: number; rotate: number } {
     const e = Math.min(1, Math.max(0, Number.isFinite(emphasis) ? emphasis : 0));
-    return { y: e * 0.7, rotate: e * 0.6 };
+    // Réduit le 05/09 : les temps forts sont marqués par les gestes de prosodie
+    // (services/architecte/gestures.ts) ; l'emphase ne porte plus qu'un fond.
+    return { y: e * 0.45, rotate: e * 0.35 };
 }
 
 /**
@@ -411,6 +422,8 @@ export interface LivingPose {
     gazeY: number;
     /** Haussement des sourcils (0 = au repos, 1 = maximum). */
     browRaise: number;
+    /** Dents visibles entre des lèvres à peine entrouvertes (fricatives), 0..1. */
+    mouthTeeth: number;
 }
 
 /** Pose strictement immobile — mouvement réduit, onglet caché, hors écran, réglage coupé. */
@@ -426,6 +439,7 @@ export const STILL_POSE: LivingPose = {
     gazeX: 0,
     gazeY: 0,
     browRaise: 0,
+    mouthTeeth: 0,
 };
 
 export interface LivingPoseInputs {
@@ -460,6 +474,10 @@ export interface LivingPoseInputs {
     /** Vers quoi l'attention est tournée, et sa part lissée (0..1). */
     attention?: Attention;
     attentionBlend?: number;
+    /** Dents visibles (fricatives), déjà lissé par l'appelant. */
+    mouthTeeth?: number;
+    /** Gestes portés par la parole (services/architecte/gestures.ts), déjà lissés par ressorts. */
+    gesture?: GestureState | null;
 }
 
 /**
@@ -504,26 +522,32 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
     // L'inclinaison d'écoute continue pendant la parole : la couper à la
     // volée faisait basculer la tête d'un coup en fin de phrase.
     const tilt = restTilt(inputs.elapsedMs);
+    const g = inputs.gesture ?? null;
+    const blinkDemande = g && g.blinkStartedAt !== null ? blinkCurve(inputs.elapsedMs - g.blinkStartedAt) : 0;
 
     return {
         // Respiration visible sans devenir un effet : 1,5 % d'échelle, les
         // épaules montent avec — devant un fond qui, lui, ne bouge pas.
         breathScale: 1 + respiration * 0.015 * ampleur,
         breathY: -respiration * 1.0 * ampleur,
-        headRotate: derive.rotate + tilt + nod.rotate,
+        headRotate: derive.rotate + tilt + nod.rotate + (g ? g.nodRotate + g.tilt : 0),
         headX: derive.x + sway,
-        headY: derive.y + nod.y + nodEcoute,
+        headY: derive.y + nod.y + nodEcoute + (g ? g.nodY + g.liftY : 0),
         // On cligne AUSSI en parlant : un visage qui ne cligne plus dès qu'il
         // parle se fige — constaté sur la vidéo du 04/09, où deux clignements
         // en 29 s ne suffisaient pas à convaincre.
-        eyelid: blinkAmount(inputs.elapsedMs),
+        // Clignements de la table, des saccades, ET ceux demandés dans les pauses de la voix.
+        eyelid: Math.max(blinkAmount(inputs.elapsedMs), blinkDemande),
         jawOpen,
         mouthWidth: Number.isFinite(inputs.mouthWidth!)
             ? inputs.mouthWidth!
             : 1 + (mouthWidthFactor(inputs.elapsedMs, true) - 1) * blend,
-        gazeX: regard.x,
-        gazeY: regard.y,
-        browRaise: Math.min(1, idleBrowRaise(inputs.elapsedMs) + emphasis * 0.9),
+        gazeX: regard.x + (g ? g.gazeX : 0),
+        gazeY: regard.y + (g ? g.gazeY : 0),
+        // Les sourcils ne montent plus à chaque syllabe forte (0,9 × emphase :
+        // mécanique) ; ils marquent les débuts de phrase par les gestes.
+        browRaise: Math.min(1, idleBrowRaise(inputs.elapsedMs) + emphasis * 0.35 + (g ? g.brow : 0)),
+        mouthTeeth: Math.min(1, Math.max(0, Number.isFinite(inputs.mouthTeeth!) ? inputs.mouthTeeth! : 0)),
     };
 }
 
