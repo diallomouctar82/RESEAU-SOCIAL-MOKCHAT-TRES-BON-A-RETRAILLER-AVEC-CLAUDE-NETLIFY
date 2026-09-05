@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Heart, MessageCircle, Share2, MoreHorizontal, Plus, Sparkles, TrendingUp, 
   Radio, PlayCircle, Video, Play, Users, Trophy, UserPlus, Calendar, Languages, 
@@ -7,7 +7,7 @@ import {
   Smile, Send, ChevronDown, ChevronUp, ArrowRight, Mic, Phone, PhoneCall, Paperclip, 
   MoreVertical, Hash, Search, Filter, CheckCircle, ChevronRight, Loader2, ThumbsUp,
   Repeat, Bookmark, Shield, Award, Eye, Download, UploadCloud, AlertCircle, Trash2, Archive,
-  GraduationCap, Flame, Briefcase, HeartPulse, Home as HomeIcon, Wallet as WalletIcon, Palette, ShoppingBag
+  GraduationCap, Flame, Briefcase, HeartPulse, Home as HomeIcon, Wallet as WalletIcon, Palette, ShoppingBag, ImagePlus
 } from 'lucide-react';
 import { 
   Post, Tribe, LiveStream, ReelDraft, LivePricing, Reel, Comment, 
@@ -17,7 +17,8 @@ import { AGENTS, REELS, STORIES, ACTIVE_LIVES, TRIBES, LEADERBOARD, MOCK_CHATS, 
 import { ReelsCreator } from './ReelsCreator';
 import { SmartReelViewer } from './SmartReelViewer';
 import { UniversalCreator } from './UniversalCreator';
-import { AIPostAssistantModal } from './AIPostAssistantModal';
+import { AIPostAssistantModal, type AIPostAssistantTool } from './AIPostAssistantModal';
+import { VisuelIAStudio, type ResultatVisuel } from './VisuelIAStudio';
 import { MemberProfileModal } from './MemberProfileModal';
 import { StoryViewerModal } from './StoryViewerModal';
 import { LiveCreationModal } from './LiveCreationModal';
@@ -52,6 +53,17 @@ interface SocialFeedProps {
 // pas dans la table `posts` réelle (clé uuid), donc commenter/réagir dessus ne
 // doit jamais tenter d'écrire en base — seuls les vrais posts (id uuid généré
 // par Postgres) ont des commentaires/réactions synchronisés avec Supabase.
+// DEC-2026-061 — les quatre actions IA du composeur A7, dans l'ordre imposé
+// (améliorer le style, traduire, hashtags, Visuel IA). `teinte` est la
+// couleur de l'orbe (--h, en degrés) ; `cle` est l'onglet de la modale
+// AIPostAssistantModal, sauf `visual` qui ouvre le studio intégré.
+const ACTIONS_IA: ReadonlyArray<{ cle: AIPostAssistantTool; libelle: string; teinte: number; Icone: React.ComponentType<{ size?: number }> }> = [
+  { cle: 'style', libelle: 'Améliorer le style', teinte: 42, Icone: Wand2 },
+  { cle: 'translate', libelle: 'Traduire', teinte: 186, Icone: Languages },
+  { cle: 'hashtags', libelle: 'Hashtags', teinte: 262, Icone: Hash },
+  { cle: 'visual', libelle: 'Visuel IA', teinte: 14, Icone: ImagePlus },
+];
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isRealPostId = (id: string) => UUID_RE.test(id);
 
@@ -135,6 +147,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
 
   // Modals State
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  // DEC-2026-061 — onglet demandé à la modale IA par l'orbe cliquée, et
+  // ouverture du studio « Visuel IA » intégré (variante B10).
+  const [aiInitialTool, setAiInitialTool] = useState<AIPostAssistantTool>('style');
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [selectedMemberForProfile, setSelectedMemberForProfile] = useState<MemberProfile | null>(null);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
@@ -1565,6 +1581,70 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
   const startContentVoiceCommand = () => { voiceIntentScopeRef.current = 'content'; voiceAssistant.startListening(); };
   const startSocialVoiceCommand = () => { voiceIntentScopeRef.current = 'social'; voiceAssistant.startListening(); };
 
+  // DEC-2026-061 — ouvrir la modale IA existante directement sur l'onglet voulu.
+  const ouvrirAssistant = (outil: AIPostAssistantTool) => {
+    setAiInitialTool(outil);
+    setIsAIModalOpen(true);
+  };
+
+  // DEC-2026-061 — ce que le studio « Visuel IA » renvoie remplace le média
+  // en attente : même chemin que handleImageSelect / handleVideoSelect (URL
+  // d'aperçu + fichier téléversé à la publication par uploadContentMedia).
+  // Identités stables (useCallback) : le studio ne doit jamais voir un
+  // nouveau gestionnaire à chaque rendu du fil. L'URL blob remplacée est
+  // révoquée (elle n'est plus référencée nulle part).
+  const insererVisuel = useCallback((resultat: ResultatVisuel) => {
+    if (resultat.image) {
+      if (newPostImage && newPostImage.startsWith('blob:') && newPostImage !== resultat.image.url) URL.revokeObjectURL(newPostImage);
+      setNewPostImage(resultat.image.url);
+      setNewPostImageFile(resultat.image.fichier ?? null);
+    }
+    if (resultat.video) {
+      if (newPostVideo && newPostVideo.startsWith('blob:') && newPostVideo !== resultat.video.url) URL.revokeObjectURL(newPostVideo);
+      setNewPostVideo(resultat.video.url);
+      setNewPostVideoFile(resultat.video.fichier);
+    }
+  }, [newPostImage, newPostVideo]);
+  const fermerStudio = useCallback(() => setIsStudioOpen(false), []);
+  const ouvrirStudioCreatif = useCallback(() => onNavigate?.('studio'), [onNavigate]);
+
+  // DEC-2026-061 — les quatre médias du composeur A7 (Photo, Vidéo,
+  // Document, Voix), rendus deux fois (rail à gauche sur ordinateur, ligne
+  // sous le champ sur téléphone) depuis cette seule fonction ; la feuille
+  // n'en affiche jamais qu'un exemplaire. Mêmes gestes qu'avant : clic sur
+  // l'entrée de fichier cachée correspondante, bascule d'écoute pour la voix.
+  const outilsMedias = (emplacement: 'rail' | 'bas') => (
+    <>
+      <button type="button" className="a7-ob" aria-label="Photo" title="Ajouter une photo" onClick={() => imageInputRef.current?.click()}>
+        <span className="a7-orbe" style={{ '--h': 150 } as React.CSSProperties}><ImageIcon /></span>
+        <span className="a7-lb">Photo</span>
+      </button>
+      <button type="button" className="a7-ob" aria-label="Vidéo" title="Ajouter une vidéo" onClick={() => videoInputRef.current?.click()}>
+        <span className="a7-orbe" style={{ '--h': 262 } as React.CSSProperties}><Video /></span>
+        <span className="a7-lb">Vidéo</span>
+      </button>
+      <button type="button" className="a7-ob" aria-label="Document" title="Joindre un document PDF / Word" onClick={() => docInputRef.current?.click()}>
+        <span className="a7-orbe" style={{ '--h': 42 } as React.CSSProperties}><FileText /></span>
+        <span className="a7-lb">Document</span>
+      </button>
+      {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
+      {voiceAssistant.isSupported && (
+        <button
+          type="button"
+          className="a7-ob"
+          aria-label={voiceAssistant.isListening ? 'Écoute...' : 'Voix'}
+          aria-pressed={voiceAssistant.isListening}
+          title="Dicter ou commander la rédaction par la voix"
+          data-emplacement={emplacement}
+          onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startContentVoiceCommand())}
+        >
+          <span className={`a7-orbe${voiceAssistant.isListening ? ' ecoute' : ''}`} style={{ '--h': 330 } as React.CSSProperties}><Mic /></span>
+          <span className="a7-lb">{voiceAssistant.isListening ? 'Écoute...' : 'Voix'}</span>
+        </button>
+      )}
+    </>
+  );
+
   // Open Author Profile Modal
   const handleOpenAuthorProfile = (post: Post) => {
     const foundMember = members.find(m => m.id === post.authorId || m.name === post.authorName);
@@ -1615,227 +1695,224 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           largeur de la page au lieu des deux tiers gauches — c'est le prix de
           l'invariant « la publication d'abord », et le motif est courant. */}
       {activeTab === 'feed' && (
-        <div className="mir-sheet rounded-3xl p-5 space-y-4">
-          
-          {/* Top Row: User Avatar, Input & AI Enhancement Trigger */}
-          <div className="flex items-start gap-3.5">
-            <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20" />
-            
-            {/* RO-1 — `min-w-0` : ceinture ET bretelles. Un enfant de flex a
-                `min-width: auto`, donc il refuse de descendre sous la largeur
-                minimale de son contenu ; cette classe l'y autorise.
-                Honnêteté sur la cause : le débordement mesuré à 390 px (colonne
-                de 372 px, « Publier » à 401 px, hors de l'écran) venait du fait
-                que le composeur était un ÉLÉMENT DE GRILLE (`lg:col-span-2`
-                d'une `grid grid-cols-1 lg:grid-cols-3`) — un élément de grille
-                a lui aussi `min-width: auto` et fait donc éclater sa piste. Le
-                simple fait de le sortir de la grille l'a corrigé (mesuré : 6
-                éléments hors écran avant, 0 après). Ce `min-w-0` ne répare donc
-                rien à lui seul : il empêche le défaut de revenir si ce bloc est
-                un jour replacé dans un conteneur contraint. */}
-            <div className="flex-1 min-w-0 space-y-2">
+        <div className="mir-sheet rounded-3xl p-5 a7-comp" data-testid="composeur-a7">
+
+          {/* DEC-2026-061 — COMPOSEUR « A7, RAIL LATÉRAL » (choix de la Direction
+              parmi dix variantes de la série A). Rien ne disparaît : avatar
+              (logo VS, classes strictement identiques), champ, Assistant IA,
+              améliorer le style, traduire, hashtags, Visuel IA, Public,
+              Tech & Innovation, photo, vidéo, document, voix, brouillon,
+              publier — seul l'habillage change (orbes de cristal comme la
+              bande Aurore) et deux conforts s'ajoutent : le compteur de
+              caractères (simple compte, aucune limite imposée) et le studio
+              « Visuel IA » intégré (components/VisuelIAStudio.tsx). Les
+              quatre médias sont rendus deux fois — rail à gauche sur
+              ordinateur, ligne sous le champ sur téléphone — depuis la même
+              fonction `outilsMedias` ; la requête de conteneur `a7` n'en
+              affiche jamais qu'un seul (index.html, bloc COMPOSEUR A7). */}
+
+          {/* La carte (`.a7-comp`) est le conteneur nommé `a7` ; la grille
+              est son enfant `.a7-grille` : une requête de conteneur ne peut
+              pas styler son propre conteneur, seulement ses descendants
+              (revue indépendante, constat 2 — la grille à deux colonnes du
+              téléphone ne s'appliquait jamais). */}
+          <div className="a7-grille">
+
+          {/* Colonne 1 — l'avatar : intouchable. */}
+          <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20" />
+
+          {/* Colonne 2 — le rail des médias (ordinateur). */}
+          <div className="a7-rail" data-testid="a7-rail">{outilsMedias('rail')}</div>
+
+          {/* Colonne 3 — le corps. `min-w-0` (RO-1) reste porté par
+              `.a7-corps` (min-width: 0) : le bloc était sorti de la grille du
+              fil pour cette raison, et la garde est conservée. */}
+          <div className="a7-corps">
+
+            <div className="a7-zone">
               <textarea
                 value={newPostContent}
                 onChange={(e) => setNewPostContent(e.target.value)}
                 onFocus={() => setIsComposerFocused(true)}
                 placeholder="Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
                 rows={isComposerFocused || newPostContent ? 3 : 2}
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none leading-relaxed"
+                className="a7-champ w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none leading-relaxed"
               />
+              {/* L'étincelle : l'Assistant IA Pré-Publication, en orbe d'or
+                  dans le champ. Même modale qu'avant (onglet « style »). */}
+              <button
+                type="button"
+                onClick={() => ouvrirAssistant('style')}
+                className="a7-etincelle"
+                aria-label="Assistant IA Pré-Publication"
+                title="Assistant IA Pré-Publication — améliorer le style, traduire, ajouter des hashtags et visuels IA"
+              >
+                <span className="a7-orbe or"><Sparkles /></span>
+              </button>
+            </div>
 
-              {/* AI Enhancement Quick Action Bar */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                
-                {/* Big AI Assistant Pre-Publication Button */}
+            {/* Les quatre actions IA, en orbes nommées. Les trois premières
+                ouvrent la modale existante directement sur le bon onglet
+                (prop `initialTool`) ; « Visuel IA » ouvre le studio intégré
+                B10, sans quitter la publication. */}
+            <div className="a7-rangee" role="group" aria-label="Assistant IA">
+              <span className="a7-lab" aria-hidden="true">Assistant IA</span>
+              {ACTIONS_IA.map(({ cle, libelle, teinte, Icone }) => (
                 <button
-                  onClick={() => setIsAIModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 via-indigo-600 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 transition-all group"
-                  title="Améliorer le style, traduire, ajouter des hashtags et visuels IA"
+                  key={cle}
+                  type="button"
+                  className="a7-ob"
+                  aria-label={libelle}
+                  title={libelle}
+                  onClick={() => (cle === 'visual' ? setIsStudioOpen(true) : ouvrirAssistant(cle))}
                 >
-                  <Sparkles size={14} className="text-amber-200 group-hover:rotate-12 transition-transform" />
-                  <span>Assistant IA Pré-Publication</span>
+                  <span className="a7-orbe" style={{ '--h': teinte } as React.CSSProperties}><Icone /></span>
+                  <span className="a7-lb">{libelle}</span>
                 </button>
+              ))}
+            </div>
 
-                {/* Visibility & Category Pill */}
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <select
-                    value={newPostVisibility}
-                    onChange={(e) => setNewPostVisibility(e.target.value as PostVisibility)}
-                    className="bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl px-2.5 py-1.5 outline-none border border-slate-200 min-w-0 max-w-full"
-                  >
-                    <option value="public">🌐 Public</option>
-                    <option value="network">👥 Abonnés uniquement</option>
-                    <option value="private">🔒 Privé</option>
-                  </select>
+            {/* Visibilité et catégorie : les deux mêmes <select>, mêmes
+                valeurs, mêmes options, habillés en texte ; à droite le
+                compteur de caractères (confort, aucune limite imposée). */}
+            <div className="a7-ligne">
+              <div className="a7-sels">
+                <select
+                  value={newPostVisibility}
+                  onChange={(e) => setNewPostVisibility(e.target.value as PostVisibility)}
+                  aria-label="Visibilité de la publication"
+                >
+                  <option value="public">🌐 Public</option>
+                  <option value="network">👥 Abonnés uniquement</option>
+                  <option value="private">🔒 Privé</option>
+                </select>
 
-                  <select
-                    value={newPostCategory}
-                    onChange={(e) => setNewPostCategory(e.target.value)}
-                    className="bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl px-2.5 py-1.5 outline-none border border-slate-200 min-w-0 max-w-full"
-                  >
-                    <option value="Tech & Innovation">Tech & Innovation</option>
-                    <option value="Juridique & Visas">Juridique & Visas</option>
-                    <option value="Entrepreneuriat">Entrepreneuriat</option>
-                    <option value="Formation & Campus">Formation & Campus</option>
-                    <option value="Logement & Mobilité">Logement & Mobilité</option>
-                  </select>
-                </div>
+                <select
+                  value={newPostCategory}
+                  onChange={(e) => setNewPostCategory(e.target.value)}
+                  aria-label="Catégorie de la publication"
+                >
+                  <option value="Tech & Innovation">Tech & Innovation</option>
+                  <option value="Juridique & Visas">Juridique & Visas</option>
+                  <option value="Entrepreneuriat">Entrepreneuriat</option>
+                  <option value="Formation & Campus">Formation & Campus</option>
+                  <option value="Logement & Mobilité">Logement & Mobilité</option>
+                </select>
+              </div>
+              <span className="a7-compteur" data-testid="a7-compteur">
+                {newPostContent.length} {newPostContent.length > 1 ? 'caractères' : 'caractère'}
+              </span>
+            </div>
+
+            {/* Attachments Preview (Images / Videos / Documents / Tags) */}
+            {(newPostImage || newPostVideo || newPostDocument || newPostTags.length > 0) && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+
+                {/* Image Preview */}
+                {newPostImage && (
+                  <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
+                    <img src={newPostImage} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => setNewPostImage(null)}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Video Preview */}
+                {newPostVideo && (
+                  <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
+                    <video src={newPostVideo} controls className="w-full h-full" />
+                    <button
+                      onClick={() => setNewPostVideo(null)}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Document Preview */}
+                {newPostDocument && (
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 truncate">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
+                        {newPostDocument.type.toUpperCase()}
+                      </div>
+                      <div className="truncate">
+                        <div className="text-xs font-bold text-slate-800 truncate">{newPostDocument.name}</div>
+                        <div className="text-[10px] text-slate-500">{newPostDocument.size}</div>
+                      </div>
+                    </div>
+                    <button onClick={() => setNewPostDocument(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Tags Preview */}
+                {newPostTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {newPostTags.map(tag => (
+                      <span key={tag} className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-md">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Attachments Preview (Images / Videos / Documents / Tags) */}
-          {(newPostImage || newPostVideo || newPostDocument || newPostTags.length > 0) && (
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-              
-              {/* Image Preview */}
-              {newPostImage && (
-                <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
-                  <img src={newPostImage} className="w-full h-full object-cover" />
-                  <button 
-                    onClick={() => setNewPostImage(null)}
-                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* Video Preview */}
-              {newPostVideo && (
-                <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-900 group">
-                  <video src={newPostVideo} controls className="w-full h-full" />
-                  <button 
-                    onClick={() => setNewPostVideo(null)}
-                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-all"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* Document Preview */}
-              {newPostDocument && (
-                <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5 truncate">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
-                      {newPostDocument.type.toUpperCase()}
-                    </div>
-                    <div className="truncate">
-                      <div className="text-xs font-bold text-slate-800 truncate">{newPostDocument.name}</div>
-                      <div className="text-[10px] text-slate-500">{newPostDocument.size}</div>
-                    </div>
-                  </div>
-                  <button onClick={() => setNewPostDocument(null)} className="p-1 text-slate-400 hover:text-slate-600">
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* Tags Preview */}
-              {newPostTags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {newPostTags.map(tag => (
-                    <span key={tag} className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-md">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-            </div>
-          )}
-
-          {/* Retour de la dernière commande vocale (LOOP 03/17) — toujours visible en plus d'être dit à voix haute */}
-          {voiceContentFeedback && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold">
-              <span className="flex items-center gap-1.5"><Mic size={13} /> {voiceContentFeedback}</span>
-              <button onClick={() => setVoiceContentFeedback(null)} className="text-indigo-400 hover:text-indigo-700">
-                <X size={13} />
-              </button>
-            </div>
-          )}
-
-          {/* Bottom Toolbar: Upload Buttons & Submit */}
-          {/* RO-1 — `flex-wrap` : quatre outils média, « Brouillon » et
-              « Publier » tenaient sur UNE ligne insécable. À 390 px ils
-              rentrent tout juste (mesuré 234..353 px après le déplacement du
-              bloc hors de la grille) — au prix d'une ligne serrée où les
-              libellés des outils sont déjà masqués (`hidden sm:inline`). La
-              barre s'enroule désormais : « Publier » retrouve sa place au lieu
-              d'être compressé contre le bord. */}
-          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2 pt-2 border-t border-slate-100">
-            
-            {/* Hidden File Inputs */}
-            <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-            <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
-            <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.zip" onChange={handleDocSelect} className="hidden" />
-
-            {/* Upload Buttons */}
-            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-              <button
-                onClick={() => imageInputRef.current?.click()}
-                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                title="Ajouter une photo"
-              >
-                <ImageIcon size={17} className="text-emerald-500" />
-                <span className="hidden sm:inline">Photo</span>
-              </button>
-
-              <button
-                onClick={() => videoInputRef.current?.click()}
-                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                title="Ajouter une vidéo"
-              >
-                <Video size={17} className="text-sky-500" />
-                <span className="hidden sm:inline">Vidéo</span>
-              </button>
-
-              <button
-                onClick={() => docInputRef.current?.click()}
-                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                title="Joindre un document PDF / Word"
-              >
-                <FileText size={17} className="text-amber-500" />
-                <span className="hidden sm:inline">Document</span>
-              </button>
-
-              {/* Création de contenu par la voix (LOOP 03/17) — même hook que le LIVE (hooks/useVoiceAssistant.ts) */}
-              {voiceAssistant.isSupported && (
-                <button
-                  onClick={() => (voiceAssistant.isListening ? voiceAssistant.stopListening() : startContentVoiceCommand())}
-                  className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${voiceAssistant.isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                  title="Dicter ou commander la rédaction par la voix"
-                >
-                  <Mic size={17} />
-                  <span className="hidden sm:inline">{voiceAssistant.isListening ? 'Écoute...' : 'Voix'}</span>
+            {/* Retour de la dernière commande vocale (LOOP 03/17) — toujours visible en plus d'être dit à voix haute */}
+            {voiceContentFeedback && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold">
+                <span className="flex items-center gap-1.5"><Mic size={13} /> {voiceContentFeedback}</span>
+                <button onClick={() => setVoiceContentFeedback(null)} className="text-indigo-400 hover:text-indigo-700">
+                  <X size={13} />
                 </button>
-              )}
+              </div>
+            )}
+
+            <div className="a7-sep" />
+
+            {/* Pied : entrées de fichiers cachées (uniques, partagées par le
+                rail et la ligne téléphone), médias sur téléphone, puis le
+                groupe Brouillon | Publier — distinction absolue
+                « préparer ≠ publier » (LOOP 01/17), conditions inchangées. */}
+            <div className="a7-pied">
+              <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+              <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
+              <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.zip" onChange={handleDocSelect} className="hidden" />
+
+              <div className="a7-medias-bas" data-testid="a7-medias-bas">{outilsMedias('bas')}</div>
+
+              <div className="a7-groupe">
+                <button
+                  type="button"
+                  onClick={() => handlePublishPost(true)}
+                  disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
+                  title="Enregistrer comme brouillon — jamais visible par les autres membres"
+                  className="a7-brouillon"
+                >
+                  Brouillon
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePublishPost(false)}
+                  disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
+                  className="a7-publier"
+                >
+                  {isPublishing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  <span>Publier</span>
+                </button>
+              </div>
             </div>
 
-            {/* Brouillon / Publier — distinction absolue "préparer ≠ publier" (LOOP 01/17) */}
-            <button
-              onClick={() => handlePublishPost(true)}
-              disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
-              title="Enregistrer comme brouillon — jamais visible par les autres membres"
-              className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 transition-all flex items-center gap-2"
-            >
-              <span>Brouillon</span>
-            </button>
-
-            {/* Submit Button */}
-            <button
-              onClick={() => handlePublishPost(false)}
-              disabled={isPublishing || (!newPostContent.trim() && !newPostImage && !newPostVideo && !newPostDocument)}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-40 transition-all flex items-center gap-2"
-            >
-              {isPublishing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-              <span>Publier</span>
-            </button>
-
           </div>
-
+          </div>
         </div>
       )}
 
@@ -3039,6 +3116,21 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
         onClose={() => setIsAIModalOpen(false)}
         originalText={newPostContent}
         onApply={handleApplyAIEnhancement}
+        initialTool={aiInitialTool}
+      />
+
+      {/* DEC-2026-061 — studio « Visuel IA » intégré à la publication
+          (variante B10) : retouche guidée (prompt) + réglages manuels, photo
+          et vidéo, sans ouvrir le grand Studio Créatif — qui reste accessible
+          par le lien « Besoin de plus ? » quand la navigation existe. */}
+      <VisuelIAStudio
+        ouvert={isStudioOpen}
+        onFermer={fermerStudio}
+        image={newPostImage}
+        video={newPostVideo}
+        texteDuPost={newPostContent}
+        onInserer={insererVisuel}
+        onOuvrirStudioCreatif={onNavigate ? ouvrirStudioCreatif : undefined}
       />
 
       {/* Member Personal Space Profile Modal */}
