@@ -1207,7 +1207,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // Échec réel de la vidéo : dit dans la barre, jamais masqué.
     useEffect(() => {
         if (!presentationFailed || !isOpenRef.current) return;
-        setStatus(`${sequenceState.error ?? 'Vidéo indisponible sur cet appareil.'} L'avatar animé reste actif.`);
+        setStatus(`${sequenceState.error ?? 'Vidéo indisponible sur cet appareil.'} L'Architecte reste avec vous.`);
         setStatusTone('text-amber-300');
     }, [presentationFailed, sequenceState.error]);
 

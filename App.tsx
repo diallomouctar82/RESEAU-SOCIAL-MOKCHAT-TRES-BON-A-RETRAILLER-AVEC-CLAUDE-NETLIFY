@@ -117,8 +117,9 @@ const AppContent = () => {
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
       // Seuls nos propres états (mokTab) sont rejoués — un hash étranger ou
-      // absent retombe sur 'home', jamais sur un onglet inconnu (écran vide).
-      const tab = e.state && typeof e.state.mokTab === 'string' ? e.state.mokTab : 'home';
+      // absent retombe sur Réseau MokNet ('social', l'écran d'entrée), jamais
+      // sur un onglet inconnu (écran vide).
+      const tab = e.state && typeof e.state.mokTab === 'string' ? e.state.mokTab : 'social';
       popNavigationRef.current = true;
       setActiveTab(tab);
     };
@@ -198,7 +199,10 @@ const AppContent = () => {
       }
       logout();
       setIsAuthenticated(false);
-      setActiveTab('home');
+      // Réseau MokNet est l'écran d'entrée (Direction, 05/09/2026) : la
+      // prochaine connexion ou inscription y entre directement, sans passer
+      // par le tableau de bord et sans rechargement.
+      setActiveTab('social');
   };
 
   const handleNavigateToAgent = (agentId: string, initialMessage?: string) => {

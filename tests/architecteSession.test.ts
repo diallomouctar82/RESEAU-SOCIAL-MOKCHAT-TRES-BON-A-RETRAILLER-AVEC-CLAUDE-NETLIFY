@@ -38,6 +38,8 @@ import {
     describeArchitecteIdentity,
     isAffirmativeReply,
     isIdentityQuestion,
+    isVisionSmartPresentationRequest,
+    VISION_SMART_PRESENTATION,
     isVagueNeed,
     isVisionQuestion,
     runArchitecteCommand,
@@ -131,12 +133,32 @@ describe('Comportement humain (Boucle 1) — identité unique et déterministe',
         }
     });
 
-    it('la présentation est stable, se nomme L\'Architecte, et utilise le nom choisi', () => {
+    it("la présentation est stable, se nomme « l'Architecte de Vision Smart » — jamais « avatar » ni « IA » —, brève, et utilise le nom choisi", () => {
         const anonyme = describeArchitecteIdentity();
-        expect(anonyme).toContain("L'Architecte");
+        expect(anonyme).toContain("Je suis l'Architecte de Vision Smart.");
         expect(anonyme).not.toContain('Diallo');
+        expect(anonyme).not.toMatch(/avatar|\bIA\b|intelligence artificielle|assistant virtuel/i);
+        expect(anonyme.length).toBeLessThan(220);
         const nomme = describeArchitecteIdentity('Mamadou');
         expect(nomme).toContain('Mamadou');
+    });
+
+    it("« Présente Vision Smart » / « c'est quoi Vision Smart ? » donnent la description VALIDÉE, sans appel au modèle (Direction, 05/09/2026)", async () => {
+        for (const q of ['Présente-moi Vision Smart', "c'est quoi Vision Smart ?", 'Qui est Vision Smart', 'Parle-moi de Vision Smart', 'Vision Smart, c\'est quoi ?']) {
+            expect(isVisionSmartPresentationRequest(q), q).toBe(true);
+        }
+        for (const q of ['Emmène-moi sur le fil social', 'présente-moi les offres', 'qui es-tu']) {
+            expect(isVisionSmartPresentationRequest(q), q).toBe(false);
+        }
+        vi.mocked(generateJSON).mockClear();
+        const outcome = await runArchitecteCommand('Présente Vision Smart', {
+            userName: 'Test', userLevel: 1, confirm: () => true,
+        });
+        expect(outcome.handledLocally).toBe(true);
+        expect(outcome.spoken).toBe(VISION_SMART_PRESENTATION);
+        expect(VISION_SMART_PRESENTATION).toContain("Je suis l'Architecte de Vision Smart.");
+        expect(VISION_SMART_PRESENTATION).not.toMatch(/avatar|\bIA\b/i);
+        expect(generateJSON).not.toHaveBeenCalled();
     });
 
     it('« Qui es-tu ? » est traité SANS appel au modèle et inscrit 2 tours en session', async () => {
@@ -145,7 +167,7 @@ describe('Comportement humain (Boucle 1) — identité unique et déterministe',
             userName: 'Test', userLevel: 1, confirm: () => true,
         });
         expect(outcome.handledLocally).toBe(true);
-        expect(outcome.spoken).toContain("L'Architecte");
+        expect(outcome.spoken).toContain("l'Architecte de Vision Smart");
         expect(generateJSON).not.toHaveBeenCalled();
         expect(getSessionTurns()).toHaveLength(2);
     });
@@ -156,6 +178,16 @@ describe('Comportement humain (Boucle 1) — identité unique et déterministe',
         expect(prompt).toContain('UNE SEULE IDENTITÉ');
         expect(prompt).not.toContain('Tu es Diallo OS');
         expect(prompt).not.toContain('Cabinet Famille Diallo');
+    });
+
+    it("le prompt porte l'identité officielle : « Je suis l'Architecte de Vision Smart », jamais « IA » ni « avatar », pas de répétition, ton bref, dire quand il ne comprend pas, description validée", () => {
+        const prompt = buildArchitecteSystemPrompt('Test', 1);
+        expect(prompt).toContain("« Je suis l'Architecte de Vision Smart »");
+        expect(prompt).toContain('Ne dis JAMAIS « je suis une IA », « je suis un avatar »');
+        expect(prompt).toContain('Ne répète PAS ton identité à chaque réponse');
+        expect(prompt).toContain('simple et brève');
+        expect(prompt).toContain("« Je n'ai pas compris »");
+        expect(prompt).toContain(VISION_SMART_PRESENTATION);
     });
 
     it('le prompt porte les règles de conduite : besoin flou, rythme adapté, pas de récitation', () => {
@@ -188,7 +220,8 @@ describe('Comportement humain (Boucle 1) — accueil différencié', () => {
         const greeting = buildArchitecteGreeting(null, 'Mamadou');
         expect(greeting.firstMeeting).toBe(true);
         expect(greeting.text).toContain('bienvenue');
-        expect(greeting.text).toContain("L'Architecte");
+        expect(greeting.text).toContain("Je suis l'Architecte de Vision Smart.");
+        expect(greeting.text).not.toMatch(/avatar|\bIA\b/i);
         expect(greeting.text).toContain('Voulez-vous');
     });
 
