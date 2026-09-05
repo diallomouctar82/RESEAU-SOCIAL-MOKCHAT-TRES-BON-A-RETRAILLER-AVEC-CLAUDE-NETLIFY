@@ -15,14 +15,17 @@ type OptionsSignOut = { scope: 'global' | 'local' | 'others' };
 const h = vi.hoisted(() => ({
     getUser: vi.fn<(jwt?: string) => Promise<unknown>>(),
     signOut: vi.fn<(options?: { scope: 'global' | 'local' | 'others' }) => Promise<unknown>>(async () => ({ error: null })),
+    getSession: vi.fn<() => Promise<unknown>>(async () => ({ data: { session: null }, error: null })),
 }));
 
 vi.mock('../services/supabaseClient', () => ({
     setRememberMe: () => {},
-    supabase: { auth: { getUser: (jwt?: string) => h.getUser(jwt), signOut: (options?: OptionsSignOut) => h.signOut(options) } },
+    supabase: { auth: { getUser: (jwt?: string) => h.getUser(jwt), signOut: (options?: OptionsSignOut) => h.signOut(options), getSession: () => h.getSession() } },
 }));
 
-import { verifierSession, DELAI_VERIFICATION_SESSION_MS } from '../services/auth';
+import { verifierSession, relireSession, DELAI_VERIFICATION_SESSION_MS, DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS, INTERVALLE_REPRISE_MS } from '../services/auth';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const utilisateur = { id: 'u-banc', aud: 'authenticated', email: 'banc@moknet.net' };
 const session = { access_token: 'jeton-de-banc', refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: utilisateur } as unknown as Session;
@@ -30,6 +33,8 @@ const session = { access_token: 'jeton-de-banc', refresh_token: 'r', token_type:
 beforeEach(() => {
     h.getUser.mockReset();
     h.signOut.mockClear();
+    h.getSession.mockReset();
+    h.getSession.mockResolvedValue({ data: { session: null }, error: null });
 });
 
 describe('verifierSession — verdict du serveur sur une session locale', () => {
@@ -125,5 +130,54 @@ describe('verifierSession — verdict du serveur sur une session locale', () => 
         h.signOut.mockRejectedValueOnce(new Error('stockage indisponible'));
         const verdict = await verifierSession(session);
         expect(verdict.statut).toBe('invalide');
+    });
+});
+
+describe("relireSession — relecture détaillée de la session gardée par l'appareil (DEC-2026-083)", () => {
+    const session = { access_token: 'jeton-de-banc', user: { id: 'u-1' } } as unknown as Session;
+
+    it("session présente : « session », telle que relue", async () => {
+        h.getSession.mockResolvedValue({ data: { session }, error: null });
+        await expect(relireSession()).resolves.toEqual({ statut: 'session', session });
+    });
+
+    it("aucune session : « aucune »", async () => {
+        h.getSession.mockResolvedValue({ data: { session: null }, error: null });
+        await expect(relireSession()).resolves.toEqual({ statut: 'aucune' });
+    });
+
+    it("jeton expiré que supabase-js n'a pas pu rafraîchir (serveur injoignable, AuthRetryableFetchError) : « injoignable », session locale NON effacée", async () => {
+        h.getSession.mockResolvedValue({ data: { session: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) });
+        const relecture = await relireSession();
+        expect(relecture.statut).toBe('injoignable');
+        expect(relecture.statut === 'injoignable' && relecture.raison).toContain('Failed to fetch');
+        expect(h.signOut).not.toHaveBeenCalled();
+    });
+
+    it("erreur non liée au réseau (refus du jeton de rafraîchissement, déjà retiré par supabase-js) : « aucune »", async () => {
+        const silence = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            h.getSession.mockResolvedValue({ data: { session: null }, error: new AuthApiError('Invalid Refresh Token: Refresh Token Not Found', 400, 'refresh_token_not_found') });
+            await expect(relireSession()).resolves.toEqual({ statut: 'aucune' });
+        } finally {
+            silence.mockRestore();
+        }
+    });
+});
+
+describe("garde-fous des délais de reprise (DEC-2026-083)", () => {
+    it("DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS suit REFRESH_FAILURE_COOLDOWN_MS de supabase-js (sinon la tentative programmée tomberait dans la fenêtre du cache)", () => {
+        const source = readFileSync(resolve(__dirname, '..', 'node_modules', '@supabase', 'auth-js', 'dist', 'module', 'lib', 'constants.js'), 'utf8');
+        const tick = /AUTO_REFRESH_TICK_DURATION_MS = ([0-9 *]+);/.exec(source);
+        const cooldown = /REFRESH_FAILURE_COOLDOWN_MS = ([0-9 *]+) \* AUTO_REFRESH_TICK_DURATION_MS;/.exec(source);
+        expect(tick, 'AUTO_REFRESH_TICK_DURATION_MS introuvable dans auth-js').not.toBeNull();
+        expect(cooldown, 'REFRESH_FAILURE_COOLDOWN_MS introuvable dans auth-js').not.toBeNull();
+        const produit = (expr: string) => expr.split('*').map((n) => Number(n.trim())).reduce((a, b) => a * b, 1);
+        expect(DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS).toBe(produit(cooldown![1]) * produit(tick![1]));
+    });
+
+    it("la minuterie de reprise est plus courte que la fenêtre du cache et le plafond de relecture plus court que la minuterie", () => {
+        expect(INTERVALLE_REPRISE_MS).toBeLessThan(DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS);
+        expect(DELAI_VERIFICATION_SESSION_MS).toBeLessThan(INTERVALLE_REPRISE_MS);
     });
 });

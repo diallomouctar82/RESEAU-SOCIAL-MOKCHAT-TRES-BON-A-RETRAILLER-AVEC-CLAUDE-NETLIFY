@@ -1,5 +1,5 @@
 
-import { isAuthApiError } from '@supabase/supabase-js';
+import { isAuthApiError, isAuthRetryableFetchError } from '@supabase/supabase-js';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { setRememberMe, supabase } from './supabaseClient';
 
@@ -96,6 +96,34 @@ export const getSession = async (): Promise<Session | null> => {
 };
 
 /**
+ * RELECTURE DÉTAILLÉE de la session gardée par l'appareil (Direction,
+ * 05/09/2026 — DEC-2026-083) : distingue « aucune session » de « session
+ * présente mais serveur injoignable ». `getSession()` de supabase-js ne rend
+ * une erreur que lorsqu'il a dû rafraîchir un jeton expiré et que le serveur
+ * n'a pas répondu (`AuthRetryableFetchError`, après ses propres reprises) : la
+ * session reste alors dans le stockage, NON refusée — elle n'est pas effacée,
+ * et l'entrée reprend sans ressaisie dès que le serveur répond. Un refus du
+ * serveur (jeton de rafraîchissement invalide) est déjà traité par supabase-js,
+ * qui retire la session : « aucune ».
+ */
+export type RelectureSession =
+    | { statut: 'session'; session: Session }
+    | { statut: 'aucune' }
+    | { statut: 'injoignable'; raison: string };
+
+export const relireSession = async (): Promise<RelectureSession> => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+        if (isAuthRetryableFetchError(error)) {
+            return { statut: 'injoignable', raison: `relecture de la session sans réponse du serveur d'authentification : ${error.message}` };
+        }
+        console.error('Erreur récupération session Supabase:', error);
+        return { statut: 'aucune' };
+    }
+    return data.session ? { statut: 'session', session: data.session } : { statut: 'aucune' };
+};
+
+/**
  * VERROU D'ENTRÉE — session relue depuis le stockage local, vérifiée auprès du
  * serveur avant d'ouvrir l'interface (Direction, 05/09/2026, DEC-2026-081).
  *
@@ -126,6 +154,19 @@ export type VerdictSession =
 
 /** Budget de la vérification : au-delà, la session est « non vérifiée », jamais « invalide ». */
 export const DELAI_VERIFICATION_SESSION_MS = 8000;
+
+/** Cadence des nouvelles tentatives automatiques sur l'écran de reprise (DEC-2026-083). */
+export const INTERVALLE_REPRISE_MS = 30_000;
+
+/**
+ * supabase-js (auth-js 2.112.4, `REFRESH_FAILURE_COOLDOWN_MS` = 2 × 30 s) garde
+ * en cache, pendant 60 s, l'échec de rafraîchissement d'un même jeton : toute
+ * relecture dans cette fenêtre reçoit l'échec sans appel réseau. Pour une
+ * session EXPIRÉE hors ligne, la reprise ne peut donc pas être immédiate au
+ * retour du réseau : l'écran de reprise programme une tentative juste après
+ * cette fenêtre (limite dite ; garde-fou : tests/sessionValidee.test.ts).
+ */
+export const DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS = 60_000;
 
 /**
  * Efface la session de CET appareil sans dépendre de la réponse du serveur

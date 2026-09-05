@@ -34,8 +34,9 @@ import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, MemberProfile } from './types';
-import { getSession, onAuthStateChange, signOut, verifierSession } from './services/auth';
-import type { Session, VerdictSession } from './services/auth';
+import { DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS, DELAI_VERIFICATION_SESSION_MS, INTERVALLE_REPRISE_MS, onAuthStateChange, relireSession, signOut, verifierSession } from './services/auth';
+import type { AuthChangeEvent, RelectureSession, Session, VerdictSession } from './services/auth';
+import { ServeurInjoignable } from './components/ServeurInjoignable';
 import { supabaseService } from './services/supabaseClient';
 import { fetchUserProfile } from './services/profile';
 import { detectStandaloneModule } from './services/modules/standaloneMode';
@@ -47,6 +48,13 @@ const AppContent = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  // SERVEUR D'AUTHENTIFICATION INJOIGNABLE (Direction, 05/09/2026 — DEC-2026-083) :
+  // raison du dernier échec de vérification, `null` quand l'entrée est normale.
+  // Tant qu'elle est renseignée, l'écran de reprise remplace l'écran de
+  // connexion : la session locale est conservée, jamais l'interface.
+  const [serveurInjoignable, setServeurInjoignable] = useState<string | null>(null);
+  const [tentativeEnCours, setTentativeEnCours] = useState(false);
+  const reessayerRef = useRef<() => Promise<void>>(async () => {});
   
   // DS-M2 (menu « Miroir d'eau ») — le réseau social est l'écran d'accueil
   // par défaut, invariant fixé par la Direction. 'home' (Dashboard) reste
@@ -151,6 +159,13 @@ const AppContent = () => {
       if (!verdict) {
           verdict = verifierSession(session);
           verdictsRef.current.set(cle, verdict);
+          // Un verdict « non vérifié » n'est pas un verdict (DEC-2026-083) : il
+          // n'est pas gardé au-delà de sa résolution, pour que la prochaine
+          // tentative (bouton, retour du réseau, session rejouée) interroge à
+          // nouveau le serveur. Un jeton refusé, lui, reste refusé.
+          void verdict.then((v) => {
+              if (v.statut === 'non-verifiee' && verdictsRef.current.get(cle) === verdict) verdictsRef.current.delete(cle);
+          }, () => undefined);
           // Plafond : seuls les derniers jetons comptent (connexion, puis un
           // rafraîchissement par heure) — la Map ne grossit jamais sans fin.
           while (verdictsRef.current.size > VERDICTS_CONSERVES) {
@@ -166,13 +181,18 @@ const AppContent = () => {
   useEffect(() => {
       let isMounted = true;
 
-      const applySession = async (session: Session | null, isInitial: boolean) => {
+      const applySession = async (session: Session | null, isInitial: boolean, evenement?: AuthChangeEvent | 'relecture') => {
           const userId = session?.user?.id;
           const cle = session && userId ? cleDeSession(session) : null;
           sessionCouranteRef.current = cle;
           if (!session || !userId || !cle) {
               if (isMounted) {
                   setIsAuthenticated(false);
+                  // Une relecture sans session ou une déconnexion ferment l'écran
+                  // de reprise ; l'`INITIAL_SESSION` nul que supabase-js émet
+                  // quand son rafraîchissement échoue hors ligne ne le ferme pas
+                  // (la session est toujours dans le stockage, non refusée).
+                  if (isInitial || evenement === 'SIGNED_OUT') setServeurInjoignable(null);
                   if (isInitial) setIsAuthChecking(false);
               }
               return;
@@ -191,12 +211,23 @@ const AppContent = () => {
               // supprimé ou banni) : aucune page interne, écran de connexion.
               console.warn('Session locale refusée par le serveur — écran de connexion :', verdict.raison);
               setIsAuthenticated(false);
+              setServeurInjoignable(null);
               if (isInitial) setIsAuthChecking(false);
               return;
           }
           if (verdict.statut === 'non-verifiee') {
-              console.warn('Session locale conservée sans vérification (serveur injoignable) :', verdict.raison);
+              // FERMÉ PAR DÉFAUT (Direction, 05/09/2026 — DEC-2026-083) : sans
+              // verdict du serveur, l'interface ne s'ouvre pas. La session locale
+              // n'a pas été refusée : elle est conservée telle quelle, et
+              // l'écran de reprise relance la vérification (bouton, retour du
+              // réseau, retour sur la page, minuterie) — sans ressaisie.
+              console.warn('Session locale non vérifiée (serveur injoignable) — écran de reprise :', verdict.raison);
+              setIsAuthenticated(false);
+              setServeurInjoignable(verdict.raison);
+              if (isInitial) setIsAuthChecking(false);
+              return;
           }
+          setServeurInjoignable(null);
 
           try {
               const profile = await fetchUserProfile(userId);
@@ -220,14 +251,92 @@ const AppContent = () => {
           }
       };
 
-      // Une exception (et non une `error` renvoyée) de la relecture locale ne
-      // doit jamais laisser l'écran de chargement sans fin : sans session.
-      getSession()
-          .then((session) => applySession(session, true))
-          .catch((err) => {
-              console.warn('Relecture de la session impossible — écran de connexion :', err);
-              return applySession(null, true);
+      // RELECTURE de la session gardée par l'appareil (DEC-2026-083) :
+      //   • « session »     → verdict du serveur sur son jeton (applySession) ;
+      //   • « aucune »      → écran de connexion ;
+      //   • « injoignable » → jeton expiré que supabase-js n'a pas pu rafraîchir
+      //                       (serveur sans réponse) : écran de reprise, session
+      //                       conservée dans le stockage, aucune ressaisie exigée.
+      // Plafond : au-delà du délai (les reprises internes de supabase-js durent
+      // jusqu'à 25 s hors ligne), l'écran de reprise s'affiche sans attendre et
+      // la relecture continue seule — son résultat s'applique dès qu'il arrive.
+      // Une exception (et non une `error` renvoyée) ne laisse jamais l'écran de
+      // chargement sans fin : sans session.
+      const appliquerRelecture = async (relecture: RelectureSession): Promise<void> => {
+          if (!isMounted) return;
+          if (relecture.statut === 'injoignable') {
+              console.warn('Session locale non rafraîchissable (serveur injoignable) — écran de reprise :', relecture.raison);
+              sessionCouranteRef.current = null;
+              setIsAuthenticated(false);
+              setServeurInjoignable(relecture.raison);
+              setIsAuthChecking(false);
+              return;
+          }
+          await applySession(relecture.statut === 'session' ? relecture.session : null, true, 'relecture');
+      };
+      // Une seule relecture en vol à la fois : une tentative lancée pendant
+      // qu'une relecture tardive (jeton expiré, reprises internes de supabase-js)
+      // est encore en cours la partage au lieu d'en lancer une seconde.
+      let relectureEnVol: Promise<RelectureSession> | null = null;
+      const relectureUnique = (): Promise<RelectureSession> => {
+          if (relectureEnVol) return relectureEnVol;
+          const relecture = relireSession()
+              .catch((err) => {
+                  console.warn('Relecture de la session impossible — écran de connexion :', err);
+                  return { statut: 'aucune' as const };
+              })
+              .finally(() => { if (relectureEnVol === relecture) relectureEnVol = null; });
+          relectureEnVol = relecture;
+          return relecture;
+      };
+      const relire = async (): Promise<void> => {
+          let minuteur: ReturnType<typeof setTimeout> | undefined;
+          const plafond = new Promise<'delai'>((resolve) => {
+              minuteur = setTimeout(() => resolve('delai'), DELAI_VERIFICATION_SESSION_MS);
           });
+          const dejaEnVol = relectureEnVol !== null;
+          const relecture = relectureUnique();
+          try {
+              const resultat = await Promise.race([relecture, plafond]);
+              if (resultat === 'delai') {
+                  if (!isMounted) return;
+                  sessionCouranteRef.current = null;
+                  setIsAuthenticated(false);
+                  setServeurInjoignable(`relecture de la session sans réponse en ${DELAI_VERIFICATION_SESSION_MS} ms`);
+                  setIsAuthChecking(false);
+                  // Le résultat tardif s'applique dès qu'il arrive — une seule
+                  // fois par relecture, même si plusieurs tentatives l'ont attendue.
+                  if (!dejaEnVol) {
+                      void relecture
+                          .then((tardive) => appliquerRelecture(tardive))
+                          .catch((err) => { console.warn('Relecture tardive de la session :', err); });
+                  }
+                  return;
+              }
+              await appliquerRelecture(resultat);
+          } finally {
+              if (minuteur !== undefined) clearTimeout(minuteur);
+          }
+      };
+
+      // TENTATIVE UNIQUE (DEC-2026-083) : la relecture initiale, le bouton
+      // « Réessayer », l'événement `online` et la minuterie partagent la même
+      // tentative — relire la session conservée et redemander le verdict du
+      // serveur ; s'il répond, l'interface s'ouvre sans ressaisie.
+      let tentative: Promise<void> | null = null;
+      const lancerTentative = (afficherEtat: boolean): Promise<void> => {
+          if (tentative) return tentative;
+          if (afficherEtat && isMounted) setTentativeEnCours(true);
+          tentative = relire()
+              .catch((err) => { console.warn('Tentative de relecture impossible :', err); })
+              .finally(() => {
+                  tentative = null;
+                  if (afficherEtat && isMounted) setTentativeEnCours(false);
+              });
+          return tentative;
+      };
+      reessayerRef.current = () => lancerTentative(true);
+      void lancerTentative(false);
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion
@@ -242,14 +351,38 @@ const AppContent = () => {
           // Même verrou pour tous les événements (`INITIAL_SESSION`, `SIGNED_IN`,
           // `TOKEN_REFRESHED`, `USER_UPDATED`, `SIGNED_OUT`) : le verdict est
           // attaché au jeton, pas à l'événement — voir verdictPourSession.
-          applySession(session, false);
+          applySession(session, false, event);
       });
 
       return () => {
           isMounted = false;
+          reessayerRef.current = async () => {};
           unsubscribe();
       };
   }, []);
+
+  // REPRISE AUTOMATIQUE (DEC-2026-083), tant que l'écran de reprise est là :
+  // dès que le réseau revient (`online`), toutes les INTERVALLE_REPRISE_MS, et
+  // une fois juste après la fenêtre pendant laquelle supabase-js garde en cache
+  // l'échec de rafraîchissement d'un jeton expiré (DELAI_CACHE_ECHEC_
+  // RAFRAICHISSEMENT_MS : avant, toute relecture recevrait l'échec sans appel
+  // réseau). Le retour sur la page n'a pas d'écouteur ici : supabase-js y rejoue
+  // la session en `SIGNED_IN` (jeton valide) ou retente le rafraîchissement
+  // (jeton expiré), et ce rejeu passe par le même verrou — un second écouteur
+  // doublait le chargement du profil. Aucune ressaisie : la session conservée
+  // est revérifiée.
+  useEffect(() => {
+      if (serveurInjoignable === null) return;
+      const relancer = () => { void reessayerRef.current(); };
+      window.addEventListener('online', relancer);
+      const minuterie = setInterval(relancer, INTERVALLE_REPRISE_MS);
+      const apresCache = setTimeout(relancer, DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS + 1000);
+      return () => {
+          window.removeEventListener('online', relancer);
+          clearInterval(minuterie);
+          clearTimeout(apresCache);
+      };
+  }, [serveurInjoignable]);
 
   // ACTIONS
   const handleLogout = async () => {
@@ -267,6 +400,7 @@ const AppContent = () => {
       }
       logout();
       setIsAuthenticated(false);
+      setServeurInjoignable(null);
       // Réseau MokNet est l'écran d'entrée (Direction, 05/09/2026) : la
       // prochaine connexion ou inscription y entre directement, sans passer
       // par le tableau de bord et sans rechargement.
@@ -379,6 +513,20 @@ const AppContent = () => {
   }
 
   if (!isAuthenticated) {
+      // Serveur injoignable, session conservée (DEC-2026-083) : écran de
+      // reprise, jamais l'interface, et pas d'écran de connexion tant que la
+      // session n'a pas été refusée.
+      if (serveurInjoignable !== null) {
+          return (
+              <ServeurInjoignable
+                  raison={serveurInjoignable}
+                  tentativeEnCours={tentativeEnCours}
+                  intervalleMs={INTERVALLE_REPRISE_MS}
+                  delaiSessionExpireeMs={DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS}
+                  onReessayer={() => { void reessayerRef.current(); }}
+              />
+          );
+      }
       return <Auth />;
   }
 

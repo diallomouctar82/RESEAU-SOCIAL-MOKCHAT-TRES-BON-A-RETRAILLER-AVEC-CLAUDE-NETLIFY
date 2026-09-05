@@ -18,11 +18,23 @@ const h = vi.hoisted(() => ({
     // Verrou d'entrée (DEC-2026-081) : verdict du serveur sur une session relue
     // depuis le stockage local — 'valide' | 'non-verifiee' | 'invalide'.
     verifierSession: vi.fn(async (session: { user?: { id?: string } }): Promise<unknown> => ({ statut: 'valide', session })),
+    // Relecture détaillée (DEC-2026-083) : par défaut dérivée de getSession ;
+    // `relecture` permet de rejouer « injoignable » ou une relecture qui traîne.
+    relecture: null as null | (() => Promise<unknown>),
     fetchUserProfile: vi.fn(async (id: string): Promise<unknown> => ({ id, name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 })),
 }));
 
 vi.mock('../services/auth', () => ({
     getSession: () => h.getSession(),
+    relireSession: async () => {
+        if (h.relecture) return h.relecture();
+        const session = await h.getSession();
+        return session ? { statut: 'session', session } : { statut: 'aucune' };
+    },
+    // Plafond de relecture raccourci au banc (8 s en production).
+    DELAI_VERIFICATION_SESSION_MS: 40,
+    INTERVALLE_REPRISE_MS: 30_000,
+    DELAI_CACHE_ECHEC_RAFRAICHISSEMENT_MS: 60_000,
     onAuthStateChange: (cb: (session: unknown, event: string) => void) => {
         h.authCallback = cb;
         return () => { h.authCallback = null; };
@@ -102,6 +114,8 @@ beforeEach(() => {
     h.getSession.mockResolvedValue(null);
     h.verifierSession.mockReset();
     h.verifierSession.mockImplementation(async (session) => ({ statut: 'valide', session }));
+    h.relecture = null;
+    vi.useRealTimers();
     h.fetchUserProfile.mockReset();
     h.fetchUserProfile.mockImplementation(async (id: string) => ({ id, name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 }));
     window.history.replaceState(null, '', '/');
@@ -274,12 +288,14 @@ describe("Verrou d'entrée — accès public réservé aux sessions valides (Dir
         expect(screen.queryByTestId('app-layout')).toBeNull();
     });
 
-    it("serveur injoignable au démarrage (session locale non expirée, non vérifiée) : tolérance DITE — l'entrée reste possible", async () => {
+    it("serveur injoignable au démarrage (session locale non expirée, non vérifiée) : FERMÉ PAR DÉFAUT — écran de reprise, jamais l'interface (avant DEC-2026-083 : tolérance, l'interface s'ouvrait)", async () => {
         const session = sessionStockee();
         h.getSession.mockResolvedValue(session);
         h.verifierSession.mockResolvedValue({ statut: 'non-verifiee', session, raison: 'Failed to fetch' });
         render(<App />);
-        expect(await screen.findByTestId('app-layout')).toHaveAttribute('data-tab', 'social');
+        expect(await screen.findByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.queryByTestId('ecran-connexion')).toBeNull();
     });
 
     it("déconnexion après une session vérifiée : écran de connexion, puis reconnexion sur Réseau MokNet", async () => {
@@ -292,5 +308,249 @@ describe("Verrou d'entrée — accès public réservé aux sessions valides (Dir
         expect(screen.queryByTestId('app-layout')).toBeNull();
         const layout = await seConnecter();
         expect(layout).toHaveAttribute('data-tab', 'social');
+    });
+});
+
+describe("Serveur injoignable — fermé par défaut, écran de reprise, session conservée (Direction, 05/09/2026, DEC-2026-083)", () => {
+    const MESSAGE = 'MokNet est momentanément injoignable, veuillez réessayer.';
+    const injoignable = (session: unknown) => ({ statut: 'non-verifiee', session, raison: 'Failed to fetch' });
+
+    async function ouvrirSurEcranDeReprise(session = sessionStockee()) {
+        h.getSession.mockResolvedValue(session);
+        h.verifierSession.mockResolvedValueOnce(injoignable(session));
+        render(<App />);
+        const ecran = await screen.findByTestId('ecran-serveur-injoignable');
+        // Les écouteurs de reprise (`online`, `visibilitychange`, minuterie) sont
+        // posés par un effet passif après le rendu de l'écran : on le laisse
+        // s'exécuter avant de rejouer un événement (sur un exécuteur CI lent,
+        // l'écran est dans le DOM avant que l'effet n'ait tourné).
+        await act(async () => {});
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+        return { session, ecran };
+    }
+
+    it("session non vérifiable : message de reprise exact, bouton Réessayer, session locale NON effacée, aucune interface, aucun écran de connexion", async () => {
+        const { ecran } = await ouvrirSurEcranDeReprise();
+        expect(ecran).toHaveTextContent(MESSAGE);
+        expect(screen.getByRole('button', { name: 'Réessayer' })).toBeEnabled();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.queryByTestId('ecran-connexion')).toBeNull();
+        expect(h.signOut).not.toHaveBeenCalled();
+        expect(h.fetchUserProfile).not.toHaveBeenCalled();
+    });
+
+    it("bouton Réessayer, serveur revenu : nouvelle vérification du MÊME jeton, interface sans ressaisie (aucune connexion rejouée)", async () => {
+        const { session } = await ouvrirSurEcranDeReprise();
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Réessayer' })); });
+        const layout = await screen.findByTestId('app-layout');
+        expect(layout).toHaveAttribute('data-tab', 'social');
+        expect(h.verifierSession).toHaveBeenCalledTimes(2);
+        expect(h.verifierSession).toHaveBeenLastCalledWith(session);
+        expect(screen.queryByTestId('ecran-serveur-injoignable')).toBeNull();
+        expect(h.signOut).not.toHaveBeenCalled();
+    });
+
+    it("serveur toujours injoignable à la reprise : écran de reprise maintenu, verdict redemandé à chaque tentative (jamais mémorisé), jamais l'interface", async () => {
+        const { session } = await ouvrirSurEcranDeReprise();
+        h.verifierSession.mockResolvedValueOnce(injoignable(session));
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Réessayer' })); });
+        expect(screen.getByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(h.verifierSession).toHaveBeenCalledTimes(2);
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Réessayer' })); });
+        expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(3);
+    });
+
+    it("retour du réseau (événement online) : reprise automatique, interface sans ressaisie", async () => {
+        await ouvrirSurEcranDeReprise();
+        await act(async () => { window.dispatchEvent(new Event('online')); });
+        expect(await screen.findByTestId('app-layout')).toHaveAttribute('data-tab', 'social');
+        expect(h.verifierSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("retour sur la page : c'est le rejeu SIGNED_IN de supabase-js qui reprend (même verrou) — un visibilitychange seul ne double pas la vérification", async () => {
+        const { session } = await ouvrirSurEcranDeReprise();
+        const descripteur = Object.getOwnPropertyDescriptor(Document.prototype, 'visibilityState');
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        try {
+            await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+            expect(h.verifierSession).toHaveBeenCalledTimes(1);
+            expect(screen.getByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+            // supabase-js rejoue la session du stockage en SIGNED_IN au retour sur l'onglet.
+            await act(async () => { h.authCallback?.(session, 'SIGNED_IN'); });
+            expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+            expect(h.verifierSession).toHaveBeenCalledTimes(2);
+            expect(h.fetchUserProfile).toHaveBeenCalledTimes(1);
+        } finally {
+            delete (document as { visibilityState?: unknown }).visibilityState;
+            if (descripteur) Object.defineProperty(Document.prototype, 'visibilityState', descripteur);
+        }
+    });
+
+    it("une seule tentative à la fois : bouton, événement online et second clic pendant une vérification en vol partagent la même (une seule vérification)", async () => {
+        await ouvrirSurEcranDeReprise();
+        const verdict = differee<unknown>();
+        h.verifierSession.mockReturnValueOnce(verdict.promesse);
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Réessayer' })); });
+        await act(async () => { window.dispatchEvent(new Event('online')); });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouvelle tentative en cours/ })); });
+        expect(h.verifierSession).toHaveBeenCalledTimes(2);
+        await act(async () => { verdict.resoudre({ statut: 'valide', session: sessionStockee() }); });
+        expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+        expect(h.fetchUserProfile).toHaveBeenCalledTimes(1);
+    });
+
+    it("pendant la tentative : bouton « Nouvelle tentative en cours… » neutralisé sans perdre le focus (aria-disabled), état annoncé (aria-busy)", async () => {
+        await ouvrirSurEcranDeReprise();
+        const verdict = differee<unknown>();
+        h.verifierSession.mockReturnValueOnce(verdict.promesse);
+        const bouton = screen.getByRole('button', { name: 'Réessayer' });
+        bouton.focus();
+        await act(async () => { fireEvent.click(bouton); });
+        expect(screen.getByRole('button', { name: /Nouvelle tentative en cours/ })).toHaveAttribute('aria-disabled', 'true');
+        expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+        expect(document.activeElement).toBe(bouton);
+        await act(async () => { verdict.resoudre(injoignable(sessionStockee())); });
+        expect(screen.getByRole('button', { name: 'Réessayer' })).toHaveAttribute('aria-disabled', 'false');
+        expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'false');
+        expect(document.activeElement).toBe(bouton);
+    });
+
+    it("démontage pendant l'écran de reprise : écouteur online et minuterie retirés, aucune tentative après coup", async () => {
+        const session = sessionStockee();
+        h.getSession.mockResolvedValue(session);
+        h.verifierSession.mockResolvedValueOnce(injoignable(session));
+        const { unmount } = render(<App />);
+        await screen.findByTestId('ecran-serveur-injoignable');
+        await act(async () => {});
+        const retraits = vi.spyOn(window, 'removeEventListener');
+        const arrets = vi.spyOn(globalThis, 'clearInterval');
+        try {
+            unmount();
+            expect(retraits).toHaveBeenCalledWith('online', expect.any(Function));
+            expect(arrets).toHaveBeenCalled();
+            await act(async () => { window.dispatchEvent(new Event('online')); });
+            expect(h.verifierSession).toHaveBeenCalledTimes(1);
+        } finally {
+            retraits.mockRestore();
+            arrets.mockRestore();
+        }
+    });
+
+    it("relecture tardive « aucune » après le plafond : écran de connexion (l'écran de reprise se ferme)", async () => {
+        const tardive = differee<unknown>();
+        h.relecture = () => tardive.promesse;
+        render(<App />);
+        expect(await screen.findByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        await act(async () => { tardive.resoudre({ statut: 'aucune' }); });
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('ecran-serveur-injoignable')).toBeNull();
+        expect(h.verifierSession).not.toHaveBeenCalled();
+    });
+
+    it("jeton expiré : supabase-js garde 60 s l'échec de rafraîchissement — une tentative est programmée juste après cette fenêtre, puis l'interface s'ouvre sans ressaisie", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            const session = sessionStockee();
+            const relecture = vi.fn(async (): Promise<unknown> => ({ statut: 'injoignable', raison: 'AuthRetryableFetchError: Failed to fetch' }));
+            h.relecture = relecture;
+            render(<App />);
+            expect(await screen.findByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+            await act(async () => {});
+            expect(relecture).toHaveBeenCalledTimes(1);
+            await act(async () => { await vi.advanceTimersByTimeAsync(60_500); });
+            expect(relecture).toHaveBeenCalledTimes(3); // relecture initiale + minuterie à 30 s et 60 s (échec en cache)
+            relecture.mockImplementation(async () => ({ statut: 'session', session }));
+            await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+            expect(relecture).toHaveBeenCalledTimes(4); // tentative programmée à 61 s, après la fenêtre du cache
+            expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+            expect(h.verifierSession).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("minuterie : nouvelle tentative automatique toutes les 30 s tant que l'écran de reprise est affiché", async () => {
+        // Minuteurs simulés installés AVANT le montage (l'intervalle est posé par
+        // l'effet de l'écran de reprise) ; le temps réel continue d'avancer pour
+        // les attentes de la bibliothèque de test.
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            const { session } = await ouvrirSurEcranDeReprise();
+            h.verifierSession.mockResolvedValueOnce(injoignable(session));
+            // Les minuteurs simulés avancent aussi avec le temps réel du banc
+            // (`shouldAdvanceTime`) : une seconde de marge de part et d'autre.
+            await act(async () => { await vi.advanceTimersByTimeAsync(29_000); });
+            expect(h.verifierSession).toHaveBeenCalledTimes(1);
+            await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+            expect(h.verifierSession).toHaveBeenCalledTimes(2);
+            expect(screen.getByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+            expect(screen.queryByTestId('app-layout')).toBeNull();
+            await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+            expect(h.verifierSession).toHaveBeenCalledTimes(3);
+            expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("jeton expiré que supabase-js n'a pas pu rafraîchir (relecture « injoignable ») : écran de reprise, puis reprise → session → interface", async () => {
+        const session = sessionStockee();
+        h.relecture = async () => ({ statut: 'injoignable', raison: 'AuthRetryableFetchError: Failed to fetch' });
+        render(<App />);
+        expect(await screen.findByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        await act(async () => {});
+        expect(h.verifierSession).not.toHaveBeenCalled();
+        expect(h.signOut).not.toHaveBeenCalled();
+        h.relecture = async () => ({ statut: 'session', session });
+        await act(async () => { window.dispatchEvent(new Event('online')); });
+        expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("relecture qui traîne au-delà du plafond (reprises internes de supabase-js hors ligne) : écran de reprise sans attendre, résultat tardif appliqué", async () => {
+        const session = sessionStockee();
+        const tardive = differee<unknown>();
+        h.relecture = () => tardive.promesse;
+        render(<App />);
+        expect(await screen.findByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        await act(async () => { tardive.resoudre({ statut: 'session', session }); });
+        expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("INITIAL_SESSION nul émis par supabase-js pendant l'écran de reprise : l'écran reste ; SIGNED_OUT : écran de connexion", async () => {
+        await ouvrirSurEcranDeReprise();
+        await act(async () => { h.authCallback?.(null, 'INITIAL_SESSION'); });
+        expect(screen.getByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        expect(screen.queryByTestId('ecran-connexion')).toBeNull();
+        await act(async () => { h.authCallback?.(null, 'SIGNED_OUT'); });
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('ecran-serveur-injoignable')).toBeNull();
+    });
+
+    it("session REFUSÉE par le serveur lors de la reprise : écran de connexion (l'écran de reprise se ferme, jamais l'interface)", async () => {
+        await ouvrirSurEcranDeReprise();
+        h.verifierSession.mockResolvedValueOnce({ statut: 'invalide', raison: 'refus du serveur (401)' });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Réessayer' })); });
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('ecran-serveur-injoignable')).toBeNull();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+    });
+
+    it("session rejouée en SIGNED_IN par supabase-js pendant l'écran de reprise, serveur revenu : interface (verdict redemandé, pas de refus mémorisé)", async () => {
+        const { session } = await ouvrirSurEcranDeReprise();
+        await act(async () => { h.authCallback?.(session, 'SIGNED_IN'); });
+        expect(await screen.findByTestId('app-layout')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("aucune session sur l'appareil et serveur injoignable : écran de connexion (inchangé), pas d'écran de reprise", async () => {
+        h.relecture = async () => ({ statut: 'aucune' });
+        render(<App />);
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('ecran-serveur-injoignable')).toBeNull();
     });
 });
