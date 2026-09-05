@@ -1,0 +1,58 @@
+[
+  {
+    "ecran": "ordinateur-1440x900",
+    "http": 200,
+    "dureeMs": 8508,
+    "bundle": [
+      "index-C8Y6seFM.js"
+    ],
+    "portrait": {
+      "src": "/architecte/architecte.webp",
+      "luminanceHaut2a8pct": 135,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 135
+    },
+    "video": {
+      "statut": "playing",
+      "temps": 2.51,
+      "src": "vision-smart-heygen.webm",
+      "luminanceHaut2a8pct": 125,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 131
+    },
+    "requetesAvatar": [
+      "206 vision-smart-heygen.mp4",
+      "200 architecte.webp",
+      "206 vision-smart-heygen.webm"
+    ],
+    "erreurs": []
+  },
+  {
+    "ecran": "telephone-390x844",
+    "http": 200,
+    "dureeMs": 7845,
+    "bundle": [
+      "index-C8Y6seFM.js"
+    ],
+    "portrait": {
+      "src": "/architecte/architecte.webp",
+      "luminanceHaut2a8pct": 137,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 134
+    },
+    "video": {
+      "statut": "playing",
+      "temps": 2.5,
+      "src": "vision-smart-heygen.webm",
+      "luminanceHaut2a8pct": 125,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 131
+    },
+    "requetesAvatar": [
+      "206 vision-smart-heygen.mp4",
+      "200 architecte.webp",
+      "206 vision-smart-heygen.webm"
+    ],
+    "erreurs": []
+  }
+]
