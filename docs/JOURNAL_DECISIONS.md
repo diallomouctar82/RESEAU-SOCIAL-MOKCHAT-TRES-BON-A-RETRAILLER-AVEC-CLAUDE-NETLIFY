@@ -1122,6 +1122,108 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-060] — 5 Septembre 2026
+
+* **Module(s)** : `Super-Admin / Santé Globale` (`components/admin/HealthAssistant.tsx`
+  nouveau, `components/admin/AdminHealthTab.tsx`),
+  `services/health/assistant/repairCampaign.ts` et `assistantBrain.ts` (nouveaux,
+  purs), `services/health/healthService.ts` (`runHealthCheck({ onPhase })`),
+  tests `tests/repairCampaign.test.ts`, `tests/assistantBrain.test.ts`,
+  `tests/HealthAssistant.test.tsx`, captures
+  `docs/captures/2026-09-05-sante-assistant/`.
+* **Problème / Besoin initial** : mission immédiate de la Direction (5/09) —
+  « créer et intégrer un Assistant IA de Santé Globale de l'application,
+  vocal et texte, avatar naturel si possible via l'existant, responsable de
+  la santé globale de l'application jusqu'à une production contrôlée.
+  Utiliser en priorité les compétences de Vision Smart AI Core, les
+  connecteurs et plateformes déjà en place comme HeyGen et ElevenLabs.
+  Fonctions obligatoires : bouton Analyser qui scanne tout, statuts visibles
+  vert, orange, rouge, bouton Réparer pour tout le lot, pour les rouges
+  seuls, pour les oranges seuls, par brique et point par point, avec
+  pourcentage de progression à chaque boucle. Si une réparation échoue,
+  fournir la cause, les étapes exactes et un lien vers l'endroit à corriger.
+  […] Si c'est incontrôlable, arrêt immédiat, retour à l'état stable initial,
+  et déclaration claire des problèmes pour décision et mesures de la
+  Direction. » Le tableau de bord v2 (DEC-2026-057) réparait un point à la
+  fois, depuis sa fiche : ni lot, ni progression par boucle, ni voix.
+* **Options considérées** :
+  1. Un agent conversationnel hébergé (ElevenLabs Agents) ou un assistant
+     externe qui piloterait l'écran — rejeté : une réparation ne doit passer
+     que par le pipeline `health-guardian` (diagnostic → jeton lié au
+     périmètre → sauvegarde → application → vérification → journal) sous le
+     rang `super_admin` ; retenu : un moteur de campagne **dans
+     l'application**, pur et testé, qui n'appelle que ce pipeline, et
+     l'assistant vocal déjà partagé par les experts (`useVoiceAssistant` :
+     ElevenLabs HD, secours navigateur annoncé, reconnaissance du
+     navigateur).
+  2. Laisser le modèle de langage décider de la portée d'une réparation —
+     rejeté : « répare » sans précision demande de préciser, jamais de portée
+     devinée ; les intentions (analyser, réparer tout / les rouges / les
+     oranges / un domaine / un point, expliquer un point, restaurer, stop,
+     aide) sont déterministes et testées ; le modèle ne sert qu'aux questions
+     libres, avec les mesures en contexte JSON et une consigne qui lui
+     interdit d'inventer, et sa réponse est étiquetée « Réponse IA — à
+     vérifier ».
+  3. Une confirmation par point réparé — rejeté : une campagne de quinze
+     points demanderait quinze clics alors que la Direction demande un lot ;
+     retenu : diagnostic de chaque point sans écriture, puis **une seule
+     confirmation** sur le périmètre consolidé (points, éléments, tables,
+     restaurabilité, case « j'ai lu »), puis réparation point par point avec
+     le pourcentage à chaque boucle et un bouton Arrêt.
+  4. Continuer la campagne après un échec, quoi qu'il arrive — rejeté : un
+     échec « incontrôlable » (réseau, serveur 5xx, authentification, droits,
+     deux échecs consécutifs) arrête la campagne, marque les points restants
+     « non tentés » et propose « Restaurer le lot » (sauvegardes rejouées en
+     ordre inverse) ; un échec ordinaire est rapporté avec sa cause exacte,
+     des étapes dérivées de la cause et les liens vers la fiche et l'endroit
+     exact, et la campagne continue.
+  5. Une vidéo HeyGen du bilan (avatar parlant) — reportée : un rendu HeyGen
+     prend plusieurs minutes alors que la passerelle `ai-gateway` est
+     synchrone (45 s côté client, sondage borné côté serveur) ; un bouton qui
+     échouerait à coup sûr serait un faux bouton. L'avatar « naturel via
+     l'existant » est l'`Avatar3D` de l'expert Directeur Diallo (vidéos
+     repos / parle / écoute) et la voix est ElevenLabs HD ; un mode
+     soumettre/relever de la passerelle est une évolution séparée.
+* **Décision finale** : panneau « Assistant Santé Globale » sous la barre de
+  commandement de l'onglet. **Analyser** avec la progression réelle des deux
+  familles de sondes (serveur, navigateur) ; le bilan dit en français dès la
+  fin de l'analyse (état, santé % sur couverture, sécurité % contre l'audit
+  du 4/09, comptes, trois priorités par risque, réparations automatiques et
+  manuelles, rang) — à voix haute seulement après une action de la
+  Direction, jamais au chargement. **Réparer** tout le lot / les rouges
+  seuls / les oranges seuls / ce domaine (sept blocs) / ce point ;
+  « Diagnostiquer » à la place de « Réparer » quand le rang ne permet pas
+  d'appliquer, et l'Assistant le dit ; progression « Boucle i/n · X % » ;
+  résultats point par point (réparé et vérifié, diagnostiqué, rien à
+  corriger, échec avec cause + étapes exactes + liens, action manuelle avec
+  endroit exact et étapes, recommandé, non tenté) ; Arrêt ; Restaurer le
+  lot ; la confirmation du lot est rendue par portail dans `document.body`,
+  comme la fiche et la modale unitaire depuis SAT-6. Aucune table, migration
+  ni fonction Edge nouvelle.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : 39 tests — moteur
+  (portées, progression monotone jusqu'à 100, mode diagnostic sans
+  confirmation ni écriture, lot refusé, échec qui continue, arrêt
+  incontrôlable qui garde les sauvegardes, deux échecs consécutifs, arrêt
+  demandé, restauration en ordre inverse), cerveau (narration, intentions,
+  ambiguïté refusée, contexte IA) et écran (libellés par rang, campagne de
+  bout en bout avec une confirmation, échec avec cause / étapes / lien,
+  arrêt immédiat, consignes écrites et vocales, question IA étiquetée, voix
+  coupée respectée, restauration) ; harnais Chromium sur les mesures de
+  production du 5/09 en quatre parcours (rang réel `admin`, banc
+  `super_admin` simulé, ordinateur et téléphone), 0 erreur JavaScript.
+* **Production** : la mission vaut feu vert écrit (« conduire jusqu'à une
+  production contrôlée vérifiable par la Direction… si c'est corrigeable, il
+  corrige, teste et avance ») ; PR #91 sur
+  `claude/moknet-security-audit-ohfwc1` (reconstruite sur `main` après la
+  fusion de SAT-6, PR #88), fusion en squash après Green Gate, vérification
+  du bundle servi par `moknet.net`, captures avec le chemin exact. La
+  promotion du profil de la Direction au rang `super_admin` reste une
+  décision de la Direction (mot écrit).
+* **Statut** : 🟠 PR #91 OUVERTE — fusion et vérification en production à
+  suivre dans ce journal.
+
+---
+
 ### [DEC-2026-059] — 5 Septembre 2026
 
 * **Module(s)** : `Santé Globale (Super-Admin)`, fonction Edge
