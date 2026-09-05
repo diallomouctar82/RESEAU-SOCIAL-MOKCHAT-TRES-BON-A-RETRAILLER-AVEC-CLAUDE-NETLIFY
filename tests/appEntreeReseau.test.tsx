@@ -318,6 +318,11 @@ describe("Serveur injoignable — fermé par défaut, écran de reprise, session
         h.verifierSession.mockResolvedValueOnce(injoignable(session));
         render(<App />);
         const ecran = await screen.findByTestId('ecran-serveur-injoignable');
+        // Les écouteurs de reprise (`online`, `visibilitychange`, minuterie) sont
+        // posés par un effet passif après le rendu de l'écran : on le laisse
+        // s'exécuter avant de rejouer un événement (sur un exécuteur CI lent,
+        // l'écran est dans le DOM avant que l'effet n'ait tourné).
+        await act(async () => {});
         expect(h.verifierSession).toHaveBeenCalledTimes(1);
         return { session, ecran };
     }
@@ -401,6 +406,7 @@ describe("Serveur injoignable — fermé par défaut, écran de reprise, session
         h.relecture = async () => ({ statut: 'injoignable', raison: 'AuthRetryableFetchError: Failed to fetch' });
         render(<App />);
         expect(await screen.findByTestId('ecran-serveur-injoignable')).toBeInTheDocument();
+        await act(async () => {});
         expect(h.verifierSession).not.toHaveBeenCalled();
         expect(h.signOut).not.toHaveBeenCalled();
         h.relecture = async () => ({ statut: 'session', session });
