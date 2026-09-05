@@ -1988,7 +1988,7 @@
          teinte. Halo qui respire, soulevement et lueur au survol (vrais
          pointeurs seulement). Sur telephone, meme disposition que sur
          ordinateur ramenee a quatre colonnes, sans defilement horizontal
-         (DEC-2026-076 ; remplace le rail aimante juge genant). Le bloc lit
+         (DEC-2026-078 ; remplace le rail aimante juge genant). Le bloc lit
          la largeur reelle de la carte (container query), pas celle de
          l'ecran. Tout s'arrete sous prefers-reduced-motion. Selecteurs
          courts et sans accent (garde-fou tests/miroirFeuilleAnalysee).
@@ -2200,7 +2200,7 @@
       /* Telephone : largeur interieure de 480 px ou moins (carte de 506 px
          au plus) — meme disposition que sur ordinateur, ramenee a quatre
          colonnes : les seize orbes en quatre rangees, damier conserve,
-         libelles courts, aucun defilement horizontal (DEC-2026-076 ; le
+         libelles courts, aucun defilement horizontal (DEC-2026-078 ; le
          rail aimante de DEC-2026-058 obligeait a faire defiler). La grille
          reste celle de la racine ; seul le nombre de colonnes change. */
       @container aurore (max-width: 480px) {
@@ -2243,7 +2243,7 @@
 
          Variante A7 choisie par la Direction : les quatre medias (Photo,
          Video, Document, Voix) en colonne d'orbes a gauche du champ, avec
-         leurs libelles, sur ordinateur COMME sur telephone (DEC-2026-076 :
+         leurs libelles, sur ordinateur COMME sur telephone (DEC-2026-078 :
          sur telephone le rail descend sous l'avatar, dans la meme colonne,
          et le champ garde la colonne de droite) ; l'etincelle (Assistant IA)
          en orbe d'or dans le champ ; les quatre actions IA en orbes nommees
@@ -2354,7 +2354,7 @@
       }
       .a7-groupe button:disabled { opacity: .55; cursor: default; }
       .a7-groupe button:focus-visible { outline: 3px solid var(--mir-acc, #0F9EC2); outline-offset: -3px; }
-      /* Telephone (DEC-2026-076) : meme disposition que sur ordinateur.
+      /* Telephone (DEC-2026-078) : meme disposition que sur ordinateur.
          L'avatar garde sa place et sa boite (44 px, premiere colonne,
          premiere rangee ; la colonne ne peut pas etre plus etroite, elle
          ecraserait l'image). Le rail des medias, AVEC ses libelles, descend
@@ -2739,6 +2739,7 @@
       [data-miroir] .bg-cyan-400\/10{background-color:rgba(41,180,214,0.1);}
       [data-miroir] .bg-cyan-400\/15{background-color:rgba(41,180,214,0.15);}
       [data-miroir] .bg-cyan-400\/25{background-color:rgba(41,180,214,0.25);}
+      [data-miroir] .bg-cyan-50\/40{background-color:rgba(236,250,253,0.4);}
       [data-miroir] .bg-cyan-500{background-color:#0C90B2;}
       [data-miroir] .bg-cyan-500\/10{background-color:rgba(12,144,178,0.1);}
       [data-miroir] .bg-cyan-500\/20{background-color:rgba(12,144,178,0.2);}
@@ -2816,6 +2817,7 @@
       [data-miroir] .border-blue-900\/40{border-color:rgba(10,64,79,0.4);}
       [data-miroir] .border-blue-900\/50{border-color:rgba(10,64,79,0.5);}
       [data-miroir] .border-blue-900\/60{border-color:rgba(10,64,79,0.6);}
+      [data-miroir] .border-cyan-200{border-color:#A5E4F5;}
       [data-miroir] .border-cyan-300{border-color:#5ECBE7;}
       [data-miroir] .border-cyan-400{border-color:#29B4D6;}
       [data-miroir] .border-cyan-400\/30{border-color:rgba(41,180,214,0.3);}

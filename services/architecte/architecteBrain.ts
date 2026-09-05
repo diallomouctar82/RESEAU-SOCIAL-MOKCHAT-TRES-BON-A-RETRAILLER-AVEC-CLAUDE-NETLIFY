@@ -164,14 +164,38 @@ export function isIdentityQuestion(command: string): boolean {
     return IDENTITY_PATTERNS.some((p) => p.test(command));
 }
 
-/** Présentation stable de l'Architecte — la même, toujours, quel que soit le modèle. */
+/**
+ * IDENTITÉ OFFICIELLE (Direction, 05/09/2026) : « je suis l'Architecte de
+ * Vision Smart ». Une seule voix, jamais « je suis un avatar », jamais « je
+ * suis une IA » — ni ici, ni dans le prompt du modèle.
+ */
+export const ARCHITECTE_IDENTITY_SENTENCE = "Je suis l'Architecte de Vision Smart.";
+
+/**
+ * DESCRIPTION VALIDÉE de Vision Smart — le script du modèle validé par la
+ * Direction (présentation vidéo), porté à l'identité officielle. Donnée
+ * telle quelle quand on demande de présenter Vision Smart ou l'Architecte ;
+ * jamais improvisée par un modèle. Une seule constante à changer si la
+ * Direction fixe un autre texte officiel.
+ */
+export const VISION_SMART_PRESENTATION =
+    "Je suis l'Architecte de Vision Smart. " +
+    "Je suis là pour accompagner, expliquer et guider, avec une voix claire, naturelle et professionnelle.";
+
+const VISION_SMART_PATTERNS: RegExp[] = [
+    /\b(pr[ée]sente|d[ée]cris|explique|parle)[\s-]*(moi|nous)?[\s-]*(de |d')?(vision ?smart)\b/i,
+    /\b(c'est quoi|qu'est[\s-]ce que( c'est)?|qui est|que fait|c'est qui)\s+(vision ?smart)\b/i,
+    /\bvision ?smart\b[^.!?]{0,20}\b(c'est quoi|qu'est[\s-]ce)\b/i,
+];
+
+/** « Présente Vision Smart », « c'est quoi Vision Smart ? » — détection déterministe. */
+export function isVisionSmartPresentationRequest(command: string): boolean {
+    return VISION_SMART_PATTERNS.some((p) => p.test(command));
+}
+
+/** Présentation stable de l'Architecte — la même, toujours, quel que soit le modèle : brève, identité officielle. */
 export function describeArchitecteIdentity(callName?: string): string {
-    return (
-        "Je suis L'Architecte — votre guide dans Le Monde à Vous. " +
-        "Vous n'avez rien à apprendre ici : dites-moi ce que vous voulez accomplir, " +
-        "je vous montre le chemin et je peux agir pour vous. " +
-        `Alors${callName ? `, ${callName}` : ''} : qu'aimeriez-vous faire ?`
-    );
+    return `${VISION_SMART_PRESENTATION} Dites-moi ce que vous voulez faire${callName ? `, ${callName}` : ''}.`;
 }
 
 /**
@@ -191,8 +215,8 @@ export function buildArchitecteGreeting(
         return {
             firstMeeting: true,
             text:
-                "Bonjour, et bienvenue ! Je suis L'Architecte, votre guide ici. " +
-                "Dites-moi simplement ce que vous aimeriez faire — je m'occupe du chemin. " +
+                "Bonjour, et bienvenue ! Je suis l'Architecte de Vision Smart. " +
+                "Dites-moi ce que vous aimeriez faire, je m'occupe du chemin. " +
                 "Voulez-vous d'abord régler comment je m'adresse à vous ? Dites oui, ou lancez-vous.",
         };
     }
@@ -343,7 +367,10 @@ ${deferredNotes.map((n) => `            NB : ${n}.`).join('\n')}
         : "AUCUNE image n'a été montrée dans cette session : si l'on te demande ce que tu « vois », réponds honnêtement que tu ne disposes d'aucune image — n'invente JAMAIS un contenu visuel.";
 
     return `Tu es L'ARCHITECTE, le guide personnel de l'application 'Le Monde à Vous' (MokNet).
-            UNE SEULE IDENTITÉ : tu es L'Architecte, toujours — jamais « Diallo OS », jamais un « expert », jamais une autre personnalité.
+            UNE SEULE IDENTITÉ : tu es l'Architecte de Vision Smart, toujours — jamais « Diallo OS », jamais un « expert », jamais une autre personnalité.
+            IDENTITÉ OFFICIELLE (Direction, 05/09/2026) : si tu dois te nommer, c'est exactement « Je suis l'Architecte de Vision Smart ». Ne dis JAMAIS « je suis une IA », « je suis un avatar », « je suis un assistant virtuel », « en tant qu'intelligence artificielle », ni aucune phrase de ce type. Ne répète PAS ton identité à chaque réponse : tu ne te présentes que si on te le demande, une seule fois.
+            Si l'on te demande de présenter Vision Smart, donne exactement la description validée : « ${VISION_SMART_PRESENTATION} ».
+            TON : une seule voix, simple et brève. Si tu ne comprends pas la demande, dis-le simplement (« Je n'ai pas compris ») et pose UNE question courte — n'invente jamais une action.
             L'utilisateur est : ${userName}, Niveau ${userLevel}.${callName ? `
             La personne souhaite qu'on l'appelle « ${callName} » : utilise ce nom, et ne le redemande jamais.` : ''}
 
@@ -534,6 +561,12 @@ async function interpretAndExecute(
         return { spoken: describeCapabilitiesForHumans(listExecutableCapabilityIds()), handledLocally: true };
     }
 
+    // Présentation de Vision Smart : la description VALIDÉE, jamais un texte
+    // de modèle (Direction, 05/09/2026).
+    if (isVisionSmartPresentationRequest(trimmed)) {
+        return { spoken: VISION_SMART_PRESENTATION, handledLocally: true };
+    }
+
     // Identité : réponse stable et déterministe — qui est l'Architecte ne
     // dépend jamais d'un modèle (cohérence d'identité, Boucle 1 §13).
     if (isIdentityQuestion(trimmed)) {
@@ -615,6 +648,6 @@ async function interpretAndExecute(
 
     // Le modèle a demandé une exécution sans désigner de capacité réelle :
     // on le dit, on n'invente rien.
-    const message = "Je n'ai pas identifié d'action réelle correspondante — reformulez, ou dites-moi où vous voulez aller.";
+    const message = "Je n'ai pas compris ce que je dois faire. Reformulez, ou dites-moi où vous voulez aller.";
     return { spoken: action.explanation, action, execution: { phase: 'unsupported', message } };
 }

@@ -219,7 +219,7 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     expect(replis).toEqual(['not (container-type: inline-size)']);
   });
 
-  it('sur téléphone (conteneur ≤ 480 px) la bande garde la disposition de l’ordinateur en quatre colonnes : grille, damier conservé, aucun défilement horizontal (DEC-2026-076)', () => {
+  it('sur téléphone (conteneur ≤ 480 px) la bande garde la disposition de l’ordinateur en quatre colonnes : grille, damier conservé, aucun défilement horizontal (DEC-2026-078)', () => {
     let tel: postcss.AtRule | undefined;
     racine.walkAtRules('container', (a) => { if (/480px/.test(a.params)) tel = a; });
     expect(tel).toBeTruthy();

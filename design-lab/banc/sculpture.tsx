@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArchitecteFloatingBar } from '../../components/architecte/ArchitecteFloatingBar';
 import type { UserProfile } from '../../types';
+import { addSessionTurn } from '../../services/architecte/architecteSession';
 
 /**
  * BANC DE PREUVE — la sculpture vivante de l'Architecte dans une page qui
@@ -63,5 +64,10 @@ function Banc() {
         </>
     );
 }
+
+// Crochet de PREUVE (banc seulement) : injecter un tour de l'Architecte sans
+// modèle ni réseau — pour démontrer qu'une réponse longue n'ouvre JAMAIS le
+// panneau toute seule (zéro obstruction strict, Direction 05/09/2026).
+(window as unknown as { __bancArchitecte?: unknown }).__bancArchitecte = { addSessionTurn };
 
 createRoot(document.getElementById('root')!).render(<Banc />);

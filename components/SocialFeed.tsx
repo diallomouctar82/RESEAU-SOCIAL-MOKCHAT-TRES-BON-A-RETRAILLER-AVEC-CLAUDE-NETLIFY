@@ -1707,7 +1707,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
               caractères (simple compte, aucune limite imposée) et le studio
               « Visuel IA » intégré (components/VisuelIAStudio.tsx). Les
               quatre médias sont rendus deux fois — rail à gauche, avec ses
-              libellés, sur ordinateur comme sur téléphone (DEC-2026-076 :
+              libellés, sur ordinateur comme sur téléphone (DEC-2026-078 :
               sur téléphone le rail descend sous l'avatar, dans la même
               colonne), ligne d'icônes sous le champ seulement pour les
               cartes très étroites — depuis la même fonction `outilsMedias` ;
@@ -1946,7 +1946,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
           rangées, orbes et libellés réduits. Téléphone : même disposition
           ramenée à quatre colonnes (quatre rangées de quatre, damier
           conservé, libellés courts), sans défilement horizontal
-          (DEC-2026-076 ; le rail aimanté a été retiré à la demande de la
+          (DEC-2026-078 ; le rail aimanté a été retiré à la demande de la
           Direction). Le bloc CSS lit la largeur réelle de la carte
           (container query), pas celle de l'écran. */}
       <nav className="mir-glass rounded-3xl aurore-bande" data-testid="acces-rapide" aria-label="Accès rapide">

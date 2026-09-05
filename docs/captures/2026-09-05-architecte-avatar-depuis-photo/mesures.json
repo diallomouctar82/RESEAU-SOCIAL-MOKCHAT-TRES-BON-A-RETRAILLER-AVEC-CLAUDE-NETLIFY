@@ -1,0 +1,280 @@
+{
+ "banc": "design-lab/banc/super-admin-avatar.html (vite ; carte Super-Admin réelle + barre flottante réelle ; moteur MediaPipe réel : wasm 1.0.1 servi localement à la place du CDN, modèles servis par l application ; photo d essai = portrait d usine inversé et teinté, en attendant la photo de la Direction)",
+ "date": "2026-09-05",
+ "scenarios": [
+  {
+   "nom": "ordinateur",
+   "viewport": {
+    "width": 1280,
+    "height": 800
+   },
+   "dureeTotaleMs": 11298,
+   "etapes": {
+    "repos": {
+     "fixedOverlays": 0
+    },
+    "analyseMs": 1943,
+    "apercu": {
+     "statut": "Photo analysée (478 repères du visage). Vérifiez l’aperçu vivant, puis validez.",
+     "avertissements": [],
+     "nouveauMasque": "url(\"data:image/png;base64,iVB",
+     "actuelMasque": "url(\"/architecte/architecte-silhouette.png\")",
+     "noteVideo": 1
+    },
+    "enregistre": {
+     "config": {
+      "photoUrlPrefix": "data:image/jpeg;base64",
+      "photoOctets": 90371,
+      "masquePrefix": "data:image/png;base64",
+      "masqueOctets": 25714,
+      "rig": {
+       "eyeLinePercent": 46.3,
+       "eyeBandPercent": 4.6,
+       "jawLinePercent": 69,
+       "jawTravelPercent": 5.7,
+       "chinLinePercent": 83,
+       "eyeLeftXPercent": 39.3,
+       "eyeRightXPercent": 60.7,
+       "eyeWidthPercent": 9.3,
+       "browLinePercent": 38.4
+      },
+      "bouche": {
+       "xPercent": 49.7,
+       "yPercent": 69,
+       "widthPercent": 23.2,
+       "tiltDeg": 1.5
+      },
+      "precedent": "/architecte/architecte.webp",
+      "masquePour": true,
+      "videoSequencesEnabled": true
+     },
+     "alpha": {
+      "w": 512,
+      "h": 512,
+      "transparents": 123902,
+      "opaques": 136048,
+      "intermediaires": 2194,
+      "centreVisage": 255,
+      "coinHautGauche": 0,
+      "coinHautDroit": 0,
+      "basCentre": 255
+     },
+     "retourVisible": 1
+    },
+    "applicationRepos": {
+     "boites": {
+      "sculpture": {
+       "x": 1160,
+       "y": 680,
+       "w": 96,
+       "h": 96
+      }
+     },
+     "couvertPourcent": 0.9,
+     "barre": false,
+     "panneau": false,
+     "variant": "sculpture",
+     "presence": "rest",
+     "masque": "url(\"data:image/png;base64,iVBORw0KGgoAA",
+     "presentationBouton": false,
+     "videoStatut": "idle"
+    },
+    "applicationOuverte": {
+     "boites": {
+      "sculpture": {
+       "x": 1158,
+       "y": 678,
+       "w": 101,
+       "h": 101
+      },
+      "legende": {
+       "x": 800,
+       "y": 701,
+       "w": 352,
+       "h": 26
+      },
+      "barre": {
+       "x": 972,
+       "y": 733,
+       "w": 180,
+       "h": 43
+      }
+     },
+     "couvertPourcent": 2.5,
+     "barre": true,
+     "panneau": false,
+     "variant": "sculpture",
+     "presence": "error",
+     "masque": "url(\"data:image/png;base64,iVBORw0KGgoAA",
+     "presentationBouton": false,
+     "videoStatut": "idle",
+     "statutTexte": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie."
+    },
+    "retour": {
+     "photoUrl": "/architecte/architecte.webp",
+     "masque": "/architecte/architecte-silhouette.png",
+     "precedent": null
+    },
+    "applicationRetour": {
+     "boites": {
+      "sculpture": {
+       "x": 1160,
+       "y": 680,
+       "w": 96,
+       "h": 96
+      }
+     },
+     "couvertPourcent": 0.9,
+     "barre": false,
+     "panneau": false,
+     "variant": "sculpture",
+     "presence": "rest",
+     "masque": "url(\"/architecte/architecte-silhouette.p",
+     "presentationBouton": false,
+     "videoStatut": "idle"
+    }
+   },
+   "erreurs": [
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU."
+   ]
+  },
+  {
+   "nom": "mobile",
+   "viewport": {
+    "width": 390,
+    "height": 844
+   },
+   "dureeTotaleMs": 11385,
+   "etapes": {
+    "repos": {
+     "fixedOverlays": 0
+    },
+    "analyseMs": 1962,
+    "apercu": {
+     "statut": "Photo analysée (478 repères du visage). Vérifiez l’aperçu vivant, puis validez.",
+     "avertissements": [],
+     "nouveauMasque": "url(\"data:image/png;base64,iVB",
+     "actuelMasque": "url(\"/architecte/architecte-silhouette.png\")",
+     "noteVideo": 1
+    },
+    "enregistre": {
+     "config": {
+      "photoUrlPrefix": "data:image/jpeg;base64",
+      "photoOctets": 90371,
+      "masquePrefix": "data:image/png;base64",
+      "masqueOctets": 25714,
+      "rig": {
+       "eyeLinePercent": 46.3,
+       "eyeBandPercent": 4.6,
+       "jawLinePercent": 69,
+       "jawTravelPercent": 5.7,
+       "chinLinePercent": 83,
+       "eyeLeftXPercent": 39.3,
+       "eyeRightXPercent": 60.7,
+       "eyeWidthPercent": 9.3,
+       "browLinePercent": 38.4
+      },
+      "bouche": {
+       "xPercent": 49.7,
+       "yPercent": 69,
+       "widthPercent": 23.2,
+       "tiltDeg": 1.5
+      },
+      "precedent": "/architecte/architecte.webp",
+      "masquePour": true,
+      "videoSequencesEnabled": true
+     },
+     "alpha": {
+      "w": 512,
+      "h": 512,
+      "transparents": 123902,
+      "opaques": 136048,
+      "intermediaires": 2194,
+      "centreVisage": 255,
+      "coinHautGauche": 0,
+      "coinHautDroit": 0,
+      "basCentre": 255
+     },
+     "retourVisible": 1
+    },
+    "applicationRepos": {
+     "boites": {
+      "sculpture": {
+       "x": 294,
+       "y": 664,
+       "w": 84,
+       "h": 84
+      }
+     },
+     "couvertPourcent": 2.1,
+     "barre": false,
+     "panneau": false,
+     "variant": "sculpture",
+     "presence": "rest",
+     "masque": "url(\"data:image/png;base64,iVBORw0KGgoAA",
+     "presentationBouton": false,
+     "videoStatut": "idle"
+    },
+    "applicationOuverte": {
+     "boites": {
+      "sculpture": {
+       "x": 292,
+       "y": 662,
+       "w": 88,
+       "h": 88
+      },
+      "legende": {
+       "x": 32,
+       "y": 673,
+       "w": 254,
+       "h": 26
+      },
+      "barre": {
+       "x": 106,
+       "y": 705,
+       "w": 180,
+       "h": 43
+      }
+     },
+     "couvertPourcent": 6.4,
+     "barre": true,
+     "panneau": false,
+     "variant": "sculpture",
+     "presence": "error",
+     "masque": "url(\"data:image/png;base64,iVBORw0KGgoAA",
+     "presentationBouton": false,
+     "videoStatut": "idle",
+     "statutTexte": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie."
+    },
+    "retour": {
+     "photoUrl": "/architecte/architecte.webp",
+     "masque": "/architecte/architecte-silhouette.png",
+     "precedent": null
+    },
+    "applicationRetour": {
+     "boites": {
+      "sculpture": {
+       "x": 294,
+       "y": 664,
+       "w": 84,
+       "h": 84
+      }
+     },
+     "couvertPourcent": 2.1,
+     "barre": false,
+     "panneau": false,
+     "variant": "sculpture",
+     "presence": "rest",
+     "masque": "url(\"/architecte/architecte-silhouette.p",
+     "presentationBouton": false,
+     "videoStatut": "idle"
+    }
+   },
+   "erreurs": [
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU."
+   ]
+  }
+ ]
+}

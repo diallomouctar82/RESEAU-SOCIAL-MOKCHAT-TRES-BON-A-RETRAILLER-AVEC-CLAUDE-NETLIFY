@@ -25,6 +25,7 @@ import {
     hasSeenPresentation,
     rememberPresentationSeen,
     shouldOfferPresentation,
+    sequenceFitsPhoto,
 } from '../../services/architecte/sequences';
 import {
     mergeArchitecteAvatarConfig,
@@ -263,14 +264,20 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const pendingGreetingRef = useRef<{ text: string; tone: string } | null>(null);
     /** Reprendre l'écoute à la fin de la présentation (le micro transcrirait la voix de l'Architecte). */
     const resumeListeningRef = useRef(false);
-    /** Panneau de conversation : `null` = automatique (§16-17) ; sinon le choix fait avec la flèche. */
-    const [isPanelOpen, setIsPanelOpen] = useState<boolean | null>(null);
+    /** Panneau de conversation : replié tant que la personne ne l'a pas déplié
+     *  ELLE-MÊME (la flèche, ou une demande explicite « mets-moi une vidéo »,
+     *  « montre-moi le document »). Jamais ouvert par l'Architecte de lui-même —
+     *  Direction, 05/09/2026 : « aucun panneau, aucun fond ne doit couvrir
+     *  l'application ; au clic, une petite zone de communication au maximum ». */
+    const [isPanelOpen, setIsPanelOpen] = useState(false);
     const isDesktop = useIsDesktop();
     const [typedText, setTypedText] = useState('');
     const typedInputRef = useRef<HTMLInputElement | null>(null);
     useEffect(() => {
         if (isTypingOpen) typedInputRef.current?.focus();
-    }, [isTypingOpen]);
+        // `isPanelOpen` : le champ passe de la ligne compacte au panneau (et
+        // inversement) — il se remonte, le focus doit le suivre.
+    }, [isTypingOpen, isPanelOpen]);
     // Le fil suit la conversation : toujours défiler vers le dernier tour.
     const conversationRef = useRef<HTMLDivElement | null>(null);
     useEffect(() => {
@@ -334,6 +341,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         () => resolveArchitecteVoiceId(avatarConfig, ELEVENLABS_CURATED_VOICES, ARCHITECTE_VOICE_ID),
         [avatarConfig]
     );
+    // Le modèle vidéo validé ne se joue que sur le portrait dont il vient :
+    // une photo remplacée depuis le Super-Admin parle par le portrait vivant.
+    const presentationAvailable = avatarConfig.videoSequencesEnabled !== false && sequenceFitsPhoto(ARCHITECTE_PRESENTATION, avatarConfig.photoUrl);
 
     const {
         isListening, isSpeaking, isSupported, volume, outputVolume, outputVolumeRef, wordPulseRef, mouthShapeRef, voiceTrackRef, voiceAligned, ttsEngine,
@@ -642,6 +652,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         if (/\bferme\b[^.!?]{0,30}\b(la |le |l')?(vid[ée]o|fen[êe]tre|lecteur|aper[çc]u|[ée]cran)\b/i.test(command)) {
             addSessionTurn({ role: 'utilisateur', kind: 'texte', text: command.trim() });
             setMediaView(null);
+            // Retour à la barre minimale : rien ne reste ouvert sur MokNet.
+            setIsPanelOpen(false);
             announce('Fenêtre refermée.', 'text-slate-400');
             return;
         }
@@ -655,6 +667,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 return;
             }
             setMediaView({ kind: 'video', query });
+            // La personne a DEMANDÉ à voir : le panneau se déplie pour elle
+            // (jamais de lui-même) et se replie dès qu'elle ferme la vidéo.
+            setIsPanelOpen(true);
             // Honnête : les vidéos sont TROUVÉES et affichées ; la lecture
             // démarre d'un appui (les navigateurs bloquent l'auto-lecture).
             announce(`Voici les vidéos trouvées pour « ${query} » — appuyez sur lecture, je reste à l'écoute.`, 'text-cyan-300/80');
@@ -669,6 +684,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 return;
             }
             setMediaView({ kind: 'document', name: doc.name, excerpt: doc.excerpt });
+            setIsPanelOpen(true);
             announce(`Voici l'aperçu de « ${doc.name} ». Dites-moi ce que vous voulez en faire.`, 'text-cyan-300/80');
             return;
         }
@@ -1093,6 +1109,10 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // Fermer l'Architecte referme aussi sa surface visuelle : aucune
         // vidéo ni aperçu ne survit derrière une barre fermée.
         setMediaView(null);
+        // Rouvrir repart TOUJOURS de la barre minimale : panneau replié,
+        // saisie fermée (Direction, 05/09/2026 — zéro obstruction).
+        setIsPanelOpen(false);
+        setIsTypingOpen(false);
         stopListening();
         stopSpeaking();
         setConversationalMode(false);
@@ -1136,12 +1156,12 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         if (!isOpen) return;
         setOffrirPresentation(
             shouldOfferPresentation({
-                enabled: avatarConfig.videoSequencesEnabled !== false,
+                enabled: presentationAvailable,
                 seen: hasSeenPresentation(),
                 sequence: ARCHITECTE_PRESENTATION,
             }),
         );
-    }, [isOpen, avatarConfig.videoSequencesEnabled]);
+    }, [isOpen, presentationAvailable]);
 
     // ── LA PRÉSENTATION PARLE DANS LA SCULPTURE ──────────────────────────
     // Pendant qu'elle joue : la voix de synthèse se tait et le micro se ferme
@@ -1191,7 +1211,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // Échec réel de la vidéo : dit dans la barre, jamais masqué.
     useEffect(() => {
         if (!presentationFailed || !isOpenRef.current) return;
-        setStatus(`${sequenceState.error ?? 'Vidéo indisponible sur cet appareil.'} L'avatar animé reste actif.`);
+        setStatus(`${sequenceState.error ?? 'Vidéo indisponible sur cet appareil.'} L'Architecte reste avec vous.`);
         setStatusTone('text-amber-300');
     }, [presentationFailed, sequenceState.error]);
 
@@ -1211,7 +1231,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
      */
     const ouvrirParLaSculpture = () => {
         let presenting = false;
-        if (avatarConfig.videoSequencesEnabled !== false && !presentationPlayedRef.current) {
+        if (presentationAvailable && !presentationPlayedRef.current) {
             presentationPlayedRef.current = true;
             rememberPresentationSeen();
             setOffrirPresentation(false);
@@ -1259,7 +1279,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             mouthShapeRef={mouthShapeRef}
             voiceTrackRef={voiceTrackRef}
             voiceAligned={voiceAligned}
-            sequence={ARCHITECTE_PRESENTATION}
+            sequence={presentationAvailable ? ARCHITECTE_PRESENTATION : null}
             sequenceSlot={SCULPTURE_SLOT}
             size={isDesktop ? SCULPTURE_SIZE.desktop : SCULPTURE_SIZE.mobile}
             onClick={isOpen ? close : ouvrirParLaSculpture}
@@ -1301,9 +1321,14 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const lastTurn = sessionTurns[sessionTurns.length - 1];
     const hasRichTurns = sessionTurns.some((t) => t.kind !== 'texte');
     const lastIsWrittenProduction = !!lastTurn && lastTurn.role === 'architecte' && lastTurn.text.length > 220;
-    // La flèche de la barre (Direction, 05/09/2026) déplie ou replie le
-    // panneau à la demande ; la saisie clavier, elle, montre toujours son champ.
-    const showConversationPanel = isTypingOpen || (isPanelOpen ?? (hasRichTurns || lastIsWrittenProduction || mediaView !== null));
+    // ZÉRO OBSTRUCTION (Direction, 05/09/2026) : le panneau ne s'ouvre JAMAIS
+    // de lui-même — ni pour une réponse longue, ni pour une image, un document
+    // ou une vidéo. Seule la flèche (ou une demande explicite de la personne)
+    // le déplie. Un contenu qui attend d'être vu est SIGNALÉ sur la flèche,
+    // pas imposé par-dessus MokNet. La saisie clavier, elle, tient sur une
+    // ligne à côté de la barre : elle n'a pas besoin du panneau.
+    const showConversationPanel = isPanelOpen;
+    const contenuAVoir = !isPanelOpen && (hasRichTurns || lastIsWrittenProduction || mediaView !== null);
 
     // Largeur de la colonne (panneau, légende, barre) : étroite, et jamais
     // plus que ce que l'écran laisse à gauche de la sculpture.
@@ -1313,6 +1338,42 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             actif ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100' : 'border-cyan-400/40 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
         }`;
     const niveau = isSpeaking || isListening;
+    // Un seul formulaire de saisie, deux places : en bas du panneau déplié, ou
+    // seul sur une ligne compacte quand le panneau est replié (« Écrire »
+    // n'ouvre pas de panneau — Direction, 05/09/2026).
+    const formulaireSaisie = (dansPanneau: boolean) => (
+        <form
+            onSubmit={(e) => {
+                e.preventDefault();
+                const t = typedText.trim();
+                if (!t) return;
+                setTypedText('');
+                void handleCommand(t);
+            }}
+            data-testid={dansPanneau ? undefined : 'architecte-saisie-ligne'}
+            className={
+                dansPanneau
+                    ? `flex items-center gap-2 p-2 ${sessionTurns.length > 0 ? 'border-t border-cyan-500/20' : ''}`
+                    : `${colonne} flex items-center gap-2 rounded-full bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/30 px-1.5 py-1`
+            }
+        >
+            <input
+                ref={typedInputRef}
+                value={typedText}
+                onChange={(e) => setTypedText(e.target.value)}
+                placeholder="Écrivez à l'Architecte"
+                className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-slate-500 outline-none px-2"
+                aria-label="Saisie clavier de l'Architecte"
+            />
+            <button
+                type="submit"
+                className="flex items-center rounded-full border border-cyan-300 bg-cyan-400/25 p-2 text-cyan-100 hover:bg-cyan-400/35 transition-colors"
+                aria-label="Envoyer le message écrit"
+            >
+                <Send size={13} />
+            </button>
+        </form>
+    );
 
     return (
         <div className={ancrage} data-testid="architecte-ancrage">
@@ -1325,7 +1386,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 {!isCameraOpen && showConversationPanel && (
                     <div
                         data-testid="architecte-panneau"
-                        className={`${colonne} max-h-[40vh] overflow-y-auto rounded-2xl bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/30 shadow-[0_0_24px_rgba(34,211,238,0.14),0_14px_36px_rgba(0,0,0,0.55)]`}
+                        className={`${colonne} max-h-[min(36vh,18rem)] overflow-y-auto rounded-2xl bg-[#0f172a]/92 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/30 shadow-[0_0_24px_rgba(34,211,238,0.14),0_14px_36px_rgba(0,0,0,0.55)]`}
                     >
                         {/* Surface visuelle adaptative : le « petit écran » de
                             l'Architecte — lecteur vidéo ou aperçu de document selon
@@ -1350,7 +1411,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                                     </div>
                                 )}
                                 <button
-                                    onClick={() => setMediaView(null)}
+                                    onClick={() => { setMediaView(null); setIsPanelOpen(false); }}
                                     className="absolute right-3 top-3 z-10 rounded-full border border-slate-500/60 bg-[#0f172a]/85 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-slate-600/40 transition-colors"
                                     aria-label="Fermer la fenêtre visuelle"
                                 >
@@ -1362,7 +1423,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                             <p className="p-3 text-[11px] text-slate-400">Aucun échange pour l'instant — parlez ou écrivez à l'Architecte.</p>
                         )}
                         {sessionTurns.length > 0 && (
-                            <div ref={conversationRef} className="max-h-44 overflow-y-auto p-2.5 space-y-2">
+                            <div ref={conversationRef} className="max-h-40 overflow-y-auto p-2.5 space-y-2">
                                 {sessionTurns.slice(-8).map((t, i) => (
                                     <div key={`${t.at}-${i}`} className={`flex ${t.role === 'utilisateur' ? 'justify-end' : 'justify-start'}`}>
                                         {t.kind === 'image' && t.imageDataUrl ? (
@@ -1391,34 +1452,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                                 ))}
                             </div>
                         )}
-                        {isTypingOpen && (
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    const t = typedText.trim();
-                                    if (!t) return;
-                                    setTypedText('');
-                                    void handleCommand(t);
-                                }}
-                                className={`flex items-center gap-2 p-2 ${sessionTurns.length > 0 ? 'border-t border-cyan-500/20' : ''}`}
-                            >
-                                <input
-                                    ref={typedInputRef}
-                                    value={typedText}
-                                    onChange={(e) => setTypedText(e.target.value)}
-                                    placeholder="Écrivez à l'Architecte"
-                                    className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-slate-500 outline-none px-2"
-                                    aria-label="Saisie clavier de l'Architecte"
-                                />
-                                <button
-                                    type="submit"
-                                    className="flex items-center rounded-full border border-cyan-300 bg-cyan-400/25 p-2 text-cyan-100 hover:bg-cyan-400/35 transition-colors"
-                                    aria-label="Envoyer le message écrit"
-                                >
-                                    <Send size={13} />
-                                </button>
-                            </form>
-                        )}
+                        {isTypingOpen && formulaireSaisie(true)}
                     </div>
                 )}
                 {/* Panneau caméra — au même emplacement que le fil : on voit ce
@@ -1446,6 +1480,10 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                         </div>
                     </div>
                 )}
+
+                {/* Écrire, sans panneau : une seule ligne de saisie. La conversation
+                    reste repliée tant que la flèche ne la déplie pas. */}
+                {isTypingOpen && !showConversationPanel && !isCameraOpen && formulaireSaisie(false)}
 
                 {/* Légende : l'identité et l'état, en clair et en petit — le
                     mouvement n'est jamais la seule information. */}
@@ -1492,7 +1530,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                         accept="image/*,.txt,.csv,.json,.md,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip"
                         onChange={(e) => { void handleFilePicked(e.target.files?.[0]); e.target.value = ''; }}
                     />
-                    {avatarConfig.videoSequencesEnabled !== false && (
+                    {presentationAvailable && (
                         <button
                             onClick={presenter}
                             className={bouton(presentationPlaying)}
@@ -1544,14 +1582,24 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     {/* La flèche : déplie ou replie la conversation écrite — « ne
                         s'affiche pas en grand par défaut » (Direction, 05/09/2026). */}
                     <button
-                        onClick={() => setIsPanelOpen(!showConversationPanel)}
+                        onClick={() => setIsPanelOpen((v) => !v)}
                         className={bouton(showConversationPanel)}
-                        title={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
-                        aria-label={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
+                        title={showConversationPanel ? 'Replier la conversation' : contenuAVoir ? 'Déplier la conversation — un contenu vous attend' : 'Déplier la conversation'}
+                        aria-label={showConversationPanel ? 'Replier la conversation' : contenuAVoir ? 'Déplier la conversation — un contenu vous attend' : 'Déplier la conversation'}
                         aria-expanded={showConversationPanel}
                         data-testid="architecte-panneau-bascule"
                     >
                         {showConversationPanel ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                        {/* Un point qui respire : une réponse écrite, une image, un
+                            document ou une vidéo attend d'être vu — SIGNALÉ, jamais
+                            imposé par-dessus MokNet. */}
+                        {contenuAVoir && (
+                            <span
+                                data-testid="architecte-panneau-invitation"
+                                className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-cyan-300 animate-pulse"
+                                aria-hidden="true"
+                            />
+                        )}
                     </button>
                     <button onClick={close} className="ml-0.5 mr-1 text-gray-400 hover:text-white transition-colors" aria-label="Fermer">
                         <X size={16} />

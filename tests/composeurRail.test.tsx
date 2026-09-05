@@ -287,7 +287,7 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(decl(regle('.a7-corps'), 'min-width')).toBe('0');
   });
 
-  it('sur téléphone (conteneur ≤ 560 px) la disposition est celle de l’ordinateur (DEC-2026-076) : le rail garde ses libellés et descend sous l’avatar, le corps prend la colonne de droite, les quatre actions IA restent sur une ligne — avec un repli @supports', () => {
+  it('sur téléphone (conteneur ≤ 560 px) la disposition est celle de l’ordinateur (DEC-2026-078) : le rail garde ses libellés et descend sous l’avatar, le corps prend la colonne de droite, les quatre actions IA restent sur une ligne — avec un repli @supports', () => {
     let conteneur: postcss.AtRule | undefined;
     racine.walkAtRules('container', (at) => { if (/a7/.test(at.params) && /max-width:\s*560px/.test(at.params)) conteneur = at; });
     expect(conteneur).toBeTruthy();

@@ -1,4 +1,4 @@
-# Réseau MOC — même disposition des boutons sur ordinateur et téléphone (DEC-2026-076, v6.39.0)
+# Réseau MOC — même disposition des boutons sur ordinateur et téléphone (DEC-2026-078, v6.40.0)
 
 Mission de la Direction (5 septembre 2026) : « Harmonise la disposition des boutons entre ordinateur et téléphone. Les actions de publication comme photo, vidéo, audio, expert, live et autres doivent être visibles et accessibles sans défilement horizontal gênant sur téléphone. Garde une présentation propre, raisonnable, facile à utiliser, sans rien casser. […] Périmètre strict : interface publication et options de Réseau Moknet ; la disposition des boutons sur ordinateur fait la même chose sur téléphone, comme sur la photo. »
 
@@ -6,7 +6,7 @@ Périmètre touché : le bloc CSS « COMPOSEUR A7 » et le bloc « BANDE AURORE 
 
 ## Ce qui change (téléphone et tablette étroite seulement)
 
-| Zone | Avant (DEC-2026-058 / 061) | Après (DEC-2026-076) |
+| Zone | Avant (DEC-2026-058 / 061) | Après (DEC-2026-078) |
 | :--- | :--- | :--- |
 | Composeur — médias (Photo, Vidéo, Document, Voix) | rail masqué, quatre icônes **sans libellé** en ligne sous le champ | rail **visible avec ses libellés**, sous l'avatar dans la première colonne, comme à gauche du champ sur ordinateur |
 | Composeur — Assistant IA | intitulé masqué, quatre actions en 2 × 2 | intitulé « Assistant IA » affiché, **quatre actions nommées sur une ligne**, comme sur ordinateur |
