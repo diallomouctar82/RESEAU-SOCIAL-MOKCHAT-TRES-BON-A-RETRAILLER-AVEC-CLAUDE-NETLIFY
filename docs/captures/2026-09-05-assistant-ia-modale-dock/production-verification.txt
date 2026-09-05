@@ -1,0 +1,16 @@
+GET https://moknet.net/ -> 200 (165094 octets) 16:47:12 UTC
+bundle principal : assets/index-6ZrCib2c.js
+  GET bundle -> 200 (5430466 octets)
+  html 'ASSISTANT IA — MODALE AU-DESSUS DU DOCK (DEC-2026-080)' : 1
+  html '.ia-fond { z-index: 2147482000; }' : 1
+  html '.ia-carte { max-height: 90vh; max-height: 90dvh; }' : 1
+  html '.ia-fond .ia-pied { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }' : 1
+  js 'ia-fond fixed inset-0' : 1
+  js 'ia-carte bg-white rounded-3xl' : 1
+  js 'Fermer l'assistant' : 1
+  ancien bundle index-Bvy0oNZ6.js -> 404 (attendu 404)
+  cache-control: public,max-age=0,must-revalidate
+  date: Sat, 05 Sep 2026 16:47:13 GMT
+  etag: "0c5297901f83e95bf3314e3e9d69afc9-ssl"
+  x-nf-request-id: 01M1S7F3KDS5XWB488ZFZR3S8M
+VERDICT : conforme

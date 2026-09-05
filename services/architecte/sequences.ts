@@ -151,7 +151,7 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     model: {
         // Le portrait d'usine = la photo validée par la Direction (05/09/2026),
         // cadrée par le moteur de l'option Super-Admin (768 px), le débord du haut
-        // comblé par le prolongement adouci du fond (v6.41.1).
+        // comblé par le prolongement adouci du fond (v6.41.2).
         portraitUrl: '/architecte/architecte.webp',
         voice: 'Voix attitrée de l’Architecte — ElevenLabs « George » (eleven_multilingual_v2), la même que la barre flottante, enregistrée le 05/09/2026 sur la phrase officielle',
         settings: { aspectRatio: '1:1', resolution: '720p', expressiveness: 'medium', fit: 'contain' },

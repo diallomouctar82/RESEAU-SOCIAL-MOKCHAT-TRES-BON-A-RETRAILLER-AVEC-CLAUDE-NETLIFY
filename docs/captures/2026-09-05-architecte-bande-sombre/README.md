@@ -1,4 +1,4 @@
-# Bande sombre au sommet du cadre rond de `/architecte` — avant / après (5 septembre 2026, DEC-2026-079, ajustement v6.41.1)
+# Bande sombre au sommet du cadre rond de `/architecte` — avant / après (5 septembre 2026, DEC-2026-079, ajustement v6.41.2)
 
 Niveau de preuve : 🧪 **banc navigateur réel** (Chromium 1.56 headless, `npx vite` sur le dépôt, Supabase absent, Tailwind servi localement, moteur MediaPipe **réel** pour la régénération du portrait) pour les captures « avant » et « après » ; 🚀 **production** pour les deux captures `production-avant-*` (`moknet.net`, 5/09 à 16:04 UTC, avant correction). Le contrôle visuel final dans l'application appartient à la Direction.
 

@@ -20,6 +20,82 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-080] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
+  (`components/AIPostAssistantModal.tsx`), feuille `index.html` (nouveau bloc
+  « ASSISTANT IA — MODALE AU-DESSUS DU DOCK », couche aqua régénérée),
+  tests `tests/aiPostAssistantModal.test.tsx`, captures et script de parcours
+  `docs/captures/2026-09-05-assistant-ia-modale-dock/`.
+* **Problème / Besoin initial** : consigne de la Direction, capture iPhone à
+  l'appui : « sur téléphone, dans le parcours de publication, le bouton
+  Appliquer à ma publication est masqué par la barre du bas où il y a menu et
+  messages. Il faut que ce bouton reste visible et cliquable sur mobile. […]
+  Je veux une correction prouvée sur téléphone, avec un parcours complet
+  jusqu'à la publication. » Constat reproduit sur `origin/main` (`1c2daf6`,
+  harnais 390 × 844 et 360 × 800) : au centre du bouton « Appliquer à ma
+  publication », `document.elementFromPoint` renvoie le dock mobile
+  (`.mir-dock`) ; un clic réel à ce point ne ferme pas la modale ; le parcours
+  est bloqué. Cause : la modale était rendue dans `#root` en `position: fixed`
+  avec `z-index: 50`, avant le dock dans le DOM (`z-50`, donc dessiné
+  par-dessus elle) et sous la barre flottante de l'Architecte (`z-[60]`) ;
+  son voile ne couvrait pas toute la fenêtre (il commençait 24 px sous le
+  haut de l'écran ; mécanisme non identifié après sonde des ancêtres, sans
+  objet une fois la modale sortie de `#root`). Sur ordinateur le parcours
+  passait déjà (pas de dock).
+* **Options considérées** : (a) remonter le `z-index` de la modale en la
+  laissant dans `#root` — reste exposée à tout futur élément fixe et n'isole
+  pas le reste de la page ; (b) réserver une marge basse de la hauteur du
+  dock — bancal, dépend de la hauteur du dock et de la zone sûre ; (c)
+  **portail sur `<body>`**, comme le studio Visuel IA (DEC-2026-071) :
+  hors de `#root`, qui devient `inert` pendant l'ouverture ; `z-index`
+  2147482000 (au-dessus du dock et de la barre flottante, sous le studio à
+  2147483000) ; hauteur bornée à `90dvh` avec repli `90vh` ; pied avec
+  `max(1rem, env(safe-area-inset-bottom))` ; `data-miroir` posé sur la
+  modale pour que la couche aqua la suive hors de `Layout` — retenu.
+* **Décision** : option (c). Rien n'est retiré ni déplacé dans la modale :
+  mêmes onglets, mêmes tons, mêmes zones de texte, mêmes boutons « Annuler »
+  et « Appliquer à ma publication », même matière et mêmes dégradés (sonde
+  versionnée : 34 propriétés identiques, 11 différences toutes attendues,
+  31 textes aux couleurs identiques avant / après) ; la logique IA et les
+  gestionnaires ne changent pas. La modale devient un vrai dialogue :
+  `role="dialog"`, `aria-modal`, titre lié, focus pris à l'ouverture et rendu
+  au déclencheur à la fermeture, Échap ferme quand le focus est dans la
+  modale. Pendant l'ouverture, tout `#root` est inerte et sous le voile
+  (dock, barre flottante, sculpture de l'Architecte) : comportement attendu
+  d'une modale, identique au studio Visuel IA ; tout redevient actif et
+  visible à la fermeture.
+* **Contrôle** : typage 0 erreur, 1602/1602 tests (105 fichiers ; 7 tests
+  nouveaux : portail hors `#root`, racine inerte, focus, Échap, pied,
+  gardes CSS analysées par postcss), build OK ; parcours rejoué avant /
+  après sur 390 × 844, 360 × 800 et 1440 × 900 (avant = `main` `1c2daf6`, après =
+  tête fusionnée `1d4ffb8` ; script versionné, JSON avec SHA, captures,
+  sonde) : après, l'élément sous le doigt est le bouton, la modale se
+  ferme, le texte est appliqué, « Publier » publie et le texte apparaît dans
+  le fil, zéro erreur JS ; avant, parcours bloqué sur les deux téléphones.
+  Limite honnête : harnais sur le même code (pas l'écran authentifié),
+  Chromium émulé (zone sûre et `dvh` non mesurés sur iPhone réel).
+* **Production contrôlée** : feu vert écrit de la Direction le 5/09/2026 vers
+  16:45 UTC (« feu vert pour la production contrôlée de la PR #109
+  uniquement, sur la tête e5ed7eb ») ; revue indépendante « À CORRIGER »
+  (deux constats documentaires) puis contre-vérification « PRÊT » ; Green
+  Gate vert sur `1d4ffb8`, `683822b` et `e5ed7eb` (run 33978405335) ;
+  `main` vérifié inchangé (`1c2daf6`, dernière fusion #108 à 15:56:38 UTC,
+  aucune autre fusion en cours) ; PR #109 fusionnée en squash sur la tête
+  exacte `e5ed7eb` → `main` `81c66c8` à 16:46:29 UTC ; `moknet.net` sert la
+  nouvelle page depuis 16:47:11 UTC (bundle `index-6ZrCib2c.js`, sept
+  marqueurs présents, ancien bundle `index-Bvy0oNZ6.js` → 404, vérificateur
+  « conforme ») ; Green Gate vert sur `main` (run 33978900871) ; sur le code
+  fusionné `81c66c8` : typage 0 erreur, 1602/1602 tests (105 fichiers), build
+  OK, parcours de publication réussi sur 390 × 844, 360 × 800 et 1440 × 900
+  (harnais, zéro erreur JS). Limite honnête : l'écran authentifié n'est pas
+  capturable sans compte ; les preuves téléphone et ordinateur du parcours
+  proviennent du harnais sur ce même code.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  fusion 16:46:29 UTC, page servie 16:47:11 UTC, v6.41.1).
+
+---
+
 ### [DEC-2026-079] — 5 Septembre 2026
 
 * **Module(s)** : Diallo OS & Architecte (module 01) — portrait d'usine, registre des séquences, barre flottante ; Super-Admin (tableau de bord : onglet « Avatar de l'Architecte ») ; réglages partagés de la plateforme (`platform_settings`, migration versionnée **non appliquée**) ; bancs `design-lab/banc/super-admin.html` et `reperes.html`.
@@ -35,7 +111,7 @@ Chaque décision respecte le formalisme strict suivant :
 * **Justification & Valeur ajoutée** : l'avatar est **le** visage validé par la Direction, pour tous, sans dépendre d'une base ni d'un navigateur ; une seule identité et une seule voix (barre et vidéo) ; l'option Super-Admin est visible à un clic et **contrôlable** (enregistrement immédiat, rechargement prouvé, retour arrière) ; le réglage partagé rend l'option effective pour tous les membres dès que la table existe ; « Publier » redevient entièrement atteignable pendant l'usage réel ; rien supprimé (ancienne voix conservée en banc de mesure, ancien modèle vidéo remplacé par celui du portrait validé).
 * **Conséquences & Impacts transversaux** : fichiers publics remplacés (portrait, masque, quatre vidéos, poster, voix, légendes) ; `types.ts` (rig `browLinePercent?`, `silhouetteMaskForPhotoUrl?`, `previousAvatar?`, `factoryPortraitId?`) ; `VERSIONED_TABLE_COUNT` 2 → 3 (garde de la Santé Globale) ; tests de cadrage sur l'écart réel des pupilles (21,4 %) ; couche « Miroir d'eau » régénérée (`index.html`) ; l'ancien modèle vidéo du portrait d'essai n'est plus servi ; coût : 4 crédits HeyGen + 8 crédits Arcads (existants).
 * **Éléments techniques concernés** : `public/architecte/{architecte.webp, architecte-silhouette.png, vision-smart.wav, vision-smart-heygen.{mp4,webm,cutout.mp4,cutout.webm,webp,fr.vtt}}`, `services/architecte/{architecteAvatar.ts, livingAvatar.ts, sequences.ts}`, `services/{adminConfigService.ts, supabaseClient.ts}`, `components/AdminDashboard.tsx`, `components/admin/{AdminArchitecteAvatarTab.tsx, AdminArchitecteAvatarCard.tsx, AdminPlatformSettingsTab.tsx}`, `components/architecte/ArchitecteFloatingBar.tsx`, `types.ts`, `supabase/migrations/20260905160000_platform_settings.sql`, `supabase/rollback/20260905160000_platform_settings_rollback.sql`, `supabase/functions/health-guardian/evaluate.ts`, `design-lab/banc/{super-admin.html, super-admin.tsx, reperes.html, reperes.tsx}`, tests (`architecteAvatar`, `photoAvatar`, `alignment`, `architecteSequences`, `architecteAvatarScreen`, `ArchitecteFloatingBar`, `voiceLipSyncChain`, `healthGuardian`), `tests/fixtures/vision-smart-claire-2026-09-04.wav`, `docs/captures/2026-09-05-architecte-photo-validee/`.
-* **Ajustement v6.41.1 (5/09/2026, point orange traité sur instruction de la Direction : « tu appliques le remède annoncé, tu montres une preuve avant-après sur mobile et ordi, puis seulement après tu mets en production contrôlée »)** : la bande sombre au sommet du cadre rond de `/architecte` venait du débord du cadre (photo sans marge au-dessus du crâne) laissé transparent par `drawFramed` puis rendu noir par l'export JPEG — 95 px sur 768 dans le portrait, 89 px sur 720 dans le modèle HeyGen, 44 px sur 360 dans l'affiche. **Remède dans le moteur de production** : débord comblé par un prolongement adouci du fond (miroir des bords, flou par sous-échantillonnage 32 px, fondu vers la teinte du bord ; canvas 2D portable), masque de silhouette inchangé dans son principe (débord transparent), **avertissement** nommant le côté dès 2 % (`overflowBands` / `describeOverflow`, testés) ; portrait d'usine et masque régénérés par ce moteur dans Chromium réel (cadrage identique, calage d'usine conservé, ± 0,2 point de bruit sur mâchoire / menton / bouche) ; vidéo plein cadre recomposée sur le portrait corrigé à travers la silhouette du détourage (**aucun crédit HeyGen**), affiche régénérée, registre des séquences à jour. Preuves : typage 0, 1598/1598 tests, build ✓, `docs/captures/2026-09-05-architecte-bande-sombre/` (luminance de la bande 0 → 131–137 sur trois écrans, au repos et vidéo en lecture). Statut de l'ajustement : en cours de production contrôlée (consigné par la PR de mémoire vivante suivante).
+* **Ajustement v6.41.2 (5/09/2026, point orange traité sur instruction de la Direction : « tu appliques le remède annoncé, tu montres une preuve avant-après sur mobile et ordi, puis seulement après tu mets en production contrôlée »)** : la bande sombre au sommet du cadre rond de `/architecte` venait du débord du cadre (photo sans marge au-dessus du crâne) laissé transparent par `drawFramed` puis rendu noir par l'export JPEG — 95 px sur 768 dans le portrait, 89 px sur 720 dans le modèle HeyGen, 44 px sur 360 dans l'affiche. **Remède dans le moteur de production** : débord comblé par un prolongement adouci du fond (miroir des bords, flou par sous-échantillonnage 32 px, fondu vers la teinte du bord ; canvas 2D portable), masque de silhouette inchangé dans son principe (débord transparent), **avertissement** nommant le côté dès 2 % (`overflowBands` / `describeOverflow`, testés) ; portrait d'usine et masque régénérés par ce moteur dans Chromium réel (cadrage identique, calage d'usine conservé, ± 0,2 point de bruit sur mâchoire / menton / bouche) ; vidéo plein cadre recomposée sur le portrait corrigé à travers la silhouette du détourage (**aucun crédit HeyGen**), affiche régénérée, registre des séquences à jour. Preuves : typage 0, 1598/1598 tests, build ✓, `docs/captures/2026-09-05-architecte-bande-sombre/` (luminance de la bande 0 → 131–137 sur trois écrans, au repos et vidéo en lecture). Statut de l'ajustement : en cours de production contrôlée (consigné par la PR de mémoire vivante suivante).
 * **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026 : Green Gate vert sur `f586342` (run 33975758223), `main` vérifié inchangé (`ba1ba7d`) à 15:49 UTC, PR #107 fusionnée en squash → `main` `86b521b` à 15:50 UTC, `moknet.net` sert `index-Bvy0oNZ6.js` depuis 15:51 UTC avec les marqueurs de l'onglet, du réglage partagé, de la phrase officielle et du retrait, portrait / masque / voix / vidéos / poster / légendes servis aux tailles exactes, ancien bundle `index-CMCLckXy.js` → 404, Green Gate sur `main` run 33975984731) — typage 0 erreur, **1 595 / 1 595 tests (104 fichiers)**, build ✓, bancs navigateur réel (Super-Admin ordinateur + téléphone, application ordinateur + téléphone avec la vidéo du portrait validé, fil réel 390 × 844 et 360 × 800) ; migration `platform_settings` **en attente d'un feu vert explicite** (sans elle, le réglage Super-Admin reste local au navigateur) ; rendu du modèle vidéo à confirmer par la Direction sur le site.
 
 ---
