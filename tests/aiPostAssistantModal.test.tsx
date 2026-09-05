@@ -17,8 +17,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  *   - le pied garde « Annuler » et « Appliquer à ma publication » et
  *     « Appliquer » envoie le texte puis ferme ;
  *   - la feuille place la modale au-dessus du dock (50) et de la barre
- *     flottante (60), sous le studio Visuel IA, borne la hauteur à la fenêtre
- *     visible (dvh avec repli vh) et respecte la zone sûre du bas.
+ *     flottante (60), sous le studio Visuel IA, borne la carte à 90 % du voile
+ *     (96 % quand il est bas), le voile suivant la zone réellement visible
+ *     (DEC-2026-083), et respecte la zone sûre du bas.
  */
 
 vi.mock('../services/ai', () => ({
@@ -68,6 +69,13 @@ describe('modale « Assistant IA Pré-Publication » (DEC-2026-080)', () => {
     const carte = dialogue.firstElementChild as HTMLElement;
     expect(carte.className).toContain('ia-carte');
     expect(carte.className).not.toMatch(/max-h-\[90vh\]/);
+    // DEC-2026-083 : en-tete retrecissable et repliable (cartes etroites)
+    const titre = dialogue.querySelector('#ia-modale-titre') as HTMLElement;
+    expect(titre.className).toMatch(/\bbreak-words\b/);
+    expect(titre.parentElement!.className).toMatch(/\bflex-wrap\b/);
+    expect(titre.parentElement!.parentElement!.parentElement!.className).toMatch(/\bmin-w-0\b.*\bflex-1\b|\bflex-1\b.*\bmin-w-0\b/);
+    expect((dialogue.querySelector('.ia-fermer') as HTMLElement).className).toMatch(/\bshrink-0\b/);
+    expect(carte.querySelector('.ia-tete')).not.toBeNull(); expect(carte.querySelector('.ia-onglets')).not.toBeNull(); expect(carte.querySelector('.ia-corps')).not.toBeNull(); expect(carte.querySelector('.ia-pied')).not.toBeNull();
 
     await act(async () => { await new Promise((res) => setTimeout(res, 50)); });
     expect((document.activeElement as HTMLElement | null)?.classList.contains('ia-fermer')).toBe(true);
@@ -87,12 +95,32 @@ describe('modale « Assistant IA Pré-Publication » (DEC-2026-080)', () => {
     const appliquer = screen.getByRole('button', { name: /Appliquer à ma publication/ }) as HTMLButtonElement;
     expect(annuler.closest('.ia-pied')).not.toBeNull();
     expect(appliquer.closest('.ia-pied')).not.toBeNull();
+    expect((appliquer.closest('.ia-pied') as HTMLElement).className).toMatch(/\bflex-wrap\b/); // DEC-2026-083 : le pied se replie sur les cartes etroites
     expect(appliquer.disabled).toBe(false);
     fireEvent.click(appliquer);
     expect(onApply).toHaveBeenCalledWith('Bonjour, soyez les bienvenus', undefined, undefined);
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(annuler);
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('suit la zone réellement visible tant qu’elle est ouverte (zoom de page, clavier) et cesse à la fermeture — DEC-2026-083', () => {
+    const faux = Object.assign(new EventTarget(), { offsetTop: 0, offsetLeft: 0, width: 390, height: 844, scale: 1 });
+    Object.defineProperty(window, 'visualViewport', { value: faux, configurable: true });
+    const retire = vi.spyOn(faux, 'removeEventListener');
+    try {
+      const { rerender, props } = monter();
+      const dialogue = screen.getByRole('dialog') as HTMLElement;
+      expect([dialogue.style.top, dialogue.style.left, dialogue.style.width, dialogue.style.height]).toEqual(['0px', '0px', '390px', '844px']);
+      Object.assign(faux, { offsetTop: 40, offsetLeft: 130, width: 260, height: 562 }); // zoom 1,5 : la zone visible retrecit et se decale
+      act(() => { faux.dispatchEvent(new Event('resize')); });
+      expect([dialogue.style.top, dialogue.style.left, dialogue.style.width, dialogue.style.height]).toEqual(['40px', '130px', '260px', '562px']);
+      rerender(<AIPostAssistantModal isOpen={false} {...props} />);
+      expect(retire).toHaveBeenCalledWith('resize', expect.any(Function));
+      expect(retire).toHaveBeenCalledWith('scroll', expect.any(Function));
+    } finally {
+      Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true });
+    }
   });
 
   it('est un dialogue modal nommé par son titre, avec un bouton de fermeture nommé', () => {
@@ -123,8 +151,50 @@ describe('feuille de style de la modale (index.html, telle qu’analysée)', () 
     expect(z).toBeLessThan(Number(studio![1]));
   });
 
-  it('borne la hauteur à la fenêtre visible avec repli, et le pied respecte la zone sûre du bas', () => {
-    expect(valeurs('.ia-carte', 'max-height')).toEqual(['90vh', '90dvh']);
+  it('borne la hauteur à 90 % du voile (qui suit la zone visible), et le pied respecte la zone sûre du bas', () => {
+    expect(valeurs('.ia-carte', 'max-height')).toEqual(['90%']); // 90 % du voile, qui suit la zone visible (DEC-2026-083)
+    expect(valeurs('.ia-fond .ia-carte', 'max-height')).toEqual(['96%']); // 96 % quand le voile est bas
+    expect(valeurs('.ia-fond .ia-carte', 'overflow')).toEqual(['clip']); // jamais defilee horizontalement par un focus
+    expect(valeurs('.ia-fond .ia-tete, .ia-fond .ia-onglets, .ia-fond .ia-pied', 'flex-shrink')).toEqual(['0']);
+    expect(valeurs('.ia-fond .ia-corps', 'min-height')).toEqual(['0']);
+    expect(valeurs('.ia-fond', 'container-type')).toEqual(['size']); // largeur ET hauteur du voile interrogeables
+    const conteneurs: string[] = []; feuille.walkAtRules('container', (a) => { conteneurs.push(a.params); });
+    expect(conteneurs).toEqual(['ia (max-width: 320px)', 'ia (max-height: 560px)']);
+    // Toute regle des blocs de conteneur doit battre les utilitaires Tailwind (0,1,0) injectees apres la feuille : prefixe .ia-fond obligatoire.
+    const dansConteneur: string[] = []; feuille.walkAtRules('container', (a) => { a.walkRules((r) => { dansConteneur.push(r.selector); }); });
+    expect(dansConteneur.length).toBeGreaterThanOrEqual(6);
+    for (const sel of dansConteneur) expect(sel.startsWith('.ia-fond .')).toBe(true);
+    expect(valeurs('.ia-fond .ia-tete', 'padding')).toEqual(['12px 14px']);
+    expect(valeurs('.ia-fond .ia-tete', 'align-items')).toEqual(['flex-start']);
+    expect(valeurs('.ia-fond .ia-pied', 'padding')).toEqual(['10px 12px']);
     expect(valeurs('.ia-fond .ia-pied', 'padding-bottom')[0]).toMatch(/max\(1rem, env\(safe-area-inset-bottom\)\)/);
+  });
+});
+
+describe('champ du composeur à 16 px sur tactile (index.html, DEC-2026-083)', () => {
+  const HTML = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
+  const debut = HTML.indexOf('COMPOSEUR A7 — CHAMP A 16 PX SUR TACTILE (DEC-2026-083)');
+  const fin = HTML.indexOf('/* ===== FIN COMPOSEUR A7 CHAMP TACTILE ===== */');
+  const bloc = HTML.slice(debut, fin);
+  const feuille = postcss.parse(bloc.slice(bloc.indexOf('*/') + 2));
+
+  it('existe, est fermé, et vient après le bloc de la modale', () => {
+    expect(debut).toBeGreaterThan(HTML.indexOf('/* ===== FIN ASSISTANT IA ===== */'));
+    expect(fin).toBeGreaterThan(debut);
+  });
+
+  it('passe le champ du composeur à 16 px (seuil du zoom automatique de Safari iOS) sur pointeur tactile ou fenêtre étroite, avec une spécificité qui bat .text-xs', () => {
+    const medias: string[] = [];
+    const regles: Array<{ selecteur: string; taille?: string; interligne?: string }> = [];
+    feuille.walkAtRules('media', (a) => {
+      medias.push(a.params);
+      a.walkRules((r) => { const d: Record<string, string> = {}; r.walkDecls((x) => { d[x.prop] = x.value; }); regles.push({ selecteur: r.selector, taille: d['font-size'], interligne: d['line-height'] }); });
+    });
+    expect(medias.some((m) => /pointer:\s*coarse/.test(m) && /max-width:\s*767px/.test(m))).toBe(true);
+    expect(regles).toEqual([{ selecteur: '.a7-comp .a7-champ', taille: '16px', interligne: '1.4' }]);
+    // Le champ reel porte bien ces deux classes (sinon la regle serait morte).
+    const feed = readFileSync(join(__dirname, '..', 'components', 'SocialFeed.tsx'), 'utf8');
+    expect(feed).toMatch(/className="[^"]*\ba7-comp\b/);
+    expect(feed).toMatch(/className="a7-champ [^"]*\btext-xs\b/);
   });
 });

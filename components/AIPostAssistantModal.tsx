@@ -86,6 +86,22 @@ export const AIPostAssistantModal: React.FC<AIPostAssistantModalProps> = ({
     const declencheur = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const racine = racineApplication();
     racine?.setAttribute('inert', '');
+    // DEC-2026-083 : la modale suit la zone reellement visible (zoom de page
+    // d'iOS au focus d'un champ, clavier ouvert) ; sans visualViewport, le
+    // inset-0 de la feuille suffit et rien n'est ecrit en ligne.
+    const zoneVisible = window.visualViewport;
+    const suivreLaZoneVisible = () => {
+      const f = feuilleRef.current;
+      if (!f) return;
+      if (!zoneVisible) { f.style.top = ''; f.style.left = ''; f.style.width = ''; f.style.height = ''; return; }
+      f.style.top = `${zoneVisible.offsetTop}px`;
+      f.style.left = `${zoneVisible.offsetLeft}px`;
+      f.style.width = `${zoneVisible.width}px`;
+      f.style.height = `${zoneVisible.height}px`;
+    };
+    suivreLaZoneVisible();
+    zoneVisible?.addEventListener('resize', suivreLaZoneVisible);
+    zoneVisible?.addEventListener('scroll', suivreLaZoneVisible);
     const t = window.setTimeout(() => {
       feuilleRef.current?.querySelector<HTMLElement>('.ia-fermer')?.focus();
     }, 30);
@@ -96,7 +112,7 @@ export const AIPostAssistantModal: React.FC<AIPostAssistantModalProps> = ({
     return () => {
       window.clearTimeout(t);
       document.removeEventListener('keydown', surTouche, true);
-      racine?.removeAttribute('inert');
+      zoneVisible?.removeEventListener('resize', suivreLaZoneVisible); zoneVisible?.removeEventListener('scroll', suivreLaZoneVisible); racine?.removeAttribute('inert');
       if (declencheur && declencheur.isConnected) declencheur.focus();
     };
   }, [isOpen]);
@@ -222,15 +238,15 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
     <div ref={feuilleRef} data-miroir role="dialog" aria-modal="true" aria-labelledby="ia-modale-titre" className="ia-fond fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
       <div className="ia-carte bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col animate-scale-up">
 
-        {/* Header */}
-        <div className="p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl">
+        {/* Header — DEC-2026-083 : retrecissable et repliable pour les cartes etroites (zoom de page, petits ecrans) */}
+        <div className="ia-tete p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
               <Wand2 size={22} className="text-white animate-pulse" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 id="ia-modale-titre" className="font-bold text-lg text-white">Assistant IA Pré-Publication Mooc</h3>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <h3 id="ia-modale-titre" className="font-bold text-lg text-white break-words min-w-0">Assistant IA Pré-Publication Mooc</h3>
                 <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 bg-white/20 rounded-full text-white tracking-wider">Multimodal</span>
               </div>
               <p className="text-xs text-blue-100">Améliorez, traduisez, enrichissez et générez des visuels avant de partager.</p>
@@ -240,14 +256,14 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
             type="button"
             onClick={onClose}
             aria-label="Fermer l'assistant"
-            className="ia-fermer p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            className="ia-fermer shrink-0 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-100 bg-slate-50/80 px-4 gap-2 overflow-x-auto scrollbar-hide py-2">
+        <div className="ia-onglets flex border-b border-slate-100 bg-slate-50/80 px-4 gap-2 overflow-x-auto scrollbar-hide py-2">
           <button 
             onClick={() => { setActiveTool('style'); if (!generatedResult) handleEnhanceStyle('pro'); }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTool === 'style' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'}`}
@@ -290,7 +306,7 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
         </div>
 
         {/* Body Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-5">
+        <div className="ia-corps p-6 overflow-y-auto flex-1 space-y-5">
           
           {/* Tool Options Bar */}
           {activeTool === 'style' && (
@@ -441,7 +457,7 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
 
         {/* Footer — DEC-2026-080 : toujours visible (la carte est bornee par la
             fenetre visible) et jamais sous le dock (portail + bloc CSS). */}
-        <div className="ia-pied p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+        <div className="ia-pied p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
           <button
             type="button"
             onClick={onClose}

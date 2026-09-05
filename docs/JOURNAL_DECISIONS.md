@@ -20,6 +20,102 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-083] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
+  (`components/AIPostAssistantModal.tsx` : en-tête, onglets, corps et pied
+  nommés, suivi de la zone visible), feuille `index.html` (bloc
+  « ASSISTANT IA » complété : carte à 90 % / 96 % du voile, `overflow: clip`,
+  parties fixes non compressibles, requêtes de conteneur `ia` ; nouveau bloc
+  « COMPOSEUR A7 — CHAMP A 16 PX SUR TACTILE »), tests
+  `tests/aiPostAssistantModal.test.tsx`, captures et sondes
+  `docs/captures/2026-09-05-assistant-ia-taille-telephone/`.
+* **Problème / Besoin initial** : consigne de la Direction : « Quand j'écris
+  un message puis que j'appuie sur "améliorer", le panneau assistant /
+  pré-publication s'ouvre trop grand et sort du cadre. L'utilisateur ne doit
+  pas avoir à rétrécir manuellement. Il faut que le panneau soit dimensionné
+  correctement sur tous les téléphones, avec défilement interne si besoin,
+  mais toujours dans l'écran, et les boutons importants doivent rester
+  visibles et utilisables. » Reproduit sur `main` (`a440309`) : sans zoom la
+  carte tient de 320 × 568 à 412 × 915 et à 390 × 500 (clavier) ; le champ
+  du composeur est à 12 px, ce qui déclenche le zoom automatique de Safari
+  iOS au focus (seuil 16 px) ; avec un zoom de page de 1,33 ou 1,5 (émulé
+  par `Emulation.setPageScaleFactor`), la carte et le bouton « Appliquer »
+  sortent de la zone visible — le « trop grand, hors cadre » constaté, et le
+  pincement pour rétrécir. Révélé en largeur étroite : en-tête et pied non
+  rétrécissables (le focus sur « Fermer » faisait défiler la carte
+  horizontalement malgré `overflow-hidden`), parties fixes écrasant les
+  onglets et faisant déborder le pied.
+* **Options considérées** : (a) `maximum-scale=1` dans la balise viewport —
+  global, touche toutes les équipes et l'accessibilité, rejeté ; (b) champ du
+  composeur à 16 px sur pointeur tactile ou fenêtre étroite, voile qui suit
+  `window.visualViewport` (zoom volontaire, clavier), carte à 90 % du voile
+  (96 % quand sa boîte de contenu fait 560 px ou moins de haut, soit un
+  voile de 592 px ou moins), parties fixes non compressibles et seule zone
+  de contenu défilante, en-tête et pied repliables et compacts quand la
+  boîte de contenu du voile fait 320 px ou moins de large (voile de 352 px
+  ou moins, iPhone SE 1 non zoomé compris), carte en `overflow: clip` —
+  retenu. Les règles des blocs de conteneur sont en spécificité (0,2,0)
+  (`.ia-fond …`) : Tailwind (Play CDN) injecte sa feuille après celle de la
+  page et gagnerait à égalité — constat C1 de la revue indépendante, garde
+  ajoutée au test.
+* **Décision** : option (b). Rien n'est retiré ; ordinateur strictement inchangé (police
+  12 px, carte de 623 px, bouton « Fermer » à y = 164 et remplissage
+  d'en-tête 20 px avant comme après ; l'alignement haut de l'en-tête ne vaut
+  que dans le voile étroit — constat C2 de la revue). Sur téléphone, le champ passe à
+  16 px (interligne 1,4) ; sur les plus petits écrans et au zoom, l'en-tête
+  se replie (titre 16 px) et « Annuler » passe au-dessus d'« Appliquer ».
+* **Contrôle** : typage 0 erreur, 1645/1645 tests (109 fichiers ; tests
+  ajoutés : suivi de la zone visible, gardes CSS de la carte et du champ à
+  16 px, classes de l'en-tête et du pied), build OK ; sonde sur neuf cas
+  (320 × 568, 360 × 640, 375 × 667, 390 × 844, 412 × 915, 390 × 500
+  clavier, zoom 1,5 et 1,33, ordinateur) : après, carte et bouton dans la
+  zone visible, bouton sous le doigt, aucun débordement horizontal, aucun
+  rognage ; avant, les deux cas de zoom hors cadre ; parcours complet
+  jusqu'à la publication réussi sur trois écrans. Avant = `main` `f1bb563`,
+  après = tête `099ed6e` (SHA déclarés dans `_meta` des JSON, même sonde
+  pour les deux). Limite honnête : zoom émulé par Chromium (le zoom automatique d'iOS ne s'émule pas), pas
+  d'appareil réel.
+* **Statut** : 🟠 PRÊTE, NON DÉPLOYÉE — PR brouillon depuis
+  `claude/cleanup-home-interface-szp8qv` ; production seulement sur feu vert
+  écrit, `main` revérifié, une fusion à la fois.
+
+---
+
+### [DEC-2026-084] — 5 Septembre 2026
+
+* **Module(s)** : authentification Google — écran de consentement Google et
+  projet Supabase `rqciahtpixdjbyoajomg` ; aucun fichier du dépôt.
+* **Problème / Besoin initial** : consigne de la Direction (capture iPhone) :
+  l'écran Google affiche « Accéder à l'application
+  rqciahtpixdjbyoajomg.supabase.co » ; « ce n'est pas une clé secrète, mais
+  ce n'est pas acceptable pour l'utilisateur. Merci de corriger l'affichage
+  pour que seul le nom officiel de l'application apparaisse. » Constat
+  mesuré : `GET …supabase.co/auth/v1/authorize?provider=google` redirige vers
+  Google avec `redirect_uri=https://rqciahtpixdjbyoajomg.supabase.co/auth/v1/callback`
+  et la page Google servie contient 31 fois ce domaine. Google affiche le
+  domaine de l'URI de redirection ; aucune ligne de code de l'application ne
+  le produit (`services/auth.ts` appelle `signInWithOAuth` avec
+  `redirectTo: window.location.origin`).
+* **Options considérées** : (a) domaine personnalisé Supabase
+  (`auth.moknet.net` : option payante du projet, CNAME, activation, puis URL
+  de rappel ajoutée dans la console Google et URL Supabase mise à jour sur
+  Netlify) — la documentation Supabase indique que les flux OAuth annoncent
+  alors le domaine personnalisé ; (b) écran de consentement Google : nom
+  d'application, logo, domaine autorisé `moknet.net`, page d'accueil,
+  confidentialité, puis vérification de marque par Google — le nom officiel
+  remplace le domaine une fois vérifié ; (c) les deux, ce que Supabase
+  recommande.
+* **Décision** : en attente de la Direction — nom officiel à afficher et
+  actions hors dépôt (console Google Cloud, facturation Supabase, DNS). Côté
+  dépôt, seule la variable d'environnement de l'URL Supabase changerait après
+  l'option (a) ; aucune modification n'est engagée d'ici là.
+* **Statut** : 🟡 EN ATTENTE — action humaine requise (rapport du 5/09/2026) ;
+  preuve à rejouer ensuite par la même mesure (page Google servie depuis
+  l'URL d'autorisation).
+
+---
+
 ### [DEC-2026-082] — 5 Septembre 2026
 * **Module(s)** : Réseau MOC / Studio Live (`components/SocialLive.tsx`, fiche `docs/modules/05_reseau_mok_et_social.md`) ; garde-fou de test (`tests/liveQuitButton.test.tsx`).
 * **Problème / Besoin initial** : Direction (mission LV-2, point 1) : le bouton de sortie du Studio Live n'était qu'une icône rouge (`PhoneOff`) sans libellé, dont le rôle se devinait ; sur téléphone comme sur ordinateur, rien ne disait qu'il permettait de « quitter le direct », et le même bouton (`aria-label="Quitter ou terminer le Live"`, `onClick={handleEndLive}`) servait à la fois le spectateur (qui veut juste partir) et l'animateur (qui doit clore et publier son compte-rendu). Méthode imposée : un point corrigé, une preuve visible sur mobile ET ordinateur, une production contrôlée, puis le point suivant.
