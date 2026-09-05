@@ -1,4 +1,4 @@
-# Captures — la sculpture vivante de l'Architecte, zéro obstruction (DEC-2026-072, v6.36.0)
+# Captures — la sculpture vivante de l'Architecte, zéro obstruction (DEC-2026-073, v6.37.0)
 
 Essai navigateur réel du 5 septembre 2026 : banc `design-lab/banc/sculpture.html` (composant réel `ArchitecteFloatingBar` posé sur une page qui ressemble à MokNet : six cartes de contenu et, sur téléphone, le dock de navigation), servi par vite, Chromium de preuve, ordinateur 1280 × 800 et téléphone 390 × 844 (×2, tactile). Le script du banc enchaîne : repos → clic sur la sculpture → présentation (mesures à 2,5 s) → fin → flèche (panneau) → clic sur la sculpture (fermeture). `mesures.json` contient, pour chaque état, les rectangles de l'interface de l'Architecte, la **part de l'écran qu'elle couvre**, si le dock reste libre et combien de cartes de contenu restent entièrement dégagées.
 

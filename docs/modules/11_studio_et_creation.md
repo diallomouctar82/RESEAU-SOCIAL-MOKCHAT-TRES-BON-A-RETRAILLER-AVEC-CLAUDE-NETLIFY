@@ -66,7 +66,7 @@ Deux niveaux d'identité, une seule règle de priorité.
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : **Studio Avatar (parcours Pro complet + avatar par défaut Admin-Général, 60 tests dédiés — DEC-2026-061)**, Générateur d'images/vidéos/vision/avatar, Onglet dédié Co-Création & Collaboration, Co-projets d'articles et de campagnes avec éditeur et tâches, Cercles de discussion thématiques, Bibliothèque partagée de ressources et boîte à idées communautaires.
+- **Terminé** : **Studio Avatar (parcours Pro complet + avatar par défaut Admin-Général, 60 tests dédiés — DEC-2026-062)**, Générateur d'images/vidéos/vision/avatar, Onglet dédié Co-Création & Collaboration, Co-projets d'articles et de campagnes avec éditeur et tâches, Cercles de discussion thématiques, Bibliothèque partagée de ressources et boîte à idées communautaires.
 - **En cours** : Synchronisation temps réel via les canaux Supabase Realtime (`postgres_changes` / `presence`).
 - **Évolutions Prévues** : Curseur collaboratif multi-utilisateurs et doublage multilingue direct.
 
