@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
     authCallback: null as null | ((session: unknown, event: string) => void),
     signOut: vi.fn(async () => {}),
     getSession: vi.fn(async (): Promise<unknown> => null),
-    // Verrou d'entrée (DEC-2026-078) : verdict du serveur sur une session relue
+    // Verrou d'entrée (DEC-2026-079) : verdict du serveur sur une session relue
     // depuis le stockage local — 'valide' | 'non-verifiee' | 'invalide'.
     verifierSession: vi.fn(async (session: { user?: { id?: string } }): Promise<unknown> => ({ statut: 'valide', session })),
 }));
@@ -147,7 +147,7 @@ describe("Entrée directe sur Réseau MokNet (Direction, 05/09/2026)", () => {
     });
 });
 
-describe("Verrou d'entrée — accès public réservé aux sessions valides (Direction, 05/09/2026, DEC-2026-078)", () => {
+describe("Verrou d'entrée — accès public réservé aux sessions valides (Direction, 05/09/2026, DEC-2026-079)", () => {
     it("aucune session sur l'appareil : écran de connexion, aucune page interne, aucune vérification inutile", async () => {
         render(<App />);
         expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();

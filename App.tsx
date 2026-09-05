@@ -128,7 +128,7 @@ const AppContent = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-078) : une session
+  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-079) : une session
   // relue depuis le stockage local n'ouvre l'interface qu'après vérification
   // auprès du serveur (services/auth.ts#verifierSession). Une seule
   // vérification par jeton : `getSession()` et l'événement `INITIAL_SESSION`

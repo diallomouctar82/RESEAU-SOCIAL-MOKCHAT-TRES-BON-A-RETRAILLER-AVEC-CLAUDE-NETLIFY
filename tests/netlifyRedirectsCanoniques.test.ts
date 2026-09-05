@@ -1,5 +1,5 @@
 /**
- * DOMAINE CANONIQUE (Direction, 05/09/2026 — DEC-2026-078) : toutes les
+ * DOMAINE CANONIQUE (Direction, 05/09/2026 — DEC-2026-079) : toutes les
  * écritures du domaine (`www`, `http`) sont ramenées à `https://moknet.net`
  * par le serveur, avant l'application. Ce test lit `netlify.toml` tel qu'il
  * est déployé : les trois règles existent, dans la bonne forme (301, forcées,
