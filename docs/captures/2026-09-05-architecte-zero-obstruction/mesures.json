@@ -1,0 +1,605 @@
+{
+ "banc": "design-lab/banc/sculpture.html (vite, composant réel ArchitecteFloatingBar, Chromium 1194 Playwright)",
+ "date": "2026-09-05",
+ "regle": "zéro obstruction strict — Direction 05/09/2026",
+ "scenarios": [
+  {
+   "nom": "ordinateur",
+   "viewport": {
+    "width": 1280,
+    "height": 800
+   },
+   "dockClicAtteint": null,
+   "etapes": {
+    "repos": {
+     "boites": {
+      "sculpture": {
+       "x": 1160,
+       "y": 680,
+       "w": 96,
+       "h": 96
+      }
+     },
+     "couvertPourcent": 0.9,
+     "zoneLibreHautPourcent": 85,
+     "zoneLibreGauchePourcent": 90.6,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": null,
+     "barre": false,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false
+    },
+    "pendant": {
+     "boites": {
+      "sculpture": {
+       "x": 1158,
+       "y": 678,
+       "w": 101,
+       "h": 101
+      },
+      "legende": {
+       "x": 883,
+       "y": 702,
+       "w": 269,
+       "h": 25
+      },
+      "barre": {
+       "x": 935,
+       "y": 733,
+       "w": 217,
+       "h": 43
+      }
+     },
+     "couvertPourcent": 2.4,
+     "zoneLibreHautPourcent": 84.8,
+     "zoneLibreGauchePourcent": 69,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": "L'ArchitectePrésentation en cours…",
+     "barre": true,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false,
+     "video": {
+      "status": "playing",
+      "currentTime": 2.66,
+      "source": "vision-smart-heygen.cutout.webm",
+      "presence": "speaking"
+     }
+    },
+    "apres": {
+     "boites": {
+      "sculpture": {
+       "x": 1158,
+       "y": 678,
+       "w": 101,
+       "h": 101
+      },
+      "legende": {
+       "x": 800,
+       "y": 701,
+       "w": 352,
+       "h": 26
+      },
+      "barre": {
+       "x": 935,
+       "y": 733,
+       "w": 217,
+       "h": 43
+      }
+     },
+     "couvertPourcent": 2.6,
+     "zoneLibreHautPourcent": 84.8,
+     "zoneLibreGauchePourcent": 62.5,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false
+    },
+    "reponseLongue": {
+     "boites": {
+      "sculpture": {
+       "x": 1158,
+       "y": 678,
+       "w": 101,
+       "h": 101
+      },
+      "legende": {
+       "x": 800,
+       "y": 701,
+       "w": 352,
+       "h": 26
+      },
+      "barre": {
+       "x": 935,
+       "y": 733,
+       "w": 217,
+       "h": 43
+      }
+     },
+     "couvertPourcent": 2.6,
+     "zoneLibreHautPourcent": 84.8,
+     "zoneLibreGauchePourcent": 62.5,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": false,
+     "invitation": true
+    },
+    "saisie": {
+     "boites": {
+      "sculpture": {
+       "x": 1160,
+       "y": 680,
+       "w": 96,
+       "h": 96
+      },
+      "legende": {
+       "x": 800,
+       "y": 701,
+       "w": 352,
+       "h": 26
+      },
+      "barre": {
+       "x": 935,
+       "y": 733,
+       "w": 217,
+       "h": 43
+      },
+      "saisie": {
+       "x": 800,
+       "y": 654,
+       "w": 352,
+       "h": 41
+      }
+     },
+     "couvertPourcent": 3.9,
+     "zoneLibreHautPourcent": 81.8,
+     "zoneLibreGauchePourcent": 62.5,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": true,
+     "invitation": true
+    },
+    "panneau": {
+     "boites": {
+      "sculpture": {
+       "x": 1160,
+       "y": 680,
+       "w": 96,
+       "h": 96
+      },
+      "panneau": {
+       "x": 800,
+       "y": 485,
+       "w": 352,
+       "h": 210
+      },
+      "legende": {
+       "x": 800,
+       "y": 701,
+       "w": 352,
+       "h": 26
+      },
+      "barre": {
+       "x": 935,
+       "y": 733,
+       "w": 217,
+       "h": 43
+      }
+     },
+     "couvertPourcent": 9.7,
+     "zoneLibreHautPourcent": 60.6,
+     "zoneLibreGauchePourcent": 62.5,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": true,
+     "saisie": false,
+     "invitation": false
+    },
+    "replie": {
+     "boites": {
+      "sculpture": {
+       "x": 1160,
+       "y": 680,
+       "w": 96,
+       "h": 96
+      },
+      "legende": {
+       "x": 800,
+       "y": 701,
+       "w": 352,
+       "h": 26
+      },
+      "barre": {
+       "x": 935,
+       "y": 733,
+       "w": 217,
+       "h": 43
+      },
+      "saisie": {
+       "x": 800,
+       "y": 654,
+       "w": 352,
+       "h": 41
+      }
+     },
+     "couvertPourcent": 3.9,
+     "zoneLibreHautPourcent": 81.8,
+     "zoneLibreGauchePourcent": 62.5,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": true,
+     "invitation": true
+    },
+    "ferme": {
+     "boites": {
+      "sculpture": {
+       "x": 1158,
+       "y": 678,
+       "w": 101,
+       "h": 101
+      }
+     },
+     "couvertPourcent": 1,
+     "zoneLibreHautPourcent": 84.8,
+     "zoneLibreGauchePourcent": 90.5,
+     "dockLibre": null,
+     "cartes": 6,
+     "cartesLibres": 6,
+     "statut": null,
+     "barre": false,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false
+    }
+   },
+   "erreurs": []
+  },
+  {
+   "nom": "mobile",
+   "viewport": {
+    "width": 390,
+    "height": 844
+   },
+   "dockClicAtteint": true,
+   "etapes": {
+    "repos": {
+     "boites": {
+      "sculpture": {
+       "x": 294,
+       "y": 664,
+       "w": 84,
+       "h": 84
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 2.1,
+     "zoneLibreHautPourcent": 78.7,
+     "zoneLibreGauchePourcent": 75.4,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": null,
+     "barre": false,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false
+    },
+    "pendant": {
+     "boites": {
+      "sculpture": {
+       "x": 292,
+       "y": 662,
+       "w": 88,
+       "h": 88
+      },
+      "legende": {
+       "x": 32,
+       "y": 674,
+       "w": 254,
+       "h": 25
+      },
+      "barre": {
+       "x": 69,
+       "y": 705,
+       "w": 217,
+       "h": 43
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 6.8,
+     "zoneLibreHautPourcent": 78.4,
+     "zoneLibreGauchePourcent": 8.2,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": "L'ArchitectePrésentation en cours…",
+     "barre": true,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false,
+     "video": {
+      "status": "playing",
+      "currentTime": 2.75,
+      "source": "vision-smart-heygen.cutout.webm",
+      "presence": "speaking"
+     }
+    },
+    "apres": {
+     "boites": {
+      "sculpture": {
+       "x": 292,
+       "y": 662,
+       "w": 88,
+       "h": 88
+      },
+      "legende": {
+       "x": 32,
+       "y": 673,
+       "w": 254,
+       "h": 26
+      },
+      "barre": {
+       "x": 69,
+       "y": 705,
+       "w": 217,
+       "h": 43
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 6.8,
+     "zoneLibreHautPourcent": 78.4,
+     "zoneLibreGauchePourcent": 8.2,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false
+    },
+    "reponseLongue": {
+     "boites": {
+      "sculpture": {
+       "x": 292,
+       "y": 662,
+       "w": 88,
+       "h": 88
+      },
+      "legende": {
+       "x": 32,
+       "y": 673,
+       "w": 254,
+       "h": 26
+      },
+      "barre": {
+       "x": 69,
+       "y": 705,
+       "w": 217,
+       "h": 43
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 6.8,
+     "zoneLibreHautPourcent": 78.4,
+     "zoneLibreGauchePourcent": 8.2,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": false,
+     "invitation": true
+    },
+    "saisie": {
+     "boites": {
+      "sculpture": {
+       "x": 294,
+       "y": 664,
+       "w": 84,
+       "h": 84
+      },
+      "legende": {
+       "x": 32,
+       "y": 673,
+       "w": 254,
+       "h": 26
+      },
+      "barre": {
+       "x": 69,
+       "y": 705,
+       "w": 217,
+       "h": 43
+      },
+      "saisie": {
+       "x": 32,
+       "y": 626,
+       "w": 254,
+       "h": 41
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 9.7,
+     "zoneLibreHautPourcent": 74.2,
+     "zoneLibreGauchePourcent": 8.2,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": true,
+     "invitation": true
+    },
+    "panneau": {
+     "boites": {
+      "sculpture": {
+       "x": 294,
+       "y": 664,
+       "w": 84,
+       "h": 84
+      },
+      "panneau": {
+       "x": 32,
+       "y": 457,
+       "w": 254,
+       "h": 210
+      },
+      "legende": {
+       "x": 32,
+       "y": 673,
+       "w": 254,
+       "h": 26
+      },
+      "barre": {
+       "x": 69,
+       "y": 705,
+       "w": 217,
+       "h": 43
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 22.7,
+     "zoneLibreHautPourcent": 54.1,
+     "zoneLibreGauchePourcent": 8.2,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 4,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": true,
+     "saisie": false,
+     "invitation": false
+    },
+    "replie": {
+     "boites": {
+      "sculpture": {
+       "x": 294,
+       "y": 664,
+       "w": 84,
+       "h": 84
+      },
+      "legende": {
+       "x": 32,
+       "y": 673,
+       "w": 254,
+       "h": 26
+      },
+      "barre": {
+       "x": 69,
+       "y": 705,
+       "w": 217,
+       "h": 43
+      },
+      "saisie": {
+       "x": 32,
+       "y": 626,
+       "w": 254,
+       "h": 41
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 9.7,
+     "zoneLibreHautPourcent": 74.2,
+     "zoneLibreGauchePourcent": 8.2,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.",
+     "barre": true,
+     "panneau": false,
+     "saisie": true,
+     "invitation": true
+    },
+    "ferme": {
+     "boites": {
+      "sculpture": {
+       "x": 292,
+       "y": 662,
+       "w": 88,
+       "h": 88
+      },
+      "dock": {
+       "x": 0,
+       "y": 780,
+       "w": 390,
+       "h": 64
+      }
+     },
+     "couvertPourcent": 2.3,
+     "zoneLibreHautPourcent": 78.4,
+     "zoneLibreGauchePourcent": 74.9,
+     "dockLibre": true,
+     "cartes": 6,
+     "cartesLibres": 5,
+     "statut": null,
+     "barre": false,
+     "panneau": false,
+     "saisie": false,
+     "invitation": false
+    }
+   },
+   "erreurs": []
+  }
+ ]
+}
