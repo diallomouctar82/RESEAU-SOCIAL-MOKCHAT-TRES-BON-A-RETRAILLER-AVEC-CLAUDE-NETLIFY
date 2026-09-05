@@ -33,7 +33,7 @@ import { LiveExpertBookingModal } from './LiveExpertBookingModal';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useLiveTransport, RemoteParticipantMedia, hasPresentableMedia, stageGridClass, liveBadge, realViewerCount, shouldStartPanelCollapsed, composeStage, orderStageAgents } from '../hooks/useLiveTransport';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
-import { fetchLiveSession, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds, setFeaturedAgent, fetchFeaturedAgent, subscribeToFeaturedAgent } from '../services/live/liveSessionService';
+import { fetchLiveSession, isLiveSessionStillOpen, createLiveSession, startLiveSession, joinLiveSession, leaveLiveSession, setHandRaised, updateParticipantRole, fetchActiveParticipants, updateVisualUniverse, subscribeToLiveSessionUniverse, deriveSelfStagePresence, deriveSelfMediaDirective, setParticipantMuted, setOwnMediaState, removeParticipant, inviteToLiveSession, mergeLiveStreamWithRealSession, summonExpertToLive, dismissExpertFromLive, splitRosterHumansAndAgents, deriveStageAgentIds, setFeaturedAgent, fetchFeaturedAgent, subscribeToFeaturedAgent } from '../services/live/liveSessionService';
 import { sendLiveMessage, fetchRecentLiveMessages, subscribeToLiveMessages, sendLiveReaction, fetchLiveReactionCount, subscribeToLiveReactions, subscribeToLiveSpeakerChanges, postLiveAgentMessage } from '../services/live/liveChatService';
 import { glassSurfaceClass, LIVE_MATERIAL_ANIMATION, LIVE_VISUAL_UNIVERSES, AvatarGrammarState, spawnWaterRipple } from '../services/live/liveMaterialSystem';
 import { LiveBubbles, LiveVoiceWave } from './live/LiveMatter';
@@ -453,10 +453,11 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
   // tentative, on relit la session EN BASE. Un direct clôturé par l'animateur
   // répond « non » et l'écran le dit ; un direct toujours ouvert répond
   // « oui » et la ligne se rétablit seule, trois fois au plus.
+  // Une base injoignable LÈVE (le hook relance quand même, budget borné) ;
+  // seule une ligne absente ou clôturée répond « non ».
   const autoRecoverLive = useCallback(async () => {
     if (!realSessionId) return false;
-    const session = await fetchLiveSession(realSessionId);
-    return !!session && !session.endedAt;
+    return isLiveSessionStillOpen(realSessionId);
   }, [realSessionId]);
 
   const liveTransport = useLiveTransport({

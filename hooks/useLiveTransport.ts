@@ -398,7 +398,9 @@ export function useLiveTransport(options: UseLiveTransportOptions): UseLiveTrans
                     setError(LIVE_ENDED_MESSAGE);
                     return;
                 }
-                if (autoRetryRef.current >= AUTO_RETRY_MAX) return;
+                // Le budget a été vérifié AVANT la garde et une seule garde vole
+                // à la fois : le revérifier ici serait une ligne que rien ne
+                // peut faire rougir (contre-épreuve CE3), donc pas de ligne.
                 const n = autoRetryRef.current++;
                 console.warn(`[direct] ligne perdue (${reason}) — nouvelle tentative ${n + 1}/${AUTO_RETRY_MAX} dans ${autoRetryDelayMs(n)} ms`);
                 armRetry(n);
