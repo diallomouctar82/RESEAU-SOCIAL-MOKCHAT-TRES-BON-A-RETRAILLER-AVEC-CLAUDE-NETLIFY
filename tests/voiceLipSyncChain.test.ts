@@ -9,7 +9,7 @@ import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS } from '../services/architecte
  *
  * Trois pièges réels, tous rencontrés :
  *  - la source branchée sur l'analyseur sans chemin vers la sortie REND LA
- *    VOIX MUETTE (DEC-2026-053) ;
+ *    VOIX MUETTE (DEC-2026-054) ;
  *  - le spectre en octets (`getByteFrequencyData`) tient la bouche ouverte
  *    sur le souffle : mesuré le 04/09, bouche ouverte sur 98 % des images ;
  *  - sans avance, la bouche suit la voix avec ~160 ms de retard.

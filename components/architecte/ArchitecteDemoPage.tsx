@@ -199,7 +199,7 @@ export const ArchitecteDemoPage: React.FC = () => {
         const analyser = context.createAnalyser();
         analyser.fftSize = ANALYSER_FFT_SIZE;
         source.connect(analyser);
-        // PIÈGE connu (DEC-2026-053) : sans chemin jusqu'à la destination, la voix est muette.
+        // PIÈGE connu (DEC-2026-054) : sans chemin jusqu'à la destination, la voix est muette.
         const output = context.createDelay(1);
         output.delayTime.value = LIP_SYNC_LOOKAHEAD_MS / 1000;
         source.connect(output);

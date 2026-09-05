@@ -20,7 +20,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
-### [DEC-2026-056] — 5 Septembre 2026
+### [DEC-2026-057] — 5 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, chaîne vocale de l'Espace IA (`supabase/functions/ai-gateway`, `services/voiceEngine.ts`), page publique `/architecte`.
 * **Problème / Besoin initial** : la Direction exige un **test avec son** — « fais dire à l'avatar une phrase complète… vérifier la concordance labiale réelle, avec le son. Tant qu'on n'a pas vu ça, rien n'est validé » — et que l'avatar **ne dépende pas d'ElevenLabs** : « connecte l'avatar à la chaîne multimodale déjà en place dans Super-Admin, relais propre avec les autres services, sans redemander de clé, sans en exposer ». Le test avec son a été construit d'abord (la page réelle joue la phrase Vision Smart en voix HD, s'enregistre elle-même — canvas + piste audio, VP9/Opus — et tient un journal par image : énergie de la voix mesurée ET ouverture de bouche calculée au même instant). Première mesure : **corrélation son ↔ bouche 0,15, bouche en retard de 160 à 240 ms, ouverte sur 98 % des images** — elle ne se refermait pas sur les silences. Cause racine, lue dans le code et confirmée par le journal : la bouche lisait le **spectre en octets** (`getByteFrequencyData`), c'est-à-dire des décibels ramenés sur 0..255 entre −100 et −30 dB ; le souffle d'un fichier de voix (−65 dB) y vaut déjà « la moitié du volume », donc une ouverture de 0,9 en plein silence. Second défaut trouvé au passage : tous les lissages étaient des **facteurs par image** (0,35 · 0,22 · 0,06 · 0,08…), donc une bouche et une tête différentes à 30, 60 ou 120 Hz.
 * **Compétence de référence** : AI Core playbook 15 § 5 (synchro labiale honnête : le niveau annoncé est le niveau mesuré) et § 10 (mesurer sur l'appareil de référence avant toute déclaration) ; règle Vision Smart XII (aucune preuve absente remplacée par une formulation confiante).
@@ -38,9 +38,9 @@ Chaque décision respecte le formalisme strict suivant :
 * **Éléments techniques concernés** : `services/architecte/lipSync.ts` (`ANALYSER_FFT_SIZE`, `LIP_SYNC_LOOKAHEAD_MS`, `rmsAmplitude`, `createVoiceEnvelope`, `voiceEnvelopeOpenness`, `smoothOpenness(dtMs)`), `services/architecte/livingAvatar.ts` (`easeFactor` et constantes de temps), `services/voiceEngine.ts` (`attachOutputAnalyser`, `startOutputLevelLoop`), `components/architecte/ArchitecteAvatar.tsx` (durée d'image réelle), `components/architecte/ArchitecteDemoPage.tsx` (`DemoAudioHook.output`), `components/admin/AdminArchitecteAvatarCard.tsx` (étiquette), `tests/architecteAvatar.test.ts`, `tests/voiceLipSyncChain.test.ts`, `tests/fixtures/vision-smart-rms.json`.
 * **Statut** : `Développé` & `Testé` — **NON déployé en production** (prévisualisation de branche ; aucune fusion sans validation de la Direction, qui a demandé à voir la synchro avec le son avant toute validation).
 
-### [DEC-2026-055] — 4 Septembre 2026
+### [DEC-2026-056] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, page publique `/architecte`, banc `design-lab/banc/portrait.html`.
-* **Problème / Besoin initial** : après la vidéo de DEC-2026-054, la Direction : « c'est un bon début, mais ce n'est pas assez fluide ni naturel ». Mesure faite avant d'agir : la page tourne à **60 i/s** dans le navigateur de preuve (301 images en 5 s, 16,7 ms médian) — la cadence n'est pas en cause. Ce qui l'est : le MOUVEMENT lui-même. En SVG, chaque partie mobile était une copie entière de la photo translatée d'un bloc sous un masque : la lèvre du bas, le menton, le cou et le col descendaient ensemble ; la tête et le fond de bureau pivotaient ensemble ; la tête hochait à CHAQUE syllabe (4-6 Hz, marionnette) ; la bouche se refermait complètement entre deux syllabes (claquement) ; le regard était parfaitement fixe.
+* **Problème / Besoin initial** : après la vidéo de DEC-2026-055, la Direction : « c'est un bon début, mais ce n'est pas assez fluide ni naturel ». Mesure faite avant d'agir : la page tourne à **60 i/s** dans le navigateur de preuve (301 images en 5 s, 16,7 ms médian) — la cadence n'est pas en cause. Ce qui l'est : le MOUVEMENT lui-même. En SVG, chaque partie mobile était une copie entière de la photo translatée d'un bloc sous un masque : la lèvre du bas, le menton, le cou et le col descendaient ensemble ; la tête et le fond de bureau pivotaient ensemble ; la tête hochait à CHAQUE syllabe (4-6 Hz, marionnette) ; la bouche se refermait complètement entre deux syllabes (claquement) ; le regard était parfaitement fixe.
 * **Compétence de référence** : AI Core playbook 15 § 3 (respiration non mécanique, clignement à variation naturelle, micro-mouvements « de tête ou de regard ») et § 10 (mesurer la cadence sur appareil de référence avant toute déclaration de qualité).
 * **Idées / Options envisagées** : (1) vidéo générée par un fournisseur — écartée (§ 3, et incapable de suivre la voix réelle) ; (2) rester en SVG avec plus de couches — écartée, une image translatée ne se DÉFORME pas ; (3) retenue : **rendu Canvas 2D image par image** (`services/architecte/portraitPainter.ts`), où le visage se déforme.
 * **Décision retenue** :
@@ -63,7 +63,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-054] — 4 Septembre 2026
+### [DEC-2026-055] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, `Espace Super-Admin (paramètres plateforme)`, page publique `/architecte`.
 * **Problème / Besoin initial** : la Direction a refusé trois versions successives de l'avatar — « ce n'est pas un avatar vivant, ce n'est pas humain » (dessin vectoriel), « tu as juste posé une image » (photo immobile), puis une bouche qui s'ouvrait **sous** les lèvres et des clignements qui ramenaient les **sourcils** sur les yeux (constaté image par image sur la vidéo de preuve). Exigence finale : « un vrai avatar vivant qui parle, visible dans MokNet et testé par moi » — ouverture/fermeture de la bouche, clignement, respiration, mouvements de tête et gestes menus, preuve vidéo, lien fonctionnel sans connexion.
 * **Compétence de référence** : Vision Smart AI Core, playbook 15 § 3 (« animation vivante légère : respiration lente NON mécanique, clignement à variation naturelle, micro-mouvements de tête, CSS/SVG et jamais vidéo bouclée »), § 5 (ne jamais surpromettre la synchro labiale), § 9 (média synthétique déclaré), § 10 (arrêt hors écran / mouvement réduit) ; playbook 09 (chorégraphie du mouvement).
@@ -84,7 +84,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-053] — 4 Septembre 2026
+### [DEC-2026-054] — 4 Septembre 2026
 * **Module(s)** : `Diallo OS & Architecte (module 01)`, `Espace Super-Admin (paramètres plateforme)`, `Moteur vocal`.
 * **Problème / Besoin initial** : mission de la Direction — « livrer un avatar visible à la place du bouton Architecte, avec des états animés et une synchro labiale », plus quatre réglages Super-Admin. L'Architecte est « le guide permanent de toute la maison MokNet » (consigne RO-3) mais n'était qu'un rond de 48 px portant l'icône `UserRound` : aucun visage, et l'état n'était porté que par une couleur de fond.
 * **Compétence de référence** : la Direction a imposé de construire à partir des compétences capitalisées dans **Vision Smart AI Core**. Le dépôt VISION-SMART-AI-CORP a été rattaché à la session et son **playbook 15 « Avatar vivant personnalisable — Présence conversationnelle vivante » (v1.0.0)** a servi de guide, avec `skills/FUTURE_UI_UX_STANDARD.md`.
@@ -106,7 +106,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-052] — 4 Septembre 2026
+### [DEC-2026-053] — 4 Septembre 2026
 * **Module(s)** : `Studio & Création (module 11)`, `Espace Super-Admin (paramètres plateforme)`, `Profil & identité`.
 * **Problème / Besoin initial** : l'identité visuelle d'un membre n'avait aucun propriétaire. Un nouveau compte héritait d'un cliché Unsplash codé en dur (`photo-1534528741775-53994a69daeb`) que le reste de l'application traite déjà comme « avatar absent » (`isStockPlaceholderAvatar`) — donc un visage d'inconnu qui n'était même pas affiché. Aucun réglage ne permettait à l'Admin-Général de définir l'avatar institutionnel des nouveaux comptes, et aucune notion d'abonnement Pro n'existait pour ouvrir un avatar personnel.
 * **Idées / Options envisagées** : (1) nouvelle table `avatars` + migration Supabase ; (2) nouvelle colonne `profiles.personal_avatar` ; (3) réutiliser les chemins de persistance RÉELS déjà écrits par le client — `profiles.avatar_url` pour la photo et le JSON `profiles.privacy_settings` pour la persona, exactement comme la fiche de consentement de l'Architecte.
@@ -1222,6 +1222,88 @@ Chaque décision respecte le formalisme strict suivant :
 * **Restes assumés** : rien de la vision n'est codé par cette décision. Le
   prochain lot de code est **LV-6** — la preuve réelle à deux comptes —, verrou
   de tout ce qui suit.
+
+---
+
+### [DEC-2026-052] — 4 Septembre 2026
+
+* **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Couche CSS « Miroir d'eau » (générée)`
+* **Problème / Besoin initial** : seconde loupe du nettoyage visuel demandé
+  par la Direction, sur capture de la barre latérale : « un menu propre,
+  simple, non répétitif ». Retirer du menu visible le bouton
+  « L'Architecte », le bloc « Mes Favoris » et son contenu, et le bloc
+  « Récents ». Ne toucher ni au Live, ni à la sécurité, ni à
+  l'authentification, ni aux fonctions qui marchent.
+* **Audit de l'existant, avant d'y toucher** : le bouton « L'Architecte »
+  de la barre latérale était le **troisième** déclencheur de l'Architecte —
+  la pastille flottante (`ArchitecteFloatingBar`, bas-droite, présente sur
+  ordinateur ET téléphone, `aria-label="Ouvrir l'Architecte"`) et la goutte
+  centrale du dock mobile restent. « Mes Favoris » listait quatre entrées
+  (Campus, Carrière, Habitat, Marché) **déjà présentes** dans les piliers
+  juste en dessous ; « Récents » en répétait quatre autres. L'épinglage
+  (étoile au survol de chaque entrée) et la mémoire des onglets récents
+  (`localStorage`) n'alimentaient **que** ces deux blocs — aucun autre
+  consommateur dans le dépôt (recherche ⌘K, tiroir mobile, tableau de bord :
+  aucun). Le tiroir mobile n'a jamais eu ni favoris ni récents.
+* **Idées envisagées** :
+  1. Retirer les deux blocs ET les étoiles d'épinglage (première lecture :
+     une étoile qui n'alimente plus de liste serait un « faux bouton ») —
+     **écarté par le visuel cible envoyé par la Direction**, qui garde les
+     étoiles sur Campus, Carrière, Habitat et Marché : l'étoile marque le
+     favori à même l'entrée, c'est son effet visible.
+  2. Garder l'état `recentTabs` « au cas où » — **rejeté** : référence morte
+     (`AGENTS.md` § 2.6), plus aucun lecteur.
+  3. **Retenu** : retirer les trois blocs de l'affichage ; garder les étoiles
+     et leur mémoire locale (`lmav_nav_favorites`) telles quelles ; retirer
+     l'état des récents devenu mort ; ne rien changer à la pastille
+     flottante ni au dock ; régénérer la couche CSS « Miroir d'eau » avec
+     l'outil du dépôt (jamais à la main).
+* **Complément de la Direction (capture de référence, même jour)** : « premier
+  bouton Accueil, dernier bouton Conseil des Sages, fais exactement comme ça ».
+  Deux écarts restaient entre la branche et cette capture, tous deux dans la
+  barre latérale d'ordinateur : le libellé de pilier « Accueil & Cap » au-dessus
+  d'« Accueil », et l'entrée « Tableau de Bord Super-Admin » rendue après
+  « Conseil des Sages » (à tout le monde, sans garde de rôle). Les deux sont
+  retirés de cette barre seulement. Le Super-Admin garde ses deux accès
+  réservés aux administrateurs (bouton doré de l'en-tête, menu Compte) ; le
+  tiroir mobile et la recherche ⌘K ne changent pas.
+* **Décision** : dans `Layout.tsx`, la barre latérale d'ordinateur commence
+  désormais directement par le bouton « Accueil » et finit par « Conseil des
+  Sages » ; `recentTabs` et l'icône
+  `Clock` disparaissent ; l'épinglage (`favorites`, `toggleFavorite`, étoile
+  sur chaque entrée) est conservé à l'identique ; l'effet qui coupait la
+  voix à chaque changement d'onglet est conservé, amputé de la mémoire des
+  récents ; `architecteOpenSignal`
+  n'a plus d'émetteur et reste figé à 0 (le contrat de la pastille est
+  inchangé). Le générateur `scripts/genMiroirAquaLayer.cjs --ecrire` a
+  retiré de `index.html` les **4 règles** qui ne servaient qu'au bouton
+  retiré (dégradés cyan/indigo) — c'est le garde-fou
+  `tests/miroirAquaLayer.test.ts` qui l'a exigé, comme prévu par DS-EX.
+* **Justification** : chaque entrée du menu apparaît une seule fois (prouvé
+  par test), l'étoile de favori reste visible sur les entrées épinglées
+  (conforme au visuel cible), l'Architecte garde deux chemins réels sur
+  ordinateur et téléphone, aucune clé de mémoire locale n'est effacée chez
+  les utilisateurs (`lmav_nav_recents` n'est simplement plus lue).
+* **Éléments techniques** : `components/Layout.tsx` (−3 blocs, −1 état et
+  −1 icône devenus morts), `index.html` (couche aqua régénérée, −4 règles),
+  `tests/sidebarCleanup.test.tsx` (nouveau : 3 tests « retiré », 6 tests
+  « ce qui reste, une seule fois », dont l'ordre « Accueil » → « Conseil des
+  Sages »).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **987/987 (71 fichiers, +9)** ·
+  `npm run build` propre · captures avant/après ordinateur 1600×900 et
+  téléphone 390×844 (harnais local non versionné, `origin/main` contre la
+  branche) versées dans `docs/captures/2026-09-04-nettoyage-barre-laterale/`.
+* **Statut** : `Développé`, `Testé`, `Validé` par la Direction le 4 septembre
+  2026 sur sa capture de référence (« il faut te conformer strictement au menu
+  indiqué dans la capture… production contrôlée, zéro régression ») —
+  fusionné dans `main` via la PR #74 (fusion écrasée, convention du dépôt),
+  déploiement automatique Netlify sur moknet.net, contrôle post-déploiement
+  consigné dans la PR.
+* **Restes assumés** : la
+  pastille flottante reste le seul chemin ordinateur vers l'Architecte
+  (voulu : « un doublon de moins ») ; la clé `lmav_nav_recents` reste
+  inerte dans les navigateurs qui l'ont ; l'entrée Super-Admin reste visible
+  dans le tiroir mobile (hors périmètre de cette loupe).
 
 ---
 

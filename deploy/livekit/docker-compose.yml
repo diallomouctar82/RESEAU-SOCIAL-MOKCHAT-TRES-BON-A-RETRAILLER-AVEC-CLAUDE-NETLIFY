@@ -8,10 +8,32 @@
 # serveur de développement local (`livekit-server --dev`, LOOP 01/16) et ce
 # déploiement. Voir README.md de ce dossier pour les étapes manuelles.
 #
-# Usage (sur le VPS, avec accès SSH) :
-#   cp .env.production.example .env.production
-#   nano .env.production   # renseigner LIVEKIT_DOMAIN, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
-#   ./deploy.sh
+# ─── ⚠️ CE FICHIER DÉCRIT LA CIBLE, PAS LA MACHINE EN SERVICE ──────────────
+#
+# Le VPS tourne depuis le 30/08/2026 une configuration qui DIVERGE de
+# celle-ci sur trois points, appliqués sur place et jamais reportés ici
+# (constaté le 04/09/2026 en relisant l'historique de ce fichier) :
+#
+#   1. AUCUN service `caddy`. Un site de production existant occupait déjà
+#      80/443 ; TLS et reverse-proxy sont délégués à CloudPanel/nginx vers
+#      LiveKit sur 127.0.0.1:7880.
+#   2. `livekit/livekit-server:v1.8.4` — la montée vers la v1.13.6 épinglée
+#      ci-dessous est PLANIFIÉE, pas faite (voir README.md, « Version du
+#      serveur et version du SDK »).
+#   3. `relay_range_start: 30000` / `relay_range_end: 30100` dans le bloc
+#      `turn`. Sans ces deux lignes, la plage TURN par défaut (10 001 ports)
+#      fait échouer le démarrage du conteneur — timeout du userland-proxy
+#      Docker, mesuré sur ce VPS.
+#
+# CONSÉQUENCE, ET ELLE EST GRAVE : recopier ce dossier tel quel sur le VPS
+# (`scp -r deploy/livekit …`) écraserait le fichier ajusté à la main, puis
+# `docker compose up -d` démarrerait Caddy, qui réclamerait les ports 80 et
+# 443 — donc COUPERAIT LE SITE DE PRODUCTION déjà hébergé sur cette machine,
+# et monterait le serveur média de version sans que personne l'ait demandé.
+#
+# Pour modifier la configuration en service, on édite le fichier DU VPS
+# (`/opt/moknet-livekit/docker-compose.yml`), ligne par ligne, jamais par
+# recopie de ce dossier. Recette exacte : README.md, « Étape 3 ».
 
 services:
   redis:

@@ -29,7 +29,6 @@ import {
   HardDrive, 
   MapPin,
   Star,
-  Clock,
   Layers,
   Compass,
   DraftingCompass,
@@ -42,7 +41,6 @@ import {
 import { Notification, UserProfile, Language, MemberProfile } from '../types';
 import { DialloOS } from './DialloOS';
 import { ArchitecteFloatingBar } from './architecte/ArchitecteFloatingBar';
-import { ArchitecteAvatarFace } from './architecte/ArchitecteAvatarFace';
 import { WaterMirror } from './miroir/WaterMirror';
 import { emitWaterRippleFrom } from '../services/miroir/waterRipple';
 import { MoocChatFloating } from './MoocChatFloating';
@@ -193,13 +191,11 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isDialloOSOpen, setIsDialloOSOpen] = useState(false);
   const [dialloInitialPrompt, setDialloInitialPrompt] = useState<string | undefined>(undefined);
-  // DS-M2 (menu « Miroir d'eau ») — même patron que `chatOpenSignal` : le
-  // bouton central du dock (mobile) et l'entrée dédiée de la sidebar
-  // (desktop) incrémentent ce compteur au lieu d'ouvrir DialloOS, qui reste
-  // le lanceur de navigation accessible par ses propres entrées (header,
-  // commande rapide) — voir ArchitecteFloatingBar.tsx pour la lecture du
-  // signal.
-  const [architecteOpenSignal, setArchitecteOpenSignal] = useState(0);
+  // L’ouverture de l’Architecte se fait depuis sa propre pastille flottante
+  // (<ArchitecteFloatingBar />). Le signal `openSignal` que la barre
+  // accepte n’a plus d’émetteur dans Layout depuis le retrait du bouton
+  // de barre latérale (DEC-2026-052) : il reste figé à 0.
+  const architecteOpenSignal = 0;
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -240,16 +236,6 @@ export const Layout: React.FC<LayoutProps> = ({
     }
   });
 
-  // Recents state
-  const [recentTabs, setRecentTabs] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('lmav_nav_recents');
-      return stored ? JSON.parse(stored) : ['career', 'campus', 'shop'];
-    } catch {
-      return ['career', 'campus', 'shop'];
-    }
-  });
-
   // Language State
   const [currentLang, setCurrentLang] = useState<Language>('fr');
 
@@ -278,17 +264,11 @@ export const Layout: React.FC<LayoutProps> = ({
     });
   };
 
-  // Track recent tabs on change & cancel voice speech
+  // Coupe la voix en cours à chaque changement d’onglet. (La mémoire des
+  // onglets récents qui vivait ici est partie avec le bloc « Récents »,
+  // DEC-2026-052.)
   useEffect(() => {
     voiceEngine.stopSpeaking();
-    if (activeTab && activeTab !== 'home') {
-      setRecentTabs(prev => {
-        const filtered = prev.filter(t => t !== activeTab);
-        const updated = [activeTab, ...filtered].slice(0, 4);
-        localStorage.setItem('lmav_nav_recents', JSON.stringify(updated));
-        return updated;
-      });
-    }
   }, [activeTab]);
 
   // Grouped Navigation
@@ -743,129 +723,36 @@ export const Layout: React.FC<LayoutProps> = ({
           {/* Navigation Scrollable Body */}
           <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-4">
 
-            {/* ✦ L'ARCHITECTE — DS-M2 (menu « Miroir d'eau ») : place
-                centrale de la navigation principale desktop, invariant
-                Direction. Toujours en tête, avant les favoris/récents/
-                catégories — identité visuelle cyan volontairement distincte
-                du reste de la sidebar (même identité que la barre ouverte
-                elle-même), pas la palette de marque figée du reste du menu. */}
-            <div>
-              <button
-                onClick={() => setArchitecteOpenSignal(s => s + 1)}
-                title={isSidebarCollapsed ? "L'Architecte" : ''}
-                aria-label="Ouvrir l'Architecte"
-                className={`w-full flex items-center gap-2.5 py-2 rounded-xl text-xs font-bold text-cyan-100 bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 hover:from-cyan-500/30 hover:to-indigo-500/30 transition-all duration-150 ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}`}
-              >
-                {/* Le VISAGE de l'Architecte plutôt qu'une icône de compas :
-                    la même identité que sa présence flottante, pour qu'on le
-                    reconnaisse partout où il apparaît. Purement décoratif ici
-                    — c'est le bouton parent qui porte l'action et le libellé. */}
-                <ArchitecteAvatarFace
-                    mouthOpenness={0}
-                    accent="#8FE3FF"
-                    animated={false}
-                    className="w-4 h-4 shrink-0 rounded-full overflow-hidden"
-                />
-                {!isSidebarCollapsed && <span className="truncate flex-1 text-left">L'Architecte</span>}
-              </button>
-            </div>
+            {/* Nettoyage du menu (DEC-2026-052) : le bouton « L’Architecte » en
+                tête de barre latérale a été retiré à la demande de la Direction.
+                L’Architecte reste joignable par sa pastille flottante (bas-droite,
+                ordinateur ET téléphone — <ArchitecteFloatingBar />, plus bas) et par
+                la goutte centrale du dock mobile : rien n’est perdu, un doublon
+                de moins. */}
 
-            {/* 🌟 1. MES FAVORIS ÉPINGLÉS (si existants) */}
-            {favorites.length > 0 && (
-              <div>
-                {!isSidebarCollapsed ? (
-                  <div className="flex items-center justify-between px-2 mb-1">
-                    <span 
-                      className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
-                      style={{ color: currentPalette.colors.sidebarHighlight }}
-                    >
-                      <Star size={11} className="fill-current" />
-                      Mes Favoris
-                    </span>
-                    <span className="text-[9px] opacity-60" style={{ color: currentPalette.colors.sidebarTextMuted }}>
-                      {favorites.length}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="h-px my-2 mx-2 opacity-20 bg-white"></div>
-                )}
+            {/* Nettoyage du menu (DEC-2026-052) : les blocs « Mes Favoris » et
+                « Récents » ont été retirés — ils répétaient des entrées déjà
+                présentes dans les piliers ci-dessous (Campus, Carrière, Habitat,
+                Marché…) et chargeaient la barre latérale. L’étoile d’épinglage, elle,
+                reste sur chaque entrée (visuel cible de la Direction) : c’est
+                elle qui marque le favori, à même la liste. Seule la mémoire des
+                onglets récents, qui n’alimentait que « Récents », part. */}
 
-                <div className="space-y-0.5">
-                  {MAIN_NAV_ITEMS.filter(item => favorites.includes(item.id)).map(item => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
-                    return (
-                      <div key={`fav-${item.id}`} className="relative group">
-                        <button
-                          onClick={() => onTabChange(item.id)}
-                          title={isSidebarCollapsed ? item.label : ''}
-                          className={`
-                            w-full flex items-center gap-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150
-                            ${isSidebarCollapsed ? 'justify-center px-0' : 'px-2.5'}
-                          `}
-                          style={isActive ? {
-                            backgroundColor: currentPalette.colors.sidebarActiveBg,
-                            color: currentPalette.colors.sidebarActiveText,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                          } : {
-                            color: currentPalette.colors.sidebarText,
-                          }}
-                        >
-                          <Icon 
-                            size={16} 
-                            className="shrink-0" 
-                            style={{ color: isActive ? currentPalette.colors.sidebarActiveText : currentPalette.colors.sidebarHighlight }} 
-                          />
-                          {!isSidebarCollapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 🕒 2. ACCÈS RÉCENTS */}
-            {!isSidebarCollapsed && recentTabs.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1 px-2 mb-1 text-[10px] font-bold uppercase tracking-wider opacity-60" style={{ color: currentPalette.colors.sidebarTextMuted }}>
-                  <Clock size={10} />
-                  <span>Récents</span>
-                </div>
-                <div className="flex flex-wrap gap-1 px-1">
-                  {recentTabs.map(tabId => {
-                    const found = MAIN_NAV_ITEMS.find(m => m.id === tabId);
-                    if (!found) return null;
-                    return (
-                      <button
-                        key={`rec-${tabId}`}
-                        onClick={() => onTabChange(tabId)}
-                        className="px-2 py-0.5 rounded-lg text-[10px] font-medium border transition truncate max-w-[120px]"
-                        style={activeTab === tabId ? {
-                          backgroundColor: currentPalette.colors.sidebarActiveBg,
-                          color: '#ffffff',
-                          borderColor: currentPalette.colors.sidebarActiveBg
-                        } : {
-                          backgroundColor: currentPalette.colors.sidebarSurface,
-                          color: currentPalette.colors.sidebarText,
-                          borderColor: currentPalette.colors.sidebarBorder
-                        }}
-                      >
-                        {found.shortLabel || found.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 🏛️ 3. GRANDS PILIERS DE VIE PAR BESOINS HUMAINS */}
+            {/* 🏛️ GRANDS PILIERS DE VIE PAR BESOINS HUMAINS */}
             <div className="space-y-4 pt-1">
               {categoryOrder.map((category) => {
-                const items = groupedNavItems[category] || [];
+                // Consigne de la Direction (DEC-2026-052, capture de référence) :
+                // la liste va d’« Accueil » à « Conseil des Sages ». L’entrée
+                // « Tableau de Bord Super-Admin » ne s’affiche donc plus ici — le
+                // Super-Admin garde ses deux accès réservés aux administrateurs :
+                // le bouton doré de l’en-tête et le menu Compte. Le tiroir mobile
+                // et la recherche ⌘K ne changent pas.
+                const items = (groupedNavItems[category] || []).filter(item => item.id !== 'admin');
                 return (
                   <div key={category}>
-                    {!isSidebarCollapsed ? (
+                    {/* Même consigne : pas de libellé au-dessus d’« Accueil » — la liste
+                        commence par le bouton lui-même, comme sur la capture. */}
+                    {category !== 'Accueil & Cap' && (!isSidebarCollapsed ? (
                       <h3 
                         className="text-[10px] font-black uppercase tracking-widest px-2.5 mb-1.5 opacity-60"
                         style={{ color: currentPalette.colors.sidebarTextMuted }}
@@ -874,7 +761,7 @@ export const Layout: React.FC<LayoutProps> = ({
                       </h3>
                     ) : (
                       <div className="h-px my-2.5 mx-2 opacity-20 bg-white"></div>
-                    )}
+                    ))}
                     
                     <div className="space-y-0.5">
                       {items.map((item) => {
