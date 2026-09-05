@@ -1,0 +1,27 @@
+17:47:38 bundle=assets/index-C_IAplN2.js mp4=1558047
+17:48:00 bundle=assets/index-C8Y6seFM.js mp4=1391269
+bundle servi : assets/index-C8Y6seFM.js (5435227 o) ; en-têtes : cache-control: public,max-age=0,must-revalidate etag: "4591076b8919216bea1b7062c11ee545-ssl" 
+présent « le cadre déborde de la photo » : 1
+présent « Photo trop serrée » : 1
+présent « b049d042c13e2be5 » : 1
+présent « b96135caf4fdb36f » : 1
+présent « Avatar de l’Architecte » : 2
+présent « direction-2026-09-05 » : 1
+présent « scale-[.34] » : 1
+ABSENT attendu « le débord reste transparent » : 0
+ABSENT attendu « c97e18315c4e7c67 » : 0
+ABSENT attendu « 69bde4022b6f0a19 » : 0
+ABSENT attendu « 1f87a5983466bd84 » : 0
+ABSENT attendu « 7358f2e22b343bc5 » : 0
+architecte/architecte.webp : 200 21368 (attendu 21368) OK
+architecte/architecte-silhouette.png : 200 16953 (attendu 16953) OK
+architecte/vision-smart-heygen.mp4 : 200 1391269 (attendu 1391269) OK
+architecte/vision-smart-heygen.webm : 200 561306 (attendu 561306) OK
+architecte/vision-smart-heygen.webp : 200 6122 (attendu 6122) OK
+architecte/vision-smart-heygen.cutout.mp4 : 200 1810971 (attendu 1810971) OK
+architecte/vision-smart-heygen.cutout.webm : 200 599002 (attendu 599002) OK
+architecte/vision-smart.wav : 200 1602170 (attendu 1602170) OK
+architecte/vision-smart-heygen.fr.vtt : 200 274 (attendu 274) OK
+ancien bundle assets/index-C_IAplN2.js : http 404
+page /architecte : http 200
+FIN 17:48:04
