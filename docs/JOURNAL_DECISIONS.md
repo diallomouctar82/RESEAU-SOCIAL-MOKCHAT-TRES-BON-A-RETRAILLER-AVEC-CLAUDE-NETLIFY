@@ -1214,10 +1214,19 @@ Chaque décision respecte le formalisme strict suivant :
   `pointermove`), date de RDV par défaut = jour même avec `min` (l'ancienne
   valeur `2026-03-05` était passée), règle CSS morte supprimée. Tests :
   21 → 28.
-* **Statut** : `Développé`, `Testé`, `En prévisualisation` — PR de la branche
-  `claude/cleanup-home-interface-szp8qv` ; **aucune fusion, aucune production
-  avant le contrôle explicite de la Direction** (méthode des DEC-2026-051 à
-  053).
+* **Statut** : `Développé`, `Testé`, `Contrôlé indépendamment`, `Déployé`,
+  `Vérifié en production`. Feu vert écrit de la Direction le 5 septembre
+  (« La PR83 est validée pour production contrôlée ») ; PR #83 fusionnée en
+  squash (`5b1c1ce`) après Green Gate vert sur la tête finale `af6a8d2`
+  (run 33951780278), Green Gate vert sur `main` (run 33952228718) ;
+  `moknet.net` sert `index-BUCPWfy5.js` depuis 07h20 UTC — même bundle que le
+  preview contrôlé —, la page servie porte le bloc « PLATEAUX DE CRISTAL
+  (DEC-2026-056) », marqueurs présents (`cristal-expert-bouton`,
+  `cristal-fiche`, la phrase, « Prendre RDV »), anciens textes absents,
+  ancien bundle `index-CjAVWgcX.js` en 404 ; miroir local de la production
+  ouvert dans Chromium (ordinateur et téléphone) : racine React montée,
+  règles `.cristal-bulle` / `.cristal-plateau` et six `@keyframes cristal-*`
+  analysées, aucune erreur JS applicative.
 * **Restes assumés** : la recherche et les filtres par spécialité ne sont
   plus affichés sur cet écran (13 experts tiennent sur un seul écran ; la
   Direction a demandé « aucune surcharge ») — leur code a été retiré du
