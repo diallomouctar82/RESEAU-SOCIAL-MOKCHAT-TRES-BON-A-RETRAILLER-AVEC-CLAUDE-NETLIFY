@@ -525,8 +525,10 @@ export const ArchitecteDemoPage: React.FC = () => {
                 elle suit ce chiffre. */}
             <div className="w-full max-w-sm mt-2">
                 <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
-                    <span>Amplitude de la voix</span>
-                    <span className="font-mono text-cyan-300">{Math.round(niveau * 100)} %</span>
+                    {/* Pendant la séquence vidéo, le son sort du fichier, pas de la
+                        chaîne mesurée : on le dit plutôt que d'afficher un faux 0 %. */}
+                    <span>{videoEnCours ? 'Son de la séquence vidéo (voix HD intégrée)' : 'Amplitude de la voix'}</span>
+                    <span className="font-mono text-cyan-300">{videoEnCours ? '—' : `${Math.round(niveau * 100)} %`}</span>
                 </div>
                 <div className="h-2 rounded-full bg-cyan-400/10 overflow-hidden">
                     <div className="h-full bg-cyan-300 rounded-full" style={{ width: `${niveau * 100}%` }} />
