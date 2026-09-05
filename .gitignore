@@ -33,3 +33,5 @@ dist-ssr
 
 # État local du CLI Supabase (jamais versionné)
 supabase/.temp/
+demo-local/
+dist-demo/
