@@ -1346,7 +1346,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-062] — 5 Septembre 2026
+### [DEC-2026-074] — 5 Septembre 2026
 
 * **Module(s)** : `Gouvernance & Continuité` (`.claude/skills/production-controlee/SKILL.md`,
   `scripts/production-controlee/`, `docs/GUIDE_CONTINUITE.md`,
@@ -1396,18 +1396,82 @@ Chaque décision respecte le formalisme strict suivant :
   porte l'extension `.tsx.example` pour rester hors du typage).
 * **Production** : sans objet (aucun code livré) ; PR de documentation
   fusionnée selon la règle de coordination.
-* **ACTION REQUISE (Direction)** — publication dans le registre AI Core :
-  ACTION : créer ou mettre à jour l'entrée de connaissance de type MÉTHODE,
-  clé `visionsmart.moknet.methode.production-controlee`, statut
-  VALIDATED/ACTIVE, avec `source_uri` vers
-  `.claude/skills/production-controlee/SKILL.md` (branche `main`).
-  PLATEFORME : Vision Smart AI Core (`https://ai-core.moknet.net`, projet
-  `6aeffdc5-e681-4ec4-ad36-7d9d71449d66`). POURQUOI : ce dépôt ne dispose
-  que d'un accès en lecture au registre. REPRISE : dès l'entrée publiée,
-  l'outil `search_ai_core_memory` la renverra aux agents ; d'ici là, la
-  compétence du dépôt fait foi.
-* **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ; 🟡 publication dans le registre
-  AI Core en attente de l'action de la Direction.
+* **Publication dans le registre Vision Smart AI Core** (consigne de la
+  Direction : « Tu as les accès […] Publie l'entrée dans Vision Smart AI
+  Core, vérifie qu'elle est active et réutilisable, fournis la preuve »).
+  L'API publique (`https://ai-core.moknet.net`, service `memory-api`) exige
+  un jeton de service absent de cet environnement ; l'accès réel est la base
+  du registre (projet Supabase `vision-smart-ai-core-test`, projet AI Core
+  `6aeffdc5-e681-4ec4-ad36-7d9d71449d66`), dans laquelle les sessions MokNet
+  précédentes déposaient déjà leurs propositions sous l'acteur
+  `moknet-claude-code-agent`. Le flux gouverné du registre a été suivi dans
+  une seule transaction : proposition `9985f324-6d57-4b72-ba48-40ffeb5522fd`
+  (type METHOD, action CREATE, contenu = résumé opérationnel + texte
+  intégral de la compétence, 26 179 caractères), revue APPROVE signée
+  `direction-vision-smart` citant la validation écrite du 5/09, proposition
+  passée APPROVED, matérialisation : entrée
+  `159f024b-4982-4b79-a07b-9a883c948739` (type METHOD, clé
+  `visionsmart.moknet.methode.production-controlee`, **statut ACTIVE**,
+  confiance 1) et version 1 `b613605e-4d36-47ea-bb15-c4f419521721`
+  (`validated_by` = `direction-vision-smart`, `validated_at` = 5/09/2026
+  13:11:18 UTC, `source_uri` = fichier de la compétence sur `main`,
+  empreinte SHA-256 du contenu
+  `57d5c24afa872e1602c99fef159062059e71d31b34fcb7a7f55e3f754e37aa08`),
+  action du gardien consignée (`memory_guardian_actions`, résultat ACTIVE,
+  plongement PENDING comme l'entrée existante) et trois lignes d'audit
+  (`create_memory_proposal`, `review_memory_proposal`,
+  `memory_guardian_apply`, corrélation
+  `9bf11d48-6a2d-43b1-937c-0b0e68a1a3bc`). **Vérification** : requête de
+  contrôle reproduisant le filtre de lecture de l'API (projet, statut
+  VALIDATED/ACTIVE, version courante présente) → l'entrée est retenue ; le
+  projet compte deux connaissances actives. Limites honnêtes : la lecture
+  par l'API elle-même n'a pas pu être rejouée (jeton indisponible) ; le
+  plongement vectoriel reste PENDING jusqu'au passage du service de
+  plongement ; côté MokNet, l'outil `search_ai_core_memory` de la
+  passerelle reste désactivé tant que `AI_CORE_SERVICE_TOKEN` n'est pas
+  provisionné (état antérieur, inchangé). Les cinq propositions MokNet du
+  3/09 restent PROPOSED (hors périmètre, non touchées).
+* **Renumérotation** : cette décision a été consignée sous DEC-2026-062 (PR
+  #95, `main` `c589471`) ; la PR #71 (Studio Avatar, fusionnée ensuite en
+  `d9c2c2c`) portait déjà DEC-2026-062 à 073, attribuées en parallèle. Pour
+  ne laisser qu'un seul identifiant par décision sans toucher aux entrées de
+  l'avatar, celle-ci devient **DEC-2026-074** ; le titre et la métadonnée de
+  décision de l'entrée du registre AI Core ont été alignés (contenu de la
+  version inchangé, ligne d'audit `update_knowledge_entry_metadata`). Les
+  titres de commit et de PR déjà fusionnés (#95) gardent l'ancien numéro.
+* **Version 2 du registre (compétence 1.1.1)** : pendant que la PR de
+  documentation attendait sa fenêtre de fusion, la PR #96 (équipe SAT-6,
+  `main` `92cf8b0`) a fait passer la compétence à 1.1.0 en ajoutant § 7.6
+  (finalisation documentaire quand `main` a avancé — ajout « plus strict »,
+  rien retiré). Pour que le registre reste « réutilisable telle quelle », la
+  même séquence gouvernée a été rejouée, précédée d'une **revue indépendante
+  de l'ajout** par un contrôleur séparé (producteur ≠ contrôleur) : verdict
+  REQUEST_REVISION pour un seul point, prouvé en dépôt jetable — la sauvegarde
+  `git diff > …patch` avant `git reset --hard` omettait les changements
+  indexés (patch de 0 octet, travail perdu) ; corrigé en **1.1.1** (`git diff
+  HEAD`, patch non vide vérifié, ou `git stash push` / commit provisoire ;
+  note `grep -c` sous `set -e`), diff strictement additif, aucun secret,
+  contre-vérification APPROVE. Registre : proposition
+  `8151454d-082a-4b49-bef1-f45b763ead5d` (type METHOD, action UPDATE vers
+  l'entrée `159f024b-4982-4b79-a07b-9a883c948739`, contenu = texte intégral de
+  la compétence 1.1.1, 27 959 octets), revue APPROVE
+  `a1a50a0d-4d7b-49fa-b848-f6e2f23d910c` signée par le contrôleur indépendant,
+  version 2 `cdc62f12-bffb-463e-be0e-0eaa1f8b54d8` (empreinte SHA-256
+  `d7034175e4d975256c945c0ed7f75bf9e2768e61f3e73a1acb2a5aec04b283c1`, blob git
+  `713c96865ced2fe0b59b7b9be22611cce385b95a`, identique octet pour octet au
+  fichier de la branche, donc au fichier fusionné en squash), entrée basculée
+  sur la version 2 (statut ACTIVE inchangé, version 1 conservée dans
+  l'historique), action du gardien `37f9c65e-0dcb-4761-b209-b24bf8dbc335`,
+  trois lignes d'audit (corrélation `0e4217ca-144e-4c78-aa62-18c31ca74475`),
+  le 5/09/2026 à 13:37 UTC. Honnêteté : la validation écrite de la Direction porte
+  sur la méthode 1.0.0 ; § 7.6 et la précision 1.1.1 sont enregistrés comme
+  ajouts « plus stricts » revus indépendamment, la Direction peut les faire
+  retirer (retour de l'entrée sur la version 1 sans perte). Le front matter de
+  la compétence ne porte plus d'identifiant de version (circulaire par
+  construction) mais la carte v1 ↔ 1.0.0, v2 ↔ 1.1.1 et le chemin
+  d'historique de l'API.
+* **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ET PUBLIÉ DANS LE REGISTRE AI CORE
+  (entrée ACTIVE : version 1 le 5/09/2026 à 13:11 UTC, version 2 — compétence 1.1.1 — le 5/09/2026 à 13:37 UTC).
 
 ---
 
