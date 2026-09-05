@@ -1472,6 +1472,62 @@
         }
       }
       /* ===================================================================
+         ZONES DE SAISIE — CONTOURS RENFORCÉS (DEC-2026-053)
+         Demande de la Direction : « les lignes de contour doivent être plus
+         visibles pour qu'on comprenne immédiatement où écrire ». Le dépôt
+         compte ~450 champs (<input>/<textarea>) bordés au cas par cas en
+         `border-slate-200` ou `border-gray-300` — un trait presque invisible
+         sur fond clair. Une règle globale plutôt que 450 retouches : elle
+         s'applique à TOUTES les zones de texte, sur fond clair comme sur fond
+         sombre, parce que la couleur dérive de la couleur du texte
+         (`currentColor` à 42 %) — grise sur un champ clair, claire sur un
+         champ sombre. Rien d'autre n'est touché : rayons, fonds, anneaux de
+         focus (`ring-*`, en box-shadow) restent ceux du composant.
+         SPÉCIFICITÉ PLUTÔT QUE L'ORDRE (même principe que la couche aqua) :
+         les deux `:not(.classe)` portent chaque sélecteur à (0,3,1), au-dessus
+         des utilitaires Tailwind (0,1,0), de leurs variantes `focus:` et de la
+         couche aqua `[data-miroir] .x` (0,2,0), quel que soit l'ordre
+         d'injection. Ces deux classes sont aussi la porte de sortie : un champ
+         portant `saisie-sans-contour` ou `saisie-contour-libre` garde son
+         style propre. Sélecteurs courts, un par type de champ texte, pour
+         rester sous la garde des 200 caractères de
+         tests/miroirFeuilleAnalysee.test.ts. Exclus par construction : cases,
+         boutons radio, curseurs, fichiers, couleurs, boutons — aucun n'est
+         une zone où l'on écrit.
+         =================================================================== */
+      input[type="text"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input[type="email"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input[type="password"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input[type="search"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input[type="number"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input[type="tel"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input[type="url"]:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      input:not([type]):not(.saisie-sans-contour):not(.saisie-contour-libre),
+      textarea:not(.saisie-sans-contour):not(.saisie-contour-libre),
+      [contenteditable="true"]:not(.saisie-sans-contour):not(.saisie-contour-libre) {
+        border-width: 1.5px;
+        border-style: solid;
+        border-color: rgba(100, 116, 139, 0.75); /* repli : slate-500 */
+        border-color: color-mix(in srgb, currentColor 42%, transparent);
+      }
+      /* Au focus : le contour prend l'accent aqua de la marque (aqua-600 de la
+         couche générée), lisible sur clair comme sur sombre ; l'anneau
+         `focus:ring-*` du composant, en box-shadow, reste intact. */
+      input[type="text"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input[type="email"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input[type="password"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input[type="search"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input[type="number"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input[type="tel"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input[type="url"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      input:not([type]):not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      textarea:not(.saisie-sans-contour):not(.saisie-contour-libre):focus,
+      [contenteditable="true"]:not(.saisie-sans-contour):not(.saisie-contour-libre):focus {
+        border-color: #0e7490;
+      }
+      /* ===== FIN ZONES DE SAISIE ===== */
+
+      /* ===================================================================
          DS-EX-2 · LA NAPPE D'EAU RÉELLEMENT VISIBLE DANS TOUTE L'APPLICATION
 
          Constat mesuré : `data-miroir` couvrait déjà tous les écrans, mais

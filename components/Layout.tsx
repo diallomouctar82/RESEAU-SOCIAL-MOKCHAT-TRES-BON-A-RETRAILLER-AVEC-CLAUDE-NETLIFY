@@ -747,7 +747,15 @@ export const Layout: React.FC<LayoutProps> = ({
                 // Super-Admin garde ses deux accès réservés aux administrateurs :
                 // le bouton doré de l’en-tête et le menu Compte. Le tiroir mobile
                 // et la recherche ⌘K ne changent pas.
-                const items = (groupedNavItems[category] || []).filter(item => item.id !== 'admin');
+                // Consigne de la Direction (DEC-2026-053) : « Réseau MOC » vient juste
+                // sous « Accueil », sans rien changer d’autre — ni l’onglet ouvert par
+                // défaut (déjà le réseau social, DS-M2), ni le tiroir mobile, ni ⌘K.
+                const reseau = MAIN_NAV_ITEMS.find(item => item.id === 'social');
+                let items = (groupedNavItems[category] || []).filter(item => item.id !== 'admin' && item.id !== 'social');
+                if (category === 'Accueil & Cap' && reseau && isNavItemVisible(reseau)) {
+                  const apresAccueil = items.findIndex(item => item.id === 'home') + 1;
+                  items = [...items.slice(0, apresAccueil), reseau, ...items.slice(apresAccueil)];
+                }
                 return (
                   <div key={category}>
                     {/* Même consigne : pas de libellé au-dessus d’« Accueil » — la liste
