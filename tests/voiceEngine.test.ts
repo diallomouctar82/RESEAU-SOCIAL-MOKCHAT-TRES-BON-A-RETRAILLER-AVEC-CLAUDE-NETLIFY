@@ -350,6 +350,9 @@ describe('voiceEngine — C1 : lecture HD déverrouillée dans le geste, jamais 
         const engine = voiceEngine as any;
         engine.playbackElement = null;
         engine.playbackUnlocked = false;
+        engine.playbackUnlocking = false;
+        engine.outputContextRefused = false;
+        engine.startAnnouncedEpoch = -1;
         engine.outputAudioContext = null;
         engine.outputSourceElement = null;
         engine.outputAnalyser = null;
@@ -495,6 +498,14 @@ describe('voiceEngine — C1 : lecture HD déverrouillée dans le geste, jamais 
         expect(VoiceEngine.prefersDirectPlayback({ userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/120', platform: 'Linux armv8l', maxTouchPoints: 5 } as Navigator)).toBe(false);
     });
 
+    it("rien à dire (texte vide ou vidé par le nettoyage) : le tour se clôt, `onEnd` n'est jamais perdu", async () => {
+        const ends: number[] = [];
+        await voiceEngine.speak('', { onEnd: () => ends.push(1) });
+        await voiceEngine.speak('***', { onEnd: () => ends.push(1) });
+        expect(ends).toHaveLength(2);
+        expect(playCalls).toHaveLength(0);
+    });
+
     it("deux gestes dans la même seconde ne lancent qu'UN clip silencieux (déverrouillage en cours)", async () => {
         voiceEngine.unlockPlayback();
         voiceEngine.unlockPlayback();
@@ -520,4 +531,3 @@ describe('voiceEngine — C1 : lecture HD déverrouillée dans le geste, jamais 
         un();
     });
 });
-

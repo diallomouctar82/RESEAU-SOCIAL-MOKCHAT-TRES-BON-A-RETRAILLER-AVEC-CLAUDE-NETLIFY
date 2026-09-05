@@ -768,7 +768,11 @@ export class VoiceEngine {
                     this.playbackUnlocking = false;
                 }
             }
-        } catch { /* lecture impossible ici : la prochaine phrase passera par l'élément quand même */ }
+        } catch {
+            // Lecture impossible ici : la prochaine phrase passera par l'élément
+            // quand même — et le prochain geste a le droit de réessayer le clip.
+            this.playbackUnlocking = false;
+        }
     }
 
     /** Vrai quand le clip silencieux a réellement joué dans un geste (lecture autorisée pour la page). */
@@ -907,7 +911,10 @@ export class VoiceEngine {
             onEnd?: () => void;
         }
     ) {
-        if (!text || typeof window === 'undefined') return;
+        // Rien à dire (texte vide, hors navigateur, ou vidé par le nettoyage) :
+        // le tour se clôt quand même — `onEnd` n'est jamais perdu pour l'écran
+        // qui l'attend (C1). Aucun message d'échec : il n'y avait rien à jouer.
+        if (!text || typeof window === 'undefined') { options?.onEnd?.(); return; }
 
         // Arrêter toute diction en cours — et prendre l'époque APRÈS :
         // toute continuation asynchrone d'un `speak` antérieur devient stale.
@@ -915,7 +922,7 @@ export class VoiceEngine {
         const epoch = this.speakEpoch;
 
         const cleanedText = this.formatForSpokenVoice(text);
-        if (!cleanedText) return;
+        if (!cleanedText) { options?.onEnd?.(); return; }
 
         const effectiveVoiceId = options?.voiceId || this.getVoiceIdForAgent(options?.voiceName);
 
