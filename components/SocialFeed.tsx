@@ -1638,7 +1638,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ onOpenLive, onOpenDirect
                 value={newPostContent}
                 onChange={(e) => setNewPostContent(e.target.value)}
                 onFocus={() => setIsComposerFocused(true)}
-                placeholder="Quoi de neuf, Amadou ? Partagez une réflexion, opportunité, tutoriel ou document..."
+                placeholder="Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
                 rows={isComposerFocused || newPostContent ? 3 : 2}
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none leading-relaxed"
               />

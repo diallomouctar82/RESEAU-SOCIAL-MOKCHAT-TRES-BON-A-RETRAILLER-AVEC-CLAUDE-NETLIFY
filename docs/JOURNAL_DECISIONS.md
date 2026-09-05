@@ -1122,7 +1122,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-052] — 5 Septembre 2026
+### [DEC-2026-054] — 5 Septembre 2026
 
 * **Module(s)** : `Santé Globale (Super-Admin)`, `Live / Directs`, fonction
   Edge `health-guardian`
@@ -1190,7 +1190,7 @@ Chaque décision respecte le formalisme strict suivant :
   seul administrateur restant = le compte réel de la Direction.
 * **Statut** : `Développé`, `Testé`, `Déployé` (Edge v2), `Démontré en
   production` côté fonction. Côté écran : la ligne de registre vit dans le
-  code client de la branche `claude/lives-directs` (PR à ouvrir) — l'onglet
+  code client de la branche `claude/lives-directs` (PR #77) — l'onglet
   Santé Globale l'affichera après fusion et déploiement Netlify ; la fonction
   la sert déjà.
 * **Restes assumés** : pas de contre-épreuve **en production** (faire passer
@@ -1199,6 +1199,160 @@ Chaque décision respecte le formalisme strict suivant :
   tests). SAT-5, SAT-6, SAT-7 non commencés. ACT-3/4/5 toujours bloqués sur
   l'accès SSH au VPS. Les deux comptes de banc `demo.awa`/`demo.bilal`
   (rôle `user`) sont volontairement conservés — décision de la Direction.
+### [DEC-2026-053] — 5 Septembre 2026
+
+* **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Réseau MOC (composeur)`, `Feuille de style globale (index.html)`
+* **Problème / Besoin initial** : trois consignes de la Direction, « le tout en
+  production contrôlée, sans rien casser et avec une preuve visuelle à la
+  fin » : (1) dans le menu, déplacer **uniquement** « Réseau MOC » juste sous
+  « Accueil », sans changer ce qui s'ouvre par défaut si c'est déjà correct ;
+  (2) renforcer la visibilité de **toutes** les zones de texte — des lignes
+  de contour plus visibles « pour qu'on comprenne immédiatement où écrire » ;
+  (3) remplacer l'invite du composeur par « Quoi de neuf ? Partage une
+  réflexion, une opportunité, un tutoriel ou un document. ».
+* **Audit de l'existant** : l'onglet par défaut est déjà le réseau social
+  (`activeTab` initial `'social'`, invariant DS-M2) — rien à changer.
+  « Réseau MOC » est l'entrée `social` de la catégorie « Communauté &
+  Conseil ». L'invite du composeur codait le prénom en dur (« Quoi de neuf,
+  Amadou ? … »). Le dépôt compte **448** `<input>`/`<textarea>`, bordés au
+  cas par cas en `border-slate-200` / `border-gray-300` (un trait presque
+  invisible sur fond clair), aucun en `border-0` ; aucune règle globale de
+  champ n'existait dans `index.html`.
+* **Idées envisagées** :
+  1. Déplacer `social` dans `MAIN_NAV_ITEMS` (catégorie « Accueil & Cap ») —
+     **rejeté** : cela déplacerait aussi l'entrée dans le tiroir mobile et la
+     recherche ⌘K ; la consigne dit « uniquement Réseau MOC », dans le menu
+     montré (barre latérale d'ordinateur).
+  2. Retoucher les 448 champs un par un — **rejeté** : illisible en revue,
+     impossible à garantir sans oubli, et chaque nouveau champ repartirait
+     invisible.
+  3. **Retenu** : (1) réordonner à l'affichage dans la barre latérale
+     d'ordinateur seulement ; (2) **une règle globale** dans `index.html`,
+     trait de 2 px dont la couleur dérive de la couleur du texte
+     (`color-mix(currentColor 55 %)`, ~3:1 sur blanc, repli `slate-500` sans
+     `color-mix`),
+     accent aqua `#0e7490` au focus, sans toucher aux rayons, fonds ni anneaux
+     `ring-*` ; portée par des sélecteurs courts (un par type de champ texte)
+     à la spécificité (0,3,1) grâce à deux `:not(.classe)` qui servent aussi
+     de porte de sortie (`saisie-sans-contour`, `saisie-contour-libre`) ;
+     (3) le texte exact de la Direction.
+* **La preuve visuelle a corrigé la première version** : mesuré par
+  `getComputedStyle` en navigateur, un trait de 1,5 px s'arrondit à **1 px**
+  sur un écran de densité 1 — l'épaisseur n'aurait rien changé sur la
+  plupart des ordinateurs. Passé à 2 px, et la teinte de 42 % à 55 % de la
+  couleur du texte (~3:1 sur blanc). Le harnais de capture, copie
+  d'`index.html` datant de la première loupe, a lui aussi été pris en
+  défaut (il ne contenait pas le bloc) : régénéré depuis l'`index.html` de
+  chaque état.
+* **Deux garde-fous du dépôt ont parlé pendant la loupe, et ont été
+  écoutés** : `tests/miroirFeuilleAnalysee.test.ts` refuse tout sélecteur de
+  plus de 200 caractères (signature d'une règle avalée) — la première version
+  chaînait dix `:not([type=…])` sur un seul sélecteur ; réécrite en dix
+  sélecteurs de 83 caractères au plus. Et la couche aqua générée reste
+  strictement identique (le bloc est placé hors de ses marques).
+* **Éléments techniques** : `components/Layout.tsx` (ordre d'affichage de la
+  barre latérale), `components/SocialFeed.tsx` (invite), `index.html` (bloc
+  « ZONES DE SAISIE — CONTOURS RENFORCÉS » … « FIN ZONES DE SAISIE »),
+  `tests/sidebarCleanup.test.tsx` (ordre Accueil → Réseau MOC → … → Conseil
+  des Sages, tiroir mobile inchangé), `tests/saisieContours.test.ts`
+  (nouveau : invite exacte, règle présente et bornée, types ciblés/exclus,
+  déclarations limitées au contour, sélecteurs < 200 caractères).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **993/993 (72 fichiers, +6)** ·
+  `npm run build` propre · captures avant/après en navigateur réel (barre
+  latérale, composeur au repos et au focus, écran de connexion) avec la
+  bordure **mesurée** par `getComputedStyle`, versées dans
+  `docs/captures/2026-09-05-reseau-sous-accueil-et-contours/`.
+* **Statut** : `Développé`, `Testé`, `Validé` par avance par la Direction
+  (« le tout en production contrôlée ») — fusion dans `main` (PR de la
+  branche `claude/cleanup-home-interface-szp8qv`), déploiement automatique
+  Netlify sur moknet.net, contrôle post-déploiement consigné dans la PR.
+* **Restes assumés** : le tiroir mobile garde « Réseau MOC » sous
+  « Communauté & Conseil » (hors consigne) ; les champs qui n'ont ni `type`
+  texte ni `<textarea>` (dates, sélecteurs) gardent leur contour d'origine ;
+  `color-mix` est pris en charge par tous les navigateurs courants depuis
+  2023, le repli `slate-500` couvre les autres.
+
+---
+
+### [DEC-2026-052] — 4 Septembre 2026
+
+* **Module(s)** : `Navigation globale (barre latérale d'ordinateur)`, `Couche CSS « Miroir d'eau » (générée)`
+* **Problème / Besoin initial** : seconde loupe du nettoyage visuel demandé
+  par la Direction, sur capture de la barre latérale : « un menu propre,
+  simple, non répétitif ». Retirer du menu visible le bouton
+  « L'Architecte », le bloc « Mes Favoris » et son contenu, et le bloc
+  « Récents ». Ne toucher ni au Live, ni à la sécurité, ni à
+  l'authentification, ni aux fonctions qui marchent.
+* **Audit de l'existant, avant d'y toucher** : le bouton « L'Architecte »
+  de la barre latérale était le **troisième** déclencheur de l'Architecte —
+  la pastille flottante (`ArchitecteFloatingBar`, bas-droite, présente sur
+  ordinateur ET téléphone, `aria-label="Ouvrir l'Architecte"`) et la goutte
+  centrale du dock mobile restent. « Mes Favoris » listait quatre entrées
+  (Campus, Carrière, Habitat, Marché) **déjà présentes** dans les piliers
+  juste en dessous ; « Récents » en répétait quatre autres. L'épinglage
+  (étoile au survol de chaque entrée) et la mémoire des onglets récents
+  (`localStorage`) n'alimentaient **que** ces deux blocs — aucun autre
+  consommateur dans le dépôt (recherche ⌘K, tiroir mobile, tableau de bord :
+  aucun). Le tiroir mobile n'a jamais eu ni favoris ni récents.
+* **Idées envisagées** :
+  1. Retirer les deux blocs ET les étoiles d'épinglage (première lecture :
+     une étoile qui n'alimente plus de liste serait un « faux bouton ») —
+     **écarté par le visuel cible envoyé par la Direction**, qui garde les
+     étoiles sur Campus, Carrière, Habitat et Marché : l'étoile marque le
+     favori à même l'entrée, c'est son effet visible.
+  2. Garder l'état `recentTabs` « au cas où » — **rejeté** : référence morte
+     (`AGENTS.md` § 2.6), plus aucun lecteur.
+  3. **Retenu** : retirer les trois blocs de l'affichage ; garder les étoiles
+     et leur mémoire locale (`lmav_nav_favorites`) telles quelles ; retirer
+     l'état des récents devenu mort ; ne rien changer à la pastille
+     flottante ni au dock ; régénérer la couche CSS « Miroir d'eau » avec
+     l'outil du dépôt (jamais à la main).
+* **Complément de la Direction (capture de référence, même jour)** : « premier
+  bouton Accueil, dernier bouton Conseil des Sages, fais exactement comme ça ».
+  Deux écarts restaient entre la branche et cette capture, tous deux dans la
+  barre latérale d'ordinateur : le libellé de pilier « Accueil & Cap » au-dessus
+  d'« Accueil », et l'entrée « Tableau de Bord Super-Admin » rendue après
+  « Conseil des Sages » (à tout le monde, sans garde de rôle). Les deux sont
+  retirés de cette barre seulement. Le Super-Admin garde ses deux accès
+  réservés aux administrateurs (bouton doré de l'en-tête, menu Compte) ; le
+  tiroir mobile et la recherche ⌘K ne changent pas.
+* **Décision** : dans `Layout.tsx`, la barre latérale d'ordinateur commence
+  désormais directement par le bouton « Accueil » et finit par « Conseil des
+  Sages » ; `recentTabs` et l'icône
+  `Clock` disparaissent ; l'épinglage (`favorites`, `toggleFavorite`, étoile
+  sur chaque entrée) est conservé à l'identique ; l'effet qui coupait la
+  voix à chaque changement d'onglet est conservé, amputé de la mémoire des
+  récents ; `architecteOpenSignal`
+  n'a plus d'émetteur et reste figé à 0 (le contrat de la pastille est
+  inchangé). Le générateur `scripts/genMiroirAquaLayer.cjs --ecrire` a
+  retiré de `index.html` les **4 règles** qui ne servaient qu'au bouton
+  retiré (dégradés cyan/indigo) — c'est le garde-fou
+  `tests/miroirAquaLayer.test.ts` qui l'a exigé, comme prévu par DS-EX.
+* **Justification** : chaque entrée du menu apparaît une seule fois (prouvé
+  par test), l'étoile de favori reste visible sur les entrées épinglées
+  (conforme au visuel cible), l'Architecte garde deux chemins réels sur
+  ordinateur et téléphone, aucune clé de mémoire locale n'est effacée chez
+  les utilisateurs (`lmav_nav_recents` n'est simplement plus lue).
+* **Éléments techniques** : `components/Layout.tsx` (−3 blocs, −1 état et
+  −1 icône devenus morts), `index.html` (couche aqua régénérée, −4 règles),
+  `tests/sidebarCleanup.test.tsx` (nouveau : 3 tests « retiré », 6 tests
+  « ce qui reste, une seule fois », dont l'ordre « Accueil » → « Conseil des
+  Sages »).
+* **Preuves** : `tsc --noEmit` 0 · `vitest` **987/987 (71 fichiers, +9)** ·
+  `npm run build` propre · captures avant/après ordinateur 1600×900 et
+  téléphone 390×844 (harnais local non versionné, `origin/main` contre la
+  branche) versées dans `docs/captures/2026-09-04-nettoyage-barre-laterale/`.
+* **Statut** : `Développé`, `Testé`, `Validé` par la Direction le 4 septembre
+  2026 sur sa capture de référence (« il faut te conformer strictement au menu
+  indiqué dans la capture… production contrôlée, zéro régression ») —
+  fusionné dans `main` via la PR #74 (fusion écrasée, convention du dépôt),
+  déploiement automatique Netlify sur moknet.net, contrôle post-déploiement
+  consigné dans la PR.
+* **Restes assumés** : la
+  pastille flottante reste le seul chemin ordinateur vers l'Architecte
+  (voulu : « un doublon de moins ») ; la clé `lmav_nav_recents` reste
+  inerte dans les navigateurs qui l'ont ; l'entrée Super-Admin reste visible
+  dans le tiroir mobile (hors périmètre de cette loupe).
 
 ---
 

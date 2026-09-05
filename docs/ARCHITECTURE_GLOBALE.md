@@ -41,7 +41,7 @@
 │  ├─ Supabase Auth (identité unique, Google OAuth prioritaire, RLS partout)      │
 │  ├─ Supabase Postgres (profiles, social, dossiers, carrière, éducation, live…) │
 │  ├─ Supabase Storage (buckets public/private, signed URLs pour le privé)        │
-│  └─ LocalStorage résiduel (préférences UI uniquement : favoris, récents)         │
+│  └─ LocalStorage résiduel (préférences UI uniquement : favoris ; récents inertes) │
 └──────────────────────────────────────────────────────────────────────────────────┘
 
 *(Migration Firebase → Supabase effectuée le 27 août 2026 — voir docs/SUPABASE_ARCHITECTURE.md
@@ -102,7 +102,7 @@ La navigation ne reflète plus l'ordre technique ou historique d'ajout des modul
 - **Recherche Universelle & Palette de Commande (`⌘K`)** : Recherche pondérée dans tous les modules, cours, emplois, démarches et commande vocale intégrée.
 - **Hub des Services Transversaux** (`TransversalServicesModal.tsx`) : Google Maps, Drive, Meet, Chat, Sécurité/Coffre-fort appelés à la demande dans chaque module métier. Depuis la v6.16.0 (DEC-2026-051), il s’ouvre depuis le menu Compte (ordinateur), le tiroir mobile et la recherche ⌘K — plus de bouton dédié dans l’en-tête ni en pied de barre latérale.
 - **Orientation par Objectifs (« Mon Cap »)** (`GoalOrientationModal.tsx`) : 6 grands gabarits de vie guidés par des experts.
-- **Favoris & Récents** : Épinglage direct avec persistance locale et mémorisation automatique des parcours récents.
+- **Favoris & Récents** : les blocs « Mes Favoris » et « Récents » ont été retirés de la barre latérale en v6.17.0 (DEC-2026-052) — ils répétaient des entrées des piliers. L’épinglage reste : l’étoile marque le favori à même l’entrée (persistance locale) ; la mémoire des onglets récents n’a plus de lecteur.
 
 ---
 

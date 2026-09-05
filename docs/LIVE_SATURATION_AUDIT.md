@@ -113,7 +113,7 @@ serveur répondait normalement). **Une sonde de vie qui répond 200 ne prouve
 rien.** La détection devra s'appuyer sur des compteurs de média réels, pas
 sur la disponibilité HTTP.
 
-**Suite — SAT-4 livré (5 septembre 2026, DEC-2026-052).** Les compteurs
+**Suite — SAT-4 livré (5 septembre 2026, DEC-2026-054).** Les compteurs
 média vivent côté client : une sonde serveur ne les voit pas. SAT-4 a donc
 retenu l'appel dont dépend réellement l'ouverture d'un direct —
 `POST /twirp/livekit.RoomService/ListRooms`, signé avec la clé du coffre —
@@ -175,7 +175,7 @@ appareils — jamais par une sonde depuis cet environnement.
 | SAT-1 — capacité auto-régulée | **Oui**, sur l'occupation réelle lue via `RoomService` |
 | SAT-2 — porte côté serveur | **Oui**, dans `livekit-token`, qui détient déjà les identifiants |
 | SAT-3 — écran « complet » | **Oui** |
-| SAT-4 — détecter un blocage réel | **Livré et démontré en production le 05/09/2026 (DEC-2026-052)** — non pas une sonde HTTP sur `/`, mais `ListRooms` signé avec la clé du coffre : 401/403 = rouge (le cas que le ping déclarait vert), > 1 500 ms = orange (porte SAT-2 aveugle), délai/réseau = rouge, non sondé = blanc. Les compteurs média côté client restent hors de cette ligne : elle juge « un direct peut-il démarrer », pas « la voix passe-t-elle en ce moment » |
+| SAT-4 — détecter un blocage réel | **Livré et démontré en production le 05/09/2026 (DEC-2026-054)** — non pas une sonde HTTP sur `/`, mais `ListRooms` signé avec la clé du coffre : 401/403 = rouge (le cas que le ping déclarait vert), > 1 500 ms = orange (porte SAT-2 aveugle), délai/réseau = rouge, non sondé = blanc. Les compteurs média côté client restent hors de cette ligne : elle juge « un direct peut-il démarrer », pas « la voix passe-t-elle en ce moment » |
 | SAT-5 — récupération automatique | **Partiellement** — tout n'est pas récupérable sans redémarrer le serveur |
 | SAT-6 — bouton Admin Général | **Oui**, à condition de vérifier le rôle côté serveur |
 | SAT-1b — signal de marge (prédictif) | **Non** — demande `prometheus_port` et son routage sur le VPS |
