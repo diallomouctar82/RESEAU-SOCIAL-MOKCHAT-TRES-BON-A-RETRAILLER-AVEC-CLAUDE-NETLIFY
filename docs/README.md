@@ -72,6 +72,7 @@ La documentation n'est pas un rapport rédigé a posteriori : elle est le **socl
 | **22. LIVE Campus Éducation — la vision** | La branche éducation : lives par classe/niveau/cursus, expert IA multilingue, quiz et exercices, motivation et classements bornés, décisions officielles (l'IA recommande, l'humain valide), gratuit/Premium. | [`docs/LIVE_CAMPUS_EDUCATION.md`](./LIVE_CAMPUS_EDUCATION.md) |
 | **23. LIVE — roadmap priorisée et preuves** | Trois vagues (direct réel → direct intelligent → direct qui forme), 19 loupes LV-0…LV-18, critères de test et **preuves attendues** loupe par loupe. Barème : rien n'est TERMINÉ sans preuve. | [`docs/LIVE_INTELLIGENT_VALIDATION.md`](./LIVE_INTELLIGENT_VALIDATION.md) |
 | **24. Direction artistique du Studio Live** | Matière verre/eau/lumière, 7 univers, et § 8 l'abysse validé par la Direction le 03/09/2026. | [`docs/DIRECTION_ARTISTIQUE_STUDIO_LIVE.md`](./DIRECTION_ARTISTIQUE_STUDIO_LIVE.md) |
+| **25. Compétence « Production contrôlée »** | **La méthode de référence pour toute mission qui touche le code livré** : loops P0→P5, invariants, revue indépendante et contre-vérification, feu vert écrit, vérification de production, retour arrière, outils d'appui et pièges. Validée par la Direction le 05/09/2026 ; améliorable seulement en plus strict. | [`.claude/skills/production-controlee/SKILL.md`](../.claude/skills/production-controlee/SKILL.md) · [`scripts/production-controlee/`](../scripts/production-controlee/README.md) |
 
 ---
 

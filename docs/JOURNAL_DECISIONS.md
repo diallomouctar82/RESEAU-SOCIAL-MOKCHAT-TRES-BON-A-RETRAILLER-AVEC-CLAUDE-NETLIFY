@@ -1122,6 +1122,71 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-062] — 5 Septembre 2026
+
+* **Module(s)** : `Gouvernance & Continuité` (`.claude/skills/production-controlee/SKILL.md`,
+  `scripts/production-controlee/`, `docs/GUIDE_CONTINUITE.md`,
+  `docs/README.md`). Aucune modification de code livré.
+* **Problème / Besoin initial** : dernière consigne de la Direction après la
+  clôture de DEC-2026-061 : « ne mets pas seulement le README à jour. Mets à
+  jour la compétence dans AI Core pour que cette méthode soit réutilisable
+  telle quelle à l'avenir. Ne retire rien à cette démarche : elle est
+  validée. Tu peux seulement l'améliorer si tu trouves mieux, mais sans
+  supprimer les garde-fous. Objectif : que cette façon de faire devienne la
+  référence pour les prochaines missions. […] cette approche est validée et
+  doit être conservée telle quelle, améliorable, seulement en mieux, jamais
+  en moins strict. » La méthode n'existait qu'en actes (deux missions) et
+  dans le cycle en 7 étapes du guide de continuité, sans revue indépendante,
+  captures mesurées, feu vert écrit ni vérification de production.
+* **Options considérées** :
+  1. Écrire l'entrée directement dans le registre Vision Smart AI Core —
+     impossible depuis ce dépôt : l'outil `search_ai_core_memory` est en
+     lecture seule (« aucune proposition/revue/écriture n'est exposée ») et
+     aucun accès d'écriture n'existe dans cet environnement ; retenu : une
+     compétence versionnée dans le dépôt, au format ingérable par AI Core
+     (en-tête `canonical_key`, `type`, `status`, `provenance`,
+     `source_uri`), et une action requise de la Direction pour la publier
+     dans le registre (voir ci-dessous).
+  2. Réécrire le guide de continuité — rejeté (règle de non-écrasement) ;
+     retenu : le cycle en 7 étapes est conservé tel quel, une section 5 et
+     quatre critères de fin **s'ajoutent**.
+  3. Décrire seulement la méthode — insuffisant pour « réutilisable telle
+     quelle » ; retenu : les outils génériques livrés avec elle
+     (`verif-page-servie.sh` éprouvé sur la production réelle,
+     `mirror-serve.py`, `poll-green-gate.sh`, gabarits du harnais et des
+     scripts Playwright), plus les pièges rencontrés pour ne pas les
+     reproduire.
+* **Décision finale** : compétence `production-controlee` v1.0.0
+  (`.claude/skills/production-controlee/SKILL.md`, chargeable par toute
+  session Claude Code du dépôt) : règle d'usage (telle quelle, améliorable
+  seulement en plus strict, producteur ≠ contrôleur, feu vert écrit),
+  huit invariants, six loops P0→P5 avec sorties obligatoires, détail de
+  chaque loop, coordination entre sessions (une fusion à la fois, arrêt en
+  cas de chevauchement), retour arrière, niveaux de preuve, outils et
+  gabarits, prompt de revue indépendante, format du rapport final, journal
+  des versions de la compétence. Guide de continuité étendu (§ 5 et
+  critères 5 à 8), index documentaire (ligne 25). Rien n'est retiré.
+* **Contrôle** : documentation et scripts seuls ; le vérificateur générique a
+  été exécuté sur `https://moknet.net` (bundle `index-ggiwFepQ.js`, verdict
+  « conforme », ancien bundle 404) ; typage inchangé (le gabarit du harnais
+  porte l'extension `.tsx.example` pour rester hors du typage).
+* **Production** : sans objet (aucun code livré) ; PR de documentation
+  fusionnée selon la règle de coordination.
+* **ACTION REQUISE (Direction)** — publication dans le registre AI Core :
+  ACTION : créer ou mettre à jour l'entrée de connaissance de type MÉTHODE,
+  clé `visionsmart.moknet.methode.production-controlee`, statut
+  VALIDATED/ACTIVE, avec `source_uri` vers
+  `.claude/skills/production-controlee/SKILL.md` (branche `main`).
+  PLATEFORME : Vision Smart AI Core (`https://ai-core.moknet.net`, projet
+  `6aeffdc5-e681-4ec4-ad36-7d9d71449d66`). POURQUOI : ce dépôt ne dispose
+  que d'un accès en lecture au registre. REPRISE : dès l'entrée publiée,
+  l'outil `search_ai_core_memory` la renverra aux agents ; d'ici là, la
+  compétence du dépôt fait foi.
+* **Statut** : 🟢 CONSOLIDÉ DANS LE DÉPÔT ; 🟡 publication dans le registre
+  AI Core en attente de l'action de la Direction.
+
+---
+
 ### [DEC-2026-061] — 5 Septembre 2026
 
 * **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, bloc du

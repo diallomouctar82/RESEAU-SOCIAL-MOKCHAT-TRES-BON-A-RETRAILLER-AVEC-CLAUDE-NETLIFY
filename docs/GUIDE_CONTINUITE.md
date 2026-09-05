@@ -48,3 +48,31 @@ Aucune tâche ne peut être déclarée achevée tant que les 4 conditions suivan
 2. ✅ L'application compile sans erreur (`compile_applet` vert).
 3. ✅ Le document du module concerné dans `docs/modules/` a été mis à jour avec les nouvelles fonctionnalités ou corrections.
 4. ✅ Le `docs/JOURNAL_DECISIONS.md` et `docs/ETAT_ACTUEL.md` reflètent la réalité du système à jour.
+
+Pour toute mission qui touche le **code livré**, les conditions suivantes s'ajoutent (méthode de référence, § 5) — elles ne remplacent pas les quatre premières :
+
+5. ✅ La suite de tests complète est verte (`npm test`) et le typage est relancé **après** l'écriture des tests (`npx tsc --noEmit`) ; le Green Gate est vert sur la tête exacte fusionnée.
+6. ✅ Des captures avant/après **mesurées** existent sur trois écrans (`docs/captures/<date>-<sujet>/` avec README et JSON de mesures), et les images ont été regardées une fois.
+7. ✅ Une **revue indépendante** (producteur ≠ contrôleur) puis une **contre-vérification** ont rendu « PRÊT » sur la tête finale ; tous les constats bloquants et importants sont corrigés et couverts par des tests.
+8. ✅ La production n'a été déployée que sur **feu vert écrit** de la Direction, une seule fusion à la fois, et a été **vérifiée immédiatement** (page servie, bundle, ancien bundle 404, miroir Chromium) ; le rapport final nomme ce qui n'a pas pu être vérifié.
+
+---
+
+## 🚀 5. PRODUCTION CONTRÔLÉE — LA MÉTHODE DE RÉFÉRENCE (VALIDÉE PAR LA DIRECTION LE 5 SEPTEMBRE 2026)
+
+Le cycle en 7 étapes (§ 1) reste la colonne vertébrale. Pour amener une évolution jusqu'à `moknet.net`, il est **exécuté à travers la compétence** [`.claude/skills/production-controlee/SKILL.md`](../.claude/skills/production-controlee/SKILL.md), consolidée à partir des missions DEC-2026-058 (bande « Aurore ») et DEC-2026-061 (composeur A7 et studio Visuel IA B10), et validée par la Direction avec la consigne : « cette approche est validée et doit être conservée telle quelle, améliorable, seulement en mieux, jamais en moins strict ».
+
+Résumé des loops (détail, garde-fous, outils et pièges dans la compétence) :
+
+```
+P0 AUDIT ─────── existant, gestionnaires, tests qui figent, capacités réelles, identifiants libres sur main
+P1 IMPLÉMENTER ── étendre sans rien retirer, CSS en bloc nommé + @container avec repli, couche aqua régénérée
+P2 TESTER ─────── comportements + gardes CSS (postcss), suite complète verte, tsc après les tests
+P3 CAPTURER ───── harnais non versionné, 3 écrans, avant (origin/main) / après, mesures JSON, README
+P4 CONTRÔLER ──── PR brouillon (gabarit ADR-0016), Green Gate, preview vérifié, miroir Chromium,
+                  revue indépendante → corrections → contre-vérification jusqu'à « PRÊT »
+P5 PRODUIRE ───── feu vert écrit, main inchangé, une fusion à la fois, squash sur la tête exacte,
+                  vérification immédiate de moknet.net, PR de documentation, réalignement, rapport final
+```
+
+Invariants qui ne se négocient pas : rien ne disparaît ; aucun bouton factice ; l'élément déclaré intouchable reste identique à l'octet ; jamais de faux vert ; retour immédiat à l'état stable si un problème n'est pas maîtrisable ; aucune production sans feu vert écrit. Outils d'appui : [`scripts/production-controlee/`](../scripts/production-controlee/README.md).
