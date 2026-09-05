@@ -294,3 +294,143 @@ describe('useLiveTransport — fin de piste micro (revue AU-6)', () => {
         expect(calls(p, 'setMicrophoneEnabled')).toEqual([[true]]);
     });
 });
+
+/**
+ * SAT-5 — la ligne d'un DIRECT tombe sans qu'on l'ait demandé. Le hook ne
+ * relance que si l'écran fournit une garde `autoRecover` ET que cette garde
+ * confirme, en base, que le direct est encore ouvert. Jamais sur un refus
+ * nommé du serveur, jamais sur une éviction par identité dupliquée, et trois
+ * fois au plus. Le doute (garde qui lève) n'est pas une clôture.
+ */
+const { LiveAccessError } = await import('../services/live/liveAccessError');
+const { LIVE_ENDED_MESSAGE } = await import('../hooks/useLiveTransport');
+const failingConnect = async (events: any) => { events.onDisconnected('7'); throw new Error('could not establish pc connection'); };
+const directWarnings = () => (console.warn as any).mock.calls.map((c: unknown[]) => String(c[0])).filter((s: string) => s.startsWith('[direct]'));
+
+describe('useLiveTransport — SAT-5 : relance automatique du DIRECT, gardée par l’état réel en base', () => {
+    it('direct encore ouvert (garde → true) : 3 relances au plus, la garde est consultée AVANT chaque relance, pas une de plus', async () => {
+        rig.connectImpl = failingConnect;
+        const autoRecover = vi.fn(async () => true);
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'live-sat5-open', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        for (let i = 0; i < 8; i++) await flush(5000);
+        expect(rig.providers.length).toBe(4); // 1 tentative + 3 relances
+        expect(autoRecover).toHaveBeenCalledTimes(3); // le budget épuisé n'interroge plus la base
+        expect(directWarnings().filter((s) => s.includes('nouvelle tentative'))).toEqual([
+            expect.stringContaining('nouvelle tentative 1/3'),
+            expect.stringContaining('nouvelle tentative 2/3'),
+            expect.stringContaining('nouvelle tentative 3/3'),
+        ]);
+        expect(result.current.connectionState).toBe('disconnected');
+        expect(result.current.error).not.toBe(LIVE_ENDED_MESSAGE);
+    });
+
+    it('direct clôturé par l’animateur (garde → false) : AUCUNE relance, l’écran dit « Ce direct est terminé. »', async () => {
+        rig.connectImpl = failingConnect;
+        const autoRecover = vi.fn(async () => false);
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'live-sat5-ended', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        for (let i = 0; i < 4; i++) await flush(5000);
+        expect(rig.providers.length).toBe(1);
+        expect(autoRecover).toHaveBeenCalledTimes(1);
+        expect(result.current.error).toBe(LIVE_ENDED_MESSAGE);
+        expect(directWarnings().some((s) => s.includes('nouvelle tentative'))).toBe(false);
+    });
+
+    it('base injoignable (garde qui LÈVE) : le doute n’est pas une clôture — on relance, borné par le même budget', async () => {
+        rig.connectImpl = failingConnect;
+        const autoRecover = vi.fn(async () => { throw new Error('fetch failed'); });
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'live-sat5-doubt', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        for (let i = 0; i < 8; i++) await flush(5000);
+        expect(rig.providers.length).toBe(4);
+        expect(result.current.error).not.toBe(LIVE_ENDED_MESSAGE);
+    });
+
+    it('refus NOMMÉ du serveur (direct complet, SAT-3) : jamais de relance, la base n’est même pas interrogée', async () => {
+        rig.connectImpl = async () => { throw new LiveAccessError({ code: 'live_full', message: 'Ce direct est complet.' } as any, 'complet'); };
+        const autoRecover = vi.fn(async () => true);
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'live-sat5-full', participantName: 'S', canPublish: false, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        for (let i = 0; i < 4; i++) await flush(5000);
+        expect(rig.providers.length).toBe(1);
+        expect(autoRecover).not.toHaveBeenCalled();
+        expect(result.current.refusal?.code).toBe('live_full');
+    });
+
+    it('direct établi puis ligne perdue (raison 3) : la garde est consultée, la ligne se rétablit seule ; une éviction par identité dupliquée (raison 2) ne relance jamais', async () => {
+        const autoRecover = vi.fn(async () => true);
+        const { result } = renderHook(() => useLiveTransport({ roomName: 'live-sat5-drop', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        const p1 = last();
+        act(() => { p1.events.onDisconnected('3'); });
+        await flush(1000); // relance 1 : 700 ms
+        expect(autoRecover).toHaveBeenCalledTimes(1);
+        expect(rig.providers.length).toBe(2);
+        expect(result.current.connectionState).toBe('connected');
+        const p2 = last();
+        act(() => { p2.events.onDisconnected('2'); });
+        for (let i = 0; i < 4; i++) await flush(5000);
+        expect(rig.providers.length).toBe(2);
+        expect(autoRecover).toHaveBeenCalledTimes(1);
+        expect(result.current.error).toMatch(/identité dupliquée/);
+    });
+
+    it('une seule lecture en base à la fois : deux pertes rapprochées ne déclenchent qu’une garde en vol', async () => {
+        let resolveGuard: (v: boolean) => void = () => {};
+        const autoRecover = vi.fn(() => new Promise<boolean>((resolve) => { resolveGuard = resolve; }));
+        renderHook(() => useLiveTransport({ roomName: 'live-sat5-once', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        const p1 = last();
+        act(() => { p1.events.onDisconnected('3'); p1.events.onDisconnected('3'); });
+        await flush();
+        expect(autoRecover).toHaveBeenCalledTimes(1);
+        act(() => { resolveGuard(true); });
+        await flush(1000);
+        expect(rig.providers.length).toBe(2);
+    });
+
+    it('APPEL : la garde `autoRecover` est ignorée — un appel relance sur ses propres règles (média voulu), garde jamais appelée', async () => {
+        rig.connectImpl = failingConnect;
+        const autoRecover = vi.fn(async () => false);
+        renderHook(() => useLiveTransport({ roomName: 'call-sat5', participantName: 'A', canPublish: true, enabled: true, audioProfile: 'call', publishAudioOnConnect: true, autoRecover }));
+        await flush();
+        for (let i = 0; i < 8; i++) await flush(5000);
+        expect(rig.providers.length).toBe(4);
+        expect(autoRecover).not.toHaveBeenCalled();
+    });
+
+    it('la garde d’une tentative ANNULÉE ne parle plus : un direct changé entre-temps ne reçoit jamais le « terminé » de l’ancien', async () => {
+        let resolveGuard: (v: boolean) => void = () => {};
+        const autoRecover = vi.fn(() => new Promise<boolean>((resolve) => { resolveGuard = resolve; }));
+        const { result, rerender } = renderHook(
+            (p: { room: string }) => useLiveTransport({ roomName: p.room, participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }),
+            { initialProps: { room: 'live-sat5-A' } },
+        );
+        await flush();
+        act(() => { last().events.onDisconnected('3'); });
+        await flush();
+        expect(autoRecover).toHaveBeenCalledTimes(1);
+        rerender({ room: 'live-sat5-B' }); // nouvelle tentative, l'ancienne est annulée, sa garde vole encore
+        await flush();
+        expect(result.current.connectionState).toBe('connected');
+        act(() => { resolveGuard(false); }); // l'ANCIEN direct est clôturé — cela ne concerne pas le nouveau
+        await flush(50);
+        expect(result.current.error).toBeNull();
+        expect(result.current.connectionState).toBe('connected');
+        expect(rig.providers.length).toBe(2);
+    });
+
+    it('démontage pendant que la garde est en vol : aucune relance après le démontage', async () => {
+        let resolveGuard: (v: boolean) => void = () => {};
+        const autoRecover = vi.fn(() => new Promise<boolean>((resolve) => { resolveGuard = resolve; }));
+        const { unmount } = renderHook(() => useLiveTransport({ roomName: 'live-sat5-unmount', participantName: 'H', canPublish: true, enabled: true, audioProfile: 'live', autoRecover }));
+        await flush();
+        act(() => { last().events.onDisconnected('3'); });
+        await flush();
+        unmount();
+        act(() => { resolveGuard(true); });
+        for (let i = 0; i < 3; i++) await flush(5000);
+        expect(rig.providers.length).toBe(1);
+    });
+});
