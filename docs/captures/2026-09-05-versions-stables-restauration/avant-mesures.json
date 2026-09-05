@@ -1,0 +1,105 @@
+{
+  "etat": "avant",
+  "port": "3001",
+  "vues": {
+    "ordinateur-1440x900": {
+      "erreurs": [],
+      "barre": {
+        "ongletsVisibles": [
+          "Vue Générale",
+          "Avatar de l’ArchitecteAvatar",
+          "Santé Globale",
+          "Connecteurs & Modèles IA17",
+          "Utilisateurs & RBAC",
+          "Modération & MokTrust",
+          "Modules Plateforme",
+          "Paramètres Plateforme",
+          "Modèles & Sceaux",
+          "Workflows & Sync",
+          "Journaux & Alertes"
+        ],
+        "ongletVersions": {
+          "present": false
+        },
+        "debordeX": false
+      },
+      "ancienSousOnglet": {
+        "texteVersionCourante": "Version courante active : v6.3.0",
+        "versionsAffichees": [
+          "v6.3.0",
+          "v6.2.0",
+          "v6.1.0",
+          "v6.0.0",
+          "v5.14.0"
+        ],
+        "renvoi": false
+      }
+    },
+    "tablette-820x1180": {
+      "erreurs": [],
+      "barre": {
+        "ongletsVisibles": [
+          "Vue Générale",
+          "Avatar de l’ArchitecteAvatar",
+          "Santé Globale",
+          "Connecteurs & Modèles IA17",
+          "Utilisateurs & RBAC",
+          "Modération & MokTrust",
+          "Modules Plateforme",
+          "Paramètres Plateforme",
+          "Modèles & Sceaux",
+          "Workflows & Sync",
+          "Journaux & Alertes"
+        ],
+        "ongletVersions": {
+          "present": false
+        },
+        "debordeX": false
+      },
+      "ancienSousOnglet": {
+        "texteVersionCourante": "Version courante active : v6.3.0",
+        "versionsAffichees": [
+          "v6.3.0",
+          "v6.2.0",
+          "v6.1.0",
+          "v6.0.0",
+          "v5.14.0"
+        ],
+        "renvoi": false
+      }
+    },
+    "telephone-390x844": {
+      "erreurs": [],
+      "barre": {
+        "ongletsVisibles": [
+          "Vue Générale",
+          "Avatar de l’ArchitecteAvatar",
+          "Santé Globale",
+          "Connecteurs & Modèles IA17",
+          "Utilisateurs & RBAC",
+          "Modération & MokTrust",
+          "Modules Plateforme",
+          "Paramètres Plateforme",
+          "Modèles & Sceaux",
+          "Workflows & Sync",
+          "Journaux & Alertes"
+        ],
+        "ongletVersions": {
+          "present": false
+        },
+        "debordeX": false
+      },
+      "ancienSousOnglet": {
+        "texteVersionCourante": "Version courante active : v6.3.0",
+        "versionsAffichees": [
+          "v6.3.0",
+          "v6.2.0",
+          "v6.1.0",
+          "v6.0.0",
+          "v5.14.0"
+        ],
+        "renvoi": false
+      }
+    }
+  }
+}

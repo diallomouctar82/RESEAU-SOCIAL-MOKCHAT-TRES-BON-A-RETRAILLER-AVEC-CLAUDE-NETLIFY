@@ -16,7 +16,8 @@ import {
   Sliders,
   Database,
   Cpu,
-  HeartPulse
+  HeartPulse,
+  History
 } from 'lucide-react';
 import { adminConfigService } from '../services/adminConfigService';
 import { AdminOverviewTab } from './admin/AdminOverviewTab';
@@ -30,8 +31,9 @@ import { AdminLogsAndBroadcastTab } from './admin/AdminLogsAndBroadcastTab';
 import { AiOrchestrator } from './admin/AiOrchestrator';
 import { AdminHealthTab } from './admin/AdminHealthTab';
 import { AdminArchitecteAvatarTab } from './admin/AdminArchitecteAvatarTab';
+import { AdminStableVersionsTab } from './admin/AdminStableVersionsTab';
 
-export type AdminTab = 'overview' | 'health' | 'ai-connectors' | 'architecte' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
+export type AdminTab = 'overview' | 'health' | 'versions' | 'ai-connectors' | 'architecte' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('ai-connectors');
@@ -129,6 +131,23 @@ export const AdminDashboard: React.FC = () => {
           >
             <HeartPulse size={15} />
             Santé Globale
+          </button>
+
+          {/* Versions stables & restauration contrôlée — onglet dédié (Direction, 05/09/2026) :
+              les dernières versions livrées avec leurs preuves, la version réellement servie,
+              et un ordre de restauration contrôlée, jamais à l'aveugle. */}
+          <button
+            onClick={() => setActiveTab('versions')}
+            data-testid="admin-onglet-versions"
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'versions'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            <History size={15} />
+            <span className="hidden sm:inline">Versions stables</span>
+            <span className="sm:hidden">Versions</span>
           </button>
 
           {/* Connecteurs & Modèles IA — Mise en avant stratégique */}
@@ -262,6 +281,13 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* 🗂️ VERSIONS STABLES & RESTAURATION CONTRÔLÉE — registre, version servie, ordre de restauration */}
+      {activeTab === 'versions' && (
+        <div className="animate-fade-up">
+          <AdminStableVersionsTab />
+        </div>
+      )}
+
       {/* 🧠 CONNECTEURS & MODÈLES IA — orchestrateur central (Supabase Vault + ai-gateway) */}
       {activeTab === 'ai-connectors' && (
         <div className="animate-fade-up">
@@ -320,6 +346,7 @@ export const AdminDashboard: React.FC = () => {
           workflows={workflows}
           systemConfig={systemConfig}
           onReload={handleReload}
+          onOuvrirVersionsStables={() => setActiveTab('versions')}
         />
       )}
 

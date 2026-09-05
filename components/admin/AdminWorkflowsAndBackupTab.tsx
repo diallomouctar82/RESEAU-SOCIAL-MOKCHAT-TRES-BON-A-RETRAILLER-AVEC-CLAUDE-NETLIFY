@@ -52,12 +52,15 @@ interface AdminWorkflowsAndBackupTabProps {
   workflows: WorkflowPipelineConfig[];
   systemConfig: AdminSystemConfig;
   onReload: () => void;
+  /** Ouvre l'onglet « Versions stables » (code réellement livré, restauration contrôlée). */
+  onOuvrirVersionsStables?: () => void;
 }
 
 export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProps> = ({
   workflows,
   systemConfig,
-  onReload
+  onReload,
+  onOuvrirVersionsStables
 }) => {
   const [subTab, setSubTab] = useState<'versions' | 'snapshots' | 'schedule' | 'workflows' | 'integrations'>('versions');
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowPipelineConfig | null>(null);
@@ -431,6 +434,31 @@ export const AdminWorkflowsAndBackupTab: React.FC<AdminWorkflowsAndBackupTabProp
       {/* ── 1. SOUS-ONGLET VERSIONS STABLES & HISTORIQUE ── */}
       {subTab === 'versions' && (
         <div className="space-y-6">
+          {/* Portée de ce registre, dite en toutes lettres (Direction, 05/09/2026) :
+              il décrit la configuration LOCALE de la console (v6.3) et n'a jamais
+              décrit le code livré. Les versions réellement servies (commit, PR,
+              bundle, preuves) et la restauration contrôlée vivent dans l'onglet
+              « Versions stables ». Rien n'est retiré ici. */}
+          <div
+            role="note"
+            data-testid="versions-locales-renvoi"
+            className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-4 py-3 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+          >
+            <p>
+              Ce registre concerne la <strong>configuration locale de la console</strong> (modules, connecteurs, modèles, réglages) et ses instantanés.
+              Les <strong>versions du code réellement livré</strong> — commit, PR, bundle servi, preuves — et la <strong>restauration contrôlée</strong> de la
+              production sont dans l’onglet « Versions stables ».
+            </p>
+            {onOuvrirVersionsStables && (
+              <button
+                type="button"
+                onClick={onOuvrirVersionsStables}
+                className="min-h-[44px] px-4 rounded-xl text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1"
+              >
+                Ouvrir « Versions stables »
+              </button>
+            )}
+          </div>
           {/* Top Banner Guide */}
           <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 rounded-3xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="space-y-1 max-w-2xl">
