@@ -240,6 +240,13 @@ describe('Ouverture', () => {
         ouvrir();
         await screen.findByText("L'Architecte");
 
+        // Une image en session ne déplie RIEN toute seule (zéro obstruction,
+        // Direction 05/09/2026) : la flèche la signale, la personne déplie.
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        expect(screen.queryByAltText('Photo prise à la caméra')).toBeNull();
+        expect(screen.getByTestId('architecte-panneau-invitation')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
+
         expect(screen.getByText('Bonjour Architecte')).toBeInTheDocument();
         expect(screen.getByText('Je vois votre photo.')).toBeInTheDocument();
         expect(screen.getByAltText('Photo prise à la caméra')).toBeInTheDocument();
@@ -410,7 +417,7 @@ describe('Boucle 1 — voix par défaut, texte quand il apporte une valeur (§16
         expect(screen.queryByText('Bonjour Architecte')).toBeNull();
     });
 
-    it('une vraie production écrite (lettre, texte long) fait apparaître le panneau', async () => {
+    it("une vraie production écrite (lettre, texte long) N'OUVRE PAS le panneau : elle est signalée sur la flèche, qui la déplie — zéro obstruction (Direction, 05/09/2026)", async () => {
         monter({ userProfile: PROFIL_CONNU });
         ouvrir();
         await screen.findByText("L'Architecte");
@@ -421,7 +428,15 @@ describe('Boucle 1 — voix par défaut, texte quand il apporte une valeur (§16
             'Madame, Monsieur, je vous adresse ma candidature pour le poste proposé. '.repeat(4)).trim();
         addSessionTurn({ role: 'architecte', kind: 'texte', text: lettre });
 
+        // Rien ne recouvre MokNet : le panneau reste replié, la flèche signale.
+        expect(await screen.findByTestId('architecte-panneau-invitation')).toBeInTheDocument();
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        expect(screen.queryByText(lettre)).toBeNull();
+        expect(screen.getByTestId('architecte-panneau-bascule')).toHaveAttribute('aria-label', 'Déplier la conversation — un contenu vous attend');
+        // …et la flèche déplie la lettre quand la personne le veut.
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
         expect(await screen.findByText(lettre)).toBeInTheDocument();
+        expect(screen.queryByTestId('architecte-panneau-invitation')).toBeNull();
     });
 });
 
@@ -527,8 +542,9 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
     });
 
     it('les adresses citées par une réponse (sources de recherche) deviennent des liens cliquables', async () => {
-        // Nettement au-dessus du seuil de production écrite (220) : le
-        // panneau doit s'ouvrir pour que le lien soit réellement visible.
+        // Nettement au-dessus du seuil de production écrite (220) : la flèche
+        // signale la réponse, la personne déplie — le panneau ne s'ouvre jamais
+        // seul (zéro obstruction, Direction 05/09/2026).
         const reponse = 'Voici les offres trouvées pour votre métier. ' +
             'Consultez notamment cette page très complète : https://exemple.org/offres-emploi ' +
             'ainsi que les résultats détaillés publiés cette semaine par les agences partenaires de la région, ' +
@@ -537,6 +553,9 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
         ouvrir();
         await screen.findByText("L'Architecte");
         addSessionTurn({ role: 'architecte', kind: 'texte', text: reponse });
+        await screen.findByTestId('architecte-panneau-invitation');
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
 
         const lien = await screen.findByRole('link', { name: 'https://exemple.org/offres-emploi' });
         expect(lien).toHaveAttribute('href', 'https://exemple.org/offres-emploi');
@@ -663,5 +682,79 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         expect(screen.getByLabelText('Activer la caméra')).toBeInTheDocument();
         expect(screen.getByTestId('architecte-presentation-bouton')).toBeInTheDocument();
         expect(screen.getByLabelText('Fermer')).toBeInTheDocument();
+    });
+
+    // ── ZÉRO OBSTRUCTION STRICT (Direction, 05/09/2026 : « aucun panneau, aucun
+    // fond ne doit couvrir l'application ; au clic, une petite zone de
+    // communication au maximum, repliable ») ──
+    it("première rencontre : l'accueil complet est DIT, la barre reste minimale — aucun panneau ne s'ouvre seul", async () => {
+        monter(); // PROFIL sans fiche de consentement → accueil complet (219 caractères)
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
+
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        expect(screen.queryByTestId('architecte-saisie-ligne')).toBeNull();
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
+        expect(screen.getByTestId('architecte-panneau')).toHaveTextContent('bienvenue');
+    });
+
+    it("une réponse longue de l'Architecte n'ouvre JAMAIS le panneau toute seule : elle est signalée sur la flèche", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        const reponse = ('Voici comment publier une annonce : ouvrez la Place de Marché, appuyez sur Vendre, ' +
+            'ajoutez trois photos nettes, décrivez le produit, fixez le prix, puis validez. ').repeat(2).trim();
+        expect(reponse.length).toBeGreaterThan(220);
+        addSessionTurn({ role: 'architecte', kind: 'texte', text: reponse });
+
+        expect(await screen.findByTestId('architecte-panneau-invitation')).toBeInTheDocument();
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        expect(screen.queryByText(reponse)).toBeNull();
+    });
+
+    it("Écrire ouvre UNE ligne de saisie, pas un panneau ; la flèche déplie ensuite la conversation autour de la même saisie", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
+
+        expect(screen.getByTestId('architecte-saisie-ligne')).toBeInTheDocument();
+        expect(screen.getByLabelText("Saisie clavier de l'Architecte")).toBeInTheDocument();
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
+        expect(screen.getByTestId('architecte-panneau')).toBeInTheDocument();
+        expect(screen.queryByTestId('architecte-saisie-ligne')).toBeNull();
+        expect(screen.getByLabelText("Saisie clavier de l'Architecte")).toBeInTheDocument();
+    });
+
+    it("fermer puis rouvrir repart toujours de la barre minimale : panneau replié, saisie fermée", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
+        fireEvent.click(screen.getByLabelText("Écrire à l'Architecte"));
+        expect(screen.getByTestId('architecte-panneau')).toBeInTheDocument();
+        expect(screen.getByLabelText("Saisie clavier de l'Architecte")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByLabelText('Fermer'));
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        expect(screen.queryByLabelText("Saisie clavier de l'Architecte")).toBeNull();
+    });
+
+    it("une vidéo demandée par la personne se déplie pour elle, et « ferme la vidéo » ramène à la barre minimale", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        await ecrire('Mets-moi une vidéo sur la mécanique automobile');
+        expect(await screen.findByTitle(/Vidéos pour/)).toBeInTheDocument();
+        expect(screen.getByTestId('architecte-panneau')).toBeInTheDocument();
+
+        await ecrire('Ferme la vidéo');
+        await waitFor(() => expect(screen.queryByTitle(/Vidéos pour/)).toBeNull());
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
     });
 });
