@@ -128,3 +128,7 @@ Avant : la session refusée ouvrait déjà l'interface au premier écran, et le 
 | session-invalide-rejeu | navigateur-mobile | ECRAN_AUTHENTIFICATION | ECRAN_AUTHENTIFICATION |
 
 Captures : `production-session-invalide-*.jpg`, `production-session-invalide-rejeu-*-apres-rejeu.jpg`. Niveau de preuve : 🚀 page et bundle servis par la production ; le serveur d'authentification reste rejoué (réponses réelles de Supabase), le vrai téléphone appartient au contrôle de la Direction.
+
+## Cas par cas sur tous les supports (5 septembre 2026, 18:20–18:40 UTC)
+
+Sous-dossier `cas-par-cas/` : matrice « connecté / déconnecté / sans compte / session invalide ou expirée / liens privés / serveur injoignable / `/architecte` » sur le bundle servi `index-C8Y6seFM.js` (même empreinte que la production à 18:26 UTC), ordinateur + téléphone + tablette, 54/54 mesures conformes, 22 planches (une image par scénario, trois supports côte à côte ; déconnexion et rejeu en étapes), mesures JSON, script Playwright `scenarios-entree.cjs`, constats et proposition de durcissement dans son `README.md`.

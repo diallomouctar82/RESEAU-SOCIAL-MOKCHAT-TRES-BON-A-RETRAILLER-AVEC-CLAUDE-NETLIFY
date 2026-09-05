@@ -36,7 +36,7 @@
 | Piste phonétique alignée sur chaque phrase | oui | oui |
 | Liaisons d'un élément audio au graphe (une par `new Audio()`) | **5 / 5** | **1 / 1** (élément déverrouillé dans le geste, réutilisé) |
 | Lecture déverrouillée dans le geste, contexte audio `running` | n/a (moteur avant C1) | oui / oui |
-| Bouche pendant la parole : part des images ouvertes (> 0,05) | 40 % / 41 % | **71 % / 72 %** |
+| Bouche pendant la parole : part des images ouvertes (> 0,05) — écart non expliqué, non attribué à C1 | 40 % / 41 % | 71 % / 72 % |
 | Bouche pendant la parole : ouverture max / moyenne | 0,58 / 0,10 | 0,35 / 0,12 |
 | Bouche hors parole : ouverture max | 0 | 0 |
 | Appui sur la sculpture pendant la réponse | **barre fermée, présence `rest`, mode conversationnel coupé** | **barre ouverte, « Je vous écoute. », présence `listening`, voix tue** |
@@ -49,7 +49,7 @@ Chronologie « après » (ordinateur, ms depuis le chargement) : repos → appui
 ## Ce que ces mesures prouvent — et ce qu'elles ne prouvent pas
 
 - **Prouvé** : après sa présentation, l'Architecte dit l'accueil, écoute, dit chaque réponse par la voix HD, la bouche bouge pendant qu'il parle et seulement à ce moment-là, l'écoute repart seule après chaque réponse ; toucher l'avatar pendant qu'il parle ne ferme plus rien (il se tait et écoute) ; fermer reste sur le ✕. Avant, l'appui fermait tout — c'est le geste naturel de quelqu'un qui veut lui parler, et le défaut vécu par la Direction.
-- **Non reproductible sur ce banc** : le mutisme par contexte audio suspendu (Safari/iOS : `resume()` refusé hors geste ; l'élément « jouait » sans qu'aucun son sorte) — Chromium headless accorde l'activation collante dès le premier clic. Ce cas est couvert par les tests du moteur (`contexte qui ne démarre pas → élément non relié, voix en direct` ; `première phrase refusée → repli navigateur, jamais un silence pris pour un succès`). La route « écouteur / volume réduit » d'iOS quand le micro reste ouvert pendant la lecture n'est pas mesurable ici : le flux de capture est relâché pendant la voix, par précaution.
+- **Non reproductible sur ce banc** : le mutisme par contexte audio suspendu (Safari/iOS : `resume()` refusé hors geste ; l'élément « jouait » sans qu'aucun son sorte) — Chromium headless accorde l'activation collante dès le premier clic. Ce cas est couvert par les tests du moteur (`contexte qui ne démarre pas → élément non relié, voix en direct` ; `première phrase refusée → repli navigateur, jamais un silence pris pour un succès`). Sur iPhone / iPad, la voix sort en direct de l'élément audio (jamais par le graphe Web Audio, muet sous l'interrupteur silencieux) : non mesurable ici, à contrôler sur appareil réel.
 - **Bouche** : l'extrait vocal est le même pour chaque phrase, la piste phonétique aligne le texte de la phrase sur cet extrait — la preuve porte sur le mouvement synchronisé avec la parole (0 hors parole), pas sur la justesse phonème par phonème.
 - **« Réfléchit »** : avec une passerelle instantanée, l'état dure moins qu'un échantillon (50 ms) ; la tenue de la réflexion jusqu'au premier son est prouvée par test DOM (`tests/ArchitecteFloatingBar.test.tsx`).
 - Le contrôle final sur téléphone réel appartient à la Direction (prochaine production contrôlée).

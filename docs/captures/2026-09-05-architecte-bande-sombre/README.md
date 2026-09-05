@@ -41,7 +41,7 @@ Huit constats, tous traités avant la fusion :
 | Tablette 820 × 1180, au repos | `avant-tablette-820x1180-repos.jpg` | `apres-tablette-820x1180-repos.jpg` |
 | Téléphone 390 × 844, au repos | `avant-telephone-390x844-repos.jpg` | `apres-telephone-390x844-repos.jpg` |
 | Téléphone 390 × 844, vidéo en lecture (cadre à l'écran) | `avant-telephone-390x844-video.jpg` | `apres-telephone-390x844-video.jpg` |
-| Production `moknet.net`, 16:04 UTC | `production-avant-ordinateur-1280x800-16h04.jpg`, `production-avant-telephone-390x844-16h04.jpg` | après production : consigné par la PR de mémoire vivante suivante |
+| Production `moknet.net` | avant (16:04 UTC) : `production-avant-ordinateur-1280x800-16h04.jpg`, `production-avant-telephone-390x844-16h04.jpg` | après (17:48 UTC, bundle `index-C8Y6seFM.js`) : `production-apres-ordinateur-1440x900-repos-17h48.jpg`, `production-apres-ordinateur-1440x900-video-17h48.jpg`, `production-apres-telephone-390x844-repos-17h48.jpg`, `production-apres-telephone-390x844-video-17h48.jpg` |
 
 `planche-portrait-avant-apres-et-silhouettes.jpg` : portrait v6.41.0 (bande noire), portrait corrigé, silhouette détourée v6.41.0, silhouette corrigée.
 
@@ -56,6 +56,17 @@ Luminance moyenne (0..255, Rec. 709) lue sur le canevas du portrait vivant et su
 | 14–20 % (sous la bande, référence) | 132–133 | 133 | 131 | 130 |
 
 Profil des fichiers livrés (mp4 et webm à 0,5 / 4 / 8,5 s ; affiche) : 2–8 % = 124 (affiche 126), 8–12 % = 130 (131), 14–20 % = 128–130, **écart ligne à ligne maximal entre 10 et 14 % = 1,2–1,4** (affiche 2,3 ; métrique : luminances moyennes de lignes consécutives, colonnes centrales), 0 ligne sombre. Aucune erreur JavaScript (hors bruits connus : Supabase absent, favicon). Vidéo `vision-smart-heygen.webm` en lecture (`playing`) sur les trois écrans, avant comme après.
+
+## Production (🚀, 5 septembre 2026)
+
+PR #111 fusionnée en squash → `main` `f6d9a16` à 17:47 UTC (Green Gate vert sur `d5550ed`, run 33981843750 ; `main` vérifié inchangé `e9595e5` ; contre-vérification indépendante « PRÊT »). `moknet.net` sert `index-C8Y6seFM.js` depuis 17:48 UTC : marqueurs du remède présents, nouvelles empreintes présentes, anciennes absentes, neuf actifs aux tailles exactes, ancien bundle `index-C_IAplN2.js` → 404 (`production-apres-verification-17h48.txt`). Fumée Chromium sur la page servie (`production-apres-fumee-17h48.json`, transport réseau par le client Node de Playwright) :
+
+| Écran | Portrait 8–12 % | Vidéo 8–12 % (en lecture) | Sous la bande |
+| :--- | :--- | :--- | :--- |
+| Ordinateur 1440 × 900 | 132 | 132 | 135 / 131 |
+| Téléphone 390 × 844 | 132 | 132 | 134 / 131 |
+
+Green Gate sur `main` : run 33982039577.
 
 ## Actifs (`empreintes-actifs.txt`)
 
