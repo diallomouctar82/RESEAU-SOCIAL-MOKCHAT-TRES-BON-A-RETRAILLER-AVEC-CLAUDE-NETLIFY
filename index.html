@@ -2248,6 +2248,330 @@
       /* ===== FIN BANDE AURORE ===== */
 
       /* ===================================================================
+         RESEAU MOC — COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-059)
+
+         Variante A7 choisie par la Direction : les quatre medias (Photo,
+         Video, Document, Voix) en colonne d'orbes a gauche du champ sur
+         ordinateur, en ligne sous le champ sur telephone ; l'etincelle
+         (Assistant IA) en orbe d'or dans le champ ; les quatre actions IA en
+         orbes nommees sous le champ ; visibilite et categorie en texte ;
+         Brouillon | Publier en groupe. Tout ce qui existait reste, seul
+         l'habillage change. Meme orbe de cristal que la bande Aurore.
+         =================================================================== */
+      .a7-comp {
+        container-type: inline-size;
+        container-name: a7;
+        display: grid;
+        grid-template-columns: 44px auto minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+      }
+      .a7-orbe {
+        --h: 196;
+        width: 40px; height: 40px; border-radius: 50%;
+        display: grid; place-items: center; flex: none;
+        color: hsl(var(--h) 55% 30%);
+        background:
+          radial-gradient(circle at 32% 26%, #fff 0, rgba(255,255,255,.55) 18%, rgba(255,255,255,0) 48%),
+          radial-gradient(circle at 70% 82%, hsl(var(--h) 85% 78% / .8), transparent 60%),
+          linear-gradient(160deg, #fff, hsl(var(--h) 80% 93%));
+        box-shadow:
+          inset 0 0 0 1.5px rgba(255,255,255,.95),
+          inset 0 -10px 16px hsl(var(--h) 70% 60% / .25),
+          0 8px 18px rgba(11,58,70,.12),
+          0 0 0 4px rgba(255,255,255,.35);
+        transition: transform .3s cubic-bezier(.2,.7,.2,1), box-shadow .3s;
+      }
+      .a7-orbe svg { width: 18px; height: 18px; }
+      .a7-orbe.or {
+        color: #fff;
+        background:
+          radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), rgba(255,255,255,0) 40%),
+          linear-gradient(160deg, hsl(42 70% 45%), hsl(30 70% 38%));
+        box-shadow: 0 8px 18px rgba(245,184,65,.4), 0 0 0 4px rgba(255,255,255,.35);
+      }
+      .a7-orbe.ecoute {
+        color: #fff;
+        background: linear-gradient(160deg, hsl(350 75% 55%), hsl(350 70% 40%));
+        animation: a7-pouls 1.2s ease-in-out infinite;
+      }
+      @keyframes a7-pouls { 0%, 100% { box-shadow: 0 0 0 4px rgba(255,255,255,.35); } 50% { box-shadow: 0 0 0 8px rgba(244,63,94,.25); } }
+      .a7-ob {
+        display: inline-flex; flex-direction: column; align-items: center; gap: 5px;
+        padding: 4px 6px; border: 0; background: none;
+        font: inherit; font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11px; font-weight: 700; color: var(--mir-ink, #0B3A46);
+        cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+        min-width: 44px;
+      }
+      .a7-ob:disabled { opacity: .5; cursor: default; }
+      .a7-ob:focus-visible, .a7-etincelle:focus-visible { outline: 3px solid var(--mir-acc, #0F9EC2); outline-offset: 2px; border-radius: 14px; }
+      @media (hover: hover) and (pointer: fine) {
+        .a7-ob:not(:disabled):hover .a7-orbe, .a7-etincelle:hover .a7-orbe {
+          transform: translateY(-4px) scale(1.06);
+          box-shadow: inset 0 0 0 1.5px #fff, inset 0 -10px 16px hsl(var(--h) 70% 60% / .3), 0 14px 26px rgba(11,58,70,.18), 0 0 0 6px hsl(var(--h) 90% 70% / .4);
+        }
+      }
+      .a7-rail {
+        display: flex; flex-direction: column; gap: 2px;
+        padding: 6px 2px; border-radius: 18px;
+        background: rgba(255,255,255,.5);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.9);
+      }
+      .a7-corps { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+      .a7-zone { position: relative; }
+      .a7-comp .a7-champ { min-height: 150px; padding-right: 60px; }
+      .a7-etincelle { position: absolute; right: 10px; top: 10px; border: 0; background: none; padding: 0; cursor: pointer; }
+      .a7-etincelle .a7-orbe { width: 42px; height: 42px; }
+      .a7-rangee { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+      .a7-rangee .a7-lab {
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+        color: var(--mir-ink-2, #3E6A76); margin-right: 10px;
+      }
+      .a7-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+      .a7-sels { display: flex; gap: 14px; flex-wrap: wrap; }
+      .a7-sels select {
+        appearance: none; -webkit-appearance: none;
+        border: 0; background: transparent;
+        padding: 2px 22px 2px 0;
+        font: inherit; font-weight: 700; font-size: 13px; color: var(--mir-ink-2, #3E6A76);
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233E6A76' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 2px center;
+        cursor: pointer; max-width: 100%;
+      }
+      .a7-sels select:focus-visible { outline: 3px solid var(--mir-acc, #0F9EC2); outline-offset: 2px; border-radius: 8px; }
+      .a7-compteur { font-size: 12px; color: var(--mir-ink-2, #3E6A76); font-variant-numeric: tabular-nums; }
+      .a7-sep { height: 1px; background: rgba(11,58,70,.08); }
+      .a7-pied { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .a7-medias-bas { display: none; gap: 2px; flex-wrap: wrap; flex: 1; min-width: 0; }
+      .a7-groupe { display: inline-flex; border-radius: 999px; overflow: hidden; box-shadow: 0 8px 18px rgba(15,158,194,.25); margin-left: auto; }
+      .a7-groupe .a7-brouillon {
+        padding: 10px 16px; border: 0; background: var(--mir-panel-2, #DDF1F8);
+        font: inherit; font-weight: 700; font-size: 13.5px; color: var(--mir-acc-2, #0E7490);
+        cursor: pointer; white-space: nowrap;
+      }
+      .a7-groupe .a7-publier {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 10px 18px; border: 0;
+        background: linear-gradient(160deg, hsl(196 70% 45%), hsl(196 65% 32%));
+        color: #fff; font: inherit; font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap;
+      }
+      .a7-groupe button:disabled { opacity: .55; cursor: default; }
+      .a7-groupe button:focus-visible { outline: 3px solid var(--mir-acc, #0F9EC2); outline-offset: -3px; }
+      /* Telephone : le rail devient une ligne sous le champ, libelles des orbes masques */
+      @container a7 (max-width: 560px) {
+        .a7-comp { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+        .a7-rail { display: none; }
+        .a7-medias-bas { display: flex; flex: 1 0 100%; }
+        .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
+        .a7-ob .a7-lb { display: none; }
+        .a7-ob { padding: 4px 3px; }
+        .a7-rangee .a7-lab { display: none; }
+        .a7-rangee { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding: 2px; }
+        .a7-compteur { display: none; }
+      }
+      @supports not (container-type: inline-size) {
+        @media (max-width: 639px) {
+          .a7-comp { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+          .a7-rail { display: none; }
+          .a7-medias-bas { display: flex; flex: 1 0 100%; }
+          .a7-comp .a7-champ { min-height: 96px; padding-right: 54px; }
+          .a7-ob .a7-lb, .a7-rangee .a7-lab, .a7-compteur { display: none; }
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .a7-orbe.ecoute { animation: none !important; }
+        .a7-orbe { transition: none; }
+      }
+      /* ===== FIN COMPOSEUR A7 ===== */
+
+      /* ===================================================================
+         VISUEL IA — STUDIO PLEIN ECRAN SOMBRE (DEC-2026-059, variante B10)
+
+         Feuille sombre par-dessus toute la coquille (portail), plein ecran
+         sur telephone, centree sur ordinateur. L'image ressort sur fond
+         nuit ; barre des familles de reglages ; modes Prompt / Reglages
+         manuels ; pied avec Reinitialiser, Annuler, Studio Creatif (lien
+         discret) et Inserer dans la publication.
+         =================================================================== */
+      .vis-voile {
+        position: fixed; inset: 0; z-index: 2147483000;
+        display: flex; align-items: center; justify-content: center;
+        padding: 18px;
+        background: rgba(8, 20, 26, .72);
+        backdrop-filter: blur(6px);
+        animation: vis-apparait .25s ease both;
+      }
+      @keyframes vis-apparait { from { opacity: 0; } to { opacity: 1; } }
+      .vis-feuille {
+        --vis-nuit: #0E1B21; --vis-nuit-2: #16272F; --vis-texte: #F2F8FA; --vis-texte-2: rgba(242,248,250,.72);
+        --vis-or: #F5B841; --vis-corail: #FF7A59; --vis-aqua: #0F9EC2; --vis-lumiere: #7DD3FC;
+        width: min(1040px, 100%); max-height: calc(100vh - 36px);
+        color-scheme: dark;
+        overflow: auto; overscroll-behavior: contain;
+        background: var(--vis-nuit); color: var(--vis-texte);
+        border: 1px solid rgba(255,255,255,.08); border-radius: 24px;
+        box-shadow: 0 30px 80px rgba(0,0,0,.5);
+        padding: 14px 16px 12px;
+        display: flex; flex-direction: column; gap: 12px;
+        animation: vis-surgit .35s cubic-bezier(.2,.7,.2,1) both;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      /* Les enfants de la feuille ne se compressent jamais : quand le contenu
+         depasse la hauteur bornee, c'est la feuille qui defile (overflow:auto),
+         pas l'apercu ni la barre des familles qui s'ecrasent. */
+      .vis-feuille > * { flex: none; }
+      @keyframes vis-surgit { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+      .vis-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .vis-tete h2 {
+        margin: 0; flex: 1; min-width: 0;
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 15px; font-weight: 700;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      }
+      .vis-tete h2 small { font-family: inherit; font-weight: 500; font-size: 12.5px; color: var(--vis-texte-2); }
+      .vis-orbe-or {
+        width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+        background: linear-gradient(135deg, var(--vis-or), var(--vis-corail));
+      }
+      .vis-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.08); gap: 2px; }
+      .vis-seg button {
+        padding: 6px 12px; border: 0; border-radius: 999px; background: transparent;
+        font: inherit; font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 12.5px; font-weight: 700; color: rgba(242,248,250,.7);
+        cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+        min-height: 32px;
+      }
+      .vis-seg button[aria-pressed="true"] { background: #fff; color: #0B3A46; }
+      .vis-seg.vis-modes { align-self: center; }
+      .vis-seg.vis-modes button[aria-pressed="true"] { background: linear-gradient(135deg, var(--vis-or), var(--vis-corail)); color: #fff; }
+      .vis-seg button:disabled { opacity: .45; cursor: default; }
+      .vis-fermer {
+        width: 36px; height: 36px; border: 0; border-radius: 50%;
+        background: rgba(255,255,255,.1); color: #fff;
+        display: grid; place-items: center; cursor: pointer; flex: none;
+      }
+      .vis-feuille button:focus-visible, .vis-feuille input:focus-visible { outline: 3px solid var(--vis-lumiere); outline-offset: 2px; }
+      .vis-apercu {
+        position: relative; border-radius: 16px; overflow: hidden;
+        background: #06121A; min-height: 220px; max-height: 44vh;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .vis-canvas { display: block; max-width: 100%; max-height: 44vh; width: auto; height: auto; object-fit: contain; }
+      .vis-vide { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 24px; text-align: center; color: var(--vis-texte-2); font-size: 13.5px; max-width: 46ch; }
+      .vis-vide p { margin: 0; }
+      .vis-video-cadre { position: relative; width: 100%; display: flex; justify-content: center; }
+      .vis-video { display: block; max-width: 100%; max-height: 44vh; }
+      .vis-titre-video {
+        position: absolute; left: 6%; right: 6%; color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.45); line-height: 1.1; pointer-events: none;
+      }
+      .vis-titre-video b { display: block; }
+      .vis-titre-video small { display: block; font-size: .55em; font-weight: 500; opacity: .92; margin-top: .3em; }
+      .vis-titre-video.pos-bas { bottom: 12%; }
+      .vis-titre-video.pos-haut { top: 8%; }
+      .vis-titre-video.pos-centre { top: 50%; transform: translateY(-50%); }
+      .vis-avap { position: absolute; top: 10px; left: 10px; display: inline-flex; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.88); }
+      .vis-avap button { padding: 5px 10px; border: 0; background: transparent; font: inherit; font-size: 11px; font-weight: 700; color: #3E6A76; cursor: pointer; min-height: 28px; }
+      .vis-avap button[aria-pressed="true"] { background: #0B3A46; color: #fff; }
+      .vis-badge { position: absolute; top: 10px; right: 10px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.88); font-size: 11px; font-weight: 700; color: #3E6A76; }
+      .vis-outils {
+        display: flex; justify-content: space-around; gap: 4px;
+        padding: 6px; border-radius: 16px; background: var(--vis-nuit-2);
+        overflow-x: auto; scrollbar-width: none;
+      }
+      .vis-outils button {
+        display: inline-flex; flex-direction: column; align-items: center; gap: 4px;
+        padding: 6px 10px; border: 0; border-radius: 12px; background: transparent;
+        color: rgba(242,248,250,.75); font: inherit;
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 10.5px; font-weight: 700; cursor: pointer; white-space: nowrap; min-width: 64px; min-height: 44px;
+        flex: none;
+      }
+      .vis-outils button[aria-pressed="true"] { background: rgba(255,255,255,.12); color: #fff; }
+      .vis-outils button:disabled { opacity: .4; cursor: default; }
+      .vis-message { margin: 0; padding: 9px 12px; border-radius: 12px; font-size: 13px; }
+      .vis-message.info { background: rgba(125,211,252,.12); color: var(--vis-lumiere); }
+      .vis-message.ok { background: rgba(61,220,151,.14); color: #3DDC97; }
+      .vis-message.erreur { background: rgba(255,122,89,.16); color: #FFB59F; }
+      .vis-bloc {
+        border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 10px 12px;
+        display: flex; flex-direction: column; gap: 10px; background: var(--vis-nuit-2);
+      }
+      .vis-bloc-ia { background: linear-gradient(160deg, rgba(245,184,65,.16), rgba(255,122,89,.12)); border-color: rgba(245,184,65,.35); }
+      .vis-bloc h3 {
+        margin: 0; font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #fff;
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      }
+      .vis-bloc h3 span { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; letter-spacing: 0; text-transform: none; font-weight: 500; font-size: 12px; color: var(--vis-texte-2); }
+      .vis-bloc h3 svg { margin-right: 6px; vertical-align: -2px; }
+      .vis-note { margin: 0; font-size: 12px; color: var(--vis-texte-2); line-height: 1.45; }
+      .vis-prompt { display: flex; gap: 6px; align-items: center; }
+      .vis-prompt input, .vis-texte input {
+        flex: 1; min-width: 0; font: inherit; font-size: 13.5px; padding: 10px 12px;
+        border: 1.5px solid rgba(255,255,255,.14); border-radius: 12px;
+        background: rgba(255,255,255,.06); color: #fff; min-height: 44px;
+      }
+      .vis-prompt input::placeholder, .vis-texte input::placeholder { color: rgba(242,248,250,.5); }
+      .vis-prompt button {
+        display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 44px;
+        border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--vis-or), var(--vis-corail)); color: #fff;
+        font: inherit; font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap;
+      }
+      .vis-prompt button:disabled { opacity: .6; cursor: default; }
+      .vis-intentions, .vis-puces { display: flex; gap: 6px; flex-wrap: wrap; }
+      .vis-intentions button, .vis-puces button {
+        padding: 7px 11px; min-height: 36px; border: 1px solid rgba(255,255,255,.14); border-radius: 999px;
+        background: rgba(255,255,255,.06); font: inherit; font-size: 12.5px; font-weight: 600; color: #fff;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+      }
+      .vis-intentions button:disabled { opacity: .45; cursor: default; }
+      .vis-puces button[aria-pressed="true"] { background: rgba(125,211,252,.2); border-color: var(--vis-lumiere); }
+      .vis-puces button i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+      .vis-curseurs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+      .vis-curseur { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: #fff; }
+      .vis-curseur span { display: flex; justify-content: space-between; align-items: center; }
+      .vis-curseur span b { font-weight: 600; }
+      .vis-curseur span i { font-style: normal; font-variant-numeric: tabular-nums; color: var(--vis-texte-2); }
+      .vis-curseur input[type="range"] { width: 100%; accent-color: var(--vis-lumiere); margin: 0; min-height: 28px; }
+      .vis-texte { display: flex; flex-direction: column; gap: 6px; }
+      .vis-pied {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding-top: 10px; border-top: 1px solid rgba(255,255,255,.1);
+      }
+      .vis-secondaire {
+        padding: 9px 12px; min-height: 40px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+        background: rgba(255,255,255,.06); font: inherit; font-size: 13px; font-weight: 600; color: #fff;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      }
+      .vis-secondaire:disabled { opacity: .45; cursor: default; }
+      .vis-lien { margin-left: auto; border: 0; background: none; padding: 6px 0; font: inherit; font-size: 12px; color: var(--vis-texte-2); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+      .vis-inserer {
+        display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; min-height: 44px;
+        border: 0; border-radius: 14px; background: var(--vis-aqua); color: #fff;
+        font: inherit; font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 14px; cursor: pointer;
+        box-shadow: 0 8px 18px rgba(15,158,194,.35);
+      }
+      .vis-inserer:disabled { opacity: .55; cursor: default; box-shadow: none; }
+      @media (max-width: 639px) {
+        .vis-voile { padding: 0; align-items: stretch; }
+        .vis-feuille { width: 100%; max-height: 100vh; border-radius: 0; border: 0; padding: 12px 12px 16px; }
+        .vis-apercu { max-height: 40vh; }
+        .vis-canvas, .vis-video { max-height: 40vh; }
+        .vis-outils { justify-content: flex-start; }
+        .vis-curseurs { grid-template-columns: 1fr; }
+        .vis-tete h2 { flex: 1 0 100%; }
+        .vis-inserer { flex: 1 0 100%; justify-content: center; }
+        .vis-lien { margin-left: 0; flex: 1 0 100%; order: 9; text-align: center; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .vis-voile, .vis-feuille { animation: none !important; }
+      }
+      /* ===== FIN VISUEL IA ===== */
+
+      /* ===================================================================
          DS-EX-2 · LA NAPPE D'EAU RÉELLEMENT VISIBLE DANS TOUTE L'APPLICATION
 
          Constat mesuré : `data-miroir` couvrait déjà tous les écrans, mais

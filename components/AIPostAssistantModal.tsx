@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sparkles, Wand2, Globe, Hash, Type, Image as ImageIcon, Check, Copy, ArrowRight, X, Loader2, RefreshCw, Layers, ShieldCheck, Heart } from 'lucide-react';
 import { aiService } from '../services/ai';
+
+export type AIPostAssistantTool = 'style' | 'translate' | 'hashtags' | 'visual' | 'headline';
 
 interface AIPostAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   originalText: string;
   onApply: (enhancedText: string, tags?: string[], generatedImageUrl?: string) => void;
+  // DEC-2026-059 — les orbes « Améliorer le style », « Traduire » et
+  // « Hashtags » du composeur ouvrent la modale directement sur leur onglet.
+  // Sans cette prop, l'ouverture reste celle d'avant (onglet « style »).
+  initialTool?: AIPostAssistantTool;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -41,9 +47,15 @@ export const AIPostAssistantModal: React.FC<AIPostAssistantModalProps> = ({
   isOpen,
   onClose,
   originalText,
-  onApply
+  onApply,
+  initialTool
 }) => {
-  const [activeTool, setActiveTool] = useState<'style' | 'translate' | 'hashtags' | 'visual' | 'headline'>('style');
+  const [activeTool, setActiveTool] = useState<AIPostAssistantTool>('style');
+  // À chaque ouverture, l'onglet demandé par l'orbe prend la main ; entre deux
+  // ouvertures sans consigne, l'onglet courant est conservé comme avant.
+  useEffect(() => {
+    if (isOpen && initialTool) setActiveTool(initialTool);
+  }, [isOpen, initialTool]);
   const [selectedStyle, setSelectedStyle] = useState('pro');
   const [targetLang, setTargetLang] = useState('en');
   const [generatedResult, setGeneratedResult] = useState<string>('');

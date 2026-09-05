@@ -1,0 +1,299 @@
+{
+  "ordinateur": {
+    "composeur": {
+      "largeur": 1120,
+      "hauteur": 382,
+      "top": 111
+    },
+    "avatar": {
+      "l": 44,
+      "h": 44,
+      "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+    },
+    "champ": {
+      "l": 927,
+      "h": 150,
+      "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
+    },
+    "boutonsVisibles": [
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA",
+      "Brouillon",
+      "Publier"
+    ],
+    "nbBoutons": 11,
+    "horsEcran": [],
+    "railVisible": true,
+    "basVisible": false,
+    "selects": [
+      "🌐 Public",
+      "Tech & Innovation"
+    ],
+    "compteur": "0 caractère",
+    "compteurVisible": true,
+    "debordeX": false,
+    "orbe": {
+      "l": 40,
+      "h": 40,
+      "radius": "50%"
+    },
+    "police": "Outfit",
+    "ciblesPetites": [],
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ],
+    "apresSaisie": {
+      "compteur": "102 caractères",
+      "publierActif": true,
+      "brouillonActif": true
+    },
+    "modaleTraduire": {
+      "titre": true,
+      "ongletLangue": true
+    },
+    "modaleFermee": true,
+    "studio": {
+      "present": true,
+      "inertRacine": true,
+      "feuille": {
+        "l": 1040,
+        "h": 817,
+        "top": 42,
+        "left": 200
+      },
+      "canvas": {
+        "l": 720,
+        "h": 480
+      },
+      "focus": "vis-fermer",
+      "modes": [
+        "Prompt:true",
+        "Réglages manuels:false"
+      ],
+      "familles": [
+        "Visage & cheveux",
+        "Lumière",
+        "Cinéma",
+        "Texte",
+        "Vidéo (inactif)"
+      ],
+      "debordeX": false
+    },
+    "studioReglages": {
+      "badge": "Original · Golden hour",
+      "reinitialiserActif": true,
+      "insererActif": true
+    },
+    "insertion": {
+      "image": "blob:",
+      "studioFerme": true,
+      "inertRetire": true,
+      "publierActif": true
+    }
+  },
+  "tablette": {
+    "composeur": {
+      "largeur": 500,
+      "hauteur": 404,
+      "top": 143
+    },
+    "avatar": {
+      "l": 44,
+      "h": 44,
+      "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+    },
+    "champ": {
+      "l": 386,
+      "h": 96,
+      "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
+    },
+    "boutonsVisibles": [
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Brouillon",
+      "Publier"
+    ],
+    "nbBoutons": 11,
+    "horsEcran": [],
+    "railVisible": false,
+    "basVisible": true,
+    "selects": [
+      "🌐 Public",
+      "Tech & Innovation"
+    ],
+    "compteur": "0 caractère",
+    "compteurVisible": false,
+    "debordeX": false,
+    "orbe": {
+      "l": 0,
+      "h": 0,
+      "radius": "50%"
+    },
+    "police": "Outfit",
+    "ciblesPetites": [],
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ],
+    "apresSaisie": {
+      "compteur": "102 caractères",
+      "publierActif": true,
+      "brouillonActif": true
+    },
+    "modaleTraduire": {
+      "titre": true,
+      "ongletLangue": true
+    },
+    "modaleFermee": true,
+    "studio": {
+      "present": true,
+      "inertRacine": true,
+      "feuille": {
+        "l": 784,
+        "h": 901,
+        "top": 140,
+        "left": 18
+      },
+      "canvas": {
+        "l": 720,
+        "h": 480
+      },
+      "focus": "vis-fermer",
+      "modes": [
+        "Prompt:true",
+        "Réglages manuels:false"
+      ],
+      "familles": [
+        "Visage & cheveux",
+        "Lumière",
+        "Cinéma",
+        "Texte",
+        "Vidéo (inactif)"
+      ],
+      "debordeX": false
+    },
+    "studioReglages": {
+      "badge": "Original · Golden hour",
+      "reinitialiserActif": true,
+      "insererActif": true
+    },
+    "insertion": {
+      "image": "blob:",
+      "studioFerme": true,
+      "inertRetire": true,
+      "publierActif": true
+    }
+  },
+  "telephone": {
+    "composeur": {
+      "largeur": 358,
+      "hauteur": 404,
+      "top": 61
+    },
+    "avatar": {
+      "l": 44,
+      "h": 44,
+      "classes": "w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-500/20"
+    },
+    "champ": {
+      "l": 244,
+      "h": 96,
+      "placeholder": "Quoi de neuf ? Partage une réflexion, une opportunité, un tutoriel ou un document."
+    },
+    "boutonsVisibles": [
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Brouillon",
+      "Publier"
+    ],
+    "nbBoutons": 11,
+    "horsEcran": [],
+    "railVisible": false,
+    "basVisible": true,
+    "selects": [
+      "🌐 Public",
+      "Tech & Innovation"
+    ],
+    "compteur": "0 caractère",
+    "compteurVisible": false,
+    "debordeX": false,
+    "orbe": {
+      "l": 0,
+      "h": 0,
+      "radius": "50%"
+    },
+    "police": "Outfit",
+    "ciblesPetites": [],
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ],
+    "apresSaisie": {
+      "compteur": "102 caractères",
+      "publierActif": true,
+      "brouillonActif": true
+    },
+    "modaleTraduire": {
+      "titre": true,
+      "ongletLangue": true
+    },
+    "modaleFermee": true,
+    "studio": {
+      "present": true,
+      "inertRacine": true,
+      "feuille": {
+        "l": 390,
+        "h": 844,
+        "top": 0,
+        "left": 0
+      },
+      "canvas": {
+        "l": 720,
+        "h": 480
+      },
+      "focus": "vis-fermer",
+      "modes": [
+        "Prompt:true",
+        "Réglages manuels:false"
+      ],
+      "familles": [
+        "Visage & cheveux",
+        "Lumière",
+        "Cinéma",
+        "Texte",
+        "Vidéo (inactif)"
+      ],
+      "debordeX": false
+    },
+    "studioReglages": {
+      "badge": "Original · Golden hour",
+      "reinitialiserActif": true,
+      "insererActif": true
+    },
+    "insertion": {
+      "image": "blob:",
+      "studioFerme": true,
+      "inertRetire": true,
+      "publierActif": true
+    }
+  }
+}
