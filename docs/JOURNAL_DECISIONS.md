@@ -20,7 +20,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
-### [DEC-2026-082] — 5 Septembre 2026
+### [DEC-2026-083] — 5 Septembre 2026
 
 * **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
   (`components/AIPostAssistantModal.tsx` : en-tête, onglets, corps et pied
@@ -50,14 +50,22 @@ Chaque décision respecte le formalisme strict suivant :
   global, touche toutes les équipes et l'accessibilité, rejeté ; (b) champ du
   composeur à 16 px sur pointeur tactile ou fenêtre étroite, voile qui suit
   `window.visualViewport` (zoom volontaire, clavier), carte à 90 % du voile
-  (96 % si le voile fait moins de 560 px), parties fixes non compressibles et
-  seule zone de contenu défilante, en-tête et pied repliables et compacts
-  sous 320 px de voile, carte en `overflow: clip` — retenu.
-* **Décision** : option (b). Rien n'est retiré ; ordinateur inchangé (police
-  12 px, carte de 623 px, mêmes rectangles). Sur téléphone, le champ passe à
+  (96 % quand sa boîte de contenu fait 560 px ou moins de haut, soit un
+  voile de 592 px ou moins), parties fixes non compressibles et seule zone
+  de contenu défilante, en-tête et pied repliables et compacts quand la
+  boîte de contenu du voile fait 320 px ou moins de large (voile de 352 px
+  ou moins, iPhone SE 1 non zoomé compris), carte en `overflow: clip` —
+  retenu. Les règles des blocs de conteneur sont en spécificité (0,2,0)
+  (`.ia-fond …`) : Tailwind (Play CDN) injecte sa feuille après celle de la
+  page et gagnerait à égalité — constat C1 de la revue indépendante, garde
+  ajoutée au test.
+* **Décision** : option (b). Rien n'est retiré ; ordinateur strictement inchangé (police
+  12 px, carte de 623 px, bouton « Fermer » à y = 164 et remplissage
+  d'en-tête 20 px avant comme après ; l'alignement haut de l'en-tête ne vaut
+  que dans le voile étroit — constat C2 de la revue). Sur téléphone, le champ passe à
   16 px (interligne 1,4) ; sur les plus petits écrans et au zoom, l'en-tête
   se replie (titre 16 px) et « Annuler » passe au-dessus d'« Appliquer ».
-* **Contrôle** : typage 0 erreur, 1645/1645 tests (109 fichiers ; tests
+* **Contrôle** : typage 0 erreur, 1635/1635 tests (107 fichiers ; tests
   ajoutés : suivi de la zone visible, gardes CSS de la carte et du champ à
   16 px, classes de l'en-tête et du pied), build OK ; sonde sur neuf cas
   (320 × 568, 360 × 640, 375 × 667, 390 × 844, 412 × 915, 390 × 500
@@ -73,7 +81,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-083] — 5 Septembre 2026
+### [DEC-2026-084] — 5 Septembre 2026
 
 * **Module(s)** : authentification Google — écran de consentement Google et
   projet Supabase `rqciahtpixdjbyoajomg` ; aucun fichier du dépôt.
@@ -107,6 +115,18 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-082] — 5 Septembre 2026
+* **Module(s)** : Réseau MOC / Studio Live (`components/SocialLive.tsx`, fiche `docs/modules/05_reseau_mok_et_social.md`) ; garde-fou de test (`tests/liveQuitButton.test.tsx`).
+* **Problème / Besoin initial** : Direction (mission LV-2, point 1) : le bouton de sortie du Studio Live n'était qu'une icône rouge (`PhoneOff`) sans libellé, dont le rôle se devinait ; sur téléphone comme sur ordinateur, rien ne disait qu'il permettait de « quitter le direct », et le même bouton (`aria-label="Quitter ou terminer le Live"`, `onClick={handleEndLive}`) servait à la fois le spectateur (qui veut juste partir) et l'animateur (qui doit clore et publier son compte-rendu). Méthode imposée : un point corrigé, une preuve visible sur mobile ET ordinateur, une production contrôlée, puis le point suivant.
+* **Idées / Options envisagées** : (1) garder l'icône seule et ajouter une infobulle — refusée : une infobulle n'existe pas au toucher, le rôle resterait à deviner sur téléphone ; (2) deux boutons distincts (Quitter / Terminer) — refusée : encombre l'en-tête, et le bon geste dépend déjà du rôle, connu du code ; (3) **retenue** : un seul bouton relibellé « Quitter » (libellé texte VISIBLE, `aria-label` clarifié), dont l'action se branche sur un nouveau `handleQuitLive` qui distingue le rôle — spectateur : sortie propre immédiate ; hôte : le flux de fin existant, inchangé.
+* **Décision retenue — bouton « Quitter » clair + sortie propre selon le rôle, sans rechargement** : l'en-tête du Studio Live porte un bouton avec le libellé texte « Quitter » (icône `PhoneOff` conservée), `data-testid="live-quit-button"`, `aria-label="Quitter le direct"`, hauteur 44 px (cible tactile), `shrink-0` et hors de la zone défilante (acquis MB-1). `handleQuitLive` : si l'utilisateur est l'animateur (`isHost`), appelle `handleEndLive()` **inchangé** (le compte-rendu de fin est conservé, c'est SON direct) ; sinon (spectateur) coupe le média local (`stopLocalMedia`), quitte réellement la session (`leaveRealSession`, `left_at` posé) et referme la vue (`onClose` — un simple changement d'état React côté parent `App.tsx`, **jamais** un `window.location`/`reload`).
+* **Justification & Valeur ajoutée** : ce qui se voit dit ce qu'il fait (invariant « aucun bouton dont le rôle se devine ») ; un spectateur n'a rien à résumer et ne devait jamais publier le compte-rendu d'un direct qui n'est pas le sien ; la sortie ne recharge pas la page (aucune perte de contexte applicatif).
+* **Conséquences & Impacts transversaux** : aucune migration, aucune fonction Edge, aucune donnée touchée ; le flux hôte (compte-rendu) est strictement identique ; `package.json` inchangé (épinglage `livekit-client` 2.17.3 intact, garde `livekitClientPin` verte). Retour arrière : `git revert` du squash (changement isolé à un composant + un test).
+* **Éléments techniques concernés** : `components/SocialLive.tsx` (`handleQuitLive` + bouton d'en-tête relibellé) ; `tests/liveQuitButton.test.tsx` (garde-fou de structure en CI : libellé visible, `data-testid`, `aria-label`, câblage `handleQuitLive`, absence de `location`/`reload`).
+* **Contrôle indépendant** : suite complète 1635/1635 (108 fichiers, dont `liveQuitButton` 3/3 et la garde `livekitClientPin` 5/5), typage 0, build propre ; banc navigateur réel (Chromium + Tailwind réel servi en local) avant/après, ordinateur 1440×900 et téléphone 390×844, 12/12 (AVANT : icône seule, libellé texte vide ; APRÈS : « Quitter » visible, hauteur 44 px, dans l'écran, `aria-label="Quitter le direct"`) ; revue indépendante « PRÊT » sur le diff (identique après rebase, l'avance de `main` étant documentaire).
+* **Feu vert** : Direction, 05/09/2026 : « Je donne le feu vert écrit pour une production contrôlée, limitée strictement à ce qui est décrit. Tu vérifies juste après la production que tout est conforme. S'il y a un souci, tu t'arrêtes, tu corriges proprement, et si ce n'est pas résolvable sans risque, tu reviens à la version stable et tu rapportes. »
+* **Production** : oui, contrôlée. Arbre rebasé sur `main` `a440309` (avance = documentaire seule, zéro chevauchement avec les 2 fichiers), Green Gate vert sur la tête exacte `97abca9` (run « typage · tests · build » `success`), trois aperçus Netlify prêts, `main` revérifié inchangé `a440309` et aucune autre fusion en cours ; PR #112 fusionnée en squash sur `expectedHeadSha` `97abca9` → `main` `f6948b0` à 17:23 UTC (au moment de la fusion, `moknet.net` servait `index-C_IAplN2.js`, marqueurs `live-quit-button` et « Quitter le direct » présents, ancien libellé « Quitter ou terminer le Live » absent, ancien bundle `index-CacRDIgE.js` → 404) ; Green Gate vert sur `main` (run #253, `33980817639`, `success`). `main` a depuis avancé (PR #114 gouvernance puis PR #111 v6.42.1 Architecte, apportant du code) : la mémoire vivante de cette décision est finalisée par une PR de documentation dédiée après réintégration de `main`, et le bundle servi vérifié le 5/09 est `index-C8Y6seFM.js`, qui porte toujours les marqueurs `live-quit-button` et « Quitter le direct » (ancien libellé absent, bundle de la fusion `index-C_IAplN2.js` → 404). Le vécu complet (entrer dans un direct réel → cliquer → sortir sans rechargement) et l'appréciation visuelle finale appartiennent à la Direction.
+* **Statut** : `Développé` · `Testé` · 🟢 **EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 17:23 UTC.**
 ### [DEC-2026-081] — 5 Septembre 2026
 * **Module(s)** : Authentification & sessions (`services/auth.ts`, `App.tsx`, fiche `docs/modules/AUTHENTIFICATION.md`) ; Sécurité & infrastructure (`netlify.toml` — domaine canonique).
 * **Problème / Besoin initial** : Direction (05/09) : « Mission urgente : correction de l'accès public à Moknet. Constat : le lien moknet.net ouvre directement l'interface sans authentification. […] toute personne non connectée qui ouvre moknet.net doit arriver obligatoirement sur l'écran de connexion ou de création de compte. L'accès direct à l'interface doit être strictement réservé aux utilisateurs authentifiés avec une session valide. Si déjà connecté, redirection normale vers Réseau Moknet. Sinon, aucune page interne ne doit s'ouvrir. […] quel que soit le canal d'ouverture du lien : SMS, WhatsApp, Messenger, navigateur mobile et ordinateur, y compris les navigateurs intégrés des apps. […] gérer toutes les variantes d'écriture du domaine ». **Constat reproduit (🚀 page de production servie `index-Bm6woHcd.js`, miroir Chromium, contexte vierge, sept canaux émulés par leur agent utilisateur réel)** : sans session sur l'appareil, `moknet.net` affiche « Se connecter » sur les sept canaux, ordinateur et téléphone — ce n'est pas par là que l'interface s'ouvrait. **Cause racine prouvée** : l'entrée (`App.tsx`) ne faisait que relire le stockage local (`getSession()`, jamais le serveur) et ouvrait l'interface *sur erreur* (« Local-First », v6.1) : une session locale que le serveur refuse — jeton périmé côté serveur, révoqué, forgé, compte supprimé ou banni (refus 401/403 rejoué en banc) — ouvrait l'interface interne sur les sept canaux, avec le profil local ou de démonstration ; un appareil qui a gardé une session d'un compte supprimé entrait donc encore. Les variantes du domaine (`www`, `http`, majuscules) étaient déjà ramenées à `https://moknet.net` par la configuration du site Netlify (domaine principal), de façon implicite et non versionnée.
