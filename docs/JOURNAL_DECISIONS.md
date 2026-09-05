@@ -89,11 +89,24 @@ Chaque décision respecte le formalisme strict suivant :
   le fil, zéro erreur JS ; avant, parcours bloqué sur les deux téléphones.
   Limite honnête : harnais sur le même code (pas l'écran authentifié),
   Chromium émulé (zone sûre et `dvh` non mesurés sur iPhone réel).
-* **Statut** : 🟠 PRÊTE, NON DÉPLOYÉE — PR #109 (brouillon) depuis la branche
-  `claude/cleanup-home-interface-szp8qv`, Green Gate et revue indépendante
-  en cours ; production seulement sur feu vert écrit de la Direction, après
-  vérification que `main` n'a pas bougé et qu'aucune autre fusion n'est en
-  cours.
+* **Production contrôlée** : feu vert écrit de la Direction le 5/09/2026 vers
+  16:45 UTC (« feu vert pour la production contrôlée de la PR #109
+  uniquement, sur la tête e5ed7eb ») ; revue indépendante « À CORRIGER »
+  (deux constats documentaires) puis contre-vérification « PRÊT » ; Green
+  Gate vert sur `1d4ffb8`, `683822b` et `e5ed7eb` (run 33978405335) ;
+  `main` vérifié inchangé (`1c2daf6`, dernière fusion #108 à 15:56:38 UTC,
+  aucune autre fusion en cours) ; PR #109 fusionnée en squash sur la tête
+  exacte `e5ed7eb` → `main` `81c66c8` à 16:46:29 UTC ; `moknet.net` sert la
+  nouvelle page depuis 16:47:11 UTC (bundle `index-6ZrCib2c.js`, sept
+  marqueurs présents, ancien bundle `index-Bvy0oNZ6.js` → 404, vérificateur
+  « conforme ») ; Green Gate vert sur `main` (run 33978900871) ; sur le code
+  fusionné `81c66c8` : typage 0 erreur, 1602/1602 tests (105 fichiers), build
+  OK, parcours de publication réussi sur 390 × 844, 360 × 800 et 1440 × 900
+  (harnais, zéro erreur JS). Limite honnête : l'écran authentifié n'est pas
+  capturable sans compte ; les preuves téléphone et ordinateur du parcours
+  proviennent du harnais sur ce même code.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  fusion 16:46:29 UTC, page servie 16:47:11 UTC, v6.41.1).
 
 ---
 

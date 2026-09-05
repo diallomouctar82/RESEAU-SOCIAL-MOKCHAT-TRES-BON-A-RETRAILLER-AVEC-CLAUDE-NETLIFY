@@ -1,0 +1,30 @@
+{
+ "telephone": {
+  "nbRegles": 749,
+  "iaFond": "z-index: 2147482000;",
+  "iaCarte": "max-height: 90dvh;",
+  "iaPied": "padding-bottom: max(1rem, env(safe-area-inset-bottom));",
+  "visVoileZ": "2147483000",
+  "racineMontee": true,
+  "titre": "Le Monde à Vous",
+  "bundle": "index-6ZrCib2c.js",
+  "texteVisible": "Se connecter Pour continuer vers Le Monde à Vous Se connecterCréer un compte Se souvenir de moiMot de passe oublié ? Se ",
+  "erreursJS": [
+   "tailwind is not defined"
+  ]
+ },
+ "ordinateur": {
+  "nbRegles": 749,
+  "iaFond": "z-index: 2147482000;",
+  "iaCarte": "max-height: 90dvh;",
+  "iaPied": "padding-bottom: max(1rem, env(safe-area-inset-bottom));",
+  "visVoileZ": "2147483000",
+  "racineMontee": true,
+  "titre": "Le Monde à Vous",
+  "bundle": "index-6ZrCib2c.js",
+  "texteVisible": "Se connecter Pour continuer vers Le Monde à Vous Se connecterCréer un compte Se souvenir de moiMot de passe oublié ? Se ",
+  "erreursJS": [
+   "tailwind is not defined"
+  ]
+ }
+}
