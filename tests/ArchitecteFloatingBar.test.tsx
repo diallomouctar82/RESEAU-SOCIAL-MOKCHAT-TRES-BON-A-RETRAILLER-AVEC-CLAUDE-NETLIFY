@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Tests DOM de la barre flottante.
@@ -28,15 +28,17 @@ const startListening = vi.fn(async () => true);
 const setConversationalMode = vi.fn();
 // Nommé (et non inline) : les tests Boucle 1 vérifient CE QUI est prononcé —
 // l'accueil, et surtout ce qui ne doit JAMAIS l'être barre fermée (§14).
-const speak = vi.fn(async (_texte: string) => {});
+// C1 : la barre passe `onStart` à la parole (la réflexion tient jusqu'au
+// premier son) — la doublure accepte les options et résout tout de suite.
+const speak = vi.fn(async (_texte: string, _opts?: { onStart?: () => void; onEnd?: () => void }) => {});
 // Mutable pour simuler, test par test, un signal d'erreur du moteur vocal
 // (`vi.hoisted` : le bloc `vi.mock` est hissé au-dessus des `const`).
-const voiceState = vi.hoisted(() => ({ error: null as string | null, isListening: false }));
+const voiceState = vi.hoisted(() => ({ error: null as string | null, isListening: false, isSpeaking: false }));
 
 vi.mock('../hooks/useVoiceAssistant', () => ({
     useVoiceAssistant: () => ({
         isListening: voiceState.isListening,
-        isSpeaking: false,
+        isSpeaking: voiceState.isSpeaking,
         isSupported: true,
         volume: 0,
         transcript: '',
@@ -79,6 +81,10 @@ import {
 } from '../components/architecte/ArchitecteFloatingBar';
 import { addSessionTurn, clearSession, getSessionTurns } from '../services/architecte/architecteSession';
 import { generateJSON } from '../services/aiGateway';
+import { voiceEngine } from '../services/voiceEngine';
+
+/** C1 : le déverrouillage audio est espionné — appelé dans les gestes, jamais joué sur le banc. */
+let unlock: ReturnType<typeof vi.spyOn>;
 
 const PROFIL: any = { id: 'u-test', name: 'Preuve Lazarus', level: 3 };
 /** Personne déjà connue : fiche de consentement présente (accueil léger, §2/§22). */
@@ -122,10 +128,19 @@ beforeEach(() => {
     vi.clearAllMocks();
     voiceState.error = null;
     voiceState.isListening = false;
+    voiceState.isSpeaking = false;
+    unlock = vi.spyOn(voiceEngine, 'unlockPlayback').mockImplementation(() => {});
     // La session de l'Architecte est un singleton de module : chaque test
     // repart d'un fil vierge.
     clearSession();
 });
+afterEach(() => { unlock.mockRestore(); });
+
+/** Rejoue le rendu avec les mêmes props : propage un changement de `voiceState`. */
+function rafraichir() {
+    if (!currentUtils || !currentProps) throw new Error('monter() doit être appelé avant rafraichir()');
+    currentUtils.rerender(<ArchitecteFloatingBar {...currentProps} />);
+}
 
 describe('État fermé', () => {
     it("rend une PRÉSENCE FLOTTANTE PERMANENTE au repos — inversion de rôles RO-3", () => {
@@ -340,8 +355,8 @@ describe('Boucle 1 — accueil différencié (§1-2)', () => {
         ouvrir();
         await screen.findByText("L'Architecte");
 
-        expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
-        expect(speak).toHaveBeenCalledWith(expect.stringContaining('Voulez-vous'));
+        expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'), expect.anything());
+        expect(speak).toHaveBeenCalledWith(expect.stringContaining('Voulez-vous'), expect.anything());
     });
 
     it('personne connue : accueil léger avec le nom choisi — jamais un onboarding rejoué', async () => {
@@ -349,8 +364,8 @@ describe('Boucle 1 — accueil différencié (§1-2)', () => {
         ouvrir();
         await screen.findByText("L'Architecte");
 
-        expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?");
-        expect(speak).not.toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
+        expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?", expect.anything());
+        expect(speak).not.toHaveBeenCalledWith(expect.stringContaining('bienvenue'), expect.anything());
     });
 
     it("l'accueil se fait UNE fois par session de page — fermer puis rouvrir ne le rejoue pas", async () => {
@@ -625,7 +640,7 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         fireEvent(video, new Event('pause'));
         fireEvent(video, new Event('ended'));
         // Accueil différé puis écoute — dans cet ordre.
-        await waitFor(() => expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?"));
+        await waitFor(() => expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?", expect.anything()));
         await waitFor(() => expect(startListening).toHaveBeenCalledTimes(1));
         expect(screen.queryByText('Présentation en cours…')).toBeNull();
     });
@@ -641,8 +656,9 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         await waitFor(() => expect(startListening).toHaveBeenCalledTimes(1));
         voiceState.isListening = true;
 
-        // Fermer par la sculpture (elle est aussi le bouton qui referme), puis rouvrir.
-        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        // C1 : la sculpture ouverte n'est plus le bouton qui referme — fermer,
+        // c'est le ✕ « Fermer » de la barre. Puis rouvrir.
+        fireEvent.click(screen.getByLabelText('Fermer'));
         expect(screen.queryByText("L'Architecte")).toBeNull();
         voiceState.isListening = false;
         fireEvent.click(screen.getByTestId('architecte-flottant'));
@@ -661,6 +677,106 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         fireEvent(videoBis, new Event('playing'));
         await waitFor(() => expect(stopListening).toHaveBeenCalled());
         expect(stopSpeaking).toHaveBeenCalled();
+    });
+
+    // ── C1 (Direction, 05/09/2026) : « après sa présentation, il ne porte plus
+    // la conversation » — l'avatar doit accompagner TOUTE la conversation. ──
+    it("C1 — toucher la sculpture OUVERTE ne ferme plus : l'Architecte se tait s'il parlait, écoute, et le geste déverrouille le son", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        await screen.findByText("L'Architecte");
+        // Le premier appui (ouverture) est un geste : déverrouillage demandé.
+        expect(unlock).toHaveBeenCalled();
+        const video = screen.getByTestId('architecte-sequence-video');
+        fireEvent(video, new Event('playing'));
+        Object.defineProperty(video, 'ended', { configurable: true, get: () => true });
+        fireEvent(video, new Event('ended'));
+        await waitFor(() => expect(startListening).toHaveBeenCalledTimes(1));
+
+        // L'Architecte parle (le moteur a mis le micro en pause exprès) : un
+        // appui sur lui = « je vous écoute » — il se tait et le micro repart.
+        voiceState.isSpeaking = true;
+        voiceState.isListening = false;
+        rafraichir();
+        expect(screen.getByTestId('architecte-flottant')).toHaveAttribute('aria-label', expect.stringContaining("Parler à l'Architecte"));
+        stopSpeaking.mockClear();
+        unlock.mockClear();
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        expect(screen.getByText("L'Architecte")).toBeInTheDocument();
+        expect(stopSpeaking).toHaveBeenCalledTimes(1);
+        expect(unlock).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(startListening).toHaveBeenCalledTimes(2));
+        expect(screen.getByText('Je vous écoute.')).toBeInTheDocument();
+        // Rien n'a été fermé : la session conversationnelle est toujours là.
+        expect(setConversationalMode).not.toHaveBeenCalledWith(false);
+
+        // Fermer reste possible — par le ✕.
+        fireEvent.click(screen.getByLabelText('Fermer'));
+        expect(screen.queryByText("L'Architecte")).toBeNull();
+        expect(setConversationalMode).toHaveBeenCalledWith(false);
+    });
+
+    it("C1 — un appui sur la sculpture PENDANT la présentation la coupe : accueil puis écoute, sans fermer", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        await screen.findByText("L'Architecte");
+        const video = screen.getByTestId('architecte-sequence-video');
+        fireEvent(video, new Event('playing'));
+        expect(screen.getByText('Présentation en cours…')).toBeInTheDocument();
+        // Deuxième appui : la vidéo s'arrête (le lecteur émet pause puis ended), la barre reste ouverte.
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        expect(window.HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+        Object.defineProperty(video, 'ended', { configurable: true, get: () => true });
+        fireEvent(video, new Event('pause'));
+        fireEvent(video, new Event('ended'));
+        expect(screen.getByText("L'Architecte")).toBeInTheDocument();
+        await waitFor(() => expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?", expect.anything()));
+        await waitFor(() => expect(startListening).toHaveBeenCalledTimes(1));
+    });
+
+    it("C1 — la réflexion tient jusqu'au premier son de la réponse : entre l'envoi et la voix, l'Architecte ne retombe pas au repos", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        speak.mockClear();
+        unlock.mockClear();
+        let onStart: (() => void) | undefined;
+        // Une vraie parole HD ne résout qu'à la FIN de la voix : la doublure reste en vol.
+        speak.mockImplementationOnce((_texte: string, opts?: { onStart?: () => void }) => {
+            onStart = opts?.onStart;
+            return new Promise<void>(() => {});
+        });
+        await ecrire('Quel est le programme du jour ?');
+        // L'envoi est un geste : le son est déverrouillé pour la réponse.
+        expect(unlock).toHaveBeenCalled();
+        await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
+        // La réponse est arrivée, la voix se génère encore : toujours « réfléchit ».
+        expect(screen.getByTestId('architecte-flottant')).toHaveAttribute('data-presence', 'thinking');
+        act(() => { onStart?.(); });
+        expect(screen.getByTestId('architecte-flottant')).not.toHaveAttribute('data-presence', 'thinking');
+    });
+
+    it("C1 — le chien de garde du micro patiente pendant que l'Architecte parle : pas de faux « micro en panne » au milieu de l'accueil", async () => {
+        vi.useFakeTimers();
+        try {
+            monter({ userProfile: PROFIL_CONNU });
+            ouvrir();
+            await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+            expect(startListening).toHaveBeenCalledTimes(1);
+            // La voix parle : le moteur a mis le micro en pause exprès.
+            voiceState.isSpeaking = true;
+            voiceState.isListening = false;
+            rafraichir();
+            await act(async () => { vi.advanceTimersByTime(3100); });
+            expect(screen.queryByText("Le micro n'a pas démarré — utilisez la saisie.")).toBeNull();
+            // La voix se tait et le micro ne revient toujours pas : là, c'est dit.
+            voiceState.isSpeaking = false;
+            rafraichir();
+            await act(async () => { vi.advanceTimersByTime(3100); });
+            expect(screen.getByText("Le micro n'a pas démarré — utilisez la saisie.")).toBeInTheDocument();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("la flèche déplie puis replie la conversation écrite ; par défaut elle n'est pas affichée en grand", async () => {
@@ -692,7 +808,7 @@ describe('La sculpture vivante — le modèle validé remplace le bouton (Direct
         monter(); // PROFIL sans fiche de consentement → accueil complet (219 caractères)
         ouvrir();
         await screen.findByText("L'Architecte");
-        expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'));
+        expect(speak).toHaveBeenCalledWith(expect.stringContaining('bienvenue'), expect.anything());
 
         expect(screen.queryByTestId('architecte-panneau')).toBeNull();
         expect(screen.queryByTestId('architecte-saisie-ligne')).toBeNull();

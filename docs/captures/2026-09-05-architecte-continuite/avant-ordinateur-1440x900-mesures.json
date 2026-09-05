@@ -1,0 +1,163 @@
+{
+  "ecran": "ordinateur-1440x900",
+  "jalons": {
+    "repos": {
+      "t": 2784,
+      "presence": "rest"
+    },
+    "presentation": {
+      "t": 4468,
+      "presence": "speaking",
+      "video": {
+        "statut": "playing",
+        "temps": 1.39,
+        "duree": 9.1
+      }
+    },
+    "accueil": {
+      "t": 6485,
+      "presence": "speaking",
+      "sousTitre": [
+        "Bonjour Amadou. Que puis-je faire pour vous aujourd'hui ?"
+      ]
+    },
+    "ecoute1": {
+      "t": 12553,
+      "presence": "listening"
+    },
+    "reflexion1": {
+      "t": 15684,
+      "presence": "speaking",
+      "sousTitre": [
+        "Vision Smart réunit vos experts, vos formations et votre réseau au même endroit. Dites-moi ce que vous voulez faire et je vous y conduis."
+      ]
+    },
+    "reponse1": {
+      "t": 16977,
+      "presence": "speaking",
+      "reponseAffichee": true
+    },
+    "ecoute2": {
+      "t": 20264,
+      "presence": "listening"
+    },
+    "appuiPendantReponse": {
+      "t": 20851,
+      "presenceAvant": "speaking"
+    },
+    "reprise": {
+      "t": 22149,
+      "barreOuverte": false,
+      "sousTitre": [],
+      "presence": "rest",
+      "parleEncore": false,
+      "libelle": "L'Architecte — au repos. Ouvrir l'Architecte",
+      "modeConversationnelCoupe": true
+    },
+    "ferme": {
+      "t": 22190,
+      "barreOuverte": false,
+      "presence": "rest",
+      "fermeParLAppui": true
+    }
+  },
+  "appelsPasserelle": {
+    "voix": 6,
+    "llm": 2,
+    "warmup": 0
+  },
+  "paroles": [
+    {
+      "debut": 5259,
+      "fin": 12028,
+      "dureeMs": 6769
+    },
+    {
+      "debut": 12668,
+      "fin": 19395,
+      "dureeMs": 6727
+    },
+    {
+      "debut": 20326,
+      "fin": 21262,
+      "dureeMs": 936
+    }
+  ],
+  "bouchePendantLaParole": {
+    "images": 521,
+    "ouvertureMax": 0.58,
+    "ouvertureMoyenne": 0.101,
+    "partOuverte": 0.4
+  },
+  "boucheHorsParole": {
+    "images": 1,
+    "ouvertureMax": 0,
+    "ouvertureMoyenne": 0,
+    "partOuverte": 0
+  },
+  "moteurs": [
+    "elevenlabs"
+  ],
+  "erreursMoteur": [],
+  "alignements": [
+    true,
+    false,
+    true,
+    false,
+    true,
+    false
+  ],
+  "liaisonsAuGraphe": 5,
+  "lectures": [
+    "VIDEO:http://127.0.0.1:5177/",
+    "AUDIO:data:audio/wav;base64,",
+    "AUDIO:data:audio/wav;base64,",
+    "AUDIO:data:audio/wav;base64,",
+    "AUDIO:data:audio/wav;base64,",
+    "AUDIO:data:audio/wav;base64,"
+  ],
+  "demarragesEcoute": 2,
+  "lectureDeverrouillee": "n/a (moteur avant C1)",
+  "etatContexteAudio": "running",
+  "presence": [
+    {
+      "t": 229,
+      "presence": "absent"
+    },
+    {
+      "t": 990,
+      "presence": "rest"
+    },
+    {
+      "t": 2985,
+      "presence": "speaking"
+    },
+    {
+      "t": 12060,
+      "presence": "listening"
+    },
+    {
+      "t": 12735,
+      "presence": "speaking"
+    },
+    {
+      "t": 19412,
+      "presence": "rest"
+    },
+    {
+      "t": 19810,
+      "presence": "listening"
+    },
+    {
+      "t": 20389,
+      "presence": "speaking"
+    },
+    {
+      "t": 21362,
+      "presence": "rest"
+    }
+  ],
+  "erreursPage": [
+    "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+  ]
+}

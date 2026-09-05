@@ -288,3 +288,168 @@ describe('voiceEngine — interruption naturelle (barge-in, Boucle 1 §15)', () 
         un();
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// C1 (Direction, 05/09/2026) — « après sa présentation, il ne porte plus la
+// conversation ». Sur téléphone, la voix HD passait par un contexte audio
+// créé HORS geste, resté `suspended` : l'élément « jouait » jusqu'au bout,
+// aucun son ne sortait, l'analyseur ne voyait rien — et une première phrase
+// refusée par la lecture automatique rendait `true` (silence pris pour un
+// succès, aucun repli). Chaque test ci-dessous rougit si l'un de ces
+// garde-fous disparaît.
+// ─────────────────────────────────────────────────────────────────────────
+describe('voiceEngine — C1 : lecture HD déverrouillée dans le geste, jamais un silence pris pour un succès', () => {
+    class FakeAnalyser {
+        fftSize = 2048; frequencyBinCount = 1024; smoothingTimeConstant = 0;
+        connect = vi.fn(); getFloatTimeDomainData = vi.fn(); getFloatFrequencyData = vi.fn(); getByteFrequencyData = vi.fn();
+    }
+    class FakeAudioContext {
+        static instances: FakeAudioContext[] = [];
+        /** Le navigateur accorde-t-il `resume()` ? (faux = aucun geste encore, Safari/iOS) */
+        static allowResume = true;
+        state: 'suspended' | 'running' | 'closed' = 'suspended';
+        sampleRate = 44100; baseLatency = 0; destination = {};
+        resume = vi.fn(async () => { if (FakeAudioContext.allowResume) this.state = 'running'; });
+        close = vi.fn(async () => { this.state = 'closed'; });
+        createMediaElementSource = vi.fn(() => ({ connect: vi.fn() }));
+        createMediaStreamSource = vi.fn(() => ({ connect: vi.fn() }));
+        createAnalyser = vi.fn(() => new FakeAnalyser());
+        createDelay = vi.fn(() => ({ delayTime: { value: 0 }, connect: vi.fn() }));
+        decodeAudioData = vi.fn(async () => { throw new Error('pas de décodage sur le banc'); });
+        constructor() { FakeAudioContext.instances.push(this); }
+    }
+    const playCalls: HTMLMediaElement[] = [];
+    let playRejects = false;
+    const hadRaf = typeof window.requestAnimationFrame === 'function';
+
+    beforeEach(() => {
+        FakeAudioContext.instances = [];
+        FakeAudioContext.allowResume = true;
+        playCalls.length = 0;
+        playRejects = false;
+        (window as any).AudioContext = FakeAudioContext;
+        if (!hadRaf) {
+            (window as any).requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 16) as unknown as number;
+            (window as any).cancelAnimationFrame = (id: number) => clearTimeout(id);
+        }
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
+            configurable: true,
+            value: vi.fn(function (this: HTMLMediaElement) {
+                playCalls.push(this);
+                if (playRejects) return Promise.reject(new Error('NotAllowedError: lecture automatique refusée'));
+                // Un vrai navigateur finit par émettre `ended` : ici juste après le démarrage.
+                const element = this;
+                setTimeout(() => element.dispatchEvent(new Event('ended')), 0);
+                return Promise.resolve();
+            }),
+        });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+        gateway.generateSpeech.mockReset();
+        gateway.generateSpeech.mockImplementation(async () => 'AAAA');
+        // Le moteur est un singleton : l'état de lecture repart à zéro.
+        const engine = voiceEngine as any;
+        engine.playbackElement = null;
+        engine.playbackUnlocked = false;
+        engine.outputAudioContext = null;
+        engine.outputSourceElement = null;
+        engine.outputAnalyser = null;
+        engine.sessionEngineLock = null;
+        engine.audioCache.clear();
+        voiceEngine.setConversationalMode(false);
+    });
+
+    afterEach(() => {
+        voiceEngine.stopSpeaking();
+        voiceEngine.stopListening();
+        delete (window as any).AudioContext;
+        delete (window as any).speechSynthesis;
+        delete (window as any).SpeechSynthesisUtterance;
+        if (!hadRaf) { delete (window as any).requestAnimationFrame; delete (window as any).cancelAnimationFrame; }
+    });
+
+    const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    it("unlockPlayback (dans le geste) : démarre le contexte de sortie et joue un clip silencieux sur UN élément réutilisable — idempotent", async () => {
+        voiceEngine.unlockPlayback();
+        expect(FakeAudioContext.instances).toHaveLength(1);
+        expect(FakeAudioContext.instances[0].resume).toHaveBeenCalledTimes(1);
+        expect(playCalls).toHaveLength(1);
+        expect((playCalls[0] as HTMLAudioElement).src).toContain('data:audio/wav;base64,');
+        await attendre(5);
+        expect(voiceEngine.isPlaybackUnlocked()).toBe(true);
+        // Un second geste ne rejoue rien : l'élément est déjà autorisé.
+        voiceEngine.unlockPlayback();
+        expect(playCalls).toHaveLength(1);
+    });
+
+    it("la voix HD passe par l'élément déverrouillé, relié UNE fois au graphe quand le contexte tourne — phrase après phrase, jamais un `new Audio()` par phrase", async () => {
+        const un = voiceEngine.addListener({ onMouthShape: () => {} });
+        voiceEngine.unlockPlayback();
+        await attendre(5);
+        const element = playCalls[0];
+        await voiceEngine.speak('Bonjour.');
+        await voiceEngine.speak('Voici la suite.');
+        const ctx = FakeAudioContext.instances[0];
+        expect(ctx.state).toBe('running');
+        expect(ctx.createMediaElementSource).toHaveBeenCalledTimes(1);
+        expect(ctx.createMediaElementSource).toHaveBeenCalledWith(element);
+        // Clip silencieux + deux phrases : trois lectures, toutes sur LE même élément.
+        expect(playCalls).toHaveLength(3);
+        expect(playCalls.every((e) => e === element)).toBe(true);
+        expect((element as HTMLAudioElement).src).toContain('data:audio/mpeg;base64,AAAA');
+        expect(voiceEngine.getCurrentActiveEngine()).toBe('elevenlabs');
+        un();
+    });
+
+    it("contexte de sortie qui ne démarre pas (aucun geste accordé) : l'élément n'est PAS relié au graphe — la voix sort en direct au lieu de se perdre", async () => {
+        FakeAudioContext.allowResume = false;
+        const un = voiceEngine.addListener({ onMouthShape: () => {} });
+        await voiceEngine.speak('Bonjour.');
+        const ctx = FakeAudioContext.instances[0];
+        expect(ctx.state).toBe('suspended');
+        expect(ctx.resume).toHaveBeenCalled();
+        expect(ctx.createMediaElementSource).not.toHaveBeenCalled();
+        expect(playCalls).toHaveLength(1);
+        expect(voiceEngine.getCurrentActiveEngine()).toBe('elevenlabs');
+        un();
+    });
+
+    it("première phrase refusée par la lecture automatique : repli navigateur immédiat, `onEnd` une seule fois — jamais un silence pris pour un succès", async () => {
+        playRejects = true;
+        (window as any).speechSynthesis = {
+            cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: () => [], speaking: false,
+            speak: vi.fn((u: any) => { u.onstart?.(); setTimeout(() => u.onend?.(), 0); }),
+        };
+        (window as any).SpeechSynthesisUtterance = class {
+            text: string; lang = ''; rate = 1; pitch = 1; voice: any = null;
+            onstart: (() => void) | null = null; onend: (() => void) | null = null; onerror: ((e: unknown) => void) | null = null;
+            constructor(text: string) { this.text = text; }
+        };
+        const ends: number[] = [];
+        await voiceEngine.speak('Bonjour.', { onEnd: () => ends.push(1) });
+        // Repli : 80 ms de différé anti-cancel, puis la respiration de fin de phrase (250 ms).
+        await attendre(600);
+        expect(playCalls).toHaveLength(1);
+        expect((window as any).speechSynthesis.speak).toHaveBeenCalledTimes(1);
+        expect(voiceEngine.getCurrentActiveEngine()).toBe('browser_native');
+        expect(ends).toHaveLength(1);
+    });
+
+    it("pendant que la voix HD parle, le flux de capture du micro est relâché (téléphone : plus de sortie en mode « appel »)", async () => {
+        const stop = vi.fn();
+        const stream = { getTracks: () => [{ stop }] };
+        const getUserMedia = vi.fn(async () => stream);
+        Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+        try {
+            await voiceEngine.startListening();
+            await attendre(5);
+            expect(getUserMedia).toHaveBeenCalledTimes(1);
+            expect(stop).not.toHaveBeenCalled();
+            await voiceEngine.speak('Bonjour.');
+            expect(stop).toHaveBeenCalled();
+        } finally {
+            voiceEngine.stopListening();
+            delete (navigator as any).mediaDevices;
+        }
+    });
+});

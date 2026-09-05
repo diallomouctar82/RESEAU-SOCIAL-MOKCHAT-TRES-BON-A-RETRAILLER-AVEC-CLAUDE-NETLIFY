@@ -172,6 +172,30 @@ export const LISTEN_NETWORK_MESSAGE =
 export const SPEECH_OUTPUT_FAILED_MESSAGE =
     "La voix n'a pas pu être jouée sur cet appareil — ma réponse reste affichée à l'écran.";
 
+/**
+ * C1 (Direction, 05/09/2026 — « l'avatar doit accompagner toute la
+ * conversation ») : clip WAV SILENCIEUX (8 échantillons PCM 16 bits à 8 kHz)
+ * joué DANS le geste de la personne pour déverrouiller la lecture audio sur
+ * téléphone. Aucun son audible ; construit ici pour ne dépendre d'aucun actif.
+ */
+function buildSilentWavDataUri(): string {
+    const samples = 8;
+    const dataBytes = samples * 2;
+    const bytes = new Uint8Array(44 + dataBytes);
+    const ascii = (offset: number, text: string) => { for (let i = 0; i < text.length; i += 1) bytes[offset + i] = text.charCodeAt(i); };
+    const u32 = (offset: number, value: number) => {
+        bytes[offset] = value & 255; bytes[offset + 1] = (value >> 8) & 255; bytes[offset + 2] = (value >> 16) & 255; bytes[offset + 3] = (value >> 24) & 255;
+    };
+    const u16 = (offset: number, value: number) => { bytes[offset] = value & 255; bytes[offset + 1] = (value >> 8) & 255; };
+    ascii(0, 'RIFF'); u32(4, 36 + dataBytes); ascii(8, 'WAVE');
+    ascii(12, 'fmt '); u32(16, 16); u16(20, 1); u16(22, 1); u32(24, 8000); u32(28, 16000); u16(32, 2); u16(34, 16);
+    ascii(36, 'data'); u32(40, dataBytes);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+    return `data:audio/wav;base64,${typeof btoa === 'function' ? btoa(binary) : ''}`;
+}
+export const SILENT_WAV_DATA_URI = buildSilentWavDataUri();
+
 export class VoiceEngine {
     private static instance: VoiceEngine;
     private recognition: any = null;
@@ -250,6 +274,15 @@ export class VoiceEngine {
     private readyTracks = new WeakMap<HTMLAudioElement, { track: VoiceTrack; score: ProsodyScore }>();
     private lipSyncAligned = false;
     private currentAudioUrl: string | null = null;
+    /**
+     * Élément audio DÉVERROUILLÉ dans un geste de la personne (C1, 05/09/2026)
+     * et réutilisé pour toute la voix HD. Sur téléphone, un `new Audio()` créé
+     * hors geste peut être refusé à `play()` par la politique de lecture
+     * automatique ; un élément déjà joué dans un geste reste autorisé pour
+     * toute la page. `playbackUnlocked` : le clip silencieux a réellement joué.
+     */
+    private playbackElement: HTMLAudioElement | null = null;
+    private playbackUnlocked = false;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
     // (1 à 4 s) — sans jeton, un `stopSpeaking()` (fermeture de la barre,
@@ -676,6 +709,61 @@ export class VoiceEngine {
     }
 
     /**
+     * DÉVERROUILLAGE DE LA LECTURE — à appeler DANS un geste de la personne
+     * (appui sur la sculpture, bouton Présentation, envoi d'un message).
+     *
+     * C1 (Direction, 05/09/2026) : après sa présentation, l'Architecte restait
+     * muet et immobile sur téléphone. Deux causes, toutes deux ici :
+     *  - le contexte audio de sortie, créé hors geste, restait `suspended` —
+     *    or la voix HD passe par lui pour la synchro labiale : contexte
+     *    suspendu = son perdu, sans aucune erreur ;
+     *  - `new Audio()` à chaque phrase, hors geste, pouvait être refusé à
+     *    `play()` par la politique de lecture automatique.
+     * Dans le geste : le contexte démarre, et un élément audio joue un clip
+     * silencieux — il reste autorisé pour toute la page et porte ensuite
+     * chaque phrase. Idempotent, jamais bloquant, sans son audible.
+     */
+    public unlockPlayback(): void {
+        if (typeof window === 'undefined') return;
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioContextClass) {
+                if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+                if (this.outputAudioContext.state !== 'running') void this.outputAudioContext.resume().catch(() => {});
+            }
+        } catch { /* contexte audio indisponible : la voix sortira de l'élément seul */ }
+        try {
+            if (typeof Audio === 'undefined') return;
+            if (!this.playbackElement) {
+                const element = new Audio();
+                element.preload = 'auto';
+                element.setAttribute('playsinline', '');
+                this.playbackElement = element;
+            }
+            // Le clip silencieux « bénit » l'élément — sauf pendant qu'il porte
+            // déjà une phrase : on ne coupe jamais la voix pour ça.
+            if (!this.playbackUnlocked && this.currentAudioElement !== this.playbackElement) {
+                const element = this.playbackElement;
+                element.src = SILENT_WAV_DATA_URI;
+                const started = element.play();
+                if (started && typeof started.then === 'function') {
+                    started.then(() => {
+                        this.playbackUnlocked = true;
+                        this.trace('lecture audio déverrouillée dans le geste');
+                    }).catch(() => { /* refusé ici : le prochain geste réessaiera */ });
+                } else {
+                    this.playbackUnlocked = true;
+                }
+            }
+        } catch { /* lecture impossible ici : la prochaine phrase passera par l'élément quand même */ }
+    }
+
+    /** Vrai quand le clip silencieux a réellement joué dans un geste (lecture autorisée pour la page). */
+    public isPlaybackUnlocked(): boolean {
+        return this.playbackUnlocked;
+    }
+
+    /**
      * Résout l'ID de voix ElevenLabs correspondant à l'expert ou au contexte
      */
     public getVoiceIdForAgent(agentRoleOrId?: string): string {
@@ -1069,23 +1157,22 @@ export class VoiceEngine {
         return res.ok ? res.arrayBuffer() : null;
     }
 
-    private attachOutputAnalyser(audio: HTMLAudioElement, trackPromise: Promise<VoiceTrack | null> = Promise.resolve(null)): void {
-        // Personne n'écoute le niveau de sortie : ne pas ouvrir de contexte
-        // audio pour rien (coûteux, et bloqué tant qu'il n'y a pas eu de geste
-        // utilisateur sur certains navigateurs).
-        let wanted = false;
-        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
-        if (!wanted) return;
+    private attachOutputAnalyser(
+        audio: HTMLAudioElement,
+        audioUrl: string,
+        context: AudioContext | null,
+        trackPromise: Promise<VoiceTrack | null> = Promise.resolve(null),
+    ): void {
         try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            if (!AudioContextClass) return;
-            if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
-            const context = this.outputAudioContext;
-            if (context.state === 'suspended') void context.resume().catch(() => {});
-
+            // Relier l'élément au graphe SEULEMENT si le contexte TOURNE (C1,
+            // 05/09/2026) : relié à un contexte suspendu, l'élément « joue »
+            // jusqu'au bout mais aucun son ne sort et l'analyseur ne voit rien —
+            // c'était l'Architecte muet et immobile après sa présentation sur
+            // téléphone. Sans contexte, la voix sort en direct de l'élément et
+            // la bouche suit la piste phonétique dès qu'elle est prête.
             // Un élément déjà relié garde son nœud : re-créer une source sur le
             // même élément lève une exception et couperait le son.
-            if (this.outputSourceElement !== audio) {
+            if (context && context.state === 'running' && this.outputSourceElement !== audio) {
                 const source = context.createMediaElementSource(audio);
                 // Prise de mesure TEMPORELLE (RMS sur ~46 ms) : le spectre en
                 // octets tenait la bouche ouverte sur le souffle (voir lipSync).
@@ -1113,7 +1200,8 @@ export class VoiceEngine {
                 this.outputSourceElement = audio;
             }
             void trackPromise.then((track) => {
-                if (!track) return;
+                // Élément partagé : une piste arrivée après la phrase suivante ne doit pas la remplacer.
+                if (!track || this.currentAudioUrl !== audioUrl) return;
                 this.readyTracks.set(audio, { track, score: buildProsodyScore(track) });
                 if (this.currentAudioElement === audio && !this.lipSyncAligned) {
                     this.lipSyncAligned = true;
@@ -1128,10 +1216,13 @@ export class VoiceEngine {
 
     /** Boucle de mesure : une seule à la fois, arrêtée dès que la parole cesse. */
     private startOutputLevelLoop(): void {
-        if (this.outputRafId !== null || !this.outputAnalyser) return;
-        const analyser = this.outputAnalyser;
-        const samples = new Float32Array(analyser.fftSize);
-        const spectrum = new Float32Array(analyser.frequencyBinCount);
+        if (this.outputRafId !== null || !this.isSpeaking) return;
+        // Tampons alloués pour l'analyseur du moment : il peut apparaître en
+        // cours de parole (phrase suivante qui relie un élément) ou manquer
+        // (contexte pas démarré) — la boucle suit alors la piste seule.
+        let samplesFor: AnalyserNode | null = null;
+        let samples = new Float32Array(0);
+        let spectrum = new Float32Array(0);
         const sampleRate = this.outputAudioContext?.sampleRate || 44100;
         // Crête ré-étalonnée à chaque prise de parole : une voix plus douce
         // ouvre la bouche autant qu'une voix forte.
@@ -1141,10 +1232,10 @@ export class VoiceEngine {
         const heardDelayMs = Math.max(LIP_SYNC_LOOKAHEAD_MS, this.outputLatencyMs);
         const buffer = new MouthShapeBuffer();
         const clock = createAudioClock();
-        let clockFor: HTMLAudioElement | null = null;
+        let clockForUrl: string | null = null;
         let lastAt = performance.now();
         const tick = () => {
-            if (!this.outputAnalyser || !this.isSpeaking) {
+            if (!this.isSpeaking) {
                 this.outputRafId = null;
                 this.publishMouth(MOUTH_AT_REST);
                 this.publishTrack(null);
@@ -1157,22 +1248,34 @@ export class VoiceEngine {
                 // PISTE PHONÉTIQUE : la bouche et les gestes suivent l'horloge du
                 // son lui-même (position de lecture lissée), à l'instant qui sera
                 // ENTENDU quand l'image sera affichée, plus l'avance visuelle.
-                if (clockFor !== audio) {
+                // Élément partagé entre les phrases : l'horloge repart à chaque clip.
+                if (clockForUrl !== this.currentAudioUrl) {
                     clock.reset();
-                    clockFor = audio;
+                    clockForUrl = this.currentAudioUrl;
                 }
                 const media = clock.update(audio.currentTime * 1000, now);
                 const tMs = mouthReadTime(media, heardDelayMs + MEDIA_PIPELINE_MS);
                 this.publishMouth(trackShapeAt(ready.track, tMs));
                 this.publishTrack({ track: ready.track, score: ready.score, t0Perf: now - tMs });
-            } else {
+            } else if (this.outputAnalyser) {
                 // AMPLITUDE MESURÉE (repli, ou piste pas encore prête).
-                this.outputAnalyser.getFloatTimeDomainData(samples);
-                this.outputAnalyser.getFloatFrequencyData(spectrum);
+                const analyser = this.outputAnalyser;
+                if (samplesFor !== analyser) {
+                    samples = new Float32Array(analyser.fftSize);
+                    spectrum = new Float32Array(analyser.frequencyBinCount);
+                    samplesFor = analyser;
+                }
+                analyser.getFloatTimeDomainData(samples);
+                analyser.getFloatFrequencyData(spectrum);
                 buffer.push(now, mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt));
                 // Forme coarticulée lue pour qu'à l'écran les lèvres PRÉCÈDENT le son
                 // entendu (avance visuelle, retard d'affichage mesuré déduit).
                 this.publishMouth(buffer.at(mouthReadTime(now, heardDelayMs)));
+                this.publishTrack(null);
+            } else {
+                // Ni piste prête ni analyseur (contexte audio pas démarré) : la
+                // voix est entendue en direct ; la bouche attend la piste.
+                this.publishMouth(MOUTH_AT_REST);
                 this.publishTrack(null);
             }
             lastAt = now;
@@ -1212,24 +1315,72 @@ export class VoiceEngine {
         }
     }
 
-    /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */
-    private playAudioUrl(audioUrl: string, epoch: number, text?: string): Promise<boolean> {
+    /**
+     * Contexte audio de sortie DÉMARRÉ, ou `null` s'il ne peut pas l'être
+     * maintenant (aucun geste encore, appareil qui refuse) — attente bornée à
+     * ~150 ms, jamais bloquante. `null` aussi quand personne n'écoute le niveau
+     * de sortie : pas de contexte ouvert pour rien.
+     */
+    private async ensureOutputContextRunning(): Promise<AudioContext | null> {
+        if (typeof window === 'undefined') return null;
+        let wanted = false;
+        this.listeners.forEach(l => { if (l.onOutputVolume || l.onMouthShape) wanted = true; });
+        if (!wanted) return null;
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextClass) return null;
+            if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+            const context = this.outputAudioContext;
+            if (context.state !== 'running') {
+                await Promise.race([Promise.resolve(context.resume()).catch(() => undefined), this.waitMs(150)]);
+            }
+            return context.state === 'running' ? context : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * L'élément déverrouillé dans un geste porte la voix — sauf s'il est déjà
+     * relié à un contexte qui ne tourne pas (le son n'en sortirait pas) : alors
+     * un élément libre, en direct, qui garde sa chance d'être joué.
+     */
+    private pickPlaybackElement(): HTMLAudioElement {
+        const unlocked = this.playbackElement;
+        if (unlocked) {
+            const contextRunning = this.outputAudioContext?.state === 'running';
+            const boundToSilentContext = this.outputSourceElement === unlocked && !contextRunning;
+            if (!boundToSilentContext) return unlocked;
+        }
+        return new Audio();
+    }
+
+    /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur ou refus de lecture (false), ou immédiatement si l'époque a été annulée (false). */
+    private async playAudioUrl(audioUrl: string, epoch: number, text?: string): Promise<boolean> {
+        const context = await this.ensureOutputContextRunning();
+        if (epoch !== this.speakEpoch) return false;
         return new Promise<boolean>((resolve) => {
             try {
-                const audio = new Audio(audioUrl);
+                const audio = this.pickPlaybackElement();
+                audio.src = audioUrl;
                 this.currentAudioElement = audio;
                 this.currentAudioUrl = audioUrl;
+                // Élément partagé entre les phrases : la piste de la précédente ne vaut plus.
+                this.readyTracks.delete(audio);
                 // La piste phonétique se prépare en parallèle du démarrage :
                 // souvent prête avant le premier son, sinon la bouche suit
                 // l'analyseur pendant quelques dizaines de millisecondes.
-                this.attachOutputAnalyser(audio, text ? this.prepareVoiceTrack(audioUrl, text) : Promise.resolve(null));
+                this.attachOutputAnalyser(audio, audioUrl, context, text ? this.prepareVoiceTrack(audioUrl, text) : Promise.resolve(null));
                 audio.onended = () => resolve(true);
                 // `stopSpeaking()` met l'audio en pause : l'événement pause
                 // avec une époque périmée signifie « coupé net » — on résout
                 // tout de suite au lieu de laisser une promesse pendante.
                 audio.onpause = () => { if (epoch !== this.speakEpoch) resolve(false); };
                 audio.onerror = (e) => { console.warn('Erreur lecture audio ElevenLabs:', e); resolve(false); };
-                audio.play().catch((err) => { console.warn('Échec lecture autoplay audio:', err); resolve(false); });
+                const started = audio.play();
+                if (started && typeof started.catch === 'function') {
+                    started.catch((err: unknown) => { console.warn('Échec lecture autoplay audio:', err); resolve(false); });
+                }
             } catch (err) {
                 console.warn('Erreur initialisation Audio ElevenLabs:', err);
                 resolve(false);
@@ -1261,10 +1412,14 @@ export class VoiceEngine {
         if (epoch !== this.speakEpoch) return true; // annulé pendant la génération : silence
         if (!currentUrl) return false; // rien n'a pu être dit → le repli peut prendre le relais
 
-        // Pause du micro pendant la lecture
+        // Pause du micro pendant la lecture — reconnaissance ET flux de
+        // capture : sur téléphone, un micro tenu ouvert pendant la lecture
+        // fait passer la sortie en mode « appel » (écouteur, volume réduit).
+        // `startListening` rouvre les deux à la fin de la phrase.
         if (this.isListening && this.recognition) {
             try { this.recognition.stop(); } catch (e) {}
         }
+        this.stopVolumeMonitoring();
 
         this.isSpeaking = true;
         this.currentActiveEngine = 'elevenlabs';
@@ -1283,7 +1438,18 @@ export class VoiceEngine {
 
             const played = await this.playAudioUrl(currentUrl, epoch, segments[i]);
             if (epoch !== this.speakEpoch) return true; // coupé net (barge-in/fermeture) : rien d'autre ne part
-            if (!played) break; // erreur de lecture : fin propre, jamais une superposition
+            if (!played) {
+                if (i === 0) {
+                    // PREMIÈRE phrase refusée (lecture automatique bloquée, erreur
+                    // de lecture) : rien n'a été entendu. Fin propre SANS relancer
+                    // le micro, et `false` pour que le repli navigateur tente sa
+                    // chance — l'ancien code rendait `true` : un silence pris pour
+                    // un succès, l'Architecte muet sans un mot (C1).
+                    this.finishSpeakingElevenLabs(options, 'relais');
+                    return false;
+                }
+                break; // erreur en cours de route : fin propre, jamais une superposition
+            }
 
             if (nextPromise) {
                 // Respiration entre deux blocs, selon la ponctuation réelle.
@@ -1308,10 +1474,17 @@ export class VoiceEngine {
         return true;
     }
 
-    private finishSpeakingElevenLabs(options?: { onEnd?: () => void }) {
+    private finishSpeakingElevenLabs(options?: { onEnd?: () => void }, mode: 'terminee' | 'relais' = 'terminee') {
         this.isSpeaking = false;
         this.currentAudioElement = null;
         this.notifySpeakingState(false);
+        if (mode === 'relais') {
+            // La première phrase n'a pas pu être jouée : le repli navigateur
+            // prend le relais tout de suite — ni `onEnd` (la parole n'est pas
+            // finie), ni micro relancé (la voix de secours le recouperait).
+            this.trace('voix HD : lecture refusée avant le premier son — relais au repli navigateur');
+            return;
+        }
         options?.onEnd?.();
 
         this.trace('voix HD : lecture terminée');
@@ -1343,6 +1516,12 @@ export class VoiceEngine {
 
         const phrases = this.splitIntoAcousticPhrases(text);
         if (phrases.length === 0) return;
+        // Époque de CETTE lecture (C1) : `speak()` vient de l'incrémenter via
+        // `stopSpeaking()`. Les minuteries de la file (différé anti-cancel,
+        // respiration, chien de garde) la vérifient — sans cela, la minuterie
+        // d'une réponse précédente pouvait piloter la file de la suivante avec
+        // ses propres options (`onEnd` orphelin, fin signalée au mauvais tour).
+        const epoch = this.speakEpoch;
 
         // Task force P0 (S3-A) : le verrou d'identité vocale (§9) n'est plus
         // posé ICI mais au premier `utterance.onstart` réel — une voix qui
@@ -1351,6 +1530,8 @@ export class VoiceEngine {
         if (this.isListening && this.recognition) {
             try { this.recognition.stop(); } catch (e) {}
         }
+        // Même règle que la voix HD : le flux de capture est relâché pendant la lecture.
+        this.stopVolumeMonitoring();
 
         this.speechQueue = phrases;
         this.isProcessingQueue = true;
@@ -1369,7 +1550,7 @@ export class VoiceEngine {
         // PERDENT silencieusement une utterance lancée immédiatement après
         // (ni onstart, ni onend, ni onerror : voix muette ET micro jamais
         // relancé, démontré par la reproduction de l'audit). Court différé.
-        setTimeout(() => { if (this.isProcessingQueue) this.processNextInQueue(options); }, 80);
+        setTimeout(() => { if (epoch === this.speakEpoch && this.isProcessingQueue) this.processNextInQueue(options, epoch); }, 80);
     }
 
     private splitIntoAcousticPhrases(text: string): string[] {
@@ -1411,7 +1592,9 @@ export class VoiceEngine {
         return phrases;
     }
 
-    private processNextInQueue(options?: { voiceName?: string; rate?: number; pitch?: number; onEnd?: () => void }) {
+    private processNextInQueue(options?: { voiceName?: string; rate?: number; pitch?: number; onEnd?: () => void }, epoch: number = this.speakEpoch) {
+        // Une minuterie d'une lecture antérieure ne touche jamais à la file courante.
+        if (epoch !== this.speakEpoch) return;
         if (!this.isProcessingQueue || this.speechQueue.length === 0) {
             this.finishSpeakingBrowser(options);
             return;
@@ -1456,9 +1639,9 @@ export class VoiceEngine {
         // toujours : voix muette ET micro jamais relancé (blocage
         // irrécupérable). Si rien n'a démarré sous 2 s, on passe à la suite.
         const lostWatchdog = setTimeout(() => {
-            if (this.currentUtterance === utterance && this.isProcessingQueue) {
+            if (epoch === this.speakEpoch && this.currentUtterance === utterance && this.isProcessingQueue) {
                 this.trace('utterance perdue — chien de garde', { phrase: phrase.slice(0, 40) });
-                this.processNextInQueue(options);
+                this.processNextInQueue(options, epoch);
             }
         }, 2000);
 
@@ -1477,8 +1660,8 @@ export class VoiceEngine {
         utterance.onend = () => {
             clearTimeout(lostWatchdog);
             setTimeout(() => {
-                if (this.isProcessingQueue) {
-                    this.processNextInQueue(options);
+                if (epoch === this.speakEpoch && this.isProcessingQueue) {
+                    this.processNextInQueue(options, epoch);
                 }
             }, breath);
         };
@@ -1486,8 +1669,8 @@ export class VoiceEngine {
         utterance.onerror = (e) => {
             clearTimeout(lostWatchdog);
             console.warn('Speech chunk notice:', e);
-            if (this.isProcessingQueue) {
-                this.processNextInQueue(options);
+            if (epoch === this.speakEpoch && this.isProcessingQueue) {
+                this.processNextInQueue(options, epoch);
             }
         };
 
