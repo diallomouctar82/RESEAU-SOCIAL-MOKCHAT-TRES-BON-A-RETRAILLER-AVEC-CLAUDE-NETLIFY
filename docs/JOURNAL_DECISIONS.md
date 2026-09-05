@@ -1122,6 +1122,92 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-057] — 5 Septembre 2026
+
+* **Module(s)** : `Super-Admin / Santé Globale` (`components/admin/AdminHealthTab.tsx`,
+  `services/health/*`), fonction Edge `health-guardian` (**v3**), base
+  (`health_probe_catalogue`, migration `20260905090000`).
+* **Problème / Besoin initial** : la Direction a jugé l'écran « Santé
+  Globale » insuffisant pour piloter et a fixé un cadre strict : à la fin de
+  l'analyse, la **santé** et la **sécurité** en pour cent, des graphiques,
+  le pourcentage de progression **à côté de chaque vague de correctifs** ;
+  le **rapport de sécurité du 4 septembre (61 %)** intégré ; **trois blocs
+  de couleur** (rouge critique ou bloquant, orange partiel ou fragile, vert
+  conforme) — « ne mélange pas tout dans une seule liste » ; les domaines
+  **Sécurité, Application, Connecteurs, Live, VPS, Base de données,
+  Services externes** séparés ; pour chaque problème **le problème, la
+  cause, l'impact, le niveau de risque, l'action recommandée** ; un **vrai
+  bouton Réparer**, l'action manuelle n'apparaissant que si rien
+  d'automatique n'existe, avec l'endroit exact et un guide pas à pas ;
+  jamais de faux bouton. Cause racine de l'écran précédent : une seule file
+  de 53 lignes, ni cause ni impact, aucune note de sécurité, aucun guide, et
+  une ligne manquante qui explique pourquoi Réparer restait bloqué pour
+  tout le monde (au matin du 5/09 : 0 `super_admin`, 1 `admin` en base —
+  l'application déduit son Super-Admin d'une adresse écrite en dur que la
+  base ignore, constat J-01b).
+* **Options considérées** :
+  1. Remplacer les 12 domaines techniques par les 7 demandés — rejeté : poids,
+     évaluateurs, tests et documentation reposent sur les 12 ; retenu : un
+     **bloc de lecture** déclaré sur chaque ligne (`bloc`), les 12 domaines
+     restant l'unité de notation.
+  2. Recopier le 61 % de l'audit comme note de sécurité — rejeté : une note
+     figée ne bouge pas quand on corrige ; retenu : l'audit comme
+     **référence** (8 domaines, poids, notes, 14 constats, 3 vagues) et une
+     note **vivante** recalculée sur les mêmes poids à partir des lignes
+     réellement mesurées, les deux toujours côte à côte (mesuré le 5/09 :
+     51 % sur 84 % du périmètre, contre 61 % à l'audit — même ordre, même
+     orange, écart tenu sous 15 points par un test).
+  3. Rattacher J-01b (adresse en dur) à la ligne « Un Admin Général reconnu
+     par la base » — rejeté après constat : un compte de test `super_admin`
+     créé le même matin par la mission SAT-6 aurait fait passer le constat
+     pour résolu ; J-01b reste **non mesuré**, ce qui est la vérité.
+  4. Corriger le CORS `*` des cinq autres fonctions Edge dans cette PR —
+     rejeté (hors périmètre) : **mesuré** par une sonde et **guidé** dans la
+     fiche, pas modifié.
+* **Décision finale** : (a) registre porté à **58 lignes**, chacune avec
+  `cause`, `impact`, `risk` (critique/élevé/moyen/faible, écrit avant toute
+  mesure) et **une seule voie d'action** — réparation automatique, guide
+  manuel (`manual` : où, lien direct `{supabase}`/`{repo}` résolu à
+  l'exécution, étapes) ou recommandation — sous garde de
+  `validateRegistry` ; cinq lignes nouvelles : `securite.cors_fonctions`,
+  `gouvernance.rang_admin_general`, `vps.reverse_proxy`,
+  `vps.signalisation`, `vps.version_livekit` (humaine) ; (b)
+  `securityAudit.ts` : référence + note vivante + progression par vague
+  (part des constats dont TOUTES les lignes sont vertes) ; (c) écran : deux
+  anneaux, trois graphiques, sept sections × trois blocs + bande « ni rouge,
+  ni vert », fiche problème, guide manuel, journal qui nomme les
+  réparations automatiques du cron ; (d) fonction Edge **v3** : sondes CORS
+  (pré-vol vers les six fonctions depuis une origine inventée), VPS (façade
+  HTTPS + `/rtc/validate` avec jeton du coffre sans publication ni
+  abonnement), rang (migration `20260905090000`, deux compteurs, aucun droit
+  ni donnée touchés) ; repli CORS **jamais `*`** — sans
+  `HEALTH_ALLOWED_ORIGINS`, moknet.net et les sites Netlify de l'équipe
+  seulement (vérifié : origine inconnue → `https://moknet.net`). Artefact
+  déployé identique octet pour octet au bundle généré (51 040 octets).
+  Livré par la PR #86 (branche `claude/moknet-security-audit-ohfwc1`,
+  reconstruite sur `main` après la fusion de « Plateaux de cristal »),
+  1072/1072 tests, typage 0 erreur, harnais local sur les mesures de
+  production du 5/09 (santé 75 % sur 95 % mesuré ; 6 rouges, 9 oranges,
+  5 non mesurés, 38 verts ; aucun bouton « Appliquer » rendu au rang admin).
+* **Rappel des livraisons précédentes de la même lignée (non journalisées
+  jusqu'ici)** : PR #70 (onglet « Santé Globale » dans Super-Admin, 4/09),
+  PR #78 (bandeau « Nouvelle version de MokNet disponible », détection du
+  bundle servi, jamais de rechargement forcé), PR #80 (`launch_handler`
+  `navigate-existing` : un lien vers l'application installée la fait
+  naviguer), PR #82 (statut en mot et en couleur, santé en %, « Diagnostic
+  seulement » écrit en toutes lettres).
+* **Restes assumés** : Réparer reste « Diagnostic seulement » pour le compte
+  de la Direction tant que son profil est `admin` — décision de la
+  Direction, guidée dans la fiche « Un Admin Général reconnu par la base »
+  (une requête, réversible) ; le compte de test `sat6.admin@moknet.net` en
+  `super_admin` appartient à la mission SAT-6, qui doit le retirer ;
+  `vps.version_livekit` ne se mesure qu'en SSH ; J-01b et le CORS des cinq
+  autres fonctions sont guidés, pas corrigés ; `dependances.*`,
+  `securite.mots_de_passe_fuites` et `stockage.validation_televersement`
+  restent des contrôles humains (blancs) tant qu'aucune sonde ne les lit.
+
+---
+
 ### [DEC-2026-056] — 5 Septembre 2026
 
 * **Module(s)** : `Espace Experts` (`components/ExpertsCatalogue.tsx`,
@@ -2002,7 +2088,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-057] — 4 Septembre 2026
+### [DEC-2026-058] — 4 Septembre 2026
 * **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
 * **Problème / Besoin initial** : AI Core était une **boîte noire** pour
   l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
@@ -2112,10 +2198,10 @@ Chaque décision respecte le formalisme strict suivant :
   `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
   `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
   `components/admin/AiOrchestrator.tsx`.
-* **Preuves** : `tsc` 0 · **vitest 1082/1082 (75 fichiers)** après sept remises à
-  niveau sur `main` (PR #69, #73, #74/#75, #76/#77/#78/#80, #79, #81, puis
-  #83/#84/#85) · `npm run build` propre · Green Gate **vert** sur `3dbdfa5`,
-  relancé sur le HEAD courant ·
+* **Preuves** : `tsc` 0 · **vitest 1109/1109 (78 fichiers)** après huit remises à
+  niveau sur `main` (PR #69, #73, #74/#75, #76/#77/#78/#80, #79, #81,
+  #83/#84/#85, puis #86/#87) · `npm run build` propre · Green Gate **vert** sur
+  `ef75008`, relancé sur le HEAD courant ·
   séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
   (conditions d'un checkout propre) · lien public de prévisualisation
   `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify

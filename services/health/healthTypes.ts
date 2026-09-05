@@ -52,6 +52,55 @@ export interface HealthDomain {
 }
 
 /**
+ * Les BLOCS du tableau de bord — le découpage demandé par la Direction le
+ * 05/09/2026 : « ne mélange pas tout dans une seule liste ». Un bloc répond à
+ * UNE question qu'un responsable se pose ; les 12 domaines techniques restent
+ * l'unité de notation (poids), le bloc est l'unité de lecture.
+ */
+export type HealthBlockId =
+    | 'securite'     // qui peut lire ou écrire quoi, et le modèle de droits tient-il ?
+    | 'application'  // ce que le navigateur reçoit et installe réellement
+    | 'connecteurs'  // les intégrations configurées (IA, notifications, transport)
+    | 'live'         // les directs et les appels
+    | 'vps'          // le serveur de direct sur le VPS
+    | 'base'         // intégrité, tenue et versionnage des données
+    | 'externes';    // les services tiers dont MokNet dépend
+
+export interface HealthBlock {
+    id: HealthBlockId;
+    title: string;
+    /** La question à laquelle le bloc répond — affichée sous son titre. */
+    question: string;
+}
+
+/**
+ * Niveau de risque d'une ligne QUAND elle n'est pas conforme. Écrit avant
+ * toute mesure, comme l'attendu : il qualifie le problème, pas l'humeur du
+ * jour. Le bloc de couleur (rouge/orange/vert) vient du statut MESURÉ ; le
+ * niveau de risque dit ce que ce statut coûte.
+ */
+export type RiskLevel = 'critique' | 'eleve' | 'moyen' | 'faible';
+
+/**
+ * Guide pas à pas d'une action manuelle : l'endroit exact, un lien direct
+ * quand il existe, et les étapes dans l'ordre. Présent UNIQUEMENT quand
+ * aucune réparation automatique n'est possible — une action manuelle
+ * proposée à côté d'un bouton qui réparerait tout seul serait un mensonge
+ * par omission.
+ *
+ * Deux jetons sont résolus par l'interface : `{supabase}` → console du
+ * projet Supabase servi, `{repo}` → dépôt GitHub de l'application.
+ */
+export interface ManualGuide {
+    /** Où aller, en clair : « Supabase → Authentication → Attack Protection ». */
+    where: string;
+    /** Lien direct vers cet endroit, quand il existe. */
+    url?: string;
+    /** Étapes dans l'ordre, une phrase impérative chacune. */
+    steps: string[];
+}
+
+/**
  * Où la sonde s'exécute réellement. Déterminant pour la dégradation honnête :
  * une sonde `serveur` sans Edge Function déployée reste BLANCHE, elle ne
  * bascule pas au vert par défaut.
@@ -96,6 +145,14 @@ export interface HealthLine {
     location: ProbeLocation;
     /** Résultat attendu, écrit AVANT toute mesure (Constitution § XIV). */
     expected: string;
+    /** Bloc de lecture (voir `HealthBlockId`) — explicite pour chaque ligne. */
+    bloc: HealthBlockId;
+    /** CAUSE la plus probable quand la ligne n'est pas conforme, écrite a priori. */
+    cause: string;
+    /** IMPACT métier concret si la ligne reste non conforme. */
+    impact: string;
+    /** Niveau de risque quand la ligne n'est pas conforme. */
+    risk: RiskLevel;
     /** Réparation contrôlée, quand il en existe une sûre et réversible. */
     remediation?: RemediationRef;
     /**
@@ -103,6 +160,13 @@ export interface HealthLine {
      * affiche alors l'action humaine exacte au lieu d'un bouton qui mentirait.
      */
     humanAction?: string;
+    /** Guide pas à pas de l'action humaine — obligatoire dès que `humanAction` existe. */
+    manual?: ManualGuide;
+    /**
+     * Action recommandée pour une ligne qui n'a NI réparation automatique NI
+     * action humaine décrite (contrôles de garantie : « si rouge, rétablir… »).
+     */
+    recommendedAction?: string;
 }
 
 /** Résultat d'une sonde pour une ligne — le quatuor ATTENDU/OBTENU/ÉCART/VERDICT. */
@@ -140,6 +204,19 @@ export interface DomainScore {
     lines: HealthLineState[];
 }
 
+/** Note d'un bloc de lecture, calculée sur ses seules lignes mesurées. */
+export interface BlockScore {
+    block: HealthBlock;
+    /** Note sur 100, ou `null` si aucune ligne du bloc n'a pu être mesurée. */
+    score: number | null;
+    /** Part du poids réel du bloc effectivement mesurée, de 0 à 1. */
+    coverage: number;
+    /** Le pire statut mesuré du bloc. */
+    status: HealthStatus;
+    lines: HealthLineState[];
+    tally: Record<HealthStatus, number>;
+}
+
 /** Photographie complète de la santé de MokNet à un instant donné. */
 export interface HealthReport {
     /**
@@ -152,6 +229,8 @@ export interface HealthReport {
     coverage: number;
     status: HealthStatus;
     domains: DomainScore[];
+    /** Les mêmes lignes, regroupées par bloc de lecture (voir `HealthBlockId`). */
+    blocks: BlockScore[];
     generatedAt: string;
     /** Compte des lignes par statut, pour l'en-tête du tableau de bord. */
     tally: Record<HealthStatus, number>;
