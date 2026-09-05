@@ -1,0 +1,466 @@
+{
+  "_meta": {
+    "etat": "avant",
+    "sha": "a440309",
+    "date": "2026-09-05T17:22:33.189Z"
+  },
+  "iphone-se1-320x568": {
+    "ecran": {
+      "width": 320,
+      "height": 568
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 568,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 320,
+      "h": 568
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 568,
+      "bas": 568
+    },
+    "carte": {
+      "x": 16,
+      "y": 28,
+      "w": 288,
+      "h": 511,
+      "bas": 540
+    },
+    "bouton": {
+      "x": 77,
+      "y": 471,
+      "w": 169,
+      "h": 52,
+      "bas": 523
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 200,
+      "contenu": 750,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "511.2px",
+    "erreursJS": []
+  },
+  "android-360x640": {
+    "ecran": {
+      "width": 360,
+      "height": 640
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 360,
+      "h": 640,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 360,
+      "h": 640
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 360,
+      "h": 640,
+      "bas": 640
+    },
+    "carte": {
+      "x": 16,
+      "y": 32,
+      "w": 328,
+      "h": 576,
+      "bas": 608
+    },
+    "bouton": {
+      "x": 118,
+      "y": 539,
+      "w": 209,
+      "h": 52,
+      "bas": 591
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 261,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "576px",
+    "erreursJS": []
+  },
+  "iphone-se-375x667": {
+    "ecran": {
+      "width": 375,
+      "height": 667
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 375,
+      "h": 667
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "bas": 667
+    },
+    "carte": {
+      "x": 16,
+      "y": 33,
+      "w": 343,
+      "h": 600,
+      "bas": 634
+    },
+    "bouton": {
+      "x": 118,
+      "y": 565,
+      "w": 224,
+      "h": 52,
+      "bas": 617
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 285,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "600.3px",
+    "erreursJS": []
+  },
+  "iphone-390x844": {
+    "ecran": {
+      "width": 390,
+      "height": 844
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 390,
+      "h": 844
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "bas": 844
+    },
+    "carte": {
+      "x": 16,
+      "y": 42,
+      "w": 358,
+      "h": 760,
+      "bas": 802
+    },
+    "bouton": {
+      "x": 118,
+      "y": 733,
+      "w": 239,
+      "h": 52,
+      "bas": 785
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 436,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "759.6px",
+    "erreursJS": []
+  },
+  "android-412x915": {
+    "ecran": {
+      "width": 412,
+      "height": 915
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 412,
+      "h": 915,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 412,
+      "h": 915
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 412,
+      "h": 915,
+      "bas": 915
+    },
+    "carte": {
+      "x": 16,
+      "y": 46,
+      "w": 380,
+      "h": 824,
+      "bas": 869
+    },
+    "bouton": {
+      "x": 124,
+      "y": 816,
+      "w": 255,
+      "h": 36,
+      "bas": 852
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 528,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "823.5px",
+    "erreursJS": []
+  },
+  "iphone-390x500-clavier": {
+    "ecran": {
+      "width": 390,
+      "height": 500
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 500,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 390,
+      "h": 500
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 500,
+      "bas": 500
+    },
+    "carte": {
+      "x": 16,
+      "y": 25,
+      "w": 358,
+      "h": 450,
+      "bas": 475
+    },
+    "bouton": {
+      "x": 118,
+      "y": 406,
+      "w": 239,
+      "h": 52,
+      "bas": 458
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 141,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "450px",
+    "erreursJS": []
+  },
+  "iphone-390x844-zoom150": {
+    "ecran": {
+      "width": 390,
+      "height": 844
+    },
+    "zoom": 1.5,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 130,
+      "y": 0,
+      "w": 260,
+      "h": 562.6666870117188,
+      "echelle": 1.5
+    },
+    "fenetreDisposition": {
+      "w": 390,
+      "h": 844
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "bas": 844
+    },
+    "carte": {
+      "x": 16,
+      "y": 42,
+      "w": 358,
+      "h": 760,
+      "bas": 802
+    },
+    "bouton": {
+      "x": 118,
+      "y": 733,
+      "w": 239,
+      "h": 52,
+      "bas": 785
+    },
+    "carteDansLaZoneVisible": false,
+    "boutonDansLaZoneVisible": false,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 436,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "759.6px",
+    "erreursJS": []
+  },
+  "iphone-375x667-zoom133": {
+    "ecran": {
+      "width": 375,
+      "height": 667
+    },
+    "zoom": 1.33,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 92,
+      "y": 0,
+      "w": 281.95489501953125,
+      "h": 501.5037536621094,
+      "echelle": 1.3300000429153442
+    },
+    "fenetreDisposition": {
+      "w": 375,
+      "h": 667
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "bas": 667
+    },
+    "carte": {
+      "x": 16,
+      "y": 33,
+      "w": 343,
+      "h": 600,
+      "bas": 634
+    },
+    "bouton": {
+      "x": 118,
+      "y": 565,
+      "w": 224,
+      "h": 52,
+      "bas": 617
+    },
+    "carteDansLaZoneVisible": false,
+    "boutonDansLaZoneVisible": false,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 285,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "600.3px",
+    "erreursJS": []
+  },
+  "ordinateur-1440x900": {
+    "ecran": {
+      "width": 1440,
+      "height": 900
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 1440,
+      "h": 900
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "bas": 900
+    },
+    "carte": {
+      "x": 336,
+      "y": 139,
+      "w": 768,
+      "h": 623,
+      "bas": 762
+    },
+    "bouton": {
+      "x": 832,
+      "y": 709,
+      "w": 255,
+      "h": 36,
+      "bas": 745
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 419,
+      "contenu": 419,
+      "defile": false
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "810px",
+    "erreursJS": []
+  }
+}

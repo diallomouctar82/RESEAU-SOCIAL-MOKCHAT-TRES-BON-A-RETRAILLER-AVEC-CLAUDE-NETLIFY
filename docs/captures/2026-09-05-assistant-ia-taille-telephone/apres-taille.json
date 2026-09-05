@@ -1,0 +1,736 @@
+{
+  "_meta": {
+    "etat": "apres",
+    "sha": "a440309-dirty",
+    "date": "2026-09-05T17:56:21.124Z"
+  },
+  "iphone-se1-320x568": {
+    "ecran": {
+      "width": 320,
+      "height": 568
+    },
+    "zoom": 1,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 568,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 320,
+      "h": 568
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 568,
+      "bas": 568
+    },
+    "carte": {
+      "x": 16,
+      "y": 27,
+      "w": 288,
+      "h": 515,
+      "bas": 541
+    },
+    "bouton": {
+      "x": 33,
+      "y": 472,
+      "w": 254,
+      "h": 52,
+      "bas": 524
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 165,
+      "contenu": 750,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "96%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 286,
+      "clientWidth": 286,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "android-360x640": {
+    "ecran": {
+      "width": 360,
+      "height": 640
+    },
+    "zoom": 1,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 360,
+      "h": 640,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 360,
+      "h": 640
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 360,
+      "h": 640,
+      "bas": 640
+    },
+    "carte": {
+      "x": 16,
+      "y": 46,
+      "w": 328,
+      "h": 547,
+      "bas": 594
+    },
+    "bouton": {
+      "x": 33,
+      "y": 541,
+      "w": 255,
+      "h": 36,
+      "bas": 577
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 212,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "90%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 326,
+      "clientWidth": 326,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "iphone-se-375x667": {
+    "ecran": {
+      "width": 375,
+      "height": 667
+    },
+    "zoom": 1,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 375,
+      "h": 667
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "bas": 667
+    },
+    "carte": {
+      "x": 16,
+      "y": 48,
+      "w": 343,
+      "h": 572,
+      "bas": 619
+    },
+    "bouton": {
+      "x": 33,
+      "y": 566,
+      "w": 255,
+      "h": 36,
+      "bas": 602
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 237,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "90%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 341,
+      "clientWidth": 341,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "iphone-390x844": {
+    "ecran": {
+      "width": 390,
+      "height": 844
+    },
+    "zoom": 1,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 390,
+      "h": 844
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "bas": 844
+    },
+    "carte": {
+      "x": 16,
+      "y": 57,
+      "w": 358,
+      "h": 731,
+      "bas": 787
+    },
+    "bouton": {
+      "x": 33,
+      "y": 734,
+      "w": 255,
+      "h": 36,
+      "bas": 770
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 396,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "90%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 356,
+      "clientWidth": 356,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "android-412x915": {
+    "ecran": {
+      "width": 412,
+      "height": 915
+    },
+    "zoom": 1,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 412,
+      "h": 915,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 412,
+      "h": 915
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 412,
+      "h": 915,
+      "bas": 915
+    },
+    "carte": {
+      "x": 16,
+      "y": 60,
+      "w": 380,
+      "h": 795,
+      "bas": 855
+    },
+    "bouton": {
+      "x": 33,
+      "y": 802,
+      "w": 255,
+      "h": 36,
+      "bas": 838
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 476,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "90%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 378,
+      "clientWidth": 378,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "iphone-390x500-clavier": {
+    "ecran": {
+      "width": 390,
+      "height": 500
+    },
+    "zoom": 1,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 500,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 390,
+      "h": 500
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 500,
+      "bas": 500
+    },
+    "carte": {
+      "x": 16,
+      "y": 25,
+      "w": 358,
+      "h": 449,
+      "bas": 475
+    },
+    "bouton": {
+      "x": 33,
+      "y": 422,
+      "w": 255,
+      "h": 36,
+      "bas": 458
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 114,
+      "contenu": 694,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "96%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 356,
+      "clientWidth": 356,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "iphone-390x844-zoom150": {
+    "ecran": {
+      "width": 390,
+      "height": 844
+    },
+    "zoom": 1.5,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 260,
+      "h": 562.6666870117188,
+      "echelle": 1.5
+    },
+    "fenetreDisposition": {
+      "w": 390,
+      "h": 844
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 260,
+      "h": 563,
+      "bas": 563
+    },
+    "carte": {
+      "x": 16,
+      "y": 27,
+      "w": 228,
+      "h": 509,
+      "bas": 536
+    },
+    "bouton": {
+      "x": 33,
+      "y": 467,
+      "w": 194,
+      "h": 52,
+      "bas": 519
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 97,
+      "contenu": 834,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "96%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 226,
+      "clientWidth": 226,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "iphone-375x667-zoom133": {
+    "ecran": {
+      "width": 375,
+      "height": 667
+    },
+    "zoom": 1.33,
+    "policeChamp": "16px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 281.95489501953125,
+      "h": 501.5037536621094,
+      "echelle": 1.3300000429153442
+    },
+    "fenetreDisposition": {
+      "w": 375,
+      "h": 667
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 282,
+      "h": 502,
+      "bas": 502
+    },
+    "carte": {
+      "x": 16,
+      "y": 25,
+      "w": 250,
+      "h": 451,
+      "bas": 476
+    },
+    "bouton": {
+      "x": 33,
+      "y": 407,
+      "w": 216,
+      "h": 52,
+      "bas": 459
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 52,
+      "contenu": 818,
+      "defile": true
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "96%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 248,
+      "clientWidth": 248,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 186,
+        "r": 396
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 404,
+        "r": 565
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "l": 418,
+        "r": 433
+      },
+      {
+        "tag": "line",
+        "cls": "[object SVGAnimatedString]",
+        "l": 421,
+        "r": 431
+      }
+    ],
+    "erreursJS": []
+  },
+  "ordinateur-1440x900": {
+    "ecran": {
+      "width": 1440,
+      "height": 900
+    },
+    "zoom": 1,
+    "policeChamp": "12px",
+    "visible": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "echelle": 1
+    },
+    "fenetreDisposition": {
+      "w": 1440,
+      "h": 900
+    },
+    "fond": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "bas": 900
+    },
+    "carte": {
+      "x": 336,
+      "y": 139,
+      "w": 768,
+      "h": 623,
+      "bas": 762
+    },
+    "bouton": {
+      "x": 832,
+      "y": 709,
+      "w": 255,
+      "h": 36,
+      "bas": 745
+    },
+    "carteDansLaZoneVisible": true,
+    "boutonDansLaZoneVisible": true,
+    "fondCouvreLaZoneVisible": true,
+    "zoneDefilante": {
+      "h": 419,
+      "contenu": 419,
+      "defile": false
+    },
+    "boutonSousLeDoigt": true,
+    "maxHeightCarte": "90%",
+    "debordementCarte": {
+      "scrollLeft": 0,
+      "scrollWidth": 766,
+      "clientWidth": 766,
+      "deborde": false
+    },
+    "plusLarges": [
+      {
+        "tag": "BUTTON",
+        "cls": "flex items-center gap-2 px-3.5 py-2 roun",
+        "l": 1054,
+        "r": 1243
+      }
+    ],
+    "erreursJS": []
+  }
+}

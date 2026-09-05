@@ -20,6 +20,93 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-082] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
+  (`components/AIPostAssistantModal.tsx` : en-tête, onglets, corps et pied
+  nommés, suivi de la zone visible), feuille `index.html` (bloc
+  « ASSISTANT IA » complété : carte à 90 % / 96 % du voile, `overflow: clip`,
+  parties fixes non compressibles, requêtes de conteneur `ia` ; nouveau bloc
+  « COMPOSEUR A7 — CHAMP A 16 PX SUR TACTILE »), tests
+  `tests/aiPostAssistantModal.test.tsx`, captures et sondes
+  `docs/captures/2026-09-05-assistant-ia-taille-telephone/`.
+* **Problème / Besoin initial** : consigne de la Direction : « Quand j'écris
+  un message puis que j'appuie sur "améliorer", le panneau assistant /
+  pré-publication s'ouvre trop grand et sort du cadre. L'utilisateur ne doit
+  pas avoir à rétrécir manuellement. Il faut que le panneau soit dimensionné
+  correctement sur tous les téléphones, avec défilement interne si besoin,
+  mais toujours dans l'écran, et les boutons importants doivent rester
+  visibles et utilisables. » Reproduit sur `main` (`a440309`) : sans zoom la
+  carte tient de 320 × 568 à 412 × 915 et à 390 × 500 (clavier) ; le champ
+  du composeur est à 12 px, ce qui déclenche le zoom automatique de Safari
+  iOS au focus (seuil 16 px) ; avec un zoom de page de 1,33 ou 1,5 (émulé
+  par `Emulation.setPageScaleFactor`), la carte et le bouton « Appliquer »
+  sortent de la zone visible — le « trop grand, hors cadre » constaté, et le
+  pincement pour rétrécir. Révélé en largeur étroite : en-tête et pied non
+  rétrécissables (le focus sur « Fermer » faisait défiler la carte
+  horizontalement malgré `overflow-hidden`), parties fixes écrasant les
+  onglets et faisant déborder le pied.
+* **Options considérées** : (a) `maximum-scale=1` dans la balise viewport —
+  global, touche toutes les équipes et l'accessibilité, rejeté ; (b) champ du
+  composeur à 16 px sur pointeur tactile ou fenêtre étroite, voile qui suit
+  `window.visualViewport` (zoom volontaire, clavier), carte à 90 % du voile
+  (96 % si le voile fait moins de 560 px), parties fixes non compressibles et
+  seule zone de contenu défilante, en-tête et pied repliables et compacts
+  sous 320 px de voile, carte en `overflow: clip` — retenu.
+* **Décision** : option (b). Rien n'est retiré ; ordinateur inchangé (police
+  12 px, carte de 623 px, mêmes rectangles). Sur téléphone, le champ passe à
+  16 px (interligne 1,4) ; sur les plus petits écrans et au zoom, l'en-tête
+  se replie (titre 16 px) et « Annuler » passe au-dessus d'« Appliquer ».
+* **Contrôle** : typage 0 erreur, 1635/1635 tests (107 fichiers ; tests
+  ajoutés : suivi de la zone visible, gardes CSS de la carte et du champ à
+  16 px, classes de l'en-tête et du pied), build OK ; sonde sur neuf cas
+  (320 × 568, 360 × 640, 375 × 667, 390 × 844, 412 × 915, 390 × 500
+  clavier, zoom 1,5 et 1,33, ordinateur) : après, carte et bouton dans la
+  zone visible, bouton sous le doigt, aucun débordement horizontal, aucun
+  rognage ; avant, les deux cas de zoom hors cadre ; parcours complet
+  jusqu'à la publication réussi sur trois écrans. Limite honnête : zoom
+  émulé par Chromium (le zoom automatique d'iOS ne s'émule pas), pas
+  d'appareil réel.
+* **Statut** : 🟠 PRÊTE, NON DÉPLOYÉE — PR brouillon depuis
+  `claude/cleanup-home-interface-szp8qv` ; production seulement sur feu vert
+  écrit, `main` revérifié, une fusion à la fois.
+
+---
+
+### [DEC-2026-083] — 5 Septembre 2026
+
+* **Module(s)** : authentification Google — écran de consentement Google et
+  projet Supabase `rqciahtpixdjbyoajomg` ; aucun fichier du dépôt.
+* **Problème / Besoin initial** : consigne de la Direction (capture iPhone) :
+  l'écran Google affiche « Accéder à l'application
+  rqciahtpixdjbyoajomg.supabase.co » ; « ce n'est pas une clé secrète, mais
+  ce n'est pas acceptable pour l'utilisateur. Merci de corriger l'affichage
+  pour que seul le nom officiel de l'application apparaisse. » Constat
+  mesuré : `GET …supabase.co/auth/v1/authorize?provider=google` redirige vers
+  Google avec `redirect_uri=https://rqciahtpixdjbyoajomg.supabase.co/auth/v1/callback`
+  et la page Google servie contient 31 fois ce domaine. Google affiche le
+  domaine de l'URI de redirection ; aucune ligne de code de l'application ne
+  le produit (`services/auth.ts` appelle `signInWithOAuth` avec
+  `redirectTo: window.location.origin`).
+* **Options considérées** : (a) domaine personnalisé Supabase
+  (`auth.moknet.net` : option payante du projet, CNAME, activation, puis URL
+  de rappel ajoutée dans la console Google et URL Supabase mise à jour sur
+  Netlify) — la documentation Supabase indique que les flux OAuth annoncent
+  alors le domaine personnalisé ; (b) écran de consentement Google : nom
+  d'application, logo, domaine autorisé `moknet.net`, page d'accueil,
+  confidentialité, puis vérification de marque par Google — le nom officiel
+  remplace le domaine une fois vérifié ; (c) les deux, ce que Supabase
+  recommande.
+* **Décision** : en attente de la Direction — nom officiel à afficher et
+  actions hors dépôt (console Google Cloud, facturation Supabase, DNS). Côté
+  dépôt, seule la variable d'environnement de l'URL Supabase changerait après
+  l'option (a) ; aucune modification n'est engagée d'ici là.
+* **Statut** : 🟡 EN ATTENTE — action humaine requise (rapport du 5/09/2026) ;
+  preuve à rejouer ensuite par la même mesure (page Google servie depuis
+  l'URL d'autorisation).
+
+---
+
 ### [DEC-2026-081] — 5 Septembre 2026
 * **Module(s)** : Authentification & sessions (`services/auth.ts`, `App.tsx`, fiche `docs/modules/AUTHENTIFICATION.md`) ; Sécurité & infrastructure (`netlify.toml` — domaine canonique).
 * **Problème / Besoin initial** : Direction (05/09) : « Mission urgente : correction de l'accès public à Moknet. Constat : le lien moknet.net ouvre directement l'interface sans authentification. […] toute personne non connectée qui ouvre moknet.net doit arriver obligatoirement sur l'écran de connexion ou de création de compte. L'accès direct à l'interface doit être strictement réservé aux utilisateurs authentifiés avec une session valide. Si déjà connecté, redirection normale vers Réseau Moknet. Sinon, aucune page interne ne doit s'ouvrir. […] quel que soit le canal d'ouverture du lien : SMS, WhatsApp, Messenger, navigateur mobile et ordinateur, y compris les navigateurs intégrés des apps. […] gérer toutes les variantes d'écriture du domaine ». **Constat reproduit (🚀 page de production servie `index-Bm6woHcd.js`, miroir Chromium, contexte vierge, sept canaux émulés par leur agent utilisateur réel)** : sans session sur l'appareil, `moknet.net` affiche « Se connecter » sur les sept canaux, ordinateur et téléphone — ce n'est pas par là que l'interface s'ouvrait. **Cause racine prouvée** : l'entrée (`App.tsx`) ne faisait que relire le stockage local (`getSession()`, jamais le serveur) et ouvrait l'interface *sur erreur* (« Local-First », v6.1) : une session locale que le serveur refuse — jeton périmé côté serveur, révoqué, forgé, compte supprimé ou banni (refus 401/403 rejoué en banc) — ouvrait l'interface interne sur les sept canaux, avec le profil local ou de démonstration ; un appareil qui a gardé une session d'un compte supprimé entrait donc encore. Les variantes du domaine (`www`, `http`, majuscules) étaient déjà ramenées à `https://moknet.net` par la configuration du site Netlify (domaine principal), de façon implicite et non versionnée.

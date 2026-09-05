@@ -1,0 +1,197 @@
+{
+  "_meta": {
+    "etat": "apres",
+    "sha": "a440309-dirty",
+    "date": "2026-09-05T18:01:12.564Z",
+    "texte": "Bonjour, soyez les bienvenus"
+  },
+  "telephone": {
+    "ecran": {
+      "width": 390,
+      "height": 844
+    },
+    "etapes": {
+      "saisie": {
+        "compteur": "28 caractères"
+      },
+      "modale": {
+        "boutonAppliquer": {
+          "x": 33,
+          "y": 734,
+          "l": 255,
+          "h": 36
+        },
+        "boutonAnnuler": {
+          "y": 690,
+          "h": 36
+        },
+        "pointTeste": {
+          "x": 160,
+          "y": 752
+        },
+        "elementSousLeDoigt": {
+          "tag": "BUTTON",
+          "classes": "px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to",
+          "texte": "Appliquer à ma publication"
+        },
+        "estLeBoutonAppliquer": true,
+        "sousLeDock": false,
+        "dock": {
+          "y": 768,
+          "h": 64
+        },
+        "boutonDansLaFenetre": true,
+        "chevaucheLeDock": true,
+        "modaleDansBody": true,
+        "racineInerte": true,
+        "zIndexModale": "2147482000",
+        "roleModale": "dialog",
+        "nbDialogues": 2,
+        "autresDialogues": [
+          "Menu des espaces MokNet"
+        ],
+        "classesModale": "ia-fond fixed inset-0 flex items-center ",
+        "versionOptimisee": true
+      },
+      "clic": {
+        "modaleFermee": true,
+        "texteDuChamp": "Bonjour, soyez les bienvenus",
+        "champNonVide": true
+      },
+      "publication": {
+        "publierActif": true,
+        "champVide": true,
+        "occurrencesDansLeFil": 1,
+        "extrait": "Bonjour, soyez les bienvenus",
+        "captureDuFil": "apres-telephone-5-fil.png"
+      }
+    },
+    "erreursJS": []
+  },
+  "android360": {
+    "ecran": {
+      "width": 360,
+      "height": 800
+    },
+    "etapes": {
+      "saisie": {
+        "compteur": "28 caractères"
+      },
+      "modale": {
+        "boutonAppliquer": {
+          "x": 33,
+          "y": 693,
+          "l": 255,
+          "h": 36
+        },
+        "boutonAnnuler": {
+          "y": 649,
+          "h": 36
+        },
+        "pointTeste": {
+          "x": 160,
+          "y": 711
+        },
+        "elementSousLeDoigt": {
+          "tag": "BUTTON",
+          "classes": "px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to",
+          "texte": "Appliquer à ma publication"
+        },
+        "estLeBoutonAppliquer": true,
+        "sousLeDock": false,
+        "dock": {
+          "y": 724,
+          "h": 64
+        },
+        "boutonDansLaFenetre": true,
+        "chevaucheLeDock": true,
+        "modaleDansBody": true,
+        "racineInerte": true,
+        "zIndexModale": "2147482000",
+        "roleModale": "dialog",
+        "nbDialogues": 2,
+        "autresDialogues": [
+          "Menu des espaces MokNet"
+        ],
+        "classesModale": "ia-fond fixed inset-0 flex items-center ",
+        "versionOptimisee": true
+      },
+      "clic": {
+        "modaleFermee": true,
+        "texteDuChamp": "Bonjour, soyez les bienvenus",
+        "champNonVide": true
+      },
+      "publication": {
+        "publierActif": true,
+        "champVide": true,
+        "occurrencesDansLeFil": 1,
+        "extrait": "Bonjour, soyez les bienvenus",
+        "captureDuFil": "apres-android360-5-fil.png"
+      }
+    },
+    "erreursJS": []
+  },
+  "ordinateur": {
+    "ecran": {
+      "width": 1440,
+      "height": 900
+    },
+    "etapes": {
+      "saisie": {
+        "compteur": "28 caractères"
+      },
+      "modale": {
+        "boutonAppliquer": {
+          "x": 832,
+          "y": 709,
+          "l": 255,
+          "h": 36
+        },
+        "boutonAnnuler": {
+          "y": 709,
+          "h": 36
+        },
+        "pointTeste": {
+          "x": 960,
+          "y": 727
+        },
+        "elementSousLeDoigt": {
+          "tag": "BUTTON",
+          "classes": "px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to",
+          "texte": "Appliquer à ma publication"
+        },
+        "estLeBoutonAppliquer": true,
+        "sousLeDock": false,
+        "dock": {
+          "y": 0,
+          "h": 0
+        },
+        "boutonDansLaFenetre": true,
+        "chevaucheLeDock": false,
+        "modaleDansBody": true,
+        "racineInerte": true,
+        "zIndexModale": "2147482000",
+        "roleModale": "dialog",
+        "nbDialogues": 2,
+        "autresDialogues": [
+          "Menu des espaces MokNet"
+        ],
+        "classesModale": "ia-fond fixed inset-0 flex items-center ",
+        "versionOptimisee": true
+      },
+      "clic": {
+        "modaleFermee": true,
+        "texteDuChamp": "Bonjour, soyez les bienvenus",
+        "champNonVide": true
+      },
+      "publication": {
+        "publierActif": true,
+        "champVide": true,
+        "occurrencesDansLeFil": 1,
+        "extrait": "Bonjour, soyez les bienvenus",
+        "captureDuFil": "apres-ordinateur-5-fil.png"
+      }
+    },
+    "erreursJS": []
+  }
+}
