@@ -37,8 +37,9 @@
 | **v6.19.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`, `71d0920`), PR #77 fusionnée en squash → `cbdab0a` / DEC-2026-054 | **Stable — Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en production contrôlée depuis le 5/09 (Green Gate run 33933766630, moknet.net a servi `index-SB3nxKwK.js` avec les empreintes SAT-4) ; remplacée par v6.20.0 le même jour** |
 | **v6.20.0** | 5 Septembre 2026 | **SAT-5 — récupération automatique d'un direct : relance bornée de la ligne, gardée par l'état réel en base (jamais sur un refus nommé, jamais après une éviction, trois fois au plus) ; clôture horaire des directs zombies par `pg_cron`, tracée dans `audit_logs`** | Live / Directs, Hook `useLiveTransport`, Base (`close_zombie_live_sessions`, cron) | branche `claude/lives-directs-sat5` / DEC-2026-055 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026** : PR #81 fusionnée en squash → `main` `880b5fa` (Green Gate run 33936079398 vert), moknet.net sert `index-CjAVWgcX.js` avec les 7 empreintes SAT-5 (ancien bundle 404) ; migration `close_zombie_live_sessions` + job `close-zombie-live-sessions` appliquée à 01:28 UTC, **première exécution réelle à 02:15 UTC : 13 directs zombies fermés** (les 13 ids de la sauvegarde, `audit_logs` `health.auto_repair` actor NULL), exécutions suivantes 03:15/04:15/05:15 sans rien à faire, 06:15 : 1 direct de plus franchissant les 24 h fermé ; 0 zombie restant, directs récents intacts, aucune autre ligne touchée — prouvé au banc réel contre un LiveKit vivant (39/39, cinq pannes injectées), défaut d'écran trouvé par le banc et corrigé, tsc 0 · vitest 1045/1045 |
 | **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | branche `claude/cleanup-home-interface-szp8qv`, PR #83 fusionnée en squash → `5b1c1ce` / DEC-2026-056 | **Remplacée par la v6.22.0 le 5/09/2026 — production contrôlée validée par la Direction ; Green Gate vert sur `af6a8d2` (run 33951780278) et sur `main` (run 33952228718) ; `moknet.net` sert `index-BUCPWfy5.js` depuis le 5/09 à 07h20 UTC, ancien bundle 404, vérifié en navigateur sur miroir** |
-| **v6.22.0** | 5 Septembre 2026 | **Santé Globale v2 — santé ET sécurité en % (audit du 4/09 intégré : 61 % de référence, note vivante recalculée), graphiques (santé par domaine, audit → aujourd'hui, progression des vagues P0/P1/P2), sept domaines × rouge/orange/vert, fiche problème/cause/impact/risque/action sur 58 lignes, action manuelle guidée (endroit exact, lien direct, étapes) uniquement quand rien d'automatique n'existe, sondes VPS/CORS/rang, repli CORS jamais `*`** | Super-Admin / Santé Globale, `services/health/*`, Edge `health-guardian` v3, Base (`health_probe_catalogue`) | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-057 / PR #86 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 08:01 UTC** : PR #86 fusionnée en squash → `main` `e6c68ae` (Green Gate run 146 vert sur `f72eca6`), `moknet.net` sert `index-6F5PzUd7.js` avec les neuf empreintes du tableau de bord v2 (ancien bundle `index-BUCPWfy5.js` → 404, `cache-control: max-age=0, must-revalidate`) ; fonction Edge v3 déployée et vérifiée (identique octet pour octet au bundle généré, 51 040 octets ; origine inconnue → `https://moknet.net`), migration `20260905090000` appliquée et vérifiée (0 puis 1 `super_admin`, 89 tables) ; harnais sur mesures de production du 5/09 : santé 75 % sur 95 % mesuré, sécurité 51 % sur 84 % (audit 61 %), 6 R · 9 O · 5 blancs · 38 V ; typage 0 erreur, 1072/1072 tests |
-| **v6.23.0** | 5 Septembre 2026 | **SAT-6 — le bouton de secours du direct, réservé à l'Admin Général : relancer la room d'un direct ou le clore depuis la Santé Globale, sans SSH — rang relu en base avant toute lecture et de nouveau au geste, diagnostic qui compte les présents réels, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; deux défauts pré-existants corrigés en chemin (modales de la Santé Globale cadrées sur l'onglet au lieu de la fenêtre, spectateur éjecté à son arrivée par une course du roster)** | Santé Globale (Super-Admin), Edge `health-guardian` v4, Live / Directs | branche `claude/lives-directs-sat6`, PR #88 en brouillon / DEC-2026-058 | **Prête — EN PR (#88), NON DÉPLOYÉE (validation Direction requise)** : ni la fonction Edge (v4 ; la v3 en production ne connaît pas ces actions) ni le client ; greffée sur la Santé Globale v2 (v6.22.0) après fusion de `main` dans la branche ; ordre si validée : fonction Edge d'abord, client ensuite. Banc réel contre un LiveKit vivant, trois vrais comptes et la base réelle : **51 OK / 0 DÉFAUT** (passe 4, après trois passes correctives 44/45, 38/48, 49/50 ; **passe 5 rejouée sur l'arbre fusionné : 51 OK / 0 DÉFAUT**) ; tsc 0 · vitest 1128/1128 · build |
+| **v6.22.0** | 5 Septembre 2026 | **Santé Globale v2 — santé ET sécurité en % (audit du 4/09 intégré : 61 % de référence, note vivante recalculée), graphiques (santé par domaine, audit → aujourd'hui, progression des vagues P0/P1/P2), sept domaines × rouge/orange/vert, fiche problème/cause/impact/risque/action sur 58 lignes, action manuelle guidée (endroit exact, lien direct, étapes) uniquement quand rien d'automatique n'existe, sondes VPS/CORS/rang, repli CORS jamais `*`** | Super-Admin / Santé Globale, `services/health/*`, Edge `health-guardian` v3, Base (`health_probe_catalogue`) | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-057 / PR #86 | **Remplacée par la v6.23.0 le 5/09/2026 à 09:57 UTC — était en production contrôlée depuis le 5/09/2026 à 08:01 UTC** : PR #86 fusionnée en squash → `main` `e6c68ae` (Green Gate run 146 vert sur `f72eca6`), `moknet.net` sert `index-6F5PzUd7.js` avec les neuf empreintes du tableau de bord v2 (ancien bundle `index-BUCPWfy5.js` → 404, `cache-control: max-age=0, must-revalidate`) ; fonction Edge v3 déployée et vérifiée (identique octet pour octet au bundle généré, 51 040 octets ; origine inconnue → `https://moknet.net`), migration `20260905090000` appliquée et vérifiée (0 puis 1 `super_admin`, 89 tables) ; harnais sur mesures de production du 5/09 : santé 75 % sur 95 % mesuré, sécurité 51 % sur 84 % (audit 61 %), 6 R · 9 O · 5 blancs · 38 V ; typage 0 erreur, 1072/1072 tests |
+| **v6.23.0** | 5 Septembre 2026 | **Bande « Aurore » du Réseau MOC (variante 3 choisie par la Direction parmi dix, sur la base « Orbes lumineux ») : seize orbes de cristal, une teinte par entrée, en damier sur deux rangées de huit, dans l'ordre imposé ; l'orbe de la section courante se remplit ; halo qui respire, soulèvement et lueur au survol ; rail aimanté sur téléphone ; reduced-motion respecté** | Réseau MOC (carte d'accès rapide sous le composeur), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-058 / PR #89 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 09:57 UTC** : PR #89 fusionnée en squash → `main` `6f9d062` (Green Gate vert sur `2bbe45f`, run 33959258373, et sur `main`, run 33959347666), revue indépendante passée (7 constats corrigés, contre-vérifiés « PRÊT »), `moknet.net` sert `index-CgZyiRwk.js` depuis 09:57:56 UTC (bloc « BANDE AURORE » présent, marqueurs du bundle présents, ancienne grille absente, ancien bundle `index-6F5PzUd7.js` → 404), miroir local vérifié dans Chromium ; typage 0 erreur, 1104/1104 tests, build OK, captures avant/après (`docs/captures/2026-09-05-reseau-bande-aurore/`) |
+| **v6.24.0** | 5 Septembre 2026 | **SAT-6 — le bouton de secours du direct, réservé à l'Admin Général : relancer la room d'un direct ou le clore depuis la Santé Globale, sans SSH — rang relu en base avant toute lecture et de nouveau au geste, diagnostic qui compte les présents réels, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; deux défauts pré-existants corrigés en chemin (modales de la Santé Globale cadrées sur l'onglet au lieu de la fenêtre, spectateur éjecté à son arrivée par une course du roster)** | Santé Globale (Super-Admin), Edge `health-guardian` v4, Live / Directs | branche `claude/lives-directs-sat6`, PR #88 / DEC-2026-059 | **EN COURS DE MISE EN PRODUCTION CONTRÔLÉE (validation de la Direction le 5/09/2026 à 10h40 UTC)** : fonction Edge v4 **déployée** à 10:49:57 UTC (artefact régénéré depuis `ae0d5eb`, 66 588 octets, source relue identique octet pour octet ; retour arrière v3 régénéré et vérifié identique à l'ancienne production avant le déploiement), backend vérifié à 10:53 UTC avec trois vraies sessions (`probe` 45 lignes comme la v3, 403 pour `user`, lecture seule pour `admin`, gestes pour `super_admin`), geste réel « Clore » joué à 10:55 UTC sur un direct de banc privé (journal `audit_logs` réel) ; client : PR #88 fusionnée en squash sur `main` — bundle servi et contrôle du tableau de bord réel consignés par la PR de mémoire vivante suivante ; greffée sur la Santé Globale v2 (v6.22.0). Banc réel contre un LiveKit vivant, trois vrais comptes et la base réelle : **51 OK / 0 DÉFAUT** (passe 4, après trois passes correctives 44/45, 38/48, 49/50 ; **passe 5 rejouée sur l'arbre fusionné : 51 OK / 0 DÉFAUT**) ; tsc 0 · vitest 1128/1128 · build |
 
 ---
 
@@ -46,7 +47,7 @@
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
 
-### [Version 6.23.0] — 5 Septembre 2026 (SAT-6 — le bouton de secours du direct, Admin Général)
+### [Version 6.24.0] — 5 Septembre 2026 (SAT-6 — le bouton de secours du direct, Admin Général)
 
 * **La demande** : « Lance SAT-6 sur une branche dédiée avec preuves et
   tests verts … un sujet, une branche, des preuves, aucune mise en prod sans
@@ -70,8 +71,9 @@
   1.8.4 → 1.13.6) sont listés sans bouton, comme action humaine. Le journal
   des actions distingue Secours / Automatique / Restauration.
 * **Trois actions Edge** (`live_emergency_overview` / `diagnose` / `apply`)
-  greffées sur `health-guardian` (v4, **non déployée** — la v3 en production
-  ne connaît pas ces actions), écrites comme un
+  greffées sur `health-guardian` (**v4, déployée le 5/09/2026 à 10:49 UTC**,
+  source relue depuis la production identique octet pour octet au dépôt ;
+  la v3 ne connaissait pas ces actions), écrites comme un
   flux pur à ports injectés (`liveEmergency.ts`) — les mêmes règles sont
   testées sans réseau puis jouées au banc avec des ports réels.
 * **Deux défauts pré-existants trouvés par le banc et corrigés** : (1) les
@@ -109,20 +111,66 @@
   lisent « Ce direct est terminé. », zéro jeton redemandé, LiveKit ne voit
   plus personne, deux entrées de journal ; les boîtes de confirmation et le
   tiroir de détail sont cadrés sur la fenêtre ; zéro erreur de page.
-* **Non déployé, volontairement** : fonction Edge v3 et client attendent la
-  validation de la Direction ; ordre de mise en production : Edge d'abord
-  (additive, retour arrière = redéployer l'artefact v3 régénéré), client
-  ensuite. **Limite honnête** : l'écriture réelle dans `audit_logs` n'a pas
-  été jouée au banc (port journal = fichier) ; elle emprunte `journal()`,
-  déjà en production pour SAT-4/SAT-5.
+* **Mise en production contrôlée** (validation de la Direction le 5/09/2026 à
+  10h40 UTC ; ordre imposé et tenu : Edge d'abord, backend vérifié, client
+  ensuite) : retour arrière v3 régénéré depuis `main` et vérifié identique
+  octet pour octet à l'ancienne production (51 040 octets) AVANT tout geste ;
+  fonction Edge v4 déployée à 10:49:57 UTC (artefact régénéré depuis
+  `ae0d5eb`, 66 588 octets, source relue identique octet pour octet) ;
+  backend vérifié à 10:53 UTC avec trois vraies sessions (`probe` 45 lignes,
+  0 blanc, comme la v3 ; 403 pour `user` ; lecture seule pour `admin`, dont
+  le diagnostic est refusé 403 par conception ; gestes pour `super_admin`) ;
+  **geste réel « Clore » joué à 10:55 UTC** sur un direct de banc privé :
+  verdict vérifié, `ended_at` posé sous la RLS, ligne `audit_logs`
+  `health.emergency` réellement écrite — la limite du banc (port journal =
+  fichier) est levée ; jeton forgé 400, jeton d'un autre acteur ou d'un
+  autre geste 403, second diagnostic 409. Client : PR #88 fusionnée en
+  squash sur `main` ; bundle servi par `moknet.net` et contrôle du tableau
+  de bord réel consignés par la PR de mémoire vivante suivante.
 * **Fusion avec `main`** : `main` a pris v6.22.0 (Santé Globale v2, PR #86,
   Edge v3 déployée) pendant le banc ; SAT-6 renuméroté v6.23.0 / DEC-2026-058
-  / Edge v4, regreffé sur l'écran v2 et sur `index.ts` v3, PR #88. Preuves
+  / Edge v4 — puis **v6.24.0 / DEC-2026-059** quand `main` a pris ces
+  numéros pour la bande « Aurore » (PR #89/#90) —, regreffé sur l'écran v2 et sur `index.ts` v3, PR #88. Preuves
   rejouées sur l'arbre fusionné : tsc 0 · vitest 1128/1128 · build · artefact
   v4 régénéré · **banc réel passe 5 : 51 OK / 0 DÉFAUT** (5/09/2026, 09h44
   UTC ; sélecteur adapté aux cartes de l'écran v2, dont certains blocs sont
   repliés) ; comptes de preuve recréés puis supprimés à zéro trace (63
   lignes, balayage de 264 colonnes `uuid` = 0, 0 `super_admin` restant).
+
+### [Version 6.23.0] — 5 Septembre 2026 (Bande « Aurore » du Réseau MOC)
+
+* **La demande** (Direction, 5 septembre) : après dix propositions puis dix
+  variantes sans code, « implémenter et amener en production, de façon
+  contrôlée, uniquement l'option numéro trois Aurore, comme sur la capture.
+  Ne rien toucher d'autre. Aucune extrapolation, aucune autre modif. »
+* **Ce que le membre voit désormais** : sous le composeur du Réseau MOC,
+  **seize orbes de cristal** en damier sur deux rangées de huit — Live,
+  Équipe & Experts, Campus & Éducation, Reels, Tribus, Croissance, Ma Story,
+  Langues & Immersion, Carrière & Accomplissement, Santé & Bien-être,
+  Habitat & Installation, Finance & Wallet, Mes Démarches, Mobilité &
+  Expatriation, Studio Créatif, Marché Mondial — chacune dans sa teinte
+  (aqua, bleu, lavande, violet, corail, vert, rose, cyan, indigo, rouge,
+  menthe, ambre, bleu clair, turquoise, pourpre, orange), halo qui respire à
+  son propre rythme, soulèvement et lueur au survol, l'orbe de la section
+  courante remplie de sa couleur ; sur tablette et téléphone, un rail
+  horizontal aimanté avec les libellés courts. Les sept entrées d'origine
+  gardent leurs actions ; les neuf nouvelles ouvrent l'espace du menu
+  latéral qui porte le même nom. Rien d'autre n'a bougé.
+* **Contrôle indépendant** : revue de code indépendante avant fusion —
+  trois constats importants (halo devant l'orbe au survol, 17e orbe « Fil
+  d'actu » qui cassait le damier, contraste de l'orbe active) et quatre
+  mineurs, tous corrigés et revérifiés.
+* **Preuve** : typage 0 erreur ; 1104/1104 tests (78 fichiers, dont 10 dans
+  `tests/accesRapideAurore.test.tsx`) ; build OK ; harnais Chromium :
+  16 boutons dans l'ordre, 8 par rangée, damier de 10 px, orbes de 54 px,
+  halo `aurore-halo` actif, rail de 46 px sur tablette (carte de 476 px) et
+  téléphone, aucun débordement, aucune erreur JS
+  (`docs/captures/2026-09-05-reseau-bande-aurore/`).
+* **Production** : PR #89 fusionnée en squash → `main` `6f9d062` le
+  5/09/2026 à 09:57 UTC ; `moknet.net` sert `index-CgZyiRwk.js` depuis
+  09:57:56 UTC (même bundle que le preview contrôlé), ancien bundle 404,
+  bloc CSS et marqueurs présents, miroir local vérifié dans Chromium.
+  Le contrôle visuel final dans l'application appartient à la Direction.
 
 ### [Version 6.22.0] — 5 Septembre 2026 (Santé Globale v2 — un tableau de bord qui chiffre, explique et guide)
 

@@ -1122,7 +1122,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-058] — 5 Septembre 2026
+### [DEC-2026-059] — 5 Septembre 2026
 
 * **Module(s)** : `Santé Globale (Super-Admin)`, fonction Edge
   `health-guardian` (`liveEmergency.ts`, `index.ts`), `Live / Directs`
@@ -1160,13 +1160,14 @@ Chaque décision respecte le formalisme strict suivant :
      divergente, ports UDP, montée 1.8.4 → 1.13.6) restent listés dans le
      panneau comme action humaine, jamais promis par un bouton.
 * **Décision finale** : option 3, livrée sur `claude/lives-directs-sat6`
-  (PR #88 en brouillon), **non déployée** — ni la fonction Edge (v4 ; la v3 en
-  production ne connaît pas ces actions) ni le client : validation de la
-  Direction requise. Ordre de mise en production si elle est validée :
-  fonction Edge d'abord (additive ; retour arrière = redéployer l'artefact
-  v3 régénéré par `build-bundle.sh`), fusion du client ensuite — dans
-  l'autre sens, le panneau afficherait « action inconnue » à l'Admin
-  Général.
+  (PR #88), d'abord **non déployée** — ni la fonction Edge (v4 ; la v3 en
+  production ne connaissait pas ces actions) ni le client — dans l'attente
+  de la validation de la Direction. Ordre de mise en production, imposé et
+  tenu : fonction Edge d'abord (additive ; retour arrière = redéployer
+  l'artefact v3 régénéré par `build-bundle.sh`), backend vérifié, fusion du
+  client ensuite — dans l'autre sens, le panneau afficherait « action
+  inconnue » à l'Admin Général. Voir « Mise en production contrôlée »
+  ci-dessous.
 * **Ce que le banc a trouvé** (passe 1, 44 OK / 1 DÉFAUT) : un faux défaut
   de banc (`innerText` rend l'en-tête en capitales, « NON RÉVERSIBLE ») ;
   et, sur les captures, deux vrais défauts que Playwright masquait en
@@ -1209,26 +1210,33 @@ Chaque décision respecte le formalisme strict suivant :
 * **Preuves** : tsc 0 · vitest 1101/1101 · build · 4 contre-épreuves rouges
   (rang non relu au geste, même sid déclaré vérifié, jeton d'un autre geste
   accepté, bouton actif sans case) ; banc réel détaillé dans
-  `docs/HISTORIQUE_VERSIONS.md` (v6.23.0). **Limites honnêtes** : la
-  fonction Edge n'est pas déployée ; au banc, le flux Edge réel tourne dans
-  Node avec ses ports réels (base réelle pour le rang et la RLS, LiveKit
-  vivant pour DeleteRoom), sauf le port journal, remplacé par un fichier
-  faute de clé de service dans le bac à sable — l'écriture réelle dans
-  `audit_logs` n'a pas encore été jouée (elle emprunte `journal()`, déjà en
-  production pour SAT-4/SAT-5). Comptes de preuve supprimés à zéro trace.
+  `docs/HISTORIQUE_VERSIONS.md` (v6.24.0). **Limites du banc** (levées en
+  production le 5/09, voir ci-dessous) : au banc, le flux Edge réel tourne
+  dans Node avec ses ports réels (base réelle pour le rang et la RLS,
+  LiveKit vivant pour DeleteRoom), sauf le port journal, remplacé par un
+  fichier faute de clé de service dans le bac à sable — l'écriture réelle
+  dans `audit_logs` n'avait donc pas été jouée au banc (elle emprunte
+  `journal()`, déjà en production pour SAT-4/SAT-5). Comptes de preuve
+  supprimés à zéro trace.
 * **Fusion avec `main` (5/09, matin)** : pendant le banc, `main` a pris
   DEC-2026-057 / v6.22.0 (Santé Globale v2, PR #86) et déployé la fonction
   Edge **v3** ; la PR #88 est passée en conflit sur sept fichiers, sans
   référence de fusion pour le Green Gate. Décision : fusionner `main` dans
-  la branche (jamais l'inverse), renuméroter SAT-6 en **DEC-2026-058 /
-  v6.23.0 / Edge v4**, et regreffer SAT-6 sur l'écran v2 (le fichier
+  la branche (jamais l'inverse), renuméroter SAT-6 en DEC-2026-058 /
+  v6.23.0 / Edge v4 — puis, `main` ayant pris DEC-2026-058 / v6.23.0 pour
+  la bande « Aurore » (PR #89, #90) pendant l'attente de la validation,
+  **DEC-2026-059 / v6.24.0 / Edge v4** à la seconde fusion de `main`
+  (documentaire seulement : aucun fichier de code commun) —, et regreffer
+  SAT-6 sur l'écran v2 (le fichier
   `AdminHealthTab.tsx` de `main` a été pris tel quel, puis le panneau, les
   libellés du journal et les deux portails y ont été reposés à la main) et
   sur `index.ts` v3 (les trois actions et leurs ports ajoutés à la v3, qui
   fournit déjà `loadTransportConfig` et `hmacKey`). Preuves rejouées sur
   l'arbre fusionné : tsc 0 · vitest 1128/1128 (1094 de `main` + 34 de SAT-6)
-  · build · artefact v4 régénéré par `build-bundle.sh` (66 569 octets, les
-  trois actions et les sondes v3 présentes) · **banc réel passe 5 : 51 OK /
+  · build · artefact v4 régénéré par `build-bundle.sh` (66 569 octets à ce
+  moment-là, 66 588 octets une fois la bannière du script complétée — c'est
+  cet artefact, régénéré depuis `ae0d5eb`, qui a été déployé ; les trois
+  actions et les sondes v3 présentes) · **banc réel passe 5 : 51 OK /
   0 DÉFAUT** (5/09/2026, 09h44 UTC). Deux faux départs de banc, sans rapport
   avec le produit : les comptes de preuve, supprimés après la passe 4, ont dû
   être recréés en SQL ; et le banc visait la première carte du DOM alors que
@@ -1238,6 +1246,147 @@ Chaque décision respecte le formalisme strict suivant :
   `uuid` (`public`, `storage`, `auth`) = 0, 0 `super_admin` restant (le
   compte de test signalé par DEC-2026-057 est retiré), 4 directs réels
   ouverts intacts.
+* **Mise en production contrôlée (5/09/2026)** : validation de la Direction
+  à 10h40 UTC (« D'abord, tu déploies la fonction Edge v4. Tu vérifies le
+  backend. Ensuite tu fusionnes le client et tu contrôles dans le tableau
+  de bord réel que le bouton est visible et actif. … Si elle n'est pas
+  maîtrisable, tu reviens immédiatement à l'état initial stable. »), avec la
+  règle de coordination posée le même jour : travaux parallèles autorisés,
+  chacun dans son périmètre, annonce et isolement d'impact avant toute
+  fusion ou mise en production (l'équipe Avatar, PR #71, ne partage aucun
+  fichier de code avec SAT-6 ; seuls les trois documents de mémoire vivante
+  sont touchés des deux côtés). **Retour arrière préparé avant tout geste** :
+  artefact v3 régénéré depuis `main` par `build-bundle.sh` et comparé à la
+  source relue depuis la production — identique octet pour octet (51 040
+  octets, SHA-256 `22ad0d48…`). **Fonction Edge v4 déployée à 10:49:57 UTC**
+  (`verify_jwt` conservé ; artefact régénéré depuis `ae0d5eb`, 66 588
+  octets, SHA-256 `236742b3…`) puis source relue depuis la production :
+  identique octet pour octet. **Backend vérifié à 10:53 UTC avec trois
+  vraies sessions** (comptes de preuve `user` / `admin` / `super_admin`
+  créés en SQL, supprimés à zéro trace en fin de mise en production) :
+  `probe` par un administrateur répond comme la v3 (200 en 2,4 s, 45 lignes,
+  0 blanc, `live.transport_utilisable` vert en 391 ms — aucune régression du
+  tableau de bord) ; `live_emergency_overview` 200 pour `admin`
+  (`canRepair:false`) et `super_admin` (`canRepair:true`), 403 pour `user` ;
+  `live_emergency_diagnose` par un `admin` → 403 `emergency_forbidden`
+  (« Réservé à l'Admin Général … votre rang selon la base : admin ») —
+  c'est, par conception, ce que voit le compte de la Direction tant qu'il
+  est `admin` ; action inconnue → 400 avec la liste des huit actions ; CORS
+  `https://moknet.net` sur chaque réponse. **Geste réel joué en production à
+  10:55 UTC** sur un direct de banc privé, sans room, créé par le
+  `super_admin` de preuve : diagnostic « Relancer » → rien à relancer, aucun
+  jeton ; diagnostic « Clore » → jeton signé cinq minutes ; jeton forgé →
+  400 `confirmation_invalid` ; jeton du super_admin présenté par un membre →
+  403 `confirmation_mismatch` ; jeton « Clore » présenté pour « Relancer » →
+  403 `confirmation_mismatch` ; **`apply` → verdict vérifié, `ended_at` posé
+  sous la RLS par l'identité de l'appelant, ligne `audit_logs`
+  `health.emergency` réellement écrite** (la limite du banc est levée) ;
+  second diagnostic → 409 `session_already_closed` ; le direct disparaît de
+  la vue d'ensemble. Client : fusion de la PR #88 en squash sur `main` (ce
+  commit) — bundle servi par `moknet.net` et contrôle du tableau de bord
+  réel consignés par la PR de mémoire vivante qui suit.
+* **Statut** : 🟢 fonction Edge v4 DÉPLOYÉE ET VÉRIFIÉE EN PRODUCTION
+  (5/09/2026, 10:49 UTC) ; client EN FUSION (PR #88) — statut final tenu
+  dans `docs/HISTORIQUE_VERSIONS.md` (v6.24.0).
+
+---
+
+### [DEC-2026-058] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, carte d'accès
+  rapide sous le composeur), `index.html` (bloc « BANDE AURORE »),
+  `tests/accesRapideAurore.test.tsx`.
+* **Problème / Besoin initial** : la Direction a d'abord demandé dix
+  propositions visuelles de la bande d'accès rapide (sans code), en a retenu
+  la direction « Orbes lumineux », puis dix variantes sur cette base, et a
+  choisi la **variante 3 « Aurore »** avec une mission ciblée : «
+  implémenter et amener en production, de façon contrôlée, uniquement
+  l'option numéro trois Aurore, comme sur la capture. Ne rien toucher
+  d'autre. » Seize entrées dans un ordre imposé (Live, Équipe & Experts,
+  Campus & Éducation, Reels, Tribus, Croissance, Ma Story, Langues &
+  Immersion, Carrière & Accomplissement, Santé & Bien-être, Habitat &
+  Installation, Finance & Wallet, Mes Démarches, Mobilité & Expatriation,
+  Studio Créatif, Marché Mondial), chacune dans une orbe de cristal teintée
+  de sa propre couleur, en damier sur deux rangées de huit, l'orbe de la
+  section courante remplie. La carte RO-1 n'en affichait que sept, en
+  pastilles carrées.
+* **Options considérées** :
+  1. Recopier la maquette (HTML/CSS autonome) telle quelle dans le fil —
+     rejeté : elle ignorait les actions réelles (onglets internes du fil,
+     `onNavigate`) et le comportement « Fil d'actu » ; retenu : réécrire le
+     bloc RO-1 en gardant chaque action d'origine et en branchant les neuf
+     nouvelles entrées sur les identifiants d'onglet du menu latéral
+     (`languages`, `career`, `health`, `housing`, `wallet`,
+     `admin-procedures`, `world`, `studio`, `shop`), tous rendus par
+     `App.tsx`.
+  2. Adapter la bande à la largeur de l'écran (`@media`) — rejeté : la carte
+     fait 1 120 px à 1 440, 704 px à 1 024 mais **476 px** sur une tablette
+     de 820 px avec le menu latéral ouvert ; retenu : lire la largeur réelle
+     de la carte (`@container aurore`), avec un repli `@supports not` +
+     `@media (max-width: 639px)` pour les navigateurs d'avant 2023.
+  3. Marquer « Live » rempli en permanence, comme sur la capture — rejeté :
+     sur la capture, Live avait été cliqué ; dans l'application l'orbe
+     remplie est celle de la section réellement courante (Live en Live,
+     Reels en Reels…), rien n'est rempli sur le fil lui-même.
+  4. Garder la grille 4 × 4 sur téléphone (choix RO-1) — rejeté : seize
+     orbes en quatre rangées auraient poussé le fil sous l'écran ; retenu :
+     le rail horizontal aimanté de la variante approuvée, libellés courts.
+* **Décision finale** : bloc RO-1 remplacé par la bande « Aurore »
+  (`nav.aurore-bande` > `ul.aurore-rangee` > `li.aurore-item` >
+  `button.aurore-orbe`, mêmes `data-testid`) ; chaque bouton porte `--h`
+  (teinte en degrés : 196, 204, 212, 262, 14, 158, 330, 186, 230, 350, 150,
+  42, 200, 176, 280, 30), `--i` (phase) et `--t` (période 5 à 8 s) ;
+  `aria-label` = libellé complet, libellé court `aria-hidden` affiché sur
+  tablette et téléphone ; « Fil d'actu » = petit bouton au-dessus de la
+  liste, HORS de la grille, uniquement hors du fil (les seize orbes restent
+  seize, damier et phases inchangés). CSS : orbe de 54 px (48 sur tablette,
+  46 sur téléphone), verre teinté `hsl(var(--h) 80% 93%)`, icône
+  `hsl(var(--h) 55% 30%)`, halo porté par le bouton (`.aurore-orbe::before`)
+  qui respire (`aurore-halo`, transform + opacité), reflet au sol, damier
+  de 10 px sur les orbes paires, survol (soulèvement de 7 px, anneau, lueur
+  de l'icône) réservé à `(hover: hover) and (pointer: fine)`, orbe courante
+  remplie `hsl(var(--h) 70% 38%) → hsl(var(--h) 65% 28%)` avec icône
+  blanche (≥ 3:1 jusqu'en haut de l'orbe, teintes claires comprises), rail
+  aimanté dont les marges internes valent le fondu des bords (16 px) sous
+  480 px de largeur intérieure, tout arrêté sous `prefers-reduced-motion`.
+  Couche aqua régénérée (la règle `ring-cyan-300/70`, devenue orpheline,
+  disparaît). Dix tests dédiés.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : une revue de code
+  indépendante a lu le diff, exécuté typage et tests, calculé les
+  contrastes et rendu « à corriger » (aucun bloquant, trois importants,
+  quatre mineurs) — tous corrigés puis revérifiés : (1) le halo `::before`
+  passait DEVANT l'orbe dès qu'elle était transformée (survol, appui) ;
+  porté par le bouton désormais ; (2) « Fil d'actu » s'insérait comme 17e
+  orbe et inversait tout le damier dès qu'une section était active ; sorti
+  de la grille ; (3) icône blanche à 1,7–2,5:1 sur les orbes actives
+  Croissance/Live ; clartés 38 → 28 % et reflets atténués ; (4) fondu du
+  rail qui estompait la première et la dernière orbe en butée ; (5)
+  commentaires des seuils `@container` (largeur intérieure, pas largeur de
+  carte) ; (6) anneau de focus bicolore ; (7) tests : unicité des seize
+  teintes, Ma Story, Reels/Croissance, `type="button"`, repli `@supports`.
+  Livré par la PR #89 (branche `claude/cleanup-home-interface-szp8qv`) :
+  typage 0 erreur, 1104/1104 tests (78 fichiers), build OK, captures
+  avant/après mesurées à 1440×900, 820×1180 et 390×844
+  (`docs/captures/2026-09-05-reseau-bande-aurore/`).
+* **Production** : la mission de la Direction vaut feu vert écrit («
+  implémenter et amener en production, de façon contrôlée […] Livrable :
+  production en place, lien de prod »). PR #89 fusionnée en squash →
+  `main` `6f9d062` le 5/09/2026 à 09:57 UTC, après Green Gate vert sur la
+  tête finale `2bbe45f` (run 33959258373) et contre-vérification
+  indépendante « PRÊT » ; Green Gate vert sur `main` (run 33959347666).
+  **Contrôle post-déploiement** : `moknet.net` sert `index-CgZyiRwk.js`
+  depuis 09:57:56 UTC (même bundle que le preview contrôlé de la PR), la
+  page servie porte le bloc « BANDE AURORE (DEC-2026-058) », `@keyframes
+  aurore-halo` et les deux `@container aurore`, le bundle contient
+  `aurore-orbe`, `aurore-retour`, les seize libellés, `admin-procedures`
+  et « Fil d'actu », l'ancienne grille RO-1 en est absente, l'ancien
+  bundle `index-6F5PzUd7.js` répond 404 ; miroir local de la production
+  ouvert dans Chromium (ordinateur et téléphone) : racine React montée,
+  règles `.aurore-bulle` et orbe courante, keyframes et conteneurs
+  analysés par le navigateur, aucune erreur JS applicative.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  09:58 UTC). Le contrôle visuel final dans l'application appartient à la
+  Direction.
 
 ---
 
