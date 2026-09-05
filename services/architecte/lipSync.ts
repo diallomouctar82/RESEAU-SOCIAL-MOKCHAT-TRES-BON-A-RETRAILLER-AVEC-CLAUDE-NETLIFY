@@ -28,7 +28,7 @@
  * se teste ici — y compris sur une phrase réellement mesurée (voir les tests).
  */
 
-export type LipSyncLevel = 'amplitude_reelle' | 'rythme_des_mots' | 'aucune';
+export type LipSyncLevel = 'visemes_alignes' | 'amplitude_reelle' | 'rythme_des_mots' | 'aucune';
 
 export interface LipSyncInputs {
     isSpeaking: boolean;
@@ -37,6 +37,12 @@ export interface LipSyncInputs {
     /** Réglage Super-Admin. */
     lipSyncEnabled: boolean;
     prefersReducedMotion: boolean;
+    /**
+     * `true` quand le clip HD en cours de lecture a été ALIGNÉ sur son texte
+     * (piste de visèmes phonétiques, voir alignment.ts) ; absent ou `false`,
+     * la bouche suit l'amplitude mesurée.
+     */
+    aligned?: boolean;
 }
 
 /**
@@ -47,13 +53,15 @@ export interface LipSyncInputs {
  */
 export function resolveLipSyncLevel(inputs: LipSyncInputs): LipSyncLevel {
     if (!inputs.isSpeaking || !inputs.lipSyncEnabled || inputs.prefersReducedMotion) return 'aucune';
-    if (inputs.engine === 'elevenlabs') return 'amplitude_reelle';
+    if (inputs.engine === 'elevenlabs') return inputs.aligned ? 'visemes_alignes' : 'amplitude_reelle';
     if (inputs.engine === 'browser_native') return 'rythme_des_mots';
     return 'aucune';
 }
 
 /** Phrase affichable dans le Super-Admin — la Direction doit savoir ce qu'elle regarde. */
 export const LIP_SYNC_LEVEL_LABEL: Record<LipSyncLevel, string> = {
+    visemes_alignes:
+        'Visèmes phonétiques — le texte prononcé est transcrit en phonèmes et calé sur le son de la voix HD avant la lecture : lèvres jointes sur b, p, m, dents sur f, v, s, bouche ouverte, étirée ou arrondie selon la voyelle, gestes et clignements planifiés sur la même partition.',
     amplitude_reelle: 'Synchro réelle — la bouche suit l’amplitude mesurée de la voix HD (chaîne vocale du Super-Admin).',
     rythme_des_mots:
         'Synchro au rythme des mots — le navigateur ne donne pas accès au signal audio de sa voix intégrée ; la bouche suit les frontières de mots, pas le volume.',
@@ -112,6 +120,16 @@ export const RENDER_LATENCY_MS = 80;
  * mesuré maintenant est entendu dans `heardDelayMs` ; la forme lue maintenant
  * s'affiche dans `RENDER_LATENCY_MS`.
  */
+/**
+ * Position de lecture (`audio.currentTime`) → son réellement entré dans le
+ * graphe audio : l'élément média est en avance de sa file de décodage (une
+ * ou deux tranches de 128 échantillons, mesuré 33 ± 25 ms le 05/09 sur le
+ * navigateur de preuve, en comparant la piste phonétique lue sur
+ * `currentTime` — bouche 100 ms avant le son — à l'analyseur, qui subit la
+ * même file que la sortie — 69 ms). Ne s'applique qu'à la piste phonétique.
+ */
+export const MEDIA_PIPELINE_MS = 30;
+
 export function mouthReadTime(now: number, heardDelayMs: number): number {
     return now - heardDelayMs + VISUAL_LEAD_MS + RENDER_LATENCY_MS;
 }
@@ -501,4 +519,48 @@ export class MouthShapeBuffer {
             level: acc.level / poids,
         };
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Horloge du son : position de lecture lissée
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `audio.currentTime` avance par paliers sur certains navigateurs (15 à
+ * 40 ms) : lue telle quelle, la bouche saccaderait. L'horloge extrapole la
+ * position entre deux lectures (temps réel écoulé) et se recale en douceur
+ * à chaque nouvelle valeur — jamais un saut, jamais de dérive : l'écart à la
+ * vraie position reste sous le palier.
+ */
+export interface AudioClock {
+    /** `mediaMs` : position lue ; `nowMs` : horloge de l'appelant. Rend la position estimée. */
+    update(mediaMs: number, nowMs: number): number;
+    reset(): void;
+}
+
+export function createAudioClock(): AudioClock {
+    let lastMedia = NaN;
+    let lastNow = NaN;
+    let estimate = NaN;
+    return {
+        update(mediaMs: number, nowMs: number): number {
+            if (!Number.isFinite(mediaMs) || !Number.isFinite(nowMs)) return Number.isFinite(estimate) ? estimate : 0;
+            const predicted = Number.isFinite(estimate) && Number.isFinite(lastNow) ? estimate + Math.max(0, nowMs - lastNow) : mediaMs;
+            if (!Number.isFinite(lastMedia) || mediaMs !== lastMedia) {
+                // Nouvelle lecture : recalage à mi-chemin si l'écart est petit
+                // (palier du navigateur), saut franc s'il est grand (retour en arrière, pause).
+                estimate = Math.abs(predicted - mediaMs) < 80 ? predicted + (mediaMs - predicted) * 0.5 : mediaMs;
+                lastMedia = mediaMs;
+            } else {
+                estimate = predicted;
+            }
+            lastNow = nowMs;
+            return estimate;
+        },
+        reset(): void {
+            lastMedia = NaN;
+            lastNow = NaN;
+            estimate = NaN;
+        },
+    };
 }

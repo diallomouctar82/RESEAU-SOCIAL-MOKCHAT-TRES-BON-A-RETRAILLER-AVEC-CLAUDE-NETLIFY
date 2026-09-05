@@ -269,6 +269,8 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                         </label>
                         <p className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
                             <Mic size={13} className="flex-shrink-0 mt-0.5" />
+                            {LIP_SYNC_LEVEL_LABEL.visemes_alignes}
+                            <br />
                             {LIP_SYNC_LEVEL_LABEL.amplitude_reelle}
                             <br />
                             {LIP_SYNC_LEVEL_LABEL.rythme_des_mots}

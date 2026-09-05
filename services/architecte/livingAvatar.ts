@@ -532,6 +532,13 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
     // ne suivent pas naturellement »).
     const calme = 1 - 0.65 * blend;
     const clignementTable = blend < 0.5 ? blinkAmount(inputs.elapsedMs) : 0;
+    // RÉFLEXE VESTIBULO-OCULAIRE : quand la tête hoche ou se relève, les yeux
+    // restent sur l'interlocuteur — ils glissent en sens inverse dans l'orbite.
+    // Et quand la tête suit le regard, les yeux reviennent d'autant vers le
+    // centre. Sans ce couplage, tête et yeux bougent chacun de leur côté
+    // (Direction, 05/09 : « les yeux ne suivent pas naturellement »).
+    const turnX = g && Number.isFinite(g.turnX) ? g.turnX : 0;
+    const vor = { x: -0.35 * turnX, y: g ? -0.5 * (g.nodY + g.liftY) : 0 };
 
     return {
         // Respiration visible sans devenir un effet : 1,5 % d'échelle, les
@@ -539,7 +546,7 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
         breathScale: 1 + respiration * 0.015 * ampleur,
         breathY: -respiration * 1.0 * ampleur,
         headRotate: derive.rotate * calme + tilt * (1 - blend) + nod.rotate + (g ? g.nodRotate + g.tilt : 0),
-        headX: derive.x * calme + sway,
+        headX: derive.x * calme + sway + turnX,
         headY: derive.y * calme + nod.y + nodEcoute + (g ? g.nodY + g.liftY : 0),
         // On cligne AUSSI en parlant : un visage qui ne cligne plus dès qu'il
         // parle se fige — constaté sur la vidéo du 04/09, où deux clignements
@@ -551,8 +558,8 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
         mouthWidth: Number.isFinite(inputs.mouthWidth!)
             ? inputs.mouthWidth!
             : 1 + (mouthWidthFactor(inputs.elapsedMs, true) - 1) * blend,
-        gazeX: regard.x + (g ? g.gazeX : 0),
-        gazeY: regard.y + (g ? g.gazeY : 0),
+        gazeX: regard.x + (g ? g.gazeX : 0) + vor.x,
+        gazeY: regard.y + (g ? g.gazeY : 0) + vor.y,
         // Les sourcils ne montent plus à chaque syllabe forte (0,9 × emphase :
         // mécanique) ; ils marquent les débuts de phrase par les gestes.
         browRaise: Math.min(1, idleBrowRaise(inputs.elapsedMs) + emphasis * 0.35 + (g ? g.brow : 0)),

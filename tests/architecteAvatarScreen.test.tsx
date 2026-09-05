@@ -139,6 +139,11 @@ describe('Synchro labiale — seulement quand elle est réelle', () => {
         expect(avatar()).toHaveAttribute('data-lipsync', 'amplitude_reelle');
     });
 
+    it('visèmes alignés quand la piste phonétique pilote la bouche — annoncé pour ce qu’il est', () => {
+        renderAvatar({ presence: 'speaking', ttsEngine: 'elevenlabs', voiceAligned: true });
+        expect(avatar().getAttribute('data-lipsync')).toBe('visemes_alignes');
+    });
+
     it('rythme des mots avec le moteur natif — annoncé pour ce qu’il est', () => {
         renderAvatar({ presence: 'speaking', ttsEngine: 'browser_native', outputLevel: 0 });
         expect(avatar()).toHaveAttribute('data-lipsync', 'rythme_des_mots');

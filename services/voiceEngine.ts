@@ -3,6 +3,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { generateSpeechDetailed } from './aiGateway';
+import { buildVoiceTrack, mixToMono, trackShapeAt, type VoiceTrack } from './architecte/alignment';
+import { buildProsodyScore, type ProsodyScore } from './architecte/gestures';
+import { MEDIA_PIPELINE_MS, createAudioClock } from './architecte/lipSync';
+
+/**
+ * Piste de voix ALIGNÉE en cours de lecture, publiée à chaque image : la
+ * partition des gestes et l'instant `performance.now()` qui correspond à
+ * l'instant 0 de la piste tel qu'AFFICHÉ (avance visuelle et retard
+ * d'affichage déjà comptés). L'avatar lit `performance.now() - t0Perf`.
+ */
+export interface VoiceTrackRef {
+    track: VoiceTrack;
+    score: ProsodyScore;
+    t0Perf: number;
+}
 import {
     ANALYSER_FFT_SIZE,
     LIP_SYNC_LOOKAHEAD_MS,
@@ -38,6 +53,10 @@ export interface VoiceEngineListener {
      * `onOutputVolume` pour les jauges.
      */
     onMouthShape?: (shape: MouthShape) => void;
+    /** Piste alignée en cours (gestes planifiés), `null` hors parole ou sans alignement. */
+    onVoiceTrack?: (ref: VoiceTrackRef | null) => void;
+    /** `true` dès que le clip en cours de lecture est piloté par sa piste phonétique. */
+    onLipSyncAligned?: (aligned: boolean) => void;
     /** Voix intégrée du navigateur : une frontière de mot vient d'être franchie (instant `performance.now()`, longueur du mot). */
     onWordBoundary?: (pulse: { at: number; length: number }) => void;
     onSpeakingStateChange?: (isSpeaking: boolean) => void;
@@ -225,6 +244,11 @@ export class VoiceEngine {
      * entendu + l'avance visuelle : ni en avance folle, ni en retard.
      */
     private outputLatencyMs = 0;
+    /** Alignements texte ↔ son en cours ou terminés, par URL de clip (borné). */
+    private trackJobs = new Map<string, Promise<VoiceTrack | null>>();
+    /** Pistes prêtes, par élément audio en lecture. */
+    private readyTracks = new WeakMap<HTMLAudioElement, { track: VoiceTrack; score: ProsodyScore }>();
+    private lipSyncAligned = false;
     private currentAudioUrl: string | null = null;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
@@ -997,7 +1021,55 @@ export class VoiceEngine {
      * close. Jamais une fonctionnalité d'affichage ne doit pouvoir empêcher
      * l'Architecte de parler.
      */
-    private attachOutputAnalyser(audio: HTMLAudioElement): void {
+    /**
+     * Aligne le texte d'un segment sur son clip (alignment.ts) — une fois par
+     * clip, en tâche de fond, jamais bloquant : `null` si le navigateur ne
+     * peut pas décoder ou si l'alignement échoue (la bouche suit alors
+     * l'amplitude mesurée, comme avant).
+     */
+    private prepareVoiceTrack(audioUrl: string, text: string): Promise<VoiceTrack | null> {
+        const existing = this.trackJobs.get(audioUrl);
+        if (existing) return existing;
+        const job = (async (): Promise<VoiceTrack | null> => {
+            try {
+                if (typeof window === 'undefined') return null;
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioContextClass) return null;
+                const bytes = await VoiceEngine.audioUrlToBytes(audioUrl);
+                if (!bytes) return null;
+                if (!this.outputAudioContext) this.outputAudioContext = new AudioContextClass();
+                const t0 = Date.now();
+                const decoded = await this.outputAudioContext.decodeAudioData(bytes);
+                const track = buildVoiceTrack(mixToMono(decoded), decoded.sampleRate, text);
+                this.trace(track ? 'piste phonétique alignée' : 'piste phonétique impossible', { ms: Date.now() - t0, chars: text.length, phones: track?.phones.length ?? 0 });
+                return track;
+            } catch (e) {
+                console.warn("Alignement phonétique indisponible (la voix continue, bouche à l'amplitude):", e);
+                return null;
+            }
+        })();
+        if (this.trackJobs.size >= 40) {
+            const oldest = this.trackJobs.keys().next().value;
+            if (oldest !== undefined) this.trackJobs.delete(oldest);
+        }
+        this.trackJobs.set(audioUrl, job);
+        return job;
+    }
+
+    /** Octets d'un clip : URL `data:` décodée sur place, sinon téléchargée. */
+    private static async audioUrlToBytes(url: string): Promise<ArrayBuffer | null> {
+        const data = /^data:[^;,]*;base64,(.*)$/s.exec(url);
+        if (data) {
+            const bin = atob(data[1]);
+            const out = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+            return out.buffer;
+        }
+        const res = await fetch(url);
+        return res.ok ? res.arrayBuffer() : null;
+    }
+
+    private attachOutputAnalyser(audio: HTMLAudioElement, trackPromise: Promise<VoiceTrack | null> = Promise.resolve(null)): void {
         // Personne n'écoute le niveau de sortie : ne pas ouvrir de contexte
         // audio pour rien (coûteux, et bloqué tant qu'il n'y a pas eu de geste
         // utilisateur sur certains navigateurs).
@@ -1040,6 +1112,14 @@ export class VoiceEngine {
                 this.outputAnalyser = analyser;
                 this.outputSourceElement = audio;
             }
+            void trackPromise.then((track) => {
+                if (!track) return;
+                this.readyTracks.set(audio, { track, score: buildProsodyScore(track) });
+                if (this.currentAudioElement === audio && !this.lipSyncAligned) {
+                    this.lipSyncAligned = true;
+                    this.listeners.forEach(l => l.onLipSyncAligned?.(true));
+                }
+            }).catch(() => {});
             this.startOutputLevelLoop();
         } catch (err) {
             console.warn('Analyse du niveau de sortie indisponible (la voix continue):', err);
@@ -1060,24 +1140,54 @@ export class VoiceEngine {
         // ou latence de l'appareil si elle est plus grande.
         const heardDelayMs = Math.max(LIP_SYNC_LOOKAHEAD_MS, this.outputLatencyMs);
         const buffer = new MouthShapeBuffer();
+        const clock = createAudioClock();
+        let clockFor: HTMLAudioElement | null = null;
         let lastAt = performance.now();
         const tick = () => {
             if (!this.outputAnalyser || !this.isSpeaking) {
                 this.outputRafId = null;
                 this.publishMouth(MOUTH_AT_REST);
+                this.publishTrack(null);
                 return;
             }
-            this.outputAnalyser.getFloatTimeDomainData(samples);
-            this.outputAnalyser.getFloatFrequencyData(spectrum);
             const now = performance.now();
-            buffer.push(now, mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt));
+            const audio = this.currentAudioElement;
+            const ready = audio ? this.readyTracks.get(audio) : undefined;
+            if (audio && ready) {
+                // PISTE PHONÉTIQUE : la bouche et les gestes suivent l'horloge du
+                // son lui-même (position de lecture lissée), à l'instant qui sera
+                // ENTENDU quand l'image sera affichée, plus l'avance visuelle.
+                if (clockFor !== audio) {
+                    clock.reset();
+                    clockFor = audio;
+                }
+                const media = clock.update(audio.currentTime * 1000, now);
+                const tMs = mouthReadTime(media, heardDelayMs + MEDIA_PIPELINE_MS);
+                this.publishMouth(trackShapeAt(ready.track, tMs));
+                this.publishTrack({ track: ready.track, score: ready.score, t0Perf: now - tMs });
+            } else {
+                // AMPLITUDE MESURÉE (repli, ou piste pas encore prête).
+                this.outputAnalyser.getFloatTimeDomainData(samples);
+                this.outputAnalyser.getFloatFrequencyData(spectrum);
+                buffer.push(now, mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt));
+                // Forme coarticulée lue pour qu'à l'écran les lèvres PRÉCÈDENT le son
+                // entendu (avance visuelle, retard d'affichage mesuré déduit).
+                this.publishMouth(buffer.at(mouthReadTime(now, heardDelayMs)));
+                this.publishTrack(null);
+            }
             lastAt = now;
-            // Forme coarticulée lue pour qu'à l'écran les lèvres PRÉCÈDENT le son
-            // entendu (avance visuelle, retard d'affichage mesuré déduit).
-            this.publishMouth(buffer.at(mouthReadTime(now, heardDelayMs)));
             this.outputRafId = requestAnimationFrame(tick);
         };
         this.outputRafId = requestAnimationFrame(tick);
+    }
+
+    private lastTrackRef: VoiceTrackRef | null = null;
+
+    /** Publie la piste alignée (ou son absence) — sans répéter `null` à chaque image. */
+    private publishTrack(ref: VoiceTrackRef | null): void {
+        if (ref === null && this.lastTrackRef === null) return;
+        this.lastTrackRef = ref;
+        this.listeners.forEach(l => l.onVoiceTrack?.(ref));
     }
 
     /** Publie une forme de bouche et son niveau à tous les auditeurs. */
@@ -1095,16 +1205,24 @@ export class VoiceEngine {
             this.outputRafId = null;
         }
         this.publishMouth(MOUTH_AT_REST);
+        this.publishTrack(null);
+        if (this.lipSyncAligned) {
+            this.lipSyncAligned = false;
+            this.listeners.forEach(l => l.onLipSyncAligned?.(false));
+        }
     }
 
     /** Joue une URL audio. Résout à la fin naturelle (true), sur erreur (false), ou immédiatement si l'époque a été annulée (false). */
-    private playAudioUrl(audioUrl: string, epoch: number): Promise<boolean> {
+    private playAudioUrl(audioUrl: string, epoch: number, text?: string): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
             try {
                 const audio = new Audio(audioUrl);
                 this.currentAudioElement = audio;
                 this.currentAudioUrl = audioUrl;
-                this.attachOutputAnalyser(audio);
+                // La piste phonétique se prépare en parallèle du démarrage :
+                // souvent prête avant le premier son, sinon la bouche suit
+                // l'analyseur pendant quelques dizaines de millisecondes.
+                this.attachOutputAnalyser(audio, text ? this.prepareVoiceTrack(audioUrl, text) : Promise.resolve(null));
                 audio.onended = () => resolve(true);
                 // `stopSpeaking()` met l'audio en pause : l'événement pause
                 // avec une époque périmée signifie « coupé net » — on résout
@@ -1160,8 +1278,10 @@ export class VoiceEngine {
             const nextPromise = i + 1 < segments.length
                 ? this.generateSegmentAudio(segments[i + 1], voiceId, options)
                 : null;
+            // L'alignement du segment suivant se calcule PENDANT la lecture du courant.
+            if (nextPromise) void nextPromise.then((url) => { if (url) void this.prepareVoiceTrack(url, segments[i + 1]); }).catch(() => {});
 
-            const played = await this.playAudioUrl(currentUrl, epoch);
+            const played = await this.playAudioUrl(currentUrl, epoch, segments[i]);
             if (epoch !== this.speakEpoch) return true; // coupé net (barge-in/fermeture) : rien d'autre ne part
             if (!played) break; // erreur de lecture : fin propre, jamais une superposition
 

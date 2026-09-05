@@ -577,6 +577,15 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             if (canvas.dataset.eyelid !== lid) canvas.dataset.eyelid = lid;
             const tilt = pose.headRotate.toFixed(1);
             if (canvas.dataset.tilt !== tilt) canvas.dataset.tilt = tilt;
+            // Gestes et regard, pour vérifier au banc qu'ils tombent aux moments de parole.
+            const headY = pose.headY.toFixed(2);
+            if (canvas.dataset.headY !== headY) canvas.dataset.headY = headY;
+            const headX = pose.headX.toFixed(2);
+            if (canvas.dataset.headX !== headX) canvas.dataset.headX = headX;
+            const gaze = `${pose.gazeX.toFixed(2)},${pose.gazeY.toFixed(2)}`;
+            if (canvas.dataset.gaze !== gaze) canvas.dataset.gaze = gaze;
+            const brow = pose.browRaise.toFixed(2);
+            if (canvas.dataset.brow !== brow) canvas.dataset.brow = brow;
         },
     };
 }

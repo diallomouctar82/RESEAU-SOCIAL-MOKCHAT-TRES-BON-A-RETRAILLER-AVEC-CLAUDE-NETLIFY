@@ -11,14 +11,19 @@ import {
     ANALYSER_FFT_SIZE,
     LIP_SYNC_LEVEL_LABEL,
     LIP_SYNC_LOOKAHEAD_MS,
+    MEDIA_PIPELINE_MS,
     MouthShapeBuffer,
     VISUAL_LEAD_MS,
+    createAudioClock,
     createVoiceEnvelope,
     mouthReadTime,
     mouthShapeFromBands,
     spectralBands,
     type MouthShape,
 } from '../../services/architecte/lipSync';
+import { buildVoiceTrack, mixToMono, trackShapeAt, type VoiceTrack } from '../../services/architecte/alignment';
+import { buildProsodyScore, type ProsodyScore } from '../../services/architecte/gestures';
+import type { VoiceTrackRef } from '../../services/voiceEngine';
 import { ArchitecteAvatar } from './ArchitecteAvatar';
 
 /** Ce que dit l'Architecte quand on lui demande de parler à voix haute. */
@@ -51,14 +56,20 @@ export interface DemoAudioHook {
  * moteur. Hors application : cette page est une page de preuve.
  */
 export interface DemoDriveHook {
-    debuter: () => void;
-    pousser: (forme: MouthShape) => void;
+    /** Début d'une lecture pilotée ; avec une piste alignée, les gestes suivent sa partition. */
+    debuter: (piste?: { track: VoiceTrack; score: ProsodyScore } | null) => void;
+    /** Forme de bouche de l'image, et l'instant de piste (ms) qu'elle représente. */
+    pousser: (forme: MouthShape, tMs?: number) => void;
     finir: () => void;
     outils: {
         spectralBands: typeof spectralBands;
         mouthShapeFromBands: typeof mouthShapeFromBands;
         createVoiceEnvelope: typeof createVoiceEnvelope;
         MouthShapeBuffer: typeof MouthShapeBuffer;
+        buildVoiceTrack: typeof buildVoiceTrack;
+        buildProsodyScore: typeof buildProsodyScore;
+        trackShapeAt: typeof trackShapeAt;
+        mixToMono: typeof mixToMono;
         fftSize: number;
         visualLeadMs: number;
     };
@@ -199,28 +210,43 @@ export const ArchitecteDemoPage: React.FC = () => {
     const hdRafRef = useRef(0);
     /** Forme de bouche mesurée sur la voix HD, lue par l'avatar à chaque image. */
     const boucheRef = useRef<MouthShape | null>(null);
+    /** Piste phonétique alignée en cours (partition des gestes), lue par l'avatar à chaque image. */
+    const pisteRef = useRef<VoiceTrackRef | null>(null);
+    const [alignee, setAlignee] = useState(false);
+    const pisteDriveRef = useRef<{ track: VoiceTrack; score: ProsodyScore } | null>(null);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const drive: DemoDriveHook = {
-            debuter: () => {
+            debuter: (piste) => {
                 hdRef.current?.audio.pause();
                 cancelAnimationFrame(hdRafRef.current);
                 setEnBoucle(false);
                 enBoucleRef.current = false;
                 debutRef.current = null;
+                pisteDriveRef.current = piste ?? null;
+                setAlignee(Boolean(piste));
                 changerVoix('hd');
             },
-            pousser: (forme) => {
+            pousser: (forme, tMs) => {
                 boucheRef.current = forme;
+                const piste = pisteDriveRef.current;
+                pisteRef.current = piste && tMs !== undefined ? { track: piste.track, score: piste.score, t0Perf: performance.now() - tMs } : null;
                 publierNiveau(forme.level);
             },
             finir: () => {
                 boucheRef.current = null;
+                pisteRef.current = null;
+                pisteDriveRef.current = null;
+                setAlignee(false);
                 publierNiveau(0);
                 changerVoix('inactive');
             },
-            outils: { spectralBands, mouthShapeFromBands, createVoiceEnvelope, MouthShapeBuffer, fftSize: ANALYSER_FFT_SIZE, visualLeadMs: VISUAL_LEAD_MS },
+            outils: {
+                spectralBands, mouthShapeFromBands, createVoiceEnvelope, MouthShapeBuffer,
+                buildVoiceTrack, buildProsodyScore, trackShapeAt, mixToMono,
+                fftSize: ANALYSER_FFT_SIZE, visualLeadMs: VISUAL_LEAD_MS,
+            },
         };
         (window as unknown as { __moknetDemoDrive?: DemoDriveHook }).__moknetDemoDrive = drive;
         return () => { delete (window as unknown as { __moknetDemoDrive?: DemoDriveHook }).__moknetDemoDrive; };
@@ -262,18 +288,44 @@ export const ArchitecteDemoPage: React.FC = () => {
         const spectre = new Float32Array(analyser.frequencyBinCount);
         const enveloppe = createVoiceEnvelope();
         const tampon = new MouthShapeBuffer();
+        const horloge = createAudioClock();
         let derniereMesure = performance.now();
         hdRef.current = { audio, context, source, output };
         (window as unknown as { __moknetDemoAudio?: DemoAudioHook }).__moknetDemoAudio = hdRef.current;
+        // PISTE PHONÉTIQUE (MÊME chaîne que `voiceEngine.prepareVoiceTrack`) :
+        // le clip est décodé et le texte aligné dessus avant la lecture ; la
+        // bouche et les gestes suivent alors l'horloge du son. Si l'alignement
+        // échoue, l'analyseur fait foi (amplitude mesurée), et on le dit.
+        let piste: { track: VoiceTrack; score: ProsodyScore } | null = null;
+        const aligner = (async () => {
+            try {
+                const octets = await (await fetch(AUDIO_VISION_SMART_URL)).arrayBuffer();
+                const decode = await context.decodeAudioData(octets);
+                const track = buildVoiceTrack(mixToMono(decode), decode.sampleRate, PHRASE_VISION_SMART);
+                if (track) piste = { track, score: buildProsodyScore(track) };
+            } catch {
+                piste = null;
+            }
+            setAlignee(Boolean(piste));
+        })();
         const mesurer = () => {
             if (audio.paused || audio.ended) return;
-            analyser.getFloatTimeDomainData(echantillons);
-            analyser.getFloatFrequencyData(spectre);
             const maintenant = performance.now();
-            tampon.push(maintenant, mouthShapeFromBands(spectralBands(spectre, echantillons, context.sampleRate), enveloppe, maintenant - derniereMesure));
+            let forme: MouthShape;
+            if (piste) {
+                const media = horloge.update(audio.currentTime * 1000, maintenant);
+                const tMs = mouthReadTime(media, LIP_SYNC_LOOKAHEAD_MS + MEDIA_PIPELINE_MS);
+                forme = trackShapeAt(piste.track, tMs);
+                pisteRef.current = { track: piste.track, score: piste.score, t0Perf: maintenant - tMs };
+            } else {
+                analyser.getFloatTimeDomainData(echantillons);
+                analyser.getFloatFrequencyData(spectre);
+                tampon.push(maintenant, mouthShapeFromBands(spectralBands(spectre, echantillons, context.sampleRate), enveloppe, maintenant - derniereMesure));
+                // MÊME règle que le moteur : forme lue pour précéder le son entendu.
+                forme = tampon.at(mouthReadTime(maintenant, LIP_SYNC_LOOKAHEAD_MS));
+                pisteRef.current = null;
+            }
             derniereMesure = maintenant;
-            // MÊME règle que le moteur : forme lue pour précéder le son entendu.
-            const forme = tampon.at(mouthReadTime(maintenant, LIP_SYNC_LOOKAHEAD_MS));
             boucheRef.current = forme;
             publierNiveau(forme.level);
             hdRafRef.current = requestAnimationFrame(mesurer);
@@ -281,6 +333,8 @@ export const ArchitecteDemoPage: React.FC = () => {
         const fin = () => {
             cancelAnimationFrame(hdRafRef.current);
             boucheRef.current = null;
+            pisteRef.current = null;
+            setAlignee(false);
             publierNiveau(0);
             changerVoix('inactive');
         };
@@ -294,7 +348,9 @@ export const ArchitecteDemoPage: React.FC = () => {
             changerVoix('indisponible');
         };
         void context.resume();
-        audio.play().catch(() => {
+        // La piste est prête en ~100 ms (8 s de son) : on l'attend avant de
+        // lancer la lecture, pour que la première syllabe soit déjà phonétique.
+        void aligner.then(() => audio.play()).catch(() => {
             fin();
             changerVoix('indisponible');
         });
@@ -384,6 +440,8 @@ export const ArchitecteDemoPage: React.FC = () => {
                     outputLevel={niveau}
                     outputLevelRef={niveauRef}
                     mouthShapeRef={boucheRef}
+                    voiceTrackRef={pisteRef}
+                    voiceAligned={alignee}
                     wordPulse={mot}
                     size={400}
                     actionLabel="Avatar de démonstration"
@@ -403,7 +461,7 @@ export const ArchitecteDemoPage: React.FC = () => {
             </p>
             {voixHd && (
                 <p data-testid="demo-voix" className="text-xs text-cyan-200/80 text-center max-w-md">
-                    {LIP_SYNC_LEVEL_LABEL.amplitude_reelle}
+                    {alignee ? LIP_SYNC_LEVEL_LABEL.visemes_alignes : LIP_SYNC_LEVEL_LABEL.amplitude_reelle}
                 </p>
             )}
             {voix === 'indisponible' && (

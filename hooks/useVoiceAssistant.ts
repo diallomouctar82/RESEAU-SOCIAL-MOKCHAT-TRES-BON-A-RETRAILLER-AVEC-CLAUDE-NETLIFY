@@ -7,7 +7,7 @@
 
 import type { MouthShape } from '../services/architecte/lipSync';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { voiceEngine, type VoiceEngineListener } from '../services/voiceEngine';
+import { voiceEngine, type VoiceEngineListener, type VoiceTrackRef } from '../services/voiceEngine';
 import { Agent } from '../types';
 
 export interface UseVoiceAssistantOptions {
@@ -45,6 +45,10 @@ export interface UseVoiceAssistantResult {
     wordPulseRef: { readonly current: { at: number; length: number } | null };
     /** Forme de bouche mesurée sur la voix HD (visèmes), par référence, lue à chaque image par l'avatar. */
     mouthShapeRef: { readonly current: MouthShape | null };
+    /** Piste phonétique alignée en cours de lecture (partition des gestes), par référence. */
+    voiceTrackRef: { readonly current: VoiceTrackRef | null };
+    /** `true` quand la bouche suit une piste phonétique alignée sur le texte (et non l'amplitude seule). */
+    voiceAligned: boolean;
     transcript: string;
     error: string | null;
     conversationalTurn: 'user_speaking' | 'ai_thinking' | 'ai_speaking' | 'waiting_user' | null;
@@ -71,6 +75,8 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
     const outputVolumeRef = useRef(0);
     const wordPulseRef = useRef<{ at: number; length: number } | null>(null);
     const mouthShapeRef = useRef<MouthShape | null>(null);
+    const voiceTrackRef = useRef<VoiceTrackRef | null>(null);
+    const [voiceAligned, setVoiceAligned] = useState(false);
     const outputVolumeUiAtRef = useRef(0);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -104,6 +110,8 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
             onSpeechVolume: (v) => setVolume(v),
             onWordBoundary: (pulse) => { wordPulseRef.current = pulse; },
             onMouthShape: (shape) => { mouthShapeRef.current = shape; },
+            onVoiceTrack: (ref) => { voiceTrackRef.current = ref; },
+            onLipSyncAligned: (aligned) => setVoiceAligned(aligned),
             onOutputVolume: (v) => {
                 outputVolumeRef.current = v;
                 // L'état React ne suit qu'à ~12 Hz (et tout de suite au retour à 0) :
@@ -182,6 +190,8 @@ export function useVoiceAssistant(options: UseVoiceAssistantOptions = {}): UseVo
         outputVolumeRef,
         wordPulseRef,
         mouthShapeRef,
+        voiceTrackRef,
+        voiceAligned,
         transcript,
         error,
         conversationalTurn,

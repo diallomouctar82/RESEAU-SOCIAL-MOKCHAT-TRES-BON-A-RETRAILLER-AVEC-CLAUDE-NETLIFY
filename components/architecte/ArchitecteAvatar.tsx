@@ -17,7 +17,16 @@ import {
     smoothOpenness,
     type MouthShape,
 } from '../../services/architecte/lipSync';
-import { createProsodyTracker, updateProsody } from '../../services/architecte/gestures';
+import {
+    adoptSprings,
+    createProsodyTracker,
+    createScoreTracker,
+    updateProsody,
+    updateScore,
+    type ProsodyScore,
+    type ScoreTracker,
+} from '../../services/architecte/gestures';
+import type { VoiceTrackRef } from '../../services/voiceEngine';
 import { realAvatarUrl } from '../../services/studio/avatarIdentity';
 import {
     resolveLivingPose,
@@ -89,6 +98,16 @@ export interface ArchitecteAvatarProps {
      * `voiceEngine.onMouthShape`. Prioritaire sur le niveau quand elle existe.
      */
     mouthShapeRef?: { readonly current: MouthShape | null } | null;
+    /**
+     * PISTE PHONÉTIQUE en cours de lecture (texte aligné sur le son, voir
+     * alignment.ts) : partition des gestes et origine de son horloge. Quand
+     * elle existe, hochements, sourcils, regard et clignements sont
+     * PLANIFIÉS (anticipés) sur les syllabes accentuées et les pauses du
+     * texte ; sinon ils sont déduits de la voix, après coup.
+     */
+    voiceTrackRef?: { readonly current: VoiceTrackRef | null } | null;
+    /** `true` quand la bouche suit une piste phonétique alignée (annoncé pour ce qu'il est). */
+    voiceAligned?: boolean;
     /** Diamètre en pixels. */
     size?: number;
     onClick?: () => void;
@@ -148,6 +167,8 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     outputLevel,
     outputLevelRef = null,
     mouthShapeRef = null,
+    voiceTrackRef = null,
+    voiceAligned = false,
     wordPulse = null,
     wordPulseRef = null,
     size = 48,
@@ -171,6 +192,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         engine: ttsEngine,
         lipSyncEnabled: config.lipSyncEnabled,
         prefersReducedMotion,
+        aligned: voiceAligned,
     });
 
     /**
@@ -198,6 +220,9 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     /** Dents visibles, lissées ; et suiveur de prosodie (gestes portés par la voix). */
     const teethRef = useRef(0);
     const prosodyRef = useRef(createProsodyTracker());
+    /** Suiveur de la PARTITION (piste alignée) et la partition qu'il suit. */
+    const scoreRef = useRef<ScoreTracker | null>(null);
+    const scoreForRef = useRef<ProsodyScore | null>(null);
     // Emphase : enveloppe LENTE de la voix, pour des hochements qui suivent
     // le phrasé et non chaque syllabe (retour Direction : « pas naturel »).
     const emphasisRef = useRef(0);
@@ -227,6 +252,8 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             syllableRef.current = { index: 0, wasOpen: false, closureUntil: 0, width: 1 };
             teethRef.current = 0;
             prosodyRef.current = createProsodyTracker();
+            scoreRef.current = null;
+            scoreForRef.current = null;
             portraitRef.current?.draw(STILL_POSE);
             setPose(STILL_POSE);
             return;
@@ -251,10 +278,11 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             let largeurVisee = 1;
             let dentsVisees = 0;
             let niveauVoix = cible;
-            if (forme && lipSyncLevel === 'amplitude_reelle') {
-                // VOIX HD MESURÉE : la forme vient du spectre de la voix — voyelle
-                // ouverte ou fermée, lèvres étirées ou arrondies, dents sur une
-                // fricative, lèvres jointes sur « m », « b », « p » et les silences.
+            if (forme && (lipSyncLevel === 'amplitude_reelle' || lipSyncLevel === 'visemes_alignes')) {
+                // VOIX HD : la forme vient de la piste phonétique alignée (visèmes
+                // du texte, calés sur le son) ou, à défaut, du spectre de la voix —
+                // voyelle ouverte ou fermée, lèvres étirées ou arrondies, dents sur
+                // une fricative, lèvres jointes sur « m », « b », « p » et les silences.
                 cible = forme.closed > 0.5 ? 0 : forme.open;
                 largeurVisee = forme.width;
                 dentsVisees = forme.teeth;
@@ -282,15 +310,35 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             teethRef.current += (dentsVisees - teethRef.current) * easeFactor(MOUTH_TEETH_MS, dt);
             opennessRef.current = smoothOpenness(opennessRef.current, cible, dt);
             const ouverture = opennessRef.current;
-            // Gestes déclenchés par la voix : temps forts, débuts de phrase, pauses.
-            const geste = updateProsody(prosodyRef.current, {
-                t: maintenant,
-                open: Math.min(1, cible / MAX_SPEECH_OPENNESS),
-                loud: niveauVoix,
-                speaking: speakingRef.current,
-                dtMs: dt,
-                elapsedMs: maintenant - debut,
-            });
+            // GESTES. Piste alignée : partition PLANIFIÉE sur le texte (hochement
+            // anticipé sur la syllabe accentuée, sourcils au premier mot, regard,
+            // clignement dans la pause). Sinon : déclenchés par la voix, après coup.
+            // Une seule horloge — celle de la pose (ms écoulées) — pour dater les
+            // clignements : datés sur `performance.now()`, ils n'étaient jamais
+            // joués dans le navigateur (origine non nulle), seulement au montage.
+            const piste = voiceTrackRef ? voiceTrackRef.current : null;
+            let geste;
+            if (piste) {
+                if (scoreForRef.current !== piste.score || !scoreRef.current) {
+                    scoreForRef.current = piste.score;
+                    scoreRef.current = createScoreTracker(piste.score);
+                }
+                geste = updateScore(scoreRef.current, { t: maintenant - piste.t0Perf, dtMs: dt, elapsedMs: maintenant - debut });
+            } else {
+                if (scoreRef.current) {
+                    adoptSprings(scoreRef.current, prosodyRef.current);
+                    scoreRef.current = null;
+                    scoreForRef.current = null;
+                }
+                geste = updateProsody(prosodyRef.current, {
+                    t: maintenant - debut,
+                    open: Math.min(1, cible / MAX_SPEECH_OPENNESS),
+                    loud: niveauVoix,
+                    speaking: speakingRef.current,
+                    dtMs: dt,
+                    elapsedMs: maintenant - debut,
+                });
+            }
             emphasisRef.current += (ouverture - emphasisRef.current)
                 * easeFactor(ouverture > emphasisRef.current ? EMPHASIS_RISE_MS : EMPHASIS_FALL_MS, dt);
             speakingBlendRef.current += ((speakingRef.current ? 1 : 0) - speakingBlendRef.current) * easeFactor(SPEAKING_BLEND_MS, dt);
@@ -315,7 +363,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
         };
         frame = requestAnimationFrame(boucle);
         return () => cancelAnimationFrame(frame);
-    }, [animated, lipSyncLevel, outputLevelRef, mouthShapeRef, wordPulseRef]);
+    }, [animated, lipSyncLevel, outputLevelRef, mouthShapeRef, wordPulseRef, voiceTrackRef]);
 
     const openness = pose.jawOpen;
 

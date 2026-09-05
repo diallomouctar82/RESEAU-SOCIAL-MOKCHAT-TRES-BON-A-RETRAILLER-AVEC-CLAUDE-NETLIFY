@@ -346,3 +346,30 @@ describe('Comportement — ce qui fait une présence et non une animation', () =
         expect(new Set(LIP_SHAPES).size).toBeGreaterThanOrEqual(5);
     });
 });
+
+describe('Couplage yeux-tête (réflexe vestibulo-oculaire)', () => {
+    const base = { elapsedMs: 1000, mouthOpenness: 0, animated: true, speaking: true, speakingBlend: 1 } as const;
+    const gesture = (over: Partial<import('../services/architecte/gestures').GestureState>) => ({
+        nodY: 0, nodRotate: 0, liftY: 0, tilt: 0, brow: 0, gazeX: 0, gazeY: 0, turnX: 0, blinkStartedAt: null, ...over,
+    });
+
+    it('quand la tête descend (hochement), les yeux remontent d’autant dans l’orbite : ils restent sur l’interlocuteur', () => {
+        const sans = resolveLivingPose({ ...base, gesture: gesture({}) });
+        const avec = resolveLivingPose({ ...base, gesture: gesture({ nodY: 1 }) });
+        expect(avec.headY - sans.headY).toBeCloseTo(1, 6);
+        expect(avec.gazeY - sans.gazeY).toBeCloseTo(-0.5, 6);
+    });
+
+    it('quand la tête suit le regard, elle se déplace et les yeux reviennent d’autant vers le centre', () => {
+        const sans = resolveLivingPose({ ...base, gesture: gesture({ gazeX: 0.6 }) });
+        const avec = resolveLivingPose({ ...base, gesture: gesture({ gazeX: 0.6, turnX: 0.15 }) });
+        expect(avec.headX - sans.headX).toBeCloseTo(0.15, 6);
+        expect(avec.gazeX - sans.gazeX).toBeCloseTo(-0.35 * 0.15, 6);
+    });
+
+    it('sans geste, rien ne change', () => {
+        const a = resolveLivingPose({ ...base, gesture: null });
+        const b = resolveLivingPose({ ...base, gesture: gesture({}) });
+        expect(a).toEqual(b);
+    });
+});

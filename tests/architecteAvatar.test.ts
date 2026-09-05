@@ -609,3 +609,50 @@ describe('Anticipation et coarticulation — la bouche précède le son, sans à
         expect(long.at(100).open).toBeCloseTo(0.3, 9);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Horloge du son et niveau « visèmes alignés »
+// ─────────────────────────────────────────────────────────────────────────
+import { LIP_SYNC_LEVEL_LABEL as LABELS, createAudioClock, resolveLipSyncLevel as niveau } from '../services/architecte/lipSync';
+
+describe('Horloge du son : position lissée entre deux paliers de `currentTime`', () => {
+    it('suit une position qui avance par paliers de 40 ms avec moins de 25 ms d’écart, sans jamais reculer', () => {
+        const clock = createAudioClock();
+        let worst = 0;
+        let previous = -Infinity;
+        for (let now = 0; now <= 2000; now += 16) {
+            const media = Math.floor(now / 40) * 40; // ce que rend un navigateur à paliers
+            const estimate = clock.update(media, now);
+            worst = Math.max(worst, Math.abs(estimate - now));
+            expect(estimate).toBeGreaterThanOrEqual(previous);
+            previous = estimate;
+        }
+        expect(worst).toBeLessThan(25);
+    });
+
+    it('saute franchement sur un grand écart (retour en arrière) et repart de zéro après `reset`', () => {
+        const clock = createAudioClock();
+        clock.update(1000, 0);
+        clock.update(1016, 16);
+        expect(clock.update(200, 32)).toBe(200);
+        clock.reset();
+        expect(clock.update(5000, 100)).toBe(5000);
+        expect(clock.update(Number.NaN, 116)).toBe(5000);
+    });
+});
+
+describe('Niveau « visèmes alignés » : annoncé seulement quand la piste existe', () => {
+    const base = { isSpeaking: true, engine: 'elevenlabs' as const, lipSyncEnabled: true, prefersReducedMotion: false };
+    it('voix HD alignée → visèmes ; non alignée → amplitude ; navigateur → rythme des mots même si « aligné »', () => {
+        expect(niveau({ ...base, aligned: true })).toBe('visemes_alignes');
+        expect(niveau({ ...base, aligned: false })).toBe('amplitude_reelle');
+        expect(niveau({ ...base })).toBe('amplitude_reelle');
+        expect(niveau({ ...base, engine: 'browser_native', aligned: true })).toBe('rythme_des_mots');
+        expect(niveau({ ...base, aligned: true, lipSyncEnabled: false })).toBe('aucune');
+    });
+    it('a un libellé qui dit ce que c’est, sans prétendre plus', () => {
+        expect(LABELS.visemes_alignes).toMatch(/phonétiques/);
+        expect(LABELS.visemes_alignes).toMatch(/calé sur le son/);
+        expect(LABELS.visemes_alignes).toMatch(/b, p, m/);
+    });
+});

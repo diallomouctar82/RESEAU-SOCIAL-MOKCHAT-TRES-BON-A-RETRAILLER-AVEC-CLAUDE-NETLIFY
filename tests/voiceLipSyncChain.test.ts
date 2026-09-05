@@ -1,5 +1,32 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS, RENDER_LATENCY_MS, VISUAL_LEAD_MS, type MouthShape } from '../services/architecte/lipSync';
+import type { VoiceTrackRef } from '../services/voiceEngine';
+
+/** Le vrai fichier de voix HD, décodé en mono — pour la piste phonétique. */
+function readWav(): { samples: Float32Array; sampleRate: number } {
+    const wav = fs.readFileSync(path.resolve(process.cwd(), 'public/architecte/vision-smart.wav'));
+    let p = 12;
+    let channels = 1;
+    let sampleRate = 44100;
+    let data: Buffer | null = null;
+    while (p < wav.length) {
+        const id = wav.toString('ascii', p, p + 4);
+        const n = wav.readUInt32LE(p + 4);
+        if (id === 'fmt ') { channels = wav.readUInt16LE(p + 10); sampleRate = wav.readUInt32LE(p + 12); }
+        if (id === 'data') { data = wav.subarray(p + 8, p + 8 + n); break; }
+        p += 8 + n + (n & 1);
+    }
+    const frames = data!.length / (channels * 2);
+    const samples = new Float32Array(frames);
+    for (let i = 0; i < frames; i += 1) {
+        let acc = 0;
+        for (let c = 0; c < channels; c += 1) acc += data!.readInt16LE((i * channels + c) * 2) / 32768;
+        samples[i] = acc / channels;
+    }
+    return { samples, sampleRate };
+}
 
 /**
  * Chaîne audio de la synchro labiale, telle que `voiceEngine` la construit
@@ -81,6 +108,8 @@ class FakeAudioContext {
     static sample = 0;
     static spectre: keyof typeof SPECTRES = 'silence';
     static outputLatency = 0.02;
+    /** Clip décodable : le vrai wav ; `null` = navigateur sans décodeur (repli amplitude). */
+    static decoded: { samples: Float32Array; sampleRate: number } | null = null;
     state = 'running';
     sampleRate = 44100;
     baseLatency = 0.01;
@@ -94,6 +123,11 @@ class FakeAudioContext {
     createAnalyser() { const a = new FakeAnalyser('analyser'); this.analysers.push(a); return a; }
     createDelay() { const d = new FakeDelay('delay'); this.delays.push(d); return d; }
     resume() { return Promise.resolve(); }
+    decodeAudioData(_bytes: ArrayBuffer) {
+        const d = FakeAudioContext.decoded;
+        if (!d) return Promise.reject(new Error('pas de décodeur'));
+        return Promise.resolve({ numberOfChannels: 1, length: d.samples.length, sampleRate: d.sampleRate, getChannelData: () => d.samples });
+    }
 }
 
 /** Existe-t-il un chemin de connexions de `from` jusqu'à la sortie ? */
@@ -136,7 +170,9 @@ beforeEach(() => {
     FakeAudioContext.sample = 0;
     FakeAudioContext.spectre = 'silence';
     FakeAudioContext.outputLatency = 0.02;
+    FakeAudioContext.decoded = null;
     frames.length = 0;
+    (voiceEngine as any).trackJobs = new Map();
     (voiceEngine as any).audioCache = new Map();
     (voiceEngine as any).outputAudioContext = null;
     (voiceEngine as any).outputAnalyser = null;
@@ -239,6 +275,85 @@ describe('voiceEngine — chaîne audio de la synchro labiale (voix HD, tout fou
         image(3); // 48 ms
         expect(formes.filter((f) => f.open > 0)).toHaveLength(0);
         image(5); // 128 ms : la voyelle est maintenant entendue
+        expect(formes.at(-1)!.open).toBeGreaterThan(0.3);
+        FakeAudio.instances[0].onended?.();
+        await lecture;
+        off();
+    });
+});
+
+describe('voiceEngine — piste phonétique : la bouche suit le TEXTE aligné sur le clip', () => {
+    const PHRASE = 'Bonjour, je suis l’avatar de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle.';
+
+    it('aligne le clip sur son texte en tâche de fond, puis cale les visèmes sur la position de lecture ; retire la piste à la fin', async () => {
+        FakeAudioContext.decoded = readWav();
+        // Le clip factice est TOUTE la phrase : elle part en un seul segment
+        // (en production, chaque segment a son propre clip et son propre texte).
+        const split = vi.spyOn(voiceEngine as any, 'splitForHdSynthesis').mockImplementation(() => [PHRASE]);
+        const formes: MouthShape[] = [];
+        const pistes: (VoiceTrackRef | null)[] = [];
+        const alignes: boolean[] = [];
+        const off = voiceEngine.addListener({
+            onMouthShape: (s) => formes.push(s),
+            onVoiceTrack: (r) => pistes.push(r),
+            onLipSyncAligned: (a) => alignes.push(a),
+        });
+        FakeAudioContext.sample = 0.2;
+        FakeAudioContext.spectre = 'a';
+        const lecture = voiceEngine.speak(PHRASE);
+        await vi.waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+        // L'alignement (décodage + Viterbi) se fait sans bloquer la lecture : annoncé quand il est prêt.
+        await vi.waitFor(() => expect(alignes).toContain(true), { timeout: 4000 });
+        const audio = FakeAudio.instances[0];
+        // La forme affichée est celle de l'instant qui sera ENTENDU (retard 200 ms,
+        // plus la file de l'élément média, 30 ms) quand l'image sera visible
+        // (+ 80 ms), avec 60 ms d'avance : instant de piste = position − 230 + 140.
+        // « m » de « Smart » (1650–1700 ms) → position 1765 ms.
+        audio.currentTime = 1.765;
+        image(2);
+        expect(formes.at(-1)!.closed).toBeGreaterThan(0.8);
+        expect(formes.at(-1)!.open).toBeLessThan(0.05);
+        // « a » de « Smart » (1700–1750 ms) : mâchoire ouverte, lèvres ni jointes ni dents.
+        audio.currentTime = 1.815;
+        image(2);
+        const a = formes.at(-1)!;
+        expect(a.open).toBeGreaterThan(0.3);
+        expect(a.closed).toBeLessThan(0.2);
+        expect(a.teeth).toBeLessThan(0.1);
+        // Pause après « Smart. » (1830–2090 ms) : repos — alors même que l'analyseur factice « entend » une voyelle.
+        audio.currentTime = 2.05;
+        image(2);
+        expect(formes.at(-1)!.open).toBe(0);
+        expect(formes.at(-1)!.closed).toBe(1);
+        // La piste publiée porte la partition des gestes et l'origine de son horloge.
+        const ref = pistes.at(-1)!;
+        expect(ref).not.toBeNull();
+        expect(ref.track.words).toHaveLength(24);
+        expect(ref.score.events.filter((e) => e.kind === 'blink').length).toBeGreaterThanOrEqual(3);
+        expect(horloge - ref.t0Perf).toBeGreaterThan(1900);
+        expect(horloge - ref.t0Perf).toBeLessThan(2100);
+        // Fin de lecture : piste retirée, bouche au repos, « aligné » redevient faux.
+        audio.onended?.();
+        await lecture;
+        expect(pistes.at(-1)).toBeNull();
+        expect(alignes.at(-1)).toBe(false);
+        expect(formes.at(-1)!.open).toBe(0);
+        split.mockRestore();
+        off();
+    });
+
+    it('sans décodeur audio, la voix continue et la bouche suit l’amplitude — jamais muette, jamais figée', async () => {
+        FakeAudioContext.decoded = null;
+        const formes: MouthShape[] = [];
+        const alignes: boolean[] = [];
+        const off = voiceEngine.addListener({ onMouthShape: (s) => formes.push(s), onLipSyncAligned: (a) => alignes.push(a) });
+        FakeAudioContext.sample = 0.2;
+        FakeAudioContext.spectre = 'a';
+        const lecture = voiceEngine.speak('Bonjour.');
+        await vi.waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+        await new Promise((r) => setTimeout(r, 20));
+        image(12);
+        expect(alignes).toHaveLength(0);
         expect(formes.at(-1)!.open).toBeGreaterThan(0.3);
         FakeAudio.instances[0].onended?.();
         await lecture;
