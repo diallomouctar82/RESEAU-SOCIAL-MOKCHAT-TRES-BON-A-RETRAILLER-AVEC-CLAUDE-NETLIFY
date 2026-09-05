@@ -16,7 +16,7 @@ import { Agent, DossierParcours } from '../types';
 import { AGENTS } from '../constants';
 
 /**
- * DEC-2026-055 — « Plateaux de cristal » (direction D choisie par la Direction).
+ * DEC-2026-056 — « Plateaux de cristal » (direction D choisie par la Direction).
  *
  * L'écran d'entrée de l'espace Experts ne montre plus qu'une phrase et les
  * experts, chacun dans une bulle de cristal posée sur une lame de verre :

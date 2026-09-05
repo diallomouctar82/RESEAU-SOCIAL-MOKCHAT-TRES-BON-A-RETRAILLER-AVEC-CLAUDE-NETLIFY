@@ -1122,7 +1122,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-055] — 5 Septembre 2026
+### [DEC-2026-056] — 5 Septembre 2026
 
 * **Module(s)** : `Espace Experts` (`components/ExpertsCatalogue.tsx`,
   en-tête de `components/ExpertsHub.tsx`), `index.html` (bloc « PLATEAUX DE
@@ -1199,6 +1199,64 @@ Chaque décision respecte le formalisme strict suivant :
   Direction a demandé « aucune surcharge ») — leur code a été retiré du
   composant, pas des autres écrans ; les portraits restent des URL Unsplash
   comme avant ; le formulaire de RDV garde sa date par défaut historique.
+
+### [DEC-2026-055] — 5 Septembre 2026
+
+* **Module(s)** : `Live / Directs`, hook `useLiveTransport`, base
+  (`close_zombie_live_sessions`, `pg_cron`)
+* **Problème / Besoin initial** : SAT-5 — la ligne d'un direct qui tombe
+  restait tombée (seul un appel se relançait, depuis AU-1) ; treize directs
+  « zombies » (jamais fermés, démarrés depuis plusieurs jours) tenaient la
+  ligne `live.sessions_zombies` de la Santé Globale au rouge, avec une
+  réparation qui n'existait qu'au clic de l'Administrateur Général. La
+  Direction a demandé de distinguer ce que l'application peut réparer seule
+  de ce qui exige le VPS — et, le même jour, de ne mettre en production que
+  ce qui est fini.
+* **Options considérées** :
+  1. Relancer un direct comme un appel, sans condition — rejeté : un direct
+     que l'animateur vient de fermer serait rejoint en boucle, et un direct
+     complet (SAT-3) martelé.
+  2. Relancer seulement si la base confirme que le direct est ouvert, en
+     traitant une base injoignable comme « fermé » — rejeté : une coupure
+     réseau afficherait « Ce direct est terminé. » à tort.
+  3. **Retenu** : relance bornée (3), gardée par une lecture en base
+     (`isLiveSessionStillOpen`) qui distingue trois réponses — ouvert,
+     fermé/absent, **injoignable (lève)** ; jamais sur un refus nommé, jamais
+     après une éviction ; une seule lecture en vol ; garde d'une tentative
+     annulée muette. Pour les zombies : la règle de réparation existante,
+     jouée toutes les heures par `pg_cron` et tracée dans `audit_logs`
+     (acteur vide), plutôt qu'une seconde règle.
+* **Décision finale** : option 3, livrée sur la branche isolée
+  `claude/lives-directs-sat5` et d'abord **tenue hors de la production** (tri
+  du 5 septembre : SAT-4 seul est parti, PR #77). Puis, sur instruction de la
+  Direction (« mets en production contrôlée seulement ce qui est 100 %
+  terminé, testé et sans régression »), SAT-5 a été amené à 100 % par un
+  **banc réel contre un LiveKit vivant** (39/39, cinq pannes injectées :
+  room supprimée ×2, refus `live_full`, serveur tué puis relancé, direct
+  clôturé en base) avant tout déploiement. Ce banc a trouvé un défaut
+  d'écran que les tests du hook ne pouvaient pas voir — « Diffusion
+  interrompue · Réessayer » affiché sur un direct clos, le message de la
+  garde jamais rendu — corrigé (`isLiveEndedError`, badge « TERMINÉ »,
+  bloc « Ce direct est terminé. · Quitter ») et couvert par 3 tests.
+* **Frontière VPS (ce qui n'est pas récupérable depuis l'application)** :
+  conteneur LiveKit à redémarrer, clé du coffre divergente, port UDP fermé,
+  montée de version 1.8.4 → 1.13.6. SAT-4 les signale ; SAT-6 (bouton de
+  secours tracé) et les étapes ACT les traiteront, toujours par un geste
+  humain.
+* **Impact** : `hooks/useLiveTransport.ts` (option `autoRecover`, relance
+  LIVE gardée), `services/live/liveSessionService.ts`
+  (`isLiveSessionStillOpen`), `components/SocialLive.tsx` (garde branchée),
+  `tests/useLiveTransportCall.test.tsx` (+9), migration
+  `20260905010000_live_sat5_close_zombie_sessions_cron.sql`.
+* **Preuves** : tsc 0 · vitest 1045/1045 · build · 7 contre-épreuves, une
+  ligne morte retirée ; banc réel 39 OK / 0 DÉFAUT (détail dans
+  `docs/HISTORIQUE_VERSIONS.md`, v6.20.0) ; répétition à vide de la
+  migration en transaction annulée sur la base réelle (13 → 0, idempotente,
+  4 récents intacts, audit 1, droits vérifiés, rollback vérifié). Sauvegarde
+  des 13 lignes zombies (ids, `started_at`, `updated_at`) prise avant tout
+  essai. Comptes de preuve du banc supprimés à zéro trace.
+
+---
 
 ### [DEC-2026-054] — 5 Septembre 2026
 

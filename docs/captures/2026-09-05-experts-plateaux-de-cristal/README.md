@@ -1,4 +1,4 @@
-# Captures avant / après — Espace Experts « Plateaux de cristal » (5 septembre 2026, DEC-2026-055)
+# Captures avant / après — Espace Experts « Plateaux de cristal » (5 septembre 2026, DEC-2026-056)
 
 Direction **D « Plateaux de cristal »** choisie par la Direction parmi les cinq
 directions proposées. Produites par le harnais local **non versionné** (Layout +

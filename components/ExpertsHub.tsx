@@ -345,7 +345,7 @@ export const ExpertsHub: React.FC<ExpertsHubProps> = ({ userProfile, initialTab 
             
             {/* 1. TOP HEADER & MAIN NAVIGATION BAR */}
             <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-2.5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shrink-0 shadow-xs z-10">
-                {/* DEC-2026-055 : le titre et le sous-titre ne sont plus
+                {/* DEC-2026-056 : le titre et le sous-titre ne sont plus
                     affichés — le panneau des experts doit être au premier
                     plan dès l'entrée. Le titre reste lisible par les
                     lecteurs d'écran. */}

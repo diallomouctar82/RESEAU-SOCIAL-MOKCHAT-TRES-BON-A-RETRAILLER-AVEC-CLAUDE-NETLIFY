@@ -8,7 +8,7 @@ import { AGENTS } from '../constants';
 import type { DossierParcours } from '../types';
 
 /**
- * DEC-2026-055 — « Plateaux de cristal » (direction D choisie par la Direction).
+ * DEC-2026-056 — « Plateaux de cristal » (direction D choisie par la Direction).
  *
  * L'entrée de l'espace Experts ne montre plus qu'UNE phrase et les experts en
  * bulles de cristal ; le bandeau sombre, la recherche, les filtres et les
@@ -232,7 +232,7 @@ describe('ExpertsCatalogue — le mouvement des bulles', () => {
 describe('index.html — le bloc « PLATEAUX DE CRISTAL »', () => {
     const html = readFileSync(resolve(__dirname, '../index.html'), 'utf-8');
     const fin = html.indexOf('/* ===== FIN PLATEAUX DE CRISTAL ===== */');
-    const titre = html.indexOf('EXPERTS — PLATEAUX DE CRISTAL (DEC-2026-055)');
+    const titre = html.indexOf('EXPERTS — PLATEAUX DE CRISTAL (DEC-2026-056)');
     const debut = html.lastIndexOf('/*', titre);
     const bloc = html.slice(debut, fin);
 
