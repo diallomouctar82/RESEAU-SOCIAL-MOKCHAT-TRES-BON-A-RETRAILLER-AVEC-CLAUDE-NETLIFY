@@ -37,6 +37,7 @@ npx --yes esbuild "supabase/functions/health-guardian/index.ts" \
     --external:'npm:*' \
     --external:'jsr:*' \
     --legal-comments=none \
+    --charset=utf8 \
     --banner:js='// ARTEFACT GÉNÉRÉ — NE PAS MODIFIER ICI.
 //
 // Produit par supabase/functions/health-guardian/build-bundle.sh à partir de
