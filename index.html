@@ -2614,6 +2614,24 @@
       /* ===== FIN VISUEL IA ===== */
 
       /* ===================================================================
+         ASSISTANT IA — MODALE AU-DESSUS DU DOCK (DEC-2026-080)
+
+         Sur telephone, le pied de la modale de l'assistant (Annuler,
+         Appliquer a ma publication) etait recouvert par le dock du bas
+         (fixed, z-index 50, rendu apres la modale dans le DOM) et par la
+         barre flottante de l'Architecte (z-index 60). La modale vit
+         desormais dans un portail sur <body>, au-dessus de toute la
+         coquille et juste sous le studio Visuel IA ; sa hauteur est bornee
+         par la fenetre visible (dvh, repli vh, Safari iOS) et son pied
+         respecte la zone sure du bas. Rien d'autre ne change : memes
+         onglets, memes boutons, memes conditions.
+         =================================================================== */
+      .ia-fond { z-index: 2147482000; }
+      .ia-carte { max-height: 90vh; max-height: 90dvh; }
+      .ia-fond .ia-pied { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+      /* ===== FIN ASSISTANT IA ===== */
+
+      /* ===================================================================
          DS-EX-2 · LA NAPPE D'EAU RÉELLEMENT VISIBLE DANS TOUTE L'APPLICATION
 
          Constat mesuré : `data-miroir` couvrait déjà tous les écrans, mais

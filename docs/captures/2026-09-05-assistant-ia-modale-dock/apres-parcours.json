@@ -1,0 +1,179 @@
+{
+  "telephone": {
+    "ecran": {
+      "width": 390,
+      "height": 844
+    },
+    "etapes": {
+      "saisie": {
+        "compteur": "28 caractères"
+      },
+      "modale": {
+        "boutonAppliquer": {
+          "x": 118,
+          "y": 733,
+          "l": 239,
+          "h": 52
+        },
+        "boutonAnnuler": {
+          "y": 741,
+          "h": 36
+        },
+        "pointTeste": {
+          "x": 238,
+          "y": 759
+        },
+        "elementSousLeDoigt": {
+          "tag": "BUTTON",
+          "classes": "px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to",
+          "texte": "Appliquer à ma publication"
+        },
+        "estLeBoutonAppliquer": true,
+        "sousLeDock": false,
+        "dock": {
+          "y": 768,
+          "h": 64
+        },
+        "boutonDansLaFenetre": true,
+        "chevaucheLeDock": true,
+        "modaleDansBody": true,
+        "racineInerte": true,
+        "zIndexModale": "2147482000",
+        "roleModale": "dialog",
+        "nbDialogues": 2,
+        "classesModale": "ia-fond fixed inset-0 flex items-center ",
+        "versionOptimisee": true
+      },
+      "clic": {
+        "modaleFermee": true,
+        "texteDuChamp": "Bonjour, soyez les bienvenus",
+        "champNonVide": true
+      },
+      "publication": {
+        "publierActif": true,
+        "champVide": true,
+        "occurrencesDansLeFil": 1,
+        "extrait": "Bonjour, soyez les bienvenus"
+      }
+    },
+    "erreursJS": []
+  },
+  "android360": {
+    "ecran": {
+      "width": 360,
+      "height": 800
+    },
+    "etapes": {
+      "saisie": {
+        "compteur": "28 caractères"
+      },
+      "modale": {
+        "boutonAppliquer": {
+          "x": 118,
+          "y": 691,
+          "l": 209,
+          "h": 52
+        },
+        "boutonAnnuler": {
+          "y": 699,
+          "h": 36
+        },
+        "pointTeste": {
+          "x": 223,
+          "y": 717
+        },
+        "elementSousLeDoigt": {
+          "tag": "BUTTON",
+          "classes": "px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to",
+          "texte": "Appliquer à ma publication"
+        },
+        "estLeBoutonAppliquer": true,
+        "sousLeDock": false,
+        "dock": {
+          "y": 724,
+          "h": 64
+        },
+        "boutonDansLaFenetre": true,
+        "chevaucheLeDock": true,
+        "modaleDansBody": true,
+        "racineInerte": true,
+        "zIndexModale": "2147482000",
+        "roleModale": "dialog",
+        "nbDialogues": 2,
+        "classesModale": "ia-fond fixed inset-0 flex items-center ",
+        "versionOptimisee": true
+      },
+      "clic": {
+        "modaleFermee": true,
+        "texteDuChamp": "Bonjour, soyez les bienvenus",
+        "champNonVide": true
+      },
+      "publication": {
+        "publierActif": true,
+        "champVide": true,
+        "occurrencesDansLeFil": 1,
+        "extrait": "Bonjour, soyez les bienvenus"
+      }
+    },
+    "erreursJS": []
+  },
+  "ordinateur": {
+    "ecran": {
+      "width": 1440,
+      "height": 900
+    },
+    "etapes": {
+      "saisie": {
+        "compteur": "28 caractères"
+      },
+      "modale": {
+        "boutonAppliquer": {
+          "x": 832,
+          "y": 709,
+          "l": 255,
+          "h": 36
+        },
+        "boutonAnnuler": {
+          "y": 709,
+          "h": 36
+        },
+        "pointTeste": {
+          "x": 960,
+          "y": 727
+        },
+        "elementSousLeDoigt": {
+          "tag": "BUTTON",
+          "classes": "px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to",
+          "texte": "Appliquer à ma publication"
+        },
+        "estLeBoutonAppliquer": true,
+        "sousLeDock": false,
+        "dock": {
+          "y": 0,
+          "h": 0
+        },
+        "boutonDansLaFenetre": true,
+        "chevaucheLeDock": false,
+        "modaleDansBody": true,
+        "racineInerte": true,
+        "zIndexModale": "2147482000",
+        "roleModale": "dialog",
+        "nbDialogues": 2,
+        "classesModale": "ia-fond fixed inset-0 flex items-center ",
+        "versionOptimisee": true
+      },
+      "clic": {
+        "modaleFermee": true,
+        "texteDuChamp": "Bonjour, soyez les bienvenus",
+        "champNonVide": true
+      },
+      "publication": {
+        "publierActif": true,
+        "champVide": true,
+        "occurrencesDansLeFil": 1,
+        "extrait": "Bonjour, soyez les bienvenus"
+      }
+    },
+    "erreursJS": []
+  }
+}
