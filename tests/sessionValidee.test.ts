@@ -7,7 +7,7 @@
  * 5xx = AuthRetryableFetchError, utilisateur différent, délai dépassé).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AuthApiError, AuthRetryableFetchError } from '@supabase/supabase-js';
+import { AuthApiError, AuthRetryableFetchError, AuthUnknownError } from '@supabase/supabase-js';
 import type { Session } from '@supabase/supabase-js';
 
 type OptionsSignOut = { scope: 'global' | 'local' | 'others' };
@@ -75,6 +75,20 @@ describe('verifierSession — verdict du serveur sur une session locale', () => 
 
     it('serveur en panne (503) → non vérifiée, session conservée', async () => {
         h.getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError('Service Unavailable', 503) });
+        const verdict = await verifierSession(session);
+        expect(verdict.statut).toBe('non-verifiee');
+        expect(h.signOut).not.toHaveBeenCalled();
+    });
+
+    it('429 (trop de requêtes) du serveur → non vérifiée, session conservée : ce n\'est pas un refus du jeton', async () => {
+        h.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('Too many requests', 429, 'over_request_rate_limit') });
+        const verdict = await verifierSession(session);
+        expect(verdict.statut).toBe('non-verifiee');
+        expect(h.signOut).not.toHaveBeenCalled();
+    });
+
+    it('réponse non JSON d\'un intermédiaire (portail captif, proxy renvoyant une page 403) → non vérifiée, rien effacé', async () => {
+        h.getUser.mockResolvedValue({ data: { user: null }, error: new AuthUnknownError('Unexpected token < in JSON', new Error('html')) });
         const verdict = await verifierSession(session);
         expect(verdict.statut).toBe('non-verifiee');
         expect(h.signOut).not.toHaveBeenCalled();

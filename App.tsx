@@ -128,14 +128,24 @@ const AppContent = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-079) : une session
-  // relue depuis le stockage local n'ouvre l'interface qu'après vérification
-  // auprès du serveur (services/auth.ts#verifierSession). Une seule
-  // vérification par jeton : `getSession()` et l'événement `INITIAL_SESSION`
-  // relisent le même jeton au démarrage et partagent ce verdict.
+  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-079) : AUCUNE session
+  // n'ouvre l'interface sans un verdict du serveur sur SON jeton
+  // (services/auth.ts#verifierSession), quel que soit l'événement qui
+  // l'apporte. Le nom de l'événement n'est pas une preuve : supabase-js rejoue
+  // en `SIGNED_IN` la session lue dans le stockage à l'initialisation, à
+  // chaque retour sur l'onglet (visibilitychange) et par BroadcastChannel
+  // depuis un autre onglet, sans appel serveur (contrôle indépendant du
+  // 05/09). Une seule vérification par jeton : `getSession()`,
+  // `INITIAL_SESSION`, un `SIGNED_IN` rejoué ou une connexion partagent le
+  // verdict de leur jeton ; un jeton refusé reste refusé.
   const verdictsRef = useRef(new Map<string, Promise<VerdictSession>>());
+  // Clé de la dernière session annoncée (null après déconnexion) : un
+  // traitement encore en vol pour une autre session ne doit plus rien décider.
+  const sessionCouranteRef = useRef<string | null>(null);
+  const cleDeSession = (session: Session): string =>
+      session.access_token || `utilisateur:${session.user?.id ?? ''}`;
   const verdictPourSession = (session: Session): Promise<VerdictSession> => {
-      const cle = session.access_token;
+      const cle = cleDeSession(session);
       let verdict = verdictsRef.current.get(cle);
       if (!verdict) {
           verdict = verifierSession(session);
@@ -148,38 +158,41 @@ const AppContent = () => {
   useEffect(() => {
       let isMounted = true;
 
-      // `depuisStockage` : la session vient du stockage de l'appareil (ouverture
-      // de l'application), pas d'une connexion ou d'un rafraîchissement que le
-      // serveur vient d'émettre — elle doit être vérifiée avant d'entrer.
-      const applySession = async (session: Session | null, isInitial: boolean, depuisStockage: boolean) => {
+      const applySession = async (session: Session | null, isInitial: boolean) => {
           const userId = session?.user?.id;
-          if (!session || !userId) {
+          const cle = session && userId ? cleDeSession(session) : null;
+          sessionCouranteRef.current = cle;
+          if (!session || !userId || !cle) {
               if (isMounted) {
                   setIsAuthenticated(false);
                   if (isInitial) setIsAuthChecking(false);
               }
               return;
           }
+          // Une déconnexion ou une autre session survenue pendant un `await`
+          // rend ce traitement caduc : il ne décide plus rien.
+          const toujoursCourante = () => isMounted && sessionCouranteRef.current === cle;
 
-          if (depuisStockage) {
-              const verdict = await verdictPourSession(session);
-              if (!isMounted) return;
-              if (verdict.statut === 'invalide') {
-                  // Jeton refusé par le serveur (périmé, révoqué, forgé, compte
-                  // supprimé ou banni) : aucune page interne, écran de connexion.
-                  console.warn('Session locale refusée par le serveur — écran de connexion :', verdict.raison);
-                  setIsAuthenticated(false);
-                  if (isInitial) setIsAuthChecking(false);
-                  return;
-              }
-              if (verdict.statut === 'non-verifiee') {
-                  console.warn('Session locale conservée sans vérification (serveur injoignable) :', verdict.raison);
-              }
+          const verdict = await verdictPourSession(session);
+          if (!toujoursCourante()) {
+              if (isMounted && isInitial) setIsAuthChecking(false);
+              return;
+          }
+          if (verdict.statut === 'invalide') {
+              // Jeton refusé par le serveur (périmé, révoqué, forgé, compte
+              // supprimé ou banni) : aucune page interne, écran de connexion.
+              console.warn('Session locale refusée par le serveur — écran de connexion :', verdict.raison);
+              setIsAuthenticated(false);
+              if (isInitial) setIsAuthChecking(false);
+              return;
+          }
+          if (verdict.statut === 'non-verifiee') {
+              console.warn('Session locale conservée sans vérification (serveur injoignable) :', verdict.raison);
           }
 
           try {
               const profile = await fetchUserProfile(userId);
-              if (!isMounted) return;
+              if (!toujoursCourante()) return;
               if (profile) {
                   updateUserProfile(profile);
                   setIsAuthenticated(true);
@@ -191,7 +204,7 @@ const AppContent = () => {
               }
           } catch (err) {
               console.warn('Erreur résolution profil session:', err);
-              if (isMounted) setIsAuthenticated(true);
+              if (toujoursCourante()) setIsAuthenticated(true);
           } finally {
               if (isMounted && isInitial) {
                   setIsAuthChecking(false);
@@ -199,7 +212,7 @@ const AppContent = () => {
           }
       };
 
-      getSession().then((session) => applySession(session, true, true));
+      getSession().then((session) => applySession(session, true));
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion
@@ -211,11 +224,10 @@ const AppContent = () => {
               return;
           }
           setIsPasswordRecovery(false);
-          // `INITIAL_SESSION` rejoue la session du stockage : même verrou que
-          // `getSession()` ci-dessus (verdict partagé, une seule vérification).
-          // `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED` portent une session
-          // que le serveur vient d'émettre : elles entrent comme avant.
-          applySession(session, false, event === 'INITIAL_SESSION');
+          // Même verrou pour tous les événements (`INITIAL_SESSION`, `SIGNED_IN`,
+          // `TOKEN_REFRESHED`, `USER_UPDATED`, `SIGNED_OUT`) : le verdict est
+          // attaché au jeton, pas à l'événement — voir verdictPourSession.
+          applySession(session, false);
       });
 
       return () => {

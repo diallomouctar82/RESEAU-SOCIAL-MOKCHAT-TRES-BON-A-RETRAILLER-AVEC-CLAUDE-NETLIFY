@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
     // Verrou d'entrée (DEC-2026-079) : verdict du serveur sur une session relue
     // depuis le stockage local — 'valide' | 'non-verifiee' | 'invalide'.
     verifierSession: vi.fn(async (session: { user?: { id?: string } }): Promise<unknown> => ({ statut: 'valide', session })),
+    fetchUserProfile: vi.fn(async (id: string): Promise<unknown> => ({ id, name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 })),
 }));
 
 vi.mock('../services/auth', () => ({
@@ -30,7 +31,7 @@ vi.mock('../services/auth', () => ({
     verifierSession: (session: { user?: { id?: string } }) => h.verifierSession(session),
 }));
 vi.mock('../services/profile', () => ({
-    fetchUserProfile: async (id: string) => ({ id, name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 }),
+    fetchUserProfile: (id: string) => h.fetchUserProfile(id),
 }));
 vi.mock('../services/push/pushService', () => ({ forgetPushSubscription: async () => {} }));
 vi.mock('../services/modules/standaloneMode', () => ({ detectStandaloneModule: () => null }));
@@ -101,8 +102,17 @@ beforeEach(() => {
     h.getSession.mockResolvedValue(null);
     h.verifierSession.mockReset();
     h.verifierSession.mockImplementation(async (session) => ({ statut: 'valide', session }));
+    h.fetchUserProfile.mockReset();
+    h.fetchUserProfile.mockImplementation(async (id: string) => ({ id, name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 }));
     window.history.replaceState(null, '', '/');
 });
+
+/** Promesse pilotée à la main (pour rejouer un événement PENDANT un `await`). */
+function differee<T>() {
+    let resoudre!: (v: T) => void;
+    const promesse = new Promise<T>((r) => { resoudre = r; });
+    return { promesse, resoudre };
+}
 
 describe("Entrée directe sur Réseau MokNet (Direction, 05/09/2026)", () => {
     it("première ouverture puis connexion : Réseau MokNet s'affiche directement — pas le tableau de bord", async () => {
@@ -196,12 +206,65 @@ describe("Verrou d'entrée — accès public réservé aux sessions valides (Dir
         expect(h.verifierSession).toHaveBeenCalledTimes(1);
     });
 
-    it("connexion depuis l'écran (SIGNED_IN, session émise par le serveur) : entrée sans seconde vérification", async () => {
+    it("connexion depuis l'écran (SIGNED_IN) : le jeton de la connexion est vérifié UNE fois, puis Réseau MokNet", async () => {
         render(<App />);
         await screen.findByTestId('ecran-connexion');
         const layout = await seConnecter();
         expect(layout).toHaveAttribute('data-tab', 'social');
-        expect(h.verifierSession).not.toHaveBeenCalled();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("SIGNED_IN portant un jeton que le serveur refuse (rejeu depuis un autre onglet, jeton forgé) : écran de connexion, jamais l'interface", async () => {
+        h.verifierSession.mockResolvedValue({ statut: 'invalide', raison: 'refus du serveur (401)' });
+        render(<App />);
+        await screen.findByTestId('ecran-connexion');
+        await act(async () => { h.authCallback?.(sessionStockee('u-forge', 'jeton-forge'), 'SIGNED_IN'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.getByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("SIGNED_IN rejoué par supabase-js avec le jeton déjà refusé (retour sur l'onglet, BroadcastChannel) : le refus tient, aucune seconde vérification", async () => {
+        const session = sessionStockee();
+        h.getSession.mockResolvedValue(session);
+        h.verifierSession.mockResolvedValue({ statut: 'invalide', raison: 'refus du serveur (401)' });
+        render(<App />);
+        await screen.findByTestId('ecran-connexion');
+        await act(async () => { h.authCallback?.(session, 'SIGNED_IN'); });
+        await act(async () => { h.authCallback?.(session, 'SIGNED_IN'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(screen.getByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("SIGNED_IN rejoué PENDANT la vérification initiale (course à l'initialisation) : le verdict tombe, l'interface ne s'ouvre jamais", async () => {
+        const session = sessionStockee();
+        const verdict = differee<unknown>();
+        h.getSession.mockResolvedValue(session);
+        h.verifierSession.mockReturnValue(verdict.promesse);
+        render(<App />);
+        await act(async () => { h.authCallback?.(session, 'SIGNED_IN'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        await act(async () => { verdict.resoudre({ statut: 'invalide', raison: 'refus du serveur (401)' }); });
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("déconnexion PENDANT le chargement du profil d'une session vérifiée : l'interface ne s'ouvre pas après coup", async () => {
+        const session = sessionStockee();
+        const profil = differee<unknown>();
+        h.getSession.mockResolvedValue(session);
+        h.fetchUserProfile.mockReturnValue(profil.promesse);
+        render(<App />);
+        await act(async () => {});
+        expect(h.verifierSession).toHaveBeenCalledTimes(1);
+        await act(async () => { h.authCallback?.(null, 'SIGNED_OUT'); });
+        expect(screen.queryByTestId('app-layout')).toBeNull();
+        // Le profil arrive APRÈS la déconnexion : il ne doit plus rien ouvrir.
+        await act(async () => { profil.resoudre({ id: 'u-stockee', name: 'Mamadou Test', role: 'membre', level: 1, credits: 0, xp: 0 }); });
+        expect(await screen.findByTestId('ecran-connexion')).toBeInTheDocument();
+        expect(screen.queryByTestId('app-layout')).toBeNull();
     });
 
     it("serveur injoignable au démarrage (session locale non expirée, non vérifiée) : tolérance DITE — l'entrée reste possible", async () => {

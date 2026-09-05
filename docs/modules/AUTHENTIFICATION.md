@@ -49,17 +49,17 @@ Le système d'authentification de **Le Monde à Vous** est conçu pour offrir un
 |---|---|---|
 | Aucune | — (aucun appel serveur) | Connexion / création de compte |
 | Présente, **confirmée** par le serveur (`GET /auth/v1/user` avec le jeton, même utilisateur) | `valide` | Réseau MokNet (comme avant) |
-| Présente, **refusée** par le serveur (401/403 : jeton périmé côté serveur, révoqué, forgé ; compte supprimé ou banni ; utilisateur différent) | `invalide` → `signOut({ scope: 'local' })` | Connexion / création de compte — **avant DEC-2026-079, l'interface s'ouvrait** |
-| Présente, non expirée, serveur **injoignable** (panne réseau, 5xx, 8 s sans réponse) | `non-verifiee` | Réseau MokNet avec la session locale — tolérance DITE pour les réseaux mobiles, jamais pour un refus du serveur |
+| Présente, **refusée** par Supabase lui-même (réponse JSON 401 : jeton périmé côté serveur, révoqué, forgé ; 403 : compte supprimé ou banni ; utilisateur différent) | `invalide` → `signOut({ scope: 'local' })` | Connexion / création de compte — **avant DEC-2026-079, l'interface s'ouvrait** |
+| Présente, non expirée, **aucun verdict** (panne réseau, 5xx, 429, réponse non JSON d'un portail captif ou d'un proxy, 8 s sans réponse) | `non-verifiee` | Réseau MokNet avec la session locale — tolérance DITE pour les réseaux mobiles, jamais pour un refus du serveur |
 
-- Une seule vérification par jeton : `getSession()` au démarrage et l'événement `INITIAL_SESSION` relisent le même jeton et partagent le verdict (`App.tsx`, `verdictsRef`).
-- Les sessions que le serveur vient d'émettre (`SIGNED_IN` après connexion, `TOKEN_REFRESHED`, `USER_UPDATED`) entrent sans seconde vérification — aucun aller-retour ajouté à la connexion.
+- Le verdict est attaché au **jeton**, jamais à l'événement : `getSession()`, `INITIAL_SESSION`, `SIGNED_IN` (y compris rejoué par supabase-js au retour sur l'onglet ou depuis un autre onglet, sans appel serveur), `TOKEN_REFRESHED`, `USER_UPDATED` passent tous par le verdict de leur jeton, une seule fois par jeton (`App.tsx`, `verdictsRef`) ; un jeton refusé reste refusé. Une connexion coûte un `GET /auth/v1/user` avant l'entrée.
+- Garde de course : une déconnexion ou une autre session survenue pendant le chargement du profil rend le traitement en vol caduc — l'interface ne s'ouvre pas après coup (`sessionCouranteRef`).
 - Le jeton est passé explicitement à `getUser(jeton)` : pas de verrou multi-onglets, pas de relecture du stockage.
 - Tests : `tests/sessionValidee.test.ts` (verdicts sur les réponses réelles de supabase-js), `tests/appEntreeReseau.test.tsx` (écrans), `tests/netlifyRedirectsCanoniques.test.ts` (domaine).
 
 **Domaine canonique** (`netlify.toml`) : `https://www.moknet.net/*`, `http://www.moknet.net/*` et `http://moknet.net/*` sont redirigés en 301 forcé vers `https://moknet.net/:splat`, avant que l'application ne démarre ; les majuscules (`Moknet.net`, `MOKNET.NET`, majuscule automatique d'un clavier) sont normalisées par le navigateur lui-même (norme URL) et par le DNS — aucune règle nécessaire, prouvé sur dix écritures. Garde-fou : si le domaine principal du site change, ces règles changent avec lui (sinon boucle avec la redirection automatique de Netlify).
 
-**Limites dites** : un jeton d'accès encore valide (au plus 1 h) après une « déconnexion partout » depuis un autre appareil n'est pas révoqué par ce contrôle ; la tolérance « serveur injoignable » peut être durcie sur décision de la Direction ; `/architecte` reste la page publique de démonstration (DEC-2026-066), sans donnée de compte.
+**Limites dites** : un jeton d'accès encore valide (au plus 1 h) après une « déconnexion partout » depuis un autre appareil n'est pas révoqué par ce contrôle ; quand le client vient de rafraîchir le jeton à l'ouverture, ce jeton neuf est vérifié une fois de plus (un appel, bénin) ; la tolérance « serveur injoignable » peut être durcie sur décision de la Direction ; `/architecte` reste la page publique de démonstration (DEC-2026-066), sans donnée de compte.
 
 ## 📁 4. FICHIERS DU MODULE
 - `/components/Auth.tsx` : Interface utilisateur moderne, accessible, avec Color Lab institutionnel.

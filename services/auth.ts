@@ -1,5 +1,5 @@
 
-import { isAuthRetryableFetchError } from '@supabase/supabase-js';
+import { isAuthApiError } from '@supabase/supabase-js';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { setRememberMe, supabase } from './supabaseClient';
 
@@ -109,13 +109,15 @@ export const getSession = async (): Promise<Session | null> => {
  *   • `valide`        → l'utilisateur existe et le jeton est accepté ;
  *   • `invalide`      → refus du serveur (401/403, compte absent) : la session
  *                       locale est effacée, l'écran de connexion s'impose ;
- *   • `non-verifiee`  → le serveur est injoignable (panne réseau, 5xx, délai
- *                       dépassé) : la session locale non expirée est conservée,
- *                       tolérance DITE pour un réseau mobile capricieux — elle
- *                       ne vaut jamais pour un jeton que le serveur a refusé.
- * Les sessions issues d'une connexion ou d'un rafraîchissement (`SIGNED_IN`,
- * `TOKEN_REFRESHED`) viennent du serveur lui-même : elles n'ont pas besoin de
- * repasser par ici.
+ *   • `non-verifiee`  → aucun verdict du serveur (panne réseau, 5xx, 429,
+ *                       réponse non JSON d'un intermédiaire, délai dépassé) :
+ *                       la session locale non expirée est conservée, tolérance
+ *                       DITE pour un réseau mobile capricieux — elle ne vaut
+ *                       jamais pour un jeton que le serveur a refusé.
+ * Le verdict est attaché au JETON, jamais à l'événement qui apporte la
+ * session : supabase-js rejoue en `SIGNED_IN` la session lue dans le stockage
+ * (initialisation, retour sur l'onglet, autre onglet) sans appel serveur —
+ * `App.tsx` demande donc ce verdict pour tout jeton, une seule fois par jeton.
  */
 export type VerdictSession =
     | { statut: 'valide'; session: Session }
@@ -165,15 +167,17 @@ export const verifierSession = async (
         }
         const { data, error } = resultat;
         if (error) {
-            // Lu avant la garde de type : `AuthRetryableFetchError` n'ajoute
-            // aucun membre à `AuthError`, TypeScript réduirait `error` à `never`
-            // après l'exclusion.
             const motif: string = error.message;
-            if (isAuthRetryableFetchError(error)) {
-                return { statut: 'non-verifiee', session, raison: `serveur d'authentification injoignable : ${motif}` };
+            // Seul un refus JSON du serveur d'authentification lui-même vaut
+            // « invalide » : 401 (jeton invalide ou périmé côté serveur), 403
+            // (compte supprimé, banni, jeton interdit). Tout le reste — fetch
+            // qui échoue, 5xx, 429, réponse HTML d'un portail captif ou d'un
+            // proxy, erreur inconnue — n'est pas un verdict.
+            if (isAuthApiError(error) && (error.status === 401 || error.status === 403)) {
+                await effacerSessionLocale();
+                return { statut: 'invalide', raison: `refus du serveur d'authentification (${error.status}) : ${motif}` };
             }
-            await effacerSessionLocale();
-            return { statut: 'invalide', raison: `refus du serveur d'authentification : ${motif}` };
+            return { statut: 'non-verifiee', session, raison: `serveur d'authentification sans verdict : ${motif}` };
         }
         if (!data?.user?.id || data.user.id !== idAttendu) {
             await effacerSessionLocale();

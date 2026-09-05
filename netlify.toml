@@ -79,9 +79,12 @@
 # à la casse (DNS) et tout navigateur l'écrit en minuscules avant d'envoyer la
 # requête (norme URL). Les trois règles ci-dessous fixent, dans le dépôt, ce
 # que la configuration du site faisait jusqu'ici implicitement (domaine
-# principal `moknet.net`) : `www` → domaine nu et `http` → `https`, en une
-# seule redirection permanente (301), forcée (`force = true`) pour qu'aucun
-# fichier ne puisse les court-circuiter. Elles ne s'appliquent QUE quand la
+# principal `moknet.net`) : `www` → domaine nu et `http` → `https`, par
+# redirection permanente (301), forcée (`force = true`) pour qu'aucun fichier
+# ne puisse les court-circuiter. Chaîne mesurée en production : un saut pour
+# `https://www…` et `http://moknet.net`, au plus deux pour `http://www…` (la
+# redirection TLS automatique de Netlify passe d'abord), toujours vers
+# `https://moknet.net`. Elles ne s'appliquent QUE quand la
 # requête porte ces hôtes : les deux autres sites Netlify de MokNet, qui
 # partagent ce fichier, ne les voient jamais.
 #
