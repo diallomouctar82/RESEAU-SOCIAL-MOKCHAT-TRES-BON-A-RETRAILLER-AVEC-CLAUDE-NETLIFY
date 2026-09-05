@@ -145,8 +145,8 @@ voit : rouge « refuse nos identifiants »), rouvrir les ports UDP
 de secours SAT-6 (tracé, confirmé, réservé à l'Administrateur Général) et aux
 étapes ACT-3/4/5 — un humain, jamais un automate.
 
-**Suite — SAT-6 (5 septembre 2026, DEC-2026-058, PR #88) : le bouton de secours,
-sans SSH, réservé à l'Admin Général — livré sur branche, NON déployé.** Deux
+**Suite — SAT-6 (5 septembre 2026, DEC-2026-059, PR #88) : le bouton de secours,
+sans SSH, réservé à l'Admin Général — fonction Edge v4 déployée, client en fusion.** Deux
 gestes, et deux seulement, tiennent sans accès au VPS, parce qu'ils passent
 par des chemins que le serveur détient déjà : **relancer la room** d'un
 direct (`DeleteRoom` par le `RoomService` dont `livekit-token` a les
@@ -171,9 +171,12 @@ défauts à cause unique et hors du périmètre initial — un spectateur éject
 lecture lancée avant la fin de son inscription était prise pour un retrait
 par l'hôte), corrigée ; passe 3 49 OK / 1 DÉFAUT (artefact de mesure du
 banc pendant l'animation d'entrée du tiroir, corrigé dans le banc) ;
-**passe 4 : 51 OK / 0 DÉFAUT**. **Pas en
-production** : ni la fonction Edge ni le client, validation de la Direction
-requise (fonction Edge à déployer AVANT la fusion du client).
+**passe 4 : 51 OK / 0 DÉFAUT**. **Mise en
+production contrôlée** (validation de la Direction le 5/09 à 10h40 UTC) :
+fonction Edge v4 déployée à 10:49:57 UTC (retour arrière v3 vérifié avant,
+source relue identique octet pour octet), backend vérifié à 10:53 UTC avec
+trois vraies sessions, geste réel « Clore » joué à 10:55 UTC sur un direct
+de banc privé (ligne `audit_logs` réelle) ; client : PR #88 en fusion.
 
 ---
 
@@ -239,7 +242,7 @@ appareils — jamais par une sonde depuis cet environnement.
 | SAT-3 — écran « complet » | **Oui** |
 | SAT-4 — détecter un blocage réel | **Livré et démontré en production le 05/09/2026 (DEC-2026-054)** — non pas une sonde HTTP sur `/`, mais `ListRooms` signé avec la clé du coffre : 401/403 = rouge (le cas que le ping déclarait vert), > 1 500 ms = orange (porte SAT-2 aveugle), délai/réseau = rouge, non sondé = blanc. Les compteurs média côté client restent hors de cette ligne : elle juge « un direct peut-il démarrer », pas « la voix passe-t-elle en ce moment » |
 | SAT-5 — récupération automatique | **Livré, démontré et EN PRODUCTION CONTRÔLÉE (5/09/2026, DEC-2026-055)** : la ligne d'un direct se relance seule, bornée et gardée par la base (`isLiveSessionStillOpen` — ouvert / fermé / injoignable, trois réponses distinctes), démontré au banc réel 39/39 contre un LiveKit vivant (rétablissement en 1,5 s, budget 3 puis « Réessayer », refus « complet » jamais martelé, direct clos = « Ce direct est terminé. · Quitter » sans un seul jeton) ; les zombies se ferment toutes les heures par `pg_cron` (migration jouée à vide en transaction annulée). Déployé le 5/09 : PR #81 fusionnée (`main` `880b5fa`, bundle SAT-5 servi par moknet.net), migration appliquée, première exécution réelle du cron à 02:15 UTC = 13 zombies fermés et tracés, 0 restant (détail `HISTORIQUE_VERSIONS` v6.20.0). Tout ce qui exige le VPS reste hors de portée : voir § 4 « Frontière VPS ». |
-| SAT-6 — bouton Admin Général | **Livré sur branche, EN PR #88, NON DÉPLOYÉ (5/09/2026, DEC-2026-058)** : deux gestes sans SSH greffés sur `health-guardian` — relancer la room d'un direct (`DeleteRoom`, les lignes SAT-5 reviennent seules) et clore un direct (`ended_at` par l'identité de l'appelant sous la RLS, puis room supprimée) — rang relu en base à chaque étape, diagnostic qui compte les présents, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; les gestes SSH restent listés comme action humaine. Banc réel : passe 1 44/45 (deux vrais défauts vus sur les captures et corrigés), passe 2 38/48 (spectateur éjecté à son arrivée par une course du roster, trouvée et corrigée), passe 3 49/50 (artefact de mesure du banc), **passe 4 51/51**. Validation Direction requise avant tout déploiement (fonction Edge avant le client). |
+| SAT-6 — bouton Admin Général | **Fonction Edge v4 DÉPLOYÉE ET VÉRIFIÉE (5/09/2026, 10:49 UTC), client EN FUSION — PR #88 (DEC-2026-059)** : deux gestes sans SSH greffés sur `health-guardian` — relancer la room d'un direct (`DeleteRoom`, les lignes SAT-5 reviennent seules) et clore un direct (`ended_at` par l'identité de l'appelant sous la RLS, puis room supprimée) — rang relu en base à chaque étape, diagnostic qui compte les présents, confirmation signée cinq minutes, re-mesure avant verdict, journal `audit_logs` ; les gestes SSH restent listés comme action humaine. Banc réel : passe 1 44/45 (deux vrais défauts vus sur les captures et corrigés), passe 2 38/48 (spectateur éjecté à son arrivée par une course du roster, trouvée et corrigée), passe 3 49/50 (artefact de mesure du banc), **passe 4 51/51**. Validation de la Direction le 5/09 (10h40 UTC) ; ordre tenu : Edge d'abord (retour arrière v3 vérifié), backend vérifié avec trois vraies sessions, geste réel « Clore » joué en production (journal `audit_logs` réel), client ensuite. |
 | SAT-1b — signal de marge (prédictif) | **Non** — demande `prometheus_port` et son routage sur le VPS |
 
 ---
