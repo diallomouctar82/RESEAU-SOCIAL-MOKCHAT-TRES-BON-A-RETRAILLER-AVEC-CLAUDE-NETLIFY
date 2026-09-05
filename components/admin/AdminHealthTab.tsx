@@ -11,12 +11,13 @@ import {
 import { isCertifiable, verdictSentence } from '../../services/health/healthScore';
 import { HEALTH_BLOCKS, HEALTH_LINES } from '../../services/health/healthRegistry';
 import {
-    HealthRank, HealthSnapshot, diagnose, loadJournal, repair, restore, runHealthCheck,
+    HealthCheckPhase, HealthRank, HealthSnapshot, diagnose, loadJournal, repair, restore, runHealthCheck,
 } from '../../services/health/healthService';
 import { SecurityReport, buildSecurityReport } from '../../services/health/securityAudit';
 import { resolveGuideUrl } from '../../services/health/healthGuide';
 import { emergencyJournalLabel } from '../../services/health/liveEmergency';
 import { LiveEmergencyPanel } from './LiveEmergencyPanel';
+import { HealthAssistant } from './HealthAssistant';
 
 /**
  * Santé Globale — console d'exploitation de MokNet.
@@ -840,12 +841,17 @@ export const AdminHealthTab: React.FC = () => {
     const [confirmation, setConfirmation] = useState<ConfirmState | null>(null);
     const [occupe, setOccupe] = useState(false);
     const [journal, setJournal] = useState<HealthJournalEntry[]>([]);
+    /** Phases terminées de l'analyse en cours — l'Assistant affiche une progression réelle. */
+    const [phases, setPhases] = useState<HealthCheckPhase[]>([]);
 
     const mesurer = useCallback(async () => {
         setChargement(true);
         setErreur(null);
+        setPhases([]);
         try {
-            setSnapshot(await runHealthCheck());
+            setSnapshot(await runHealthCheck({
+                onPhase: (phase) => setPhases((prev) => (prev.includes(phase) ? prev : [...prev, phase])),
+            }));
         } catch (err) {
             setErreur(err instanceof Error ? err.message : String(err));
         } finally {
@@ -858,6 +864,11 @@ export const AdminHealthTab: React.FC = () => {
     }, []);
 
     useEffect(() => { void mesurer(); void rafraichirJournal(); }, [mesurer, rafraichirJournal]);
+
+    /** Après une campagne de l'Assistant qui a modifié des données : remesurer et rafraîchir le journal. */
+    const apresCampagne = useCallback(async () => {
+        await Promise.all([mesurer(), rafraichirJournal()]);
+    }, [mesurer, rafraichirJournal]);
 
     const lancerDiagnostic = useCallback(async (state: HealthLineState) => {
         if (!state.line.remediation) return;
@@ -1107,6 +1118,10 @@ export const AdminHealthTab: React.FC = () => {
                     <button onClick={() => setSucces(null)} className="text-emerald-500 hover:text-emerald-700 shrink-0"><X size={15} /></button>
                 </div>
             )}
+
+            {/* ── ASSISTANT IA — vocal et texte, avatar existant ─────────── */}
+            <HealthAssistant snapshot={snapshot} securite={securite} rank={rank} analysing={chargement} phases={phases}
+                             onAnalyser={mesurer} onOuvrirLigne={ouvrirLigne} onApresCampagne={apresCampagne} />
 
             {/* ── GRAPHIQUES ────────────────────────────────────────────── */}
             {report && securite && (

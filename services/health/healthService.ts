@@ -248,7 +248,10 @@ export interface HealthSnapshot {
  * ne dépendent pas les unes des autres, les enchaîner ne ferait qu'additionner
  * leurs latences.
  */
-export async function runHealthCheck(): Promise<HealthSnapshot> {
+/** Phases réelles d'une analyse, dans l'ordre où elles se terminent. */
+export type HealthCheckPhase = 'serveur' | 'navigateur';
+
+export async function runHealthCheck(options?: { onPhase?: (phase: HealthCheckPhase) => void }): Promise<HealthSnapshot> {
     const problemes = validateRegistry();
     if (problemes.length > 0) {
         // Un registre incohérent produirait une note fausse sans rien
@@ -256,9 +259,12 @@ export async function runHealthCheck(): Promise<HealthSnapshot> {
         throw new Error(`Registre de santé incohérent : ${problemes.join(' | ')}`);
     }
 
+    // Les deux familles de sondes tournent de front ; chacune annonce sa fin
+    // pour que l'Assistant affiche une progression RÉELLE, pas un sablier.
     const [serveur, client] = await Promise.all([
-        invoke<{ outcomes: ProbeOutcome[]; rank: HealthRank }>({ action: 'probe' }),
-        runClientProbes(),
+        invoke<{ outcomes: ProbeOutcome[]; rank: HealthRank }>({ action: 'probe' })
+            .then((r) => { options?.onPhase?.('serveur'); return r; }),
+        runClientProbes().then((r) => { options?.onPhase?.('navigateur'); return r; }),
     ]);
 
     const outcomes: ProbeOutcome[] = [...client];
