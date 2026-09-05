@@ -1,4 +1,5 @@
 
+import { isAuthApiError } from '@supabase/supabase-js';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { setRememberMe, supabase } from './supabaseClient';
 
@@ -92,6 +93,115 @@ export const getSession = async (): Promise<Session | null> => {
         return null;
     }
     return data.session;
+};
+
+/**
+ * VERROU D'ENTRÉE — session relue depuis le stockage local, vérifiée auprès du
+ * serveur avant d'ouvrir l'interface (Direction, 05/09/2026, DEC-2026-081).
+ *
+ * `getSession()` ne fait que relire ce que l'appareil a gardé : un jeton
+ * périmé côté serveur, révoqué, forgé, ou celui d'un compte supprimé ou banni
+ * passe cette relecture tant que sa date locale d'expiration n'est pas
+ * atteinte. Jusqu'ici, l'application ouvrait alors l'interface interne — et
+ * l'ouvrait AUSSI quand le chargement du profil échouait (« Local-First »).
+ * Ici, le serveur d'authentification tranche (`GET /auth/v1/user` avec ce
+ * jeton) :
+ *   • `valide`        → l'utilisateur existe et le jeton est accepté ;
+ *   • `invalide`      → refus du serveur (401/403, compte absent) : la session
+ *                       locale est effacée, l'écran de connexion s'impose ;
+ *   • `non-verifiee`  → aucun verdict du serveur (panne réseau, 5xx, 429,
+ *                       réponse non JSON d'un intermédiaire, délai dépassé) :
+ *                       la session locale non expirée est conservée, tolérance
+ *                       DITE pour un réseau mobile capricieux — elle ne vaut
+ *                       jamais pour un jeton que le serveur a refusé.
+ * Le verdict est attaché au JETON, jamais à l'événement qui apporte la
+ * session : supabase-js rejoue en `SIGNED_IN` la session lue dans le stockage
+ * (initialisation, retour sur l'onglet, autre onglet) sans appel serveur —
+ * `App.tsx` demande donc ce verdict pour tout jeton, une seule fois par jeton.
+ */
+export type VerdictSession =
+    | { statut: 'valide'; session: Session }
+    | { statut: 'non-verifiee'; session: Session; raison: string }
+    | { statut: 'invalide'; raison: string };
+
+/** Budget de la vérification : au-delà, la session est « non vérifiée », jamais « invalide ». */
+export const DELAI_VERIFICATION_SESSION_MS = 8000;
+
+/**
+ * Efface la session de CET appareil sans dépendre de la réponse du serveur
+ * (`scope: 'local'` : un 401/403/404 du serveur est ignoré par supabase-js,
+ * la session locale part dans tous les cas). Ne lève jamais et n'attend
+ * jamais plus de `delaiMs` : le `POST /auth/v1/logout` qui accompagne
+ * l'effacement continue seul s'il traîne, la session locale est retirée
+ * quoi qu'il arrive — l'écran de connexion n'attend pas ce serveur.
+ */
+const effacerSessionLocale = async (delaiMs: number): Promise<void> => {
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const borne = new Promise<void>((resolve) => {
+        minuteur = setTimeout(resolve, delaiMs);
+    });
+    try {
+        const requete = supabase.auth.signOut({ scope: 'local' });
+        void requete.catch(() => undefined);
+        await Promise.race([requete.then(() => undefined), borne]);
+    } catch (err) {
+        console.warn('Effacement de la session locale : erreur ignorée', err);
+    } finally {
+        if (minuteur !== undefined) clearTimeout(minuteur);
+    }
+};
+
+export const verifierSession = async (
+    session: Session,
+    delaiMs: number = DELAI_VERIFICATION_SESSION_MS
+): Promise<VerdictSession> => {
+    const jeton = session?.access_token;
+    const idAttendu = session?.user?.id;
+    if (!jeton || !idAttendu) {
+        await effacerSessionLocale(delaiMs);
+        return { statut: 'invalide', raison: 'session locale incomplète (jeton ou utilisateur absent)' };
+    }
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const delai = new Promise<'delai'>((resolve) => {
+        minuteur = setTimeout(() => resolve('delai'), delaiMs);
+    });
+    try {
+        // Le jeton est passé explicitement : la vérification porte sur CE
+        // jeton, sans verrou multi-onglets ni relecture du stockage.
+        const requete = supabase.auth.getUser(jeton);
+        // Si le délai gagne la course, la requête continue seule : son éventuel
+        // rejet tardif est marqué comme géré (pas de « unhandledrejection »).
+        void requete.catch(() => undefined);
+        const resultat = await Promise.race([requete, delai]);
+        if (resultat === 'delai') {
+            return { statut: 'non-verifiee', session, raison: `serveur d'authentification sans réponse en ${delaiMs} ms` };
+        }
+        const { data, error } = resultat;
+        if (error) {
+            const motif: string = error.message;
+            // Seul un refus JSON du serveur d'authentification lui-même vaut
+            // « invalide » : 401 (jeton invalide ou périmé côté serveur), 403
+            // (compte supprimé, banni, jeton interdit). Tout le reste — fetch
+            // qui échoue, 5xx, 429, réponse HTML d'un portail captif ou d'un
+            // proxy, erreur inconnue — n'est pas un verdict.
+            if (isAuthApiError(error) && (error.status === 401 || error.status === 403)) {
+                await effacerSessionLocale(delaiMs);
+                return { statut: 'invalide', raison: `refus du serveur d'authentification (${error.status}) : ${motif}` };
+            }
+            return { statut: 'non-verifiee', session, raison: `serveur d'authentification sans verdict : ${motif}` };
+        }
+        if (!data?.user?.id || data.user.id !== idAttendu) {
+            await effacerSessionLocale(delaiMs);
+            return { statut: 'invalide', raison: 'le jeton ne correspond pas à l\'utilisateur de la session locale' };
+        }
+        return { statut: 'valide', session };
+    } catch (err) {
+        // supabase-js renvoie ses refus dans `error`, il ne les lève pas : une
+        // exception ici est une panne d'exécution, pas un verdict du serveur.
+        return { statut: 'non-verifiee', session, raison: `vérification interrompue : ${String(err)}` };
+    } finally {
+        if (minuteur !== undefined) clearTimeout(minuteur);
+    }
 };
 
 /**
