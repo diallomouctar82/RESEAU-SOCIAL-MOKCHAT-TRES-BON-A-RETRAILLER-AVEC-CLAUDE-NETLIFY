@@ -39,12 +39,50 @@
 | **v6.21.0** | 5 Septembre 2026 | **Espace Experts « Plateaux de cristal » (direction D choisie par la Direction) : une phrase, puis les 13 experts en bulles de cristal sur lames de verre, en damier, fond clair aux couleurs du « Miroir d'eau » ; bandeau sombre, recherche, filtres, cartes et sous-titre retirés de l'affichage ; toutes les actions conservées dans une fiche au clic ; bulles vivantes (flottement, lumière tournante, inclinaison 3D au survol, reduced-motion respecté)** | Espace Experts (onglet « Équipe & Experts »), index.html | branche `claude/cleanup-home-interface-szp8qv`, PR #83 fusionnée en squash → `5b1c1ce` / DEC-2026-056 | **Remplacée par la v6.22.0 le 5/09/2026 — production contrôlée validée par la Direction ; Green Gate vert sur `af6a8d2` (run 33951780278) et sur `main` (run 33952228718) ; `moknet.net` sert `index-BUCPWfy5.js` depuis le 5/09 à 07h20 UTC, ancien bundle 404, vérifié en navigateur sur miroir** |
 | **v6.22.0** | 5 Septembre 2026 | **Santé Globale v2 — santé ET sécurité en % (audit du 4/09 intégré : 61 % de référence, note vivante recalculée), graphiques (santé par domaine, audit → aujourd'hui, progression des vagues P0/P1/P2), sept domaines × rouge/orange/vert, fiche problème/cause/impact/risque/action sur 58 lignes, action manuelle guidée (endroit exact, lien direct, étapes) uniquement quand rien d'automatique n'existe, sondes VPS/CORS/rang, repli CORS jamais `*`** | Super-Admin / Santé Globale, `services/health/*`, Edge `health-guardian` v3, Base (`health_probe_catalogue`) | branche `claude/moknet-security-audit-ohfwc1` / DEC-2026-057 / PR #86 | **Remplacée par la v6.23.0 le 5/09/2026 à 09:57 UTC — était en production contrôlée depuis le 5/09/2026 à 08:01 UTC** : PR #86 fusionnée en squash → `main` `e6c68ae` (Green Gate run 146 vert sur `f72eca6`), `moknet.net` sert `index-6F5PzUd7.js` avec les neuf empreintes du tableau de bord v2 (ancien bundle `index-BUCPWfy5.js` → 404, `cache-control: max-age=0, must-revalidate`) ; fonction Edge v3 déployée et vérifiée (identique octet pour octet au bundle généré, 51 040 octets ; origine inconnue → `https://moknet.net`), migration `20260905090000` appliquée et vérifiée (0 puis 1 `super_admin`, 89 tables) ; harnais sur mesures de production du 5/09 : santé 75 % sur 95 % mesuré, sécurité 51 % sur 84 % (audit 61 %), 6 R · 9 O · 5 blancs · 38 V ; typage 0 erreur, 1072/1072 tests |
 | **v6.23.0** | 5 Septembre 2026 | **Bande « Aurore » du Réseau MOC (variante 3 choisie par la Direction parmi dix, sur la base « Orbes lumineux ») : seize orbes de cristal, une teinte par entrée, en damier sur deux rangées de huit, dans l'ordre imposé ; l'orbe de la section courante se remplit ; halo qui respire, soulèvement et lueur au survol ; rail aimanté sur téléphone ; reduced-motion respecté** | Réseau MOC (carte d'accès rapide sous le composeur), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-058 / PR #89 | **Courante (Active) — EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 09:57 UTC** : PR #89 fusionnée en squash → `main` `6f9d062` (Green Gate vert sur `2bbe45f`, run 33959258373, et sur `main`, run 33959347666), revue indépendante passée (7 constats corrigés, contre-vérifiés « PRÊT »), `moknet.net` sert `index-CgZyiRwk.js` depuis 09:57:56 UTC (bloc « BANDE AURORE » présent, marqueurs du bundle présents, ancienne grille absente, ancien bundle `index-6F5PzUd7.js` → 404), miroir local vérifié dans Chromium ; typage 0 erreur, 1104/1104 tests, build OK, captures avant/après (`docs/captures/2026-09-05-reseau-bande-aurore/`) |
+| **v6.24.0** | 5 Septembre 2026 | **Composeur « A7, rail latéral » du Réseau MOC (choix de la Direction parmi dix variantes de la série A) et studio « Visuel IA » B10 intégré à la publication (parmi dix variantes de la série B) : quatre médias en orbes de cristal en rail à gauche du champ (sous le champ sur téléphone), Assistant IA en orbe d'or dans le champ, quatre actions IA nommées (améliorer le style, traduire, hashtags → modale existante sur le bon onglet ; Visuel IA → studio intégré), compteur de caractères, Brouillon \| Publier groupés, rien de supprimé, avatar intouché ; studio plein écran sombre : prompt (l'IA renvoie des réglages) + réglages manuels, visage & cheveux, lumière, cinéma, texte, cadrage, vidéo, vrai pipeline de pixels, insertion d'un JPEG à pleine résolution** | Réseau MOC (composeur), `VisuelIAStudio`, `services/visuelIA.ts`, `AIPostAssistantModal` (prop `initialTool`), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-059 / PR #93 | **En contrôle — PR #93 ouverte (brouillon) le 5/09/2026, tête `8015d58`** : typage 0 erreur, 1155/1155 tests (81 fichiers, 51 dédiés), build OK, captures avant/après mesurées (`docs/captures/2026-09-05-composeur-a7-studio-b10/`) ; Green Gate et revue indépendante en cours ; production contrôlée prévue sur feu vert écrit de la Direction (donné dans la mission) après fusion squash et vérification de `moknet.net` |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.24.0] — 5 Septembre 2026 (Composeur « A7, rail latéral » et studio « Visuel IA » B10)
+
+* **La demande** (Direction, 5 septembre) : après dix propositions, dix
+  variantes puis deux séries de dix sans code, « voici mes choix : A7 pour
+  la zone de publication et B10 pour le studio, puis prépare une production
+  contrôlée. Zéro régression. […] Ensuite, fournis le lien de production et
+  la preuve visible. »
+* **Ce que le membre voit désormais** : dans « créer une publication », les
+  quatre médias (Photo, Vidéo, Document, Voix) en orbes de cristal sur un
+  rail à gauche du champ — sous le champ sur tablette et téléphone —,
+  l'Assistant IA en orbe d'or dans le champ, et juste dessous les quatre
+  actions IA nommées : Améliorer le style, Traduire, Hashtags (la modale
+  existante s'ouvre directement sur le bon onglet) et **Visuel IA**, qui
+  ouvre un studio de retouche intégré à la publication : Prompt (une phrase,
+  l'IA regarde la photo et règle pour elle) ou Réglages manuels (visage &
+  cheveux, lumière, cinéma, texte, cadrage, vidéo), avant / après, annuler,
+  réinitialiser, puis « Insérer dans la publication » — la photo retouchée
+  remplace la photo jointe et part avec la publication. Visibilité et
+  catégorie en texte, compteur de caractères, Brouillon | Publier groupés.
+  Rien n'a disparu, l'avatar n'a pas bougé, aucun bouton n'est factice.
+* **Contrôle indépendant** : revue de code indépendante lancée avant
+  fusion ; constats et corrections consignés dans DEC-2026-059.
+* **Preuve** : typage 0 erreur ; 1155/1155 tests (81 fichiers, dont 17 dans
+  `tests/composeurRail.test.tsx`, 19 dans `tests/visuelIA.test.ts`, 15 dans
+  `tests/visuelIAStudio.test.tsx`) ; build OK ; harnais Chromium à
+  1440×900, 820×1180 et 390×844 : 11 boutons visibles dans l'ordre imposé,
+  0 cible sous 40 px (contre 7 sur 7 avant), rail visible sur ordinateur
+  et remplacé par la ligne sous le champ ailleurs, modale ouverte sur
+  « Choisissez la langue cible » par l'orbe Traduire, studio ouvert avec
+  racine inerte et focus sur « Fermer » (feuille 1040×817 sur ordinateur,
+  plein écran 390×844 sur téléphone), insertion d'une image `blob:` puis
+  studio fermé, aucun débordement, aucune erreur JS
+  (`docs/captures/2026-09-05-composeur-a7-studio-b10/`).
+* **Production** : en contrôle — PR #93 (brouillon) ouverte le 5/09/2026 ;
+  fusion squash puis vérification de `moknet.net` prévues après Green Gate
+  vert et revue indépendante « PRÊT ».
 
 ### [Version 6.23.0] — 5 Septembre 2026 (Bande « Aurore » du Réseau MOC)
 

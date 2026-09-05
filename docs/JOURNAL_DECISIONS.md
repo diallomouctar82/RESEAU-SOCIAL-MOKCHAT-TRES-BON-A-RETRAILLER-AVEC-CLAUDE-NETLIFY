@@ -1122,6 +1122,127 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-059] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, bloc du
+  composeur « créer une publication »), `components/AIPostAssistantModal.tsx`
+  (prop `initialTool`), **nouveaux** `components/VisuelIAStudio.tsx` et
+  `services/visuelIA.ts`, `index.html` (blocs « COMPOSEUR A7 » et « VISUEL
+  IA »), `tests/composeurRail.test.tsx`, `tests/visuelIA.test.ts`,
+  `tests/visuelIAStudio.test.tsx`.
+* **Problème / Besoin initial** : la Direction a d'abord demandé dix
+  propositions visuelles du bloc « créer une publication » (sans code), en a
+  retenu la direction « Assistant en scène », puis dix variantes, puis deux
+  séries de dix (A : la zone de publication ; B : le studio « Visuel IA »
+  intégré à la publication, avec deux modes obligatoires, prompt et réglages
+  manuels, photo et vidéo, visage, cheveux, peau, yeux, lumière, rendu
+  cinématique, texte). Elle a choisi **A7 « rail latéral »** et **B10
+  « plein écran sombre »** avec une mission ciblée : « prépare une
+  production contrôlée. Zéro régression. Si un problème apparaît et qu'il
+  est maîtrisable, tu le corriges. S'il n'est pas maîtrisable, tu reviens
+  immédiatement à l'état initial stable. » Contraintes permanentes : ne pas
+  toucher à l'avatar, ne rien faire disparaître (logo VS, champ, Assistant
+  IA, améliorer le style, traduire, hashtags, Visuel IA, Public, Tech &
+  Innovation, photo, vidéo, document, voix, brouillon, publier), aucun
+  bouton factice. Le composeur RO-1 alignait sept boutons de 28 à 34 px de
+  haut sur une ligne et n'offrait les actions IA qu'à travers un seul
+  bouton ; « Visuel IA » n'y était qu'un onglet de la modale avec quatre
+  images de banque, aucune retouche.
+* **Options considérées** :
+  1. Recopier les maquettes A7 et B10 (HTML/CSS autonomes) dans le fil —
+     rejeté : elles simulaient les gestes ; retenu : réécrire le bloc du
+     composeur en gardant chaque gestionnaire d'origine (entrées de fichier,
+     `handlePublishPost(true|false)` et ses conditions `disabled`, bascule
+     d'écoute vocale, les deux `<select>` avec leurs valeurs et options,
+     aperçus des pièces jointes, retour vocal), et brancher les orbes IA sur
+     la modale existante ouverte directement sur le bon onglet (nouvelle
+     prop `initialTool`).
+  2. Rendre le rail des médias une seule fois et le déplacer par CSS entre
+     ordinateur et téléphone — rejeté : l'ordre voulu sur téléphone (médias
+     entre les sélecteurs et Brouillon | Publier) n'est pas atteignable par
+     placement de grille sans casser l'ordre de lecture ; retenu : une seule
+     fonction `outilsMedias` rendue deux fois (rail, ligne), la requête de
+     conteneur `a7` n'en affichant jamais qu'un exemplaire (l'autre est
+     `display: none`, donc absent de l'arbre d'accessibilité).
+  3. Menu déroulant sur « Publier » (chevron) comme sur la maquette —
+     rejeté : un contrôle qui n'ouvre rien est un bouton factice ; retenu :
+     Brouillon | Publier en groupe, sans chevron.
+  4. Limite de caractères imposée par le compteur — rejeté (régression
+     possible sur des publications longues existantes) ; retenu : simple
+     compte, sans limite.
+  5. Studio « Visuel IA » : simuler la retouche ciblée (yeux, dents, mèche)
+     par des masques fixes — rejeté : ce serait un rendu mensonger ; retenu :
+     un **vrai pipeline de pixels** global (lumière, ombres, hautes lumières,
+     température, teinte, saturation ; split-tone par look ; peau douce dans
+     la plage de luminance de la peau ; netteté ; flou des bords ; éclat ;
+     brillance des tons foncés ; vignette ; grain déterministe ; texte) et,
+     en mode Prompt, l'IA de la plateforme (`analyzeImage`, JSON seul)
+     qui regarde la photo et renvoie des **réglages** — jamais une image
+     réinventée dans le dos du membre ; sans photo, `generateImage`
+     (fournisseur actif). L'écran dit explicitement que la retouche est
+     globale et renvoie la retouche ciblée vers le Prompt.
+  6. Vidéo : ré-encodage serveur — rejeté (hors périmètre, coût) ; retenu :
+     aperçu par filtre CSS + texte, export `webm` par
+     `canvas.captureStream` + `MediaRecorder` quand le navigateur le permet,
+     message honnête sinon (la vidéo d'origine reste intacte).
+* **Décision finale** : composeur A7 (`div.a7-comp`, grille avatar | rail |
+  corps, `data-testid="composeur-a7"`) : avatar intouché (classes
+  identiques) ; rail `.a7-rail` de quatre orbes `.a7-ob` (Photo 150°, Vidéo
+  262°, Document 42°, Voix 330° — l'orbe pulse en rouge et se nomme
+  « Écoute... » en écoute) ; champ `.a7-champ` (150 px sur ordinateur, 96
+  sur téléphone) avec l'étincelle `.a7-etincelle` (orbe d'or, « Assistant
+  IA Pré-Publication ») ; rangée `.a7-rangee` « Assistant IA » (Améliorer
+  le style 42° → onglet `style`, Traduire 186° → `translate`, Hashtags 262°
+  → `hashtags`, Visuel IA 14° → studio) ; `.a7-ligne` avec les deux
+  `<select>` habillés en texte (`aria-label` ajoutés) et le compteur ;
+  aperçus et retour vocal inchangés ; `.a7-pied` : entrées de fichier
+  cachées (uniques), `.a7-medias-bas` (téléphone), groupe `.a7-groupe`
+  Brouillon | Publier. Libellés masqués sur téléphone mais `aria-label`
+  portés par les boutons. Studio B10 (`VisuelIAStudio`) : portail sur
+  `body` (`z-index` au-dessus de toute la coquille), `#root` inerte, focus
+  piégé, Échap (capture, seulement si le focus est dedans), modes Prompt /
+  Réglages manuels, familles Visage & cheveux, Lumière, Cinéma, Texte,
+  Vidéo ; aperçu canvas 720 px différé de 40 ms ; Avant / Après ; Annuler
+  (20 pas) et Réinitialiser ; insertion = rendu à 1 600 px → JPEG 0,92 →
+  `File` → `setNewPostImage` + `setNewPostImageFile` (téléversé à la
+  publication comme n'importe quelle photo) ; canvas souillé (image tierce
+  sans CORS) → message clair ; lien discret « Besoin de plus ? Studio
+  Créatif » (`onNavigate('studio')`) quand la navigation existe. CSS :
+  `@container a7 (max-width: 560px)` + repli `@supports not` /
+  `@media (max-width: 639px)`, survol réservé à `(hover: hover) and
+  (pointer: fine)`, `prefers-reduced-motion` ; feuille du studio
+  `min(1040px, 100%)`, `color-scheme: dark`, enfants non compressibles
+  (`.vis-feuille > * { flex: none }` — la feuille défile, l'aperçu et la
+  barre des familles ne s'écrasent jamais), plein écran ≤ 639 px. Couche
+  aqua régénérée. 51 tests dédiés.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : revue de code
+  indépendante lancée sur le diff complet (diff, typage, tests, build,
+  accessibilité, CSS, pipeline, sécurité) ; ses constats et leurs
+  corrections seront consignés ici avant toute fusion. Autocontrôle du
+  producteur sur les captures : deux défauts trouvés et corrigés avant la
+  PR (aperçu du studio rogné et barre des familles écrasée sur téléphone —
+  même cause, la compression des enfants flex de la feuille). Livré par la
+  PR #93 (branche `claude/cleanup-home-interface-szp8qv`, tête `8015d58`) :
+  typage 0 erreur, 1155/1155 tests (81 fichiers), build OK, captures
+  avant/après mesurées à 1440×900, 820×1180 et 390×844
+  (`docs/captures/2026-09-05-composeur-a7-studio-b10/` : 11 boutons dans
+  l'ordre, 0 cible sous 40 px contre 7 sur 7 avant, rail / ligne selon
+  l'écran, modale sur l'onglet Traduire, studio ouvert avec racine inerte
+  et focus sur « Fermer », insertion d'une image `blob:` puis studio fermé
+  et `inert` retiré).
+* **Production** : la mission de la Direction vaut feu vert écrit («
+  prépare une production contrôlée […] Ensuite, fournis le lien de
+  production et la preuve visible »). Séquence prévue : Green Gate vert sur
+  la tête finale → revue indépendante « PRÊT » → fusion squash → vérification
+  de `moknet.net` (bundle, marqueurs « COMPOSEUR A7 » et « VISUEL IA »,
+  ancien bundle 404, miroir local dans Chromium) → mise à jour de cette
+  entrée. Retour arrière prévu : `git revert` du squash (aucune migration,
+  aucune donnée touchée).
+* **Statut** : 🟡 EN CONTRÔLE — PR #93 ouverte (brouillon), CI et revue
+  indépendante en cours ; non déployé.
+
+---
+
 ### [DEC-2026-058] — 5 Septembre 2026
 
 * **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, carte d'accès
