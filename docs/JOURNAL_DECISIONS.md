@@ -1122,6 +1122,117 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-056] — 5 Septembre 2026
+
+* **Module(s)** : `Espace Experts` (`components/ExpertsCatalogue.tsx`,
+  en-tête de `components/ExpertsHub.tsx`), `index.html` (bloc « PLATEAUX DE
+  CRISTAL »), tests `tests/ExpertsCatalogue.test.tsx`
+* **Problème / Besoin initial** : la Direction a demandé une réorganisation
+  visuelle des Experts en deux temps. D'abord cinq directions visuelles, sans
+  toucher au code : « chaque expert dans une bulle de cristal en 3D, effet
+  lumineux, fluide et professionnel, avec une animation douce », « une
+  interface beaucoup plus légère et claire », « au-dessus des boules de
+  cristal, garde une seule phrase courte qui explique le rôle des experts,
+  rien de plus », « ne reprends pas le fond sombre », « ne touche pas au
+  live, ni à l'avatar, ni au bouton Santé-Sécurité ». Puis, capture à
+  l'appui, le choix : la direction **D « Plateaux de cristal »** — « Il faut
+  implémenter ceci et aller à l'amélioration du design des avatars et de
+  leurs mouvements » ; « dès que les gens rentrent dans l'espace expert, ils
+  doivent retrouver tout de suite le panneau là comme ça, vraiment au
+  premier plan ».
+* **Décision** : l'écran d'entrée de l'espace Experts (onglet « Équipe &
+  Experts », ouvert par défaut) ne montre plus que **la phrase** « Nos
+  experts vous accompagnent avec des conseils fiables, des orientations
+  pratiques et une assistance adaptée à vos besoins. » puis **les 13 experts**
+  (10 IA, 3 humains vérifiés), chacun dans une **bulle de cristal** posée sur
+  une **lame de verre** aux bords irréguliers, avec un filet de lumière aqua
+  qui pulse dessous, cinq par rangée en damier (trois sur tablette, deux sur
+  téléphone), le nom et le rôle court sous chaque bulle. Le bandeau sombre,
+  la barre de recherche, les filtres, la bascule Tous/IA/Humains et les
+  cartes blanches ont été **retirés de l'affichage** ; le titre et le
+  sous-titre de l'en-tête du hub aussi (le titre reste lu par les lecteurs
+  d'écran, `sr-only`), la barre d'onglets du hub est conservée car chaque
+  onglet est une fonction. **Aucune fonction supprimée** : un clic sur une
+  bulle ouvre une **fiche légère** (dialogue modal, verre clair) qui porte les
+  cinq actions de l'ancienne carte — Discuter, Vocal, Vidéo, Nouveau dossier,
+  Analyser un fichier (IA) ou Prendre RDV (humain, formulaire de réservation
+  inchangé) — plus la description, les langues, l'état de disponibilité et le
+  dossier en cours dont l'expert est référent. Palette : uniquement les
+  jetons du menu « Miroir d'eau » (`--mir-bg`, `--mir-ink`, `--mir-acc`,
+  `--mir-pros`, `--water-accent`), fond clair.
+* **Avatars et mouvements** : la bulle est faite de trois lumières
+  (rehaut, voile de verre, reflet arqué) et d'une **lumière tournante** sur son
+  bord ; elle **flotte** avec une période et une phase propres à chaque
+  expert (jamais en chœur) ; au survol, elle se **soulève** et s'**incline en
+  3D** en suivant le pointeur, le portrait glissant en parallaxe — deux
+  couches distinctes (`.cristal-flotteur` pour le flottement,
+  `.cristal-bulle` pour le survol) afin que les deux transformations ne se
+  disputent jamais ; pastille de disponibilité qui pulse (verte), ambre en
+  entretien, aqua sur rendez-vous. Rien ne passe par un état React :
+  l'inclinaison pose des variables CSS sur le plateau. **Tout s'arrête sous
+  `prefers-reduced-motion: reduce`** (mesuré : `animation-name: none`), et
+  aucune inclinaison au doigt.
+* **Ce qui n'a pas été touché** : le Live et le Studio Live, la barre
+  flottante de l'Architecte (`ArchitecteFloatingBar`), l'en-tête et la barre
+  latérale de la coquille, la Santé Globale, les autres onglets du hub, les
+  données des experts (`constants.ts`).
+* **Preuves** : tsc 0 · vitest **1048/1048** (74 fichiers) · build · 21 tests
+  dans `tests/ExpertsCatalogue.test.tsx` (13 experts rendus par leur nom,
+  phrase unique exactement avant la scène, ancien bandeau/recherche/filtres
+  absents, fiche au clic et cinq actions avec le bon expert, RDV pour les
+  humains, Échap/Fermer/voile referment sans rien déclencher, dossier en
+  cours, phases de mouvement distinctes, inclinaison au pointeur et pas au
+  doigt, bloc CSS borné hors de la couche aqua, sélecteurs courts sans
+  accent, adaptation 5/3/2, reduced-motion) ; couche aqua régénérée par le
+  script (405 classes) ; captures avant/après mesurées dans Chromium à
+  1440×900 et 390×844 (`docs/captures/2026-09-05-experts-plateaux-de-cristal/`)
+  — 5 experts par rangée sur ordinateur, 2 sur téléphone, décalage 22/18 px,
+  animations calculées `cristal-flotte` / `cristal-tourne` / `cristal-pouls`,
+  matrice 3D au survol, fiche avec les cinq actions, formulaire de RDV
+  ouvert.
+* **Contrôle indépendant (producteur ≠ contrôleur)** : avant toute demande
+  de feu vert, une revue de code indépendante de la PR #83 (dix angles, sans
+  concession) a remonté dix constats ; tous corrigés et verrouillés par des
+  tests, aucun contesté. Les trois défauts réels, prouvés par les propres
+  captures de la PR : (1) `isolation: isolate` sur le panneau enfermait le
+  voile de la fiche et le formulaire de RDV sous la coquille — barre latérale,
+  en-têtes, onglets et dock restaient nets **et cliquables** derrière un
+  dialogue « modal » ; les deux sont désormais rendus par **portail dans
+  `document.body`** (même motif que `MoocChatFloating`), la racine `#root`
+  devient **`inert`** pendant l'ouverture et le focus est **piégé** dans la
+  fiche (Tab / Maj+Tab bouclent) ; (2) la pastille de disponibilité vivait
+  dans le cercle de la bulle (`overflow: hidden`) qui en rognait ~40 % — elle
+  vit maintenant dans le flotteur, hors du cercle, avec un pouls composité
+  (`transform` + `opacity` sur `::after`, plus de `box-shadow` animé sur dix
+  éléments) ; (3) Échap fermait la fiche même quand une palette globale
+  (Ctrl/Cmd+K) était ouverte par-dessus — il n'agit plus que si le focus est
+  dans la fiche. Et aussi : survol réservé aux vrais pointeurs
+  (`@media (hover: hover) and (pointer: fine)`, sinon l'état collait après un
+  tap), nom et rôle **dans** le bouton (cliquer le nom ouvre la fiche, le
+  texte visible est le nom accessible, plus d'`aria-label` dupliqué), liste
+  de requête média créée une seule fois (plus d'allocation à chaque
+  `pointermove`), date de RDV par défaut = jour même avec `min` (l'ancienne
+  valeur `2026-03-05` était passée), règle CSS morte supprimée. Tests :
+  21 → 28.
+* **Statut** : `Développé`, `Testé`, `Contrôlé indépendamment`, `Déployé`,
+  `Vérifié en production`. Feu vert écrit de la Direction le 5 septembre
+  (« La PR83 est validée pour production contrôlée ») ; PR #83 fusionnée en
+  squash (`5b1c1ce`) après Green Gate vert sur la tête finale `af6a8d2`
+  (run 33951780278), Green Gate vert sur `main` (run 33952228718) ;
+  `moknet.net` sert `index-BUCPWfy5.js` depuis 07h20 UTC — même bundle que le
+  preview contrôlé —, la page servie porte le bloc « PLATEAUX DE CRISTAL
+  (DEC-2026-056) », marqueurs présents (`cristal-expert-bouton`,
+  `cristal-fiche`, la phrase, « Prendre RDV »), anciens textes absents,
+  ancien bundle `index-CjAVWgcX.js` en 404 ; miroir local de la production
+  ouvert dans Chromium (ordinateur et téléphone) : racine React montée,
+  règles `.cristal-bulle` / `.cristal-plateau` et six `@keyframes cristal-*`
+  analysées, aucune erreur JS applicative.
+* **Restes assumés** : la recherche et les filtres par spécialité ne sont
+  plus affichés sur cet écran (13 experts tiennent sur un seul écran ; la
+  Direction a demandé « aucune surcharge ») — leur code a été retiré du
+  composant, pas des autres écrans ; les portraits restent des URL Unsplash
+  comme avant ; le formulaire de RDV garde sa date par défaut historique.
+
 ### [DEC-2026-055] — 5 Septembre 2026
 
 * **Module(s)** : `Live / Directs`, hook `useLiveTransport`, base
@@ -1160,6 +1271,11 @@ Chaque décision respecte le formalisme strict suivant :
   interrompue · Réessayer » affiché sur un direct clos, le message de la
   garde jamais rendu — corrigé (`isLiveEndedError`, badge « TERMINÉ »,
   bloc « Ce direct est terminé. · Quitter ») et couvert par 3 tests.
+  **Déployé le 5 septembre** : PR #81 fusionnée en squash → `main` `880b5fa`
+  (Green Gate vert), bundle SAT-5 servi par moknet.net (7 empreintes) ;
+  migration appliquée à 01:28 UTC, première exécution réelle du cron à
+  02:15 UTC : 13 zombies fermés (les 13 ids sauvegardés), tracés dans
+  `audit_logs` ; 0 zombie restant, directs récents intacts.
 * **Frontière VPS (ce qui n'est pas récupérable depuis l'application)** :
   conteneur LiveKit à redémarrer, clé du coffre divergente, port UDP fermé,
   montée de version 1.8.4 → 1.13.6. SAT-4 les signale ; SAT-6 (bouton de
@@ -1886,7 +2002,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-056] — 4 Septembre 2026
+### [DEC-2026-057] — 4 Septembre 2026
 * **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
 * **Problème / Besoin initial** : AI Core était une **boîte noire** pour
   l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
@@ -1996,10 +2112,10 @@ Chaque décision respecte le formalisme strict suivant :
   `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
   `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
   `components/admin/AiOrchestrator.tsx`.
-* **Preuves** : `tsc` 0 · **vitest 1060/1060 (75 fichiers)** après six remises à
-  niveau sur `main` (PR #69, #73, #74/#75, #76/#77/#78/#80, #79, puis #81) ·
-  `npm run build` propre · Green Gate **vert** sur `b45d39a`, relancé sur le
-  HEAD courant ·
+* **Preuves** : `tsc` 0 · **vitest 1082/1082 (75 fichiers)** après sept remises à
+  niveau sur `main` (PR #69, #73, #74/#75, #76/#77/#78/#80, #79, #81, puis
+  #83/#84/#85) · `npm run build` propre · Green Gate **vert** sur `3dbdfa5`,
+  relancé sur le HEAD courant ·
   séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
   (conditions d'un checkout propre) · lien public de prévisualisation
   `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify
