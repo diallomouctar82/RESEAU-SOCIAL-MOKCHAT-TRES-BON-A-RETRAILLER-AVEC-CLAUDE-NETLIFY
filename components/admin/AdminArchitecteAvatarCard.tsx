@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Check, Film, ImageOff, Mic, RotateCcw, Sparkles, Volume2 } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { Check, Film, ImageOff, Mic, RotateCcw, Sparkles, Undo2, Upload, Volume2 } from 'lucide-react';
 import { ELEVENLABS_CURATED_VOICES } from '../../services/voiceEngine';
 import {
     ARCHITECTE_DISCLOSURE,
@@ -13,6 +13,8 @@ import {
 import { LIP_SYNC_LEVEL_LABEL } from '../../services/architecte/lipSync';
 import { clampPortraitRig } from '../../services/architecte/livingAvatar';
 import { ArchitecteAvatar } from '../architecte/ArchitecteAvatar';
+import { applyPhotoAvatar, revertPhotoAvatar, type PhotoAvatarCandidate } from '../../services/architecte/photoAvatar';
+import { analysePhotoFile, loadMediapipeDeps } from '../../services/architecte/photoAvatarEngine';
 import {
     ARCHITECTE_PRESENTATION,
     ARCHITECTE_SEQUENCES,
@@ -20,6 +22,7 @@ import {
     formatDateFr,
     formatExpressiveness,
     formatSequenceDuration,
+    sequenceFitsPhoto,
 } from '../../services/architecte/sequences';
 
 /**
@@ -38,14 +41,32 @@ export interface AdminArchitecteAvatarCardProps {
     value: ArchitecteAvatarConfig;
     adminName: string;
     onChange: (next: ArchitecteAvatarConfig) => void;
+    /**
+     * Analyse d'une photo (visage, cadrage, silhouette) — MediaPipe dans le
+     * navigateur par défaut ; injectable pour les tests et les bancs.
+     */
+    analysePhoto?: (file: File) => Promise<PhotoAvatarCandidate>;
+}
+
+/** Analyse par défaut : le moteur MediaPipe, chargé à la première photo. */
+async function analyseAvecMediapipe(file: File): Promise<PhotoAvatarCandidate> {
+    const deps = await loadMediapipeDeps();
+    return analysePhotoFile(file, deps, { sourceName: file.name });
 }
 
 export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps> = ({
     value,
     adminName,
     onChange,
+    analysePhoto = analyseAvecMediapipe,
 }) => {
     const [draft, setDraft] = useState<ArchitecteAvatarConfig>(value);
+    // ── Avatar vivant depuis une photo (Direction, 05/09/2026) ──
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [candidate, setCandidate] = useState<PhotoAvatarCandidate | null>(null);
+    const [analysing, setAnalysing] = useState(false);
+    const [photoStatus, setPhotoStatus] = useState('');
+    const [photoError, setPhotoError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
     // Aperçu animé : niveau de voix simulé PAR LA DIRECTION avec le curseur,
@@ -83,8 +104,51 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
     const resetDefault = () => {
         setError(null);
         setDemoLevel(0);
+        setCandidate(null);
         commit({ ...DEFAULT_ARCHITECTE_AVATAR });
         setDraft({ ...DEFAULT_ARCHITECTE_AVATAR });
+    };
+
+    /** L'aperçu « Nouveau » est le composant réel, avec exactement ce qui serait enregistré. */
+    const candidateConfig = useMemo(
+        () => (candidate ? applyPhotoAvatar(draft, candidate, adminName) : null),
+        [candidate, draft, adminName]
+    );
+
+    const onPhotoPicked = async (file: File | undefined) => {
+        if (!file) return;
+        setPhotoError(null);
+        setCandidate(null);
+        setAnalysing(true);
+        setPhotoStatus('Analyse de la photo : visage, cadrage, silhouette…');
+        try {
+            const next = await analysePhoto(file);
+            setCandidate(next);
+            setPhotoStatus(`Photo analysée (${next.landmarksFound} repères du visage). Vérifiez l’aperçu vivant, puis validez.`);
+        } catch (err) {
+            setPhotoError(err instanceof Error ? err.message : 'Analyse impossible.');
+            setPhotoStatus('');
+        } finally {
+            setAnalysing(false);
+        }
+    };
+
+    const validateCandidate = () => {
+        if (!candidate) return;
+        const next = applyPhotoAvatar(draft, candidate, adminName);
+        setCandidate(null);
+        setError(null);
+        commit(next);
+        setPhotoStatus('Nouvel avatar enregistré. L’avatar précédent reste disponible : « Revenir à l’avatar précédent ».');
+    };
+
+    const revertToPrevious = () => {
+        const back = revertPhotoAvatar(draft, adminName);
+        if (!back) return;
+        setCandidate(null);
+        setError(null);
+        commit(back);
+        setPhotoStatus('Avatar précédent rétabli.');
     };
 
     return (
@@ -138,6 +202,128 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                 </div>
 
                 <div className="space-y-5">
+                    {/* 0. CRÉER OU REMPLACER L'AVATAR VIVANT DEPUIS UNE PHOTO
+                        (Direction, 05/09/2026). Tout se passe ICI, dans la carte :
+                        aucun panneau par-dessus l'application. */}
+                    <fieldset data-testid="avatar-photo" className="border border-cyan-200 rounded-xl p-3.5 bg-cyan-50/40">
+                        <legend className="text-[11px] font-bold text-cyan-800 px-1">
+                            Créer ou remplacer l’avatar vivant depuis une photo
+                        </legend>
+                        <p className="text-[11px] text-slate-500 mb-3">
+                            Choisissez une photo de face, bien éclairée : le visage est cadré comme le portrait d’usine ; les
+                            yeux, la bouche et la silhouette sont calés automatiquement, dans votre navigateur (rien n’est envoyé
+                            à un service tiers). Vous vérifiez l’aperçu vivant avant d’enregistrer ; l’avatar précédent reste
+                            disponible pour revenir en arrière.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                data-testid="avatar-photo-fichier"
+                                aria-label="Photo pour l’avatar vivant"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = '';
+                                    void onPhotoPicked(file);
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={analysing}
+                                data-testid="avatar-photo-choisir"
+                                className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                            >
+                                <Upload size={14} /> {analysing ? 'Analyse en cours…' : 'Choisir une photo…'}
+                            </button>
+                            {draft.previousAvatar && (
+                                <button
+                                    type="button"
+                                    onClick={revertToPrevious}
+                                    data-testid="avatar-photo-retour"
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                                >
+                                    <Undo2 size={14} /> Revenir à l’avatar précédent
+                                </button>
+                            )}
+                        </div>
+                        {photoStatus && (
+                            <p role="status" aria-live="polite" data-testid="avatar-photo-statut" className="text-[11px] text-cyan-800 mt-2">
+                                {photoStatus}
+                            </p>
+                        )}
+                        {photoError && (
+                            <p role="alert" data-testid="avatar-photo-erreur" className="flex items-start gap-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 mt-2">
+                                <ImageOff size={15} className="flex-shrink-0 mt-0.5" />
+                                {photoError}
+                            </p>
+                        )}
+                        {candidate && candidateConfig && (
+                            <div data-testid="avatar-photo-apercu" className="mt-3 grid grid-cols-2 gap-3 items-start">
+                                <div className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-[#0f172a]">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Actuel</span>
+                                    <ArchitecteAvatar
+                                        config={draft}
+                                        variant="sculpture"
+                                        presence={demoLevel > 0.02 ? 'speaking' : 'rest'}
+                                        ttsEngine="elevenlabs"
+                                        outputLevel={demoLevel}
+                                        size={96}
+                                        actionLabel="Avatar actuel"
+                                        testId="avatar-photo-actuel"
+                                    />
+                                </div>
+                                <div className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-[#0f172a] ring-2 ring-cyan-400">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-300">Nouveau</span>
+                                    <ArchitecteAvatar
+                                        config={candidateConfig}
+                                        variant="sculpture"
+                                        presence={demoLevel > 0.02 ? 'speaking' : 'rest'}
+                                        ttsEngine="elevenlabs"
+                                        outputLevel={demoLevel}
+                                        size={96}
+                                        actionLabel="Nouvel avatar"
+                                        testId="avatar-photo-nouveau"
+                                    />
+                                </div>
+                                {candidate.warnings.length > 0 && (
+                                    <ul data-testid="avatar-photo-avertissements" className="col-span-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-0.5">
+                                        {candidate.warnings.map((w) => (
+                                            <li key={w}>{w}</li>
+                                        ))}
+                                    </ul>
+                                )}
+                                {!sequenceFitsPhoto(ARCHITECTE_PRESENTATION, candidate.photoUrl) && (
+                                    <p className="col-span-2 text-[11px] text-slate-600 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                                        La présentation vidéo validée a été générée sur le portrait d’usine : avec cette photo,
+                                        l’Architecte parle par le portrait vivant (voix HD), sans vidéo, jusqu’à ce qu’un nouveau
+                                        modèle vidéo soit généré depuis cette photo puis validé par la Direction.
+                                    </p>
+                                )}
+                                <div className="col-span-2 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={validateCandidate}
+                                        data-testid="avatar-photo-valider"
+                                        className="flex items-center gap-1.5 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition"
+                                    >
+                                        <Check size={14} /> Valider et enregistrer
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setCandidate(null); setPhotoStatus(''); }}
+                                        data-testid="avatar-photo-annuler"
+                                        className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                                    >
+                                        Annuler
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </fieldset>
+
                     {/* 1. CHANGER L'AVATAR */}
                     <div>
                         <label htmlFor="architecte-photo" className="block text-xs font-bold text-slate-700 mb-1.5">
