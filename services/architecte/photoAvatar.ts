@@ -64,7 +64,12 @@ export const FRAMING_TARGET = {
     interPupilPercent: DEFAULT_PORTRAIT_RIG.eyeRightXPercent - DEFAULT_PORTRAIT_RIG.eyeLeftXPercent,
 } as const;
 
-/** Carré à découper dans l'image source, en pixels (peut déborder : le débord devient transparent). */
+/**
+ * Carré à découper dans l'image source, en pixels. Il peut déborder de la
+ * photo (photo trop serrée) : dans le portrait, le débord est comblé par un
+ * prolongement adouci du fond ; dans le masque de silhouette, il reste
+ * transparent.
+ */
 export interface SquareFraming {
     x: number;
     y: number;
@@ -103,6 +108,40 @@ export function framingFromPupils(left: Point, right: Point, imageWidth: number,
     const iy = Math.max(0, Math.min(imageHeight, y + side) - Math.max(0, y));
     const coverage = side > 0 ? Math.round(((ix * iy) / (side * side)) * 1000) / 1000 : 0;
     return { x, y, side, coverage };
+}
+
+/** Part du côté du carré cadré (0..1) que la photo ne couvre pas, côté par côté. */
+export interface OverflowBands {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+}
+
+/**
+ * Les bandes du carré cadré qui débordent de la photo : en haut quand il
+ * manque de marge au-dessus du crâne, etc. 0 = rien ne déborde de ce côté.
+ */
+export function overflowBands(framing: Pick<SquareFraming, 'x' | 'y' | 'side'>, imageWidth: number, imageHeight: number): OverflowBands {
+    if (!(framing.side > 0)) return { top: 0, bottom: 0, left: 0, right: 0 };
+    const part = (px: number): number => Math.min(1, Math.max(0, px / framing.side));
+    return {
+        top: part(-framing.y),
+        bottom: part(framing.y + framing.side - imageHeight),
+        left: part(-framing.x),
+        right: part(framing.x + framing.side - imageWidth),
+    };
+}
+
+/** Une bande se voit à l'œil à partir de 2 % du côté du cadre. */
+export const OVERFLOW_VISIBLE_PERCENT = 2;
+
+/** Les côtés qui débordent visiblement, en français (« en haut (12,4 %) »), dans l'ordre haut, bas, gauche, droite. */
+export function describeOverflow(bands: OverflowBands): string[] {
+    const sides: Array<[keyof OverflowBands, string]> = [['top', 'en haut'], ['bottom', 'en bas'], ['left', 'à gauche'], ['right', 'à droite']];
+    return sides
+        .filter(([key]) => bands[key] * 100 >= OVERFLOW_VISIBLE_PERCENT)
+        .map(([key, label]) => `${label} (${pct(bands[key]).toFixed(1).replace('.', ',')} %)`);
 }
 
 /** Un repère de l'image source exprimé dans le carré découpé (0..1). */

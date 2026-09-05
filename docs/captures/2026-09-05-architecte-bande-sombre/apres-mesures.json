@@ -1,0 +1,89 @@
+[
+  {
+    "ecran": "ordinateur-1440x900",
+    "cadre": {
+      "x": 521,
+      "y": 237,
+      "w": 398,
+      "h": 398
+    },
+    "canvas": {
+      "W": 398,
+      "H": 398
+    },
+    "portrait": {
+      "luminanceHaut2a8pct": 135,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 133
+    },
+    "src": "/architecte/architecte.webp",
+    "video": {
+      "statut": "playing",
+      "temps": 2.23,
+      "src": "vision-smart-heygen.webm",
+      "dimensions": "720x720",
+      "luminanceHaut2a8pct": 125,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 130
+    },
+    "erreurs": []
+  },
+  {
+    "ecran": "tablette-820x1180",
+    "cadre": {
+      "x": 211,
+      "y": 237,
+      "w": 398,
+      "h": 398
+    },
+    "canvas": {
+      "W": 420,
+      "H": 420
+    },
+    "portrait": {
+      "luminanceHaut2a8pct": 136,
+      "luminanceHaut8a12pct": 131,
+      "luminanceSousBande14a20pct": 133
+    },
+    "src": "/architecte/architecte.webp",
+    "video": {
+      "statut": "playing",
+      "temps": 2.25,
+      "src": "vision-smart-heygen.webm",
+      "dimensions": "720x720",
+      "luminanceHaut2a8pct": 125,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 130
+    },
+    "erreurs": []
+  },
+  {
+    "ecran": "telephone-390x844",
+    "cadre": {
+      "x": -4,
+      "y": 287,
+      "w": 398,
+      "h": 398
+    },
+    "canvas": {
+      "W": 420,
+      "H": 420
+    },
+    "portrait": {
+      "luminanceHaut2a8pct": 136,
+      "luminanceHaut8a12pct": 131,
+      "luminanceSousBande14a20pct": 133
+    },
+    "src": "/architecte/architecte.webp",
+    "video": {
+      "statut": "playing",
+      "temps": 2.22,
+      "src": "vision-smart-heygen.webm",
+      "dimensions": "720x720",
+      "luminanceHaut2a8pct": 125,
+      "luminanceHaut8a12pct": 132,
+      "luminanceSousBande14a20pct": 130
+    },
+    "erreurs": []
+  }
+]
