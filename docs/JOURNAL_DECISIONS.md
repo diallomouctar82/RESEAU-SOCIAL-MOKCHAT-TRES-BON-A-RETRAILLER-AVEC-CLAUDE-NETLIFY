@@ -46,30 +46,30 @@ Chaque décision respecte le formalisme strict suivant :
   sur téléphone — orbes de 34 px, illisible, rejeté ; (d) bande en **grille
   4 × 4** avec damier et libellés courts : retenu ; (e) supprimer la ligne
   d'icônes sous le champ — rejeté (rien ne disparaît) : elle reste le repli
-  des cartes très étroites (≤ 300 px de largeur intérieure).
+  des cartes très étroites (≤ 270 px de largeur intérieure, écran de 344 px au plus).
 * **Décision** : CSS seulement, aucun balisage ni gestionnaire modifié.
   Requête de conteneur `a7 (max-width: 560px)` : grille
   `minmax(44px, auto) minmax(0, 1fr)` / `auto 1fr`, rail en colonne 1 rangée
   2 (libellés conservés, 10 px), corps en colonne 2 sur les deux rangées,
   intitulé « Assistant IA » affiché et quatre actions sur une ligne
   (libellés autorisés à passer à la ligne, orbes alignées en haut) ; nouvelle
-  requête `a7 (max-width: 300px)` qui rétablit l'ancienne ligne d'icônes ;
-  replis `@supports not` à 639 px et 360 px. Requête `aurore (max-width:
+  requête `a7 (max-width: 270px)` — écran de 344 px au plus, soit 320 px, tandis que 360 et 375 px gardent la disposition de l'ordinateur (revue indépendante) — qui rétablit l'ancienne ligne d'icônes ;
+  replis `@supports not` à 639 px et 344 px ; Brouillon | Publier resserré de 216 à 208 px pour tenir dans la colonne de droite d'un écran de 360 px. Requête `aurore (max-width:
   480px)` : la grille de la racine passe à quatre colonnes (damier conservé,
   bulles de 46 px, libellés courts), plus aucune règle de défilement,
   d'aimantation ni de fondu ; repli à 639 px identique. Ordinateur et
   tablette large : aucun changement (mesures identiques). L'avatar n'a
   aucune règle : il est placé par la grille dans la première cellule libre,
   même boîte et mêmes coordonnées sur les quatre écrans.
-* **Contrôle** : typage 0 erreur, 1563/1563 tests (101 fichiers) après
+* **Contrôle** : typage 0 erreur, 1589/1589 tests (104 fichiers) après
   écriture des gardes CSS (rail non masqué à 560 px, rangées `auto 1fr`,
-  quatre colonnes IA, repli 300 px, replis 639/360 ; bande : grille 4
+  quatre colonnes IA, repli 270 px (aucun seuil 300 px), replis 639/344, resserrement du groupe ; bande : grille 4
   colonnes, aucun `overflow-x` / `scroll-snap` / `mask-image`, damier non
-  annulé), build OK ; captures et mesures avant/après sur quatre écrans
-  (1440 × 900, 820 × 1180, 390 × 844, 320 × 568) : téléphone — rail visible
-  avec 4 libellés, actions IA sur 1 rangée, champ 245 px, avatar 37,82 44 × 44
+  annulé), build OK ; captures et mesures avant/après sur six écrans
+  (1440 × 900, 820 × 1180, 390 × 844, 360 × 800, 375 × 667, 320 × 568 ; script `mesurer.cjs` versionné avec les captures) : téléphone — rail visible
+  avec 4 libellés, actions IA sur 1 rangée, champ 249 px (219 px à 360, 234 px à 375), avatar 37,82 44 × 44
   identique, bande 16/16 orbes visibles, 0 hors écran, aucun défilement ;
-  ordinateur — toutes mesures identiques ; 320 px — repli actif. Revue
+  ordinateur — toutes mesures identiques ; 320 px — repli actif (intitulé « Assistant IA » désormais visible, champ 120 px : rien ne disparaît). Revue
   indépendante et contre-vérification : consignées dans la PR.
 * **Statut** : 🟠 DÉVELOPPÉ, TESTÉ ET MESURÉ — NON DÉPLOYÉ (PR brouillon,
   prévisualisation Netlify ; production seulement sur feu vert écrit de la

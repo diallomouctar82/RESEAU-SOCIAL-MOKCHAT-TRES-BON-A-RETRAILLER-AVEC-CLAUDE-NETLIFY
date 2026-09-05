@@ -329,10 +329,20 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     let avatarRegles = 0; racine.walkRules((r) => { if (/img|avatar/.test(r.selector)) avatarRegles++; });
     expect(avatarRegles).toBe(0);
 
-    // Carte très étroite (conteneur ≤ 300 px) : la ligne d'icônes sous le
+    // Le groupe Brouillon | Publier se resserre un peu (216 → 208 px) pour
+    // tenir dans la colonne de droite d'un écran de 360 px (contenu 286 px,
+    // colonne ≈ 219 px) avec les polices réelles.
+    expect(decl(dans('.a7-groupe .a7-brouillon'), 'padding')).toBe('10px 12px');
+    expect(decl(dans('.a7-groupe .a7-publier'), 'padding')).toBe('10px 14px');
+
+    // Carte très étroite (conteneur ≤ 270 px, soit un écran de 344 px au
+    // plus : 320 px oui, 360 et 375 px NON — le conteneur vaut l'écran moins
+    // 74 px de marges, remplissage et bordure) : la ligne d'icônes sous le
     // champ reprend le relais, comme en DEC-2026-061.
     let etroit: postcss.AtRule | undefined;
-    racine.walkAtRules('container', (at) => { if (/a7/.test(at.params) && /max-width:\s*300px/.test(at.params)) etroit = at; });
+    racine.walkAtRules('container', (at) => { if (/a7/.test(at.params) && /max-width:\s*270px/.test(at.params)) etroit = at; });
+    let troisCents = 0; racine.walkAtRules('container', (at) => { if (/max-width:\s*300px/.test(at.params)) troisCents++; });
+    expect(troisCents).toBe(0);
     expect(etroit).toBeTruthy();
     const dansEtroit = (sel: string) => { let r: postcss.Rule | undefined; etroit?.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
     expect(decl(dansEtroit('.a7-rail'), 'display')).toBe('none');
@@ -343,13 +353,13 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(decl(dansEtroit('.a7-rangee'), 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
 
     // Repli pour les navigateurs sans requêtes de conteneur : la même chose,
-    // par l'écran (639 px, puis 360 px).
+    // par l'écran (639 px, puis 344 px = 270 px de contenu + 74 px).
     let repli: postcss.AtRule | undefined;
     racine.walkAtRules('supports', (at) => { if (/not \(container-type: inline-size\)/.test(at.params)) repli = at; });
     expect(repli).toBeTruthy();
     const medias: postcss.AtRule[] = [];
     repli?.walkAtRules('media', (at) => { medias.push(at); });
-    expect(medias.map((m) => m.params)).toEqual(['(max-width: 639px)', '(max-width: 360px)']);
+    expect(medias.map((m) => m.params)).toEqual(['(max-width: 639px)', '(max-width: 344px)']);
     const dansMedia = (m: postcss.AtRule, sel: string) => { let r: postcss.Rule | undefined; m.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
     expect(decl(dansMedia(medias[0], '.a7-grille'), 'grid-template-columns')).toBe('minmax(44px, auto) minmax(0, 1fr)');
     expect(decl(dansMedia(medias[0], '.a7-rail'), 'grid-row')).toBe('2');

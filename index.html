@@ -2368,18 +2368,27 @@
            flexible ne la dimensionne pas) : le rail commence juste dessous. */
         .a7-grille { grid-template-columns: minmax(44px, auto) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 10px; }
         .a7-rail { grid-column: 1; grid-row: 2; align-self: start; padding: 6px 0; }
-        .a7-rail .a7-ob { padding: 4px 2px; font-size: 10px; }
+        .a7-rail .a7-ob { padding: 4px 0; font-size: 10px; }
         .a7-corps { grid-column: 2; grid-row: 1 / span 2; }
         .a7-comp .a7-champ { min-height: 120px; padding-right: 54px; }
         .a7-rangee { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2px; padding: 4px 0; }
         .a7-rangee .a7-lab { grid-column: 1 / -1; margin: 0 0 2px; }
         .a7-rangee .a7-ob { padding: 6px 2px; min-width: 0; font-size: 10px; white-space: normal; text-align: center; line-height: 1.15; }
+        /* Brouillon | Publier un peu resserre (216 -> 208 px) : sur un ecran
+           de 360 px la colonne de droite fait ~219 px avec les polices reelles. */
+        .a7-groupe .a7-brouillon { padding: 10px 12px; }
+        .a7-groupe .a7-publier { padding: 10px 14px; }
       }
-      /* Carte tres etroite (largeur interieure de 300 px ou moins : ecrans
-         de 320 px, fenetres partagees) : le rail ne tient plus a cote du
-         champ, la ligne d'icones sous le champ (DEC-2026-061) reprend le
-         relais ; les quatre actions IA repassent sur deux lignes. */
-      @container a7 (max-width: 300px) {
+      /* Carte tres etroite : largeur interieure de 270 px ou moins. Le
+         conteneur vaut l'ecran moins 74 px (marges 32, remplissage 40,
+         bordure 2) : 270 px = ecran de 344 px au plus. Les 320 px (iPhone SE
+         1re generation) sont ici ; les 360 px (Android courant) et 375 px
+         gardent la disposition de l'ordinateur ci-dessus. Le rail ne tient
+         plus a cote du champ : la ligne d'icones sous le champ (DEC-2026-061)
+         reprend le relais et les quatre actions IA repassent sur deux lignes
+         (la grille `display: grid` de .a7-rangee vient de la requete 560 px,
+         qui englobe celle-ci). */
+      @container a7 (max-width: 270px) {
         .a7-grille { grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto; }
         .a7-rail { display: none; }
         .a7-corps { grid-row: auto; }
@@ -2388,18 +2397,23 @@
         .a7-medias-bas .a7-ob { padding: 4px 3px; }
         .a7-rangee { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
+      /* Navigateurs sans requetes de conteneur : la meme chose, par l'ecran
+         (ecran = largeur interieure + 74 px : 560 -> 634, arrondi a 639 comme
+         les autres blocs ; 270 -> 344, exact). */
       @supports not (container-type: inline-size) {
         @media (max-width: 639px) {
           .a7-grille { grid-template-columns: minmax(44px, auto) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 10px; }
           .a7-rail { grid-column: 1; grid-row: 2; align-self: start; padding: 6px 0; }
-          .a7-rail .a7-ob { padding: 4px 2px; font-size: 10px; }
+          .a7-rail .a7-ob { padding: 4px 0; font-size: 10px; }
           .a7-corps { grid-column: 2; grid-row: 1 / span 2; }
           .a7-comp .a7-champ { min-height: 120px; padding-right: 54px; }
           .a7-rangee { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2px; padding: 4px 0; }
           .a7-rangee .a7-lab { grid-column: 1 / -1; margin: 0 0 2px; }
           .a7-rangee .a7-ob { padding: 6px 2px; min-width: 0; font-size: 10px; white-space: normal; text-align: center; line-height: 1.15; }
+          .a7-groupe .a7-brouillon { padding: 10px 12px; }
+          .a7-groupe .a7-publier { padding: 10px 14px; }
         }
-        @media (max-width: 360px) {
+        @media (max-width: 344px) {
           .a7-grille { grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto; }
           .a7-rail { display: none; }
           .a7-corps { grid-row: auto; }
