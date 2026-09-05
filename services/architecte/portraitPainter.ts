@@ -57,6 +57,15 @@ export const UPPER_LIP_BAND_PERCENT = 4.5;
 export const UPPER_LIP_ROWS = 6;
 /** Sourcils : hauteur maximale du haussement (% du cadre) et bande de peau entraînée. */
 export const BROW_RAISE_PERCENT = 0.7;
+/** Bande des coins de lèvres : largeur et hauteur en multiples de la largeur de bouche, grille et fondu vertical. */
+export const LIP_BAND_WIDTH_FACTOR = 1.7;
+export const LIP_BAND_HEIGHT_FACTOR = 0.6;
+export const LIP_BAND_COLUMNS = 24;
+export const LIP_BAND_ROWS = 8;
+/** Part centrale de la bande mise à l'échelle (le reste rattrape jusqu'aux bords). */
+export const LIP_BAND_INNER = 0.55;
+/** Fondu vertical (part de la hauteur) où le déplacement s'éteint vers le haut et le bas. */
+export const LIP_BAND_FEATHER = 0.35;
 export const BROW_BAND_ABOVE = 3.2;
 export const BROW_BAND_BELOW = 1.4;
 export const BROW_ROWS = 8;
@@ -219,6 +228,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
     let head: HTMLCanvasElement | null = null;
     let scratch: HTMLCanvasElement | null = null;
     let scratchMask: HTMLCanvasElement | null = null;
+    let lipScratch: HTMLCanvasElement | null = null;
 
     const makeCanvas = () => {
         const c = document.createElement('canvas');
@@ -241,6 +251,7 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             head = null;
             scratch = null;
             scratchMask = null;
+            lipScratch = null;
         }
         return true;
     };
@@ -485,6 +496,67 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
     };
 
     /**
+     * COINS DES LÈVRES : les lèvres s'ARRONDISSENT (« ou », « o ») et
+     * s'ÉTIRENT (« i », « é ») pour de vrai — pas seulement la cavité. Une
+     * bande autour de la bouche, telle qu'elle vient d'être dessinée (lèvres,
+     * cavité, mâchoire), est redessinée par cellules : la partie centrale est
+     * mise à l'échelle horizontale, les flancs rattrapent jusqu'aux bords de
+     * la bande (identité), et le déplacement s'éteint vers le haut et le bas
+     * de la bande — aucune couture avec la peau autour. La cavité reçoit la
+     * racine carrée du facteur, la bande l'autre racine : le produit est le
+     * facteur de largeur de la pose, comme avant.
+     */
+    const drawLipCorners = (c: CanvasRenderingContext2D, pose: LivingPose, mouth: MouthAnchor) => {
+        const scale = Math.sqrt(Number.isFinite(pose.mouthWidth) && pose.mouthWidth > 0 ? pose.mouthWidth : 1);
+        if (Math.abs(scale - 1) < 0.015) return;
+        if (typeof DOMPoint === 'undefined' || typeof c.getTransform !== 'function') return;
+        const u = size / 100;
+        const m = c.getTransform();
+        const centre = m.transformPoint(new DOMPoint(mouth.xPercent * u, mouth.yPercent * u));
+        const bw = mouth.widthPercent * LIP_BAND_WIDTH_FACTOR * u * Math.abs(m.a);
+        const bh = mouth.widthPercent * LIP_BAND_HEIGHT_FACTOR * u * Math.abs(m.d);
+        const x0 = Math.round(centre.x - bw / 2);
+        const y0 = Math.round(centre.y - bh / 2);
+        const w = Math.round(bw);
+        const h = Math.round(bh);
+        if (w < 8 || h < 4) return;
+        if (!lipScratch) lipScratch = makeCanvas();
+        const s = lipScratch.getContext('2d');
+        if (!s) return;
+        s.setTransform(1, 0, 0, 1, 0, 0);
+        s.clearRect(x0, y0, w, h);
+        s.drawImage(canvas, x0, y0, w, h, x0, y0, w, h);
+        c.save();
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        const half = w / 2;
+        const inner = LIP_BAND_INNER;
+        const edgeIn = inner * scale;
+        // t ∈ [−1, 1] (demi-largeurs depuis le centre) → t' : centre à l'échelle, flancs jusqu'à l'identité aux bords.
+        const map = (t: number): number => {
+            const a = Math.abs(t);
+            if (a <= inner) return t * scale;
+            const k = (a - inner) / (1 - inner);
+            return Math.sign(t) * (edgeIn + (1 - edgeIn) * k);
+        };
+        for (let r = 0; r < LIP_BAND_ROWS; r += 1) {
+            const yA = y0 + (h * r) / LIP_BAND_ROWS;
+            const yB = y0 + (h * (r + 1)) / LIP_BAND_ROWS;
+            const yMid = ((yA + yB) / 2 - y0) / h;
+            const fy = smoothstep(Math.min(1, Math.min(yMid, 1 - yMid) / LIP_BAND_FEATHER));
+            for (let k = 0; k < LIP_BAND_COLUMNS; k += 1) {
+                const tA = -1 + (2 * k) / LIP_BAND_COLUMNS;
+                const tB = -1 + (2 * (k + 1)) / LIP_BAND_COLUMNS;
+                const sxA = centre.x + tA * half;
+                const sxB = centre.x + tB * half;
+                const dA = centre.x + (tA + (map(tA) - tA) * fy) * half;
+                const dB = centre.x + (tB + (map(tB) - tB) * fy) * half;
+                c.drawImage(lipScratch, sxA, yA, sxB - sxA, yB - yA, dA, yA, dB - dA + 0.35, yB - yA);
+            }
+        }
+        c.restore();
+    };
+
+    /**
      * Sourcils : la bande de front au-dessus des sourcils descend jusqu'à eux
      * en s'y accrochant, la bande juste dessous se détend vers l'œil qui,
      * lui, ne bouge pas. Pleinement sur les yeux, atténué vers les tempes.
@@ -590,8 +662,11 @@ export function createPortraitPainter(canvas: HTMLCanvasElement, photoUrl: strin
             if (head) ctx.drawImage(head, 0, 0);
             // 3. Regard, bouche, mâchoire, paupières — dans le repère de la tête.
             drawGaze(ctx, pose, rig);
-            drawMouth(ctx, pose, rig, mouth);
-            drawJaw(ctx, pose, rig, mouth);
+            // Largeur de bouche : la cavité et la mâchoire en prennent la racine carrée, les coins des lèvres l'autre racine.
+            const poseLevres = { ...pose, mouthWidth: Math.sqrt(Number.isFinite(pose.mouthWidth) && pose.mouthWidth > 0 ? pose.mouthWidth : 1) };
+            drawMouth(ctx, poseLevres, rig, mouth);
+            drawJaw(ctx, poseLevres, rig, mouth);
+            drawLipCorners(ctx, pose, mouth);
             drawBrows(ctx, pose, rig);
             drawLids(ctx, pose, rig);
             ctx.restore();

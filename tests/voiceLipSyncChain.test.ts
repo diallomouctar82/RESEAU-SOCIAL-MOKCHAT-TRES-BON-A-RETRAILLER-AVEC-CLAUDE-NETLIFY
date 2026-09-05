@@ -314,7 +314,7 @@ describe('voiceEngine — piste phonétique : la bouche suit le TEXTE aligné su
         expect(formes.at(-1)!.closed).toBeGreaterThan(0.8);
         expect(formes.at(-1)!.open).toBeLessThan(0.05);
         // « a » de « Smart » (1700–1750 ms) : mâchoire ouverte, lèvres ni jointes ni dents.
-        audio.currentTime = 1.815;
+        audio.currentTime = 1.835;
         image(2);
         const a = formes.at(-1)!;
         expect(a.open).toBeGreaterThan(0.3);

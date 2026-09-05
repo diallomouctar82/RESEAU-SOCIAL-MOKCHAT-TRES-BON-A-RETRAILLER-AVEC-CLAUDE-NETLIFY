@@ -201,7 +201,12 @@ export function amplitudeToOpenness(level: number): number {
  * L'ouverture monte vite (une syllabe attaque) et retombe plus lentement.
  */
 export const MOUTH_ATTACK_MS = 39;
-export const MOUTH_RELEASE_MS = 67;
+/**
+ * Fermeture aussi vive que l'ouverture (48 ms) : à 67 ms, les lèvres n'étaient
+ * plus jointes à temps sur un « m » ou un « p » de 50 ms (mesuré dans les
+ * pixels du film, 05/09).
+ */
+export const MOUTH_RELEASE_MS = 48;
 export const DEFAULT_FRAME_MS = 1000 / 60;
 
 /**
@@ -442,8 +447,13 @@ export function smoothMouthShape(previous: MouthShape, target: MouthShape, dtMs:
 // de phase, possible parce que le son entendu est lui-même retardé
 // (`LIP_SYNC_LOOKAHEAD_MS`) ou, au montage, parce que tout le son est connu.
 
-/** La bouche est affichée ce nombre de millisecondes AVANT le son entendu. */
-export const VISUAL_LEAD_MS = 60;
+/**
+ * La bouche est affichée ce nombre de millisecondes AVANT le son entendu.
+ * 60 ms donnait, mesuré dans la page réelle, 83 à 94 ms d'avance (file de
+ * l'élément média, cadence) — la Direction voyait « la voix d'un côté, les
+ * lèvres de l'autre » ; 40 ms vise 50 à 70 ms réels, la zone naturelle.
+ */
+export const VISUAL_LEAD_MS = 40;
 /** Demi-largeur de la fenêtre de coarticulation (ms). */
 export const COARTICULATION_WINDOW_MS = 40;
 /** Mémoire conservée par le tampon de formes (ms). */

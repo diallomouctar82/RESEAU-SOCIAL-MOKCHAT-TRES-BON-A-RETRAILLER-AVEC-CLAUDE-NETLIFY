@@ -342,11 +342,78 @@ const smoothstep01 = (x: number): number => {
     return t * t * (3 - 2 * t);
 };
 
+/**
+ * COARTICULATION (dominance) : une consonne de langue (t, d, n, l, k, g, R…)
+ * ne referme pas la bouche entre deux voyelles — la mâchoire reste à plus de
+ * la moitié de l'ouverture des voyelles voisines, et les lèvres gardent la
+ * forme (arrondie, étirée) de la voyelle qui vient. Sans cela, « l'avatar »
+ * (a-v-a-t-a-R) faisait claquer la mâchoire à chaque consonne : cinq
+ * inversions par seconde, un effet de marionnette. Les lèvres jointes
+ * (p, b, m) et les dents sur la lèvre (f, v) gardent toute leur autorité.
+ */
+const JAW_DOMINANCE: Partial<Record<Phone, number>> = {
+    t: 0.55, d: 0.55, n: 0.55, l: 0.55, k: 0.6, g: 0.6, N: 0.55, R: 0.65, J: 0.5,
+    // Sifflantes : les dents se touchent presque, la mâchoire cède peu aux voyelles
+    // (à 0,35, la bouche partait de trop haut pour se fermer sur le « m » qui suit).
+    s: 0.15, z: 0.15, S: 0.15, Z: 0.15,
+};
+const WIDTH_DOMINANCE = 0.7;
+
+function isVowelLike(p: AlignedPhone): boolean {
+    return p.cls === 'V_OPEN' || p.cls === 'V_MID' || p.cls === 'V_CLOSE' || p.cls === 'SCHWA' || p.cls === 'GLIDE';
+}
+
+/** Cible d'un phonème, coarticulée avec les voyelles voisines (même mot ou mot suivant sans pause). */
+function coarticulatedTarget(phones: AlignedPhone[], index: number): VisemeTarget {
+    const p = phones[index];
+    const own = visemeTarget(p.phone);
+    if (p.phone === '_' || isVowelLike(p)) return own;
+    // Mâchoire : seules les consonnes de langue cèdent aux voyelles voisines ;
+    // lèvres (largeur) : toute consonne prend déjà la forme de la voyelle qui vient.
+    const jawShare = JAW_DOMINANCE[p.phone as Phone] ?? 0;
+    let previous: VisemeTarget | null = null;
+    let next: VisemeTarget | null = null;
+    for (let k = index - 1; k >= 0 && k >= index - 3; k -= 1) {
+        const q = phones[k];
+        if (q.phone === '_' && q.end - q.start >= 60) break;
+        if (isVowelLike(q)) { previous = visemeTarget(q.phone); break; }
+    }
+    for (let k = index + 1; k < phones.length && k <= index + 3; k += 1) {
+        const q = phones[k];
+        if (q.phone === '_' && q.end - q.start >= 60) break;
+        if (isVowelLike(q)) { next = visemeTarget(q.phone); break; }
+    }
+    if (!previous && !next) return own;
+    // ANTICIPATION : la voyelle qui VIENT pèse trois fois plus que celle qui
+    // s'en va (les lèvres s'arrondissent sur le « p » de « pour », avant le « ou »).
+    const wPrev = previous && next ? 0.25 : previous ? 1 : 0;
+    const wNext = previous && next ? 0.75 : next ? 1 : 0;
+    const open = (previous ? previous.open * wPrev : 0) + (next ? next.open * wNext : 0);
+    const width = (previous ? previous.width * wPrev : 0) + (next ? next.width * wNext : 0);
+    // Les dents ne se montrent que si la bouche reste assez fermée : une sifflante entre deux « a » les montre moins.
+    const blendedOpen = Math.max(own.open, own.open + (open - own.open) * jawShare);
+    const teeth = own.teeth * (1 - Math.min(0.6, Math.max(0, blendedOpen - 0.3)));
+    return {
+        open: blendedOpen,
+        width: own.width + (width - own.width) * WIDTH_DOMINANCE,
+        teeth,
+        closed: own.closed,
+    };
+}
+
 function keyframesFromPhones(phones: AlignedPhone[]): MouthKeyframe[] {
     const keys: MouthKeyframe[] = [];
-    for (const p of phones) {
+    for (let index = 0; index < phones.length; index += 1) {
+        const p = phones[index];
         const d = p.end - p.start;
-        const target = visemeTarget(p.phone);
+        let target = coarticulatedTarget(phones, index);
+        // Dents : une fricative brève (< 50 ms) ou sonore (v, z, j) les montre moins — sinon elles clignotent.
+        if (target.teeth > 0) {
+            const voiced = p.phone === 'v' || p.phone === 'z' || p.phone === 'Z';
+            const brief = d < 50;
+            const factor = (voiced ? 0.6 : 1) * (brief ? 0.5 : 1);
+            if (factor !== 1) target = { ...target, teeth: target.teeth * factor };
+        }
         if (p.phone === '_') {
             // Une vraie pause referme la bouche ; un blanc bref entre deux mots
             // laisse la coarticulation faire (pas de claquement).
@@ -359,6 +426,23 @@ function keyframesFromPhones(phones: AlignedPhone[]): MouthKeyframe[] {
         const held = p.cls !== 'V_OPEN' && p.cls !== 'V_MID' && p.cls !== 'V_CLOSE' && p.cls !== 'SCHWA' && p.cls !== 'GLIDE';
         if (held) {
             // Consonne : la forme est ATTEINTE dès le début du segment et tenue.
+            // Lèvres jointes (p, b, m) : elles se scellent AVANT le silence
+            // acoustique (c'est le scellement qui coupe le son) — 20 ms d'avance.
+            const sealed = target.closed >= 0.9;
+            if (sealed) {
+                let tSeal = p.start - 20;
+                const last = keys[keys.length - 1];
+                if (last && last.t > tSeal - 24) {
+                    // La clé de fin de la consonne précédente recule pour laisser
+                    // 24 ms au scellement — sans passer avant sa propre clé de début.
+                    const prevStart = keys.length >= 2 ? keys[keys.length - 2].t : -Infinity;
+                    last.t = Math.max(prevStart + 8, tSeal - 24);
+                    if (last.t > tSeal - 12) tSeal = last.t + 12;
+                }
+                keys.push({ t: tSeal, target });
+                keys.push({ t: Math.max(tSeal + 8, p.end - Math.min(8, d * 0.2)), target });
+                continue;
+            }
             keys.push({ t: p.start + Math.min(8, d * 0.2), target });
             if (d > 30) keys.push({ t: p.end - Math.min(8, d * 0.2), target });
         } else if (d > 80) {

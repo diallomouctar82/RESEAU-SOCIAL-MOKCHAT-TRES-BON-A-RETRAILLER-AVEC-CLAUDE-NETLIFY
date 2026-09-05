@@ -369,15 +369,17 @@ describe('Synchro labiale — de la voix mesurée à l’ouverture', () => {
         expect(mouthReadTime(1000, 400)).toBeLessThan(mouthReadTime(1000, LIP_SYNC_LOOKAHEAD_MS));
     });
 
-    it('lisse : ouverture rapide à l’attaque, fermeture plus lente', () => {
+    it('lisse : ouverture rapide à l’attaque, fermeture presque aussi vive', () => {
         const montee = smoothOpenness(0, 1);
         const descente = smoothOpenness(1, 0);
         // ~4 images à 60 i/s pour 80 % de l'ouverture (≈ 70 ms), comme une
         // lèvre. Un facteur de 0,55 ouvrait en deux images et claquait —
-        // mesuré par simulation de la boucle réelle le 04/09.
+        // mesuré par simulation de la boucle réelle le 04/09. La fermeture
+        // (48 ms) doit sceller les lèvres à temps sur un « p » de 50 ms
+        // (à 67 ms, elles ne l'étaient plus — pixels du film, 05/09).
         expect(montee).toBeCloseTo(0.35, 2);
-        expect(1 - descente).toBeCloseTo(0.22, 2);
-        // La montée est plus franche que la descente : une bouche a de l'inertie.
+        expect(1 - descente).toBeCloseTo(0.29, 2);
+        // La montée reste un peu plus franche que la descente : une bouche a de l'inertie.
         expect(montee).toBeGreaterThan(1 - descente);
     });
 

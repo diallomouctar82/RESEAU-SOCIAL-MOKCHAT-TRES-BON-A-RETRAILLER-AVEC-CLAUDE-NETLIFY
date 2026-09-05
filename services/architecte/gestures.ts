@@ -188,7 +188,7 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
                 // finir : une phrase sur deux environ, côté et durée variables.
                 const r = hash01(tr.phraseIndex * 11 + 5);
                 if (r > 0.5) {
-                    tr.gazeTarget = { x: (r > 0.75 ? 1 : -1) * (0.22 + 0.15 * r), y: -0.12 - 0.1 * r };
+                    tr.gazeTarget = { x: (r > 0.75 ? 1 : -1) * (0.22 + 0.15 * r), y: -0.05 - 0.05 * r };
                     tr.gazeUntil = t + 350 + 250 * r;
                 }
             }
@@ -232,7 +232,7 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
             if (tr.silenceMs >= SENTENCE_END_MS && !tr.sentenceNoted) {
                 tr.sentenceNoted = true;
                 tr.tiltSign = -tr.tiltSign;
-                tr.tiltTarget = tr.tiltSign * (1.2 + 1.0 * hash01(tr.pauseIndex * 5 + 2));
+                tr.tiltTarget = tr.tiltSign * (0.9 + 0.7 * hash01(tr.pauseIndex * 5 + 2));
             }
         } else {
             tr.silenceMs = 0;
@@ -361,7 +361,8 @@ export function buildProsodyScore(track: VoiceTrack): ProsodyScore {
             if (r > 0.5 && sentenceWords.length >= 5) {
                 const firstStress = phones.find((p) => p.start >= t && p.stress >= 1);
                 const until = Math.min(firstStress ? firstStress.start : t + 700, t + 700);
-                events.push({ t: t - GAZE_LEAD_MS, kind: 'gaze', amount: 1, x: (r > 0.75 ? 1 : -1) * (0.22 + 0.15 * r), y: -0.12 - 0.1 * r, untilMs: until });
+                // Regard qui s'échappe : de côté surtout, à peine vers le haut (des yeux qui roulent au ciel ne font pas naturel).
+                events.push({ t: t - GAZE_LEAD_MS, kind: 'gaze', amount: 1, x: (r > 0.75 ? 1 : -1) * (0.22 + 0.15 * r), y: -0.05 - 0.05 * r, untilMs: until });
                 // On cligne souvent en déplaçant le regard (la saccade cache le clignement).
                 if (hash01(sentenceIndex * 3 + 1) > 0.35) blink(t - GAZE_LEAD_MS);
             }
@@ -385,7 +386,7 @@ export function buildProsodyScore(track: VoiceTrack): ProsodyScore {
                 blink(p.start + 40);
                 if (p.punctuation === '.') {
                     tiltSign = -tiltSign;
-                    events.push({ t: p.start + 100, kind: 'tilt', amount: tiltSign * (1.2 + 1.0 * hash01(pauseIndex * 5 + 2)) });
+                    events.push({ t: p.start + 100, kind: 'tilt', amount: tiltSign * (0.9 + 0.7 * hash01(pauseIndex * 5 + 2)) });
                 }
             }
             continue;

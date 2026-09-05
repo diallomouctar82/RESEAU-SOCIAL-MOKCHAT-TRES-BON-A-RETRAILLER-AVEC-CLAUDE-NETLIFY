@@ -210,3 +210,24 @@ describe('La partition des gestes, tirée de la même piste', () => {
         expect(score.events.every((e, i, arr) => i === 0 || e.t >= arr[i - 1].t)).toBe(true);
     });
 });
+
+describe('Coarticulation : les consonnes de langue ne referment pas la bouche entre deux voyelles', () => {
+    it('le « t » et le « v » de « l’avatar » gardent la mâchoire ouverte ; le « p » de « pour » reste fermé', () => {
+        const avatar = phonesOf('l’avatar');
+        const t = avatar.find((p) => p.phone === 't')!;
+        const a = avatar.filter((p) => p.phone === 'a');
+        const ouvertureT = trackShapeAt(track, (t.start + t.end) / 2).open;
+        const ouvertureA = Math.max(...a.map((p) => trackShapeAt(track, (p.start + p.end) / 2).open));
+        expect(ouvertureT).toBeGreaterThan(ouvertureA * 0.45);
+        expect(ouvertureT).toBeLessThan(ouvertureA);
+        const pour = phonesOf('pour');
+        const p = pour[0];
+        expect(trackShapeAt(track, (p.start + p.end) / 2).open).toBeLessThanOrEqual(0.05);
+        expect(trackShapeAt(track, (p.start + p.end) / 2).closed).toBeGreaterThanOrEqual(0.9);
+    });
+    it('les lèvres prennent la forme de la voyelle qui vient : le « p » de « pour » est déjà arrondi', () => {
+        const pour = phonesOf('pour');
+        const p = pour[0];
+        expect(trackShapeAt(track, (p.start + p.end) / 2).width).toBeLessThan(0.95);
+    });
+});
