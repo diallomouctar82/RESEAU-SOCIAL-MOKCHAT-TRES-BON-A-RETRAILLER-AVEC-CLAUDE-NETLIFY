@@ -109,18 +109,24 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     portraitUrl: '/architecte/architecte.webp',
     captionsUrl: '/architecte/vision-smart-heygen.fr.vtt',
     durationMs: 9082,
+    // Bande sombre corrigée (Direction, 05/09/2026) : la photo validée n'a pas de
+    // marge au-dessus du crâne, le modèle HeyGen portait donc la bande noire du
+    // portrait cadré (89 px sur 720). Sans nouveau crédit, la zone de bande de
+    // chacune des 228 images a été recomposée sur le portrait d'usine corrigé
+    // (prolongement adouci du fond), à travers la silhouette du détourage ; le
+    // reste des pixels HeyGen et le son AAC sont inchangés (H.264 crf 18, VP9).
     sources: [
         {
             url: '/architecte/vision-smart-heygen.mp4',
             type: 'video/mp4',
-            sha256: 'c97e18315c4e7c67bfc7e0499b634d2ddb00dd8ffac3d0840dd8c521b20ea87a',
-            sizeBytes: 1558047,
+            sha256: '1f87a5983466bd84eb0a233f464fade3f29f5b26df834eb445be4abe83d900c7',
+            sizeBytes: 1400595,
         },
         {
             url: '/architecte/vision-smart-heygen.webm',
             type: 'video/webm',
-            sha256: '69bde4022b6f0a19620eb3f83f880ebbac35843d023fe5687489e059acf079a4',
-            sizeBytes: 445523,
+            sha256: '7358f2e22b343bc53232d4469846c45516cedb6ea94b233539657125b9cab8ac',
+            sizeBytes: 561944,
         },
     ],
     // Détourage image par image (05/09/2026, photo validée) : silhouette relevée
@@ -144,7 +150,8 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     provider: 'heygen',
     model: {
         // Le portrait d'usine = la photo validée par la Direction (05/09/2026),
-        // cadrée par le moteur de l'option Super-Admin (768 px).
+        // cadrée par le moteur de l'option Super-Admin (768 px), le débord du haut
+        // comblé par le prolongement adouci du fond (v6.41.1).
         portraitUrl: '/architecte/architecte.webp',
         voice: 'Voix attitrée de l’Architecte — ElevenLabs « George » (eleven_multilingual_v2), la même que la barre flottante, enregistrée le 05/09/2026 sur la phrase officielle',
         settings: { aspectRatio: '1:1', resolution: '720p', expressiveness: 'medium', fit: 'contain' },

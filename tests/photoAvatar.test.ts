@@ -11,8 +11,10 @@ import {
     LANDMARK,
     LANDMARKS_WITH_IRIS,
     applyPhotoAvatar,
+    describeOverflow,
     featherAlpha,
     framingFromPupils,
+    overflowBands,
     pupilsFrom,
     revertPhotoAvatar,
     rigFromLandmarks,
@@ -75,6 +77,37 @@ describe('Cadrage au portrait d’usine', () => {
         // Photo trop serrée : le carré déborde, la couverture le dit.
         const serre = framingFromPupils({ x: 0.3, y: 0.3 }, { x: 0.7, y: 0.3 }, 400, 400);
         expect(serre.coverage).toBeLessThan(0.8);
+    });
+});
+
+describe('Bandes de débord (photo trop serrée)', () => {
+    it('une photo sans marge au-dessus du crâne déborde en haut, et seulement en haut — nommé pour l’Admin-Général', () => {
+        // Le cas de la photo validée : le carré de 768 px sort de 95 px par le haut (bande de 12,4 %).
+        const bands = overflowBands({ x: 20, y: -95, side: 768 }, 808, 900);
+        expect(bands.top).toBeCloseTo(95 / 768, 5);
+        expect(bands).toMatchObject({ bottom: 0, left: 0, right: 0 });
+        expect(describeOverflow(bands)).toEqual(['en haut (12,4 %)']);
+    });
+    it('rien ne déborde → aucune bande ; sous 2 % la bande est invisible → pas d’avertissement ; côtés bornés à 0..1, jamais NaN', () => {
+        expect(describeOverflow(overflowBands({ x: 0, y: 0, side: 500 }, 500, 500))).toEqual([]);
+        expect(describeOverflow(overflowBands({ x: -5, y: 0, side: 500 }, 500, 500))).toEqual([]);
+        expect(overflowBands({ x: 0, y: 0, side: 0 }, 10, 10)).toEqual({ top: 0, bottom: 0, left: 0, right: 0 });
+        // Carré de 400 centré sur une photo de 100 : 150 px manquent de chaque côté.
+        const all = overflowBands({ x: -150, y: -150, side: 400 }, 100, 100);
+        expect(all).toEqual({ top: 0.375, bottom: 0.375, left: 0.375, right: 0.375 });
+        expect(describeOverflow(all)).toEqual(['en haut (37,5 %)', 'en bas (37,5 %)', 'à gauche (37,5 %)', 'à droite (37,5 %)']);
+        // Un carré entièrement hors de la photo est borné à 1, jamais au-delà.
+        expect(overflowBands({ x: -1000, y: 0, side: 400 }, 100, 100).left).toBe(1);
+    });
+    it('le carré calculé sur la photo validée (pupilles hautes) déborde bien en haut, avec la couverture qui va avec', () => {
+        // 566 × 499 : pupilles à 30 % de la hauteur, écart de 21,4 % de la largeur → le carré fait 566 px et sort par le haut.
+        const framing = framingFromPupils({ x: 0.393, y: 0.30 }, { x: 0.607, y: 0.30 }, 566, 499);
+        const bands = overflowBands(framing, 566, 499);
+        expect(bands.top).toBeGreaterThan(0.1);
+        expect(bands.left).toBe(0);
+        expect(bands.right).toBe(0);
+        expect(framing.coverage).toBeLessThan(1);
+        expect(describeOverflow(bands)[0]).toMatch(/^en haut \(\d+,\d %\)$/);
     });
 });
 
