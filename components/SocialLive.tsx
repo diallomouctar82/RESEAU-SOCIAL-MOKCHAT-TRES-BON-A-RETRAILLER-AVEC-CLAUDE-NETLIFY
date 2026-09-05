@@ -2090,6 +2090,24 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
     });
   };
 
+  // LV-2 Point 1 — sortie CLAIRE et PROPRE du direct, sans rechargement.
+  // Un spectateur qui veut simplement partir sort IMMÉDIATEMENT : il coupe son
+  // média local, quitte réellement la session (leaveLiveSession pose left_at) et
+  // onClose() referme la vue LIVE — un simple changement d'état React côté
+  // parent, jamais un rechargement de page. L'animateur, lui, garde le
+  // compte-rendu de fin (handleEndLive) : c'est SON direct, la matière à
+  // résumer est la sienne. Un spectateur n'a rien à résumer et n'a jamais eu à
+  // publier le compte-rendu d'un direct qui n'est pas le sien.
+  const handleQuitLive = () => {
+    if (isHost) {
+      handleEndLive();
+      return;
+    }
+    stopLocalMedia();
+    leaveRealSession();
+    onClose();
+  };
+
   // Publier le compte-rendu sur le fil social — crée un vrai brouillon
   // (jamais publié automatiquement), avec la provenance réelle vers ce Live
   // (source_type/source_id, LOOP 01/17). Retourne le succès réel.
@@ -2646,13 +2664,20 @@ export const SocialLive: React.FC<SocialLiveProps> = ({
             </button>
           </div>
 
+          {/* LV-2 Point 1 — bouton de sortie CLAIR : plus une icône seule
+              (rouge, PhoneOff) dont le rôle se devinait ; un vrai libellé
+              « Quitter » visible sur téléphone ET ordinateur. shrink-0 et hors
+              de la zone défilante (MB-1) : la commande la plus essentielle du
+              direct ne rétrécit ni ne part hors de l'écran. */}
           <button
-            onClick={handleEndLive}
-            className="shrink-0 w-11 h-11 flex items-center justify-center bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl border border-red-500/30 transition-colors"
-            title="Quitter ou terminer le Live"
-            aria-label="Quitter ou terminer le Live"
+            onClick={handleQuitLive}
+            data-testid="live-quit-button"
+            className="shrink-0 h-11 flex items-center justify-center gap-1.5 px-3 bg-red-600/20 hover:bg-red-600 text-red-200 hover:text-white rounded-xl border border-red-500/40 font-bold text-xs sm:text-sm transition-colors"
+            title="Quitter le direct"
+            aria-label="Quitter le direct"
           >
-            <PhoneOff size={18} />
+            <PhoneOff size={16} />
+            <span>Quitter</span>
           </button>
         </div>
 

@@ -1,0 +1,102 @@
+{
+  "session-invalide-rejeu/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "apresRejeu": {
+      "navigationInterne": false,
+      "champMotDePasse": true,
+      "composeur": false,
+      "verdictEcran": "ECRAN_AUTHENTIFICATION"
+    },
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide-rejeu/navigateur-mobile": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "apresRejeu": {
+      "navigationInterne": false,
+      "champMotDePasse": true,
+      "composeur": false,
+      "verdictEcran": "ECRAN_AUTHENTIFICATION"
+    },
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-invalide-rejeu",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  }
+}

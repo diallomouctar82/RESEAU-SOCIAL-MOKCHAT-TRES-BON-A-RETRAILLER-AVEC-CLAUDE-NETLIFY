@@ -20,6 +20,97 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-081] — 5 Septembre 2026
+* **Module(s)** : Authentification & sessions (`services/auth.ts`, `App.tsx`, fiche `docs/modules/AUTHENTIFICATION.md`) ; Sécurité & infrastructure (`netlify.toml` — domaine canonique).
+* **Problème / Besoin initial** : Direction (05/09) : « Mission urgente : correction de l'accès public à Moknet. Constat : le lien moknet.net ouvre directement l'interface sans authentification. […] toute personne non connectée qui ouvre moknet.net doit arriver obligatoirement sur l'écran de connexion ou de création de compte. L'accès direct à l'interface doit être strictement réservé aux utilisateurs authentifiés avec une session valide. Si déjà connecté, redirection normale vers Réseau Moknet. Sinon, aucune page interne ne doit s'ouvrir. […] quel que soit le canal d'ouverture du lien : SMS, WhatsApp, Messenger, navigateur mobile et ordinateur, y compris les navigateurs intégrés des apps. […] gérer toutes les variantes d'écriture du domaine ». **Constat reproduit (🚀 page de production servie `index-Bm6woHcd.js`, miroir Chromium, contexte vierge, sept canaux émulés par leur agent utilisateur réel)** : sans session sur l'appareil, `moknet.net` affiche « Se connecter » sur les sept canaux, ordinateur et téléphone — ce n'est pas par là que l'interface s'ouvrait. **Cause racine prouvée** : l'entrée (`App.tsx`) ne faisait que relire le stockage local (`getSession()`, jamais le serveur) et ouvrait l'interface *sur erreur* (« Local-First », v6.1) : une session locale que le serveur refuse — jeton périmé côté serveur, révoqué, forgé, compte supprimé ou banni (refus 401/403 rejoué en banc) — ouvrait l'interface interne sur les sept canaux, avec le profil local ou de démonstration ; un appareil qui a gardé une session d'un compte supprimé entrait donc encore. Les variantes du domaine (`www`, `http`, majuscules) étaient déjà ramenées à `https://moknet.net` par la configuration du site Netlify (domaine principal), de façon implicite et non versionnée.
+* **Idées / Options envisagées** : (1) verrou côté serveur (fonction Edge Netlify devant `index.html`) — refusée : la session vit dans le stockage du navigateur, invisible du serveur sans refonte de l'authentification en cookies (hors périmètre, risque de régression sur toutes les connexions) ; (2) redirection du domaine dans le code de l'application — refusée : les majuscules n'atteignent jamais l'application (norme URL : le navigateur écrit l'hôte en minuscules avant la requête), et une règle cliente contredirait la configuration du site si le domaine principal changeait (boucle de redirections) ; (3) **retenue** : vérification de toute session relue depuis le stockage auprès du serveur d'authentification avant d'ouvrir l'interface, refus = session locale effacée + écran de connexion ; et déclaration versionnée des redirections canoniques dans `netlify.toml`, là où la normalisation se fait déjà, avant l'application et pour tous les canaux.
+* **Décision retenue — verrou d'entrée fail-closed + domaine canonique déclaré** :
+  - `services/auth.ts#verifierSession(session)` : `GET /auth/v1/user` avec le jeton de la session locale (passé explicitement, sans verrou multi-onglets). Verdict `valide` (utilisateur confirmé, même identifiant) ; `invalide` (refus JSON de Supabase lui-même : 401 jeton invalide ou périmé, 403 compte supprimé ou banni ; utilisateur absent ou différent ; session locale incomplète) → `signOut({ scope: 'local' })` puis écran de connexion ; `non-verifiee` (aucun verdict : panne réseau, 5xx, 429, réponse non JSON d'un intermédiaire, ou 8 s sans réponse — `DELAI_VERIFICATION_SESSION_MS`) → la session locale **non expirée** est conservée : tolérance DITE pour un réseau mobile capricieux, qui ne vaut jamais pour un jeton que le serveur a refusé.
+  - `App.tsx` : **toute** session, quel que soit l'événement qui l'apporte (`getSession()` au démarrage, `INITIAL_SESSION`, `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED`), passe par le verdict de **son jeton**, une seule fois par jeton (verdict partagé, un jeton refusé reste refusé) — le nom de l'événement n'est pas une preuve : supabase-js rejoue en `SIGNED_IN` la session lue dans le stockage à l'initialisation, à chaque retour sur l'onglet et par BroadcastChannel depuis un autre onglet, sans appel serveur (constat bloquant du contrôle indépendant, corrigé). Une connexion coûte un `GET /auth/v1/user` de plus avant l'entrée. Garde de course : une déconnexion ou une autre session survenue pendant le chargement du profil rend le traitement caduc (l'interface ne s'ouvre pas après coup). Tout le reste est inchangé : entrée directe sur Réseau MokNet, déconnexion, récupération de mot de passe, module autonome, `/architecte`, « Se souvenir de moi ».
+  - `netlify.toml` : `https://www.moknet.net/*`, `http://www.moknet.net/*`, `http://moknet.net/*` → `https://moknet.net/:splat`, 301, `force = true`, avant les réécritures de chemin ; les majuscules ne demandent aucune règle (DNS + norme URL, prouvé) ; garde-fou écrit : si le domaine principal change, ces règles changent avec lui.
+  - Rien supprimé, aucun écran modifié.
+* **Preuves** : `tests/sessionValidee.test.ts` (12 : valide, refus 401, compte supprimé 403, utilisateur différent, panne réseau, 503, 429 → non vérifiée, réponse non JSON d'un intermédiaire → non vérifiée, délai dépassé, session incomplète, effacement local qui ne répond pas → verdict rendu dans le délai, effacement local qui échoue), `tests/appEntreeReseau.test.tsx` (+12 : aucune session, session refusée → connexion, session valide → Réseau MokNet, `INITIAL_SESSION` partage le verdict, refus par `INITIAL_SESSION` seul, connexion = une vérification puis Réseau MokNet, `SIGNED_IN` avec un jeton refusé → connexion, `SIGNED_IN` rejoué avec le jeton déjà refusé → refus maintenu sans seconde vérification, `SIGNED_IN` rejoué pendant la vérification initiale → jamais l'interface, déconnexion pendant le chargement du profil → l'interface ne s'ouvre pas après coup, serveur injoignable → tolérance dite, déconnexion puis reconnexion), `tests/netlifyRedirectsCanoniques.test.ts` (6 : trois règles 301 forcées, aucune boucle, réécritures existantes intactes, ordre) ; suite complète 1 632 tests / 107 fichiers ✓ ; typage 0 (relancé après les tests) ; build ✓.
+* **Essai navigateur réel (Chromium 1194, `docs/captures/2026-09-05-acces-public-authentification/`)** : **avant** = 🚀 page de production servie (`index-Bm6woHcd.js`) en miroir local ; **après** = 🧪 build de la branche ; sept canaux (navigateur ordinateur 1440 × 900 ; navigateur mobile, SMS Android WebView, WhatsApp Android, Messenger Android, Messenger iOS, WhatsApp iOS SafariView : 390 × 844 ×2, agent utilisateur réel de chaque navigateur intégré) × cinq états de l'appareil (vierge ; profil local sans session ; session refusée par le serveur ; session confirmée ; serveur injoignable) = 70 mesures DOM (`avant-mesures.json`, `apres-mesures.json`). **Session refusée par le serveur : 7/7 interface interne avant → 7/7 écran de connexion après.** Vierge et profil local sans session : 28/28 écran de connexion (avant comme après). Session confirmée : 14/14 interface, Réseau MokNet à l'entrée (aucune régression). Serveur injoignable : 14/14 interface (tolérance dite). Domaine : dix écritures (`www`, `http`, `Moknet.net`, `MOKNET.NET`, `Www.Moknet.Net`…) tracées par `curl` — toutes finissent sur `https://moknet.net/` ; norme URL vérifiée (`new URL('https://WWW.Moknet.NET/').host === 'www.moknet.net'`).
+* **Contrôle indépendant** (agent séparé, producteur ≠ contrôleur, 05/09) : verdict « À CORRIGER » sur `12cdde6` — 1 BLOQUANT (hypothèse « `SIGNED_IN` vient toujours du serveur » fausse : supabase-js rejoue la session du stockage en `SIGNED_IN` au retour sur l'onglet et entre onglets ; trou démontré au banc, reproduit ensuite dans Chromium sur la page de production : après refus, rejeu → interface), 2 IMPORTANTS (chiffre de tests 1 611 → 1 612 ; limite non dite), 3 MINEURS (refus non JSON d'un intermédiaire classé « invalide » ; commentaire `netlify.toml` « une seule redirection » alors que `http://www…` fait deux sauts ; vérification redondante quand le client vient de rafraîchir le jeton). Tous corrigés sauf le dernier (bénin, consigné). **Contre-vérification** par le même contrôleur sur `716622c` : verdict **« PRÊT »** (contre-épreuves rejouées : les deux trous `SIGNED_IN` fermés ; 4 tests d'origine identiques à l'octet ; mémoire vivante isolée ; aucun secret), avec quatre mineurs corrigés dans la foulée : effacement local borné par le délai (le `POST /auth/v1/logout` qui traîne ne retient plus l'écran de connexion), `Map` des verdicts plafonnée à quatre jetons, test « rejeu pendant la vérification initiale » rendu discriminant (profil résolu après le refus, `fetchUserProfile` jamais appelé), `.catch` sur `getSession()` (une exception de relecture mène à l'écran de connexion, jamais à un chargement sans fin).
+* **Limites dites** : les navigateurs intégrés sont émulés par leur agent utilisateur dans Chromium — le comportement réel de WhatsApp, Messenger et SMS sur un téléphone appartient au contrôle de la Direction ; le rejeu `SIGNED_IN` est éprouvé au banc (tests DOM) et dans Chromium sur un onglet (jeton remis dans le stockage puis `visibilitychange`), pas avec deux vrais onglets ; quand le client vient de rafraîchir le jeton à l'ouverture, le jeton neuf est vérifié une fois de plus (un appel, bénin) ; un jeton d'accès encore valide (au plus 1 h) après une « déconnexion partout » lancée depuis un autre appareil n'est pas révoqué par ce contrôle (limite des jetons signés) ; serveur d'authentification injoignable au démarrage → tolérance (entrée avec la session locale non expirée), à durcir sur décision de la Direction ; les règles de domaine de `netlify.toml` ne s'observent qu'en production (le preview Netlify n'a pas ce domaine) ; connexion Google depuis un navigateur intégré Messenger / Facebook : Google refuse ses formulaires dans ces navigateurs (limite Google, hors périmètre — la connexion par e-mail reste disponible) ; `/architecte` reste la page publique de démonstration décidée par DEC-2026-066 (aucune donnée de compte).
+* **Feu vert** : Direction, 05/09/2026 : « Je donne feu vert écrit pour une production contrôlée sur ton périmètre actuel uniquement, sans toucher aux autres chantiers. Tu avances sans régression, tu contrôles immédiatement le résultat réel et tu me confirmes. »
+* **Statut** : 🟢 **EN PRODUCTION CONTRÔLÉE depuis le 5/09/2026 à 17:01 UTC** — PR #105 fusionnée en squash → `main` `daa6575` le 5/09/2026 à 17:00 UTC (Green Gate vert sur la tête exacte `4247523`, run 33979505971 ; sur `main`, run 33979639128) après contrôle de coordination (`main` = `6f6f03d` revérifié dans la minute, aucune autre fusion en cours) ; `moknet.net` sert `index-CacRDIgE.js` depuis 17:01:54 UTC (5 432 686 octets) avec les quatre marqueurs du verrou (« refus du serveur d'authentification (», « serveur d'authentification sans verdict », « Session locale refusée par le serveur », « le jeton ne correspond pas à l'utilisateur de la session locale »), ancienne formulation absente, ancien bundle `index-6ZrCib2c.js` → 404, `cache-control: public,max-age=0,must-revalidate` ; dix écritures du domaine tracées après fusion (`www`, `http`, majuscules) → toutes sur `https://moknet.net/` ; fumée Chromium sur le bundle réellement servi (miroir local) : vierge → connexion, session refusée → connexion, session confirmée → interface, rejeu `SIGNED_IN` → connexion maintenue, ordinateur et téléphone, 8/8. Contrôle visuel sur un vrai téléphone (WhatsApp, Messenger, SMS) : appartient à la Direction. Précision consignée (contrôle indépendant) : le verdict complet sur une session refusée peut prendre jusqu'à deux fois le délai (16 s au pire : `getUser` puis `logout` qui traînent), jamais sans fin.
+### [DEC-2026-080] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
+  (`components/AIPostAssistantModal.tsx`), feuille `index.html` (nouveau bloc
+  « ASSISTANT IA — MODALE AU-DESSUS DU DOCK », couche aqua régénérée),
+  tests `tests/aiPostAssistantModal.test.tsx`, captures et script de parcours
+  `docs/captures/2026-09-05-assistant-ia-modale-dock/`.
+* **Problème / Besoin initial** : consigne de la Direction, capture iPhone à
+  l'appui : « sur téléphone, dans le parcours de publication, le bouton
+  Appliquer à ma publication est masqué par la barre du bas où il y a menu et
+  messages. Il faut que ce bouton reste visible et cliquable sur mobile. […]
+  Je veux une correction prouvée sur téléphone, avec un parcours complet
+  jusqu'à la publication. » Constat reproduit sur `origin/main` (`1c2daf6`,
+  harnais 390 × 844 et 360 × 800) : au centre du bouton « Appliquer à ma
+  publication », `document.elementFromPoint` renvoie le dock mobile
+  (`.mir-dock`) ; un clic réel à ce point ne ferme pas la modale ; le parcours
+  est bloqué. Cause : la modale était rendue dans `#root` en `position: fixed`
+  avec `z-index: 50`, avant le dock dans le DOM (`z-50`, donc dessiné
+  par-dessus elle) et sous la barre flottante de l'Architecte (`z-[60]`) ;
+  son voile ne couvrait pas toute la fenêtre (il commençait 24 px sous le
+  haut de l'écran ; mécanisme non identifié après sonde des ancêtres, sans
+  objet une fois la modale sortie de `#root`). Sur ordinateur le parcours
+  passait déjà (pas de dock).
+* **Options considérées** : (a) remonter le `z-index` de la modale en la
+  laissant dans `#root` — reste exposée à tout futur élément fixe et n'isole
+  pas le reste de la page ; (b) réserver une marge basse de la hauteur du
+  dock — bancal, dépend de la hauteur du dock et de la zone sûre ; (c)
+  **portail sur `<body>`**, comme le studio Visuel IA (DEC-2026-071) :
+  hors de `#root`, qui devient `inert` pendant l'ouverture ; `z-index`
+  2147482000 (au-dessus du dock et de la barre flottante, sous le studio à
+  2147483000) ; hauteur bornée à `90dvh` avec repli `90vh` ; pied avec
+  `max(1rem, env(safe-area-inset-bottom))` ; `data-miroir` posé sur la
+  modale pour que la couche aqua la suive hors de `Layout` — retenu.
+* **Décision** : option (c). Rien n'est retiré ni déplacé dans la modale :
+  mêmes onglets, mêmes tons, mêmes zones de texte, mêmes boutons « Annuler »
+  et « Appliquer à ma publication », même matière et mêmes dégradés (sonde
+  versionnée : 34 propriétés identiques, 11 différences toutes attendues,
+  31 textes aux couleurs identiques avant / après) ; la logique IA et les
+  gestionnaires ne changent pas. La modale devient un vrai dialogue :
+  `role="dialog"`, `aria-modal`, titre lié, focus pris à l'ouverture et rendu
+  au déclencheur à la fermeture, Échap ferme quand le focus est dans la
+  modale. Pendant l'ouverture, tout `#root` est inerte et sous le voile
+  (dock, barre flottante, sculpture de l'Architecte) : comportement attendu
+  d'une modale, identique au studio Visuel IA ; tout redevient actif et
+  visible à la fermeture.
+* **Contrôle** : typage 0 erreur, 1602/1602 tests (105 fichiers ; 7 tests
+  nouveaux : portail hors `#root`, racine inerte, focus, Échap, pied,
+  gardes CSS analysées par postcss), build OK ; parcours rejoué avant /
+  après sur 390 × 844, 360 × 800 et 1440 × 900 (avant = `main` `1c2daf6`, après =
+  tête fusionnée `1d4ffb8` ; script versionné, JSON avec SHA, captures,
+  sonde) : après, l'élément sous le doigt est le bouton, la modale se
+  ferme, le texte est appliqué, « Publier » publie et le texte apparaît dans
+  le fil, zéro erreur JS ; avant, parcours bloqué sur les deux téléphones.
+  Limite honnête : harnais sur le même code (pas l'écran authentifié),
+  Chromium émulé (zone sûre et `dvh` non mesurés sur iPhone réel).
+* **Production contrôlée** : feu vert écrit de la Direction le 5/09/2026 vers
+  16:45 UTC (« feu vert pour la production contrôlée de la PR #109
+  uniquement, sur la tête e5ed7eb ») ; revue indépendante « À CORRIGER »
+  (deux constats documentaires) puis contre-vérification « PRÊT » ; Green
+  Gate vert sur `1d4ffb8`, `683822b` et `e5ed7eb` (run 33978405335) ;
+  `main` vérifié inchangé (`1c2daf6`, dernière fusion #108 à 15:56:38 UTC,
+  aucune autre fusion en cours) ; PR #109 fusionnée en squash sur la tête
+  exacte `e5ed7eb` → `main` `81c66c8` à 16:46:29 UTC ; `moknet.net` sert la
+  nouvelle page depuis 16:47:11 UTC (bundle `index-6ZrCib2c.js`, sept
+  marqueurs présents, ancien bundle `index-Bvy0oNZ6.js` → 404, vérificateur
+  « conforme ») ; Green Gate vert sur `main` (run 33978900871) ; sur le code
+  fusionné `81c66c8` : typage 0 erreur, 1602/1602 tests (105 fichiers), build
+  OK, parcours de publication réussi sur 390 × 844, 360 × 800 et 1440 × 900
+  (harnais, zéro erreur JS). Limite honnête : l'écran authentifié n'est pas
+  capturable sans compte ; les preuves téléphone et ordinateur du parcours
+  proviennent du harnais sur ce même code.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  fusion 16:46:29 UTC, page servie 16:47:11 UTC, v6.41.1).
+
+---
+
 ### [DEC-2026-079] — 5 Septembre 2026
 
 * **Module(s)** : Diallo OS & Architecte (module 01) — portrait d'usine, registre des séquences, barre flottante ; Super-Admin (tableau de bord : onglet « Avatar de l'Architecte ») ; réglages partagés de la plateforme (`platform_settings`, migration versionnée **non appliquée**) ; bancs `design-lab/banc/super-admin.html` et `reperes.html`.
@@ -3144,7 +3235,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-080] — 4 Septembre 2026
+### [DEC-2026-082] — 4 Septembre 2026
 * **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
 * **Problème / Besoin initial** : AI Core était une **boîte noire** pour
   l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
@@ -3263,8 +3354,8 @@ Chaque décision respecte le formalisme strict suivant :
   `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
   `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
   `components/admin/AiOrchestrator.tsx`.
-* **Preuves** : `tsc` 0 · **vitest 1610/1610 (105 fichiers)** après quatorze remises
-  à niveau sur `main` (jusqu'à la PR #107) · `npm run build` propre · Green Gate
+* **Preuves** : `tsc` 0 · **vitest 1650/1650 (109 fichiers)** après quinze remises
+  à niveau sur `main` (jusqu'à la PR #112) · `npm run build` propre · Green Gate
   **vert** sur `b47a06a`, relancé sur le HEAD courant ·
   séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
   (conditions d'un checkout propre) · lien public de prévisualisation

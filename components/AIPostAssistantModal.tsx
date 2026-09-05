@@ -1,6 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Sparkles, Wand2, Globe, Hash, Type, Image as ImageIcon, Check, Copy, ArrowRight, X, Loader2, RefreshCw, Layers, ShieldCheck, Heart } from 'lucide-react';
 import { aiService } from '../services/ai';
+
+// DEC-2026-080 — sur téléphone, le pied de la modale (« Annuler »,
+// « Appliquer à ma publication ») était recouvert par le dock du bas (fixed,
+// z-index 50, rendu après la modale dans le DOM) et par la barre flottante de
+// l'Architecte (z-index 60). La modale vit désormais dans un portail sur
+// <body>, au-dessus de toute la coquille (bloc « ASSISTANT IA » d'index.html),
+// et la racine de l'application devient inerte pendant l'ouverture — même
+// motif que le studio « Visuel IA » (DEC-2026-061), prouvé sur téléphone.
+const racineApplication = () => (typeof document === 'undefined' ? null : document.getElementById('root'));
 
 export type AIPostAssistantTool = 'style' | 'translate' | 'hashtags' | 'visual' | 'headline';
 
@@ -64,6 +74,32 @@ export const AIPostAssistantModal: React.FC<AIPostAssistantModalProps> = ({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // DEC-2026-080 — ouverture : racine inerte, focus sur « Fermer », Échap ;
+  // fermeture : focus rendu au déclencheur. `onClose` est lu par une ref pour
+  // qu'un re-rendu du parent (fonction inline) ne rejoue pas l'effet.
+  const feuilleRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!isOpen) return;
+    const declencheur = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const racine = racineApplication();
+    racine?.setAttribute('inert', '');
+    const t = window.setTimeout(() => {
+      feuilleRef.current?.querySelector<HTMLElement>('.ia-fermer')?.focus();
+    }, 30);
+    const surTouche = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && feuilleRef.current?.contains(document.activeElement)) { e.stopPropagation(); onCloseRef.current(); }
+    };
+    document.addEventListener('keydown', surTouche, true);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener('keydown', surTouche, true);
+      racine?.removeAttribute('inert');
+      if (declencheur && declencheur.isConnected) declencheur.focus();
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -176,10 +212,16 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
-        
+  // Portail sur <body> : la modale n'est plus un enfant de la page (et donc
+  // plus derrière le dock mobile) ; en environnement sans document, rendu tel quel.
+  const portail = typeof document === 'undefined' ? null : document.body;
+  // DEC-2026-080 : portée sur <body>, la modale sort du périmètre [data-miroir] de
+  // Layout ; elle porte donc elle-même data-miroir pour garder l habillage aqua
+  // (en-tête, matière de la carte) identique à avant, seulement au-dessus du dock.
+  const feuille = (
+    <div ref={feuilleRef} data-miroir role="dialog" aria-modal="true" aria-labelledby="ia-modale-titre" className="ia-fond fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+      <div className="ia-carte bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col animate-scale-up">
+
         {/* Header */}
         <div className="p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -188,15 +230,17 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-lg text-white">Assistant IA Pré-Publication Mooc</h3>
+                <h3 id="ia-modale-titre" className="font-bold text-lg text-white">Assistant IA Pré-Publication Mooc</h3>
                 <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 bg-white/20 rounded-full text-white tracking-wider">Multimodal</span>
               </div>
               <p className="text-xs text-blue-100">Améliorez, traduisez, enrichissez et générez des visuels avant de partager.</p>
             </div>
           </div>
-          <button 
+          <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            aria-label="Fermer l'assistant"
+            className="ia-fermer p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           >
             <X size={20} />
           </button>
@@ -395,17 +439,20 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
 
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+        {/* Footer — DEC-2026-080 : toujours visible (la carte est bornee par la
+            fenetre visible) et jamais sous le dock (portail + bloc CSS). */}
+        <div className="ia-pied p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
           >
             Annuler
           </button>
-          
+
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleApplyFinal}
               disabled={isLoading || (!generatedResult && !originalText && !selectedImage)}
               className="px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-90 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-indigo-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
@@ -419,4 +466,5 @@ Retourne uniquement les hashtags séparés par des espaces, exemple: #Mooc #Inno
       </div>
     </div>
   );
+  return portail ? createPortal(feuille, portail) : feuille;
 };

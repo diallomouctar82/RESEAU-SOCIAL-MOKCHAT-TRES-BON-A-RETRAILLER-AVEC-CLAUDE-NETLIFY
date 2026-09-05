@@ -1,0 +1,70 @@
+### ordinateur : 34 identiques, 11 différentes
+  fondRect.y
+    avant 24
+    apres 0
+  fondRect.h
+    avant 876
+    apres 900
+  fond.color
+    avant "rgb(15, 23, 42)"
+    apres "rgb(11, 58, 70)"
+  fond.zIndex
+    avant "50"
+    apres "2147482000"
+  fond.dansBody
+    avant false
+    apres true
+  fond.miroir
+    avant false
+    apres true
+  carte.y
+    avant 151
+    apres 139
+  enfants
+    avant [{"cls":"p-5 bg-gradient-to-r from-blue","y":152,"h":84,"l":766},{"cls":"flex border-b border-slate-100","y":236,"h":49,"l":766},{"cls":"p-6 overflow-y-auto flex-1 spa","y":285,"h":419,"l":766},{"cls"
+    apres [{"cls":"p-5 bg-gradient-to-r from-blue","y":140,"h":84,"l":766},{"cls":"flex border-b border-slate-100","y":224,"h":49,"l":766},{"cls":"p-6 overflow-y-auto flex-1 spa","y":273,"h":419,"l":766},{"cls"
+  h3.y
+    avant 172
+    apres 160
+  pied.y
+    avant 721
+    apres 709
+  bouton.y
+    avant 721
+    apres 709
+  textes : 31 avant, 31 après, 0 différence(s) de couleur ou de fond
+### telephone : 34 identiques, 11 différentes
+  fondRect.y
+    avant 24
+    apres 0
+  fondRect.h
+    avant 820
+    apres 844
+  fond.color
+    avant "rgb(15, 23, 42)"
+    apres "rgb(11, 58, 70)"
+  fond.zIndex
+    avant "50"
+    apres "2147482000"
+  fond.dansBody
+    avant false
+    apres true
+  fond.miroir
+    avant false
+    apres true
+  carte.y
+    avant 54
+    apres 42
+  enfants
+    avant [{"cls":"p-5 bg-gradient-to-r from-blue","y":55,"h":200,"l":356},{"cls":"flex border-b border-slate-100","y":255,"h":36,"l":356},{"cls":"p-6 overflow-y-auto flex-1 spa","y":291,"h":436,"l":356},{"cls"
+    apres [{"cls":"p-5 bg-gradient-to-r from-blue","y":43,"h":200,"l":356},{"cls":"flex border-b border-slate-100","y":243,"h":36,"l":356},{"cls":"p-6 overflow-y-auto flex-1 spa","y":279,"h":436,"l":356},{"cls"
+  h3.y
+    avant 75
+    apres 63
+  pied.y
+    avant 745
+    apres 733
+  bouton.y
+    avant 745
+    apres 733
+  textes : 31 avant, 31 après, 0 différence(s) de couleur ou de fond
