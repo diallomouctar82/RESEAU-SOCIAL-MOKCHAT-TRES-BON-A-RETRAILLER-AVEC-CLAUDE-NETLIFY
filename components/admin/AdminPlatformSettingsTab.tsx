@@ -22,7 +22,6 @@ import { PlatformDetailedModuleSettings } from '../../types';
 import { adminConfigService } from '../../services/adminConfigService';
 import { SmartConfirmModal } from '../ui/SmartConfirmModal';
 import { AdminDefaultAvatarCard } from './AdminDefaultAvatarCard';
-import { AdminArchitecteAvatarCard } from './AdminArchitecteAvatarCard';
 
 interface AdminPlatformSettingsTabProps {
   detailedSettings: PlatformDetailedModuleSettings;
@@ -445,13 +444,17 @@ export const AdminPlatformSettingsTab: React.FC<AdminPlatformSettingsTabProps> =
           />
         </div>
 
-        {/* 4ter. AVATAR VIVANT DE L'ARCHITECTE */}
+        {/* 4ter. AVATAR VIVANT DE L'ARCHITECTE — désormais dans son onglet dédié
+            « Avatar de l'Architecte » (enregistrement immédiat, sans ce bouton global). */}
         <div className="md:col-span-2 lg:col-span-3">
-          <AdminArchitecteAvatarCard
-            value={formData.architecteAvatar}
-            adminName="Admin-Général"
-            onChange={(architecteAvatar) => setFormData({ ...formData, architecteAvatar })}
-          />
+          <p
+            data-testid="renvoi-onglet-architecte"
+            className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs text-cyan-900"
+          >
+            <span className="font-bold">Avatar vivant de l’Architecte :</span> créer ou remplacer l’avatar depuis une
+            photo, aperçu, validation et retour arrière se font dans l’onglet <span className="font-bold">« Avatar de
+            l’Architecte »</span> du tableau de bord — chaque validation y est enregistrée immédiatement.
+          </p>
         </div>
 
         {/* 5. MODULE CAMPUS & ÉDUCATION */}

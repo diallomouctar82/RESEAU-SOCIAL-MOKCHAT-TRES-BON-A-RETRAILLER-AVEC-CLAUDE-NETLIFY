@@ -86,7 +86,7 @@ export interface ArchitecteSequence {
 }
 
 export const ARCHITECTE_PRESENTATION_TEXT =
-    'Bonjour, je suis l’avatar de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle.';
+    'Bonjour, je suis l’Architecte de Vision Smart. Je suis ici pour accompagner, expliquer et guider les utilisateurs avec une voix claire, naturelle et professionnelle.';
 
 /**
  * LA séquence validée. Les empreintes protègent le modèle : un fichier
@@ -96,62 +96,71 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     key: 'presentation',
     title: 'Présentation de l’Architecte',
     text: ARCHITECTE_PRESENTATION_TEXT,
-    // Découpage aux pauses de ponctuation mesurées sur la voix HD (alignement
-    // phonétique du 05/09 : « Smart. » 1 830–2 090 ms, « claire, » 6 140–6 500 ms).
+    // Découpage sur l'alignement texte ↔ son de l'aligneur du produit
+    // (buildVoiceTrack sur la voix livrée, 05/09/2026) : « Smart. » se termine à
+    // 2 320 ms, « Je » commence à 2 470 ms ; « utilisateurs » se termine à
+    // 6 380 ms ; dernier son à 9 060 ms.
     cues: [
-        { startMs: 0, endMs: 1900, text: 'Bonjour, je suis l’avatar de Vision Smart.' },
-        { startMs: 2050, endMs: 6200, text: 'Je suis ici pour accompagner, expliquer et guider les utilisateurs' },
-        { startMs: 6450, endMs: 8190, text: 'avec une voix claire, naturelle et professionnelle.' },
+        { startMs: 0, endMs: 2320, text: 'Bonjour, je suis l’Architecte de Vision Smart.' },
+        { startMs: 2470, endMs: 6380, text: 'Je suis ici pour accompagner, expliquer et guider les utilisateurs' },
+        { startMs: 6380, endMs: 9060, text: 'avec une voix claire, naturelle et professionnelle.' },
     ],
     posterUrl: '/architecte/vision-smart-heygen.webp',
     portraitUrl: '/architecte/architecte.webp',
     captionsUrl: '/architecte/vision-smart-heygen.fr.vtt',
-    durationMs: 8190,
+    durationMs: 9082,
     sources: [
         {
             url: '/architecte/vision-smart-heygen.mp4',
             type: 'video/mp4',
-            sha256: 'a000fde4ab829d50ec4a4319e902bc61a09d3a163207ec5cd1932a9dad361f94',
-            sizeBytes: 2457265,
+            sha256: 'c97e18315c4e7c67bfc7e0499b634d2ddb00dd8ffac3d0840dd8c521b20ea87a',
+            sizeBytes: 1558047,
         },
         {
             url: '/architecte/vision-smart-heygen.webm',
             type: 'video/webm',
-            sha256: '4ce2750470330a931c3c45a7aaf72f7681145989ace980c79441544f5ed3b4ca',
-            sizeBytes: 975088,
+            sha256: '69bde4022b6f0a19620eb3f83f880ebbac35843d023fe5687489e059acf079a4',
+            sizeBytes: 445523,
         },
     ],
-    // Détourage image par image (05/09/2026) : silhouette relevée sur chacune des
-    // 204 images par un modèle de segmentation local (rembg, isnet-general-use),
-    // empilée sous les couleurs (720 × 1440) ; son AAC copié tel quel du MP4 validé.
+    // Détourage image par image (05/09/2026, photo validée) : silhouette relevée
+    // sur chacune des 228 images par un modèle de segmentation local (rembg,
+    // isnet-general-use), empilée sous les couleurs (720 × 1440) ; son AAC copié
+    // tel quel du MP4 généré.
     cutoutSources: [
         {
             url: '/architecte/vision-smart-heygen.cutout.mp4',
             type: 'video/mp4',
-            sha256: '3e86a0d04011c2d7380971e9d13c33cfbb91a6d1c8d57d61d23742db654e09e3',
-            sizeBytes: 2090415,
+            sha256: 'cdf49bd063a428b6244f9567450c4dd84839fd3dae34b64d4d8db8d96b1fb959',
+            sizeBytes: 1810971,
         },
         {
             url: '/architecte/vision-smart-heygen.cutout.webm',
             type: 'video/webm',
-            sha256: '701e78e07dde8aba4958ed0f6cc78a7190739cdbafbe307630c5b43f30d652d2',
-            sizeBytes: 1055974,
+            sha256: '55f330f61733fba2274f080ef56ad47da884a245860f28585c5796338b8dfb99',
+            sizeBytes: 599002,
         },
     ],
     provider: 'heygen',
     model: {
+        // Le portrait d'usine = la photo validée par la Direction (05/09/2026),
+        // cadrée par le moteur de l'option Super-Admin (768 px).
         portraitUrl: '/architecte/architecte.webp',
-        voice: 'ElevenLabs « Claire » (voix HD de la passerelle, enregistrée le 04/09/2026)',
+        voice: 'Voix attitrée de l’Architecte — ElevenLabs « George » (eleven_multilingual_v2), la même que la barre flottante, enregistrée le 05/09/2026 sur la phrase officielle',
         settings: { aspectRatio: '1:1', resolution: '720p', expressiveness: 'medium', fit: 'contain' },
     },
-    generatedAt: '2026-09-05T09:47:49Z',
+    // Généré le 05/09/2026 à 15:20 UTC (HeyGen, 39 s, 4 crédits : 563 → 559) sur
+    // instruction de la Direction : « base-toi strictement sur cette photo pour
+    // remplacer l'avatar actuel ». Aperçu à confirmer par la Direction sur moknet.net.
+    generatedAt: '2026-09-05T15:20:39Z',
     validatedBy: 'Direction Vision Smart',
     validatedAt: '2026-09-05',
-    // Mesuré le 05/09/2026 (iris cyan, image 1 de la vidéo contre le portrait
-    // livré) : pupilles du portrait à (51,74 %, 46,17 %), écart 19,89 % ; celles
-    // de la vidéo à (51,95 %, 46,84 %), écart 20,90 %. Appliqué à la couche
-    // vidéo de la sculpture seulement — le cadre rond montre la vidéo telle quelle.
-    alignment: { scale: 0.9515, originXPercent: 51.95, originYPercent: 46.84, dxPercent: -0.21, dyPercent: -0.67 },
+    // Mesuré le 05/09/2026 par le moteur de production (Face Landmarker, 478
+    // repères, image 1 de la vidéo contre le portrait livré) : pupilles du
+    // portrait à (50,12 %, 46,20 %), écart 21,33 % ; celles de la vidéo à
+    // (48,86 %, 47,28 %), écart 20,82 %. Appliqué à la couche vidéo de la
+    // sculpture seulement — le cadre rond montre la vidéo telle quelle.
+    alignment: { scale: 1.0248, originXPercent: 48.86, originYPercent: 47.28, dxPercent: 1.26, dyPercent: -1.08 },
 };
 
 export const ARCHITECTE_SEQUENCES: readonly ArchitecteSequence[] = [ARCHITECTE_PRESENTATION];

@@ -1,0 +1,37 @@
+{
+  "analyseMs": 6036,
+  "statut": "Photo analysée (478 repères du visage). Vérifiez l’aperçu vivant, puis validez.",
+  "avertissements": [],
+  "portrait": {
+    "mime": "image/jpeg",
+    "octets": 42466
+  },
+  "masque": {
+    "mime": "image/png",
+    "octets": 17507
+  },
+  "rig": {
+    "eyeLinePercent": 46.3,
+    "eyeBandPercent": 3.1,
+    "jawLinePercent": 64.9,
+    "jawTravelPercent": 5.7,
+    "chinLinePercent": 78.7,
+    "eyeLeftXPercent": 39.3,
+    "eyeRightXPercent": 60.7,
+    "eyeWidthPercent": 8.1,
+    "browLinePercent": 39.9
+  },
+  "mouthAnchor": {
+    "xPercent": 50.9,
+    "yPercent": 64.9,
+    "widthPercent": 27.3,
+    "tiltDeg": -2.6
+  },
+  "voiceKey": "",
+  "videoSequencesEnabled": true,
+  "masquePourPhoto": true,
+  "erreurs": [
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU."
+  ]
+}

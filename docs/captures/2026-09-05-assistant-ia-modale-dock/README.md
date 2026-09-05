@@ -1,4 +1,4 @@
-# Assistant IA Pré-Publication : « Appliquer à ma publication » au-dessus du dock (DEC-2026-080, v6.40.2)
+# Assistant IA Pré-Publication : « Appliquer à ma publication » au-dessus du dock (DEC-2026-080, v6.41.1)
 
 Constat de la Direction (capture iPhone du 5 septembre 2026) : sur téléphone, dans le parcours de publication, le bouton « Appliquer à ma publication » de la modale de l'assistant IA est masqué par la barre du bas (menu, messages). Demande : « Il faut que ce bouton reste visible et cliquable sur mobile. […] Je veux une correction prouvée sur téléphone, avec un parcours complet jusqu'à la publication. »
 

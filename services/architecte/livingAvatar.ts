@@ -71,22 +71,23 @@ export interface PortraitRig {
 }
 
 export const DEFAULT_PORTRAIT_RIG: PortraitRig = {
-    // Relevé sur le portrait DE FACE livré (`public/architecte/architecte.webp`),
-    // composé d'après la référence validée par la Direction le 04/09/2026 :
-    // relevé sur une grille au 0,5 % posée sur le rendu : pupilles à 46,3 % de
-    // la hauteur (œil ouvert de 44,5 à 48 %), ligne entre les lèvres à 67,3 %.
+    // Relevé sur le portrait DE FACE livré (`public/architecte/architecte.webp`) :
+    // la photo validée par la Direction le 05/09/2026, cadrée au portrait d'usine
+    // (pupilles à 46,3 % de la hauteur, écart 21,4 % de la largeur) et mesurée
+    // par le MÊME moteur que l'option Super-Admin « avatar vivant depuis une
+    // photo » (478 repères du visage, aucun avertissement).
     eyeLinePercent: 46.3,
-    eyeBandPercent: 5.2,
+    eyeBandPercent: 3.1,
     // La ligne de mâchoire est posée ENTRE LES LÈVRES : la lèvre du haut reste
     // fixe, celle du bas descend — c'est ainsi qu'une bouche s'ouvre.
-    jawLinePercent: 67.3,
-    jawTravelPercent: 5.2,
-    // Menton à 80 %, pupilles à 41,75 et 63,25 % de la largeur, œil large de 9 %.
-    chinLinePercent: 80,
-    eyeLeftXPercent: 41.75,
-    eyeRightXPercent: 63.25,
-    eyeWidthPercent: 9,
-    browLinePercent: 43.6,
+    jawLinePercent: 64.9,
+    jawTravelPercent: 5.7,
+    // Menton à 78,7 %, pupilles à 39,3 et 60,7 % de la largeur, œil large de 8,1 %.
+    chinLinePercent: 78.7,
+    eyeLeftXPercent: 39.3,
+    eyeRightXPercent: 60.7,
+    eyeWidthPercent: 8.1,
+    browLinePercent: 39.9,
 };
 
 export function clampPortraitRig(rig: Partial<PortraitRig>): PortraitRig {

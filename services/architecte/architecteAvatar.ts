@@ -51,7 +51,7 @@ export interface MouthAnchor {
 // Relevé sur grille au 0,5 % (04/09/2026) : commissures à 43,5 et 61,5 % de la
 // largeur, ligne des lèvres à 67,3 % de la hauteur, légèrement remontante à
 // droite (la tête est un peu tournée).
-export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 };
+export const DEFAULT_MOUTH_ANCHOR: MouthAnchor = { xPercent: 50.9, yPercent: 64.9, widthPercent: 27.3, tiltDeg: -2.6 };
 
 /**
  * L'avatar précédent, conservé pour le retour arrière quand l'Admin-Général
@@ -109,6 +109,12 @@ export interface ArchitecteAvatarConfig {
     silhouetteMaskForPhotoUrl?: string;
     /** Avatar précédent, pour « Revenir à l'avatar précédent » ; `null` = rien à quoi revenir. */
     previousAvatar?: ArchitecteAvatarSnapshot | null;
+    /**
+     * Portrait d'usine sous lequel cette configuration a été fusionnée
+     * (`FACTORY_PORTRAIT_ID`). Absent ou différent, avec la photo d'usine :
+     * le calage enregistré vient d'un AUTRE portrait et est écarté.
+     */
+    factoryPortraitId?: string;
     updatedAt: string;
     updatedBy: string;
 }
@@ -118,9 +124,18 @@ export interface ArchitecteAvatarConfig {
  * fourni la photo de référence, l'avatar dessiné par l'application est
  * affiché — un vrai visage, pas un cadre vide ni une image cassée.
  */
+/**
+ * Identifiant du portrait d'usine : change à chaque portrait livré. Une
+ * configuration enregistrée sous un ancien portrait garde ses choix (voix,
+ * animations, vidéo…) mais reprend le calage d'usine du nouveau portrait —
+ * un rig relevé sur une autre image ne vaut rien sur celle-ci.
+ */
+export const FACTORY_PORTRAIT_ID = 'direction-2026-09-05';
+
 export const DEFAULT_ARCHITECTE_AVATAR: ArchitecteAvatarConfig = {
-    // Portrait livré avec l'application. Mesures d'ancrage relevées sur CETTE
-    // image : œil à 45 % de la hauteur, mâchoire à 65 %, lèvres à 75 %.
+    // Portrait livré avec l'application : la photo validée par la Direction le
+    // 05/09/2026, cadrée et mesurée par le moteur de l'option Super-Admin
+    // (rig, ancre de bouche et masque de silhouette relevés sur CETTE image).
     photoUrl: '/architecte/architecte.webp',
     rig: DEFAULT_PORTRAIT_RIG,
     displayName: "L'Architecte",
@@ -132,6 +147,7 @@ export const DEFAULT_ARCHITECTE_AVATAR: ArchitecteAvatarConfig = {
     silhouetteMaskUrl: '/architecte/architecte-silhouette.png',
     silhouetteMaskForPhotoUrl: '/architecte/architecte.webp',
     previousAvatar: null,
+    factoryPortraitId: FACTORY_PORTRAIT_ID,
     updatedAt: '',
     updatedBy: '',
 };
@@ -148,14 +164,44 @@ export function sculptureMaskFor(config: ArchitecteAvatarConfig): string | null 
     return config.photoUrl === madeFor ? config.silhouetteMaskUrl : null;
 }
 
-/** Complète une configuration partielle ou héritée — jamais de champ `undefined` lu par l'écran. */
+/** Le calage d'usine (rig, ancre de bouche, masque) du portrait livré. */
+function factoryFit(): Pick<ArchitecteAvatarConfig, 'rig' | 'mouthAnchor' | 'silhouetteMaskUrl' | 'silhouetteMaskForPhotoUrl'> {
+    return {
+        rig: { ...DEFAULT_PORTRAIT_RIG },
+        mouthAnchor: { ...DEFAULT_MOUTH_ANCHOR },
+        silhouetteMaskUrl: DEFAULT_ARCHITECTE_AVATAR.silhouetteMaskUrl,
+        silhouetteMaskForPhotoUrl: DEFAULT_ARCHITECTE_AVATAR.photoUrl,
+    };
+}
+
+/**
+ * Complète une configuration partielle ou héritée — jamais de champ
+ * `undefined` lu par l'écran. Règle de migration : sur la photo d'usine, un
+ * calage enregistré sous un AUTRE portrait d'usine (`factoryPortraitId`
+ * absent ou différent) est écarté au profit du calage d'usine courant ; même
+ * chose pour l'avatar précédent quand c'est le portrait d'usine. Une photo
+ * déposée par l'Admin-Général garde intégralement son calage.
+ */
 export function mergeArchitecteAvatarConfig(stored: unknown): ArchitecteAvatarConfig {
     const source = (stored && typeof stored === 'object' ? stored : {}) as Partial<ArchitecteAvatarConfig>;
+    const onFactoryPortrait = !source.photoUrl || source.photoUrl === DEFAULT_ARCHITECTE_AVATAR.photoUrl;
+    const staleFactoryFit = onFactoryPortrait && source.factoryPortraitId !== FACTORY_PORTRAIT_ID;
+    const { rig, mouthAnchor, silhouetteMaskUrl, silhouetteMaskForPhotoUrl, previousAvatar, ...rest } = source;
+    const fit = staleFactoryFit ? factoryFit() : { rig, mouthAnchor, silhouetteMaskUrl, silhouetteMaskForPhotoUrl };
+    const previous: ArchitecteAvatarSnapshot | null = previousAvatar
+        ? previousAvatar.photoUrl === DEFAULT_ARCHITECTE_AVATAR.photoUrl
+            ? { ...previousAvatar, ...factoryFit() }
+            : previousAvatar
+        : null;
     return {
         ...DEFAULT_ARCHITECTE_AVATAR,
-        ...source,
-        mouthAnchor: { ...DEFAULT_MOUTH_ANCHOR, ...(source.mouthAnchor || {}) },
-        rig: { ...DEFAULT_PORTRAIT_RIG, ...(source.rig || {}) },
+        ...rest,
+        silhouetteMaskUrl: fit.silhouetteMaskUrl ?? DEFAULT_ARCHITECTE_AVATAR.silhouetteMaskUrl,
+        silhouetteMaskForPhotoUrl: fit.silhouetteMaskForPhotoUrl ?? DEFAULT_ARCHITECTE_AVATAR.silhouetteMaskForPhotoUrl,
+        mouthAnchor: { ...DEFAULT_MOUTH_ANCHOR, ...(fit.mouthAnchor || {}) },
+        rig: { ...DEFAULT_PORTRAIT_RIG, ...(fit.rig || {}) },
+        previousAvatar: previous,
+        factoryPortraitId: FACTORY_PORTRAIT_ID,
     };
 }
 

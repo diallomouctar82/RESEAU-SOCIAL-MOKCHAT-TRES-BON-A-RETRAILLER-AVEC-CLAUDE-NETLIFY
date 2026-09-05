@@ -1,3 +1,4 @@
+import { mergeArchitecteAvatarConfig } from './architecte/architecteAvatar';
 import { 
   AdminUserRecord, 
   AIProviderConfig, 
@@ -30,6 +31,8 @@ const ADMIN_MODERATION_KEY = 'lmav_admin_moderation_items_v1';
 const ADMIN_REPORTS_KEY = 'lmav_admin_user_reports_v1';
 const ADMIN_MOKTRUST_KEY = 'lmav_admin_moktrust_audits_v1';
 const ADMIN_SETTINGS_KEY = 'lmav_admin_detailed_settings_v1';
+/** Clé du réglage partagé « avatar de l'Architecte » dans `platform_settings`. */
+export const ARCHITECTE_AVATAR_SETTING_KEY = 'architecte_avatar';
 const ADMIN_SNAPSHOTS_KEY = 'lmav_admin_snapshots_v1';
 const ADMIN_SCHEDULE_KEY = 'lmav_admin_backup_schedule_v1';
 const ADMIN_LAST_RESTORE_RESULT_KEY = 'lmav_admin_last_restore_result_v1';
@@ -1425,15 +1428,17 @@ const INITIAL_DETAILED_SETTINGS: PlatformDetailedModuleSettings = {
   // la Direction n'a pas déposé la sienne, le visage dessiné par
   // l'application est affiché — jamais un cadre vide.
   architecteAvatar: {
-    // Portrait photoréaliste livré avec l'application, et son calage relevé
-    // sur CETTE image. C'est lui qui respire, cligne et parle.
+    // Portrait livré avec l'application : la photo validée par la Direction le
+    // 05/09/2026, et son calage relevé sur CETTE image par le moteur de l'option
+    // Super-Admin. C'est lui qui respire, cligne et parle.
     photoUrl: '/architecte/architecte.webp',
     rig: {
-      eyeLinePercent: 46.3, eyeBandPercent: 5.2, jawLinePercent: 67.3, jawTravelPercent: 5.2,
-      chinLinePercent: 80, eyeLeftXPercent: 41.75, eyeRightXPercent: 63.25, eyeWidthPercent: 9,
+      eyeLinePercent: 46.3, eyeBandPercent: 3.1, jawLinePercent: 64.9, jawTravelPercent: 5.7,
+      chinLinePercent: 78.7, eyeLeftXPercent: 39.3, eyeRightXPercent: 60.7, eyeWidthPercent: 8.1,
+      browLinePercent: 39.9,
     },
     displayName: "L'Architecte",
-    mouthAnchor: { xPercent: 52.5, yPercent: 67.3, widthPercent: 18, tiltDeg: -1.6 },
+    mouthAnchor: { xPercent: 50.9, yPercent: 64.9, widthPercent: 27.3, tiltDeg: -2.6 },
     animationsEnabled: true,
     lipSyncEnabled: true,
     voiceKey: '',
@@ -1500,18 +1505,9 @@ export function mergeDetailedSettings(stored: unknown): PlatformDetailedModuleSe
     },
     campus: { ...INITIAL_DETAILED_SETTINGS.campus, ...(source.campus || {}) },
     aiCore: { ...INITIAL_DETAILED_SETTINGS.aiCore, ...(source.aiCore || {}) },
-    architecteAvatar: {
-      ...INITIAL_DETAILED_SETTINGS.architecteAvatar,
-      ...(source.architecteAvatar || {}),
-      rig: {
-        ...INITIAL_DETAILED_SETTINGS.architecteAvatar.rig,
-        ...(source.architecteAvatar?.rig || {}),
-      },
-      mouthAnchor: {
-        ...INITIAL_DETAILED_SETTINGS.architecteAvatar.mouthAnchor,
-        ...(source.architecteAvatar?.mouthAnchor || {}),
-      },
-    },
+    // Une seule règle de fusion pour l'avatar de l'Architecte : celle du domaine
+    // (calage d'usine repris quand la configuration vient d'un ancien portrait).
+    architecteAvatar: mergeArchitecteAvatarConfig(source.architecteAvatar),
   };
 }
 
@@ -1803,6 +1799,30 @@ export class AdminConfigService {
   private constructor() {
     this.loadFromStorage();
     this.initSupabaseRealtimeSync();
+    this.syncArchitecteAvatarFromPlatform();
+  }
+
+  /**
+   * Avatar de l'Architecte : réglage PARTAGÉ par toute la plateforme (Direction,
+   * 05/09/2026). Lu au démarrage depuis `platform_settings` (clé
+   * `architecte_avatar`) ; la version la plus récente gagne (`updatedAt`) ;
+   * sans table ni droit, l'application garde son réglage local. Chaque
+   * enregistrement Super-Admin y est écrit (voir updateDetailedSettings).
+   */
+  private syncArchitecteAvatarFromPlatform(): void {
+    if (typeof window === 'undefined' || !supabaseService.isConfigured()) return;
+    supabaseService
+      .loadPlatformSetting<unknown>(ARCHITECTE_AVATAR_SETTING_KEY)
+      .then((row) => {
+        if (!row || !row.value || typeof row.value !== 'object') return;
+        const distant = mergeArchitecteAvatarConfig(row.value);
+        const local = mergeArchitecteAvatarConfig(this.detailedSettings.architecteAvatar);
+        if (!distant.updatedAt || distant.updatedAt <= (local.updatedAt || '')) return;
+        this.detailedSettings = { ...this.detailedSettings, architecteAvatar: distant };
+        this.addLog('info', 'admin', "Avatar de l'Architecte : réglage partagé de la plateforme appliqué", 'Système');
+        this.notify();
+      })
+      .catch(() => {});
   }
 
   public static getInstance(): AdminConfigService {
@@ -2651,6 +2671,13 @@ export class AdminConfigService {
     
     // Sync Supabase
     supabaseService.savePlatformSettings(this.detailedSettings).catch(() => {});
+    // L'avatar de l'Architecte est partagé par toute la plateforme (dégradation
+    // silencieuse tant que la table `platform_settings` n'existe pas).
+    if (updates.architecteAvatar) {
+      supabaseService
+        .savePlatformSetting(ARCHITECTE_AVATAR_SETTING_KEY, this.detailedSettings.architecteAvatar)
+        .catch(() => {});
+    }
     
     this.notify();
   }
