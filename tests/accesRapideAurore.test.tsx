@@ -165,13 +165,13 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     expect(regles['.aurore-bulle::before']).toMatch(/animation: aurore-halo var\(--t, 5s\)/);
     expect(regles['.aurore-item:nth-child(2n) .aurore-orbe']).toMatch(/translateY\(10px\)/);
     const keyframes: string[] = [];
-    racine.walkAtRules('keyframes', (a) => keyframes.push(a.params));
+    racine.walkAtRules('keyframes', (a) => { keyframes.push(a.params); });
     expect(keyframes).toEqual(['aurore-halo']);
   });
 
   it('réserve le survol aux vrais pointeurs, lit la largeur de la carte et s’arrête sous reduced-motion', () => {
     const medias: string[] = [];
-    racine.walkAtRules('media', (a) => medias.push(a.params));
+    racine.walkAtRules('media', (a) => { medias.push(a.params); });
     expect(medias).toContain('(hover: hover) and (pointer: fine)');
     expect(medias).toContain('(prefers-reduced-motion: reduce)');
     const survol = bloc.match(/\.aurore-orbe:hover/g) ?? [];
@@ -180,7 +180,7 @@ describe('feuille de style de la bande « Aurore » (index.html, telle qu’anal
     expect(survol.length).toBeGreaterThan(0);
     expect(dansMedia).toBe(survol.length);
     const conteneurs: string[] = [];
-    racine.walkAtRules('container', (a) => conteneurs.push(a.params));
+    racine.walkAtRules('container', (a) => { conteneurs.push(a.params); });
     expect(conteneurs).toEqual(['aurore (max-width: 800px)', 'aurore (max-width: 480px)']);
     expect(regleRacine(racine, '.aurore-bande')).toMatch(/container-type: inline-size/);
     let reduit = '';
