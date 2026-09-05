@@ -17,6 +17,8 @@ import {
     toWebVtt,
     type SequencePlayerState,
     type SequenceVideoLike,
+    formatDateFr,
+    formatExpressiveness,
 } from '../services/architecte/sequences';
 
 /**
@@ -48,6 +50,30 @@ describe('Registre des séquences validées', () => {
         expect(statSync(path.join(publicDir, ARCHITECTE_PRESENTATION.posterUrl)).size).toBeGreaterThan(1000);
     });
 
+    it('les vidéos DÉTOURÉES livrées (couleurs + matte empilés) sont exactement celles enregistrées', () => {
+        expect(ARCHITECTE_PRESENTATION.cutoutSources.map((s) => s.type)).toEqual(['video/mp4', 'video/webm']);
+        for (const source of ARCHITECTE_PRESENTATION.cutoutSources) {
+            const file = path.join(publicDir, source.url);
+            const bytes = readFileSync(file);
+            expect(bytes.length).toBe(source.sizeBytes);
+            expect(createHash('sha256').update(bytes).digest('hex')).toBe(source.sha256);
+        }
+        // Le masque de silhouette du portrait est un PNG avec alpha (couche rig de la sculpture).
+        const mask = readFileSync(path.join(publicDir, 'architecte', 'architecte-silhouette.png'));
+        expect(mask.subarray(1, 4).toString('ascii')).toBe('PNG');
+        expect(mask[25]).toBe(6); // type de couleur 6 = RGBA
+    });
+
+    it('le calage de la vidéo sur le portrait est une petite correction, jamais un recadrage', () => {
+        const a = ARCHITECTE_PRESENTATION.alignment;
+        expect(a.scale).toBeGreaterThan(0.9);
+        expect(a.scale).toBeLessThan(1.1);
+        expect(Math.abs(a.dxPercent)).toBeLessThan(3);
+        expect(Math.abs(a.dyPercent)).toBeLessThan(3);
+        expect(a.originXPercent).toBeGreaterThan(40);
+        expect(a.originXPercent).toBeLessThan(60);
+    });
+
     it('le fichier de légendes livré est généré depuis les mêmes repères que les sous-titres', () => {
         const vtt = readFileSync(path.join(publicDir, ARCHITECTE_PRESENTATION.captionsUrl), 'utf8');
         expect(vtt).toBe(toWebVtt(ARCHITECTE_PRESENTATION.cues));
@@ -66,6 +92,14 @@ describe('Registre des séquences validées', () => {
         expect(cueAt(ARCHITECTE_PRESENTATION, 1000)?.text).toMatch(/^Bonjour/);
         expect(cueAt(ARCHITECTE_PRESENTATION, 1950)).toBeNull();
         expect(cueAt(ARCHITECTE_PRESENTATION, 7000)?.text).toMatch(/professionnelle/);
+    });
+
+    it('dit la date de validation et l’expressivité en français', () => {
+        expect(formatDateFr('2026-09-05')).toBe('5 septembre 2026');
+        expect(formatDateFr('2026-01-01')).toBe('1er janvier 2026');
+        expect(formatDateFr('hier')).toBe('hier');
+        expect(formatExpressiveness('medium')).toBe('moyenne');
+        expect(formatExpressiveness('low')).toBe('faible');
     });
 
     it('affiche une durée lisible en français', () => {
@@ -88,6 +122,7 @@ describe('Machine d’états de lecture', () => {
 
 class FakeVideo implements SequenceVideoLike {
     currentTime = 3;
+    ended = false;
     playCalls = 0;
     pauseCalls = 0;
     playResult: Promise<void> | void = Promise.resolve();
@@ -197,6 +232,77 @@ describe('Lecteur de séquences', () => {
         expect(video.listenerCount()).toBe(0);
         expect(player.getState().status).toBe('idle');
         expect(player.play('presentation')).toBe(false);
+    });
+
+    it('la fin naturelle telle que les navigateurs la signalent (pause PUIS ended) passe bien par « ended »', () => {
+        const player = createSequencePlayer();
+        const video = new FakeVideo();
+        const states: string[] = [];
+        player.subscribe((s) => states.push(s.status));
+        player.attach(video, 'presentation', 'sculpture');
+        player.play('presentation');
+        video.fire('playing');
+        // Chromium, WebKit et Gecko : `pause` est émis avant `ended`, avec `video.ended` déjà vrai.
+        video.ended = true;
+        video.fire('pause');
+        expect(player.getState().status).toBe('playing');
+        video.fire('ended');
+        expect(player.getState().status).toBe('ended');
+        vi.advanceTimersByTime(SEQUENCE_ENDED_HOLD_MS + 1);
+        expect(states).toEqual(['loading', 'playing', 'ended', 'idle']);
+    });
+
+    it('un second play() sur le même cadre pendant le chargement (double appui) ne bascule pas en échec', async () => {
+        const player = createSequencePlayer();
+        const video = new FakeVideo();
+        let rejectFirst: (reason: unknown) => void = () => {};
+        video.playResult = new Promise<void>((_, reject) => { rejectFirst = reject; });
+        player.attach(video, 'presentation', 'sculpture');
+        expect(player.play('presentation')).toBe(true);
+        video.playResult = Promise.resolve();
+        expect(player.play('presentation')).toBe(true);
+        expect(video.pauseCalls).toBe(1);
+        // Le navigateur rejette la PREMIÈRE promesse parce que notre pause() l'a interrompue.
+        rejectFirst(Object.assign(new Error('The play() request was interrupted'), { name: 'AbortError' }));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(player.getState().status).toBe('loading');
+        video.fire('playing');
+        expect(player.getState().status).toBe('playing');
+        // Un AbortError isolé (sans second play) n'est pas non plus un refus.
+        const player2 = createSequencePlayer();
+        const video2 = new FakeVideo();
+        video2.playResult = Promise.reject(Object.assign(new Error('interrupted'), { name: 'AbortError' }));
+        player2.attach(video2, 'presentation', 'sculpture');
+        player2.play('presentation');
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(player2.getState().status).toBe('loading');
+        // Mais un refus réel d'une demande DÉPASSÉE est ignoré lui aussi : seule la dernière compte.
+        const player3 = createSequencePlayer();
+        const video3 = new FakeVideo();
+        let rejectOld: (reason: unknown) => void = () => {};
+        video3.playResult = new Promise<void>((_, reject) => { rejectOld = reject; });
+        player3.attach(video3, 'presentation', 'sculpture');
+        player3.play('presentation');
+        video3.playResult = Promise.resolve();
+        player3.play('presentation');
+        rejectOld(Object.assign(new Error('not allowed'), { name: 'NotAllowedError' }));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(player3.getState().status).toBe('loading');
+    });
+
+    it('stop(slot) n’arrête que le cadre nommé', () => {
+        const player = createSequencePlayer();
+        const sculpture = new FakeVideo();
+        player.attach(sculpture, 'presentation', 'sculpture');
+        player.play('presentation', 'sculpture');
+        sculpture.fire('playing');
+        player.stop('presentation');
+        expect(player.getState().status).toBe('playing');
+        player.stop('sculpture');
+        expect(player.getState().status).toBe('idle');
     });
 
     it('stop() coupe la vidéo et revient au repos, sans rien casser si rien ne joue', () => {

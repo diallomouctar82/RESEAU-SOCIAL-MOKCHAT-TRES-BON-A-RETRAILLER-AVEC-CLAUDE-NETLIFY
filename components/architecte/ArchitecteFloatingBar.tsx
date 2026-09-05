@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, DraftingCompass, Film, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
+import { Camera, ChevronDown, ChevronUp, DraftingCompass, Film, Keyboard, Loader2, Paperclip, ScanLine, Send, X, UserRound } from 'lucide-react';
 import { AiGatewayNetworkError, analyzeImage, generateText } from '../../services/aiGateway';
 import {
     addSessionTurn,
@@ -20,6 +20,7 @@ import { ArchitecteAvatar, ArchitecteIdentityBadge } from './ArchitecteAvatar';
 import { useSequencePlayerState } from './ArchitecteSequenceVideo';
 import {
     ARCHITECTE_PRESENTATION,
+    SCULPTURE_SLOT,
     architecteSequencePlayer,
     hasSeenPresentation,
     rememberPresentationSeen,
@@ -129,6 +130,7 @@ interface ArchitecteFloatingBarProps {
 }
 
 const MIC_TIMEOUT_MESSAGE = "Le micro n'a pas démarré — utilisez la saisie.";
+const PRESENTATION_STATUS = 'Présentation en cours…';
 
 /**
  * SURFACE VISUELLE ADAPTATIVE (complément Équipe C — « la parole pilote
@@ -139,9 +141,35 @@ const MIC_TIMEOUT_MESSAGE = "Le micro n'a pas démarré — utilisez la saisie."
  */
 type ArchitecteMediaView =
     | { kind: 'video'; query: string }
-    | { kind: 'document'; name: string; excerpt: string }
-    /** Présentation vidéo de l'Architecte — le modèle validé par la Direction (05/09/2026). */
-    | { kind: 'presentation' };
+    | { kind: 'document'; name: string; excerpt: string };
+
+/**
+ * La présentation vidéo (modèle validé par la Direction, 05/09/2026) ne s'ouvre
+ * plus « en grand » dans une fenêtre : elle est jouée DANS la sculpture
+ * flottante elle-même — « la présentation sous forme de grande page n'est pas
+ * la bonne présentation finale ». Si la vidéo ne démarre pas dans ce délai,
+ * l'Architecte n'attend plus : il accueille et écoute (le rig 2D reste actif).
+ */
+export const PRESENTATION_START_GRACE_MS = 3000;
+
+/** Sculpture flottante : 112 px sur ordinateur, 96 px sur téléphone — « taille raisonnable ». */
+export const SCULPTURE_SIZE = { desktop: 112, mobile: 96 } as const;
+
+function useIsDesktop(): boolean {
+    const query = '(min-width: 768px)';
+    const [desktop, setDesktop] = useState<boolean>(() =>
+        typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : true,
+    );
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+        const media = window.matchMedia(query);
+        const apply = () => setDesktop(media.matches);
+        apply();
+        media.addEventListener?.('change', apply);
+        return () => media.removeEventListener?.('change', apply);
+    }, []);
+    return desktop;
+}
 
 /**
  * Extrait le sujet d'une demande de vidéo. Volontairement MINIMAL : seuls le
@@ -222,9 +250,22 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // SÉQUENCE VIDÉO VALIDÉE : état du lecteur partagé, invitation à la première
     // ouverture (jamais de démarrage automatique : la vidéo a du son).
     const sequenceState = useSequencePlayerState(architecteSequencePlayer);
-    const presentationPlaying =
-        sequenceState.key === ARCHITECTE_PRESENTATION.key && (sequenceState.status === 'loading' || sequenceState.status === 'playing');
+    // La SCULPTURE est le seul cadre de la barre : une prévisualisation jouée
+    // ailleurs (carte Super-Admin) ne la fait pas « parler ».
+    const sculptureSequence = sequenceState.key === ARCHITECTE_PRESENTATION.key && sequenceState.slot === SCULPTURE_SLOT;
+    const presentationLoading = sculptureSequence && sequenceState.status === 'loading';
+    const presentationPlaying = sculptureSequence && (sequenceState.status === 'loading' || sequenceState.status === 'playing');
+    const presentationFailed = sculptureSequence && sequenceState.status === 'failed';
     const [offrirPresentation, setOffrirPresentation] = useState(false);
+    /** La présentation validée a-t-elle déjà été jouée à l'ouverture, dans CETTE session de page ? */
+    const presentationPlayedRef = useRef(false);
+    /** Accueil à dire quand la présentation aura fini de parler. */
+    const pendingGreetingRef = useRef<{ text: string; tone: string } | null>(null);
+    /** Reprendre l'écoute à la fin de la présentation (le micro transcrirait la voix de l'Architecte). */
+    const resumeListeningRef = useRef(false);
+    /** Panneau de conversation : `null` = automatique (§16-17) ; sinon le choix fait avec la flèche. */
+    const [isPanelOpen, setIsPanelOpen] = useState<boolean | null>(null);
+    const isDesktop = useIsDesktop();
     const [typedText, setTypedText] = useState('');
     const typedInputRef = useRef<HTMLInputElement | null>(null);
     useEffect(() => {
@@ -977,32 +1018,8 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const open = useCallback(async () => {
-        setIsOpen(true);
-        // Mise à jour SYNCHRONE : l'accueil ci-dessous doit pouvoir parler
-        // avant que l'effet qui synchronise la ref ait tourné.
-        isOpenRef.current = true;
-        setStatus('');
-        setStatusTone('text-cyan-300/80');
-
-        // ── L'ARCHITECTE VA VERS LA PERSONNE (§1-2) ──
-        // Une fois par session de page : accueil complet à la première
-        // rencontre (et proposition de configuration), accueil léger avec le
-        // nom choisi pour une personne déjà connue. Jamais une interface
-        // froide qui attend une commande — et jamais un onboarding rejoué à
-        // chaque ouverture.
-        if (!hasGreetedRef.current) {
-            hasGreetedRef.current = true;
-            const greeting = buildArchitecteGreeting(
-                profileRef.current.privacySettings?.architecte,
-                profileRef.current.name
-            );
-            if (greeting.firstMeeting) consentOfferRef.current = true;
-            announce(greeting.text, 'text-cyan-300/80');
-        }
-        // Comportement natif de l'original : l'ouverture DÉMARRE la session
-        // d'écoute, elle ne se contente pas d'afficher une barre.
-        setConversationalMode(true);
+    /** Démarre réellement l'écoute, avec l'attente « Connexion... » bornée et dite. */
+    const beginListening = useCallback(async () => {
         const started = await startListening();
         if (!started) {
             // Dégradation gracieuse : la barre reste utilisable, le modal
@@ -1024,7 +1041,46 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                 setStatusTone('text-amber-300');
             }
         }, 3000);
-    }, [setConversationalMode, startListening, isSupported]);
+    }, [startListening, isSupported]);
+
+    const open = useCallback(async (options?: { presenting?: boolean }) => {
+        const presenting = options?.presenting === true;
+        setIsOpen(true);
+        // Mise à jour SYNCHRONE : l'accueil ci-dessous doit pouvoir parler
+        // avant que l'effet qui synchronise la ref ait tourné.
+        isOpenRef.current = true;
+        setStatus(presenting ? PRESENTATION_STATUS : '');
+        setStatusTone('text-cyan-300/80');
+
+        // ── L'ARCHITECTE VA VERS LA PERSONNE (§1-2) ──
+        // Une fois par session de page : accueil complet à la première
+        // rencontre (et proposition de configuration), accueil léger avec le
+        // nom choisi pour une personne déjà connue. Jamais une interface
+        // froide qui attend une commande — et jamais un onboarding rejoué à
+        // chaque ouverture.
+        if (!hasGreetedRef.current) {
+            hasGreetedRef.current = true;
+            const greeting = buildArchitecteGreeting(
+                profileRef.current.privacySettings?.architecte,
+                profileRef.current.name
+            );
+            if (greeting.firstMeeting) consentOfferRef.current = true;
+            // Pendant que le modèle validé parle, l'accueil attend son tour :
+            // deux voix de l'Architecte en même temps ne sont pas un accueil.
+            if (presenting) pendingGreetingRef.current = { text: greeting.text, tone: 'text-cyan-300/80' };
+            else announce(greeting.text, 'text-cyan-300/80');
+        }
+        // Comportement natif de l'original : l'ouverture DÉMARRE la session
+        // d'écoute, elle ne se contente pas d'afficher une barre.
+        setConversationalMode(true);
+        if (presenting) {
+            // Le micro attendra la fin de la présentation — sinon il
+            // transcrirait la voix de l'Architecte comme une demande.
+            resumeListeningRef.current = true;
+            return;
+        }
+        await beginListening();
+    }, [setConversationalMode, beginListening, announce]);
 
     const close = useCallback(() => {
         if (listenWatchdog.current) { clearTimeout(listenWatchdog.current); listenWatchdog.current = null; }
@@ -1087,23 +1143,81 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         );
     }, [isOpen, avatarConfig.videoSequencesEnabled]);
 
-    // La fenêtre de présentation joue la séquence DÈS son montage. React 18
-    // exécute cet effet de façon synchrone à la suite du clic : l'activation
-    // utilisateur est encore valable, le son n'est pas refusé. Fermer la
-    // fenêtre (ou quitter la barre) arrête la vidéo et rend la main au rig.
+    // ── LA PRÉSENTATION PARLE DANS LA SCULPTURE ──────────────────────────
+    // Pendant qu'elle joue : la voix de synthèse se tait et le micro se ferme
+    // (il transcrirait la voix de l'Architecte comme une demande). À la fin,
+    // à l'échec ou à l'arrêt : accueil différé, puis écoute — barre ouverte
+    // seulement (§14 : fermé = réellement silencieux).
     const stopSpeakingRef = useRef(stopSpeaking);
     stopSpeakingRef.current = stopSpeaking;
+    const stopListeningRef = useRef(stopListening);
+    stopListeningRef.current = stopListening;
+    const beginListeningRef = useRef(beginListening);
+    beginListeningRef.current = beginListening;
+    const announceRef = useRef(announce);
+    announceRef.current = announce;
     useEffect(() => {
-        if (mediaView?.kind !== 'presentation') return undefined;
-        stopSpeakingRef.current();
-        architecteSequencePlayer.play(ARCHITECTE_PRESENTATION.key, 'presentation');
-        return () => { architecteSequencePlayer.stop(); };
-    }, [mediaView?.kind]);
+        if (presentationPlaying) {
+            stopSpeakingRef.current();
+            if (listeningRef.current) {
+                resumeListeningRef.current = true;
+                stopListeningRef.current();
+            }
+            return;
+        }
+        if (!isOpenRef.current) {
+            pendingGreetingRef.current = null;
+            resumeListeningRef.current = false;
+            return;
+        }
+        setStatus((prev) => (prev === PRESENTATION_STATUS ? '' : prev));
+        const greeting = pendingGreetingRef.current;
+        pendingGreetingRef.current = null;
+        if (greeting) announceRef.current(greeting.text, greeting.tone);
+        if (resumeListeningRef.current) {
+            resumeListeningRef.current = false;
+            void beginListeningRef.current();
+        }
+    }, [presentationPlaying]);
 
+    // Une vidéo qui ne démarre pas (réseau, décodeur) ne doit pas retenir
+    // l'accueil ni l'écoute : passé le délai, on rend la main au rig.
+    useEffect(() => {
+        if (!presentationLoading) return undefined;
+        const t = setTimeout(() => architecteSequencePlayer.stop(SCULPTURE_SLOT), PRESENTATION_START_GRACE_MS);
+        return () => clearTimeout(t);
+    }, [presentationLoading]);
+
+    // Échec réel de la vidéo : dit dans la barre, jamais masqué.
+    useEffect(() => {
+        if (!presentationFailed || !isOpenRef.current) return;
+        setStatus(`${sequenceState.error ?? 'Vidéo indisponible sur cet appareil.'} L'avatar animé reste actif.`);
+        setStatusTone('text-amber-300');
+    }, [presentationFailed, sequenceState.error]);
+
+    /** Bouton « Présentation » : rejoue le modèle validé DANS la sculpture, dans le geste (son autorisé). */
     const presenter = () => {
         rememberPresentationSeen();
         setOffrirPresentation(false);
-        setMediaView({ kind: 'presentation' });
+        presentationPlayedRef.current = true;
+        architecteSequencePlayer.play(ARCHITECTE_PRESENTATION.key, SCULPTURE_SLOT);
+    };
+
+    /**
+     * Clic sur la sculpture fermée : « l'avatar s'anime, parle, et ouvre sa
+     * barre de communication » (Direction, 05/09/2026). Le modèle validé parle
+     * une fois par session de page ; ensuite l'ouverture est immédiate et le
+     * bouton « Présentation » le rejoue à la demande.
+     */
+    const ouvrirParLaSculpture = () => {
+        let presenting = false;
+        if (avatarConfig.videoSequencesEnabled !== false && !presentationPlayedRef.current) {
+            presentationPlayedRef.current = true;
+            rememberPresentationSeen();
+            setOffrirPresentation(false);
+            presenting = architecteSequencePlayer.play(ARCHITECTE_PRESENTATION.key, SCULPTURE_SLOT);
+        }
+        void open({ presenting });
     };
 
     // ── État fermé : PRÉSENCE FLOTTANTE PERMANENTE ──────────────────────────
@@ -1123,32 +1237,36 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     // n'importe où, y compris sur des commandes. Une place stable et
     // prévisible vaut mieux qu'une place personnalisable — d'autant que la
     // goutte ne flotte plus, donc plus rien à éviter.
-    if (!isOpen) {
-        return (
-            // C'EST ICI que l'avatar doit vivre : le bouton PERMANENT, celui
-            // que l'on voit sans rien ouvrir. Livré d'abord dans la barre
-            // ouverte (donc invisible tant qu'on n'ouvrait pas l'Architecte),
-            // il prend désormais la place de l'icône `DraftingCompass`.
-            // Le halo qui respire et l'anneau cyan ne sont pas perdus : ils
-            // sont portés par la grammaire d'états de l'avatar lui-même.
-            <ArchitecteAvatar
-                config={avatarConfig}
-                presence={avatarPresence}
-                ttsEngine={ttsEngine}
-                outputLevel={outputVolume}
-                outputLevelRef={outputVolumeRef}
-                wordPulseRef={wordPulseRef}
-                mouthShapeRef={mouthShapeRef}
-                voiceTrackRef={voiceTrackRef}
-                voiceAligned={voiceAligned}
-                size={56}
-                onClick={() => { void open(); }}
-                actionLabel="Ouvrir l'Architecte"
-                testId="architecte-flottant"
-                className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-[60] ring-1 ring-cyan-500/50 shadow-[0_0_28px_rgba(34,211,238,0.28),0_14px_34px_rgba(0,0,0,0.5)] transition-transform hover:scale-110 active:scale-95"
-            />
-        );
-    }
+    // C'EST ICI que l'avatar doit vivre : le bouton PERMANENT, celui que l'on
+    // voit sans rien ouvrir. Depuis le 05/09/2026 : LA SCULPTURE VIVANTE — le
+    // visage validé, détouré, sans cadre ni page autour, au même emplacement
+    // que l'ancien bouton. Ouvert, il reste à sa place (sur téléphone il monte
+    // au-dessus de la barre) et devient le bouton qui referme.
+    const sculpture = (
+        <ArchitecteAvatar
+            variant="sculpture"
+            config={avatarConfig}
+            presence={avatarPresence}
+            ttsEngine={ttsEngine}
+            outputLevel={outputVolume}
+            outputLevelRef={outputVolumeRef}
+            wordPulseRef={wordPulseRef}
+            mouthShapeRef={mouthShapeRef}
+            voiceTrackRef={voiceTrackRef}
+            voiceAligned={voiceAligned}
+            sequence={ARCHITECTE_PRESENTATION}
+            sequenceSlot={SCULPTURE_SLOT}
+            size={isDesktop ? SCULPTURE_SIZE.desktop : SCULPTURE_SIZE.mobile}
+            onClick={isOpen ? close : ouvrirParLaSculpture}
+            actionLabel={isOpen ? "Fermer l'Architecte" : "Ouvrir l'Architecte"}
+            testId="architecte-flottant"
+            className={`fixed z-[62] right-3 sm:right-6 bottom-24 md:bottom-6 transition-transform duration-300 hover:scale-105 active:scale-95 ${
+                isOpen ? 'max-md:-translate-y-[4.5rem]' : ''
+            }`}
+        />
+    );
+
+    if (!isOpen) return sculpture;
 
     // Sous-titre : dernier retour réel, sinon transcription en cours, sinon
     // l'état de la session — exactement la cascade de l'original
@@ -1166,16 +1284,23 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
     const lastIsWrittenProduction = !!lastTurn && lastTurn.role === 'architecte' && lastTurn.text.length > 220;
     // La surface visuelle adaptative ouvre le panneau quand la parole a
     // demandé quelque chose À VOIR (vidéo, aperçu) — et lui seul.
-    const showConversationPanel = isTypingOpen || hasRichTurns || lastIsWrittenProduction || mediaView !== null;
+    // La flèche de la barre (Direction, 05/09/2026) déplie ou replie le
+    // panneau à la demande ; la saisie clavier, elle, montre toujours son champ.
+    const showConversationPanel = isTypingOpen || (isPanelOpen ?? (hasRichTurns || lastIsWrittenProduction || mediaView !== null));
 
     return (
         <>
+        {sculpture}
         {/* Fil de conversation — LA session unique de l'Architecte : voix,
             clavier, photos et documents dans le même échange, sans jamais
             basculer vers une autre interface. Masqué pendant que la caméra
-            occupe le même emplacement. */}
+            occupe le même emplacement. Replié par défaut : la flèche de la
+            barre le déplie quand on en a besoin. */}
         {!isCameraOpen && showConversationPanel && (
-            <div className="fixed bottom-44 md:bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[92%] max-w-2xl rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]">
+            <div
+                data-testid="architecte-panneau"
+                className="fixed bottom-[17rem] md:bottom-[6rem] left-3 right-3 md:left-auto md:right-[8.75rem] md:w-[min(46rem,calc(100vw-11rem))] z-[61] rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/30 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.18),0_18px_45px_rgba(0,0,0,0.6)]"
+            >
                 {/* Surface visuelle adaptative : le « petit écran » de
                     l'Architecte — lecteur vidéo ou aperçu de document selon
                     la tâche, jamais un second assistant. Une seule commande
@@ -1192,33 +1317,6 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                                     allowFullScreen
                                 />
                             </div>
-                        ) : mediaView.kind === 'presentation' ? (
-                            /* LE MODÈLE VALIDÉ (Direction, 05/09/2026) : la séquence vidéo
-                               HeyGen jouée dans le cadre même de l'avatar, en grand. */
-                            <div className="flex flex-col items-center gap-2 p-3 pt-10" data-testid="architecte-presentation-fenetre">
-                                <ArchitecteAvatar
-                                    config={avatarConfig}
-                                    presence={avatarPresence}
-                                    ttsEngine={ttsEngine}
-                                    outputLevel={0}
-                                    size={224}
-                                    actionLabel="Présentation de l'Architecte"
-                                    sequence={ARCHITECTE_PRESENTATION}
-                                    sequenceSlot="presentation"
-                                    testId="architecte-presentation"
-                                />
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/80 text-center">
-                                    {ARCHITECTE_PRESENTATION.title} — modèle validé par la Direction
-                                </p>
-                                <p className="text-[11px] italic leading-relaxed text-slate-200 text-center max-w-xs">
-                                    « {ARCHITECTE_PRESENTATION.text} »
-                                </p>
-                                {sequenceState.key === ARCHITECTE_PRESENTATION.key && sequenceState.status === 'failed' && (
-                                    <p className="text-[11px] text-amber-300/90 text-center" role="status">
-                                        {sequenceState.error} L'avatar animé reste actif.
-                                    </p>
-                                )}
-                            </div>
                         ) : (
                             <div className="max-h-52 overflow-y-auto rounded-xl border border-cyan-400/30 bg-slate-900/70 p-3">
                                 <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-cyan-300/70">{mediaView.name}</div>
@@ -1233,6 +1331,9 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                             <X size={12} />
                         </button>
                     </div>
+                )}
+                {sessionTurns.length === 0 && !mediaView && !isTypingOpen && (
+                    <p className="p-3 text-[11px] text-slate-400">Aucun échange pour l'instant — parlez ou écrivez à l'Architecte.</p>
                 )}
                 {sessionTurns.length > 0 && (
                     <div ref={conversationRef} className="max-h-60 overflow-y-auto p-3 space-y-2">
@@ -1297,7 +1398,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
         {/* Panneau caméra — AU-DESSUS de la barre, jamais à sa place : on voit
             ce que l'Architecte va regarder avant de le lui envoyer. */}
         {isCameraOpen && (
-            <div className="fixed bottom-44 md:bottom-28 left-1/2 -translate-x-1/2 z-[61] w-[90%] max-w-lg rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.25),0_18px_45px_rgba(0,0,0,0.6)]">
+            <div className="fixed bottom-[17rem] md:bottom-[6rem] left-3 right-3 md:left-auto md:right-[8.75rem] md:w-[min(32rem,calc(100vw-11rem))] z-[61] rounded-2xl overflow-hidden bg-[#0f172a]/95 backdrop-blur-xl border border-cyan-500/40 ring-1 ring-cyan-500/40 shadow-[0_0_32px_rgba(34,211,238,0.25),0_18px_45px_rgba(0,0,0,0.6)]">
                 <video ref={videoRef} playsInline muted className="w-full h-56 object-cover bg-black" />
                 <div className="flex items-center justify-between gap-3 p-3">
                     <span className="text-[11px] font-mono text-cyan-300/80 truncate">
@@ -1331,33 +1432,18 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
             // dock (z-50) — plus AUCUN accès au menu, donc aux Experts, tant
             // que l'Architecte était ouvert (défaut mesuré par l'audit mobile
             // du 31/08/2026). Desktop inchangé.
-            className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-2xl bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-4 ring-1 ring-cyan-500/50"
+            // Depuis le 05/09/2026 la barre est CELLE DE LA SCULPTURE : ancrée
+            // à droite, elle finit sous la silhouette qui se tient à son bout
+            // (réserve `md:pr-[7.5rem]`) ; sur téléphone elle prend la largeur
+            // et la sculpture monte au-dessus de son bout droit.
+            className="fixed bottom-24 md:bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-[min(48rem,calc(100vw-3rem))] z-[60] bg-[#0f172a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-full shadow-[0_0_32px_rgba(34,211,238,0.22),0_18px_45px_rgba(0,0,0,0.55)] flex items-center justify-between p-2 pr-3 md:pr-[7.5rem] ring-1 ring-cyan-500/50"
             role="status"
             aria-live="polite"
         >
-            <div className="flex items-center gap-4 min-w-0">
-                {/* AVATAR VIVANT — remplace le rond à icône (mission Direction
-                    du 04/09/2026). L'état n'est plus porté par une couleur de
-                    fond mais par le visage lui-même : halo de la grammaire
-                    d'états, bouche synchronisée sur la voix réellement
-                    prononcée. L'anneau rouge « micro en échec » reste tenu par
-                    l'état `error`, qui ne se déclenche que sur un échec RÉEL.
-                    L'action du bouton (fermer) est inchangée. */}
-                <ArchitecteAvatar
-                    config={avatarConfig}
-                    presence={avatarPresence}
-                    ttsEngine={ttsEngine}
-                    outputLevel={outputVolume}
-                    outputLevelRef={outputVolumeRef}
-                    wordPulseRef={wordPulseRef}
-                    mouthShapeRef={mouthShapeRef}
-                    voiceTrackRef={voiceTrackRef}
-                    voiceAligned={voiceAligned}
-                    size={48}
-                    onClick={close}
-                    actionLabel="Fermer L'Architecte"
-                />
-
+            <div className="flex items-center gap-3 min-w-0 shrink overflow-hidden">
+                {/* Le visage n'est plus DANS la barre : c'est la sculpture
+                    flottante, au bout de la barre, qui parle, écoute et
+                    referme. Ici : l'identité et l'état, en clair. */}
                 <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
                         L'Architecte
@@ -1414,7 +1500,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     <button
                         onClick={presenter}
                         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                            mediaView?.kind === 'presentation'
+                            presentationPlaying
                                 ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
                                 : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
                         }`}
@@ -1423,11 +1509,11 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                         data-testid="architecte-presentation-bouton"
                     >
                         <Film size={13} />
-                        <span className="hidden sm:inline">Présentation</span>
+                        <span className="hidden lg:inline">Présentation</span>
                         {/* INVITATION discrète, une fois par appareil : dans la barre
                             elle-même, sans ouvrir le panneau (§16-17 : la voix reste
                             le mode par défaut). Rien ne démarre sans le clic. */}
-                        {offrirPresentation && mediaView?.kind !== 'presentation' && (
+                        {offrirPresentation && !presentationPlaying && (
                             <span
                                 data-testid="architecte-presentation-invitation"
                                 className="ml-0.5 rounded-full bg-cyan-300 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-[#0f172a] animate-pulse"
@@ -1444,7 +1530,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     aria-label="Joindre un fichier"
                 >
                     <Paperclip size={13} />
-                    <span className="hidden sm:inline">Fichier</span>
+                    <span className="hidden lg:inline">Fichier</span>
                 </button>
 
                 <button
@@ -1464,7 +1550,7 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     aria-label="Écrire à l'Architecte"
                 >
                     <Keyboard size={13} />
-                    <span className="hidden sm:inline">Écrire</span>
+                    <span className="hidden lg:inline">Écrire</span>
                 </button>
 
                 <button
@@ -1478,11 +1564,27 @@ export const ArchitecteFloatingBar: React.FC<ArchitecteFloatingBarProps> = ({
                     aria-label="Activer la caméra"
                 >
                     <Camera size={13} />
-                    <span className="hidden sm:inline">Caméra</span>
+                    <span className="hidden lg:inline">Caméra</span>
                 </button>
             </div>
 
-            <button onClick={close} className="ml-3 text-gray-400 hover:text-white transition-colors shrink-0" aria-label="Fermer">
+            {/* La flèche : déplie ou replie la conversation écrite — « ne
+                s'affiche pas en grand par défaut » (Direction, 05/09/2026). */}
+            <button
+                onClick={() => setIsPanelOpen(!showConversationPanel)}
+                className={`ml-2 flex items-center rounded-full border p-1.5 transition-colors shrink-0 ${
+                    showConversationPanel
+                        ? 'border-cyan-300 bg-cyan-400/25 text-cyan-100'
+                        : 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'
+                }`}
+                title={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
+                aria-label={showConversationPanel ? 'Replier la conversation' : 'Déplier la conversation'}
+                aria-expanded={showConversationPanel}
+                data-testid="architecte-panneau-bascule"
+            >
+                {showConversationPanel ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
+            <button onClick={close} className="ml-2 text-gray-400 hover:text-white transition-colors shrink-0" aria-label="Fermer">
                 <X size={18} />
             </button>
         </div>

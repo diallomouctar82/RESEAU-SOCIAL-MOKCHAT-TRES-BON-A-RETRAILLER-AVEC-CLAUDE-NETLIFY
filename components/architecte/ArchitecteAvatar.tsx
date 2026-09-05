@@ -5,6 +5,7 @@ import {
     ARCHITECTE_STATE_LABEL,
     PRESENCE_TO_GRAMMAR,
     needsSyntheticMediaNotice,
+    sculptureMaskFor,
     shouldAnimate,
     type ArchitecteAvatarConfig,
     type ArchitectePresenceState,
@@ -51,6 +52,7 @@ import {
 import { ArchitecteAvatarFace } from './ArchitecteAvatarFace';
 import { LivingPortrait, type LivingPortraitHandle } from './LivingPortrait';
 import { ArchitecteSequenceVideo, useSequencePlayerState } from './ArchitecteSequenceVideo';
+import { ArchitecteSequenceCutout } from './ArchitecteSequenceCutout';
 import { architecteSequencePlayer, type ArchitecteSequence, type SequencePlayer } from '../../services/architecte/sequences';
 
 /**
@@ -125,6 +127,14 @@ export interface ArchitecteAvatarProps {
     sequencePlayer?: SequencePlayer;
     /** Diamètre en pixels. */
     size?: number;
+    /**
+     * `cadre` (défaut) : le rond bordé, halo d'état, vidéo dans le cadre.
+     * `sculpture` : le visage DÉTOURÉ, sans cadre ni fond — la sculpture
+     * vivante flottante demandée par la Direction (05/09/2026) ; l'état se lit
+     * dans la lueur portée par la silhouette. Retombe sur `cadre` quand aucun
+     * masque ne vaut pour la photo réglée.
+     */
+    variant?: 'cadre' | 'sculpture';
     onClick?: () => void;
     /** Libellé du bouton — l'action, pas la décoration. */
     actionLabel: string;
@@ -191,6 +201,7 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
     wordPulse = null,
     wordPulseRef = null,
     size = 48,
+    variant = 'cadre',
     onClick,
     actionLabel,
     className = '',
@@ -419,30 +430,39 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
             ? sequenceState.status
             : 'idle';
 
-    return (
-        <button
-            ref={hostRef}
-            type="button"
-            onClick={onClick}
-            // L'état est DANS le nom accessible : un lecteur d'écran annonce
-            // « L'Architecte parle », le mouvement n'est jamais seul à le dire.
-            aria-label={`${config.displayName} — ${stateLabel}. ${actionLabel}`}
-            title={`${config.displayName} — ${stateLabel}`}
-            data-testid={testId}
-            data-presence={presence}
-            data-animated={animated ? 'true' : 'false'}
-            data-lipsync={lipSyncLevel}
-            data-sequence={sequenceStatus}
-            style={{ width: size, height: size }}
-            className={`relative shrink-0 rounded-full overflow-hidden border border-cyan-500/60 bg-[#0A1622] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a] ${className}`}
-        >
-            {/* Halo d'état — réutilise le système verre/eau/lumière du dépôt. */}
-            <span
-                aria-hidden="true"
-                className={`absolute inset-0 rounded-full pointer-events-none ${animated ? halo.className : ''}`}
-                style={halo.style as React.CSSProperties}
-            />
+    // SCULPTURE : masque de silhouette (alpha) sur le portrait vivant ET sur la
+    // vidéo, qui est calée sur le portrait pour que l'un succède à l'autre sans
+    // saut. La lueur d'état remplace le halo rond : elle épouse la silhouette.
+    const maskUrl = variant === 'sculpture' ? sculptureMaskFor(config) : null;
+    const sculpture = maskUrl !== null;
+    const haloColor = (halo.style['--halo-color'] as string | undefined) || 'rgba(143,227,255,0.45)';
+    const maskStyle: React.CSSProperties = sculpture
+        ? {
+              WebkitMaskImage: `url(${maskUrl})`,
+              maskImage: `url(${maskUrl})`,
+              WebkitMaskSize: '100% 100%',
+              maskSize: '100% 100%',
+              WebkitMaskRepeat: 'no-repeat',
+              maskRepeat: 'no-repeat',
+          }
+        : {};
+    const videoStyle: React.CSSProperties | undefined =
+        sculpture && sequence
+            ? {
+                  transformOrigin: `${sequence.alignment.originXPercent}% ${sequence.alignment.originYPercent}%`,
+                  transform: `translate(${sequence.alignment.dxPercent}%, ${sequence.alignment.dyPercent}%) scale(${sequence.alignment.scale})`,
+              }
+            : undefined;
+    const glow = presence === 'rest' ? 10 : 18;
+    // Un appelant qui positionne lui-même l'avatar (`fixed …`) ne doit pas se
+    // faire contredire par `relative` (défini APRÈS `fixed` dans la feuille
+    // Tailwind, il l'emporterait : l'avatar flottant se retrouvait en haut à
+    // gauche, décalé de ses marges). Sans classe de position, `relative` sert
+    // de repère aux couches absolues.
+    const positionClass = /\b(fixed|absolute|sticky)\b/.test(className) ? '' : 'relative';
 
+    const portraitVivant = (
+        <>
             {photo ? (
                 /* LE PORTRAIT VIVANT : la photo respire, cligne et parle. */
                 <LivingPortrait
@@ -459,12 +479,84 @@ export const ArchitecteAvatar: React.FC<ArchitecteAvatarProps> = ({
                    crédible — il évite seulement un cadre vide. */
                 <ArchitecteAvatarFace mouthOpenness={openness} accent={accent} animated={animated} />
             )}
+        </>
+    );
+
+    const visage = (
+        <>
+            {portraitVivant}
 
             {/* SÉQUENCE VIDÉO VALIDÉE (P3a) : jouée par-dessus le portrait, dans
                 le même cadre ; invisible au repos, le rig reprend dès la fin. */}
             {sequenceEnabled && sequence && (
                 <ArchitecteSequenceVideo sequence={sequence} slot={slot} player={player} />
             )}
+        </>
+    );
+
+    if (sculpture) {
+        return (
+            <button
+                ref={hostRef}
+                type="button"
+                onClick={onClick}
+                aria-label={`${config.displayName} — ${stateLabel}. ${actionLabel}`}
+                title={`${config.displayName} — ${stateLabel}`}
+                data-testid={testId}
+                data-presence={presence}
+                data-animated={animated ? 'true' : 'false'}
+                data-lipsync={lipSyncLevel}
+                data-sequence={sequenceStatus}
+                data-variant="sculpture"
+                style={{ width: size, height: size, filter: `drop-shadow(0 0 ${glow}px ${haloColor})` }}
+                className={`${positionClass} shrink-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a] rounded-2xl ${className}`}
+            >
+                {/* Le portrait vivant (rig 2D, repli technique) porte le masque
+                    de silhouette relevé sur le portrait ; la vidéo validée, elle,
+                    est détourée image par image par sa propre couche. */}
+                <span aria-hidden="true" className="absolute inset-0 block" style={maskStyle} data-testid={`${testId}-silhouette`}>
+                    {portraitVivant}
+                </span>
+                {sequenceEnabled && sequence && (
+                    <ArchitecteSequenceCutout sequence={sequence} slot={slot} player={player} style={videoStyle} />
+                )}
+                {needsSyntheticMediaNotice(config) && (
+                    <span
+                        aria-hidden="true"
+                        title="Média synthétique"
+                        className="absolute bottom-1 right-1 w-3 h-3 rounded-full bg-cyan-400 border border-[#0f172a]"
+                    />
+                )}
+            </button>
+        );
+    }
+
+    return (
+        <button
+            ref={hostRef}
+            type="button"
+            onClick={onClick}
+            // L'état est DANS le nom accessible : un lecteur d'écran annonce
+            // « L'Architecte parle », le mouvement n'est jamais seul à le dire.
+            aria-label={`${config.displayName} — ${stateLabel}. ${actionLabel}`}
+            title={`${config.displayName} — ${stateLabel}`}
+            data-testid={testId}
+            data-presence={presence}
+            data-animated={animated ? 'true' : 'false'}
+            data-lipsync={lipSyncLevel}
+            data-sequence={sequenceStatus}
+            data-variant="cadre"
+            style={{ width: size, height: size }}
+            className={`${positionClass} shrink-0 rounded-full overflow-hidden border border-cyan-500/60 bg-[#0A1622] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a] ${className}`}
+        >
+            {/* Halo d'état — réutilise le système verre/eau/lumière du dépôt. */}
+            <span
+                aria-hidden="true"
+                className={`absolute inset-0 rounded-full pointer-events-none ${animated ? halo.className : ''}`}
+                style={halo.style as React.CSSProperties}
+            />
+
+            {visage}
 
             {/* Média synthétique : obligatoire dès qu'une photo remplace le
                 dessin, puisqu'une confusion redevient alors possible. */}

@@ -17,6 +17,8 @@ import {
     ARCHITECTE_PRESENTATION,
     ARCHITECTE_SEQUENCES,
     architecteSequencePlayer,
+    formatDateFr,
+    formatExpressiveness,
     formatSequenceDuration,
 } from '../../services/architecte/sequences';
 
@@ -308,8 +310,8 @@ export const AdminArchitecteAvatarCard: React.FC<AdminArchitecteAvatarCardProps>
                                         <p className="text-xs font-bold text-slate-800 truncate">{sequence.title}</p>
                                         <p className="text-[11px] text-slate-500">
                                             {formatSequenceDuration(sequence.durationMs)} · HeyGen, expressivité{' '}
-                                            {sequence.model.settings.expressiveness === 'medium' ? 'moyenne' : sequence.model.settings.expressiveness} ·
-                                            validée le {sequence.validatedAt} par {sequence.validatedBy}
+                                            {formatExpressiveness(sequence.model.settings.expressiveness)} ·
+                                            validée le {formatDateFr(sequence.validatedAt)} par {sequence.validatedBy}
                                         </p>
                                     </div>
                                     <button

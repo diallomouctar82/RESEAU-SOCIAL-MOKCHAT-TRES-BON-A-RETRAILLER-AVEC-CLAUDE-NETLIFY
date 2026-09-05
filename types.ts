@@ -5395,6 +5395,8 @@ export interface PlatformDetailedModuleSettings {
     voiceKey: string;
     /** Séquences vidéo pré-rendues validées (P3a) proposées par l'avatar ; absent des anciens réglages = activé. */
     videoSequencesEnabled: boolean;
+    /** Masque de silhouette du portrait d'usine (sculpture flottante détourée) ; absent = masque livré. */
+    silhouetteMaskUrl?: string;
     updatedAt: string;
     updatedBy: string;
   };

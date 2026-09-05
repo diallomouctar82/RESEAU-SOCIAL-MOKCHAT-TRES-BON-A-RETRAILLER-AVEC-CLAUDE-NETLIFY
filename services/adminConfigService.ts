@@ -1438,6 +1438,7 @@ const INITIAL_DETAILED_SETTINGS: PlatformDetailedModuleSettings = {
     lipSyncEnabled: true,
     voiceKey: '',
     videoSequencesEnabled: true,
+    silhouetteMaskUrl: '/architecte/architecte-silhouette.png',
     updatedAt: '',
     updatedBy: ''
   },

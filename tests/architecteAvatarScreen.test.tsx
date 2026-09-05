@@ -295,7 +295,8 @@ describe('Séquence vidéo validée dans le cadre de l’avatar', () => {
         renderAvatar({ sequence: ARCHITECTE_PRESENTATION, sequenceSlot: 'test' });
         const video = screen.getByTestId('architecte-sequence-video');
         expect(video).toHaveAttribute('data-sequence-status', 'idle');
-        expect(video).toHaveAttribute('poster', ARCHITECTE_PRESENTATION.posterUrl);
+        // Plus d'affiche sur la couche vidéo : elle ne serait jamais visible et coûtait un téléchargement.
+        expect(video).not.toHaveAttribute('poster');
         expect(video).toHaveAttribute('playsinline');
         expect(video.className).toContain('opacity-0');
         const sources = video.querySelectorAll('source');
@@ -335,7 +336,7 @@ describe('Séquence vidéo validée dans le cadre de l’avatar', () => {
         const bascule = screen.getByLabelText('Séquence vidéo validée (présentation)') as HTMLInputElement;
         expect(bascule.checked).toBe(true);
         expect(screen.getByText(/8,2 s · HeyGen, expressivité moyenne/)).toBeInTheDocument();
-        expect(screen.getByTestId('architecte-sequences')).toHaveTextContent('validée le 2026-09-05 par Direction Vision Smart');
+        expect(screen.getByTestId('architecte-sequences')).toHaveTextContent('validée le 5 septembre 2026 par Direction Vision Smart');
         fireEvent.click(screen.getByRole('button', { name: /Prévisualiser : Présentation/ }));
         expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
         fireEvent.click(bascule);

@@ -1,0 +1,209 @@
+[
+ {
+  "nom": "ordinateur",
+  "repos": {
+   "variant": "sculpture",
+   "presence": "rest",
+   "sequence": "idle",
+   "rect": {
+    "x": 1144,
+    "y": 664,
+    "width": 112,
+    "height": 112,
+    "top": 664,
+    "right": 1256,
+    "bottom": 776,
+    "left": 1144
+   },
+   "mask": "url(\"/architecte/architecte-silhouette.png\")",
+   "barre": false
+  },
+  "pendant": {
+   "status": "playing",
+   "currentTime": 2.559493,
+   "paused": false,
+   "muted": false,
+   "videoWidth": 720,
+   "videoHeight": 1440,
+   "source": "vision-smart-heygen.cutout.webm",
+   "canvas": {
+    "w": 107,
+    "h": 107,
+    "opacity": "1"
+   },
+   "presence": "speaking",
+   "statut": "L'ArchitectePrésentation en cours…PrésentationFichierÉcrireCaméra",
+   "barre": true,
+   "panneau": false,
+   "rect": {
+    "x": 1141.199951171875,
+    "y": 661.2000122070312,
+    "width": 117.5999755859375,
+    "height": 117.5999755859375,
+    "top": 661.2000122070312,
+    "right": 1258.7999267578125,
+    "bottom": 778.7999877929688,
+    "left": 1141.199951171875
+   }
+  },
+  "alpha": {
+   "pixels": 11449,
+   "transparents": 5254,
+   "opaques": 5702
+  },
+  "dureeMs": 8589,
+  "apres": {
+   "status": "idle",
+   "ended": true,
+   "currentTime": 8.168,
+   "presence": "error",
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.PrésentationFichierÉcrireCaméra"
+  },
+  "panneau": {
+   "panneau": {
+    "x": 404,
+    "y": 605.5,
+    "width": 736,
+    "height": 98.5,
+    "top": 605.5,
+    "right": 1140,
+    "bottom": 704,
+    "left": 404
+   },
+   "sculpture": {
+    "x": 1144,
+    "y": 664,
+    "width": 112,
+    "height": 112,
+    "top": 664,
+    "right": 1256,
+    "bottom": 776,
+    "left": 1144
+   },
+   "barre": {
+    "x": 488,
+    "y": 707,
+    "width": 768,
+    "height": 69,
+    "top": 707,
+    "right": 1256,
+    "bottom": 776,
+    "left": 488
+   },
+   "texte": "Bonjour, et bienvenue ! Je suis L'Architecte, votre guide ici. Dites-moi simplement ce que vous aimeriez faire — je m'oc"
+  },
+  "ferme": {
+   "barre": false,
+   "panneau": false,
+   "sculpture": true
+  },
+  "erreurs": [
+   "console: Failed to load resource: the server responded with a status of 404 (Not Found)",
+   "console: Failed to load resource: net::ERR_FAILED",
+   "console: Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nom": "mobile",
+  "repos": {
+   "variant": "sculpture",
+   "presence": "rest",
+   "sequence": "idle",
+   "rect": {
+    "x": 282,
+    "y": 652,
+    "width": 96,
+    "height": 96,
+    "top": 652,
+    "right": 378,
+    "bottom": 748,
+    "left": 282
+   },
+   "mask": "url(\"/architecte/architecte-silhouette.png\")",
+   "barre": false
+  },
+  "pendant": {
+   "status": "playing",
+   "currentTime": 2.550769,
+   "paused": false,
+   "muted": false,
+   "videoWidth": 720,
+   "videoHeight": 1440,
+   "source": "vision-smart-heygen.cutout.webm",
+   "canvas": {
+    "w": 183,
+    "h": 183,
+    "opacity": "1"
+   },
+   "presence": "speaking",
+   "statut": "L'ArchitectePrésentation en cours…PrésentationFichierÉcrireCaméra",
+   "barre": true,
+   "panneau": false,
+   "rect": {
+    "x": 279.6000061035156,
+    "y": 577.5999755859375,
+    "width": 100.79998779296875,
+    "height": 100.79998779296875,
+    "top": 577.5999755859375,
+    "right": 380.3999938964844,
+    "bottom": 678.3999633789062,
+    "left": 279.6000061035156
+   }
+  },
+  "alpha": {
+   "pixels": 33489,
+   "transparents": 15526,
+   "opaques": 16826
+  },
+  "dureeMs": 8611,
+  "apres": {
+   "status": "idle",
+   "ended": true,
+   "currentTime": 8.168,
+   "presence": "error",
+   "statut": "L'Architectevoix de secoursLe micro n'a pas démarré — utilisez la saisie.PrésentationFichierÉcrireCaméra"
+  },
+  "panneau": {
+   "panneau": {
+    "x": 12,
+    "y": 415,
+    "width": 366,
+    "height": 157,
+    "top": 415,
+    "right": 378,
+    "bottom": 572,
+    "left": 12
+   },
+   "sculpture": {
+    "x": 282,
+    "y": 580,
+    "width": 96,
+    "height": 96,
+    "top": 580,
+    "right": 378,
+    "bottom": 676,
+    "left": 282
+   },
+   "barre": {
+    "x": 12,
+    "y": 679,
+    "width": 366,
+    "height": 69,
+    "top": 679,
+    "right": 378,
+    "bottom": 748,
+    "left": 12
+   },
+   "texte": "Bonjour, et bienvenue ! Je suis L'Architecte, votre guide ici. Dites-moi simplement ce que vous aimeriez faire — je m'oc"
+  },
+  "ferme": {
+   "barre": false,
+   "panneau": false,
+   "sculpture": true
+  },
+  "erreurs": [
+   "console: Failed to load resource: net::ERR_FAILED",
+   "console: Failed to load resource: net::ERR_FAILED"
+  ]
+ }
+]

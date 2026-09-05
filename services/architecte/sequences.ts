@@ -31,6 +31,25 @@ export interface SequenceCue {
     text: string;
 }
 
+/**
+ * Calage de la vidéo sur le PORTRAIT du rig. HeyGen re-cadre légèrement le
+ * portrait qu'on lui donne : sans calage, le passage du portrait vivant à la
+ * vidéo ferait sauter le visage. Mesuré sur les centroïdes des iris (05/09/2026).
+ */
+export interface SequenceAlignment {
+    /** Échelle de la vidéo pour que l'écart de ses pupilles soit celui du portrait. */
+    scale: number;
+    /** Centre de l'échelle : les pupilles de la vidéo, en % du cadre. */
+    originXPercent: number;
+    originYPercent: number;
+    /** Décalage (en % du cadre) qui pose ce centre sur les pupilles du portrait. */
+    dxPercent: number;
+    dyPercent: number;
+}
+
+/** Le cadre de la SCULPTURE flottante (bouton permanent de l'Architecte). */
+export const SCULPTURE_SLOT = 'sculpture';
+
 export interface ArchitecteSequence {
     key: string;
     title: string;
@@ -42,6 +61,12 @@ export interface ArchitecteSequence {
     durationMs: number;
     /** MP4 en premier : le navigateur prend la première source qu'il sait lire. */
     sources: readonly SequenceSource[];
+    /**
+     * La même vidéo, EMPILÉE avec son matte de silhouette (couleurs en haut,
+     * alpha en bas, relevé image par image) : ce que joue la sculpture détourée.
+     * Même son, même durée, mêmes images — seule la transparence est ajoutée.
+     */
+    cutoutSources: readonly SequenceSource[];
     provider: 'heygen';
     model: {
         portraitUrl: string;
@@ -51,6 +76,7 @@ export interface ArchitecteSequence {
     generatedAt: string;
     validatedBy: string;
     validatedAt: string;
+    alignment: SequenceAlignment;
 }
 
 export const ARCHITECTE_PRESENTATION_TEXT =
@@ -88,6 +114,23 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
             sizeBytes: 975088,
         },
     ],
+    // Détourage image par image (05/09/2026) : silhouette relevée sur chacune des
+    // 204 images par un modèle de segmentation local (rembg, isnet-general-use),
+    // empilée sous les couleurs (720 × 1440) ; son AAC copié tel quel du MP4 validé.
+    cutoutSources: [
+        {
+            url: '/architecte/vision-smart-heygen.cutout.mp4',
+            type: 'video/mp4',
+            sha256: '3e86a0d04011c2d7380971e9d13c33cfbb91a6d1c8d57d61d23742db654e09e3',
+            sizeBytes: 2090415,
+        },
+        {
+            url: '/architecte/vision-smart-heygen.cutout.webm',
+            type: 'video/webm',
+            sha256: '701e78e07dde8aba4958ed0f6cc78a7190739cdbafbe307630c5b43f30d652d2',
+            sizeBytes: 1055974,
+        },
+    ],
     provider: 'heygen',
     model: {
         portraitUrl: '/architecte/architecte.webp',
@@ -97,6 +140,11 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     generatedAt: '2026-09-05T09:47:49Z',
     validatedBy: 'Direction Vision Smart',
     validatedAt: '2026-09-05',
+    // Mesuré le 05/09/2026 (iris cyan, image 1 de la vidéo contre le portrait
+    // livré) : pupilles du portrait à (51,74 %, 46,17 %), écart 19,89 % ; celles
+    // de la vidéo à (51,95 %, 46,84 %), écart 20,90 %. Appliqué à la couche
+    // vidéo de la sculpture seulement — le cadre rond montre la vidéo telle quelle.
+    alignment: { scale: 0.9515, originXPercent: 51.95, originYPercent: 46.84, dxPercent: -0.21, dyPercent: -0.67 },
 };
 
 export const ARCHITECTE_SEQUENCES: readonly ArchitecteSequence[] = [ARCHITECTE_PRESENTATION];
@@ -108,6 +156,23 @@ export function findArchitecteSequence(key: string): ArchitecteSequence | null {
 /** Libellé humain d'une durée de séquence : « 8,2 s ». */
 export function formatSequenceDuration(durationMs: number): string {
     return `${(Math.max(0, durationMs) / 1000).toFixed(1).replace('.', ',')} s`;
+}
+
+const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+/** « 2026-09-05 » → « 5 septembre 2026 » ; toute autre forme est rendue telle quelle. */
+export function formatDateFr(isoDate: string): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+    if (!m) return isoDate;
+    const mois = MOIS_FR[Number(m[2]) - 1];
+    if (!mois) return isoDate;
+    const jour = Number(m[3]);
+    return `${jour === 1 ? '1er' : jour} ${mois} ${m[1]}`;
+}
+
+/** Réglage d'expressivité HeyGen, dit en français. */
+export function formatExpressiveness(level: 'low' | 'medium' | 'high'): string {
+    return level === 'low' ? 'faible' : level === 'high' ? 'forte' : 'moyenne';
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -179,6 +244,8 @@ export interface SequenceVideoLike {
     play(): Promise<void> | void;
     pause(): void;
     currentTime: number;
+    /** `true` quand le média est arrivé à sa fin (les navigateurs émettent `pause` AVANT `ended`). */
+    readonly ended?: boolean;
     addEventListener(type: string, listener: () => void): void;
     removeEventListener(type: string, listener: () => void): void;
 }
@@ -198,7 +265,8 @@ export interface SequencePlayer {
      * Renvoie `false` si aucune vidéo n'est disponible (le rig reste seul).
      */
     play(key: string, slot?: string): boolean;
-    stop(): void;
+    /** Arrête la lecture ; avec `slot`, seulement si c'est ce cadre qui joue. */
+    stop(slot?: string): void;
     getState(): SequencePlayerState;
     subscribe(listener: (state: SequencePlayerState) => void): () => void;
 }
@@ -218,6 +286,13 @@ export function createSequencePlayer(): SequencePlayer {
     let nextId = 1;
     let current: AttachedVideo | null = null;
     let holdTimer: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * Jeton de la DERNIÈRE demande de lecture. Un second `play()` sur le même
+     * cadre (double appui) met la première promesse `play()` en échec
+     * (`AbortError`) : ce rejet appartient à une demande dépassée et ne doit
+     * jamais faire basculer la lecture en cours en « failed ».
+     */
+    let playSeq = 0;
 
     const emit = (next: SequencePlayerState) => {
         state = next;
@@ -242,7 +317,8 @@ export function createSequencePlayer(): SequencePlayer {
         }
     };
 
-    const stop = () => {
+    const stop = (slot?: string) => {
+        if (slot !== undefined && (!current || current.slot !== slot)) return;
         clearHold();
         if (current) {
             try {
@@ -265,7 +341,10 @@ export function createSequencePlayer(): SequencePlayer {
             const onPause = () => {
                 // Une pause qui n'est ni la fin ni un arrêt demandé (autre lecteur,
                 // onglet masqué) rend la main au rig plutôt que de figer l'image.
-                if (isMine() && state.status === 'playing') stop();
+                // À la fin naturelle, les navigateurs émettent `pause` PUIS `ended`
+                // (`video.ended` est déjà vrai) : on laisse alors `onEnded` faire
+                // son travail — sinon l'état « ended » n'existerait jamais.
+                if (isMine() && state.status === 'playing' && !video.ended) stop();
             };
             video.addEventListener('playing', onPlaying);
             video.addEventListener('ended', onEnded);
@@ -300,13 +379,19 @@ export function createSequencePlayer(): SequencePlayer {
             }
             stop();
             current = target;
+            const token = ++playSeq;
             emit({ key, slot: target.slot, status: 'loading', error: null });
             try {
                 target.video.currentTime = 0;
                 const result = target.video.play();
                 if (result && typeof (result as Promise<void>).then === 'function') {
-                    (result as Promise<void>).catch(() => {
-                        if (current && current.id === target.id) transition('error', 'Lecture refusée par le navigateur : touchez l’avatar pour réessayer.');
+                    (result as Promise<void>).catch((reason: unknown) => {
+                        // Demande dépassée par un `play()` plus récent, ou interruption
+                        // par notre propre `pause()` : ce n'est pas un refus.
+                        if (token !== playSeq) return;
+                        const name = typeof reason === 'object' && reason !== null ? (reason as { name?: unknown }).name : undefined;
+                        if (name === 'AbortError') return;
+                        if (current && current.id === target.id) transition('error', 'Lecture refusée par le navigateur.');
                     });
                 }
             } catch {

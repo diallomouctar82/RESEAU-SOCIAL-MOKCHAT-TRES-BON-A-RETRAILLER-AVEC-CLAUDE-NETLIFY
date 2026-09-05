@@ -20,6 +20,8 @@ export interface ArchitecteSequenceVideoProps {
     slot: string;
     player?: SequencePlayer;
     className?: string;
+    /** Calage éventuel (sculpture) : transformation CSS posée sur la vidéo. */
+    style?: React.CSSProperties;
 }
 
 export function useSequencePlayerState(player: SequencePlayer): SequencePlayerState {
@@ -36,6 +38,7 @@ export const ArchitecteSequenceVideo: React.FC<ArchitecteSequenceVideoProps> = (
     slot,
     player = architecteSequencePlayer,
     className = '',
+    style,
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const state = useSequencePlayerState(player);
@@ -56,7 +59,8 @@ export const ArchitecteSequenceVideo: React.FC<ArchitecteSequenceVideoProps> = (
             ref={videoRef}
             playsInline
             preload="metadata"
-            poster={sequence.posterUrl}
+            // Pas d'affiche : elle ne serait jamais visible (le portrait vivant est
+            // dessous) et coûterait un téléchargement à chaque montage.
             aria-hidden="true"
             tabIndex={-1}
             data-testid="architecte-sequence-video"
@@ -66,6 +70,7 @@ export const ArchitecteSequenceVideo: React.FC<ArchitecteSequenceVideoProps> = (
             className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-300 ${
                 visible ? 'opacity-100' : 'opacity-0'
             } ${className}`}
+            style={style}
         >
             {sequence.sources.map((source) => (
                 <source key={source.url} src={source.url} type={source.type} />

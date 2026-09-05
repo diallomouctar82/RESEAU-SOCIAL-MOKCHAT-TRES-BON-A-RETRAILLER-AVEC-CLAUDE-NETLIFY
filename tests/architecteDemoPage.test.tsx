@@ -41,7 +41,7 @@ describe('Page publique de démonstration de l’avatar', () => {
         expect(bouton).toBeInTheDocument();
         fireEvent.click(bouton);
         // La boucle automatique se coupe au profit de la lecture déclenchée.
-        expect(screen.getByRole('button', { name: /boucle/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Répéter en boucle/ })).toBeInTheDocument();
     });
 
     it('sans voix intégrée, retombe sur la démonstration muette et le DIT plutôt que de parler bouche close', () => {
@@ -94,7 +94,7 @@ describe('Page publique — séquence vidéo validée', () => {
         expect(screen.getByTestId('demo-video-validee')).toHaveTextContent(/Voir l’avatar vidéo/);
         expect(screen.getByRole('button', { name: /Le faire parler/ })).toBeInTheDocument();
         expect(screen.getByTestId('demo-vision-smart')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /boucle/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /(Répéter en|Arrêter la) boucle/ })).toBeInTheDocument();
         const video = screen.getByTestId('architecte-sequence-video');
         expect(video).toHaveAttribute('data-sequence-slot', 'demo');
         expect(video.querySelector('source')).toHaveAttribute('src', ARCHITECTE_PRESENTATION.sources[0].url);

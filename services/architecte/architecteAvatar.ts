@@ -78,6 +78,13 @@ export interface ArchitecteAvatarConfig {
      * Absent d'une configuration enregistrée avant cette version = `true`.
      */
     videoSequencesEnabled: boolean;
+    /**
+     * Masque de silhouette (PNG avec alpha, relevé sur le portrait livré et sur
+     * les 204 images de la vidéo validée) : détoure la SCULPTURE flottante —
+     * sans cadre ni fond, comme l'a demandé la Direction le 05/09/2026. Il ne
+     * vaut que pour le portrait d'usine ; une autre photo garde le cadre rond.
+     */
+    silhouetteMaskUrl: string;
     updatedAt: string;
     updatedBy: string;
 }
@@ -98,9 +105,20 @@ export const DEFAULT_ARCHITECTE_AVATAR: ArchitecteAvatarConfig = {
     lipSyncEnabled: true,
     voiceKey: '',
     videoSequencesEnabled: true,
+    silhouetteMaskUrl: '/architecte/architecte-silhouette.png',
     updatedAt: '',
     updatedBy: '',
 };
+
+/**
+ * Le masque de la sculpture n'a été relevé que sur le portrait d'usine : une
+ * autre photo (choisie par l'Admin-Général) retombe sur le cadre rond, jamais
+ * sur un détourage faux.
+ */
+export function sculptureMaskFor(config: ArchitecteAvatarConfig): string | null {
+    if (!config.silhouetteMaskUrl) return null;
+    return config.photoUrl === DEFAULT_ARCHITECTE_AVATAR.photoUrl ? config.silhouetteMaskUrl : null;
+}
 
 /** Complète une configuration partielle ou héritée — jamais de champ `undefined` lu par l'écran. */
 export function mergeArchitecteAvatarConfig(stored: unknown): ArchitecteAvatarConfig {

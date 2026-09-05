@@ -543,6 +543,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                 >
                     <Volume2 size={16} /> Le faire parler à voix haute
                 </button>
+                {config.videoSequencesEnabled !== false && (
                 <button
                     type="button"
                     onClick={voirAvatarVideo}
@@ -551,6 +552,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                 >
                     <Film size={16} /> Voir l’avatar vidéo (modèle validé)
                 </button>
+                )}
                 <button
                     type="button"
                     onClick={ecouterVisionSmart}
