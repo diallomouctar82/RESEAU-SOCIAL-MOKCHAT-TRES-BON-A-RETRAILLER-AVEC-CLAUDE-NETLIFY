@@ -34,6 +34,69 @@ Chaque décision respecte le formalisme strict suivant :
 * **Contrôle indépendant** (agent séparé, producteur ≠ contrôleur, 05/09) : verdict « À CORRIGER » sur `12cdde6` — 1 BLOQUANT (hypothèse « `SIGNED_IN` vient toujours du serveur » fausse : supabase-js rejoue la session du stockage en `SIGNED_IN` au retour sur l'onglet et entre onglets ; trou démontré au banc, reproduit ensuite dans Chromium sur la page de production : après refus, rejeu → interface), 2 IMPORTANTS (chiffre de tests 1 611 → 1 612 ; limite non dite), 3 MINEURS (refus non JSON d'un intermédiaire classé « invalide » ; commentaire `netlify.toml` « une seule redirection » alors que `http://www…` fait deux sauts ; vérification redondante quand le client vient de rafraîchir le jeton). Tous corrigés sauf le dernier (bénin, consigné). **Contre-vérification** par le même contrôleur sur `716622c` : verdict **« PRÊT »** (contre-épreuves rejouées : les deux trous `SIGNED_IN` fermés ; 4 tests d'origine identiques à l'octet ; mémoire vivante isolée ; aucun secret), avec quatre mineurs corrigés dans la foulée : effacement local borné par le délai (le `POST /auth/v1/logout` qui traîne ne retient plus l'écran de connexion), `Map` des verdicts plafonnée à quatre jetons, test « rejeu pendant la vérification initiale » rendu discriminant (profil résolu après le refus, `fetchUserProfile` jamais appelé), `.catch` sur `getSession()` (une exception de relecture mène à l'écran de connexion, jamais à un chargement sans fin).
 * **Limites dites** : les navigateurs intégrés sont émulés par leur agent utilisateur dans Chromium — le comportement réel de WhatsApp, Messenger et SMS sur un téléphone appartient au contrôle de la Direction ; le rejeu `SIGNED_IN` est éprouvé au banc (tests DOM) et dans Chromium sur un onglet (jeton remis dans le stockage puis `visibilitychange`), pas avec deux vrais onglets ; quand le client vient de rafraîchir le jeton à l'ouverture, le jeton neuf est vérifié une fois de plus (un appel, bénin) ; un jeton d'accès encore valide (au plus 1 h) après une « déconnexion partout » lancée depuis un autre appareil n'est pas révoqué par ce contrôle (limite des jetons signés) ; serveur d'authentification injoignable au démarrage → tolérance (entrée avec la session locale non expirée), à durcir sur décision de la Direction ; les règles de domaine de `netlify.toml` ne s'observent qu'en production (le preview Netlify n'a pas ce domaine) ; connexion Google depuis un navigateur intégré Messenger / Facebook : Google refuse ses formulaires dans ces navigateurs (limite Google, hors périmètre — la connexion par e-mail reste disponible) ; `/architecte` reste la page publique de démonstration décidée par DEC-2026-066 (aucune donnée de compte).
 * **Statut** : 🟡 **PRÊTE POUR PRODUCTION CONTRÔLÉE** — PR brouillon ouverte sur `claude/moknet-public-access-auth-hu6yy7`, en attente du Green Gate, de la revue indépendante et du feu vert écrit de la Direction (v6.42.0).
+### [DEC-2026-080] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — modale « Assistant IA Pré-Publication Mooc »
+  (`components/AIPostAssistantModal.tsx`), feuille `index.html` (nouveau bloc
+  « ASSISTANT IA — MODALE AU-DESSUS DU DOCK », couche aqua régénérée),
+  tests `tests/aiPostAssistantModal.test.tsx`, captures et script de parcours
+  `docs/captures/2026-09-05-assistant-ia-modale-dock/`.
+* **Problème / Besoin initial** : consigne de la Direction, capture iPhone à
+  l'appui : « sur téléphone, dans le parcours de publication, le bouton
+  Appliquer à ma publication est masqué par la barre du bas où il y a menu et
+  messages. Il faut que ce bouton reste visible et cliquable sur mobile. […]
+  Je veux une correction prouvée sur téléphone, avec un parcours complet
+  jusqu'à la publication. » Constat reproduit sur `origin/main` (`1c2daf6`,
+  harnais 390 × 844 et 360 × 800) : au centre du bouton « Appliquer à ma
+  publication », `document.elementFromPoint` renvoie le dock mobile
+  (`.mir-dock`) ; un clic réel à ce point ne ferme pas la modale ; le parcours
+  est bloqué. Cause : la modale était rendue dans `#root` en `position: fixed`
+  avec `z-index: 50`, avant le dock dans le DOM (`z-50`, donc dessiné
+  par-dessus elle) et sous la barre flottante de l'Architecte (`z-[60]`) ;
+  son voile ne couvrait pas toute la fenêtre (il commençait 24 px sous le
+  haut de l'écran ; mécanisme non identifié après sonde des ancêtres, sans
+  objet une fois la modale sortie de `#root`). Sur ordinateur le parcours
+  passait déjà (pas de dock).
+* **Options considérées** : (a) remonter le `z-index` de la modale en la
+  laissant dans `#root` — reste exposée à tout futur élément fixe et n'isole
+  pas le reste de la page ; (b) réserver une marge basse de la hauteur du
+  dock — bancal, dépend de la hauteur du dock et de la zone sûre ; (c)
+  **portail sur `<body>`**, comme le studio Visuel IA (DEC-2026-071) :
+  hors de `#root`, qui devient `inert` pendant l'ouverture ; `z-index`
+  2147482000 (au-dessus du dock et de la barre flottante, sous le studio à
+  2147483000) ; hauteur bornée à `90dvh` avec repli `90vh` ; pied avec
+  `max(1rem, env(safe-area-inset-bottom))` ; `data-miroir` posé sur la
+  modale pour que la couche aqua la suive hors de `Layout` — retenu.
+* **Décision** : option (c). Rien n'est retiré ni déplacé dans la modale :
+  mêmes onglets, mêmes tons, mêmes zones de texte, mêmes boutons « Annuler »
+  et « Appliquer à ma publication », même matière et mêmes dégradés (sonde
+  versionnée : 34 propriétés identiques, 11 différences toutes attendues,
+  31 textes aux couleurs identiques avant / après) ; la logique IA et les
+  gestionnaires ne changent pas. La modale devient un vrai dialogue :
+  `role="dialog"`, `aria-modal`, titre lié, focus pris à l'ouverture et rendu
+  au déclencheur à la fermeture, Échap ferme quand le focus est dans la
+  modale. Pendant l'ouverture, tout `#root` est inerte et sous le voile
+  (dock, barre flottante, sculpture de l'Architecte) : comportement attendu
+  d'une modale, identique au studio Visuel IA ; tout redevient actif et
+  visible à la fermeture.
+* **Contrôle** : typage 0 erreur, 1602/1602 tests (105 fichiers ; 7 tests
+  nouveaux : portail hors `#root`, racine inerte, focus, Échap, pied,
+  gardes CSS analysées par postcss), build OK ; parcours rejoué avant /
+  après sur 390 × 844, 360 × 800 et 1440 × 900 (avant = `main` `1c2daf6`, après =
+  tête fusionnée `1d4ffb8` ; script versionné, JSON avec SHA, captures,
+  sonde) : après, l'élément sous le doigt est le bouton, la modale se
+  ferme, le texte est appliqué, « Publier » publie et le texte apparaît dans
+  le fil, zéro erreur JS ; avant, parcours bloqué sur les deux téléphones.
+  Limite honnête : harnais sur le même code (pas l'écran authentifié),
+  Chromium émulé (zone sûre et `dvh` non mesurés sur iPhone réel).
+* **Statut** : 🟠 PRÊTE, NON DÉPLOYÉE — PR #109 (brouillon) depuis la branche
+  `claude/cleanup-home-interface-szp8qv`, Green Gate et revue indépendante
+  en cours ; production seulement sur feu vert écrit de la Direction, après
+  vérification que `main` n'a pas bougé et qu'aucune autre fusion n'est en
+  cours.
+
+---
+
 ### [DEC-2026-079] — 5 Septembre 2026
 
 * **Module(s)** : Diallo OS & Architecte (module 01) — portrait d'usine, registre des séquences, barre flottante ; Super-Admin (tableau de bord : onglet « Avatar de l'Architecte ») ; réglages partagés de la plateforme (`platform_settings`, migration versionnée **non appliquée**) ; bancs `design-lab/banc/super-admin.html` et `reperes.html`.
