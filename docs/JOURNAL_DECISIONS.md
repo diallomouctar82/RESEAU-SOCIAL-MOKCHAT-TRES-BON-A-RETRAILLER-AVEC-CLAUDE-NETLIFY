@@ -1277,16 +1277,20 @@ Chaque décision respecte le formalisme strict suivant :
   l'écran, modale sur l'onglet Traduire, studio ouvert avec racine inerte
   et focus sur « Fermer », insertion d'une image `blob:` puis studio fermé
   et `inert` retiré).
-* **Production** : la mission de la Direction vaut feu vert écrit («
-  prépare une production contrôlée […] Ensuite, fournis le lien de
-  production et la preuve visible »). Séquence prévue : Green Gate vert sur
-  la tête finale → revue indépendante « PRÊT » → fusion squash → vérification
-  de `moknet.net` (bundle, marqueurs « COMPOSEUR A7 » et « VISUEL IA »,
-  ancien bundle 404, miroir local dans Chromium) → mise à jour de cette
-  entrée. Retour arrière prévu : `git revert` du squash (aucune migration,
-  aucune donnée touchée).
-* **Statut** : 🟡 EN CONTRÔLE — PR #93 ouverte (brouillon), CI et revue
-  indépendante en cours ; non déployé.
+* **Production** : feu vert écrit de la Direction, deux fois (« prépare une
+  production contrôlée […] Ensuite, fournis le lien de production et la
+  preuve visible », puis « Feu vert pour avancer vers une production
+  contrôlée […] étape par étape »). PR #93 fusionnée en squash → `main`
+  `36e0a44` le 5/09/2026 à 12:38 UTC, après Green Gate vert sur la tête
+  finale `94514df` (run 33966471120) et contre-vérification indépendante
+  « PRÊT » ; Green Gate vert sur `main` (run 33966591144).
+  **Contrôle post-déploiement** : `moknet.net` sert `index-ggiwFepQ.js` depuis le 5/09/2026 à 12:38:39 UTC (même bundle que le preview contrôlé de la tête `94514df`), la page servie porte les blocs « COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-061) » (`.a7-grille`, `@container a7 (max-width: 560px)`, colonne d'avatar 44 px) et « VISUEL IA — STUDIO PLEIN ECRAN SOMBRE » (`.vis-feuille > * { flex: none; }`), le bundle contient `composeur-a7`, `a7-rail`, `a7-medias-bas`, `a7-etincelle`, `visuel-ia-studio`, « Insérer dans la publication », le message système du retoucheur et l'invite inchangée du champ, l'ancienne barre d'outils en est absente, l'ancien bundle `index-JAHL7yTa.js` répond 404 ; miroir local de la production ouvert dans Chromium (ordinateur et téléphone) : racine React montée, règles `.a7-comp`, `.a7-orbe`, `.vis-feuille`, `.vis-feuille > *` et `@container a7` analysées par le navigateur (le composeur lui-même est derrière la connexion, hors de portée du bac à sable). Retour arrière disponible :
+  `git revert` du squash (aucune migration, aucune donnée touchée) ; aucun
+  incident constaté.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  12:39 UTC). Le contrôle visuel final dans l'application appartient à la
+  Direction, qui a annoncé contrôler après coup et transmettre les
+  corrections éventuelles.
 
 ---
 
