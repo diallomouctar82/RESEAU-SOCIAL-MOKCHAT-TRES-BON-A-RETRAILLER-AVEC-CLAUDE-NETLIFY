@@ -22,6 +22,7 @@ import { HousingCenter } from './components/HousingCenter';
 import { LegalCenter } from './components/LegalCenter';
 import { Wallet } from './components/Wallet';
 import { Auth } from './components/Auth';
+import { ArchitecteDemoPage } from './components/architecte/ArchitecteDemoPage';
 import { ResetPassword } from './components/ResetPassword';
 import { LanguageCenter } from './components/LanguageCenter';
 import { CouncilRoom } from './components/CouncilRoom';
@@ -76,6 +77,12 @@ const AppContent = () => {
   // connexion identique, puis retour sur le module).
   const standaloneModule = useMemo(
     () => detectStandaloneModule(window.location.pathname, window.location.search),
+    []
+  );
+
+  /** Route publique de démonstration de l'avatar (`/architecte`). */
+  const isArchitecteDemoRoute = useMemo(
+    () => /^\/architecte\/?$/i.test(window.location.pathname),
     []
   );
 
@@ -287,6 +294,16 @@ const AppContent = () => {
       // DS-M2c : même fond que les écrans qui suivent — sans quoi l'ouverture
       // de l'application commence par un aplat gris étranger à l'habillage.
       return <div data-miroir className="h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin"></div></div>;
+  }
+
+  // DÉMONSTRATION PUBLIQUE DE L'AVATAR — avant le verrou d'authentification.
+  //
+  // Sans cette route, la Direction ne pouvait pas constater l'avatar par
+  // elle-même : toute prévisualisation s'ouvrait sur « Se connecter ». La page
+  // ne lit aucune donnée de compte, n'écrit rien, et n'ouvre aucune fonction
+  // de l'application — elle ne fait que rendre le composant réel.
+  if (isArchitecteDemoRoute) {
+      return <ArchitecteDemoPage />;
   }
 
   if (!isAuthenticated) {

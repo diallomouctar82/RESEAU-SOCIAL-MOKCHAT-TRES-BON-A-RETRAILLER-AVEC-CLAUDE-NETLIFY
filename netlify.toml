@@ -64,6 +64,14 @@
 # standaloneMode.ts) pour ne rendre que le module. Les autres chemins gardent
 # leur comportement : l'application principale navigue par hash (#onglet) et
 # n'a jamais eu besoin d'une réécriture générale.
+# Démonstration publique de l'avatar de l'Architecte : route rendue par
+# l'application avant l'écran de connexion. Sans cette réécriture, l'URL
+# renvoie 404 et la page n'est jamais atteinte.
+[[redirects]]
+  from = "/architecte"
+  to = "/index.html"
+  status = 200
+
 [[redirects]]
   from = "/messagerie"
   to = "/index.html"
