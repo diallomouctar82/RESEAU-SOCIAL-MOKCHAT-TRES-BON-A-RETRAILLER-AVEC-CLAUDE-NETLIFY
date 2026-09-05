@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="UTF-8" />
+<title>Avatar vivant de l'Architecte — démonstration</title>
+<!-- Ouvrir avec `npx vite` puis /design-lab/banc/avatar.html — hors application, jamais dans le bundle. -->
+<style>
+  body { margin:0; background:#070D1E; color:#E8FBFF; font-family: system-ui, sans-serif; padding:38px 46px; }
+  h1 { font-size:24px; margin:0 0 6px; letter-spacing:.3px; }
+  p.sub { margin:0 0 34px; font-size:13px; color:#7f9bb0; max-width:640px; line-height:1.5; }
+  .scene { display:flex; gap:48px; align-items:flex-start; }
+  .cell { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .cap { font-size:12px; color:#93b0c4; text-align:center; line-height:1.4; }
+  .cap b { color:#E8FBFF; display:block; font-size:13px; margin-bottom:2px; }
+  .etat { flex:1; max-width:330px; padding-top:8px; }
+  .ligne { display:flex; justify-content:space-between; align-items:baseline;
+           padding:9px 0; border-bottom:1px solid rgba(143,227,255,.14); font-size:12px; color:#7f9bb0; }
+  .ligne b { color:#8FE3FF; font-size:14px; font-variant-numeric:tabular-nums; }
+  .jauge { height:7px; background:rgba(143,227,255,.12); border-radius:99px; overflow:hidden; margin-top:16px; }
+  .jauge i { display:block; height:100%; background:#8FE3FF; border-radius:99px; }
+  .note { font-size:12px; color:#93b0c4; line-height:1.6; margin-top:18px; font-style:italic; }
+  .avatar-halo { position:absolute; inset:0; border-radius:9999px;
+    border:2px solid var(--halo-color, rgba(232,251,255,.3));
+    box-shadow: inset 0 0 28px 4px var(--halo-color, rgba(232,251,255,.2));
+    pointer-events:none; z-index:5; transition:border-color .4s ease, box-shadow .4s ease; }
+  .relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}
+  .rounded-full{border-radius:9999px}.overflow-hidden{overflow:hidden}.shrink-0{flex-shrink:0}
+  .w-full{width:100%}.h-full{height:100%}.object-cover{object-fit:cover}
+  .border{border-width:1px;border-style:solid}
+  button{background:#0A1622;border:1px solid rgba(6,182,212,.6);padding:0;cursor:pointer}
+</style></head>
+<body><div id="root"></div><script type="module" src="./avatar.tsx"></script></body></html>

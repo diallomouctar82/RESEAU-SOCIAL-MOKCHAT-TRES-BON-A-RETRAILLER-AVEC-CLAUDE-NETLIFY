@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="UTF-8" />
+<title>Portrait vivant — banc à pose fixée</title>
+<!-- Ouvrir avec `npx vite` puis /design-lab/banc/portrait.html?jaw=0.8&eyelid=1&gazeX=1&tilt=5 — hors application, jamais dans le bundle.
+     Chaque paramètre fixe UNE composante de la pose pour isoler une couche du peintre (bouche, paupières, regard, tête). -->
+<style>
+  body { margin:0; background:#070D1E; color:#E8FBFF; font-family: system-ui, sans-serif; padding:24px; }
+  #root { display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .cadre { width:800px; height:800px; border-radius:50%; overflow:hidden; background:#0A1622; }
+  .cadre canvas { width:100%; height:100%; display:block; }
+  .pose { font: 13px/1.5 ui-monospace, monospace; color:#93b0c4; }
+</style></head>
+<body><div id="root"></div><script type="module" src="./portrait.tsx"></script></body></html>

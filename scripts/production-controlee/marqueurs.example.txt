@@ -1,0 +1,11 @@
+# Exemple de fichier de marqueurs pour verif-page-servie.sh (mission DEC-2026-061)
+html: COMPOSEUR A7 « RAIL LATERAL » (DEC-2026-061)
+html: @container a7 (max-width: 560px)
+html: FIN COMPOSEUR A7
+html: VISUEL IA — STUDIO PLEIN ECRAN SOMBRE (DEC-2026-061
+html: FIN VISUEL IA
+js: composeur-a7
+js: visuel-ia-studio
+js: Insérer dans la publication
+js: Quoi de neuf ? Partage une réflexion
+absent-js: hidden sm:inline">Photo

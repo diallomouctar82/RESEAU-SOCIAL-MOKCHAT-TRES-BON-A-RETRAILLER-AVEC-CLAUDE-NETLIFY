@@ -7,6 +7,9 @@ import { memoryService } from '../services/memory';
 import { setSyncQueueUser, startSyncQueueAutoResume } from '../services/architecte/syncQueue';
 import { installSyncTaskHandlers } from '../services/architecte/syncTaskHandlers';
 import { forgetPushSubscription } from '../services/push/pushService';
+import { adminConfigService } from '../services/adminConfigService';
+import { resolveNewAccountAvatarUrl } from '../services/studio/avatarStudio';
+import { realAvatarUrl } from '../services/studio/avatarIdentity';
 
 interface GlobalContextType {
     userProfile: UserProfile;
@@ -43,6 +46,32 @@ const mapSupabaseNotification = (rn: any): Notification => ({
     targetAction: rn.target_action || undefined
 });
 
+/**
+ * STUDIO AVATAR — avatar par défaut de l'Admin-Général.
+ *
+ * Appliqué à un profil qui n'a AUCUNE photo réellement exploitable : compte
+ * fraîchement créé, ou session héritée portant encore le cliché de banque
+ * d'images (que `realAvatarUrl` traite déjà comme « absent » partout dans
+ * l'app). Un membre qui a sa propre photo — ou un avatar personnel Pro — n'est
+ * jamais écrasé.
+ *
+ * Côté serveur, la ligne `profiles` d'un nouveau compte est créée par un
+ * trigger Supabase que le client ne pilote pas : cette règle couvre donc la
+ * session client, et l'affichage est en plus garanti pour TOUS les comptes par
+ * `resolveActiveAvatar`, qui retombe sur le même défaut sans écrire en base.
+ */
+const applyPlatformDefaultAvatar = (profile: UserProfile): UserProfile => {
+    if (realAvatarUrl(profile.avatarUrl)) return profile;
+    try {
+        const policy = adminConfigService.getDetailedSettings().studio.defaultAvatar;
+        return { ...profile, avatarUrl: resolveNewAccountAvatarUrl(policy) };
+    } catch {
+        // Réglages illisibles : mieux vaut aucun avatar (donc les initiales)
+        // qu'un écran cassé au démarrage — règle « zéro écran blanc ».
+        return { ...profile, avatarUrl: '' };
+    }
+};
+
 export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [userProfile, setUserProfile] = useState<UserProfile>(() => {
         try {
@@ -50,13 +79,13 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             if (stored) {
                 const parsed = JSON.parse(stored);
                 if (parsed && parsed.email) {
-                    return { ...USER_PROFILE, ...parsed };
+                    return applyPlatformDefaultAvatar({ ...USER_PROFILE, ...parsed });
                 }
             }
         } catch {
             // Ignore parse errors
         }
-        return USER_PROFILE;
+        return applyPlatformDefaultAvatar(USER_PROFILE);
     });
 
     const [notifications, setNotifications] = useState<Notification[]>([

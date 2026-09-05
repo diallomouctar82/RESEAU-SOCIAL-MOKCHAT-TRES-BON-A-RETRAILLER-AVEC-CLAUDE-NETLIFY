@@ -31,11 +31,11 @@ const setConversationalMode = vi.fn();
 const speak = vi.fn(async (_texte: string) => {});
 // Mutable pour simuler, test par test, un signal d'erreur du moteur vocal
 // (`vi.hoisted` : le bloc `vi.mock` est hissé au-dessus des `const`).
-const voiceState = vi.hoisted(() => ({ error: null as string | null }));
+const voiceState = vi.hoisted(() => ({ error: null as string | null, isListening: false }));
 
 vi.mock('../hooks/useVoiceAssistant', () => ({
     useVoiceAssistant: () => ({
-        isListening: false,
+        isListening: voiceState.isListening,
         isSpeaking: false,
         isSupported: true,
         volume: 0,
@@ -120,6 +120,7 @@ function ouvrir() {
 beforeEach(() => {
     vi.clearAllMocks();
     voiceState.error = null;
+    voiceState.isListening = false;
     // La session de l'Architecte est un singleton de module : chaque test
     // repart d'un fil vierge.
     clearSession();
@@ -136,7 +137,15 @@ describe('État fermé', () => {
         // Ce test est donc l'exact opposé du précédent, volontairement.
         const pastille = screen.getByTestId('architecte-flottant');
         expect(pastille).toBeInTheDocument();
-        expect(pastille).toHaveAttribute('aria-label', "Ouvrir l'Architecte");
+        // Depuis DEC-2026-063, cette présence est l'AVATAR VIVANT et non plus
+        // une icône : son nom accessible porte donc aussi l'état, exigence du
+        // playbook AI Core 15 (« aucun mouvement ne doit être le seul moyen
+        // d'indiquer un statut »). L'action reste annoncée, un état s'y ajoute.
+        expect(pastille).toHaveAttribute('aria-label', "L'Architecte — au repos. Ouvrir l'Architecte");
+        // Le visage est réellement rendu au repos, sans aucune interaction :
+        // c'est la différence entre une présence permanente et un avatar
+        // caché derrière une ouverture (défaut relevé par la Direction).
+        expect(pastille.querySelector('canvas[data-portrait-src]')).toBeInTheDocument();
         expect(container).not.toBeEmptyDOMElement();
     });
 
@@ -532,5 +541,127 @@ describe('Équipe C — surface visuelle adaptative (« la parole pilote l\'inte
         const lien = await screen.findByRole('link', { name: 'https://exemple.org/offres-emploi' });
         expect(lien).toHaveAttribute('href', 'https://exemple.org/offres-emploi');
         expect(lien).toHaveAttribute('target', '_blank');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// PRÉSENTATION VIDÉO — le modèle validé par la Direction (05/09/2026)
+// ─────────────────────────────────────────────────────────────────────────
+import { ARCHITECTE_PRESENTATION, PRESENTATION_SEEN_KEY, architecteSequencePlayer } from '../services/architecte/sequences';
+
+describe('La sculpture vivante — le modèle validé remplace le bouton (Direction, 05/09/2026)', () => {
+    beforeEach(() => {
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', { configurable: true, value: vi.fn(() => Promise.resolve()) });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+        try { localStorage.removeItem(PRESENTATION_SEEN_KEY); } catch { /* sans stockage */ }
+        architecteSequencePlayer.stop();
+    });
+
+    it("fermée : seul l'avatar flottant est visible, détouré (sans cadre rond), avec la vidéo détourée attachée au cadre « sculpture »", () => {
+        monter();
+        const sculpture = screen.getByTestId('architecte-flottant');
+        expect(sculpture).toHaveAttribute('data-variant', 'sculpture');
+        expect(sculpture.className).not.toContain('rounded-full');
+        // Ancrée en bas à droite par un conteneur qui ne capte aucun clic : l'application reste cliquable.
+        const ancrage = screen.getByTestId('architecte-ancrage');
+        expect(ancrage.className).toContain('fixed');
+        expect(ancrage.className).toContain('pointer-events-none');
+        expect(sculpture.className).toContain('pointer-events-auto');
+        // Le rig 2D (repli technique) est dessous, masqué par la silhouette du portrait.
+        const silhouette = screen.getByTestId('architecte-flottant-silhouette');
+        expect(silhouette.style.maskImage || (silhouette.style as unknown as { webkitMaskImage?: string }).webkitMaskImage).toContain('architecte-silhouette.png');
+        expect(silhouette.querySelector('canvas[data-portrait-src]')).toBeInTheDocument();
+        const video = screen.getByTestId('architecte-sequence-video');
+        expect(video).toHaveAttribute('data-sequence-slot', 'sculpture');
+        expect(video).toHaveAttribute('data-sequence-layer', 'cutout');
+        expect(screen.getByTestId('architecte-sequence-cutout')).toBeInTheDocument();
+        // Rien d'autre n'est affiché : ni barre, ni panneau.
+        expect(screen.queryByText("L'Architecte")).toBeNull();
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+    });
+
+    it("au clic : l'avatar parle (modèle validé, DANS le geste), la barre s'ouvre, l'accueil et le micro attendent la fin de la vidéo", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        expect(await screen.findByText("L'Architecte")).toBeInTheDocument();
+        // La lecture a été demandée dans le geste, sur le cadre de la sculpture.
+        expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+        const video = screen.getByTestId('architecte-sequence-video');
+        expect(video).toHaveAttribute('data-sequence-slot', 'sculpture');
+        expect(video).toHaveAttribute('data-sequence-status', 'loading');
+        expect(screen.getByText('Présentation en cours…')).toBeInTheDocument();
+        // Pas deux voix : l'accueil attend ; pas de micro ouvert sur la voix de l'Architecte.
+        expect(speak).not.toHaveBeenCalled();
+        expect(startListening).not.toHaveBeenCalled();
+        expect(setConversationalMode).toHaveBeenCalledWith(true);
+        expect(localStorage.getItem(PRESENTATION_SEEN_KEY)).toBe('1');
+        // Le panneau de conversation reste replié.
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+
+        // La vidéo joue puis se termine (ordre réel des navigateurs : pause, puis ended).
+        Object.defineProperty(video, 'ended', { configurable: true, get: () => true });
+        fireEvent(video, new Event('playing'));
+        expect(screen.getByTestId('architecte-flottant')).toHaveAttribute('data-presence', 'speaking');
+        fireEvent(video, new Event('pause'));
+        fireEvent(video, new Event('ended'));
+        // Accueil différé puis écoute — dans cet ordre.
+        await waitFor(() => expect(speak).toHaveBeenCalledWith("Bonjour Mamadou. Que puis-je faire pour vous aujourd'hui ?"));
+        await waitFor(() => expect(startListening).toHaveBeenCalledTimes(1));
+        expect(screen.queryByText('Présentation en cours…')).toBeNull();
+    });
+
+    it("un second clic dans la même session ouvre sans rejouer la présentation ; le bouton « Présentation » la rejoue dans la sculpture et ferme le micro pendant qu'elle parle", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        await screen.findByText("L'Architecte");
+        const video = screen.getByTestId('architecte-sequence-video');
+        fireEvent(video, new Event('playing'));
+        Object.defineProperty(video, 'ended', { configurable: true, get: () => true });
+        fireEvent(video, new Event('ended'));
+        await waitFor(() => expect(startListening).toHaveBeenCalledTimes(1));
+        voiceState.isListening = true;
+
+        // Fermer par la sculpture (elle est aussi le bouton qui referme), puis rouvrir.
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        expect(screen.queryByText("L'Architecte")).toBeNull();
+        voiceState.isListening = false;
+        fireEvent.click(screen.getByTestId('architecte-flottant'));
+        await screen.findByText("L'Architecte");
+        expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(startListening).toHaveBeenCalledTimes(2));
+        expect(screen.queryByTestId('architecte-presentation-invitation')).toBeNull();
+
+        // Rejouer à la demande : dans la sculpture, jamais dans une grande fenêtre.
+        voiceState.isListening = true;
+        fireEvent.click(screen.getByTestId('architecte-presentation-bouton'));
+        expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
+        expect(screen.queryByTestId('architecte-presentation-fenetre')).toBeNull();
+        const videoBis = screen.getByTestId('architecte-sequence-video');
+        expect(videoBis).toHaveAttribute('data-sequence-slot', 'sculpture');
+        fireEvent(videoBis, new Event('playing'));
+        await waitFor(() => expect(stopListening).toHaveBeenCalled());
+        expect(stopSpeaking).toHaveBeenCalled();
+    });
+
+    it("la flèche déplie puis replie la conversation écrite ; par défaut elle n'est pas affichée en grand", async () => {
+        monter({ userProfile: PROFIL_CONNU });
+        ouvrir();
+        await screen.findByText("L'Architecte");
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        const bascule = screen.getByTestId('architecte-panneau-bascule');
+        expect(bascule).toHaveAttribute('aria-label', 'Déplier la conversation');
+        fireEvent.click(bascule);
+        expect(screen.getByTestId('architecte-panneau')).toBeInTheDocument();
+        // Le fil montre l'accueil déjà prononcé — la même session, dépliée à la demande.
+        expect(screen.getByTestId('architecte-panneau')).toHaveTextContent('Bonjour Mamadou');
+        expect(screen.getByTestId('architecte-panneau-bascule')).toHaveAttribute('aria-label', 'Replier la conversation');
+        fireEvent.click(screen.getByTestId('architecte-panneau-bascule'));
+        expect(screen.queryByTestId('architecte-panneau')).toBeNull();
+        // Les fonctions de la barre sont toutes là : fichier, écrire, caméra, présentation, fermer.
+        expect(screen.getByLabelText('Joindre un fichier')).toBeInTheDocument();
+        expect(screen.getByLabelText("Écrire à l'Architecte")).toBeInTheDocument();
+        expect(screen.getByLabelText('Activer la caméra')).toBeInTheDocument();
+        expect(screen.getByTestId('architecte-presentation-bouton')).toBeInTheDocument();
+        expect(screen.getByLabelText('Fermer')).toBeInTheDocument();
     });
 });

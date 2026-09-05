@@ -1,0 +1,54 @@
+// GABARIT — à copier en `preview-harness.tsx` à la racine (NON versionné : ajouter
+// `preview-harness.tsx`, `preview-harness.html` et `tailwind-play.js` à
+// .git/info/exclude). Rend
+// l'accueil authentifié (Layout + Dashboard) sans passer par Supabase, pour
+// produire les captures avant/après demandées par la Direction.
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Layout } from './components/Layout';
+import { Dashboard } from './components/Dashboard';
+import { SocialFeed } from './components/SocialFeed';
+import { Auth } from './components/Auth';
+import { ExpertsHub } from './components/ExpertsHub';
+import { GlobalProvider, useGlobal } from './contexts/GlobalContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { GoalProvider } from './contexts/GoalContext';
+
+// Même solde que sur la capture de la Direction (1 000 000 Ⓒ).
+try {
+  localStorage.setItem('lmav_session_v2', JSON.stringify({
+    email: 'direction@moknet.net', name: 'Amadou Diallo', credits: 1000000,
+  }));
+} catch { /* ignore */ }
+
+const Harness: React.FC = () => {
+  const { userProfile, notifications, markNotificationRead } = useGlobal();
+  const [activeTab, setActiveTab] = useState(new URLSearchParams(window.location.search).get('tab') || 'home');
+  if (activeTab === 'auth') return <Auth />;
+  return (
+    <Layout
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      notifications={notifications}
+      onMarkRead={markNotificationRead}
+      userProfile={userProfile}
+      onLogout={() => {}}
+      isSearchModalOpen={false}
+      onOpenSearch={() => {}}
+      onCloseSearch={() => {}}
+      isGoalModalOpen={false}
+      onOpenGoalModal={() => {}}
+      onCloseGoalModal={() => {}}
+    >
+      {activeTab === 'social'
+        ? <SocialFeed onOpenLive={() => {}} onOpenDirectChat={() => {}} onNavigate={setActiveTab} />
+        : (activeTab === 'experts' || activeTab === 'chat')
+          ? <ExpertsHub userProfile={userProfile} initialTab="catalogue" onNavigate={setActiveTab} />
+          : <Dashboard userProfile={userProfile} onNavigate={setActiveTab} onOpenSearch={() => {}} onOpenCapModal={() => {}} />}
+    </Layout>
+  );
+};
+
+createRoot(document.getElementById('root')!).render(
+  <GlobalProvider><ThemeProvider><GoalProvider><Harness /></GoalProvider></ThemeProvider></GlobalProvider>
+);

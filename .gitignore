@@ -33,6 +33,8 @@ dist-ssr
 
 # État local du CLI Supabase (jamais versionné)
 supabase/.temp/
+demo-local/
+dist-demo/
 
 # Sortie du build de prévisualisation (Tour de contrôle AI Core)
 dist-preview
