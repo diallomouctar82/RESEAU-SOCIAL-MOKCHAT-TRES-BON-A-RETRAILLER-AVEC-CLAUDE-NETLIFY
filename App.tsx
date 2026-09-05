@@ -34,7 +34,8 @@ import { GoogleMeetCenter } from './components/GoogleMeetCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AGENTS } from './constants';
 import { Agent, LiveStream, MemberProfile } from './types';
-import { getSession, onAuthStateChange, signOut } from './services/auth';
+import { getSession, onAuthStateChange, signOut, verifierSession } from './services/auth';
+import type { Session, VerdictSession } from './services/auth';
 import { supabaseService } from './services/supabaseClient';
 import { fetchUserProfile } from './services/profile';
 import { detectStandaloneModule } from './services/modules/standaloneMode';
@@ -127,22 +128,79 @@ const AppContent = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-081) : AUCUNE session
+  // n'ouvre l'interface sans un verdict du serveur sur SON jeton
+  // (services/auth.ts#verifierSession), quel que soit l'événement qui
+  // l'apporte. Le nom de l'événement n'est pas une preuve : supabase-js rejoue
+  // en `SIGNED_IN` la session lue dans le stockage à l'initialisation, à
+  // chaque retour sur l'onglet (visibilitychange) et par BroadcastChannel
+  // depuis un autre onglet, sans appel serveur (contrôle indépendant du
+  // 05/09). Une seule vérification par jeton : `getSession()`,
+  // `INITIAL_SESSION`, un `SIGNED_IN` rejoué ou une connexion partagent le
+  // verdict de leur jeton ; un jeton refusé reste refusé.
+  const VERDICTS_CONSERVES = 4;
+  const verdictsRef = useRef(new Map<string, Promise<VerdictSession>>());
+  // Clé de la dernière session annoncée (null après déconnexion) : un
+  // traitement encore en vol pour une autre session ne doit plus rien décider.
+  const sessionCouranteRef = useRef<string | null>(null);
+  const cleDeSession = (session: Session): string =>
+      session.access_token || `utilisateur:${session.user?.id ?? ''}`;
+  const verdictPourSession = (session: Session): Promise<VerdictSession> => {
+      const cle = cleDeSession(session);
+      let verdict = verdictsRef.current.get(cle);
+      if (!verdict) {
+          verdict = verifierSession(session);
+          verdictsRef.current.set(cle, verdict);
+          // Plafond : seuls les derniers jetons comptent (connexion, puis un
+          // rafraîchissement par heure) — la Map ne grossit jamais sans fin.
+          while (verdictsRef.current.size > VERDICTS_CONSERVES) {
+              const plusAncien = verdictsRef.current.keys().next().value;
+              if (plusAncien === undefined) break;
+              verdictsRef.current.delete(plusAncien);
+          }
+      }
+      return verdict;
+  };
+
   // GESTION DE SESSION RÉSILIENTE (Supabase Cloud + Local-First Fallback)
   useEffect(() => {
       let isMounted = true;
 
-      const applySession = async (userId: string | undefined, isInitial: boolean) => {
-          if (!userId) {
+      const applySession = async (session: Session | null, isInitial: boolean) => {
+          const userId = session?.user?.id;
+          const cle = session && userId ? cleDeSession(session) : null;
+          sessionCouranteRef.current = cle;
+          if (!session || !userId || !cle) {
               if (isMounted) {
                   setIsAuthenticated(false);
                   if (isInitial) setIsAuthChecking(false);
               }
               return;
           }
+          // Une déconnexion ou une autre session survenue pendant un `await`
+          // rend ce traitement caduc : il ne décide plus rien.
+          const toujoursCourante = () => isMounted && sessionCouranteRef.current === cle;
+
+          const verdict = await verdictPourSession(session);
+          if (!toujoursCourante()) {
+              if (isMounted && isInitial) setIsAuthChecking(false);
+              return;
+          }
+          if (verdict.statut === 'invalide') {
+              // Jeton refusé par le serveur (périmé, révoqué, forgé, compte
+              // supprimé ou banni) : aucune page interne, écran de connexion.
+              console.warn('Session locale refusée par le serveur — écran de connexion :', verdict.raison);
+              setIsAuthenticated(false);
+              if (isInitial) setIsAuthChecking(false);
+              return;
+          }
+          if (verdict.statut === 'non-verifiee') {
+              console.warn('Session locale conservée sans vérification (serveur injoignable) :', verdict.raison);
+          }
 
           try {
               const profile = await fetchUserProfile(userId);
-              if (!isMounted) return;
+              if (!toujoursCourante()) return;
               if (profile) {
                   updateUserProfile(profile);
                   setIsAuthenticated(true);
@@ -154,7 +212,7 @@ const AppContent = () => {
               }
           } catch (err) {
               console.warn('Erreur résolution profil session:', err);
-              if (isMounted) setIsAuthenticated(true);
+              if (toujoursCourante()) setIsAuthenticated(true);
           } finally {
               if (isMounted && isInitial) {
                   setIsAuthChecking(false);
@@ -162,7 +220,14 @@ const AppContent = () => {
           }
       };
 
-      getSession().then((session) => applySession(session?.user?.id, true));
+      // Une exception (et non une `error` renvoyée) de la relecture locale ne
+      // doit jamais laisser l'écran de chargement sans fin : sans session.
+      getSession()
+          .then((session) => applySession(session, true))
+          .catch((err) => {
+              console.warn('Relecture de la session impossible — écran de connexion :', err);
+              return applySession(null, true);
+          });
 
       // PASSWORD_RECOVERY (lien "mot de passe oublié" cliqué) doit afficher
       // l'écran "nouveau mot de passe", pas être traité comme une connexion
@@ -174,7 +239,10 @@ const AppContent = () => {
               return;
           }
           setIsPasswordRecovery(false);
-          applySession(session?.user?.id, false);
+          // Même verrou pour tous les événements (`INITIAL_SESSION`, `SIGNED_IN`,
+          // `TOKEN_REFRESHED`, `USER_UPDATED`, `SIGNED_OUT`) : le verdict est
+          // attaché au jeton, pas à l'événement — voir verdictPourSession.
+          applySession(session, false);
       });
 
       return () => {

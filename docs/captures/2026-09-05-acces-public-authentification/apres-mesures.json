@@ -1,0 +1,1719 @@
+{
+  "vierge/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "vierge",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/navigateur-mobile": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/sms-android-webview": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "sms-android-webview",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/whatsapp-android": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "whatsapp-android",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.18.78",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/messenger-android": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "messenger-android",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/470.0.0.35.115;]",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/messenger-ios": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "messenger-ios",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21G93 [FBAN/MessengerForiOS;FBAV/470.0.0.35.115;FBDV/iPhone15,2;FBSN/iOS;FBSV/17.6;FBLC/fr_FR]",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "vierge/whatsapp-ios-safariview": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "whatsapp-ios-safariview",
+    "scenario": "vierge",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/navigateur-mobile": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/sms-android-webview": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "sms-android-webview",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/whatsapp-android": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "whatsapp-android",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.18.78",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/messenger-android": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "messenger-android",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/470.0.0.35.115;]",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/messenger-ios": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "messenger-ios",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21G93 [FBAN/MessengerForiOS;FBAV/470.0.0.35.115;FBDV/iPhone15,2;FBSN/iOS;FBSV/17.6;FBLC/fr_FR]",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "profil-local-sans-session/whatsapp-ios-safariview": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_session_v2",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "whatsapp-ios-safariview",
+    "scenario": "profil-local-sans-session",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-invalide",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/navigateur-mobile": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/sms-android-webview": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "sms-android-webview",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/whatsapp-android": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "whatsapp-android",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.18.78",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/messenger-android": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "messenger-android",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/470.0.0.35.115;]",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/messenger-ios": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "messenger-ios",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21G93 [FBAN/MessengerForiOS;FBAV/470.0.0.35.115;FBDV/iPhone15,2;FBSN/iOS;FBSV/17.6;FBLC/fr_FR]",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-invalide/whatsapp-ios-safariview": {
+    "url": "http://127.0.0.1:3000/",
+    "racineMontee": true,
+    "h1": [
+      "Se connecter"
+    ],
+    "champEmail": true,
+    "champMotDePasse": true,
+    "boutonSeConnecter": true,
+    "boutonCreerCompte": true,
+    "boutonGoogle": true,
+    "navigationInterne": false,
+    "composeur": false,
+    "spinner": false,
+    "nbBoutonsVisibles": 5,
+    "boutons": [
+      "Se connecter",
+      "Créer un compte",
+      "Mot de passe oublié ?",
+      "Se connecter",
+      "Continuer avec Google"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Se connecter Pour continuer vers Le Monde à Vous Se connecter Créer un compte Se souvenir de moi Mot de passe oublié ? S",
+    "http": 200,
+    "canal": "whatsapp-ios-safariview",
+    "scenario": "session-invalide",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "POST /auth/v1/logout?scope=local",
+      "GET /rest/v1/profiles?select=*"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "ECRAN_AUTHENTIFICATION",
+    "attendu": "ECRAN_AUTHENTIFICATION"
+  },
+  "session-valide/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 83,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Mon Cap",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "Basculer le mode concentration",
+      "Basculer le mode présentation",
+      "Bilingue",
+      "🇫🇷",
+      "Mon Cap"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-valide",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/navigateur-mobile": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 84,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/sms-android-webview": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 84,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "sms-android-webview",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/whatsapp-android": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 84,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "whatsapp-android",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.18.78",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/messenger-android": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 84,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "messenger-android",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/470.0.0.35.115;]",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/messenger-ios": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 83,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "messenger-ios",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21G93 [FBAN/MessengerForiOS;FBAV/470.0.0.35.115;FBDV/iPhone15,2;FBSN/iOS;FBSV/17.6;FBLC/fr_FR]",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-valide/whatsapp-ios-safariview": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 83,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_session_v2",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "whatsapp-ios-safariview",
+    "scenario": "session-valide",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555",
+      "PATCH /rest/v1/profiles?id=eq.11111111-2222-4333-8444-555555555"
+    ],
+    "erreursJS": [],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE"
+  },
+  "session-reseau-coupe/navigateur-ordinateur": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Le Monde à Vous",
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 81,
+    "boutons": [
+      "Rechercher un espace, cours, visa, démarche, CV...⌘ K",
+      "Mode guidé",
+      "Mon Cap",
+      "Scanner avec Le Monde à Vous",
+      "Commande vocale",
+      "Basculer le mode concentration",
+      "Basculer le mode présentation",
+      "Bilingue",
+      "🇫🇷",
+      "Mon Cap"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "lmav_chat_conversations_cache",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "texte": "Le Monde à Vous Plateforme Universelle d’Accomplissement Rechercher un espace, cours, visa, démarche, CV... ⌘ K Guide-mo",
+    "http": 200,
+    "canal": "navigateur-ordinateur",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Chromium ordinateur (défaut)",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/navigateur-mobile": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "lmav_chat_conversations_cache",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "navigateur-mobile",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/sms-android-webview": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "sms-android-webview",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/whatsapp-android": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "whatsapp-android",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.18.78",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/messenger-android": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "lmav_chat_conversations_cache",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "messenger-android",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/470.0.0.35.115;]",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/messenger-ios": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "sb-rqciahtpixdjbyoajomg-auth-token",
+        "lmav_chat_conversations_cache",
+        "lmav_enrolled_persons_v1"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "messenger-ios",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21G93 [FBAN/MessengerForiOS;FBAV/470.0.0.35.115;FBDV/iPhone15,2;FBSN/iOS;FBSV/17.6;FBLC/fr_FR]",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  },
+  "session-reseau-coupe/whatsapp-ios-safariview": {
+    "url": "http://127.0.0.1:3000/#social",
+    "racineMontee": true,
+    "h1": [
+      "Réseau Mooc"
+    ],
+    "champEmail": false,
+    "champMotDePasse": false,
+    "boutonSeConnecter": false,
+    "boutonCreerCompte": false,
+    "boutonGoogle": false,
+    "navigationInterne": true,
+    "composeur": true,
+    "spinner": false,
+    "nbBoutonsVisibles": 82,
+    "boutons": [
+      "Diallo OS",
+      "Photo",
+      "Vidéo",
+      "Document",
+      "Voix",
+      "Assistant IA Pré-Publication",
+      "Améliorer le style",
+      "Traduire",
+      "Hashtags",
+      "Visuel IA"
+    ],
+    "stockage": {
+      "local": [
+        "lmav_enrolled_persons_v1",
+        "lmav_chat_conversations_cache",
+        "sb-rqciahtpixdjbyoajomg-auth-token"
+      ],
+      "session": []
+    },
+    "texte": "RÉSEAU · EN ÉVEIL Le Monde à Vous Communauté & Conseil Réseau MOC Diallo OS Photo Vidéo Document Voix ASSISTANT IA Améli",
+    "http": 200,
+    "canal": "whatsapp-ios-safariview",
+    "scenario": "session-reseau-coupe",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1",
+    "appelsSupabase": [
+      "GET /auth/v1/user",
+      "GET /auth/v1/user",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-",
+      "GET /rest/v1/profile_skills?select=name%2Cprogress&profile_id=eq.11",
+      "GET /rest/v1/profile_badges?select=id%2Cbadge_key%2Cname%2Cicon%2Cd",
+      "GET /rest/v1/profiles?select=*",
+      "GET /rest/v1/notifications?select=*&user_id=eq.11111111-2222-4333-",
+      "GET /rest/v1/profiles?select=*&id=eq.11111111-2222-4333-8444-"
+    ],
+    "erreursJS": [
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }",
+      "console: Erreur chargement profil Supabase: {message: TypeError: Failed to fetch, details: TypeError: Failed to fetch\n    at http://127.0.0.1…7.0.0.1:3000/assets/index-Dh7D_f8L.js:4249:79575), hint: , code: }"
+    ],
+    "verdictEcran": "INTERFACE_INTERNE",
+    "attendu": "INTERFACE_INTERNE (tolérance dite : session locale non expirée, serveur injoignable)"
+  }
+}
