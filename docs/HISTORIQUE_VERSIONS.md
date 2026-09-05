@@ -54,12 +54,43 @@
 | **v6.35.0** | 5 Septembre 2026 | **Stabilité et naturel du portrait vivant, mesurés : budget de pixels du canevas (420 × 420, résolution adaptée à la cadence réelle : 45 → 59,5 images/s sur le navigateur de preuve, 142 → 2 images lentes), hochements lents et rares (13 rad/s, accent de groupe), couplage yeux-tête discret, regard qui s'échappe deux fois plus petit, balancement à deux périodes ±0,3 %, respiration 1,1 %, fermeture de bouche continue, ressorts hérités entre deux phrases ; puis lèvres naturelles : coarticulation anticipatrice (les consonnes de langue ne referment plus la bouche), coins des lèvres réellement arrondis ou étirés, lèvres scellées 20 ms avant le silence, fermeture vive (48 ms), avance visuelle 40 ms — contrôle cavité seule : fermetures b/p/m 6/6 ≤ 0,044, pauses 3/3, voyelles 9/9, temps réel −49 ms** | Diallo OS & Architecte | AI Core playbooks 15 § 3, 09 / DEC-2026-070 | **Développée & testée localement — NON poussée, NON déployée (instruction de la Direction : vérifications locales seulement)** |
 | **v6.36.0** | 5 Septembre 2026 | **Le modèle validé par la Direction (vidéo HeyGen de l'Architecte, expressivité moyenne, 720p, voix HD) devient la base ferme, intégré par ajout : séquence livrée avec l'application (MP4 + WebM, poster, légendes, empreintes vérifiées par les tests), lecteur à états qui rend toujours la main au rig 2D, couche vidéo dans le cadre même de l'avatar, bouton « Voir l'avatar vidéo » sur `/architecte`, « Présentation » dans la barre flottante (invitation une fois par appareil, sans démarrage automatique), réglage Super-Admin et prévisualisation ; rien supprimé** | Avatar de l'Architecte (`services/architecte/sequences.ts`, `ArchitecteSequenceVideo`, page `/architecte`, barre flottante, carte Super-Admin), `public/architecte/vision-smart-heygen.*` | branche `claude/moknet-studio-avatar-rjvvip` / DEC-2026-072 / PR #71 | **Prévisualisation de branche** — typage 0, 1 422 tests / 92 fichiers, build ✓ ; fusion contrôlée préparée, feu vert production attendu |
 | **v6.37.0** | 5 Septembre 2026 | **La sculpture vivante : l'avatar validé (vidéo HeyGen) remplace directement le bouton flottant de l'Architecte, au même emplacement, détouré image par image (204 mattes relevées en local, vidéo empilée couleurs + alpha recomposée dans un canevas), sans cadre ni page ; seul visible par défaut ; au clic il parle (modèle validé, dans le geste) et n'ouvre qu'une petite barre d'icônes à côté de lui — accueil et micro attendent la fin de la vidéo ; panneau étroit à la demande (flèche) ; **zéro obstruction mesurée** (0,9 % de l'écran au repos, 2,4 % barre ouverte sur ordinateur ; dock libre sur téléphone) ; calage vidéo ↔ portrait mesuré sur les pupilles ; lecteur corrigé d'après la relecture indépendante (double appui, fin réelle, arrêt par cadre) ; rien supprimé, rig 2D en repli** | Avatar de l'Architecte (`ArchitecteAvatar` variante `sculpture`, `ArchitecteSequenceCutout`, barre flottante), `public/architecte/vision-smart-heygen.cutout.*`, `architecte-silhouette.png`, banc `design-lab/banc/sculpture.html` | branche `claude/moknet-studio-avatar-rjvvip` / DEC-2026-073 / PR #71 | **Prévisualisation de branche** — typage 0, 1 562 tests / 101 fichiers (après fusion de `main` d5740cd), build ✓, essai navigateur réel ordinateur + téléphone (captures) ; production contrôlée autorisée par la Direction « si tout est propre » |
+| **v6.39.0** | 5 Septembre 2026 | **Réseau MOC : même disposition des boutons de publication et des options sur ordinateur et téléphone — sur téléphone, le rail des médias (Photo, Vidéo, Document, Voix) garde ses libellés et descend sous l'avatar dans la même colonne, les quatre actions IA restent nommées sur une ligne sous leur intitulé, et la bande « Aurore » passe du rail défilant à une grille 4 × 4 (damier conservé) sans aucun défilement horizontal ; ordinateur inchangé ; repli conservé pour les cartes très étroites ; CSS seulement, avatar intouché** | Réseau MOC (composeur A7, bande Aurore), index.html | branche `claude/cleanup-home-interface-szp8qv` / DEC-2026-076 (v6.38.0 réservée par la PR #98 du Studio Avatar) | **Développée, testée et mesurée — NON déployée en production (PR brouillon, prévisualisation Netlify ; feu vert écrit de la Direction requis)** : typage 0 erreur, 1563/1563 tests, build OK, captures et mesures avant/après sur quatre écrans (`docs/captures/2026-09-05-reseau-meme-disposition-telephone/`) |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.39.0] — 5 Septembre 2026 (Réseau MOC : même disposition des boutons sur ordinateur et téléphone) — NON DÉPLOYÉE
+
+* **La demande** (Direction, 5 septembre) : « Harmonise la disposition des
+  boutons entre ordinateur et téléphone. Les actions de publication comme
+  photo, vidéo, audio, expert, live et autres doivent être visibles et
+  accessibles sans défilement horizontal gênant sur téléphone. […] la
+  disposition des boutons sur ordinateur fait la même chose sur téléphone,
+  comme sur la photo. »
+* **Ce que le membre voit désormais sur téléphone** : dans « créer une
+  publication », l'avatar à sa place, le rail Photo / Vidéo / Document /
+  Voix **avec ses libellés** juste dessous, le champ à droite (245 px sur
+  390), l'intitulé « Assistant IA » et ses quatre actions nommées sur une
+  ligne, Public / Tech & Innovation, le compteur, Brouillon | Publier ; sous
+  le composeur, les seize orbes de la bande « Aurore » en **quatre rangées
+  de quatre**, toutes à l'écran, sans rien à faire défiler. Sur ordinateur,
+  rien ne change (mesures identiques). Sur une carte très étroite (≤ 300 px
+  de largeur intérieure), l'ancienne ligne d'icônes sous le champ reprend le
+  relais.
+* **Comment** : CSS seulement (blocs « COMPOSEUR A7 » et « BANDE AURORE »
+  d'`index.html`, requêtes de conteneur avec replis `@supports`) ; aucun
+  balisage ni gestionnaire modifié ; l'avatar n'a aucune règle et garde la
+  même boîte et les mêmes coordonnées sur les quatre écrans mesurés.
+* **Preuves** : typage 0 erreur, 1563/1563 tests (gardes CSS mises à jour :
+  rail non masqué à 560 px, rangées `auto 1fr`, quatre colonnes IA, repli
+  300 px, replis 639/360 ; bande en grille 4 colonnes sans `overflow-x`,
+  `scroll-snap` ni `mask-image`), build OK, captures et mesures avant/après
+  sur 1440 × 900, 820 × 1180, 390 × 844 et 320 × 568
+  (`docs/captures/2026-09-05-reseau-meme-disposition-telephone/README.md`).
+  Voir DEC-2026-076. Production : seulement sur feu vert écrit.
 
 ### [Version 6.26.0] — 5 Septembre 2026 (Composeur « A7, rail latéral » et studio « Visuel IA » B10)
 

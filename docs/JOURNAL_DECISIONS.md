@@ -20,6 +20,63 @@ Chaque décision respecte le formalisme strict suivant :
 
 ## 🏛️ HISTORIQUE CHRONOLOGIQUE DES DÉCISIONS
 
+### [DEC-2026-076] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` — composeur « A7, rail latéral » et bande
+  « Aurore » (`index.html`, blocs « COMPOSEUR A7 » et « BANDE AURORE »),
+  commentaires de `components/SocialFeed.tsx`, gardes CSS de
+  `tests/composeurRail.test.tsx` et `tests/accesRapideAurore.test.tsx`,
+  captures `docs/captures/2026-09-05-reseau-meme-disposition-telephone/`.
+* **Problème / Besoin initial** : consigne de la Direction : « Harmonise la
+  disposition des boutons entre ordinateur et téléphone. Les actions de
+  publication comme photo, vidéo, audio, expert, live et autres doivent être
+  visibles et accessibles sans défilement horizontal gênant sur téléphone.
+  Garde une présentation propre, raisonnable, facile à utiliser, sans rien
+  casser. Fournis des captures ordinateur et téléphone, zéro régression.
+  Périmètre strict : interface publication et options de Réseau Moknet ; la
+  disposition des boutons sur ordinateur fait la même chose sur téléphone,
+  comme sur la photo. » Constat mesuré sur `origin/main` (harnais 390 × 844) :
+  rail des médias masqué et remplacé par quatre icônes sans libellé sous le
+  champ, actions IA en 2 × 2 sans intitulé, bande Aurore en rail horizontal
+  aimanté avec **12 orbes sur 16 hors écran** (défilement obligatoire).
+* **Options considérées** : (a) rail des médias à côté de l'avatar sur une
+  troisième colonne — champ réduit à ~190 px, rejeté ; (b) rail **sous
+  l'avatar dans la première colonne**, corps sur la colonne de droite —
+  champ de 245 px, avatar à la même place : retenu ; (c) bande en 8 colonnes
+  sur téléphone — orbes de 34 px, illisible, rejeté ; (d) bande en **grille
+  4 × 4** avec damier et libellés courts : retenu ; (e) supprimer la ligne
+  d'icônes sous le champ — rejeté (rien ne disparaît) : elle reste le repli
+  des cartes très étroites (≤ 300 px de largeur intérieure).
+* **Décision** : CSS seulement, aucun balisage ni gestionnaire modifié.
+  Requête de conteneur `a7 (max-width: 560px)` : grille
+  `minmax(44px, auto) minmax(0, 1fr)` / `auto 1fr`, rail en colonne 1 rangée
+  2 (libellés conservés, 10 px), corps en colonne 2 sur les deux rangées,
+  intitulé « Assistant IA » affiché et quatre actions sur une ligne
+  (libellés autorisés à passer à la ligne, orbes alignées en haut) ; nouvelle
+  requête `a7 (max-width: 300px)` qui rétablit l'ancienne ligne d'icônes ;
+  replis `@supports not` à 639 px et 360 px. Requête `aurore (max-width:
+  480px)` : la grille de la racine passe à quatre colonnes (damier conservé,
+  bulles de 46 px, libellés courts), plus aucune règle de défilement,
+  d'aimantation ni de fondu ; repli à 639 px identique. Ordinateur et
+  tablette large : aucun changement (mesures identiques). L'avatar n'a
+  aucune règle : il est placé par la grille dans la première cellule libre,
+  même boîte et mêmes coordonnées sur les quatre écrans.
+* **Contrôle** : typage 0 erreur, 1563/1563 tests (101 fichiers) après
+  écriture des gardes CSS (rail non masqué à 560 px, rangées `auto 1fr`,
+  quatre colonnes IA, repli 300 px, replis 639/360 ; bande : grille 4
+  colonnes, aucun `overflow-x` / `scroll-snap` / `mask-image`, damier non
+  annulé), build OK ; captures et mesures avant/après sur quatre écrans
+  (1440 × 900, 820 × 1180, 390 × 844, 320 × 568) : téléphone — rail visible
+  avec 4 libellés, actions IA sur 1 rangée, champ 245 px, avatar 37,82 44 × 44
+  identique, bande 16/16 orbes visibles, 0 hors écran, aucun défilement ;
+  ordinateur — toutes mesures identiques ; 320 px — repli actif. Revue
+  indépendante et contre-vérification : consignées dans la PR.
+* **Statut** : 🟠 DÉVELOPPÉ, TESTÉ ET MESURÉ — NON DÉPLOYÉ (PR brouillon,
+  prévisualisation Netlify ; production seulement sur feu vert écrit de la
+  Direction, v6.39.0).
+
+---
+
 ### [DEC-2026-073] — 5 Septembre 2026
 * **Module(s)** : Diallo OS & Architecte (module 01), Super-Admin ; banc de preuve `design-lab/banc/sculpture.html`.
 * **Problème / Besoin initial** : Mission ferme de la Direction (05/09, après la fusion de `main`) : « l'avatar validé doit remplacer directement le bouton Architecte actuel, au même emplacement. Il doit être détouré, sans cadre ni page autour, comme une sculpture vivante flottante dans l'application. Par défaut, seul l'avatar flottant est visible, sans masquer l'application, taille raisonnable, esthétique et fluide. Au clic, l'avatar s'anime, parle, et ouvre sa barre de communication. Cette barre est l'interface (écrire, fichier, caméra, voix, vidéo…). La conversation texte ne s'affiche pas en grand par défaut, mais une flèche permet de déplier le panneau. Le rig 2D reste uniquement en repli technique. » Précision : « L'avatar reste seul, en bouton flottant, taille raisonnable. Et ce panneau ne s'ouvre qu'après clic, comme interface. » ; « la présentation sous forme de grande page n'est pas la bonne présentation finale ». En parallèle, la relecture indépendante de DEC-2026-072 avait relevé trois défauts réels de la couche vidéo (double appui, fin de lecture, micro ouvert pendant la vidéo).

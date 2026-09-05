@@ -287,37 +287,78 @@ describe('feuille de style du composeur A7 (index.html, telle qu’analysée)', 
     expect(decl(regle('.a7-corps'), 'min-width')).toBe('0');
   });
 
-  it('sur téléphone (conteneur ≤ 560 px) le rail disparaît et la ligne des médias apparaît — avec un repli @supports pour les navigateurs sans requêtes de conteneur', () => {
+  it('sur téléphone (conteneur ≤ 560 px) la disposition est celle de l’ordinateur (DEC-2026-076) : le rail garde ses libellés et descend sous l’avatar, le corps prend la colonne de droite, les quatre actions IA restent sur une ligne — avec un repli @supports', () => {
     let conteneur: postcss.AtRule | undefined;
     racine.walkAtRules('container', (at) => { if (/a7/.test(at.params) && /max-width:\s*560px/.test(at.params)) conteneur = at; });
     expect(conteneur).toBeTruthy();
     const dans = (sel: string) => { let r: postcss.Rule | undefined; conteneur?.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
-    expect(decl(dans('.a7-rail'), 'display')).toBe('none');
-    expect(decl(dans('.a7-medias-bas'), 'display')).toBe('flex');
-    // La grille à deux colonnes vise `.a7-grille`, jamais `.a7-comp` : une
-    // règle sur le conteneur lui-même serait morte (revue indépendante).
-    // Première colonne à 44 px : l'avatar (w-11 = 44 px) ne doit jamais être
-    // écrasé par une colonne plus étroite (contre-vérification, constat A).
-    expect(decl(dans('.a7-grille'), 'grid-template-columns')).toBe('44px minmax(0, 1fr)');
+    // Le rail reste affiché (aucune règle display) : deuxième rangée de la
+    // première colonne, sous l'avatar ; le corps occupe la colonne de droite
+    // sur les deux rangées.
+    expect(decl(dans('.a7-rail'), 'display')).toBeUndefined();
+    expect(decl(dans('.a7-rail'), 'grid-column')).toBe('1');
+    expect(decl(dans('.a7-rail'), 'grid-row')).toBe('2');
+    expect(decl(dans('.a7-corps'), 'grid-column')).toBe('2');
+    expect(decl(dans('.a7-corps'), 'grid-row')).toBe('1 / span 2');
+    // La ligne d'icônes sous le champ n'est pas rappelée à cette largeur :
+    // elle reste à `display: none` (racine), un seul exemplaire des médias.
+    expect(dans('.a7-medias-bas')).toBeUndefined();
+    // La grille vise `.a7-grille`, jamais `.a7-comp` (règle morte sinon).
+    // Première colonne jamais plus étroite que l'avatar (w-11 = 44 px),
+    // élargie à la mesure du rail.
+    expect(decl(dans('.a7-grille'), 'grid-template-columns')).toBe('minmax(44px, auto) minmax(0, 1fr)');
+    // Rangée 1 = hauteur de l'avatar, rangée 2 flexible : le rail commence
+    // juste sous l'avatar au lieu d'être repoussé par la hauteur du corps.
+    expect(decl(dans('.a7-grille'), 'grid-template-rows')).toBe('auto 1fr');
+    expect(decl(dans('.a7-rail'), 'align-self')).toBe('start');
+    expect(decl(dans('.a7-rangee'), 'align-items')).toBe('start');
     expect(dans('.a7-comp')).toBeUndefined();
-    // Sur téléphone seules les icônes des médias perdent leur libellé ; les
-    // quatre actions IA gardent leur nom et le compteur reste visible.
-    expect(decl(dans('.a7-medias-bas .a7-lb'), 'display')).toBe('none');
+    // Aucun libellé masqué (médias comme actions IA), compteur visible.
+    expect(dans('.a7-medias-bas .a7-lb')).toBeUndefined();
     expect(dans('.a7-ob .a7-lb')).toBeUndefined();
+    expect(dans('.a7-rail .a7-lb')).toBeUndefined();
     expect(dans('.a7-compteur')).toBeUndefined();
+    // Les quatre actions IA sur UNE ligne, sous leur intitulé « Assistant IA »
+    // (affiché, comme sur ordinateur) ; leurs libellés peuvent passer à la ligne.
+    expect(decl(dans('.a7-rangee'), 'grid-template-columns')).toBe('repeat(4, minmax(0, 1fr))');
+    expect(decl(dans('.a7-rangee .a7-lab'), 'display')).toBeUndefined();
+    expect(decl(dans('.a7-rangee .a7-lab'), 'grid-column')).toBe('1 / -1');
+    expect(decl(dans('.a7-rangee .a7-ob'), 'white-space')).toBe('normal');
+    // L'avatar n'a aucune règle dans tout le bloc : intouché, placé par la
+    // grille dans la première cellule libre.
+    let avatarRegles = 0; racine.walkRules((r) => { if (/img|avatar/.test(r.selector)) avatarRegles++; });
+    expect(avatarRegles).toBe(0);
 
+    // Carte très étroite (conteneur ≤ 300 px) : la ligne d'icônes sous le
+    // champ reprend le relais, comme en DEC-2026-061.
+    let etroit: postcss.AtRule | undefined;
+    racine.walkAtRules('container', (at) => { if (/a7/.test(at.params) && /max-width:\s*300px/.test(at.params)) etroit = at; });
+    expect(etroit).toBeTruthy();
+    const dansEtroit = (sel: string) => { let r: postcss.Rule | undefined; etroit?.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
+    expect(decl(dansEtroit('.a7-rail'), 'display')).toBe('none');
+    expect(decl(dansEtroit('.a7-medias-bas'), 'display')).toBe('flex');
+    expect(decl(dansEtroit('.a7-medias-bas .a7-lb'), 'display')).toBe('none');
+    expect(decl(dansEtroit('.a7-grille'), 'grid-template-columns')).toBe('44px minmax(0, 1fr)');
+    expect(decl(dansEtroit('.a7-corps'), 'grid-row')).toBe('auto');
+    expect(decl(dansEtroit('.a7-rangee'), 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
+
+    // Repli pour les navigateurs sans requêtes de conteneur : la même chose,
+    // par l'écran (639 px, puis 360 px).
     let repli: postcss.AtRule | undefined;
     racine.walkAtRules('supports', (at) => { if (/not \(container-type: inline-size\)/.test(at.params)) repli = at; });
     expect(repli).toBeTruthy();
-    let media: postcss.AtRule | undefined;
-    repli?.walkAtRules('media', (at) => { media = at; });
-    expect(media?.params).toMatch(/max-width:\s*639px/);
-    let railRepli: string | undefined;
-    media?.walkRules('.a7-rail', (r) => { r.walkDecls('display', (d) => { railRepli = d.value; }); });
-    expect(railRepli).toBe('none');
-    let grilleRepli: string | undefined;
-    media?.walkRules('.a7-grille', (r) => { r.walkDecls('grid-template-columns', (d) => { grilleRepli = d.value; }); });
-    expect(grilleRepli).toBe('44px minmax(0, 1fr)');
+    const medias: postcss.AtRule[] = [];
+    repli?.walkAtRules('media', (at) => { medias.push(at); });
+    expect(medias.map((m) => m.params)).toEqual(['(max-width: 639px)', '(max-width: 360px)']);
+    const dansMedia = (m: postcss.AtRule, sel: string) => { let r: postcss.Rule | undefined; m.walkRules((x) => { if (x.selector === sel) r = x; }); return r; };
+    expect(decl(dansMedia(medias[0], '.a7-grille'), 'grid-template-columns')).toBe('minmax(44px, auto) minmax(0, 1fr)');
+    expect(decl(dansMedia(medias[0], '.a7-rail'), 'grid-row')).toBe('2');
+    expect(decl(dansMedia(medias[0], '.a7-rail'), 'display')).toBeUndefined();
+    expect(decl(dansMedia(medias[0], '.a7-corps'), 'grid-row')).toBe('1 / span 2');
+    expect(decl(dansMedia(medias[0], '.a7-rangee'), 'grid-template-columns')).toBe('repeat(4, minmax(0, 1fr))');
+    expect(decl(dansMedia(medias[1], '.a7-rail'), 'display')).toBe('none');
+    expect(decl(dansMedia(medias[1], '.a7-medias-bas'), 'display')).toBe('flex');
+    expect(decl(dansMedia(medias[1], '.a7-grille'), 'grid-template-columns')).toBe('44px minmax(0, 1fr)');
   });
 
   it('le survol n’existe que pour les vrais pointeurs, le pouls d’écoute s’arrête sous prefers-reduced-motion', () => {
