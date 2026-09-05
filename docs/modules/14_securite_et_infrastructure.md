@@ -25,6 +25,8 @@
   - `components/Settings.tsx` : Paramètres de sécurité, profil, 2FA et préférences.
   - `metadata.json` : Déclaration des permissions iframe et capacités serveur.
   - `services/supabaseClient.ts`, `services/auth.ts` : Client et flux d'authentification Supabase.
+  - `services/health/healthRegistry.ts` : registre du tableau de bord « Santé Globale » (53 lignes, 12 domaines, poids par domaine = 100 sous garde).
+  - `supabase/functions/health-guardian/` : fonction Edge de sondage (`index.ts` seul au réseau, `evaluate.ts` et `liveTransportProbe.ts` purs), artefact déployé généré par `build-bundle.sh`.
 - **Modèles de Données (`types.ts` + Supabase `public.profiles`)** :
   - `UserRole` (`user | admin | expert | mentor | moderator | organization | super_admin`), `UserProfile`, `SecurityLog`, `DeviceSession`.
 
@@ -38,6 +40,6 @@
 ---
 
 ## 📊 5. ÉTAT DE DÉVELOPPEMENT & ÉVOLUTIONS
-- **Terminé** : Authentification Supabase (Google OAuth), gestion des rôles server-side avec RLS, tableau de bord admin. *(27 août 2026 : migration complète depuis l'ancienne session `localStorage` falsifiable — voir `docs/AUTHENTICATION.md`.)*
+- **Terminé** : Authentification Supabase (Google OAuth), gestion des rôles server-side avec RLS, tableau de bord admin. **Tableau de bord « Santé Globale » (Super-Admin, 4 septembre 2026)** : 41 lignes évaluées côté serveur, aucun vert non mesuré (un évaluateur qui lève = blanc), réparation avec sauvegarde, journal et restauration ; **SAT-4 (5 septembre 2026, DEC-2026-052)** : la ligne « un direct peut réellement démarrer » interroge `ListRooms` avec la clé du coffre au lieu d'un ping — fonction Edge `health-guardian` v2 en production et démontrée (vert, 400 ms), ligne côté écran en PR. *(27 août 2026 : migration complète depuis l'ancienne session `localStorage` falsifiable — voir `docs/AUTHENTICATION.md`.)*
 - **Partiel / En cours** : Authentification biométrique WebAuthn / Passkeys ; email/mot de passe réel (reporté, Google restait prioritaire).
 - **Évolutions Prévues** : Détection proactive des anomalies de connexion et alertes par notification push chiffrée ; activation de la protection "mots de passe compromis" de Supabase Auth une fois l'email/mot de passe implémenté.

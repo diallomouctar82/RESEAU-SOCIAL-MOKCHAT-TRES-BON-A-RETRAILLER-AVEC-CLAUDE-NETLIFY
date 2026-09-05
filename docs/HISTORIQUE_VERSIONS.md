@@ -32,12 +32,46 @@
 | **v6.14.1** | 4 Septembre 2026 | **Correctif : les menus de l'en-tête (langue, Notifications, Compte/déconnexion) redeviennent atteignables sur ordinateur — la règle d'habillage volait leur `z-index` aux en-têtes ; garde-fou par `Element.matches`** | Navigation globale (en-têtes), Design System | PR #64 → `56c596a` / DEC-2026-049 | **Stable** — remplacée en production par v6.15.0 le 4 septembre 2026 |
 | **v6.15.0** | 4 Septembre 2026 | **La saturation d'un direct, de bout en bout : audit mesuré (SAT-0), plafond RÉELLEMENT posé à la création de la room d'après la machine réelle (SAT-1), porte de refus côté serveur (SAT-2), écran « Ce direct est complet » au lieu d'un « Connexion… » sans fin (SAT-3)** | Live / Directs, Fonction Edge `livekit-token`, Déploiement VPS LiveKit | PR #69 fusionnée → `8902cef` / DEC-2026-050 | **Stable** — remplacée comme version courante par v6.16.0 le 4 septembre 2026, mais son plan d'activation reste en cours. Code client en production sur `moknet.net` depuis le 4 septembre 2026 (bundle `index-DEDPIJvb.js`, étape 1 du plan d'activation). **Étape 2 faite le 4 septembre à 22h37 UTC : la fonction Edge `livekit-token` est passée en version 7** (fenêtre calme vérifiée, retour arrière octet-exact préparé, sonde avant/après sur 4 chemins → codes, jetons et message de refus identiques ; garde vérifié 7× par cas sur la fonction en ligne). **Mais SAT reste INERTE, et c'est prouvé et non déduit** : la même room sondée 8 fois voit son temps DESCENDRE (1 986 → 1 023 ms) au lieu de monter, donc aucune room n'est créée et aucun plafond n'est posé ; `prometheus_port` n'est toujours pas sur le VPS (`/metrics` = 404), `LIVE_NODE_METRICS_URL` n'existe pas, la porte ne refuse personne, zéro 409 émis. L'écran « Ce direct est complet » est dans le bundle et ne peut pas s'afficher. Étapes 3 à 5 en attente (`deploy/livekit/README.md` § SAT-1b). Reste à la charge de la Direction : un appel réel entre deux téléphones |
 | **v6.16.0** | 4 Septembre 2026 | **Nettoyage de l’accueil : six déclencheurs retirés de l’affichage (badge « v5.12 », pilule « Services », « Lier Google Workspace », compteur de crédits, « Services Transversaux · Google », carte « Conseiller Référent ») sans supprimer aucune fonction ; le hub transversal gagne un rang dans le menu Compte** | Navigation globale (en-têtes, barre latérale), Accueil / Tableau de bord | PR #73 (`c562ea5`) / DEC-2026-051 | **Courante (Active) — validée par la Direction le 4 septembre 2026, fusionnée dans `main` (PR #73), déploiement automatique Netlify sur moknet.net** |
+| **v6.17.0** | 5 Septembre 2026 | **SAT-4 — la Santé Globale dit si un direct peut VRAIMENT démarrer : `ListRooms` signé avec la clé du coffre, jamais un ping ; 401/403 = rouge, > 1 500 ms = orange (porte SAT-2 aveugle), non sondé = blanc ; artefact de déploiement généré au lieu d'assemblé à la main** | Santé Globale (Super-Admin), Edge `health-guardian` v2, Live / Directs | branche `claude/lives-directs` (`81bb818`, `89b15ee`, `febddbc`) / DEC-2026-052 | **Edge en production et démontrée (5/09, 00h10 UTC : vert, 400 ms, preuve réelle) ; code client en PR — pas encore la version servie par moknet.net** |
 
 ---
 
 ## 🔍 DÉTAIL DES DERNIÈRES VERSIONS MAJEURES
 
 > **Numérotation** : à partir de la v6.7.0, chaque mission livrée en production porte une version sémantique `MAJEUR.MINEUR.CORRECTIF` (ADR-0016 Vision Smart AI Core) — une capacité rétrocompatible = MINEUR, une correction seule = CORRECTIF. Les versions v6.7.0 à v6.12.0 ont été consignées le 3 septembre 2026 pour rattraper les fusions du 1er au 3 septembre restées sans entrée (décision DEC-2026-040) ; leurs preuves sont celles des PR citées et de `docs/APPELS_AUDIO_VALIDATION_APPAREILS.md`.
+
+### [Version 6.17.0] — 5 Septembre 2026 (SAT-4 — savoir si un direct peut démarrer, pas si le serveur répond)
+
+* **La demande** : ne pas présenter SAT-4 comme terminé tant que le
+  branchement réel n'est pas livré ; preuves, tests, zéro régression ; à
+  chaque étape, ce qui est en production, ce qui ne l'est pas, ce qui reste
+  partiel.
+* **Ce qui change** : la ligne `live.transport_utilisable` du tableau de bord
+  de santé n'interroge plus `GET /` (qui répond 200 même quand rien ne passe)
+  mais `POST /twirp/livekit.RoomService/ListRooms`, signé avec la clé du
+  coffre — l'appel dont dépend réellement l'ouverture d'un direct. Vert si
+  200 + liste exploitable en ≤ 1 500 ms ; orange au-delà (la porte SAT-2 ne
+  compte plus) ; rouge sur 401/403 (le serveur vit et refuse nos
+  identifiants), 5xx, corps illisible, délai ou réseau ; blanc si rien n'est
+  configuré ou si la sonde n'a pas tourné.
+* **Où c'est** : règle pure `supabase/functions/health-guardian/liveTransportProbe.ts`
+  (zéro réseau), évaluateur dans `evaluate.ts`, sonde confinée à `index.ts`
+  (`observeLiveTransport`, ne lève jamais), ligne de registre
+  `services/health/healthRegistry.ts` (poids LIVE 34/28/22/16 = 100).
+  Artefact déployé désormais **généré** par `build-bundle.sh`.
+* **En production** : fonction Edge `health-guardian` **v2** (déployée,
+  amorçage prouvé, puis **démontrée** avec une vraie session administrateur :
+  HTTP 200 en 2,17 s, 41 lignes, `live.transport_utilisable` vert / réel /
+  400 ms / 0 direct, `seuilDegradeMs 1500`).
+* **Pas en production** : le code client (ligne de registre) est sur
+  `claude/lives-directs`, PR à ouvrir, Green Gate à passer, fusion et
+  déploiement Netlify à venir.
+* **Partiel** : pas de contre-épreuve en production (les contre-épreuves sont
+  dans les tests, au niveau de la règle) ; SAT-5/6/7 non commencés ;
+  ACT-3/4/5 toujours bloqués sur l'accès SSH au VPS.
+* **Preuves** : tsc 0 · vitest 1006/1006 (71 fichiers) · build · 28 tests SAT-4
+  dont 2 contre-épreuves · source de production relue = 10/10 empreintes ·
+  zéro trace du compte éphémère (balayage = 0). DEC-2026-052.
 
 ### [Version 6.16.0] — 4 Septembre 2026 (Nettoyage de l’accueil — « l’interface est trop chargée »)
 

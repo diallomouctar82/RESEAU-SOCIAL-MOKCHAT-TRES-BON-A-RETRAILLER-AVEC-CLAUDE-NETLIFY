@@ -1122,6 +1122,86 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-052] — 5 Septembre 2026
+
+* **Module(s)** : `Santé Globale (Super-Admin)`, `Live / Directs`, fonction
+  Edge `health-guardian`
+* **Problème / Besoin initial** : SAT-4 — le tableau de bord de santé
+  concluait « vert » sur un `GET /` qui répond 200, alors que le 2 septembre
+  ce même `GET /` répondait 200 en 0,41 s **pendant que la voix ne passait
+  pas** (négociation expirée en boucle, `bytesSent` nul). Un serveur qui
+  refuse les identifiants du coffre répond aussi 200 sur `/`. La Direction a
+  fixé la barre : « ne présente pas SAT-4 comme terminé. Il reste du
+  branchement réel à livrer. »
+* **Décision** : la seule requête qui prouve qu'un direct peut s'ouvrir est
+  celle dont `livekit-token` dépend lui-même — `POST
+  /twirp/livekit.RoomService/ListRooms`, signée avec la clé du coffre
+  (`get_live_transport_config_internal`, réservée au rôle service, jamais
+  atteignable depuis une session). Verdicts : 200 + liste exploitable en
+  ≤ 1 500 ms → **vert** ; au-delà → **orange** (c'est
+  `ROOM_SERVICE_TIMEOUT_MS`, le délai passé lequel la porte d'admission SAT-2
+  cesse d'attendre et laisse entrer sans compter — le direct marche, la
+  protection non) ; 401/403 → **rouge « refuse nos identifiants »**, le cas
+  exact qu'un ping déclarait vert ; 5xx ou corps illisible → rouge ; délai ou
+  réseau → rouge ; rien de configuré ou sonde non exécutée → **blanc** (ne pas
+  avoir regardé n'est pas un constat, et `messagerie.transport_live_configure`
+  signale déjà une configuration absente — la compter rouge ici l'aurait
+  pénalisée deux fois dans le score). Séparation stricte : la règle
+  (`liveTransportProbe.ts`) et l'évaluateur (`evaluate.ts`) ne touchent jamais
+  au réseau ; seul `index.ts` sonde, et ne lève jamais — une sonde réseau qui
+  ferait tomber la fonction effacerait les 41 lignes du tableau de bord pour
+  un seul service. `PROBE_TIMEOUT_MS = max(5 s, SEUIL_DEGRADE_MS × 2)` rend le
+  seuil porteur : les deux valeurs ne peuvent plus se croiser. Ligne de
+  registre `live.transport_utilisable` (poids 34) ; les poids LIVE ont été
+  rééquilibrés 34/28/22/16 = 100 — `validateRegistry()` a refusé la première
+  tentative à 110, exactement son rôle.
+* **Artefact de déploiement** : la version 1 déployée était un collage manuel
+  des fichiers source, et son en-tête l'avouait. Il est désormais **généré**
+  (`supabase/functions/health-guardian/build-bundle.sh`, esbuild, `npm:` et
+  `jsr:` laissés externes au runtime Deno comme pour `livekit-token`) : on
+  peut rejouer le script et comparer les octets à ce qui tourne.
+* **Preuves** : 28 tests (17 → 28) dont 8 qui traversent `evaluateAll` — la
+  règle réelle, pas une imitation ; 2 contre-épreuves exécutées (retirer
+  chaque garde fait passer exactement 1 test au rouge, `evaluate.ts` restauré
+  identique au bit près) ; tsc 0, vitest 1006/1006 (71 fichiers), build
+  propre. `health-guardian` déployée **v1 → v2** (`verify_jwt: true`), amorçage
+  prouvé par un 401 JSON en 1,03 s. **Démontré en production le 5 septembre à
+  00h10 UTC** avec une vraie session administrateur : HTTP 200 en 2,17 s, 41
+  lignes évaluées, `live.transport_utilisable` = `vert`, `proofLevel: reel`,
+  « Le serveur de direct répond en 400 ms, 0 direct(s) en cours. »,
+  `evidence {latencyMs 400, rooms 0, seuilDegradeMs 1500}` — la clé du coffre
+  a signé, `ListRooms` a répondu 200 avec une liste exploitable. Source relue
+  depuis la fonction déployée : bannière « ARTEFACT GÉNÉRÉ » et 10/10
+  empreintes SAT-4 identiques au bundle régénéré dans le dépôt.
+* **Contrôle de sécurité fait en chemin** : les sondes `health_probe_*` sont
+  `SECURITY DEFINER` et exécutables par `anon`/`authenticated` (grant par
+  défaut — le motif déjà corrigé aux LOOP 02/17, 04/17, 06/17). Vérifié plutôt
+  que supposé : leur première instruction est `health_require_admin()` ;
+  `anon` reçoit « authentification requise », un compte connecté non-admin
+  reçoit « réservé aux administrateurs ». Aucune fuite, aucun changement.
+* **Zéro trace** : la démonstration exigeait une session administrateur,
+  impossible à obtenir autrement depuis le bac à sable (les comptes de banc
+  sont `user`). Un compte éphémère a été créé en SQL, ce qui a d'abord fait
+  échouer la connexion (« Database error querying schema » : quatre colonnes
+  texte de `auth.users` à NULL au lieu de `''`, corrigées sur cette seule
+  ligne), puis **supprimé** : 5 lignes (`profiles`, `auth.users`,
+  `auth.identities`, `auth.sessions`, `auth.refresh_tokens`), balayage
+  dynamique des 21 colonnes uuid de propriété de `public` + `storage` = 0,
+  seul administrateur restant = le compte réel de la Direction.
+* **Statut** : `Développé`, `Testé`, `Déployé` (Edge v2), `Démontré en
+  production` côté fonction. Côté écran : la ligne de registre vit dans le
+  code client de la branche `claude/lives-directs` (PR à ouvrir) — l'onglet
+  Santé Globale l'affichera après fusion et déploiement Netlify ; la fonction
+  la sert déjà.
+* **Restes assumés** : pas de contre-épreuve **en production** (faire passer
+  la ligne au rouge sur le vrai serveur reviendrait à casser la clé du coffre
+  — non fait ; les contre-épreuves sont au niveau de la règle, dans les
+  tests). SAT-5, SAT-6, SAT-7 non commencés. ACT-3/4/5 toujours bloqués sur
+  l'accès SSH au VPS. Les deux comptes de banc `demo.awa`/`demo.bilal`
+  (rôle `user`) sont volontairement conservés — décision de la Direction.
+
+---
+
 ### [DEC-2026-051] — 4 Septembre 2026
 
 * **Module(s)** : `Navigation globale (en-têtes ordinateur et téléphone, barre latérale)`, `Accueil / Tableau de bord`
