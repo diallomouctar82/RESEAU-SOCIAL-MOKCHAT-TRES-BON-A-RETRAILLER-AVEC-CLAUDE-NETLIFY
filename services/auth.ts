@@ -97,7 +97,7 @@ export const getSession = async (): Promise<Session | null> => {
 
 /**
  * VERROU D'ENTRÉE — session relue depuis le stockage local, vérifiée auprès du
- * serveur avant d'ouvrir l'interface (Direction, 05/09/2026, DEC-2026-080).
+ * serveur avant d'ouvrir l'interface (Direction, 05/09/2026, DEC-2026-081).
  *
  * `getSession()` ne fait que relire ce que l'appareil a gardé : un jeton
  * périmé côté serveur, révoqué, forgé, ou celui d'un compte supprimé ou banni

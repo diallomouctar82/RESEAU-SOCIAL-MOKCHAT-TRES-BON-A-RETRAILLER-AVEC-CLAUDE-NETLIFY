@@ -1,5 +1,5 @@
 /**
- * VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-080) : une session relue
+ * VERROU D'ENTRÉE (Direction, 05/09/2026 — DEC-2026-081) : une session relue
  * depuis le stockage local est vérifiée auprès du serveur d'authentification
  * avant d'ouvrir l'interface. Ce test isole `verifierSession` : le client
  * Supabase est une doublure, chaque verdict est éprouvé sur la réponse réelle
