@@ -29,8 +29,9 @@ import { AdminWorkflowsAndBackupTab } from './admin/AdminWorkflowsAndBackupTab';
 import { AdminLogsAndBroadcastTab } from './admin/AdminLogsAndBroadcastTab';
 import { AiOrchestrator } from './admin/AiOrchestrator';
 import { AdminHealthTab } from './admin/AdminHealthTab';
+import { AdminArchitecteAvatarTab } from './admin/AdminArchitecteAvatarTab';
 
-export type AdminTab = 'overview' | 'health' | 'ai-connectors' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
+export type AdminTab = 'overview' | 'health' | 'ai-connectors' | 'architecte' | 'users' | 'moderation' | 'settings' | 'modules' | 'templates' | 'workflows' | 'logs';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('ai-connectors');
@@ -100,6 +101,22 @@ export const AdminDashboard: React.FC = () => {
           >
             <LayoutDashboard size={15} />
             Vue Générale
+          </button>
+
+          {/* Avatar de l'Architecte — onglet dédié (Direction, 05/09/2026) : créer ou
+              remplacer l'avatar vivant depuis une photo, aperçu, validation, retour arrière. */}
+          <button
+            onClick={() => setActiveTab('architecte')}
+            data-testid="admin-onglet-architecte"
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+              activeTab === 'architecte'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-cyan-800 hover:text-cyan-900 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200'
+            }`}
+          >
+            <Sparkles size={15} />
+            <span className="hidden sm:inline">Avatar de l’Architecte</span>
+            <span className="sm:hidden">Avatar</span>
           </button>
 
           <button
@@ -271,6 +288,13 @@ export const AdminDashboard: React.FC = () => {
       {activeTab === 'modules' && (
         <AdminPlatformModulesTab
           modules={modules}
+          onReload={handleReload}
+        />
+      )}
+
+      {activeTab === 'architecte' && (
+        <AdminArchitecteAvatarTab
+          architecteAvatar={detailedSettings.architecteAvatar}
           onReload={handleReload}
         />
       )}

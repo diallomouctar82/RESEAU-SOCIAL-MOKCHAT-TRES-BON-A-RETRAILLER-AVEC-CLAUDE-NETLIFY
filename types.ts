@@ -5387,6 +5387,7 @@ export interface PlatformDetailedModuleSettings {
     rig: {
       eyeLinePercent: number; eyeBandPercent: number; jawLinePercent: number; jawTravelPercent: number;
       chinLinePercent: number; eyeLeftXPercent: number; eyeRightXPercent: number; eyeWidthPercent: number;
+      browLinePercent?: number;
     };
     displayName: string;
     mouthAnchor: { xPercent: number; yPercent: number; widthPercent: number; tiltDeg?: number };
@@ -5397,6 +5398,12 @@ export interface PlatformDetailedModuleSettings {
     videoSequencesEnabled: boolean;
     /** Masque de silhouette du portrait d'usine (sculpture flottante détourée) ; absent = masque livré. */
     silhouetteMaskUrl?: string;
+    /** Photo pour laquelle le masque a été relevé (portrait d'usine ou photo déposée) ; absent = portrait d'usine. */
+    silhouetteMaskForPhotoUrl?: string;
+    /** Avatar précédent conservé pour « Revenir à l'avatar précédent » (forme détaillée côté service). */
+    previousAvatar?: unknown;
+    /** Portrait d'usine sous lequel ces réglages ont été fusionnés (voir `FACTORY_PORTRAIT_ID`). */
+    factoryPortraitId?: string;
     updatedAt: string;
     updatedBy: string;
   };
