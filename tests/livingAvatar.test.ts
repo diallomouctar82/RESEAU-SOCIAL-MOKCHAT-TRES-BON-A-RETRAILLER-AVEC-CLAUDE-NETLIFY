@@ -176,10 +176,17 @@ describe('Pose complète', () => {
         expect(pose).toEqual({ ...STILL_POSE, jawOpen: 0 });
     });
 
-    it('cligne aussi en pleine phrase : un visage qui parle ne se fige pas', () => {
+    it('cligne aussi en pleine phrase — mais alors sur la VOIX (pauses, syllabes), plus sur la table', () => {
         const debut = BLINK_INTERVALS_MS[0] + BLINK_DURATION_MS * 0.35;
+        // Au repos : la table fait cligner.
         expect(resolveLivingPose({ ...base, elapsedMs: debut }).eyelid).toBeCloseTo(1, 1);
-        expect(resolveLivingPose({ ...base, elapsedMs: debut, speaking: true }).eyelid).toBeCloseTo(1, 1);
+        // En parole : la table se tait (un clignement au hasard en pleine voyelle
+        // trahit l'animation — Direction, 05/09) ; c'est la voix qui demande.
+        expect(resolveLivingPose({ ...base, elapsedMs: debut, speaking: true }).eyelid).toBe(0);
+        const demande = { ...GESTURE_AT_REST, blinkStartedAt: 5000 - BLINK_DURATION_MS * 0.35 };
+        expect(resolveLivingPose({ ...base, elapsedMs: 5000, speaking: true, gesture: demande }).eyelid).toBeCloseTo(1, 1);
+        // Et un clignement demandé vaut aussi au repos.
+        expect(resolveLivingPose({ ...base, elapsedMs: 5000, gesture: demande }).eyelid).toBeCloseTo(1, 1);
     });
 
     it('respire moins fort pendant la parole — le fond ne concurrence pas la bouche', () => {
@@ -254,9 +261,9 @@ describe('Pose complète', () => {
         const repos = resolveLivingPose({ ...base, elapsedMs: t, speaking: false, speakingBlend: 0 });
         const parole = resolveLivingPose({ ...base, elapsedMs: t, speaking: true, speakingBlend: 1 });
         const milieu = resolveLivingPose({ ...base, elapsedMs: t, speaking: true, speakingBlend: 0.5 });
-        // L'inclinaison d'écoute n'est plus coupée pendant la parole.
-        expect(Math.abs(parole.headRotate - repos.headRotate)).toBeLessThan(2);
-        for (const cle of ['breathScale', 'headX', 'mouthWidth'] as const) {
+        // L'inclinaison d'écoute et la dérive s'effacent PROGRESSIVEMENT avec la
+        // part de parole (jamais coupées) : à mi-chemin, la pose est entre les deux.
+        for (const cle of ['breathScale', 'headX', 'headY', 'headRotate', 'mouthWidth'] as const) {
             const lo = Math.min(repos[cle], parole[cle]);
             const hi = Math.max(repos[cle], parole[cle]);
             expect(milieu[cle]).toBeGreaterThanOrEqual(lo - 1e-9);

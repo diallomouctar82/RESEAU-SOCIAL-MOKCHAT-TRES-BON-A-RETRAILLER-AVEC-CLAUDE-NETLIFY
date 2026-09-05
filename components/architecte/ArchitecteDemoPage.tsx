@@ -11,7 +11,10 @@ import {
     ANALYSER_FFT_SIZE,
     LIP_SYNC_LEVEL_LABEL,
     LIP_SYNC_LOOKAHEAD_MS,
+    MouthShapeBuffer,
+    VISUAL_LEAD_MS,
     createVoiceEnvelope,
+    mouthReadTime,
     mouthShapeFromBands,
     spectralBands,
     type MouthShape,
@@ -55,7 +58,9 @@ export interface DemoDriveHook {
         spectralBands: typeof spectralBands;
         mouthShapeFromBands: typeof mouthShapeFromBands;
         createVoiceEnvelope: typeof createVoiceEnvelope;
+        MouthShapeBuffer: typeof MouthShapeBuffer;
         fftSize: number;
+        visualLeadMs: number;
     };
 }
 
@@ -215,7 +220,7 @@ export const ArchitecteDemoPage: React.FC = () => {
                 publierNiveau(0);
                 changerVoix('inactive');
             },
-            outils: { spectralBands, mouthShapeFromBands, createVoiceEnvelope, fftSize: ANALYSER_FFT_SIZE },
+            outils: { spectralBands, mouthShapeFromBands, createVoiceEnvelope, MouthShapeBuffer, fftSize: ANALYSER_FFT_SIZE, visualLeadMs: VISUAL_LEAD_MS },
         };
         (window as unknown as { __moknetDemoDrive?: DemoDriveHook }).__moknetDemoDrive = drive;
         return () => { delete (window as unknown as { __moknetDemoDrive?: DemoDriveHook }).__moknetDemoDrive; };
@@ -256,6 +261,7 @@ export const ArchitecteDemoPage: React.FC = () => {
         const echantillons = new Float32Array(analyser.fftSize);
         const spectre = new Float32Array(analyser.frequencyBinCount);
         const enveloppe = createVoiceEnvelope();
+        const tampon = new MouthShapeBuffer();
         let derniereMesure = performance.now();
         hdRef.current = { audio, context, source, output };
         (window as unknown as { __moknetDemoAudio?: DemoAudioHook }).__moknetDemoAudio = hdRef.current;
@@ -264,8 +270,10 @@ export const ArchitecteDemoPage: React.FC = () => {
             analyser.getFloatTimeDomainData(echantillons);
             analyser.getFloatFrequencyData(spectre);
             const maintenant = performance.now();
-            const forme = mouthShapeFromBands(spectralBands(spectre, echantillons, context.sampleRate), enveloppe, maintenant - derniereMesure);
+            tampon.push(maintenant, mouthShapeFromBands(spectralBands(spectre, echantillons, context.sampleRate), enveloppe, maintenant - derniereMesure));
             derniereMesure = maintenant;
+            // MÊME règle que le moteur : forme lue pour précéder le son entendu.
+            const forme = tampon.at(mouthReadTime(maintenant, LIP_SYNC_LOOKAHEAD_MS));
             boucheRef.current = forme;
             publierNiveau(forme.level);
             hdRafRef.current = requestAnimationFrame(mesurer);

@@ -69,7 +69,7 @@ describe('Gestes portés par la parole — déterministes, déclenchés par la v
         expect(Math.max(...brow)).toBeLessThan(0.7);
         // Après 1,2 s, le haussement est retombé.
         expect(brow.at(-1)!).toBeLessThan(0.05);
-        expect(Math.min(...g.map((x) => x.liftY))).toBeLessThan(-0.15);
+        expect(Math.min(...g.map((x) => x.liftY))).toBeLessThan(-0.25);
         expect(g.at(-1)!.liftY).toBeGreaterThan(-0.03);
     });
 
@@ -88,8 +88,9 @@ describe('Gestes portés par la parole — déterministes, déclenchés par la v
         // 24 syllabes en 6 s : pas une par syllabe.
         expect(impulsions).toBeLessThan(14);
         for (let i = 1; i < instants.length; i += 1) expect(instants[i] - instants[i - 1]).toBeGreaterThanOrEqual(BEAT_MIN_GAP_MS - 20);
-        // Amplitude sobre : moins d'un demi pour cent du cadre.
-        expect(Math.max(...nod)).toBeLessThan(0.5);
+        // Amplitude visible mais sobre : autour d'un pour cent du cadre, jamais plus.
+        expect(Math.max(...nod)).toBeGreaterThan(0.3);
+        expect(Math.max(...nod)).toBeLessThan(1.1);
     });
 
     it('une pause de la voix déclenche un clignement (espacés) et un regard qui s’échappe puis revient', () => {
@@ -115,20 +116,20 @@ describe('Gestes portés par la parole — déterministes, déclenchés par la v
         const tilt = g.map((x) => x.tilt);
         const t1 = tilt[Math.round(4500 / (1000 / 60))];
         const t2 = tilt[Math.round(8900 / (1000 / 60))];
-        expect(Math.abs(t1)).toBeGreaterThan(0.3);
-        expect(Math.abs(t1)).toBeLessThan(2);
+        expect(Math.abs(t1)).toBeGreaterThan(0.5);
+        expect(Math.abs(t1)).toBeLessThan(2.5);
         expect(Math.sign(t1)).not.toBe(Math.sign(t2));
     });
 
     it('CONTINUITÉ : aucun saut d’une image à l’autre — le mouvement est fait de ressorts, pas de marches', () => {
         const g = jouer(6000, [[1500, 2000], [3400, 3800]]);
         const saut = (k: keyof GestureState) => Math.max(...g.slice(1).map((x, i) => Math.abs((x[k] as number) - (g[i][k] as number))));
-        expect(saut('nodY')).toBeLessThan(0.09);
-        expect(saut('nodRotate')).toBeLessThan(0.08);
-        expect(saut('liftY')).toBeLessThan(0.03);
-        expect(saut('brow')).toBeLessThan(0.08);
-        expect(saut('gazeX')).toBeLessThan(0.1);
-        expect(saut('tilt')).toBeLessThan(0.02);
+        expect(saut('nodY')).toBeLessThan(0.2);
+        expect(saut('nodRotate')).toBeLessThan(0.17);
+        expect(saut('liftY')).toBeLessThan(0.06);
+        expect(saut('brow')).toBeLessThan(0.1);
+        expect(saut('gazeX')).toBeLessThan(0.12);
+        expect(saut('tilt')).toBeLessThan(0.03);
     });
 
     it('fin de parole : tout revient au repos sans coupure', () => {

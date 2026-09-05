@@ -357,9 +357,16 @@ describe('Synchro labiale — de la voix mesurée à l’ouverture', () => {
         expect(amplitudeToOpenness(3)).toBe(1);
     });
 
-    it('avance de la bouche sur la voix entendue : courte, imperceptible, mais réelle', () => {
-        expect(LIP_SYNC_LOOKAHEAD_MS).toBeGreaterThanOrEqual(40);
-        expect(LIP_SYNC_LOOKAHEAD_MS).toBeLessThanOrEqual(90);
+    it('retard volontaire du son : couvre la chaîne mesurée plus l’avance visuelle et la fenêtre, sans devenir une attente', () => {
+        expect(LIP_SYNC_LOOKAHEAD_MS).toBeGreaterThanOrEqual(RENDER_LATENCY_MS + VISUAL_LEAD_MS + COARTICULATION_WINDOW_MS);
+        expect(LIP_SYNC_LOOKAHEAD_MS).toBeLessThanOrEqual(250);
+        // Lecture du tampon : dans le passé, toute la fenêtre de coarticulation
+        // déjà mesurée, et jamais plus loin qu'un huitième de seconde.
+        const lecture = mouthReadTime(1000, LIP_SYNC_LOOKAHEAD_MS);
+        expect(lecture + COARTICULATION_WINDOW_MS).toBeLessThanOrEqual(1000);
+        expect(lecture).toBeGreaterThanOrEqual(1000 - 125);
+        // Casque lent : la lecture recule d'autant.
+        expect(mouthReadTime(1000, 400)).toBeLessThan(mouthReadTime(1000, LIP_SYNC_LOOKAHEAD_MS));
     });
 
     it('lisse : ouverture rapide à l’attaque, fermeture plus lente', () => {
@@ -547,5 +554,58 @@ describe('Visèmes acoustiques — la forme de la bouche vient du spectre, pas d
         expect(Math.max(...ouvertures)).toBeLessThan(0.65);
         expect(ouvertures.filter((o) => o > 0.4).length / ouvertures.length).toBeLessThan(0.15);
         expect(ouvertures.filter((o) => o < 0.08).length / ouvertures.length).toBeGreaterThan(0.3);
+    });
+});
+
+import { COARTICULATION_WINDOW_MS, MouthShapeBuffer, RENDER_LATENCY_MS, VISUAL_LEAD_MS, mouthReadTime } from '../services/architecte/lipSync';
+
+describe('Anticipation et coarticulation — la bouche précède le son, sans à-coups', () => {
+    const forme = (open: number): typeof MOUTH_AT_REST => ({ open, width: 1, teeth: 0, closed: open === 0 ? 1 : 0, level: open });
+
+    it('vide = repos ; une seule mesure = cette mesure, quel que soit l’instant demandé', () => {
+        const b = new MouthShapeBuffer();
+        expect(b.at(100)).toEqual(MOUTH_AT_REST);
+        b.push(1000, forme(0.5));
+        expect(b.at(1000).open).toBeCloseTo(0.5, 9);
+        expect(b.at(5000).open).toBeCloseTo(0.5, 9);
+        expect(b.at(NaN).open).toBeCloseTo(0.5, 9);
+    });
+
+    it('lit une forme EN AVANCE sur le son entendu : l’avance est réelle et courte', () => {
+        expect(VISUAL_LEAD_MS).toBeGreaterThanOrEqual(40);
+        expect(VISUAL_LEAD_MS).toBeLessThanOrEqual(100);
+        const b = new MouthShapeBuffer();
+        for (let t = 0; t <= 400; t += 16) b.push(t, forme(t >= 200 ? 0.6 : 0)); // la voyelle commence à 200 ms
+        // L'appelant affiche à l'instant entendu T la forme de T + avance : à
+        // T = 200 − avance, la bouche s'ouvre déjà ; à T = 100, rien encore.
+        expect(b.at(200 - VISUAL_LEAD_MS + VISUAL_LEAD_MS).open).toBeGreaterThanOrEqual(0.25);
+        expect(b.at(100 + VISUAL_LEAD_MS).open).toBe(0);
+        // Avant toute mesure : repos (le son n'avait pas commencé).
+        expect(b.at(-500).open).toBe(0);
+    });
+
+    it('coarticule : une marche brute devient une pente sur la fenêtre, sans retard de phase', () => {
+        const b = new MouthShapeBuffer();
+        for (let t = 0; t <= 600; t += 8) b.push(t, forme(t >= 300 ? 0.6 : 0));
+        const avant = b.at(300 - COARTICULATION_WINDOW_MS - 8).open;
+        const milieu = b.at(300).open;
+        const apres = b.at(300 + COARTICULATION_WINDOW_MS + 8).open;
+        expect(avant).toBe(0);
+        expect(milieu).toBeGreaterThan(0.2);
+        expect(milieu).toBeLessThan(0.4); // à la marche : à mi-chemin, ni en avance ni en retard
+        expect(apres).toBeCloseTo(0.6, 6);
+    });
+
+    it('oublie ce qui est trop vieux et repart proprement si l’horloge recule', () => {
+        const b = new MouthShapeBuffer();
+        for (let t = 0; t <= 3000; t += 16) b.push(t, forme(0.3));
+        expect(b.size).toBeLessThan(80);
+        b.push(10, forme(0));
+        expect(b.size).toBe(1);
+        // Au montage, on garde toute la phrase.
+        const long = new MouthShapeBuffer(60000);
+        for (let t = 0; t <= 9000; t += 33) long.push(t, forme(0.3));
+        expect(long.size).toBeGreaterThan(250);
+        expect(long.at(100).open).toBeCloseTo(0.3, 9);
     });
 });

@@ -524,20 +524,29 @@ export function resolveLivingPose(inputs: LivingPoseInputs): LivingPose {
     const tilt = restTilt(inputs.elapsedMs);
     const g = inputs.gesture ?? null;
     const blinkDemande = g && g.blinkStartedAt !== null ? blinkCurve(inputs.elapsedMs - g.blinkStartedAt) : 0;
+    // PENDANT LA PAROLE, le mouvement suit la voix (playbook 09, chorégraphie
+    // du mouvement : « mouvement utile », pas d'animation décorative
+    // omniprésente) : la dérive lente et l'inclinaison de repos s'effacent au
+    // profit des gestes de prosodie ; les clignements viennent des pauses de
+    // la voix, plus de la table (Direction, 05/09 : « les gestes et les yeux
+    // ne suivent pas naturellement »).
+    const calme = 1 - 0.65 * blend;
+    const clignementTable = blend < 0.5 ? blinkAmount(inputs.elapsedMs) : 0;
 
     return {
         // Respiration visible sans devenir un effet : 1,5 % d'échelle, les
         // épaules montent avec — devant un fond qui, lui, ne bouge pas.
         breathScale: 1 + respiration * 0.015 * ampleur,
         breathY: -respiration * 1.0 * ampleur,
-        headRotate: derive.rotate + tilt + nod.rotate + (g ? g.nodRotate + g.tilt : 0),
-        headX: derive.x + sway,
-        headY: derive.y + nod.y + nodEcoute + (g ? g.nodY + g.liftY : 0),
+        headRotate: derive.rotate * calme + tilt * (1 - blend) + nod.rotate + (g ? g.nodRotate + g.tilt : 0),
+        headX: derive.x * calme + sway,
+        headY: derive.y * calme + nod.y + nodEcoute + (g ? g.nodY + g.liftY : 0),
         // On cligne AUSSI en parlant : un visage qui ne cligne plus dès qu'il
         // parle se fige — constaté sur la vidéo du 04/09, où deux clignements
         // en 29 s ne suffisaient pas à convaincre.
-        // Clignements de la table, des saccades, ET ceux demandés dans les pauses de la voix.
-        eyelid: Math.max(blinkAmount(inputs.elapsedMs), blinkDemande),
+        // Au repos : clignements de la table et des saccades ; en parole : ceux
+        // que la voix demande (pauses, débuts de phrase), et eux seuls.
+        eyelid: Math.max(clignementTable, blinkDemande),
         jawOpen,
         mouthWidth: Number.isFinite(inputs.mouthWidth!)
             ? inputs.mouthWidth!

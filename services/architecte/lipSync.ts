@@ -86,9 +86,35 @@ export const ANALYSER_FFT_SIZE = 2048;
  * avance compense le retard de la chaîne (fenêtre de 46 ms centrée sur le
  * passé, image suivante, inertie de la lèvre). Sans elle, la bouche suivait
  * la voix avec ~160 ms de retard (mesuré le 04/09) ; à 60 ms, encore 34 ms
- * derrière le son entendu (mesuré le 05/09 dans la page réelle) : 90 ms.
+ * derrière le son entendu (mesuré le 05/09 dans la page réelle) — la chaîne
+ * vaut donc ~94 ms (`RENDER_LATENCY_MS`). S'y ajoutent l'avance VISUELLE
+ * voulue (`VISUAL_LEAD_MS`, les lèvres précèdent le son) et la fenêtre de
+ * coarticulation : 200 ms. Un cinquième de seconde de retard du son sur une
+ * réponse qui a déjà mis des secondes à venir ne se remarque pas ; une
+ * bouche en retard, si.
  */
-export const LIP_SYNC_LOOKAHEAD_MS = 90;
+export const LIP_SYNC_LOOKAHEAD_MS = 200;
+
+/**
+ * Retard de la chaîne d'affichage entre la lecture d'une forme et son
+ * apparition à l'écran : centre de la fenêtre d'analyse (~23 ms), image
+ * suivante, inertie de la lèvre. MESURÉ dans la page réelle le 05/09 par
+ * corrélation image par image (résolution ±34 ms) : 94 ms d'après deux
+ * mesures à 60 et 150 ms de retard du son, puis lecture à −46 ms qui donnait
+ * 101 ms d'avance. Retenu 80 ms : l'avance mesurée tombe alors entre 50 et
+ * 90 ms, la zone naturelle où les lèvres précèdent la voix.
+ */
+export const RENDER_LATENCY_MS = 80;
+
+/**
+ * Instant (horloge de l'appelant) auquel lire le tampon de formes pour qu'à
+ * l'écran la bouche PRÉCÈDE de `VISUAL_LEAD_MS` le son entendu : le son
+ * mesuré maintenant est entendu dans `heardDelayMs` ; la forme lue maintenant
+ * s'affiche dans `RENDER_LATENCY_MS`.
+ */
+export function mouthReadTime(now: number, heardDelayMs: number): number {
+    return now - heardDelayMs + VISUAL_LEAD_MS + RENDER_LATENCY_MS;
+}
 
 /** Amplitude efficace (RMS, 0..1) d'un tampon temporel flottant (−1..1), tampon vide compris. */
 export function rmsAmplitude(samples: ArrayLike<number>): number {
@@ -378,4 +404,101 @@ export function smoothMouthShape(previous: MouthShape, target: MouthShape, dtMs:
         closed: previous.closed + (target.closed - previous.closed) * k(MOUTH_CLOSED_MS),
         level: target.level,
     };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Anticipation et coarticulation : la bouche PRÉCÈDE le son, sans à-coups
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Sur un visage réel, les articulateurs bougent AVANT que le son sorte : la
+// mâchoire s'ouvre 50 à 100 ms avant la voyelle, les lèvres se joignent avant
+// le « p ». Une bouche exactement calée sur l'énergie du son paraît donc en
+// RETARD (Direction, 05/09 : « la voix part d'un côté, les lèvres de
+// l'autre »). Et une forme calculée image par image saute d'un visème à
+// l'autre : une vraie bouche glisse entre eux (coarticulation).
+//
+// Les deux se règlent avec la même mémoire : les formes brutes sont
+// conservées sur une courte durée ; la forme affichée est lue un peu EN
+// AVANCE sur le son entendu (`VISUAL_LEAD_MS`) et moyennée sur une fenêtre
+// triangulaire centrée (`COARTICULATION_WINDOW_MS`) — un lissage sans retard
+// de phase, possible parce que le son entendu est lui-même retardé
+// (`LIP_SYNC_LOOKAHEAD_MS`) ou, au montage, parce que tout le son est connu.
+
+/** La bouche est affichée ce nombre de millisecondes AVANT le son entendu. */
+export const VISUAL_LEAD_MS = 60;
+/** Demi-largeur de la fenêtre de coarticulation (ms). */
+export const COARTICULATION_WINDOW_MS = 40;
+/** Mémoire conservée par le tampon de formes (ms). */
+export const MOUTH_BUFFER_MS = 800;
+
+export interface MouthShapeSample {
+    at: number;
+    shape: MouthShape;
+}
+
+/**
+ * Tampon de formes horodatées. `push` à chaque mesure, `at(t)` pour lire la
+ * forme coarticulée à l'instant `t` (horloge de l'appelant). Pur, sans
+ * horloge interne : testable, et identique en temps réel comme au montage.
+ */
+export class MouthShapeBuffer {
+    private samples: MouthShapeSample[] = [];
+
+    /** `keepMs` : mémoire conservée — courte en temps réel, toute la phrase au montage. */
+    constructor(private readonly keepMs: number = MOUTH_BUFFER_MS) {}
+
+    push(at: number, shape: MouthShape): void {
+        if (!Number.isFinite(at)) return;
+        // Les mesures arrivent dans l'ordre ; une horloge qui recule repart de zéro.
+        const last = this.samples[this.samples.length - 1];
+        if (last && at < last.at) this.samples = [];
+        this.samples.push({ at, shape });
+        const limit = at - this.keepMs;
+        while (this.samples.length > 2 && this.samples[0].at < limit) this.samples.shift();
+    }
+
+    get size(): number {
+        return this.samples.length;
+    }
+
+    clear(): void {
+        this.samples = [];
+    }
+
+    /** Forme coarticulée à l'instant `t` : moyenne pondérée (triangle) des mesures à ± `windowMs`. */
+    at(t: number, windowMs: number = COARTICULATION_WINDOW_MS): MouthShape {
+        const n = this.samples.length;
+        if (n === 0) return MOUTH_AT_REST;
+        if (!Number.isFinite(t)) return this.samples[n - 1].shape;
+        // Avant la première mesure, le son n'avait pas commencé : repos, strictement.
+        if (t < this.samples[0].at) return MOUTH_AT_REST;
+        if (t > this.samples[n - 1].at + windowMs) return this.samples[n - 1].shape;
+        const acc = { open: 0, width: 0, teeth: 0, closed: 0, level: 0 };
+        let poids = 0;
+        let nearest = this.samples[n - 1];
+        let dist = Infinity;
+        for (const s of this.samples) {
+            const d = Math.abs(s.at - t);
+            if (d < dist) {
+                dist = d;
+                nearest = s;
+            }
+            if (d > windowMs) continue;
+            const w = 1 - d / (windowMs + 1e-9);
+            acc.open += s.shape.open * w;
+            acc.width += s.shape.width * w;
+            acc.teeth += s.shape.teeth * w;
+            acc.closed += s.shape.closed * w;
+            acc.level += s.shape.level * w;
+            poids += w;
+        }
+        if (poids <= 0) return nearest.shape;
+        return {
+            open: acc.open / poids,
+            width: acc.width / poids,
+            teeth: acc.teeth / poids,
+            closed: acc.closed / poids,
+            level: acc.level / poids,
+        };
+    }
 }

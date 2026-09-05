@@ -44,9 +44,9 @@ export const GESTURE_AT_REST: GestureState = {
 export const SYLLABLE_OPEN = 0.3;
 export const SYLLABLE_CLOSE = 0.12;
 /** Un temps fort ne se marque pas plus souvent que ça : au-delà, la tête sautille. */
-export const BEAT_MIN_GAP_MS = 420;
+export const BEAT_MIN_GAP_MS = 350;
 /** Niveau de voix à partir duquel une syllabe est un temps fort. */
-export const BEAT_LOUDNESS = 0.7;
+export const BEAT_LOUDNESS = 0.6;
 /** Silence avant une syllabe qui en fait un début de phrase. */
 export const PHRASE_GAP_MS = 500;
 /** Silence continu qui devient une pause (clignement, regard). */
@@ -54,7 +54,9 @@ export const PAUSE_MS = 240;
 /** Silence continu qui devient une fin de phrase (nouvelle inclinaison). */
 export const SENTENCE_END_MS = 650;
 /** Deux clignements demandés ne se suivent pas de plus près. */
-export const BLINK_MIN_GAP_MS = 2500;
+export const BLINK_MIN_GAP_MS = 1200;
+/** En parole, sans pause depuis ce délai, on cligne quand même à la fin d'une syllabe. */
+export const BLINK_MAX_GAP_MS = 4500;
 /** Un clignement de la table (ou d'une saccade) dans cette fenêtre suffit : pas de doublon dans une pause. */
 export const BLINK_RECENT_MS = 900;
 
@@ -161,27 +163,43 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
         if (open >= SYLLABLE_OPEN && !tr.open) {
             tr.open = true;
             tr.syllables += 1;
+            // Le clignement de secours se compte depuis le début de la parole.
+            if (tr.syllables === 1 && !Number.isFinite(tr.lastBlinkAt)) tr.lastBlinkAt = t;
             // Début de phrase : première syllabe, ou syllabe après un vrai silence.
             if (tr.syllables === 1 || t - tr.lastOnsetAt >= PHRASE_GAP_MS) {
                 tr.phraseIndex += 1;
                 const h = hash01(tr.phraseIndex * 7 + 3);
-                tr.browAmount = 0.3 + 0.3 * h;
-                tr.browUntil = t + 260 + 120 * h;
-                tr.liftUntil = t + 280;
+                tr.browAmount = 0.45 + 0.3 * h;
+                tr.browUntil = t + 300 + 150 * h;
+                tr.liftUntil = t + 320;
+                // Un orateur détourne souvent le regard en commençant une phrase
+                // (il cherche ses mots) et revient sur l'interlocuteur pour la
+                // finir : une phrase sur deux environ, côté et durée variables.
+                const r = hash01(tr.phraseIndex * 11 + 5);
+                if (r > 0.5) {
+                    tr.gazeTarget = { x: (r > 0.75 ? 1 : -1) * (0.45 + 0.3 * r), y: -0.25 - 0.2 * r };
+                    tr.gazeUntil = t + 350 + 250 * r;
+                }
             }
-            // Temps fort : trois sur quatre hochent, à des amplitudes différentes —
+            // Temps fort : quatre sur cinq hochent, à des amplitudes différentes —
             // jamais tous, jamais pareil.
             if (loud >= BEAT_LOUDNESS && t - tr.lastBeatAt >= BEAT_MIN_GAP_MS) {
                 tr.lastBeatAt = t;
                 const h = hash01(tr.syllables);
-                if (h > 0.25) {
-                    tr.nodAmount = 0.55 + 0.45 * h;
-                    tr.nodUntil = t + 120;
+                if (h > 0.2) {
+                    tr.nodAmount = 0.6 + 0.4 * h;
+                    tr.nodUntil = t + 130;
                 }
             }
             tr.lastOnsetAt = t;
         } else if (open <= SYLLABLE_CLOSE && tr.open) {
             tr.open = false;
+            // Trop longtemps sans cligner en parlant : on cligne à la fin d'une
+            // syllabe, jamais en pleine voyelle.
+            if (t - tr.lastBlinkAt >= BLINK_MAX_GAP_MS) {
+                tr.blinkStartedAt = t;
+                tr.lastBlinkAt = t;
+            }
         }
 
         if (loud < 0.06 && open < 0.1) {
@@ -195,15 +213,15 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
                     tr.blinkStartedAt = t + 40;
                     tr.lastBlinkAt = t;
                 }
-                if (h > 0.3) {
-                    tr.gazeTarget = { x: (h > 0.65 ? 1 : -1) * (0.35 + 0.25 * h), y: -0.2 - 0.15 * h };
+                if (h > 0.6) {
+                    tr.gazeTarget = { x: (h > 0.8 ? 1 : -1) * (0.35 + 0.25 * h), y: -0.2 - 0.15 * h };
                     tr.gazeUntil = t + 380 + 200 * h;
                 }
             }
             if (tr.silenceMs >= SENTENCE_END_MS && !tr.sentenceNoted) {
                 tr.sentenceNoted = true;
                 tr.tiltSign = -tr.tiltSign;
-                tr.tiltTarget = tr.tiltSign * (0.8 + 1.0 * hash01(tr.pauseIndex * 5 + 2));
+                tr.tiltTarget = tr.tiltSign * (1.2 + 1.0 * hash01(tr.pauseIndex * 5 + 2));
             }
         } else {
             tr.silenceMs = 0;
@@ -234,10 +252,12 @@ export function updateProsody(tr: ProsodyTracker, input: ProsodyInput): GestureS
     if (tr.blinkStartedAt !== null && t > tr.blinkStartedAt + BLINK_DURATION_MS + 50) tr.blinkStartedAt = null;
 
     // `+ 0` : jamais de -0 (les comparaisons d'égalité stricte le distinguent).
+    // Amplitudes VISIBLES (Direction, 05/09 : à 0,45 % du cadre, un hochement
+    // faisait deux pixels — invisible) : ~1 % du cadre et ~0,8° sur un temps fort.
     return {
-        nodY: tr.nodY.x * 0.45 + 0,
-        nodRotate: tr.nodR.x * 0.35 + 0,
-        liftY: -tr.lift.x * 0.3 + 0,
+        nodY: tr.nodY.x * 0.95 + 0,
+        nodRotate: tr.nodR.x * 0.8 + 0,
+        liftY: -tr.lift.x * 0.55 + 0,
         tilt: tr.tilt.x + 0,
         brow: tr.brow.x + 0,
         gazeX: tr.gazeX.x + 0,

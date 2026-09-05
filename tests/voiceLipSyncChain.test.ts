@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS, type MouthShape } from '../services/architecte/lipSync';
+import { ANALYSER_FFT_SIZE, LIP_SYNC_LOOKAHEAD_MS, RENDER_LATENCY_MS, VISUAL_LEAD_MS, type MouthShape } from '../services/architecte/lipSync';
 
 /**
  * Chaîne audio de la synchro labiale, telle que `voiceEngine` la construit
@@ -105,8 +105,10 @@ function reachesDestination(from: FakeNode, destination: FakeNode, seen = new Se
 }
 
 const frames: FrameRequestCallback[] = [];
-/** Joue une image d'animation : la boucle de mesure du moteur se réinscrit à chaque passage. */
-const image = () => { frames.splice(0).forEach((cb) => cb(performance.now())); };
+/** Horloge pilotée : le moteur lit `performance.now()` pour dater ses mesures. */
+let horloge = 0;
+/** Joue une image d'animation (16 ms) : la boucle de mesure du moteur se réinscrit à chaque passage. */
+const image = (n = 1) => { for (let i = 0; i < n; i += 1) { horloge += 16; frames.splice(0).forEach((cb) => cb(horloge)); } };
 
 const fakeSpeechSynthesis = {
     cancel: vi.fn(), speak: vi.fn(), pause: vi.fn(), resume: vi.fn(),
@@ -116,6 +118,8 @@ const fakeSpeechSynthesis = {
 const { voiceEngine } = await import('../services/voiceEngine');
 
 beforeEach(() => {
+    horloge = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => horloge);
     vi.stubGlobal('Audio', FakeAudio);
     vi.stubGlobal('AudioContext', FakeAudioContext);
     (window as any).AudioContext = FakeAudioContext;
@@ -167,15 +171,21 @@ describe('voiceEngine — chaîne audio de la synchro labiale (voix HD, tout fou
         expect(source.connections).toContain(ctx.analysers[0]);
         // JAMAIS MUETTE : un chemin mène de la source à la sortie…
         expect(reachesDestination(source, ctx.destination)).toBe(true);
-        // …par le retard qui donne l'avance à la bouche, latence de sortie déduite (60 − 20 ms).
+        // …par le retard qui donne l'avance à la bouche, latence de sortie déduite (200 − 20 ms).
         expect(ctx.delays).toHaveLength(1);
         expect(ctx.delays[0].delayTime.value).toBeCloseTo((LIP_SYNC_LOOKAHEAD_MS - 20) / 1000, 6);
         expect(source.connections).toContain(ctx.delays[0]);
         expect(reachesDestination(ctx.delays[0], ctx.destination)).toBe(true);
 
+        // ANTICIPATION : la forme publiée est lue (retard − avance visuelle − retard
+        // d'affichage) dans le passé, soit 46 ms. Avant ce délai, la bouche reste
+        // au repos ; ensuite la voyelle apparaît.
+        const retardBouche = LIP_SYNC_LOOKAHEAD_MS - VISUAL_LEAD_MS - RENDER_LATENCY_MS;
+        expect(retardBouche).toBeGreaterThan(0);
+        image(2); // 32 ms : rien encore
+        expect(formes.at(-1)!.open).toBe(0);
+        image(Math.ceil(retardBouche / 16) + 3);
         // Voyelle « a » franche → mâchoire ouverte (amplitude de parole, pas un cri), lèvres ni jointes ni dents.
-        image();
-        image();
         const a = formes.at(-1)!;
         expect(a.open).toBeGreaterThan(0.3);
         expect(a.open).toBeLessThanOrEqual(0.62);
@@ -185,22 +195,20 @@ describe('voiceEngine — chaîne audio de la synchro labiale (voix HD, tout fou
         // Fricative « s », faible : dents visibles, mâchoire presque close.
         FakeAudioContext.sample = 0.02;
         FakeAudioContext.spectre = 's';
-        image();
-        image();
+        image(Math.ceil(retardBouche / 16) + 6);
         const s = formes.at(-1)!;
         expect(s.teeth).toBeGreaterThan(0.5);
         expect(s.open).toBeLessThan(0.18);
         // Silence → lèvres jointes, niveau 0 (le spectre en octets dirait 200/255 : il n'est pas relu).
         FakeAudioContext.sample = 0;
         FakeAudioContext.spectre = 'silence';
-        image();
-        image();
+        image(Math.ceil(retardBouche / 16) + 6);
         expect(formes.at(-1)!.open).toBe(0);
         expect(formes.at(-1)!.closed).toBeGreaterThan(0.9);
         expect(niveaux.at(-1)).toBe(0);
         // Souffle du fichier → toujours close.
         FakeAudioContext.sample = 0.004;
-        image();
+        image(Math.ceil(retardBouche / 16) + 6);
         expect(formes.at(-1)!.open).toBe(0);
 
         // Fin de lecture : la bouche revient au repos et la boucle s'arrête.
@@ -226,11 +234,12 @@ describe('voiceEngine — chaîne audio de la synchro labiale (voix HD, tout fou
         await vi.waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
         const ctx = FakeAudioContext.instances[0];
         expect(ctx.delays[0].delayTime.value).toBe(0);
-        expect((voiceEngine as any).mouthDelayMs).toBeCloseTo(220 - LIP_SYNC_LOOKAHEAD_MS, 3);
-        // Les premières images ne publient rien : la forme est retenue le temps que le son arrive.
-        image();
-        image();
+        expect((voiceEngine as any).outputLatencyMs).toBeCloseTo(220, 3);
+        // Pendant (220 − 60 − 94) ms, la bouche reste au repos : le son n'est pas encore entendu.
+        image(3); // 48 ms
         expect(formes.filter((f) => f.open > 0)).toHaveLength(0);
+        image(5); // 128 ms : la voyelle est maintenant entendue
+        expect(formes.at(-1)!.open).toBeGreaterThan(0.3);
         FakeAudio.instances[0].onended?.();
         await lecture;
         off();

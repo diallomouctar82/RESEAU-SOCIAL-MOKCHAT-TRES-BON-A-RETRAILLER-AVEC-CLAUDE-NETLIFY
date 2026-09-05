@@ -7,7 +7,9 @@ import {
     ANALYSER_FFT_SIZE,
     LIP_SYNC_LOOKAHEAD_MS,
     MOUTH_AT_REST,
+    MouthShapeBuffer,
     createVoiceEnvelope,
+    mouthReadTime,
     mouthShapeFromBands,
     spectralBands,
     type MouthShape,
@@ -216,12 +218,13 @@ export class VoiceEngine {
     private outputSourceElement: HTMLAudioElement | null = null;
     private outputRafId: number | null = null;
     /**
-     * Retard à appliquer à la BOUCHE quand la sortie audio de l'appareil est
-     * plus lente que l'avance voulue (casque Bluetooth…) : sans lui, la bouche
-     * parlerait bien avant le son.
+     * Latence de sortie de l'appareil (ms), lue à la création de la chaîne :
+     * le son mesuré maintenant n'est entendu qu'après le retard volontaire
+     * (`LIP_SYNC_LOOKAHEAD_MS`) ou cette latence si elle est plus grande
+     * (casque Bluetooth…). La bouche est lue dans son tampon à l'instant
+     * entendu + l'avance visuelle : ni en avance folle, ni en retard.
      */
-    private mouthDelayMs = 0;
-    private mouthQueue: { at: number; shape: MouthShape }[] = [];
+    private outputLatencyMs = 0;
     private currentAudioUrl: string | null = null;
     private audioCache: Map<string, string> = new Map(); // Cache des URLs audio générées
     // JETON D'ANNULATION (Équipe V §3/§14) : la génération HD est asynchrone
@@ -1029,7 +1032,7 @@ export class VoiceEngine {
                 // la source sur l'analyseur REND LA VOIX MUETTE.
                 const ctxLatence = context as AudioContext & { outputLatency?: number };
                 const latenceSortieMs = Math.max(0, (Number.isFinite(ctxLatence.outputLatency!) ? ctxLatence.outputLatency! : context.baseLatency || 0) * 1000);
-                this.mouthDelayMs = Math.max(0, latenceSortieMs - LIP_SYNC_LOOKAHEAD_MS);
+                this.outputLatencyMs = latenceSortieMs;
                 const delay = context.createDelay(1);
                 delay.delayTime.value = Math.max(0, LIP_SYNC_LOOKAHEAD_MS - latenceSortieMs) / 1000;
                 source.connect(delay);
@@ -1053,8 +1056,11 @@ export class VoiceEngine {
         // Crête ré-étalonnée à chaque prise de parole : une voix plus douce
         // ouvre la bouche autant qu'une voix forte.
         const envelope = createVoiceEnvelope();
+        // Le son mesuré maintenant est entendu après ce délai : retard volontaire,
+        // ou latence de l'appareil si elle est plus grande.
+        const heardDelayMs = Math.max(LIP_SYNC_LOOKAHEAD_MS, this.outputLatencyMs);
+        const buffer = new MouthShapeBuffer();
         let lastAt = performance.now();
-        this.mouthQueue = [];
         const tick = () => {
             if (!this.outputAnalyser || !this.isSpeaking) {
                 this.outputRafId = null;
@@ -1064,17 +1070,11 @@ export class VoiceEngine {
             this.outputAnalyser.getFloatTimeDomainData(samples);
             this.outputAnalyser.getFloatFrequencyData(spectrum);
             const now = performance.now();
-            const shape = mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt);
+            buffer.push(now, mouthShapeFromBands(spectralBands(spectrum, samples, sampleRate), envelope, now - lastAt));
             lastAt = now;
-            if (this.mouthDelayMs < 8) {
-                this.publishMouth(shape);
-            } else {
-                // Sortie audio en retard sur l'avance voulue : la bouche attend le son.
-                this.mouthQueue.push({ at: now, shape });
-                let due: MouthShape | null = null;
-                while (this.mouthQueue.length && this.mouthQueue[0].at <= now - this.mouthDelayMs) due = this.mouthQueue.shift()!.shape;
-                if (due) this.publishMouth(due);
-            }
+            // Forme coarticulée lue pour qu'à l'écran les lèvres PRÉCÈDENT le son
+            // entendu (avance visuelle, retard d'affichage mesuré déduit).
+            this.publishMouth(buffer.at(mouthReadTime(now, heardDelayMs)));
             this.outputRafId = requestAnimationFrame(tick);
         };
         this.outputRafId = requestAnimationFrame(tick);
@@ -1094,7 +1094,6 @@ export class VoiceEngine {
             cancelAnimationFrame(this.outputRafId);
             this.outputRafId = null;
         }
-        this.mouthQueue = [];
         this.publishMouth(MOUTH_AT_REST);
     }
 
