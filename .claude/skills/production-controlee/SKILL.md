@@ -1,13 +1,18 @@
 ---
 name: production-controlee
 description: Méthode de référence Vision Smart pour conduire une évolution de MokNet jusqu'à la production contrôlée, zéro régression, preuve avant affirmation, producteur ≠ contrôleur. Validée par la Direction le 5 septembre 2026 (DEC-2026-058 et DEC-2026-061). À charger pour TOUTE mission qui touche le code livré. Réutilisable telle quelle ; améliorable seulement en plus strict, jamais en moins.
-version: 1.1.0
+version: 1.1.1
 canonical_key: visionsmart.moknet.methode.production-controlee
-type: METHODE
-status: VALIDATED
+type: METHOD
+status: ACTIVE
 validated_by: Direction Vision Smart, 5 septembre 2026 (« cette approche est validée et doit être conservée telle quelle, améliorable, seulement en mieux, jamais en moins strict »)
 provenance: PR #89 / #90 (bande « Aurore », DEC-2026-058) puis PR #93 / #94 (composeur A7 et studio Visuel IA B10, DEC-2026-061) sur diallomouctar82/RESEAU-SOCIAL-MOKCHAT-TRES-BON-A-RETRAILLER-AVEC-CLAUDE-NETLIFY
 source_uri: .claude/skills/production-controlee/SKILL.md
+ai_core_project_id: 6aeffdc5-e681-4ec4-ad36-7d9d71449d66
+ai_core_entry_id: 159f024b-4982-4b79-a07b-9a883c948739
+ai_core_versions: v1 ↔ compétence 1.0.0 (b613605e-4d36-47ea-bb15-c4f419521721) ; v2 ↔ compétence 1.1.1 (§ 7.6 inclus ; identifiant consigné dans docs/JOURNAL_DECISIONS.md, DEC-2026-074) ; historique complet via /v1/knowledge/{ai_core_entry_id}/history
+ai_core_proposal_id: 9985f324-6d57-4b72-ba48-40ffeb5522fd (première publication)
+ai_core_published_at: 2026-09-05T13:11:18Z
 ---
 
 # Production contrôlée — la méthode de référence
@@ -117,10 +122,10 @@ Cas concret (SAT-6-PROD, DEC-2026-059) : entre la fusion du code et la PR de mé
 - Le **bundle servi a pu changer plusieurs fois** : `curl -s https://moknet.net/ | grep -o 'assets/index-[^"]*\.js'`. L'ancien bundle de ta fusion est probablement **404** ; ta fonctionnalité est **portée** dans le bundle courant. Le prouver honnêtement plutôt que citer un bundle périmé : composant présent et **monté** dans l'arbre courant (`grep` du montage), **discriminateurs présents dans le bundle réellement servi** (`curl … | grep -a <libellé/testid>`), fonction Edge vivante (`curl` → 401 attendu si `verify_jwt`).
 
 **Isoler la correction, sans régression**
-- **Repartir de `origin/main`** : sauvegarder d'abord ton diff antérieur en patch (`git diff > <scratchpad>/…patch`), puis `git reset --hard origin/main`. Un diff bâti sur une base périmée re-couronnerait à tort — ne jamais le rejouer tel quel.
+- **Repartir de `origin/main`** : sauvegarder d'abord **tout** ton travail antérieur en patch (`git diff HEAD > <scratchpad>/…patch` — `HEAD` inclut les changements indexés, que `git diff` seul omet ; vérifier que le patch n'est pas vide) ou par `git stash push` / commit provisoire, puis seulement `git reset --hard origin/main`. Un diff bâti sur une base périmée re-couronnerait à tort — ne jamais le rejouer tel quel.
 - **Ne toucher qu'aux résidus de TON sujet.** Jamais re-couronner ta version comme « Courante » quand une plus récente l'est déjà ; jamais modifier l'entrée d'une autre équipe. La version passée reste « était en production contrôlée / remplacée par vX » — on corrige seulement son statut resté faux (« en fusion » → « fusionné, en production contrôlée »).
 - **Remplacement atomique tout-ou-rien** : un script qui, en passe 1, exige que **chaque** ancienne chaîne existe **exactement une fois** ; si une seule ne matche pas (0 ou >1), **rien n'est écrit** (pas d'application partielle, § 9.2). Passe 2 : remplacement. Passe 3 : post-vérification (0 résidu stale, 0 renvoi différé pendant). Cibler des sous-chaînes **mono-ligne** — les lignes-tableau sont géantes, éviter de matcher des sauts de ligne.
-- **Garde-fou d'isolation par word-diff** : `git diff --word-diff=porcelain -- docs/` ne doit montrer **aucun segment réellement changé** portant le marqueur d'une autre version. Une ligne-tableau géante qui **mentionne** une autre version des deux côtés (`-`/`+`) est bénigne tant que ce mot n'est pas dans un segment changé — le vérifier explicitement (`… | grep -E '^(\+|-)[^+-]' | grep -c '<autre-version>'` doit valoir 0).
+- **Garde-fou d'isolation par word-diff** : `git diff --word-diff=porcelain -- docs/` ne doit montrer **aucun segment réellement changé** portant le marqueur d'une autre version. Une ligne-tableau géante qui **mentionne** une autre version des deux côtés (`-`/`+`) est bénigne tant que ce mot n'est pas dans un segment changé — le vérifier explicitement (`… | grep -E '^(\+|-)[^+-]' | grep -c '<autre-version>'` doit valoir 0 ; `grep -c` rend le code 1 quand le compte vaut 0 : sous `set -e`, ajouter `|| true`).
 - **Remplir les renvois différés** au lieu de les laisser pendants : le « consigné par la PR suivante » devient le fait réel (bundle courant, preuve 🚀 du tableau de bord réel), au niveau de preuve honnête (§ 8).
 
 ## 8. Niveaux de preuve et formulations honnêtes
@@ -163,7 +168,8 @@ Intervention humaine indispensable → format ACTION REQUISE (action, plateforme
 
 | Version | Date | Changement | Sens |
 | :--- | :--- | :--- | :--- |
-| 1.0.0 | 5 septembre 2026 | Première consolidation à partir des missions DEC-2026-058 et DEC-2026-061, validées par la Direction. | Référence |
+| 1.0.0 | 5 septembre 2026 | Première consolidation à partir des missions DEC-2026-058 et DEC-2026-061, validées par la Direction. Publiée le même jour dans le registre Vision Smart AI Core (entrée `159f024b-4982-4b79-a07b-9a883c948739`, statut ACTIVE, version `b613605e-4d36-47ea-bb15-c4f419521721`, empreinte SHA-256 du contenu publié `57d5c24afa872e1602c99fef159062059e71d31b34fcb7a7f55e3f754e37aa08`). | Référence |
 | 1.1.0 | 5 septembre 2026 | Ajout § 7.6 : finalisation documentaire quand `main` a avancé — détecter un couronnement déplacé et des renvois différés ; correction isolée par reset sur `origin/main`, remplacement atomique tout-ou-rien, garde-fou d'isolation par word-diff, remplissage des renvois différés. Issu de SAT-6-PROD (DEC-2026-059). | Ajout (plus strict) |
+| 1.1.1 | 5 septembre 2026 | Précision issue de la revue indépendante menée avant la publication au registre : la sauvegarde qui précède `git reset --hard origin/main` (§ 7.6) se fait par `git diff HEAD` (les changements indexés étaient omis par `git diff` seul — perte prouvée en dépôt jetable) ou par `git stash push` / commit provisoire, patch non vide vérifié ; `grep -c` sous `set -e`. Publiée dans le registre Vision Smart AI Core comme version 2 de l’entrée `159f024b-4982-4b79-a07b-9a883c948739` (identifiant de version et empreinte consignés dans DEC-2026-074). | Précision (plus strict) |
 
 Toute version suivante indique « plus strict » ou « ajout » dans la colonne Sens ; « moins strict » est interdit.
