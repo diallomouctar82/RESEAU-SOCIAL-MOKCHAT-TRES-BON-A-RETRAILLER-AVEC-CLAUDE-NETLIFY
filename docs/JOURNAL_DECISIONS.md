@@ -1122,6 +1122,105 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
+### [DEC-2026-058] — 5 Septembre 2026
+
+* **Module(s)** : `Réseau MOC` (`components/SocialFeed.tsx`, carte d'accès
+  rapide sous le composeur), `index.html` (bloc « BANDE AURORE »),
+  `tests/accesRapideAurore.test.tsx`.
+* **Problème / Besoin initial** : la Direction a d'abord demandé dix
+  propositions visuelles de la bande d'accès rapide (sans code), en a retenu
+  la direction « Orbes lumineux », puis dix variantes sur cette base, et a
+  choisi la **variante 3 « Aurore »** avec une mission ciblée : «
+  implémenter et amener en production, de façon contrôlée, uniquement
+  l'option numéro trois Aurore, comme sur la capture. Ne rien toucher
+  d'autre. » Seize entrées dans un ordre imposé (Live, Équipe & Experts,
+  Campus & Éducation, Reels, Tribus, Croissance, Ma Story, Langues &
+  Immersion, Carrière & Accomplissement, Santé & Bien-être, Habitat &
+  Installation, Finance & Wallet, Mes Démarches, Mobilité & Expatriation,
+  Studio Créatif, Marché Mondial), chacune dans une orbe de cristal teintée
+  de sa propre couleur, en damier sur deux rangées de huit, l'orbe de la
+  section courante remplie. La carte RO-1 n'en affichait que sept, en
+  pastilles carrées.
+* **Options considérées** :
+  1. Recopier la maquette (HTML/CSS autonome) telle quelle dans le fil —
+     rejeté : elle ignorait les actions réelles (onglets internes du fil,
+     `onNavigate`) et le comportement « Fil d'actu » ; retenu : réécrire le
+     bloc RO-1 en gardant chaque action d'origine et en branchant les neuf
+     nouvelles entrées sur les identifiants d'onglet du menu latéral
+     (`languages`, `career`, `health`, `housing`, `wallet`,
+     `admin-procedures`, `world`, `studio`, `shop`), tous rendus par
+     `App.tsx`.
+  2. Adapter la bande à la largeur de l'écran (`@media`) — rejeté : la carte
+     fait 1 120 px à 1 440, 704 px à 1 024 mais **476 px** sur une tablette
+     de 820 px avec le menu latéral ouvert ; retenu : lire la largeur réelle
+     de la carte (`@container aurore`), avec un repli `@supports not` +
+     `@media (max-width: 639px)` pour les navigateurs d'avant 2023.
+  3. Marquer « Live » rempli en permanence, comme sur la capture — rejeté :
+     sur la capture, Live avait été cliqué ; dans l'application l'orbe
+     remplie est celle de la section réellement courante (Live en Live,
+     Reels en Reels…), rien n'est rempli sur le fil lui-même.
+  4. Garder la grille 4 × 4 sur téléphone (choix RO-1) — rejeté : seize
+     orbes en quatre rangées auraient poussé le fil sous l'écran ; retenu :
+     le rail horizontal aimanté de la variante approuvée, libellés courts.
+* **Décision finale** : bloc RO-1 remplacé par la bande « Aurore »
+  (`nav.aurore-bande` > `ul.aurore-rangee` > `li.aurore-item` >
+  `button.aurore-orbe`, mêmes `data-testid`) ; chaque bouton porte `--h`
+  (teinte en degrés : 196, 204, 212, 262, 14, 158, 330, 186, 230, 350, 150,
+  42, 200, 176, 280, 30), `--i` (phase) et `--t` (période 5 à 8 s) ;
+  `aria-label` = libellé complet, libellé court `aria-hidden` affiché sur
+  tablette et téléphone ; « Fil d'actu » = petit bouton au-dessus de la
+  liste, HORS de la grille, uniquement hors du fil (les seize orbes restent
+  seize, damier et phases inchangés). CSS : orbe de 54 px (48 sur tablette,
+  46 sur téléphone), verre teinté `hsl(var(--h) 80% 93%)`, icône
+  `hsl(var(--h) 55% 30%)`, halo porté par le bouton (`.aurore-orbe::before`)
+  qui respire (`aurore-halo`, transform + opacité), reflet au sol, damier
+  de 10 px sur les orbes paires, survol (soulèvement de 7 px, anneau, lueur
+  de l'icône) réservé à `(hover: hover) and (pointer: fine)`, orbe courante
+  remplie `hsl(var(--h) 70% 38%) → hsl(var(--h) 65% 28%)` avec icône
+  blanche (≥ 3:1 jusqu'en haut de l'orbe, teintes claires comprises), rail
+  aimanté dont les marges internes valent le fondu des bords (16 px) sous
+  480 px de largeur intérieure, tout arrêté sous `prefers-reduced-motion`.
+  Couche aqua régénérée (la règle `ring-cyan-300/70`, devenue orpheline,
+  disparaît). Dix tests dédiés.
+* **Contrôle indépendant** (producteur ≠ contrôleur) : une revue de code
+  indépendante a lu le diff, exécuté typage et tests, calculé les
+  contrastes et rendu « à corriger » (aucun bloquant, trois importants,
+  quatre mineurs) — tous corrigés puis revérifiés : (1) le halo `::before`
+  passait DEVANT l'orbe dès qu'elle était transformée (survol, appui) ;
+  porté par le bouton désormais ; (2) « Fil d'actu » s'insérait comme 17e
+  orbe et inversait tout le damier dès qu'une section était active ; sorti
+  de la grille ; (3) icône blanche à 1,7–2,5:1 sur les orbes actives
+  Croissance/Live ; clartés 38 → 28 % et reflets atténués ; (4) fondu du
+  rail qui estompait la première et la dernière orbe en butée ; (5)
+  commentaires des seuils `@container` (largeur intérieure, pas largeur de
+  carte) ; (6) anneau de focus bicolore ; (7) tests : unicité des seize
+  teintes, Ma Story, Reels/Croissance, `type="button"`, repli `@supports`.
+  Livré par la PR #89 (branche `claude/cleanup-home-interface-szp8qv`) :
+  typage 0 erreur, 1104/1104 tests (78 fichiers), build OK, captures
+  avant/après mesurées à 1440×900, 820×1180 et 390×844
+  (`docs/captures/2026-09-05-reseau-bande-aurore/`).
+* **Production** : la mission de la Direction vaut feu vert écrit («
+  implémenter et amener en production, de façon contrôlée […] Livrable :
+  production en place, lien de prod »). PR #89 fusionnée en squash →
+  `main` `6f9d062` le 5/09/2026 à 09:57 UTC, après Green Gate vert sur la
+  tête finale `2bbe45f` (run 33959258373) et contre-vérification
+  indépendante « PRÊT » ; Green Gate vert sur `main` (run 33959347666).
+  **Contrôle post-déploiement** : `moknet.net` sert `index-CgZyiRwk.js`
+  depuis 09:57:56 UTC (même bundle que le preview contrôlé de la PR), la
+  page servie porte le bloc « BANDE AURORE (DEC-2026-058) », `@keyframes
+  aurore-halo` et les deux `@container aurore`, le bundle contient
+  `aurore-orbe`, `aurore-retour`, les seize libellés, `admin-procedures`
+  et « Fil d'actu », l'ancienne grille RO-1 en est absente, l'ancien
+  bundle `index-6F5PzUd7.js` répond 404 ; miroir local de la production
+  ouvert dans Chromium (ordinateur et téléphone) : racine React montée,
+  règles `.aurore-bulle` et orbe courante, keyframes et conteneurs
+  analysés par le navigateur, aucune erreur JS applicative.
+* **Statut** : 🟢 DÉPLOYÉ ET VÉRIFIÉ EN PRODUCTION CONTRÔLÉE (5/09/2026,
+  09:58 UTC). Le contrôle visuel final dans l'application appartient à la
+  Direction.
+
+---
+
 ### [DEC-2026-057] — 5 Septembre 2026
 
 * **Module(s)** : `Super-Admin / Santé Globale` (`components/admin/AdminHealthTab.tsx`,
@@ -2088,7 +2187,7 @@ Chaque décision respecte le formalisme strict suivant :
 
 ---
 
-### [DEC-2026-058] — 4 Septembre 2026
+### [DEC-2026-059] — 4 Septembre 2026
 * **Module(s)** : `Gouvernance Vision Smart AI Core`, `Console d'administration (Orchestrateur IA)`, `Observabilité`.
 * **Problème / Besoin initial** : AI Core était une **boîte noire** pour
   l'Administrateur Général — impossible de voir ce qui tourne, ce qui est
@@ -2198,10 +2297,10 @@ Chaque décision respecte le formalisme strict suivant :
   `deploy/preview/netlify.toml`, `tests/aiCoreControlTower.test.tsx` (15 tests),
   `docs/TOUR_DE_CONTROLE_AI_CORE.md`, montage dans
   `components/admin/AiOrchestrator.tsx`.
-* **Preuves** : `tsc` 0 · **vitest 1109/1109 (78 fichiers)** après huit remises à
+* **Preuves** : `tsc` 0 · **vitest 1119/1119 (79 fichiers)** après neuf remises à
   niveau sur `main` (PR #69, #73, #74/#75, #76/#77/#78/#80, #79, #81,
-  #83/#84/#85, puis #86/#87) · `npm run build` propre · Green Gate **vert** sur
-  `ef75008`, relancé sur le HEAD courant ·
+  #83/#84/#85, #86/#87, puis #89/#90) · `npm run build` propre · Green Gate
+  **vert** sur `5db5603`, relancé sur le HEAD courant ·
   séquence du Green Gate rejouée en local sur un dépôt **sans manifeste**
   (conditions d'un checkout propre) · lien public de prévisualisation
   `https://moknet-tour-de-controle-ai-core.netlify.app` sur un site Netlify
