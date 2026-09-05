@@ -93,7 +93,7 @@ vi.mock('../components/LiveReplayModal', () => ({ LiveReplayModal: () => null })
 vi.mock('../components/ui/ShareButton', () => ({ ShareButton: () => null }));
 vi.mock('../components/growth/GrowthDashboard', () => ({ GrowthDashboard: () => null }));
 
-import { SocialFeed } from '../components/SocialFeed';
+import { SocialFeed, buildDefaultLiveStream } from '../components/SocialFeed';
 import {
     executeCapability,
     listExecutableCapabilityIds,
@@ -223,5 +223,48 @@ describe('G1→G3 — reprise d\'une intention posée AVANT le montage du fil', 
         expect(onOpenLive).not.toHaveBeenCalled();
         expect(getPendingCapabilityIntent()).toBeNull();
         off();
+    });
+});
+
+describe('LV-2 (assainissement) L1 — buildDefaultLiveStream : lancer en un bouton, public et immédiat', () => {
+    const USER = { id: 'u-42', name: 'Awa', avatarUrl: 'https://img/awa.png' };
+
+    it('public par défaut : jamais privé, aucune liste d\'invités imposée', () => {
+        const live = buildDefaultLiveStream(USER);
+        expect(live.type).toBe('public');
+        expect(live.isPrivate).toBe(false);
+        expect(live.allowedMemberIds).toEqual([]);
+    });
+
+    it('immédiat : démarré maintenant, jamais programmé, jamais payant', () => {
+        const before = Date.now();
+        const live = buildDefaultLiveStream(USER);
+        expect(live.isScheduled).toBe(false);
+        expect(live.isPaid).toBe(false);
+        expect(live.startedAt instanceof Date).toBe(true);
+        expect((live.startedAt as Date).getTime()).toBeGreaterThanOrEqual(before - 1000);
+    });
+
+    it('objectif optionnel : titre par défaut si rien n\'est saisi', () => {
+        expect(buildDefaultLiveStream(USER).title).toBe('Direct de Awa');
+    });
+
+    it('objectif optionnel : le titre saisi est honoré (et nettoyé des espaces)', () => {
+        expect(buildDefaultLiveStream(USER, { title: '  Santé mentale  ' }).title).toBe('Santé mentale');
+    });
+
+    it('un titre vide/espaces retombe sur le défaut, jamais un titre vide', () => {
+        expect(buildDefaultLiveStream(USER, { title: '   ' }).title).toBe('Direct de Awa');
+    });
+
+    it('l\'animateur du direct est bien la personne courante (host)', () => {
+        const live = buildDefaultLiveStream(USER);
+        expect(live.hostName).toBe('Awa');
+        expect(live.speakers?.find(s => s.role === 'host')?.id).toBe('u-42');
+    });
+
+    it('sans id de compte : repli déterministe sur u1 (jamais un host anonyme)', () => {
+        const live = buildDefaultLiveStream({ name: 'Sans Id', avatarUrl: '' });
+        expect(live.speakers?.find(s => s.role === 'host')?.id).toBe('u1');
     });
 });
