@@ -99,7 +99,7 @@ export const LiveInviteModal: React.FC<LiveInviteModalProps> = ({
                     onClick={() => onInviteFriend(f.id)}
                     disabled={etat === 'sending' || etat === 'sent'}
                     data-testid={`live-invite-send-${f.id}`}
-                    className={`live-orb ${etat === 'sent' ? 'live-orb--active' : ''} !rounded-xl px-3 py-1.5 text-[11px] font-bold flex items-center gap-1.5 whitespace-nowrap disabled:opacity-70`}
+                    className={`live-orb ${etat === 'sent' ? 'live-orb--active' : ''} !rounded-xl px-3 py-1.5 min-h-[44px] text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-70`}
                 >
                     {etat === 'sending' && <><Loader2 size={12} className="animate-spin" /> Envoi…</>}
                     {etat === 'sent' && <><Check size={12} /> Invité</>}
