@@ -1,4 +1,4 @@
-# Assistant IA Pré-Publication : panneau toujours dans l'écran sur téléphone (DEC-2026-082, v6.42.1)
+# Assistant IA Pré-Publication : panneau toujours dans l'écran sur téléphone (DEC-2026-082, v6.42.2)
 
 Constat de la Direction (5 septembre 2026) : « Quand j'écris un message puis que j'appuie sur "améliorer", le panneau assistant / pré-publication s'ouvre trop grand et sort du cadre. L'utilisateur ne doit pas avoir à rétrécir manuellement. Il faut que le panneau soit dimensionné correctement sur tous les téléphones, avec défilement interne si besoin, mais toujours dans l'écran, et les boutons importants doivent rester visibles et utilisables. »
 

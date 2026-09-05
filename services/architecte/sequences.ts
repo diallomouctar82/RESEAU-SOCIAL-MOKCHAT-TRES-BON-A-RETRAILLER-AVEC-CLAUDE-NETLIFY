@@ -109,18 +109,29 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     portraitUrl: '/architecte/architecte.webp',
     captionsUrl: '/architecte/vision-smart-heygen.fr.vtt',
     durationMs: 9082,
+    // Bande sombre corrigée (Direction, 05/09/2026, v6.42.1) : la photo validée
+    // n'a pas de marge au-dessus du crâne, le modèle HeyGen portait donc la bande
+    // noire du portrait cadré (lignes 0 à 88 sur 720). Sans nouveau crédit, la
+    // zone de bande de chacune des 228 images générées a été recomposée sur le
+    // portrait d'usine corrigé (prolongement adouci du fond) à travers la
+    // silhouette du détourage — poids 1 jusqu'à la ligne 92, 0 à partir de la
+    // ligne 112, la silhouette n'entrant jamais avant la ligne 115 (revue
+    // indépendante : la rampe ne mord plus sur la bande, écart ligne à ligne
+    // < 1,5 entre 10 et 14 % de la hauteur). Le reste des pixels HeyGen et le
+    // son AAC sont inchangés ; ré-encodage H.264 crf 18 / VP9 en 227 images
+    // (`-shortest` sur la piste son de 9,08 s, comme les vidéos détourées).
     sources: [
         {
             url: '/architecte/vision-smart-heygen.mp4',
             type: 'video/mp4',
-            sha256: 'c97e18315c4e7c67bfc7e0499b634d2ddb00dd8ffac3d0840dd8c521b20ea87a',
-            sizeBytes: 1558047,
+            sha256: 'b049d042c13e2be56b771656833ba000e71e3903f449f29ab6db78eeb8da20d2',
+            sizeBytes: 1391269,
         },
         {
             url: '/architecte/vision-smart-heygen.webm',
             type: 'video/webm',
-            sha256: '69bde4022b6f0a19620eb3f83f880ebbac35843d023fe5687489e059acf079a4',
-            sizeBytes: 445523,
+            sha256: 'b96135caf4fdb36f6b78e0703dc691c6e289a369d61759d177733cb69464c7a4',
+            sizeBytes: 561306,
         },
     ],
     // Détourage image par image (05/09/2026, photo validée) : silhouette relevée
@@ -144,7 +155,8 @@ export const ARCHITECTE_PRESENTATION: ArchitecteSequence = {
     provider: 'heygen',
     model: {
         // Le portrait d'usine = la photo validée par la Direction (05/09/2026),
-        // cadrée par le moteur de l'option Super-Admin (768 px).
+        // cadrée par le moteur de l'option Super-Admin (768 px), le débord du haut
+        // comblé par le prolongement adouci du fond (v6.42.1).
         portraitUrl: '/architecte/architecte.webp',
         voice: 'Voix attitrée de l’Architecte — ElevenLabs « George » (eleven_multilingual_v2), la même que la barre flottante, enregistrée le 05/09/2026 sur la phrase officielle',
         settings: { aspectRatio: '1:1', resolution: '720p', expressiveness: 'medium', fit: 'contain' },
