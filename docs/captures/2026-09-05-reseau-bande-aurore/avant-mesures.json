@@ -1,0 +1,119 @@
+{
+  "ordinateur": {
+    "boutons": 7,
+    "libelles": [
+      "Live",
+      "Équipe & Experts",
+      "Campus & Éducation",
+      "Reels",
+      "Tribus",
+      "Croissance",
+      "Ma Story"
+    ],
+    "actifs": [],
+    "bande": {
+      "largeur": 1120,
+      "hauteur": 113,
+      "top": 111
+    },
+    "parRangee": 7,
+    "decalage": 0,
+    "orbe": null,
+    "libelleVisible": [
+      "Équipe & Experts"
+    ],
+    "debordeX": false,
+    "rangeeScrollable": false,
+    "teintes": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "police": "\"Plus Jakarta Sans\"",
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "tablette": {
+    "boutons": 7,
+    "libelles": [
+      "Live",
+      "Équipe & Experts",
+      "Campus & Éducation",
+      "Reels",
+      "Tribus",
+      "Croissance",
+      "Ma Story"
+    ],
+    "actifs": [],
+    "bande": {
+      "largeur": 500,
+      "hauteur": 138,
+      "top": 143
+    },
+    "parRangee": 7,
+    "decalage": 0,
+    "orbe": null,
+    "libelleVisible": [
+      "Équipe & Experts"
+    ],
+    "debordeX": false,
+    "rangeeScrollable": false,
+    "teintes": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "police": "\"Plus Jakarta Sans\"",
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  },
+  "telephone": {
+    "boutons": 7,
+    "libelles": [
+      "Live",
+      "Équipe & Experts",
+      "Campus & Éducation",
+      "Reels",
+      "Tribus",
+      "Croissance",
+      "Ma Story"
+    ],
+    "actifs": [],
+    "bande": {
+      "largeur": 358,
+      "hauteur": 202,
+      "top": 61
+    },
+    "parRangee": 4,
+    "decalage": 0,
+    "orbe": null,
+    "libelleVisible": [
+      "Équipe & Experts"
+    ],
+    "debordeX": false,
+    "rangeeScrollable": false,
+    "teintes": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "police": "\"Plus Jakarta Sans\"",
+    "erreursJS": [
+      "console: Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/5644273861001216."
+    ]
+  }
+}
